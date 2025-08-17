@@ -15,6 +15,8 @@ class ProgrammingLanguage(str, Enum):
     TYPESCRIPT = "TYPESCRIPT"
     PHP = "PHP"
     RUBY = "RUBY"
+    SCALA = "SCALA"
+    KOTLIN = "KOTLIN"
 
 
 class ProjectBasicInformation(BaseModel):
@@ -76,14 +78,7 @@ class DependencyTag(str, Enum):
     CONFIG = "Config"
 
     # DevOps
-    DEVOPS = "DEVOPS"
-
-
-class DependencyModifiers(str, Enum):
-    INBOUND = "Inbound"
-    OUTBOUND = "Outbound"
-    ASYNC = "Async"
-    SYNC = "Sync"
+    DEVOPS = "DevOps"
 
 
 class DependencyInformation(BaseModel):
@@ -91,19 +86,21 @@ class DependencyInformation(BaseModel):
         description="The package or library name, as specified in the dependency file (e.g., requirements.txt, pyproject.toml, package.json)."
     )
     version: Optional[str] = Field(
-        description="The package version, if explicitly specified (e.g., '1.2.3'). Can be omitted if the version is not pinned or is resolved automatically."
+        description="The package or library version, if explicitly specified (e.g., '1.2.3'). Can be omitted if the version is not pinned or is resolved automatically."
+    )
+    description: Optional[str] = Field(
+        description="Brief description of what this dependency is used for. Can be omitted if not sure"
     )
     tags: list[DependencyTag] = Field(
+        default_factory=list,
         description=(
             "A list of categories (DependencyTag) describing the role of this dependency. "
             "Multiple tags may apply simultaneously to reflect different aspects, "
             "such as web framework, security, database interaction, cloud storage, etc."
         )
     )
-    modifiers: Optional[list[DependencyModifiers]] = Field(
-        description=(
-            "Optional modifiers describing the direction or context of usage. "
-            "For example, 'Inbound' may indicate the dependency is primarily used for handling incoming requests, "
-            "while 'Outbound' may indicate it is used for making external calls."
-        )
+
+class ProjectDependencies(BaseModel):
+    dependencies: list[DependencyInformation] = Field(
+        default_factory=list, description="list of project dependencies"
     )

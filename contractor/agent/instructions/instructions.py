@@ -6,4 +6,3 @@ contract_analysis_global: Final[str] = (
     "accurate OpenAPI specification (formerly Swagger) based on observed behavior, parameters, "
     "request/response schemas, security requirements, and code-level annotations."
 )
-

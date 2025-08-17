@@ -6,4 +6,5 @@ __all__ = [
     "DependencyTag",
     "DependencyModifiers",
     "DependencyInformation",
+    "ProjectDependencies",
 ]
