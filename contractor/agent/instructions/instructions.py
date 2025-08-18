@@ -85,5 +85,41 @@ When analyzing dependencies, assign tags based on the role of the library:
     - Examples: `aws-secretsmanager`, `vault`, `google-cloud-secret-manager`, `azure-keyvault`.
     - Tag: `secrets`
 
-You need to provide output in JSON with specified format
+You need to provide output in JSON as follows:
+
+```json
+ {
+  "dependencies": [
+    {
+      "name": "boto3",
+      "version": "1.34.10",
+      "description": "AWS SDK for Python",
+      "tags": [
+        "s3",
+        "secrets",
+        "authentication"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "42.0.5",
+      "description": "Python cryptography toolkit",
+      "tags": [
+        "cryptography",
+        "security"
+      ]
+    },
+    {
+      "name": "spring-security",
+      "version": "6.1.2",
+      "description": "Spring Security framework for authentication and authorization",
+      "tags": [
+        "security",
+        "authentication",
+        "authorization"
+      ]
+    }
+  ]
+}
+```
 """

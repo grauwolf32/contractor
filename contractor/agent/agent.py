@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -48,7 +49,7 @@ def save_dependencies(
     callback_context: callback_context_module.CallbackContext,
 ) -> Optional[types.Content]:
     """Prints the current state of the callback context."""
-    project_dependencies = callback_context.state.get("project_dependencies", "")
+    project_dependencies = callback_context.state.get("project_dependencies", {}).get("dependencies", [])
 
     for i in range(len(project_dependencies)):
         project_dependencies[i]["tags"] = list(
@@ -75,12 +76,20 @@ dependency_gathering_agent = LlmAgent(
     tools=[cyclonedx_tool],
 )
 
-dependency_formatter_agent = LlmAgent(
-    name="dependency_formatter_agent",
-    global_instruction=contract_analysis_global,
+dependency_filtering_agent = LlmAgent(
+    model=AGENT_MODEL,
+    name="dependency_filtering_agent",
     instruction=dependency_analysis_instructions,
+)
+
+dependency_formatter_agent = LlmAgent(
+    model=AGENT_MODEL,
+    name="dependency_formatter_agent",
+    instruction=(
+        "Format information as JSON according to provided JSON schema"
+    ),
     output_schema=ProjectDependencies,
-    output_key="project_dependencies",
+    output_key="project_dependencies"
 )
 
 dependency_analysis_agent = SequentialAgent(
@@ -88,8 +97,24 @@ dependency_analysis_agent = SequentialAgent(
     description=(
         "An agent to gather information on project dependencies, library used and imported functions."
     ),
-    sub_agents=[dependency_gathering_agent, dependency_formatter_agent],
-    after_agent_callback=save_dependencies,
+    sub_agents=[dependency_gathering_agent, dependency_filtering_agent, dependency_formatter_agent],
+)
+
+swe_agent = LlmAgent(
+    model=AGENT_MODEL,
+    name="swe_agent",
+    description="professional software engineer",
+    instruction=(
+        "You are professional software engineer. Your goal is to complete task your are assigned."
+    ),
+    tools=[serena_mcp_tools()],
+)
+
+some_agent = Agent(
+    name="project_analysis_agent",
+    model=AGENT_MODEL,
+    instruction=contract_analysis_global,
+    tools=[AgentTool(dependency_analysis_agent), AgentTool(swe_agent)],
 )
 
 root_agent = Agent(

@@ -33,64 +33,17 @@ class ProjectBasicInformation(BaseModel):
     )
 
 
-class DependencyTag(str, Enum):
-    # Web / UI
-    WEB_FRAMEWORK = "framework"
-    UI = "ui"
-    TEMPLATING = "templating"
-
-    # Security
-    SECURITY = "security"
-    CRYPTOGRAPHY = "cryptography"
-    AUTHN = "authentication"
-    AUTHZ = "authorization"
-    SECRET_MANAGEMENT = "secrets"
-
-    # Parsers
-    FORMAT_PARSING = "parsing"
-
-    # Interactions
-    EXTERNAL_API = "ExternalAPI"
-    DATABASE = "database"
-    CACHE = "cache"
-    MESSAGE_QUEUE = "queue"
-    FILESYSTEM = "Filesystem"
-    OPERATING_SYSTEM = "os"
-
-    # Protocols / APIs
-    HTTP = "http"
-    GRPC = "grpc"
-    GRAPHQL = "grapql"
-    SOAP = "soap"
-    WEBSOCKET = "websocket"
-
-    # Storage / Cloud
-    S3 = "s3"
-
-    # ML
-    ML = "ml"
-
-    # Observability / Config
-    LOGGING = "logging"
-    METRICS = "metrics"
-    TRACING = "tracing"
-    CONFIG = "config"
-
-    # DevOps
-    DEVOPS = "devops"
-
-
 class DependencyInformation(BaseModel):
     name: str = Field(
         description="The package or library name, as specified in the dependency file (e.g., requirements.txt, pyproject.toml, package.json)."
     )
-    version: Optional[str] = Field(
+    version: str = Field(
         description="The package or library version, if explicitly specified (e.g., '1.2.3'). Can be omitted if the version is not pinned or is resolved automatically."
     )
-    description: Optional[str] = Field(
+    description: str = Field(
         description="Brief description of what this dependency is used for. Can be omitted if not sure"
     )
-    tags: list[DependencyTag] = Field(
+    tags: list[str] = Field(
         default_factory=list,
         description=(
             "A list of categories (DependencyTag) describing the role of this dependency. "
