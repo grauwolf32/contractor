@@ -12,11 +12,12 @@ from google.genai import types
 from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
 
-from contractor.agent.instructions import contract_analysis_global
+from contractor.agent.instructions import (contract_analysis_global,
+                                           dependency_analysis_instructions)
 from contractor.agent.models.project_analysis import (ProjectBasicInformation,
                                                       ProjectDependencies)
 from contractor.helpers import Settings
-from contractor.tools import serena_mcp_tools
+from contractor.tools import cyclonedx_tool, serena_mcp_tools
 
 
 class AgentConfig(Settings):
@@ -48,6 +49,11 @@ def save_dependencies(
 ) -> Optional[types.Content]:
     """Prints the current state of the callback context."""
     project_dependencies = callback_context.state.get("project_dependencies", "")
+
+    for i in range(len(project_dependencies)):
+        project_dependencies[i]["tags"] = list(
+            set(project_dependencies[i].get("tags", []))
+        )
     temp_dir = config.temp_dir
 
     if not os.path.exists(temp_dir):
@@ -63,20 +69,16 @@ dependency_gathering_agent = LlmAgent(
     model=AGENT_MODEL,
     instruction=(
         "You need to determine all of the project’s dependencies"
-        "— specifically which libraries are used and which functions "
-        "from those libraries are called within the project."
+        "Use tool called `cyclonedx_tool` to get project dependencies"
     ),
     input_schema=CodeAnalysisInputSchema,
-    tools=[serena_mcp_tools()],
+    tools=[cyclonedx_tool],
 )
 
 dependency_formatter_agent = LlmAgent(
     name="dependency_formatter_agent",
-    instruction=(
-        "You need to determine all of the project’s dependencies"
-        "— specifically which libraries are used and format "
-        "output as JSON according to provided schema"
-    ),
+    global_instruction=contract_analysis_global,
+    instruction=dependency_analysis_instructions,
     output_schema=ProjectDependencies,
     output_key="project_dependencies",
 )
@@ -89,7 +91,6 @@ dependency_analysis_agent = SequentialAgent(
     sub_agents=[dependency_gathering_agent, dependency_formatter_agent],
     after_agent_callback=save_dependencies,
 )
-
 
 root_agent = Agent(
     name="project_analysis_agent",

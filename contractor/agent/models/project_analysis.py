@@ -35,54 +35,53 @@ class ProjectBasicInformation(BaseModel):
 
 class DependencyTag(str, Enum):
     # Web / UI
-    WEB_FRAMEWORK = "WebFramework"
-    UI = "UI"
-    TEMPLATING = "Templating"
-    I18N = "Internationalization"
+    WEB_FRAMEWORK = "framework"
+    UI = "ui"
+    TEMPLATING = "templating"
 
     # Security
-    SECURITY = "Security"
-    CRYPTOGRAPHY = "Cryptography"
-    AUTHN = "Authentication"
-    AUTHZ = "Authorization"
-    SECRET_MANAGEMENT = "SecretManagement"
+    SECURITY = "security"
+    CRYPTOGRAPHY = "cryptography"
+    AUTHN = "authentication"
+    AUTHZ = "authorization"
+    SECRET_MANAGEMENT = "secrets"
 
     # Parsers
-    FORMAT_PARSING = "Parsing"
+    FORMAT_PARSING = "parsing"
 
     # Interactions
     EXTERNAL_API = "ExternalAPI"
-    DATABASE = "Database"
-    CACHE = "Cache"
-    MESSAGE_BROKER = "MessageBroker"
+    DATABASE = "database"
+    CACHE = "cache"
+    MESSAGE_QUEUE = "queue"
     FILESYSTEM = "Filesystem"
-    OPERATING_SYSTEM = "OperatingSystem"
+    OPERATING_SYSTEM = "os"
 
     # Protocols / APIs
-    HTTP = "HTTP"
-    GRPC = "gRPC"
-    GRAPHQL = "GraphQL"
-    SOAP = "SOAP"
-    WEBSOCKET = "WebSocket"
+    HTTP = "http"
+    GRPC = "grpc"
+    GRAPHQL = "grapql"
+    SOAP = "soap"
+    WEBSOCKET = "websocket"
 
     # Storage / Cloud
-    S3 = "S3"
+    S3 = "s3"
 
     # ML
-    ML = "ML"
+    ML = "ml"
 
     # Observability / Config
-    LOGGING = "Logging"
-    METRICS = "Metrics"
-    TRACING = "Tracing"
-    CONFIG = "Config"
+    LOGGING = "logging"
+    METRICS = "metrics"
+    TRACING = "tracing"
+    CONFIG = "config"
 
     # DevOps
-    DEVOPS = "DevOps"
+    DEVOPS = "devops"
 
 
 class DependencyInformation(BaseModel):
-    package: str = Field(
+    name: str = Field(
         description="The package or library name, as specified in the dependency file (e.g., requirements.txt, pyproject.toml, package.json)."
     )
     version: Optional[str] = Field(
@@ -97,8 +96,9 @@ class DependencyInformation(BaseModel):
             "A list of categories (DependencyTag) describing the role of this dependency. "
             "Multiple tags may apply simultaneously to reflect different aspects, "
             "such as web framework, security, database interaction, cloud storage, etc."
-        )
+        ),
     )
+
 
 class ProjectDependencies(BaseModel):
     dependencies: list[DependencyInformation] = Field(

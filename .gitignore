@@ -1,4 +1,5 @@
 .venv/*
+session.db
 *.pyc
 */__pycache__/*
 __pycache__/*
