@@ -1,22 +1,7 @@
 from enum import Enum
-from typing import Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
-
-class ProgrammingLanguage(str, Enum):
-    CPP = "cpp"
-    C = "c"
-    GO = "go"
-    RUST = "rust"
-    PYTHON = "python"
-    JAVA = "java"
-    JAVASCRIPT = "js"
-    TYPESCRIPT = "ts"
-    PHP = "php"
-    RUBY = "ruby"
-    SCALA = "scala"
-    KOTLIN = "kotlin"
 
 
 class DependencyInformation(BaseModel):
@@ -43,7 +28,7 @@ class ProjectInformation(BaseModel):
     project_dir: str = Field(
         title="Project directory", description="Project folder for analysis"
     )
-    language: ProgrammingLanguage = Field(
+    language: Literal["cpp", "c", "go", "rust", "python", "java", "js", "ts", "php", "ruby", "scala", "kotlin"] = Field(
         title="Programming language",
         description="The selected programming language for implementing the project",
     )

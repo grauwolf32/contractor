@@ -9,7 +9,7 @@ that are used for interaction with external services.
 
 Use tool called `cyclonedx_tool` to get project dependencies.
 
-When analyzing dependencies, assign tags based on the role of the dependency:
+When analyzing dependencies, assign tags based on the role of the dependency (you can decide, which tags to add to existing list):
 
 1. HTTP Clients / Servers
     - Used for calling or exposing REST APIs.
