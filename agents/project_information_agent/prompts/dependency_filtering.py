@@ -1,17 +1,16 @@
 from typing import Final
 
-contract_analysis_global: Final[str] = (
-    "You are Professional Software Engineer."
-    "Analyze provided source code to derive API endpoints and generate a structured, "
-    "accurate OpenAPI specification (formerly Swagger) based on observed behavior, parameters, "
-    "request/response schemas, security requirements, and code-level annotations."
-)
-
-dependency_analysis_instructions: Final[
+dependency_filtering_instructions: Final[
     str
 ] = """
-Your goal is to filter out only those dependencies that are used for interaction with external services, then classify them by integration type.
-When analyzing dependencies, assign tags based on the role of the library:
+You are professional software engineer.
+You goal is to collect information about project dependencies and filter out only those dependencies,
+that are used for interaction with external services.
+
+Use tool called `cyclonedx_tool` to get project dependencies.
+
+When analyzing dependencies, assign tags based on the role of the dependency:
+
 1. HTTP Clients / Servers
     - Used for calling or exposing REST APIs.
     - Examples: `requests`, `httpx`, `aiohttp`, `axios`, `fetch`, `OkHttp`, `RestTemplate`, `Feign`, `Retrofit`, `HttpClient (.NET)`, `resty (Go)`.

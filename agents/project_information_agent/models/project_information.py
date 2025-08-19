@@ -5,32 +5,18 @@ from pydantic import BaseModel, Field
 
 
 class ProgrammingLanguage(str, Enum):
-    CPP = "C++"
-    C = "C"
-    GO = "GOLANG"
-    RUST = "RUST"
-    PYTHON = "PYTHON"
-    JAVA = "JAVA"
-    JAVASCRIPT = "JAVASCRIPT"
-    TYPESCRIPT = "TYPESCRIPT"
-    PHP = "PHP"
-    RUBY = "RUBY"
-    SCALA = "SCALA"
-    KOTLIN = "KOTLIN"
-
-
-class ProjectBasicInformation(BaseModel):
-    project_dir: str = Field(
-        title="Project directory", description="Project folder for analysis"
-    )
-    language: ProgrammingLanguage = Field(
-        title="Programming language",
-        description="The selected programming language for implementing the project",
-    )
-    framework: str = Field(
-        title="Framework",
-        description="The framework selected for the project's implementation",
-    )
+    CPP = "cpp"
+    C = "c"
+    GO = "go"
+    RUST = "rust"
+    PYTHON = "python"
+    JAVA = "java"
+    JAVASCRIPT = "js"
+    TYPESCRIPT = "ts"
+    PHP = "php"
+    RUBY = "ruby"
+    SCALA = "scala"
+    KOTLIN = "kotlin"
 
 
 class DependencyInformation(BaseModel):
@@ -53,7 +39,19 @@ class DependencyInformation(BaseModel):
     )
 
 
-class ProjectDependencies(BaseModel):
+class ProjectInformation(BaseModel):
+    project_dir: str = Field(
+        title="Project directory", description="Project folder for analysis"
+    )
+    language: ProgrammingLanguage = Field(
+        title="Programming language",
+        description="The selected programming language for implementing the project",
+    )
+    framework: str = Field(
+        title="Framework",
+        description="The framework selected for the project's implementation",
+    )
+
     dependencies: list[DependencyInformation] = Field(
         default_factory=list, description="list of project dependencies"
     )
