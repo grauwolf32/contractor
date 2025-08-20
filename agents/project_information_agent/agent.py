@@ -4,7 +4,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.agent_tool import AgentTool
 from pydantic import BaseModel, Field
@@ -13,7 +13,7 @@ from pydantic_settings import SettingsConfigDict
 from agents.project_information_agent.models.project_information import \
     ProjectInformation
 from agents.project_information_agent.prompts import \
-    dependency_filtering_instructions
+    dependency_filtering_instructions, dependency_format_instructions
 from helpers import Settings
 from tools import cdxgen_mock_tool, cdxgen_tool, save_project_information
 
@@ -33,38 +33,37 @@ class AgentConfig(Settings):
         return cls()
 
 
-class CodeAnalysisInputSchema(BaseModel):
-    project_dir: str = Field(description="Path to the project for analysis")
-
-
 config = AgentConfig.get_settings()
 
 AGENT_MODEL = LiteLlm(model=config.model_name, api_key=config.api_key)
 
-dependency_gathering_agent = LlmAgent(
+project_information_gathering_agent = LlmAgent(
     model=AGENT_MODEL,
-    name="dependency_gathering_agent",
+    name="project_information_gathering_agent",
     description="An agent to filter only usefult dependencies for project analysis",
     instruction=dependency_filtering_instructions,
     tools=[cdxgen_mock_tool],
-    output_key="project_dependencies",
+    output_key="project_information",
 )
 
-project_information_agent = LlmAgent(
+project_information_formatting_agent = LlmAgent(
+    model=AGENT_MODEL,
+    name="project_information_formatting_agent",
+    description="An agent to generate structured JSON output",
+    instruction=(
+        "{project_information}\n" + \
+        dependency_format_instructions 
+    ),
+    output_key="project_information",
+    output_schema=ProjectInformation,
+)
+
+project_information_agent = SequentialAgent(
     name="project_information_agent",
     model=AGENT_MODEL,
-    instruction=(
-        "You are professional software engineer with application security background."
-        "You goal is to get project information, based on its dependencies."
-        "You need to determine all of the project’s dependencies using `dependency_gathering_agent`."
-        "And save information using `save_project_information` tool."
-        "Validate every step. If one of them fails, repeat it."
-    ),
-    input_schema=CodeAnalysisInputSchema,
-    tools=[
-        AgentTool(dependency_gathering_agent, skip_summarization=True),
-        save_project_information,
-    ],
+    sub_agents=[
+        project_information_gathering_agent,
+        project_information_formatting_agent,
+    ]
 )
 
-root_agent = project_information_agent

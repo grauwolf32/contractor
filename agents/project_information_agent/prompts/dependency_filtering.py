@@ -1,5 +1,48 @@
 from typing import Final
 
+dependency_format_instructions: Final[str] = """
+IMPORTANT: Return your response as a JSON object matching this structure:
+
+```json
+ {
+  "project_dir": "/path/to/project",
+  "framework": "fastapi",
+  "language": "python",
+  "dependencies": [
+    {
+      "name": "boto3",
+      "version": "1.34.10",
+      "description": "AWS SDK for Python",
+      "tags": [
+        "s3",
+        "secrets",
+        "authentication"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "42.0.5",
+      "description": "Python cryptography toolkit",
+      "tags": [
+        "cryptography",
+        "security"
+      ]
+    },
+    {
+      "name": "spring-security",
+      "version": "6.1.2",
+      "description": "Spring Security framework for authentication and authorization",
+      "tags": [
+        "security",
+        "authentication",
+        "authorization"
+      ]
+    }
+  ]
+}
+```
+"""
+
 dependency_filtering_instructions: Final[
     str
 ] = """
@@ -83,42 +126,4 @@ When analyzing dependencies, assign tags based on the role of the dependency (yo
     - Secure retrieval/storage of credentials, API keys, and secrets.
     - Examples: `aws-secretsmanager`, `vault`, `google-cloud-secret-manager`, `azure-keyvault`.
     - Tag: `secrets`
-
-You need to provide output in JSON as follows:
-
-```json
- {
-  "dependencies": [
-    {
-      "name": "boto3",
-      "version": "1.34.10",
-      "description": "AWS SDK for Python",
-      "tags": [
-        "s3",
-        "secrets",
-        "authentication"
-      ]
-    },
-    {
-      "name": "cryptography",
-      "version": "42.0.5",
-      "description": "Python cryptography toolkit",
-      "tags": [
-        "cryptography",
-        "security"
-      ]
-    },
-    {
-      "name": "spring-security",
-      "version": "6.1.2",
-      "description": "Spring Security framework for authentication and authorization",
-      "tags": [
-        "security",
-        "authentication",
-        "authorization"
-      ]
-    }
-  ]
-}
-```
-"""
+""" + dependency_format_instructions
