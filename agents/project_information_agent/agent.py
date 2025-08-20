@@ -1,13 +1,8 @@
-import json
-import logging
-import os
 from functools import lru_cache
 from pathlib import Path
 
 from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.agent_tool import AgentTool
-from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
 
 from agents.project_information_agent.models.project_information import \
@@ -15,7 +10,7 @@ from agents.project_information_agent.models.project_information import \
 from agents.project_information_agent.prompts import \
     dependency_filtering_instructions, dependency_format_instructions
 from helpers import Settings
-from tools import cdxgen_mock_tool, cdxgen_tool, save_project_information
+from tools import cdxgen_mock_tool, cdxgen_tool
 
 
 class AgentConfig(Settings):
@@ -60,7 +55,6 @@ project_information_formatting_agent = LlmAgent(
 
 project_information_agent = SequentialAgent(
     name="project_information_agent",
-    model=AGENT_MODEL,
     sub_agents=[
         project_information_gathering_agent,
         project_information_formatting_agent,

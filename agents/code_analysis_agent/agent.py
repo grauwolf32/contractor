@@ -38,7 +38,7 @@ swe_agent = LlmAgent(
     model=AGENT_MODEL,
     name="swe_agent",
     description="Professional Software Engineer",
-    instruction=(),
+    instruction=("You are professional software engineer. You goal is to complete assigned task"),
     tools=[serena_mcp_tools()]
 )
 

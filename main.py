@@ -8,108 +8,145 @@ from dotenv import load_dotenv
 from pprint import pprint
 from typing import Final, Any
 
-from google.adk.orchestration import Runner
-from google.adk.orchestration.session import InMemorySessionService
-from google.generativeai.types import content_types
-from google.generativeai.types.content_types import Part
-
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService, Session
+from google.genai.types import Content, Part
 # Import our agents
 from agents.code_analysis_agent.agent import code_analysis_agent
-from agents.project_information_agent.agent import project_information_agent
-from agents.project_manager_agent.agent import project_manager_agent
+from agents.project_information_agent.agent import project_information_gathering_agent
 
 # Load environment variables
 load_dotenv()
 
-async def run_agent(runner, user_id, session_id, agent_name, content):
-    """Run a specific agent with the given content."""
-    print(f"\nRunning {agent_name}...")
+APP_NAME = "SecurityEngineer"
 
-    # Create content object if string is provided
+async def run_agent(runner, user_id, session_id, content):
+    print(f"\nRunning {runner.agent.name}...")
+
+    if isinstance(content, (list, tuple)):
+        content = "\n".join(map(str, content))
     if isinstance(content, str):
-        content = content_types.Content(
-            role="user",
-            parts=[Part.from_text(content)]
-        )
+        content = Content(role="user", parts=[Part(text=content)])
 
-    # Run the agent
-    response = await runner.run_async(
+    final_response_text = None
+
+    async for event in runner.run_async(
         user_id=user_id,
         session_id=session_id,
-        content=content,
-        agent_name=agent_name
-    )
+        new_message=content,
+    ):
+        is_final = getattr(event, "is_final_response", None)
+        if callable(is_final) and is_final():
+            c = getattr(event, "content", None)
+            if c and getattr(c, "parts", None):
+                t = getattr(c.parts[0], "text", None)
+                if t:
+                    final_response_text = t
+            # ВАЖНО: не делаем break — дочитываем до конца
 
-    # Process the response
-    final_response_text = None
-    for event in response.events:
-        if event.type == "content" and event.content.role == "agent":
-            final_response_text = event.content.parts[0].text
-
-    # Get the session to access state
-    session = runner.session_service.get_session(
+    session = await runner.session_service.get_session(
+        app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id
     )
 
-    print(f"{agent_name} completed.")
+    print(f"{runner.agent.name} completed.")
     return final_response_text, session.state
 
-async def security_analysis_sequence_workflow(project_dir: str)->Any:
+
+
+async def security_analysis_sequence_workflow(project_dir: str) -> Any:
     session_service = InMemorySessionService()
 
     # Create a session
     session_id = str(uuid.uuid4())
     user_id = "workflow_user"
 
-    session = session_service.create_session(
-        app_name="SecurityEngineer",
+    pi_runner = Runner(
+        agent=project_information_gathering_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+    )
+
+    await pi_runner.session_service.create_session(
+        app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id
     )
 
-    agents = [project_manager_agent, code_analysis_agent, project_information_agent]
-    runner = Runner(
-        root_agent=project_manager_agent,  # This doesn't matter in our case as we specify agent_name
-        agents=agents,
-        session_service=session_service
+    project_information_query: Final[str] = f"You need to gather information about the project: {project_dir}"
+    project_information_response, state = await run_agent(
+        pi_runner, user_id, session_id, project_information_query
     )
 
-    project_information_query: Final[str] = f"You need to gather information about the project: {project_dir}"
-    project_information_response, state = await run_agent(runner, user_id, session_id, "project_information_agent", project_information_query)
-
     print(f"Project information:\n{project_information_response}\n\n")
-    
-    project_information: str = project_information_response
-    if "project_information" in state:
+
+    project_information: str = project_information_response or ""
+    if isinstance(state, dict) and "project_information" in state:
         project_information = state["project_information"]
     else:
         print("[ERROR] project_information not in the state")
 
+    # Вторая сессия — анализ кода
+    session_id = str(uuid.uuid4())
+    ca_runner = Runner(
+        agent=code_analysis_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+    )
+
+    await ca_runner.session_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=session_id
+    )
+
+    # ВАЖНО: делаем одну строку, а не кортеж
     code_analysis_query: Final[str] = (
-        f"You need to analyse code of the project: {project_dir}",
-        "Here is information about code language, framework, and dependencies:\n",
+        f"You need to analyse code of the project: {project_dir}\n"
+        f"Here is information about code language, framework, and dependencies:\n"
         f"{project_information}"
     )
 
-    code_analysis_response, state = await run_agent(runner, user_id, session_id, "code_analysis_agent", code_analysis_query)
-    print("Code analysis:\n{code_analysis_response}\n\n")
+    code_analysis_response, state = await run_agent(
+        ca_runner, user_id, session_id, code_analysis_query
+    )
+    print(f"Code analysis:\n{code_analysis_response}\n\n")  # f-строка
 
     return code_analysis_response
 
 
-
 async def main():
-    parser = argparse.ArgumentParser(description="SoftwareEnfineer")
-    parser.add_argument(
-        "--project_dir",
-        required=True,
-        help="Path to project"
-    )
-
+    parser = argparse.ArgumentParser(description="SecurityEngineer")
+    parser.add_argument("--project_dir", required=True, help="Path to project")
     args = parser.parse_args()
-    code_analysis = await security_analysis_sequence_workflow(args.project_dir)
+
+    code_analysis = ""
+    try:
+        code_analysis = await security_analysis_sequence_workflow(args.project_dir)
+    except* RuntimeError as eg: 
+        ...
+
+    print(f"Final response: \n{code_analysis}\n\n")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+async def main():
+    parser = argparse.ArgumentParser(description="SecurityEngineer")
+    parser.add_argument("--project_dir", required=True, help="Path to project")
+    args = parser.parse_args()
+    code_analysis = await security_analysis_sequence_workflow(args.project_dir)
+    print(f"Final response: \n{code_analysis}\n\n")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except* RuntimeError as eg:
+        rest = [e for e in eg.exceptions
+                if "Attempted to exit cancel scope in a different task" not in str(e)]
+        if rest:
+            # Поднимем обратно «чужие» ошибки, если они есть
+            raise ExceptionGroup("Unhandled RuntimeError(s)", rest)
