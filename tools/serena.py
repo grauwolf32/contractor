@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from google.adk.tools.mcp_tool.mcp_toolset import (
@@ -36,4 +37,5 @@ def serena_mcp_tools(tool_filter: list[str] | None = None) -> MCPToolset:
             timeout=config.timeout,
         ),
         tool_filter=tool_filter,
+        errlog=None,
     )

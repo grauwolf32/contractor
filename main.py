@@ -3,6 +3,7 @@ import asyncio
 import uuid
 import json
 import argparse
+import logging
 
 from dotenv import load_dotenv
 from pprint import pprint
@@ -17,6 +18,7 @@ from agents.project_information_agent.agent import project_information_gathering
 
 # Load environment variables
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 APP_NAME = "SecurityEngineer"
 
@@ -28,21 +30,20 @@ async def run_agent(runner, user_id, session_id, content):
     if isinstance(content, str):
         content = Content(role="user", parts=[Part(text=content)])
 
-    final_response_text = None
+    final_response_text = ""
 
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=content,
-    ):
-        is_final = getattr(event, "is_final_response", None)
-        if callable(is_final) and is_final():
-            c = getattr(event, "content", None)
-            if c and getattr(c, "parts", None):
-                t = getattr(c.parts[0], "text", None)
-                if t:
-                    final_response_text = t
-            # ВАЖНО: не делаем break — дочитываем до конца
+
+    try:
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response_text = event.content.parts[0].text
+            
+    except Exception as e:
+        logger.error(str(e))
 
     session = await runner.session_service.get_session(
         app_name=APP_NAME,
@@ -87,6 +88,8 @@ async def security_analysis_sequence_workflow(project_dir: str) -> Any:
     else:
         print("[ERROR] project_information not in the state")
 
+    await pi_runner.close()
+
     # Вторая сессия — анализ кода
     session_id = str(uuid.uuid4())
     ca_runner = Runner(
@@ -111,27 +114,11 @@ async def security_analysis_sequence_workflow(project_dir: str) -> Any:
     code_analysis_response, state = await run_agent(
         ca_runner, user_id, session_id, code_analysis_query
     )
+
+    await ca_runner.close()
     print(f"Code analysis:\n{code_analysis_response}\n\n")  # f-строка
 
     return code_analysis_response
-
-
-async def main():
-    parser = argparse.ArgumentParser(description="SecurityEngineer")
-    parser.add_argument("--project_dir", required=True, help="Path to project")
-    args = parser.parse_args()
-
-    code_analysis = ""
-    try:
-        code_analysis = await security_analysis_sequence_workflow(args.project_dir)
-    except* RuntimeError as eg: 
-        ...
-
-    print(f"Final response: \n{code_analysis}\n\n")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 
 async def main():
     parser = argparse.ArgumentParser(description="SecurityEngineer")
