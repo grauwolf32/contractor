@@ -12,6 +12,7 @@ from typing import Final, Any
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService, Session
 from google.genai.types import Content, Part
+
 # Import our agents
 from agents.code_analysis_agent.agent import code_analysis_agent
 from agents.project_information_agent.agent import project_information_gathering_agent
@@ -21,6 +22,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 APP_NAME = "SecurityEngineer"
+
 
 async def run_agent(runner, user_id, session_id, content):
     print(f"\nRunning {runner.agent.name}...")
@@ -32,7 +34,6 @@ async def run_agent(runner, user_id, session_id, content):
 
     final_response_text = ""
 
-
     try:
         async for event in runner.run_async(
             user_id=user_id,
@@ -41,19 +42,16 @@ async def run_agent(runner, user_id, session_id, content):
         ):
             if event.is_final_response() and event.content and event.content.parts:
                 final_response_text = event.content.parts[0].text
-            
+
     except Exception as e:
         logger.error(str(e))
 
     session = await runner.session_service.get_session(
-        app_name=APP_NAME,
-        user_id=user_id,
-        session_id=session_id
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
     print(f"{runner.agent.name} completed.")
     return final_response_text, session.state
-
 
 
 async def security_analysis_sequence_workflow(project_dir: str) -> Any:
@@ -70,12 +68,12 @@ async def security_analysis_sequence_workflow(project_dir: str) -> Any:
     )
 
     await pi_runner.session_service.create_session(
-        app_name=APP_NAME,
-        user_id=user_id,
-        session_id=session_id
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
-    project_information_query: Final[str] = f"You need to gather information about the project: {project_dir}"
+    project_information_query: Final[str] = (
+        f"You need to gather information about the project: {project_dir}"
+    )
     project_information_response, state = await run_agent(
         pi_runner, user_id, session_id, project_information_query
     )
@@ -99,9 +97,7 @@ async def security_analysis_sequence_workflow(project_dir: str) -> Any:
     )
 
     await ca_runner.session_service.create_session(
-        app_name=APP_NAME,
-        user_id=user_id,
-        session_id=session_id
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
     # ВАЖНО: делаем одну строку, а не кортеж
@@ -120,6 +116,7 @@ async def security_analysis_sequence_workflow(project_dir: str) -> Any:
 
     return code_analysis_response
 
+
 async def main():
     parser = argparse.ArgumentParser(description="SecurityEngineer")
     parser.add_argument("--project_dir", required=True, help="Path to project")
@@ -132,8 +129,11 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except* RuntimeError as eg:
-        rest = [e for e in eg.exceptions
-                if "Attempted to exit cancel scope in a different task" not in str(e)]
+        rest = [
+            e
+            for e in eg.exceptions
+            if "Attempted to exit cancel scope in a different task" not in str(e)
+        ]
         if rest:
             # Поднимем обратно «чужие» ошибки, если они есть
             raise ExceptionGroup("Unhandled RuntimeError(s)", rest)

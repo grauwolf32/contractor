@@ -28,7 +28,20 @@ class ProjectInformation(BaseModel):
     project_dir: str = Field(
         title="Project directory", description="Project folder for analysis"
     )
-    language: Literal["cpp", "c", "go", "rust", "python", "java", "js", "ts", "php", "ruby", "scala", "kotlin"] = Field(
+    language: Literal[
+        "cpp",
+        "c",
+        "go",
+        "rust",
+        "python",
+        "java",
+        "js",
+        "ts",
+        "php",
+        "ruby",
+        "scala",
+        "kotlin",
+    ] = Field(
         title="Programming language",
         description="The selected programming language for implementing the project",
     )

@@ -1,6 +1,8 @@
 from typing import Final
 
-dependency_format_instructions: Final[str] = """
+dependency_format_instructions: Final[
+    str
+] = """
 IMPORTANT: Return your response as a JSON object matching this structure:
 
 ```json
@@ -43,9 +45,8 @@ IMPORTANT: Return your response as a JSON object matching this structure:
 ```
 """
 
-dependency_filtering_instructions: Final[
-    str
-] = """
+dependency_filtering_instructions: Final[str] = (
+    """
 You are professional software engineer.
 You goal is to collect information about project dependencies and filter out only those dependencies,
 that are used for interaction with external services.
@@ -126,4 +127,6 @@ When analyzing dependencies, assign tags based on the role of the dependency (yo
     - Secure retrieval/storage of credentials, API keys, and secrets.
     - Examples: `aws-secretsmanager`, `vault`, `google-cloud-secret-manager`, `azure-keyvault`.
     - Tag: `secrets`
-""" + dependency_format_instructions
+"""
+    + dependency_format_instructions
+)

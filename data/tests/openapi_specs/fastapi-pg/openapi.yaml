@@ -1,0 +1,149 @@
+---
+openapi: 3.1.0
+info:
+  title: FastAPI
+  version: 0.1.0
+paths:
+  "/login":
+    post:
+      tags:
+      - login
+      summary: Login
+      operationId: login_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/LoginResponse"
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/messages":
+    get:
+      tags:
+      - messages
+      summary: Get User Messages
+      operationId: get_user_messages_messages_get
+      parameters:
+      - name: pg_session_id
+        in: cookie
+        required: true
+        schema:
+          type: string
+          title: Pg Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/UserMessages"
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            "$ref": "#/components/schemas/ValidationError"
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LoginRequest:
+      properties:
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          title: Password
+      type: object
+      required:
+      - username
+      - password
+      title: LoginRequest
+    LoginResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+      type: object
+      required:
+      - success
+      title: LoginResponse
+    Messages:
+      properties:
+        id:
+          type: integer
+          title: Id
+        sender:
+          type: integer
+          title: Sender
+        receiver:
+          type: integer
+          title: Receiver
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - sender
+      - receiver
+      - message
+      title: Messages
+    UserMessages:
+      properties:
+        sent:
+          items:
+            "$ref": "#/components/schemas/Messages"
+          type: array
+          title: Sent
+        received:
+          items:
+            "$ref": "#/components/schemas/Messages"
+          type: array
+          title: Received
+      type: object
+      required:
+      - sent
+      - received
+      title: UserMessages
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+

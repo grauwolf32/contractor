@@ -1,8 +1,8 @@
 import json
 import os
+import pathlib
 import shutil
 import subprocess
-import pathlib
 import tempfile
 from typing import Any
 
@@ -80,6 +80,7 @@ def cdxgen_tool(project_absolute_path: str) -> dict:
     sbom: dict[str, Any] = cdxgen_run(project_absolute_path)
     return filter_cdxgen_output(sbom)
 
+
 def cdxgen_mock_tool(project_absolute_path: str) -> dict:
     """Build list of project dependencies
     Args:
@@ -90,11 +91,13 @@ def cdxgen_mock_tool(project_absolute_path: str) -> dict:
         dict: A dictionary containing the weather information with a 'status' key ('success' or 'error') and a 'report' key with the weather details if successful, or an 'error_message' if an error occurred.
     """
 
-    TEST_DATA_DIR = str(pathlib.Path(__file__).parent.parent / "data" / "tests" / "cdxgen")
-    mock_file:str = os.path.join(TEST_DATA_DIR, "bom.json")
-    mock_data:dict[str, Any] = dict()
+    TEST_DATA_DIR = str(
+        pathlib.Path(__file__).parent.parent / "data" / "tests" / "cdxgen"
+    )
+    mock_file: str = os.path.join(TEST_DATA_DIR, "bom.json")
+    mock_data: dict[str, Any] = dict()
 
     with open(mock_file) as f:
         mock_data = json.load(f)
-    
+
     return mock_data

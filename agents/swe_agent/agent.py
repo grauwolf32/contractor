@@ -4,15 +4,12 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.agent_tool import AgentTool
-from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
 
-from agents.code_analysis_agent.prompts import basic_project_structure
 from helpers import Settings
-from tools import cdxgen_mock_tool, cdxgen_tool, serena_mcp_tools
+from tools import serena_mcp_tools
 
 
 class AgentConfig(Settings):
@@ -42,13 +39,4 @@ swe_agent = LlmAgent(
         "You are professional software engineer. You goal is to complete assigned task"
     ),
     tools=[serena_mcp_tools()],
-)
-
-code_analysis_agent = LlmAgent(
-    model=AGENT_MODEL,
-    name="project_analysis_agent",
-    description="An agent to analyse project",
-    instruction=basic_project_structure,
-    output_key="code_analysis",
-    tools=[AgentTool(swe_agent)],
 )

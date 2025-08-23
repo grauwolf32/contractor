@@ -36,4 +36,4 @@ project_manager_agent = LlmAgent(
     ),
 )
 
-root_agent=project_manager_agent
+root_agent = project_manager_agent
