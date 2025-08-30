@@ -17,41 +17,11 @@ from google.genai.types import Content, Part
 from agents.code_analysis_agent.agent import code_analysis_agent
 from agents.project_information_agent.agent import project_information_gathering_agent
 
+from workflow.base import run_agent
+
 # Load environment variables
 load_dotenv()
 logger = logging.getLogger(__name__)
-
-APP_NAME = "SecurityEngineer"
-
-
-async def run_agent(runner, user_id, session_id, content):
-    print(f"\nRunning {runner.agent.name}...")
-
-    if isinstance(content, (list, tuple)):
-        content = "\n".join(map(str, content))
-    if isinstance(content, str):
-        content = Content(role="user", parts=[Part(text=content)])
-
-    final_response_text = ""
-
-    try:
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-        ):
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response_text = event.content.parts[0].text
-
-    except Exception as e:
-        logger.error(str(e))
-
-    session = await runner.session_service.get_session(
-        app_name=APP_NAME, user_id=user_id, session_id=session_id
-    )
-
-    print(f"{runner.agent.name} completed.")
-    return final_response_text, session.state
 
 
 async def security_analysis_sequence_workflow(project_dir: str) -> Any:

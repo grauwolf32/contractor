@@ -9,10 +9,10 @@ class DependencyInformation(BaseModel):
         description="The package or library name, as specified in the dependency file (e.g., requirements.txt, pyproject.toml, package.json)."
     )
     version: str = Field(
-        description="The package or library version, if explicitly specified (e.g., '1.2.3'). Can be omitted if the version is not pinned or is resolved automatically."
+        description="The package or library version, if explicitly specified (e.g., '1.2.3')."
     )
     description: str = Field(
-        description="Brief description of what this dependency is used for. Can be omitted if not sure"
+        description="Brief description of what this dependency is used for."
     )
     tags: list[str] = Field(
         default_factory=list,

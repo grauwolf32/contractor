@@ -4,8 +4,21 @@ import pathlib
 import shutil
 import subprocess
 import tempfile
-from typing import Any
+from typing import Any, Optional
+from pydantic import BaseModel
 
+
+class CdxgenComponent(BaseModel):
+    name: str
+    purl: Optional[str]
+    version: Optional[str]
+    description: Optional[str]
+    type: Optional[str]
+
+class CdxgenOutput(BaseModel):
+    services: list[Any]
+    dependencies: list[Any]
+    components: list[CdxgenComponent]
 
 def ensure_cdxgen() -> str | None:
     if shutil.which("cdxgen") is None:

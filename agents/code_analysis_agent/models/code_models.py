@@ -4,11 +4,6 @@ from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, Field
 
-# =========================
-# Общие типы / примитивы
-# =========================
-
-
 class ArtifactRef(BaseModel):
     """Ссылка на файл/фрагмент в репозитории."""
 
