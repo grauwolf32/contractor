@@ -17,7 +17,7 @@ class DependencyInformation(BaseModel):
     tags: list[str] = Field(
         default_factory=list,
         description=(
-            "A list of categories (DependencyTag) describing the role of this dependency. "
+            "A list of categories describing the role of this dependency. "
             "Multiple tags may apply simultaneously to reflect different aspects, "
             "such as web framework, security, database interaction, cloud storage, etc."
         ),

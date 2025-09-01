@@ -83,3 +83,5 @@ def get_project_files_tool(tree: dict) -> list[str]:
 def get_project_extensions_tool(project_dir:str)->dict[str, str]:
     project_tree = get_project_tree(project_dir, depth=None, include_files=True)
     project_files = get_project_files_tool(project_tree)
+    project_files = [f.split("/")[-1] for f in project_files]
+    pr
