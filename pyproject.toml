@@ -1,17 +1,20 @@
 [project]
 name = "contractor"
 version = "0.1.0"
-description = ""
+description = "Use llm to generate openapi specification from code"
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "grauwolf32"}
 ]
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
-    "google-adk (>=1.11.0,<2.0.0)",
-    "litellm (>=1.75.8,<2.0.0)",
-    "pydantic (>=2.11.7,<3.0.0)",
-    "pydantic-settings (>=2.10.1,<3.0.0)"
+    "google-adk (>=1.21.0,<2.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.14.10,<0.15.0)",
+    "pytest (>=9.0.2,<10.0.0)"
 ]
 
 
@@ -19,8 +22,5 @@ dependencies = [
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.group.dev.dependencies]
-isort = "^6.0.1"
-black = "^25.1.0"
-ruff = "^0.12.9"
-
+[tool.pytest.ini_options]
+pythonpath = ["."]
