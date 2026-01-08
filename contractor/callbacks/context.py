@@ -1,8 +1,8 @@
 import time
-from typing import Any, Optional
+from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.models import LlmRequest, LlmResponse
+from google.adk.models import LlmRequest
 from google.genai import types
 
 from .tokens import TokenUsageCallback
@@ -14,29 +14,22 @@ TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 
 class SummarizationLimitCallback(BaseCallback):
     cb_type: CallbackTypes = CallbackTypes.before_model_callback
-    deps: [TOKEN_USAGE_CALLBACK_NAME]
+    deps: list[str] = [TOKEN_USAGE_CALLBACK_NAME]
 
     def __init__(
         self,
-        ctx_length: int,
         message: str,
-        max_usage: Optional[float],
-        max_tokens: Optional[int],
+        max_tokens: int,
         summarization_key: str = "total",
     ):
-        self.ctx_length = ctx_length
         self.max_tokens = max_tokens
         self.message = message
         self.token_count: int = 0
         self.history: list[Any] = []
-
-        assert any((max_tokens, max_usage))
-        if max_usage:
-            self.max_tokens = int(max_usage * ctx_length) + 1
+        self.summarization_key = summarization_key
 
     def to_state(self) -> dict[str, Any]:
         return {
-            "ctx_length": self.ctx_length,
             "max_tokens": self.max_tokens,
             "token_count": self.token_count,
             "message": self.message,
@@ -49,7 +42,7 @@ class SummarizationLimitCallback(BaseCallback):
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
         )
-        token_count = token_usage_stat.get("current", {}).get(self.tpm_limit_key, 0)
+        token_count = token_usage_stat.get("current", {}).get(self.summarization_key, 0)
         self.token_count = token_count
 
         if token_count < self.max_tokens:

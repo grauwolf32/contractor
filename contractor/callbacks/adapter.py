@@ -29,7 +29,7 @@ class CallbackChain:
             if result := func(*args, **kwargs):
                 return result
 
-        return 
+        return
 
     def as_names(self) -> list[str]:
         return [f.name for f in self.funcs]

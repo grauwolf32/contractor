@@ -1,6 +1,5 @@
-import json
 import logging
-from typing import Optional, Any
+from typing import Any
 from dataclasses import dataclass, asdict
 from google.adk.models import LlmResponse
 from google.adk.agents.callback_context import CallbackContext
@@ -8,9 +7,9 @@ from google.adk.agents.callback_context import CallbackContext
 from .base import BaseCallback, CallbackTypes
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 )
+
 
 class TokenUsageCallbackException(Exception):
     def __init__(self) -> None:

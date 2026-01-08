@@ -1,7 +1,7 @@
 import time
 import logging
-from typing import Any, Optional
-from google.adk.models import LlmRequest, LlmResponse
+from typing import Any
+from google.adk.models import LlmRequest
 from google.adk.agents.callback_context import CallbackContext
 from .tokens import TokenUsageCallback
 from .base import BaseCallback, CallbackTypes
@@ -13,8 +13,8 @@ TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 
 
 class TpmRatelimitCallback(BaseCallback):
-    cb_type = CallbackTypes.before_model_callback
-    deps = [TOKEN_USAGE_CALLBACK_NAME]
+    cb_type: CallbackTypes = CallbackTypes.before_model_callback
+    deps: list[str] = [TOKEN_USAGE_CALLBACK_NAME]
 
     def __init__(self, tpm_limit: int, tpm_limit_key="input"):
         self.tpm_limit = tpm_limit

@@ -35,8 +35,8 @@ def _format_llm_response(
 
 
 class ThinkingBudgetGuardrailCallback(BaseCallback):
-    cb_type = CallbackTypes.before_model_callback
-    deps = [TOKEN_USAGE_CALLBACK_NAME]
+    cb_type: CallbackTypes = CallbackTypes.before_model_callback
+    deps: list[str] = [TOKEN_USAGE_CALLBACK_NAME]
 
     def __init__(
         self,

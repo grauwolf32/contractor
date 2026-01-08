@@ -51,10 +51,10 @@ def _expected_signatures() -> dict["CallbackTypes", inspect.Signature]:
 
 
 def verify_signature(cb_func: Callable, cb_type: "CallbackTypes") -> bool:
-    #expected = _expected_signatures().get(cb_type)
-    #if expected is None:
+    # expected = _expected_signatures().get(cb_type)
+    # if expected is None:
     #    raise ValueError(f"Unknown callback type: {cb_type}")
-    #return inspect.signature(cb_func) == expected
+    # return inspect.signature(cb_func) == expected
     return True
 
 
@@ -91,7 +91,7 @@ class BaseCallback(ABC):
     def get_dependencies(self):
         return self.deps
 
-    def save_to_state(self, ctx: CallbackContext | ToolContext)->None:
+    def save_to_state(self, ctx: CallbackContext | ToolContext) -> None:
         ctx.state.setdefault("callbacks", {})
 
         # HACK: ctx.state must be explicilty overwritten
