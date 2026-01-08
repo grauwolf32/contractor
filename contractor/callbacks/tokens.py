@@ -47,7 +47,7 @@ class TokenUsageCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_response: LlmResponse
-    ) -> Optional[LlmResponse]:
+    ) -> None:
         token_count = TokenCounter(
             input=llm_response.usage_metadata.prompt_token_count,
             output=llm_response.usage_metadata.candidates_token_count,

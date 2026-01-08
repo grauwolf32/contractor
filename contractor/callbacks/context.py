@@ -45,7 +45,7 @@ class SummarizationLimitCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> Optional[LlmResponse]:
+    ) -> None:
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
         )
@@ -82,11 +82,11 @@ class FunctionResultsRemovalCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> Optional[LlmResponse]:
+    ) -> None:
         if not llm_request.content or not llm_request.content.parts:
             return
 
-        parts: types.Part = []
+        parts: list[types.Part] = []
         func_count: int = 0
         for part in llm_request.content.parts[::-1]:
             if part.function_response is None:

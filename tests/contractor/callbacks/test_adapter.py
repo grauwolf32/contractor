@@ -1,15 +1,15 @@
-from contractor.callbacks.middleware import CallbackMiddleware
+from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.tokens import TokenUsageCallback
 from tests.contractor.callbacks.helpers import mk_callback_context, mk_llm_response
 
 
 def test_middleware_registration():
-    middleware = CallbackMiddleware()
+    middleware = CallbackAdapter()
     middleware.register(TokenUsageCallback())
 
 
 def test_callback_chain_call():
-    middleware = CallbackMiddleware()
+    middleware = CallbackAdapter()
     middleware.register(TokenUsageCallback())
 
     chain = middleware.get_chain(TokenUsageCallback().cb_type)

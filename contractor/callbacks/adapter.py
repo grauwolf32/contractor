@@ -20,33 +20,31 @@ class CallbackAlreadyExistsException(Exception):
 class CallbackChain:
     cb_type: CallbackTypes
     funcs: list[BaseCallback] = field(default_factory=list)
-    calls: list[Any] = field(default_factory=list)
 
     def register(self, func: BaseCallback) -> None:
         self.funcs.append(func.validate())
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        self.calls.clear()
-        result: Any = None
         for func in self.funcs:
-            result = func(*args, **kwargs)
-            self.calls.append(result)
-        return result
+            if result := func(*args, **kwargs):
+                return result
+
+        return 
 
     def as_names(self) -> list[str]:
         return [f.name for f in self.funcs]
 
 
 @dataclass(slots=True)
-class CallbackMiddleware:
+class CallbackAdapter:
     """
-    Middleware хранит цепочки callback'ов по типам.
+    CallbackAdapter хранит цепочки callback'ов по типам.
     """
 
     chains: dict[CallbackTypes, CallbackChain] = field(default_factory=dict)
     registry: dict[str, BaseCallback] = field(default_factory=dict)
 
-    def register(self, func: BaseCallback) -> "CallbackMiddleware":
+    def register(self, func: BaseCallback) -> "CallbackAdapter":
         if func.name in self.registry:
             raise
 

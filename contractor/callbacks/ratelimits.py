@@ -35,7 +35,7 @@ class TpmRatelimitCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> Optional[LlmResponse]:
+    ) -> None:
         current_time = int(time.time())
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
@@ -91,7 +91,7 @@ class RpmRatelimitCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> Optional[LlmResponse]:
+    ) -> None:
         current_time = int(time.time())
 
         if self.request_count is None:
