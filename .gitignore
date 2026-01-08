@@ -208,3 +208,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Google ADK
+.adk/*
+
+# Databases
+*.db

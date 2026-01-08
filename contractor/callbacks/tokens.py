@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Optional, Any
 from dataclasses import dataclass, asdict
@@ -6,9 +7,10 @@ from google.adk.agents.callback_context import CallbackContext
 
 from .base import BaseCallback, CallbackTypes
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+)
 
 class TokenUsageCallbackException(Exception):
     def __init__(self) -> None:
@@ -55,17 +57,11 @@ class TokenUsageCallback(BaseCallback):
         )
 
         self.common.add(token_count)
-
         interaction_id = llm_response.interaction_id
 
         # если interaction_id ещё не задан — пытаемся подхватить из ответа
         if self.interaction_id is None:
             self.interaction_id = interaction_id
-
-        # если всё ещё None (resp_id тоже None) — current/history не трогаем
-        if self.interaction_id is None:
-            self.save_to_state(callback_context)
-            return None
 
         # тот же interaction_id -> копим current
         if interaction_id == self.interaction_id:
