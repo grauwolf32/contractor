@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Optional, Callable, Literal, Final
 from google.genai import types
@@ -117,7 +118,7 @@ class ToolMaxCallsGuardrailCallback(BaseCallback):
         return
 
 
-class IvalidToolCallGuardrailCallback(BaseCallback):
+class InvalidToolCallGuardrailCallback(BaseCallback):
     cb_type: CallbackTypes = CallbackTypes.after_model_callback
     deps: list[str] = []
 
@@ -130,8 +131,7 @@ class IvalidToolCallGuardrailCallback(BaseCallback):
         self.default_tool_name = default_tool_name
         self.default_tool_arg = default_tool_arg
         self.tool_names = {
-            getattr(tool, "__qualname__", None)
-            or getattr(tool, "__name__", None)
+            getattr(tool, "__name__", None)
             or tool.__class__.__name__
             for tool in tools
         }
@@ -158,9 +158,11 @@ class IvalidToolCallGuardrailCallback(BaseCallback):
                 continue
 
             func_name = part.function_call.name
-            if func_name not in self.tool_names:
-                part.function_call.name = self.default_tool_name
+            if func_name in self.tool_names:
+                parts.append(part)
+                continue
 
+            part.function_call.name = self.default_tool_name
             metadata = {
                 "func_name": func_name,
                 "func_args": part.function_call.args or {},

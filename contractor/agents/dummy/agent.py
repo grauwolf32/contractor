@@ -10,7 +10,11 @@ from contractor.callbacks.ratelimits import RpmRatelimitCallback
 from contractor.callbacks.context import SummarizationLimitCallback
 
 DUMMY_AGENT_PROMPT: Final[str] = (
-    "You are helpfull assistent. You must comply with user request."
+    "You are helpfull assistent. You must comply with the user request."
+)
+
+DUMMY_AGENT_DESCRIPTION: Final[str] = (
+    "agent to test tools and integrational scenarios."
 )
 
 DUMMY_MODEL = LiteLlm(
@@ -18,9 +22,11 @@ DUMMY_MODEL = LiteLlm(
     timeout=30,
 )
 
+DUMMY_SUMMARIZER_MESSAGE: Final[str] = "Summarize our conversation."
+
 dummy = LlmAgent(
     name="dummy",
-    description="agent to test tools and integrational scenarios",
+    description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
     model=DUMMY_MODEL,
 )
@@ -30,7 +36,7 @@ callback_adapter.register(TokenUsageCallback())
 
 dummy_with_token_count = LlmAgent(
     name="dummy_with_token_count",
-    description="agent to test tools and integrational scenarios",
+    description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
     model=DUMMY_MODEL,
     **callback_adapter(),
@@ -40,20 +46,19 @@ callback_adapter.register(RpmRatelimitCallback(rpm_limit=5))
 
 dummy_with_rpm_ratelimit = LlmAgent(
     name="dummy_with_rpm_ratelimit",
-    description="agent to test tools and integrational scenarios",
+    description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
     model=DUMMY_MODEL,
     **callback_adapter(),
 )
 
-dummy_summarizer_message: Final[str] = "Summarize our conversation"
 callback_adapter.register(
-    SummarizationLimitCallback(message=dummy_summarizer_message, max_tokens=4000)
+    SummarizationLimitCallback(message=DUMMY_SUMMARIZER_MESSAGE, max_tokens=4000)
 )
 
 dummy_summarizator = LlmAgent(
     name="dummy_summarizator",
-    description="agent to test tools and integrational scenarios",
+    description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
     model=DUMMY_MODEL,
     **callback_adapter(),
