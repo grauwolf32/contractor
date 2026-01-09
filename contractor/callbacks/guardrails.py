@@ -131,9 +131,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         self.default_tool_name = default_tool_name
         self.default_tool_arg = default_tool_arg
         self.tool_names = {
-            getattr(tool, "__name__", None)
-            or tool.__class__.__name__
-            for tool in tools
+            getattr(tool, "__name__", None) or tool.__class__.__name__ for tool in tools
         }
         self.history: list[Any] = []
         assert default_tool_name in self.tool_names

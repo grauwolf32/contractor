@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from typing import Final
+from langfuse import get_client
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
@@ -9,13 +11,14 @@ from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks.ratelimits import RpmRatelimitCallback
 from contractor.callbacks.context import SummarizationLimitCallback
 
+if os.environ.get("USE_LANGFUSE", "").lower() == "true":
+    langfuse = get_client()
+
 DUMMY_AGENT_PROMPT: Final[str] = (
     "You are helpfull assistent. You must comply with the user request."
 )
 
-DUMMY_AGENT_DESCRIPTION: Final[str] = (
-    "agent to test tools and integrational scenarios."
-)
+DUMMY_AGENT_DESCRIPTION: Final[str] = "agent to test tools and integrational scenarios."
 
 DUMMY_MODEL = LiteLlm(
     model="lm-studio-openai",
