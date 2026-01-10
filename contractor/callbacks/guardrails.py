@@ -20,6 +20,8 @@ TOKEN_BUDGET_DEFAULT_MESSAGE: Final[str] = (
 )
 TOOL_LIMIT_DEFAULT_RVALUE: dict[str, Any] = {"result": "Tool call limit reached."}
 
+ADK_RESERVED_TOOLS: list[str] = ["transfer_to_agent"]
+
 
 def _format_llm_response(
     role: Literal["system", "user"],
@@ -131,8 +133,13 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         self.default_tool_name = default_tool_name
         self.default_tool_arg = default_tool_arg
         self.tool_names = {
-            getattr(tool, "__name__", None) or tool.__class__.__name__ for tool in tools
+            getattr(tool, "name", None)
+            or getattr(tool, "__name__", None)
+            or tool.__class__.__name__
+            for tool in tools
         }
+        self.tool_names
+
         self.history: list[Any] = []
         assert default_tool_name in self.tool_names
 

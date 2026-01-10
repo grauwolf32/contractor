@@ -20,8 +20,10 @@ class CallbackAlreadyExistsException(Exception):
 class CallbackChain:
     cb_type: CallbackTypes
     funcs: list[BaseCallback] = field(default_factory=list)
+    agent_name: Optional[str] = None
 
     def register(self, func: BaseCallback) -> None:
+        func.agent_name = self.agent_name
         self.funcs.append(func.validate())
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
@@ -43,6 +45,7 @@ class CallbackAdapter:
 
     chains: dict[CallbackTypes, CallbackChain] = field(default_factory=dict)
     registry: dict[str, BaseCallback] = field(default_factory=dict)
+    agent_name: Optional[str] = None
 
     def register(self, func: BaseCallback) -> "CallbackAdapter":
         if func.name in self.registry:
@@ -53,10 +56,7 @@ class CallbackAdapter:
             raise CallbackDependencyException(func.name, missing)
 
         cb_type = func.cb_type
-        chain = self.chains.get(cb_type)
-        if chain is None:
-            chain = CallbackChain(cb_type=cb_type)
-            self.chains[cb_type] = chain
+        chain = self.get_chain(cb_type)
 
         chain.register(func)
         self.registry[func.name] = func
@@ -66,7 +66,7 @@ class CallbackAdapter:
     def get_chain(self, cb_type: CallbackTypes) -> CallbackChain:
         chain = self.chains.get(cb_type)
         if chain is None:
-            chain = CallbackChain(cb_type=cb_type)
+            chain = CallbackChain(cb_type=cb_type, agent_name=self.agent_name)
             self.chains[cb_type] = chain
         return chain
 

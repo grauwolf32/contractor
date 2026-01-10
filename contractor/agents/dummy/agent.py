@@ -6,12 +6,15 @@ from langfuse import get_client
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks.ratelimits import RpmRatelimitCallback
 from contractor.callbacks.context import SummarizationLimitCallback
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
+    GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
 DUMMY_AGENT_PROMPT: Final[str] = (

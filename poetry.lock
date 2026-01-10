@@ -3049,6 +3049,63 @@ realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
 
 [[package]]
+name = "openinference-instrumentation"
+version = "0.1.42"
+description = "OpenInference instrumentation utilities"
+optional = false
+python-versions = "<3.15,>=3.9"
+groups = ["main"]
+files = [
+    {file = "openinference_instrumentation-0.1.42-py3-none-any.whl", hash = "sha256:e7521ff90833ef7cc65db526a2f59b76a496180abeaaee30ec6abbbc0b43f8ec"},
+    {file = "openinference_instrumentation-0.1.42.tar.gz", hash = "sha256:2275babc34022e151b5492cfba41d3b12e28377f8e08cb45e5d64fe2d9d7fe37"},
+]
+
+[package.dependencies]
+openinference-semantic-conventions = ">=0.1.17"
+opentelemetry-api = "*"
+opentelemetry-sdk = "*"
+wrapt = ">=1.14.0,<2"
+
+[package.extras]
+test = ["jsonschema", "openai", "pydantic (>=2.0.0)", "pytest-asyncio", "pytest-recording", "types-jsonschema"]
+
+[[package]]
+name = "openinference-instrumentation-google-adk"
+version = "0.1.8"
+description = "OpenInference Google ADK Instrumentation"
+optional = false
+python-versions = "<3.15,>=3.9"
+groups = ["main"]
+files = [
+    {file = "openinference_instrumentation_google_adk-0.1.8-py3-none-any.whl", hash = "sha256:4155b814e104b369cb942ff3f8c67def0846072ef9603851fb610e825620bf5f"},
+    {file = "openinference_instrumentation_google_adk-0.1.8.tar.gz", hash = "sha256:b522b296aa8491ed83e9af7bde5f227e455604330398c878cbc4e2ae2943b2ae"},
+]
+
+[package.dependencies]
+openinference-instrumentation = ">=0.1.32"
+openinference-semantic-conventions = ">=0.1.17"
+opentelemetry-api = "*"
+opentelemetry-instrumentation = "*"
+opentelemetry-semantic-conventions = "*"
+typing-extensions = "*"
+wrapt = "*"
+
+[package.extras]
+instruments = ["google-adk (>=1.2.1)"]
+
+[[package]]
+name = "openinference-semantic-conventions"
+version = "0.1.25"
+description = "OpenInference Semantic Conventions"
+optional = false
+python-versions = "<3.15,>=3.9"
+groups = ["main"]
+files = [
+    {file = "openinference_semantic_conventions-0.1.25-py3-none-any.whl", hash = "sha256:3814240f3bd61f05d9562b761de70ee793d55b03bca1634edf57d7a2735af238"},
+    {file = "openinference_semantic_conventions-0.1.25.tar.gz", hash = "sha256:f0a8c2cfbd00195d1f362b4803518341e80867d446c2959bf1743f1894fce31d"},
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.37.0"
 description = "OpenTelemetry Python API"
@@ -3153,6 +3210,24 @@ opentelemetry-proto = "1.37.0"
 opentelemetry-sdk = ">=1.37.0,<1.38.0"
 requests = ">=2.7,<3.0"
 typing-extensions = ">=4.5.0"
+
+[[package]]
+name = "opentelemetry-instrumentation"
+version = "0.58b0"
+description = "Instrumentation Tools & Auto Instrumentation for OpenTelemetry Python"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation-0.58b0-py3-none-any.whl", hash = "sha256:50f97ac03100676c9f7fc28197f8240c7290ca1baa12da8bfbb9a1de4f34cc45"},
+    {file = "opentelemetry_instrumentation-0.58b0.tar.gz", hash = "sha256:df640f3ac715a3e05af145c18f527f4422c6ab6c467e40bd24d2ad75a00cb705"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.4,<2.0"
+opentelemetry-semantic-conventions = "0.58b0"
+packaging = ">=18.0"
+wrapt = ">=1.0.0,<2.0.0"
 
 [[package]]
 name = "opentelemetry-proto"
@@ -5255,5 +5330,5 @@ type = ["pytest-mypy"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.10,<4.0"
-content-hash = "e3b69c9287561838314451588ff2c592ec88d1cf5e4fc6c33e42deebc5e02bd5"
+python-versions = ">=3.10,<3.15"
+content-hash = "da23fffaa1ee7885542704c463046a82f779a1597f5b159af6335a83a02cb26d"

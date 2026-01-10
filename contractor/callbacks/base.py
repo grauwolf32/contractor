@@ -70,6 +70,7 @@ def _callback_name(func: Callable[..., Any]) -> str:
 class BaseCallback(ABC):
     cb_type: CallbackTypes
     deps: list[str] = field(default_factory=list)
+    agent_name: Optional[str] = None
 
     def validate(self) -> "BaseCallback":
         if not verify_signature(self.__call__, self.cb_type):
@@ -82,6 +83,9 @@ class BaseCallback(ABC):
     def name(self):
         return self.__class__.__name__
 
+    def _callback_state_key(self) -> str:
+        return f"{self.agent_name or ''}::{self.name}"
+
     @abstractmethod
     def to_state(self): ...
 
@@ -90,6 +94,9 @@ class BaseCallback(ABC):
 
     def get_dependencies(self):
         return self.deps
+
+    def get_invocation_id(self, ctx: CallbackContext | ToolContext) -> str | None:
+        return ctx.invocation_id
 
     def save_to_state(self, ctx: CallbackContext | ToolContext) -> None:
         ctx.state.setdefault("callbacks", {})

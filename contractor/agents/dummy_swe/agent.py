@@ -5,6 +5,9 @@ from typing import Any, Final
 from langfuse import get_client
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.tools import AgentTool
+
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.tokens import TokenUsageCallback
@@ -12,6 +15,7 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.tools.podman import PodmanContainer
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
+    GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
 DUMMY_AGENT_PROMPT: Final[str] = (
@@ -52,6 +56,7 @@ def default_tool(meta: dict[str, Any]) -> dict:
 tools = [default_tool, *sandbox.tools()]
 
 callback_adapter = CallbackAdapter()
+callback_adapter.register(TokenUsageCallback())
 callback_adapter.register(
     InvalidToolCallGuardrailCallback(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
@@ -67,4 +72,22 @@ dummy_swe = LlmAgent(
     **callback_adapter(),
 )
 
-root_agent = dummy_swe
+tools = [default_tool, AgentTool(dummy_swe)]
+callback_adapter = CallbackAdapter()
+callback_adapter.register(TokenUsageCallback())
+callback_adapter.register(
+    InvalidToolCallGuardrailCallback(
+        tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
+    )
+)
+
+dummy_swe_worker = LlmAgent(
+    name="dummy_swe_worker",
+    description=DUMMY_AGENT_DESCRIPTION,
+    instruction=DUMMY_AGENT_PROMPT,
+    model=DUMMY_MODEL,
+    tools=tools,
+    **callback_adapter(),
+)
+
+root_agent = dummy_swe_worker

@@ -27,6 +27,9 @@ class TokenCounter:
         self.output += other.output
         self.total += other.total
 
+    def is_empty(self) -> bool:
+        return all([self.input == 0, self.output == 0, self.total == 0])
+
 
 class TokenUsageCallback(BaseCallback):
     cb_type: CallbackTypes = CallbackTypes.after_model_callback
@@ -35,14 +38,17 @@ class TokenUsageCallback(BaseCallback):
     def __init__(self) -> None:
         self.common = TokenCounter()
         self.current = TokenCounter()
-        self.interaction_id: str | None = None
+        self.invocation_id: str | None = None
         self.history: dict[str, Any] = {}
+
+    def is_empty(self):
+        return self.common.is_empty() and self.current.is_empty()
 
     def to_state(self) -> dict[str, Any]:
         return {
             "common": asdict(self.common),
             "current": asdict(self.current),
-            "interaction_id": self.interaction_id,
+            "invocation_id": self.invocation_id,
             "history": self.history,
         }
 
@@ -56,21 +62,23 @@ class TokenUsageCallback(BaseCallback):
         )
 
         self.common.add(token_count)
-        interaction_id = llm_response.interaction_id
+        invocation_id = self.get_invocation_id(callback_context)
 
-        # если interaction_id ещё не задан — пытаемся подхватить из ответа
-        if self.interaction_id is None:
-            self.interaction_id = interaction_id
+        # если invocation_id ещё не задан — пытаемся подхватить из ответа
+        if self.invocation_id is None and self.is_empty():
+            self.invocation_id = invocation_id
 
-        # тот же interaction_id -> копим current
-        if interaction_id == self.interaction_id:
+        # тот же invocation_id -> копим current
+        if invocation_id == self.invocation_id:
             self.current.add(token_count)
             self.save_to_state(callback_context)
             return None
 
-        # смена interaction_id -> сохраняем прошлый current и начинаем новый
-        self.history[self.interaction_id] = asdict(self.current)
-        self.interaction_id = interaction_id
+        # смена invocation_id -> сохраняем прошлый current и начинаем новый
+        if self.invocation_id is not None:
+            self.history[self.invocation_id] = asdict(self.current)
+
+        self.invocation_id = invocation_id
         self.current = token_count
 
         self.save_to_state(callback_context)
