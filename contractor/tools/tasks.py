@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Final, Literal, Optional, Union
+from typing import Any, Callable, Final, Literal, Optional, Union, Tuple
 
 import yaml
-from contextlib import suppress
 from pydantic import BaseModel, Field, ValidationError
 from xml.sax.saxutils import escape as xml_escape
 
@@ -253,7 +252,9 @@ class TaskManager:
         ctx.state[cls_key] = cls_data
 
     @classmethod
-    def load_from_state(cls, ctx: Ctx, name: str, max_tasks: int, _format:str="json") -> "TaskManager":
+    def load_from_state(
+        cls, ctx: Ctx, name: str, max_tasks: int, _format: str = "json"
+    ) -> "TaskManager":
         cls_key = cls._cls_key()
         ctx.state.setdefault(cls_key, {})
 
@@ -263,7 +264,9 @@ class TaskManager:
 
         raw: Optional[dict[str, Any]] = cls_data.get(state_key)
 
-        mgr = cls(name=name, max_tasks=max_tasks, invocation_id=invocation_id, _format=_format)
+        mgr = cls(
+            name=name, max_tasks=max_tasks, invocation_id=invocation_id, _format=_format
+        )
 
         if raw is None:
             mgr.save_to_state(ctx)
@@ -356,11 +359,13 @@ class TaskManager:
 # -------------------- TOOL FACTORIES --------------------
 
 
-def manager_tools(name: str, max_tasks: int, _format: str="json") -> list[Callable]:
+def manager_tools(name: str, max_tasks: int, _format: str = "json") -> list[Callable]:
     """Tools to use in an agent with task manager capabilities."""
 
     def _load(ctx: ToolContext) -> TaskManager:
-        return TaskManager.load_from_state(ctx, name=name, max_tasks=max_tasks, _format=_format)
+        return TaskManager.load_from_state(
+            ctx, name=name, max_tasks=max_tasks, _format=_format
+        )
 
     def list_subtasks(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -412,7 +417,7 @@ def manager_tools(name: str, max_tasks: int, _format: str="json") -> list[Callab
         return {
             "task_result": task_result.model_dump(),
             "next_task": mgr.format_task(next_task)
-            if new_current
+            if next_task
             else EMPTY_TASKS_MGR_STR,
         }
 
@@ -442,14 +447,16 @@ def manager_tools(name: str, max_tasks: int, _format: str="json") -> list[Callab
         mgr.save_to_state(tool_context)
         return {"result": mgr.format_tasks(insertion)}
 
-    return [list_subtasks, get_current_subtask, add_subtask, decompose_subtask]
+    return [list_subtasks, get_current_subtask, add_subtask, decompose_subtask, advance]
 
 
-def worker_tools(name: str, max_tasks: int, _format: str="json") -> list[Callable]:
+def worker_tools(name: str, max_tasks: int, _format: str = "json") -> list[Callable]:
     """Tools meant for the 'worker' side (read current task + report result)."""
 
     def _load(ctx: ToolContext) -> TaskManager:
-        return TaskManager.load_from_state(ctx, name=name, max_tasks=max_tasks, _format=_format)
+        return TaskManager.load_from_state(
+            ctx, name=name, max_tasks=max_tasks, _format=_format
+        )
 
     def get_current_subtask(tool_context: ToolContext) -> dict[str, Any]:
         """
