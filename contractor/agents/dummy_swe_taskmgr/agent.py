@@ -13,6 +13,7 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import manager_tools, worker_tools
 
@@ -39,7 +40,7 @@ DUMMY_SWE_PROMPT: Final[str] = (
     "Workflow:\n"
     "1) Call get_current_subtask and restate the goal in your own words.\n"
     "2) Use code_execution to implement and verify the solution (tests/build/lint where relevant).\n"
-    "3) Use report to summarize what changed, how it was validated, and what remains (if anything).\n"
+    "3) Use report tool to report task status.\n"
 )
 
 DUMMY_SWE_DESCRIPTION: Final[str] = (
@@ -71,11 +72,15 @@ DUMMY_PLANNER_PROMPT: Final[str] = (
     "5) If incomplete, use decompose_subtask and append 1–3 new subtasks.\n"
 )
 
+DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
+    "You have reached context limit.Summarize your progress and call report tool."
+)
+
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
 
 DUMMY_MODEL = LiteLlm(
     model="lm-studio-nemotron",
-    timeout=30,
+    timeout=300,
 )
 
 playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
@@ -107,6 +112,9 @@ tools = [default_tool, *sandbox.tools(), *planning_tools]
 
 callback_adapter = CallbackAdapter(agent_name="dummy_swe")
 callback_adapter.register(TokenUsageCallback())
+callback_adapter.register(
+    SummarizationLimitCallback(max_tokens=30000, message=DUMMY_SUMMARIZATION_MESSAGE)
+)
 callback_adapter.register(
     InvalidToolCallGuardrailCallback(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"

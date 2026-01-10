@@ -103,7 +103,7 @@ class BaseCallback(ABC):
 
         # HACK: ctx.state must be explicilty overwritten
         callbacks = ctx.state["callbacks"]
-        callbacks[self.name] = self.to_state()
+        callbacks[self._callback_state_key()] = self.to_state()
         ctx.state["callbacks"] = callbacks
         return
 
