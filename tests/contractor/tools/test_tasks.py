@@ -169,3 +169,8 @@ def test_type_hint_wraps_only_when_enabled(task_result: TaskExecutionResult):
     out_hint = fmt.format_task_result(task_result, type_hint=True)
     assert out_hint.startswith("```markdown\n")
     assert out_hint.endswith("\n```")
+
+
+def test_subtask_format_description_xml():
+    fmt = Format(_format="xml")
+    assert type(fmt.format_task_result_description()) is str
