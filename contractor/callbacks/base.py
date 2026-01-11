@@ -83,7 +83,7 @@ class BaseCallback(ABC):
     def name(self):
         return self.__class__.__name__
 
-    def _callback_state_key(self, name:str) -> str:
+    def _callback_state_key(self, name: str) -> str:
         return f"{self.agent_name or ''}::{name}"
 
     @abstractmethod

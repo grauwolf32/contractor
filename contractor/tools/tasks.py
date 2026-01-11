@@ -12,6 +12,7 @@ from contextlib import suppress
 from pydantic import BaseModel, Field, ValidationError
 from xml.sax.saxutils import escape as xml_escape
 
+from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 
@@ -40,10 +41,18 @@ TASK_REQUIRES_DECOMPOSITION_MSG: Final[str] = (
 )
 
 TASK_STATUS_TRANSITIONS: Final[dict[str, Any]] = {
-    "new": ["done", "incomplete"],
-    "incomplete": ["done"],
+    "new": ["done", "incomplete", "skipped"],
+    "incomplete": [],
     "done": [],
+    "skipped": [],
 }
+
+_GLOBAL_TASK_ID_KEY: Final[str] = "_global_task_id"
+
+
+class TaskManagerExecutionError(Exception):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
 
 
 class SubtaskSpec(BaseModel):
@@ -134,7 +143,6 @@ class TaskExecutionResult(BaseModel):
         ),
     )
 
-
 @dataclass
 class Format:
     _format: Literal["json", "markdown", "yaml", "xml"] = "json"
@@ -154,7 +162,8 @@ class Format:
     @staticmethod
     def _subtask_to_yaml(subtask: Subtask, **kwargs) -> str:
         payload = {
-            subtask.task_id: {
+            f"task_{subtask.task_id}": {
+                "task_id": subtask.task_id,
                 "title": subtask.title,
                 "description": subtask.description,
                 "status": subtask.status,
@@ -199,7 +208,8 @@ class Format:
     @staticmethod
     def _task_result_to_yaml(task_result: TaskExecutionResult, **kwargs) -> str:
         payload = {
-            task_result.task_id: {
+            f"result_{task_result.task_id}": {
+                "task_id": task_result.task_id,
                 "status": task_result.status,
                 "output": task_result.output,
                 "summary": task_result.summary,
@@ -358,14 +368,10 @@ class Format:
                 return TaskExecutionResult.model_validate(task_meta)
 
             task_id = keys[0]
-            if not re.match(r"\d\.?[\d\.]*", task_id):
-                raise TypeError
-
             if type(task_meta[task_id]) is not dict:
                 raise TypeError
 
-            task_result = {"task_id": task_id, **task_meta[task_id]}
-            return TaskExecutionResult.model_validate(task_result)
+            return TaskExecutionResult.model_validate(task_meta[task_id])
 
         return None
 
@@ -492,3 +498,240 @@ class Format:
                 return task_result
 
         return None
+
+
+@dataclass
+class StreamlineManager:
+    name: str
+    max_tasks: int
+    fmt: Format
+
+    def _state_key(self, ctx: ToolContext | CallbackContext) -> str:
+        global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
+        invocation_id = ctx.invocation_id
+        return f"task::{global_task_id}::{invocation_id}::{self.name}"
+
+    def _subtasks_key(self, ctx: ToolContext | CallbackContext) -> str:
+        return self._state_key(ctx) + "::tasks"
+
+    def _task_results_key(self, ctx: ToolContext | CallbackContext) -> str:
+        return self._state_key(ctx) + "::task_results"
+
+    def _current_idx(self, ctx: ToolContext | CallbackContext) -> str:
+        return self._state_key(ctx) + "::idx"
+
+    @staticmethod
+    def _global_execution_key(ctx: ToolContext | CallbackContext) -> str:
+        return f"task::{global_task_id}::pool"
+
+    @staticmethod
+    def _global_summary_key(ctx: ToolContext | CallbackContext) -> str:
+        return f"task::{global_task_id}::{invocation_id}::summary"
+
+    @staticmethod
+    def _next_task_id(subtasks) -> str:
+        if not subtasks:
+            return "0"
+
+        last_root = subtasks[-1].task_id.split(".")[0]
+        return str(int(last_root) + 1)
+
+    def get_subtasks(self, ctx: ToolContext | CallbackContext) -> list[Subtask]:
+        ctx.state.setdefault(self._subtasks_key, [])
+        subtasks = [Subtask(**sub) for sub in ctx.state[self._subtasks_key()]]
+
+        return subtasks
+
+    def add_subtask(
+        self, subtask_spec: SubtaskSpec, ctx: ToolContext | CallbackContext
+    ) -> Optional[Subtask]:
+        subtasks = self.get_subtasks(ctx)
+
+        if len(subtasks) > self.max_tasks:
+            return
+
+        new = Subtask(
+            task_id=self._next_task_id(subtasks),
+            title=subtask_spec.title,
+            description=subtask_spec.description,
+            status="new",
+        )
+
+        subtasks.append(new)
+        ctx.state.setdefault(self._current_idx(), 0)
+        ctx.state[self._subtasks_key()] = [sub.model_dump() for sub in subtasks]
+        return
+
+    def get_current_subtask(
+        self, ctx: ToolContext | CallbackContext
+    ) -> Optional[Subtask]:
+        ctx.state.setdefault(self._subtasks_key, [])
+        subtasks = [Subtask(**sub) for sub in ctx.state[self._subtasks_key()]]
+
+        idx = ctx.state.get(self._current_idx())
+        if idx is None:
+            return
+
+        return subtasks[idx]
+
+    def decompose_current_subtask(
+        self, new_subtasks: list[SubtaskSpec], ctx: ToolContext | CallbackContext
+    ) -> Optional[list[Subtask]]:
+        subtasks = self.get_subtasks(ctx)
+        idx = ctx.state.get(self._current_idx())
+
+        if idx is None:
+            return
+
+        current_id: str = subtasks[idx].task_id
+        insertion: list[Subtask] = []
+        for ind, spec in enumerate(new_subtasks, start=1):
+            insertion.append(
+                Subtask(
+                    task_id=f"{current_id}.{ind}",
+                    title=spec.title,
+                    description=spec.description,
+                    status="new",
+                )
+            )
+
+        subtasks = subtasks[: idx + 1] + insertion + subtasks[idx + 1 :]
+        ctx.state[self._subtasks_key()] = [sub.model_dump() for sub in subtasks]
+        return insertion
+
+
+TASK_PLANNING_PROMPT = """
+TASK PLANNING WORKFLOW
+
+You are a task-planning agent responsible for coordinating multi-step work through explicit subtasks.
+Your role is to plan, monitor, and adapt based on worker execution results.
+
+--------------------------------------------------
+1. SUBTASK MODEL
+--------------------------------------------------
+
+Each subtask has exactly one status:
+
+- new         : planned but not yet executed
+- done        : successfully completed
+- incomplete  : attempted but failed or partially completed
+- skip        : intentionally skipped due to irrelevance or redundancy
+
+Valid state transitions:
+- new -> done
+- new -> incomplete
+- new -> skip
+
+No other transitions are allowed.
+
+--------------------------------------------------
+2. CORE INVARIANTS (MUST ALWAYS HOLD)
+--------------------------------------------------
+
+1) Single Active Subtask
+   - There is exactly ONE current subtask at any time (current_id).
+   - All reasoning and actions must focus only on the current subtask.
+
+2) Worker-Driven Progress
+   - The worker executes the current subtask and reports results.
+   - Planning decisions must be based ONLY on reported results.
+
+3) Strict Status Semantics
+   - If execution fails or is blocked, mark the subtask as "incomplete".
+   - If execution succeeds, mark the subtask as "done" and advance automatically.
+
+--------------------------------------------------
+3. WHEN TO USE THIS WORKFLOW
+--------------------------------------------------
+
+Use this workflow ONLY for:
+- Multi-step tasks
+- Complex work requiring planning, execution, and verification
+- Tasks that may require decomposition if blocked
+
+DO NOT use this workflow for:
+- Single-step or trivial tasks
+- Purely informational or explanatory responses
+
+--------------------------------------------------
+4. STANDARD OPERATING PROCEDURE
+--------------------------------------------------
+
+Follow this loop strictly:
+
+1) Inspect State
+   - Call list_subtasks or get_current_subtask to understand current progress.
+
+2) Plan
+   - Call add_subtask only when additional steps are required.
+
+3) Execute
+   - Call execute on the current subtask.
+
+4) Handle Results
+   - If result is "done": advancement to the next subtask is automatic.
+   - If result is "incomplete": you MUST call decompose_subtask.
+
+5) Skip (Exceptional Case)
+   - Call skip only if the current subtask is clearly irrelevant or invalid.
+
+--------------------------------------------------
+5. TASK PLANNING RULES (HARD CONSTRAINTS)
+--------------------------------------------------
+
+Rule 1: Single Active Task Rule
+- Do NOT work on future subtasks.
+- Do NOT skip ahead without strong justification.
+- Do NOT advance without a worker-reported result.
+
+Rule 2: Advancement Rules
+- If the current subtask result is "done": advance automatically.
+- If the current subtask result is "incomplete": decomposition is mandatory.
+- Advancing an incomplete task without decomposition is forbidden.
+
+Rule 3: Decomposition Rules
+- Only decompose the CURRENT subtask.
+- Decomposition must:
+  - Fully cover remaining work
+  - Produce clear, actionable subtasks
+  - Avoid trivial, redundant, or overly granular steps
+
+Rule 4: Completion Rules
+- Always analyze execution results before planning next steps.
+- Ensure subtasks remain if the overall task is not complete.
+- Never assume completion without explicit confirmation.
+
+--------------------------------------------------
+6. AGENT MINDSET
+--------------------------------------------------
+
+- Be conservative in advancing.
+- Be explicit in planning.
+- Prefer decomposition over guessing.
+- Treat this workflow as a strict state machine, not a suggestion.
+""".strip()
+
+
+
+def _prepare_worker(worker: LlmAgent, fmt:Format) -> LlmAgent:
+    worker.input_schema=Subtask
+
+    if fmt._format == "json":
+        worker.output_schema=TaskExecutionResult
+    
+
+    return worker    
+    
+
+def task_tools(
+    name: str,
+    max_tasks: int,
+    worker: LlmAgent,
+    _format: Literal["json", "yaml", "markdown", "xml"],
+    use_skip: bool = False,
+    use_summarization: bool = True,
+) -> list[Callable]:
+
+    
+
+    return []

@@ -71,7 +71,7 @@ def test_parse_task_result_yaml_valid_mapping_style():
     #   output: ...
     #   summary: ...
     s = yaml.safe_dump(
-        {"3": {"status": "done", "output": "o", "summary": "s"}},
+        {"3": {"task_id":"3","status": "done", "output": "o", "summary": "s"}},
         sort_keys=False,
     )
 

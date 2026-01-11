@@ -36,6 +36,7 @@ class TokenUsageCallback(BaseCallback):
     deps: list[str] = []
 
     def __init__(self) -> None:
+        # FIXME: use global callback key to store total count
         self.common = TokenCounter()
         self.current = TokenCounter()
         self.invocation_id: str | None = None
