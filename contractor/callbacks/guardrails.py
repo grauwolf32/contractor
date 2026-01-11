@@ -137,7 +137,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
             or tool.__class__.__name__
             for tool in tools
         }
-        self.tool_names
+        self.tool_names.update(ADK_RESERVED_TOOLS)
 
         self.history: list[Any] = []
         assert default_tool_name in self.tool_names

@@ -17,10 +17,10 @@ def test_tpm_ratelimit_triggers_sleep__side_effect(monkeypatch):
     cb = TpmRatelimitCallback(tpm_limit=100, tpm_limit_key="input")
 
     ctx = mk_callback_context()
-    token_cb_name = TokenUsageCallback().name
+    state_key = "::"+TokenUsageCallback().name
 
     # 1) первый вызов — инициализация окна
-    ctx.state["callbacks"][token_cb_name] = {"common": {"input": 100}}
+    ctx.state["callbacks"][state_key] = {"common": {"input": 100, "output":0, "total":100}}
     cb(ctx, MagicMock())
 
     assert cb.timer_start == 1000.0
@@ -28,7 +28,7 @@ def test_tpm_ratelimit_triggers_sleep__side_effect(monkeypatch):
     sleep_mock.assert_not_called()
 
     # 2) второй вызов — превышение лимита: diff=150, elapsed=10 -> delay=51
-    ctx.state["callbacks"][token_cb_name]["common"]["input"] = 250
+    ctx.state["callbacks"][state_key]["common"]["input"] = 250
     cb(ctx, MagicMock())
 
     sleep_mock.assert_called_once()

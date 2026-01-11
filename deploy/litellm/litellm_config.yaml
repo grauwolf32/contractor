@@ -23,4 +23,4 @@ model_list:
 
 litellm_settings:
   num_retries: 3 
-  request_timeout: 30
+  request_timeout: 300
