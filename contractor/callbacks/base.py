@@ -83,8 +83,8 @@ class BaseCallback(ABC):
     def name(self):
         return self.__class__.__name__
 
-    def _callback_state_key(self) -> str:
-        return f"{self.agent_name or ''}::{self.name}"
+    def _callback_state_key(self, name:str) -> str:
+        return f"{self.agent_name or ''}::{name}"
 
     @abstractmethod
     def to_state(self): ...
@@ -103,11 +103,11 @@ class BaseCallback(ABC):
 
         # HACK: ctx.state must be explicilty overwritten
         callbacks = ctx.state["callbacks"]
-        callbacks[self._callback_state_key()] = self.to_state()
+        callbacks[self._callback_state_key(self.name)] = self.to_state()
         ctx.state["callbacks"] = callbacks
         return
 
     def get_from_cb_state(
         self, ctx: CallbackContext | ToolContext, cb_name: str
     ) -> Any:
-        return ctx.state.get("callbacks", {}).get(cb_name)
+        return ctx.state.get("callbacks", {}).get(self._callback_state_key(cb_name))

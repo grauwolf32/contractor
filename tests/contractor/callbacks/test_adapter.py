@@ -16,11 +16,14 @@ def test_callback_chain_call():
 
     ctx = mk_callback_context()
 
-    chain(ctx, mk_llm_response("A", total=10, prompt=6, candidates=4))
-    chain(ctx, mk_llm_response("A", total=3, prompt=1, candidates=2))
+    chain(ctx, mk_llm_response(total=10, prompt=6, candidates=4))
+    chain(ctx, mk_llm_response(total=3, prompt=1, candidates=2))
 
-    s = ctx.state["callbacks"][TokenUsageCallback().name]
-    assert s["interaction_id"] == "A"
+    state_key = "::"+TokenUsageCallback().name
+    s = ctx.state["callbacks"][state_key]
+    invocation_id = ctx.invocation_id
+
+    assert s["invocation_id"] == invocation_id
     assert s["common"] == {"input": 7, "output": 6, "total": 13}
     assert s["current"] == {"input": 7, "output": 6, "total": 13}
     assert s["history"] == {}

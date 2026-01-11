@@ -232,7 +232,7 @@ class Format:
         output: Union[str, dict[str, Any], list[dict[str, Any]]],
         type_hint: bool = False,
     ) -> Union[str, dict[str, Any], list[dict[str, Any]]]:
-        if type(output) is not str:
+        if type(output) is not str or not type_hint:
             return output
         return f"```{self._format}\n{output}\n```"
 
@@ -320,7 +320,7 @@ class Format:
             return None
 
         WHITESPACE_RE = re.compile(r"[ \t\r\n]+")
-        candidates = [output, _WHITESPACE_RE.sub(" ", output)]
+        candidates = [output, WHITESPACE_RE.sub(" ", output)]
 
         for candidate in candidates:
             with suppress(json.JSONDecodeError, ValidationError, TypeError):
@@ -343,24 +343,28 @@ class Format:
         if not output:
             return None
 
-        with suppress(ValidationError.TypeError):
-            task_meta = yaml.safe_load(candidate)
+        with suppress(
+            ValidationError,
+            TypeError,
+            yaml.parser.ParserError,
+            yaml.constructor.ConstructorError,
+        ):
+            task_meta = yaml.safe_load(output)
             if type(task_meta) is not dict:
                 raise TypeError
 
-            keys = task_meta.keys()
-            if len(keys) > 0:
+            keys = list(task_meta.keys())
+            if len(keys) > 1:
                 return TaskExecutionResult.model_validate(task_meta)
 
             task_id = keys[0]
-            if not re.match("\d\.?[\d\.]*"):
+            if not re.match(r"\d\.?[\d\.]*", task_id):
                 raise TypeError
 
             if type(task_meta[task_id]) is not dict:
                 raise TypeError
 
             task_result = {"task_id": task_id, **task_meta[task_id]}
-
             return TaskExecutionResult.model_validate(task_result)
 
         return None
@@ -380,11 +384,11 @@ class Format:
             "summary": None,
         }
 
-        m = TASK_ID_RE.search(text)
+        m = TASK_ID_RE.search(output)
         if m:
             task_result["task_id"] = m.group("task_id").strip()
 
-        lines = text.splitlines()
+        lines = output.splitlines()
 
         i = 0
         while i < len(lines):
