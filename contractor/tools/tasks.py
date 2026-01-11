@@ -837,8 +837,8 @@ def _prepare_worker_instructions(fmt: Format, type_hint: bool = False) -> str:
             "- Identified the following endpoints:\n"
             "  - GET /example\n"
             "  - POST /example\n"
-            "  - PUT /example/{id}\n"
-            "  - DELETE /example/{id}\n"
+            "  - PUT /example/id\n"
+            "  - DELETE /example/id\n"
             "  - GET /admin/health\n"
         ),
         summary=(
@@ -936,6 +936,10 @@ def task_tools(
     def add_subtask(
         title: str, description: str, tool_context: ToolContext
     ) -> dict[str, Any]:
+        """
+        Append a new subtask to the list of subtasks
+        """
+
         subtask: Optional[Subtask] = mgr.add_subtask(
             SubtaskSpec(title=title, description=description), tool_context
         )
@@ -945,6 +949,13 @@ def task_tools(
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
     def get_current_subtask(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Return the current subtask.
+        Reminder:
+        - There is exactly one current task. This is the only task the worker should execute now.
+        - You MUST explicitly pass both task_id and title to the worker to start execution of the current task.
+        """
+
         subtask: Optional[Subtask] = mgr.get_current_subtask(tool_context)
         if subtask is None:
             return {
@@ -954,16 +965,35 @@ def task_tools(
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
     def list_subtasks(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        List all known subtasks.
+        Reminder:
+        - Use this to understand scope and ordering before doing work.
+        - Do not skip tasks; there is exactly one current task at a time.
+        """
+
         subtasks = mgr.get_subtasks(tool_context)
         return {"result": fmt.format_subtasks(subtasks, type_hint=use_type_hint)}
 
     def get_records(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        List of all previous subtask with results.
+        Reminder:
+        - Use this to review results of the previous subtasks.
+        """
+
         records: Union[str, list[dict[str, Any]]] = mgr.get_records(tool_context)
         return {"result": records}
 
     def decompose_current_subtask(
         task_id: str, decomposition: SubtaskDecomposition, tool_context: ToolContext
     ) -> dict[str, Any]:
+        """
+        Decomposes incomplete subtask into several subtasks (best choice is 1-3 subtask).
+        Reminder:
+        - Only current subtask with status "incomplete" could be decomposed.
+        """
+
         if isinstance(decomposition, str):
             schema = json.dumps(SubtaskDecomposition.model_json_schema())
             return {
@@ -987,6 +1017,12 @@ def task_tools(
         return {"result": fmt.format_subtasks(insertion)}
 
     def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Skip execution of the current subtask.
+        Reminder:
+        - IMPORTANT: Use this tool only if you have strong reason to skip the current subtask.
+        """
+
         if not reason.strip():
             return {"error": SKIP_REASON_MUST_NOT_BE_EMPTY}
 
@@ -1003,6 +1039,9 @@ def task_tools(
         return {"result": fmt.format_subtask(next_subtask)}
 
     async def execute_current_subtask(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Execute current subtask
+        """
         current = mgr.get_current_subtask(tool_context)
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}

@@ -54,7 +54,7 @@ DUMMY_SWE_DESCRIPTION: Final[str] = (
 
 DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
     "You have reached context limit.Summarize your progress and call report tool."
-    + _prepare_worker_instructions()
+    + _prepare_worker_instructions(fmt=Format("xml"))
 )
 
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
@@ -110,9 +110,13 @@ dummy_swe = LlmAgent(
     **callback_adapter(),
 )
 
-fmt = Format()
+fmt = Format("xml")
 planning_tools = task_tools(
-    name="dummy_planner", max_tasks=15, worker=dummy_swe, fmt=fmt
+    name="dummy_planner",
+    max_tasks=15,
+    worker=dummy_swe,
+    fmt=fmt,
+    use_output_schema=False,
 )
 tools = [default_tool, *planning_tools]
 
