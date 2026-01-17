@@ -237,7 +237,7 @@ class PodmanContainer:
             self._ensure_mounts()
             self._ensure_container_running()
             result = subprocess.run(
-                ["podman", "exec", self.container_id[:12], *args],
+                ["podman", "exec", self.container_id[:12], "sh", "-c", command],
                 capture_output=True,
                 text=True,
             )

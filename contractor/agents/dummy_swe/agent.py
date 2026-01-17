@@ -27,7 +27,7 @@ DUMMY_AGENT_DESCRIPTION: Final[str] = (
 )
 
 DUMMY_MODEL = LiteLlm(
-    model="tgpt-qwen3-235b-a22b-instruct-2507",
+    model="lm-studio-nemotron",
     timeout=300,
 )
 

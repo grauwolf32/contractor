@@ -1,6 +1,6 @@
 from uuid import uuid4
 from contractor.callbacks.tokens import TokenUsageCallback
-from tests.contractor.callbacks.helpers import mk_callback_context, mk_llm_response
+from tests.contractor.helpers import mk_callback_context, mk_llm_response
 
 
 def test_series_same_interaction_then_change_and_more():

@@ -24,8 +24,8 @@ DUMMY_AGENT_PROMPT: Final[str] = (
 DUMMY_AGENT_DESCRIPTION: Final[str] = "agent to test tools and integrational scenarios."
 
 DUMMY_MODEL = LiteLlm(
-    model="tgpt-qwen3-235b-a22b-instruct-2507",
-    timeout=30,
+    model="lm-studio-nemotron",
+    timeout=300,
 )
 
 DUMMY_SUMMARIZER_MESSAGE: Final[str] = "Summarize our conversation."

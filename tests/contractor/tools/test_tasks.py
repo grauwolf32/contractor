@@ -5,7 +5,10 @@ import pytest
 import yaml
 
 from contractor.tools.tasks import TaskFormat, Subtask, TaskExecutionResult
+from tests.contractor.helpers import MockAgentTool, mk_tool_context
+from unittest.mock import AsyncMock
 
+import contractor.tools.tasks as m
 
 @pytest.fixture()
 def subtask() -> Subtask:
@@ -179,3 +182,76 @@ def test_type_hint_wraps_only_when_enabled(task_result: TaskExecutionResult):
 def test_subtask_format_description_xml():
     fmt = TaskFormat(_format="xml")
     assert type(fmt.format_task_result_description()) is str
+
+@pytest.mark.anyio
+async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(monkeypatch):
+    # ---- Patch out google.adk wrappers/instrumentation so this is a pure unit test ----
+    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
+    monkeypatch.setattr(m, "instrument_worker", lambda worker, *a, **k: worker)
+
+    # ---- Create async-mocked worker ----
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    # Side-effect: always return a "done" result for the current task_id passed in args
+    async def _done_result(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "done",
+            "output": f"completed {args['task_id']}",
+            "summary": "ok",
+        }
+
+    worker.run_async.side_effect = _done_result
+
+    fmt = m.TaskFormat(_format="json")
+    tools = m.task_tools(
+        name="tm",
+        max_tasks=100,
+        worker=worker,
+        fmt=fmt,
+        # keep it simple for unit test:
+        worker_instrumentation=False,
+        use_input_schema=True,
+        use_output_schema=False,  # we'll return dicts validated by code anyway
+        use_type_hint=False,
+        use_skip=False,
+    )
+    tool = {fn.__name__: fn for fn in tools}
+
+    ctx = mk_tool_context()
+
+    # ---- Add several tasks ----
+    for i in range(3):
+        res = tool["add_subtask"](
+            title=f"t{i}", description=f"d{i}", tool_context=ctx
+        )
+        assert "error" not in res
+
+    # ---- Current task should be 0 ----
+    cur = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur["task_id"] == "0"
+
+    # ---- Execute all tasks in order ----
+    # After each execute (done), manager should advance except for last task
+    for expected_id in ["0", "1", "2"]:
+        cur = tool["get_current_subtask"](tool_context=ctx)["result"]
+        assert cur["task_id"] == expected_id
+
+        exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+        assert "error" not in exec_res  # no malformed result
+        # record is either dict (json format) or str; in json it’s dict
+        assert exec_res["record"]["task_id"] == expected_id
+        assert exec_res["record"]["status"] == "done"
+
+    # At this point, current task index typically still points at last task ("2")
+    cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur_after["task_id"] == "2"
+    assert cur_after["status"] == "done"
+
+    # ---- Add another one; expected behavior: current becomes the last (new) task ----
+    tool["add_subtask"](title="t3", description="d3", tool_context=ctx)
+
+    cur2 = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur2["task_id"] == "3"
+    assert cur2["status"] == "new"

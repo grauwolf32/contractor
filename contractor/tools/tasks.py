@@ -601,7 +601,12 @@ class StreamlineManager:
 
         ctx.state.setdefault(self._current_idx(ctx), -1)
         idx = ctx.state[self._current_idx(ctx)]
-        if idx == -1 or idx >= len(subtasks) - 1:
+        if (
+            idx is None
+            or idx < 0
+            or idx >= len(subtasks)
+            or (idx >= len(subtasks) - 1 and subtasks[idx].status == "done")
+        ):
             idx = len(subtasks)
         ctx.state[self._current_idx(ctx)] = idx
 
