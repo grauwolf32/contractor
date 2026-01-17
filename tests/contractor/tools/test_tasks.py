@@ -183,15 +183,36 @@ def test_subtask_format_description_xml():
     fmt = TaskFormat(_format="xml")
     assert type(fmt.format_task_result_description()) is str
 
+# ---------------------------
+# Behavior tests
+# ---------------------------
+
+def _mk_tools(monkeypatch, *, worker, max_tasks=100, use_skip=False):
+    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
+    monkeypatch.setattr(m, "instrument_worker", lambda w, *a, **k: w)
+
+    fmt = m.TaskFormat(_format="json")
+    tools = m.task_tools(
+        name="tm",
+        max_tasks=max_tasks,
+        worker=worker,
+        fmt=fmt,
+        worker_instrumentation=False,
+        use_input_schema=True,
+        use_output_schema=False,
+        use_type_hint=False,
+        use_skip=use_skip,
+    )
+    return {fn.__name__: fn for fn in tools}
+
+
 @pytest.mark.anyio
 async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(monkeypatch):
-    # ---- Patch out google.adk wrappers/instrumentation so this is a pure unit test ----
-    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
-    monkeypatch.setattr(m, "instrument_worker", lambda worker, *a, **k: worker)
-
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
     # Side-effect: always return a "done" result for the current task_id passed in args
     async def _done_result(*, args, tool_context):
@@ -203,21 +224,6 @@ async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(m
         }
 
     worker.run_async.side_effect = _done_result
-
-    fmt = m.TaskFormat(_format="json")
-    tools = m.task_tools(
-        name="tm",
-        max_tasks=100,
-        worker=worker,
-        fmt=fmt,
-        # keep it simple for unit test:
-        worker_instrumentation=False,
-        use_input_schema=True,
-        use_output_schema=False,  # we'll return dicts validated by code anyway
-        use_type_hint=False,
-        use_skip=False,
-    )
-    tool = {fn.__name__: fn for fn in tools}
 
     ctx = mk_tool_context()
 
@@ -255,3 +261,345 @@ async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(m
     cur2 = tool["get_current_subtask"](tool_context=ctx)["result"]
     assert cur2["task_id"] == "3"
     assert cur2["status"] == "new"
+
+
+@pytest.mark.anyio
+async def test_add_new_task_after_decompose(monkeypatch):
+    # ---- Create async-mocked worker ----
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+
+    # Side-effect: always return a "done" result for the current task_id passed in args
+    async def _incomplete_result(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "incomplete",
+            "output": f"completed {args['task_id']}",
+            "summary": "ok",
+        }
+
+    worker.run_async.side_effect = _incomplete_result
+
+    ctx = mk_tool_context()
+
+    res = tool["add_subtask"](
+        title=f"t0", description=f"d0", tool_context=ctx
+    )
+    assert "error" not in res
+
+    # ---- Current task should be 0 ----
+    cur = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur["task_id"] == "0"
+
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert "error" not in exec_res  # no malformed result
+
+    assert exec_res["record"]["task_id"] == "0"
+    assert exec_res["record"]["status"] == "incomplete"
+
+    # At this point, current task index typically still points at last task ("2")
+    res = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={
+            "subtasks": [
+                {
+                    "title": "sub.t1",
+                    "description":"sub.d1"
+                },
+                {
+                    "title": "sub.t2",
+                    "description":"sub.d2"
+                }
+            ],
+        },
+        tool_context=ctx
+    )
+
+    assert "error" not in res
+
+    cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
+
+    assert cur_after["task_id"] == "0.1"
+    assert cur_after["status"] == "new"
+
+@pytest.mark.anyio
+async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
+    # ---- Create async-mocked worker ----
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+
+
+    # Side-effect: always return a "done" result for the current task_id passed in args
+    async def _incomplete_result(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "incomplete",
+            "output": f"completed {args['task_id']}",
+            "summary": "ok",
+        }
+    
+    async def _done_result(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "done",
+            "output": f"completed {args['task_id']}",
+            "summary": "ok",
+        }
+
+    worker.run_async.side_effect = _done_result
+
+    ctx = mk_tool_context()
+
+    res = tool["add_subtask"](
+        title=f"t0", description=f"d0", tool_context=ctx
+    )
+    assert "error" not in res
+
+    res = tool["add_subtask"](
+        title=f"t1", description=f"d1", tool_context=ctx
+    )
+    assert "error" not in res
+
+    # ---- Current task should be 0 ----
+    cur = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur["task_id"] == "0"
+
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert "error" not in exec_res  # no malformed result
+
+    assert exec_res["record"]["task_id"] == "0"
+    assert exec_res["record"]["status"] == "done"
+
+    cur = tool["get_current_subtask"](tool_context=ctx)["result"]
+    assert cur["task_id"] == "1"
+
+    worker.run_async.side_effect = _incomplete_result
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert "error" not in exec_res  # no malformed result
+
+    assert exec_res["record"]["task_id"] == "1"
+    assert exec_res["record"]["status"] == "incomplete"
+
+    # At this point, current task index typically still points at last task ("2")
+    res = tool["decompose_subtask"](
+        task_id="1",
+        decomposition={
+            "subtasks": [
+                {
+                    "title": "sub.t1",
+                    "description":"sub.d1"
+                },
+                {
+                    "title": "sub.t2",
+                    "description":"sub.d2"
+                }
+            ],
+        },
+        tool_context=ctx
+    )
+
+    assert "error" not in res
+
+    cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
+
+    assert cur_after["task_id"] == "1.1"
+    assert cur_after["status"] == "new"
+
+
+@pytest.mark.anyio
+async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(monkeypatch):
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    async def _bad(*, args, tool_context):
+        return "this is not a valid TaskExecutionResult"
+
+    worker.run_async.side_effect = _bad
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+
+    # Tool should flag malformed result
+    assert exec_res.get("error") == m.TASK_RESULT_MALFORMED
+
+    # Record is stored as dict in json mode
+    rec = exec_res["record"]
+    assert rec["task_id"] == "0"
+    assert rec["status"] == "incomplete"
+    assert rec["summary"] == m.TASK_RESULT_MALFORMED
+    assert "this is not a valid TaskExecutionResult" in rec["output"]
+
+@pytest.mark.anyio
+async def test_decompose_requires_current_task_id(monkeypatch):
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    async def _incomplete(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "incomplete",
+            "output": "blocked",
+            "summary": "need more steps",
+        }
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    # Execute current (0) -> incomplete, so current remains 0
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert exec_res["record"]["task_id"] == "0"
+    assert exec_res["record"]["status"] == "incomplete"
+    assert m.TASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
+
+    # Try decomposing with wrong id
+    res = tool["decompose_subtask"](
+        task_id="1",
+        decomposition={"subtasks": [{"title": "x", "description": "y"}]},
+        tool_context=ctx,
+    )
+    assert res["error"] == m.TASK_NOT_CURRENT_MSG.format(task_id="1")
+
+    # Correct id works
+    res_ok = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={"subtasks": [{"title": "x", "description": "y"}]},
+        tool_context=ctx,
+    )
+    assert "error" not in res_ok
+    assert res_ok["result"][0]["task_id"] == "0.1"
+
+
+@pytest.mark.anyio
+async def test_skip_validations_and_state_transition(monkeypatch):
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    # Empty reason rejected
+    res = tool["skip"](task_id="0", reason="   ", tool_context=ctx)
+    assert res["error"] == m.SKIP_REASON_MUST_NOT_BE_EMPTY
+
+    # Wrong task_id rejected (current is 0)
+    res = tool["skip"](task_id="1", reason="nope", tool_context=ctx)
+    assert res["error"] == m.TASK_NOT_CURRENT_MSG.format(task_id="1")
+
+    # Valid skip moves to next task and marks 0 skipped
+    res = tool["skip"](task_id="0", reason="redundant", tool_context=ctx)
+    assert res["result"]["task_id"] == "1"
+
+    all_tasks = tool["list_subtasks"](tool_context=ctx)["result"]
+    t0 = next(t for t in all_tasks if t["task_id"] == "0")
+    assert t0["status"] == "skipped"
+
+    # Record exists
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert isinstance(records, list)
+    assert records[-1]["task_id"] == "0"
+    assert records[-1]["status"] == "skipped"
+    assert records[-1]["output"] == "redundant"
+
+
+@pytest.mark.anyio
+async def test_records_accumulate_for_multiple_executes(monkeypatch):
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    async def _done(*, args, tool_context):
+        return {
+            "task_id": args["task_id"],
+            "status": "done",
+            "output": f"ok {args['task_id']}",
+            "summary": "ok",
+        }
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    await tool["execute_current_subtask"](tool_context=ctx)  # 0
+    await tool["execute_current_subtask"](tool_context=ctx)  # 1
+
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert [r["task_id"] for r in records[-2:]] == ["0", "1"]
+    assert all(r["status"] == "done" for r in records[-2:])
+
+
+@pytest.mark.anyio
+async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+
+    async def _done_or_incomplete(*, args, tool_context):
+        # Make task 1 incomplete; everything else done
+        if args["task_id"] == "1":
+            return {
+                "task_id": "1",
+                "status": "incomplete",
+                "output": "blocked at 1",
+                "summary": "need decompose",
+            }
+        return {
+            "task_id": args["task_id"],
+            "status": "done",
+            "output": f"ok {args['task_id']}",
+            "summary": "ok",
+        }
+
+    worker.run_async.side_effect = _done_or_incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+    tool["add_subtask"](title="t2", description="d2", tool_context=ctx)
+
+    # 0 done -> current becomes 1
+    await tool["execute_current_subtask"](tool_context=ctx)
+    assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1"
+
+    # 1 incomplete -> stays current and demands decomposition
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert exec_res["record"]["task_id"] == "1"
+    assert exec_res["record"]["status"] == "incomplete"
+    assert m.TASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
+
+    # Decompose 1 into 1.1 and 1.2 -> current becomes 1.1
+    tool["decompose_subtask"](
+        task_id="1",
+        decomposition={
+            "subtasks": [
+                {"title": "s1", "description": "sd1"},
+                {"title": "s2", "description": "sd2"},
+            ]
+        },
+        tool_context=ctx,
+    )
+    assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1.1"
+
+    # Execute children done -> current becomes next root (2)
+    await tool["execute_current_subtask"](tool_context=ctx)  # 1.1
+    assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1.2"
+
+    await tool["execute_current_subtask"](tool_context=ctx)  # 1.2
+    assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "2"

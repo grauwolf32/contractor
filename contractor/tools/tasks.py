@@ -1030,7 +1030,7 @@ def task_tools(
         current = mgr.get_current_subtask(tool_context)
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
-        if task_id != current.task_id:
+        if str(task_id) != current.task_id:
             return {"error": TASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
         insertion: list[Subtask] = mgr.decompose_current_subtask(
@@ -1051,7 +1051,7 @@ def task_tools(
         current = mgr.get_current_subtask(tool_context)
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
-        if task_id != current.task_id:
+        if str(task_id) != current.task_id:
             return {"error": TASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
         next_subtask = mgr.skip(reason, tool_context)
