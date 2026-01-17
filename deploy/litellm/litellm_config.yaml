@@ -1,0 +1,26 @@
+model_list:
+  - model_name: lm-studio-nemotron
+    litellm_params:
+      model: openai/nvidia/nemotron-3-nano
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 100000 
+      rpm: 10 
+  - model_name: lm-studio-devstral
+    litellm_params:
+      model: openai/mistralai/devstral-small-2-2512
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 100000
+      rpm: 10
+  - model_name: lm-studio-openai
+    litellm_params:
+      model: openai/openai/gpt-oss-20b
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 100000
+      rpm: 10
+
+litellm_settings:
+  num_retries: 3 
+  request_timeout: 300
