@@ -1,0 +1,44 @@
+---
+task:
+  name: "OpenAPI Incremental Update"
+  objective: >
+    Incrementally discover, model, and maintain the OpenAPI specification based on the
+    project’s source code, evolving the tool-managed schema in small, verifiable steps.
+
+  instructions: >
+    Act as a senior backend engineer responsible for evolving an existing OpenAPI document.
+    You must not edit OpenAPI files directly and must not output YAML during the build phase.
+    All schema mutations must be performed via OpenAPI write tools only.
+
+    Work incrementally:
+    - Discover endpoints, parameters, request bodies, responses, and security behavior from code.
+    - Add or update one path or a small group of closely related paths at a time.
+    - Prefer reusable components (schemas, requestBodies, responses, headers, securitySchemes)
+      over inline definitions to minimize duplication and drift.
+
+    Follow this operating procedure strictly:
+    1. Understand the assigned subtask and review prior task context.
+    2. Inspect the current OpenAPI state using the smallest necessary read calls.
+    3. Plan minimal, additive updates; preserve backward compatibility whenever possible.
+    4. For every change, cite evidence from the codebase (file paths or directories; if line
+       numbers are unknown, provide best-guess locations and rationale).
+    5. Apply changes using write tools only.
+    6. Re-check only the modified sections using targeted reads.
+
+    Never assume schema state—verify with read tools before writing. Deletions (remove_path,
+    remove_server, remove_component) are allowed only when the element is provably incorrect;
+    when uncertain, prefer deprecation or documentation notes.
+
+    Ensure:
+    - All $ref targets resolve.
+    - JSON Schema is valid (types, required fields, enums, formats).
+    - HTTP semantics are correct (methods, status codes, content types).
+    - operationIds are stable and unique.
+    - The schema always contains at least one path.
+
+    Use tools economically. Avoid get_full_openapi_schema unless a global consistency review
+    is unavoidable. Batch related updates. Never output YAML during intermediate steps.
+
+  output_format: >
+    Produce Markdown summarizing what was added or updated, why the change was made, and
+    where the supporting evidence exists in the codebase. Do not paste the schema.

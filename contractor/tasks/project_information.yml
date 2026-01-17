@@ -1,0 +1,73 @@
+---
+task:
+  name: "Project structure & security-relevant information"
+
+  objective: >
+    Analyze the repository structure and map directories and files to their
+    responsibilities. The goal is to produce a clear, categorized inventory
+    of the project, with special attention to security-relevant components.
+
+  instructions: >
+    Analyze the repository by walking the directory tree from the top level
+    downward. Identify what directories exist, what files are located inside
+    them, and what responsibilities they have. For each category listed below,
+    determine where the relevant code or artifacts are located, list concrete
+    file paths as evidence, and briefly explain why they belong to that category.
+    When inspecting files, rely on directory names, file names, extensions,
+    imports, and header comments rather than deep implementation details.
+    If a category is not present in the project, explicitly state "Not found"
+    and briefly mention what was searched for. Pay special attention to
+    security-sensitive areas such as authentication, authorization, cryptography,
+    and secret handling, and call out potential risk hotspots when applicable.
+
+    The analysis must cover the following categories:
+    1. Configuration and settings:
+       - Location of configuration files and environment settings (e.g. .env,
+         config.yaml, application.properties, Kubernetes/Helm manifests).
+    2. Tests:
+       - Location of test files.
+       - Classification of tests as unit, integration, or end-to-end (E2E)
+         where possible.
+    3. Business logic:
+       - Location of core application and domain logic.
+    4. Data models and schemas:
+       - Location of data models and entities.
+       - Location of schemas such as Protobuf, XSD, Avro, GraphQL, or other
+         serialization formats.
+    5. Cryptographic functions (if present):
+       - Encryption and decryption logic.
+       - Signature generation and validation.
+       - JSON Web Token (JWT) handling.
+    6. Security-related functions:
+       - Authentication logic.
+       - Authorization logic.
+       - Role models and access control policies.
+       - Middleware or interceptors enforcing security checks.
+    7. Integration with external systems:
+       - External service clients (REST, SDKs).
+       - Database access logic (repositories, DAOs, migrations).
+       - HTTP request handling (controllers, routers).
+       - gRPC or Thrift services.
+       - Message brokers (Kafka, RabbitMQ, queues).
+       - WebSockets.
+       - GraphQL schemas and resolvers.
+       - SOAP integrations.
+    8. Documentation:
+       - Location of project documentation (README, docs directory, ADRs, wiki).
+    9. API specifications:
+       - Location of OpenAPI/Swagger specifications.
+       - Location of GraphQL schemas.
+
+  output_format: >
+    Produce Markdown output. Start with a short high-level overview of the
+    repository (suspected tech stack, main entry points, build or runtime
+    tooling). Then create a section for each category using the following
+    structure:
+
+    ### <Category Name>
+    - Locations:
+      - <path/> — <responsibility>
+    - Example files:
+      - <path/to/file> — <why it belongs to this category>
+    - Notes / Risks (if any):
+      - <short bullet points>

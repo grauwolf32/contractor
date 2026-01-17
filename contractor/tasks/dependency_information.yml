@@ -1,0 +1,82 @@
+---
+task:
+  name: "External Service Dependency Inventory"
+
+  objective: >
+    Analyze the project dependencies and collect information only about those
+    dependencies that are used to interact with external services, systems,
+    or infrastructure. The goal is to identify, classify, and tag such
+    dependencies while excluding purely internal or local-only libraries.
+
+  instructions: >
+    Analyze the project to identify its dependency ecosystem and locate the
+    relevant dependency manifest files (for example: package.json, pyproject.toml,
+    requirements.txt, pom.xml, build.gradle, go.mod, Gemfile, composer.json,
+    *.csproj, and their corresponding lock files). Determine the primary
+    programming languages and frameworks in use, and inspect the dependency
+    declarations accordingly.
+
+    From all discovered dependencies, filter and keep only those that are used
+    for interaction with external services. External services include any
+    system, protocol, or infrastructure outside the application process, such
+    as HTTP APIs, RPC frameworks, message brokers, databases, object storage,
+    identity providers, or secret management systems. Prefer direct dependencies;
+    include transitive dependencies only when they clearly provide external
+    connectivity (for example gRPC transports, database drivers, or protocol
+    runtimes).
+
+    Exclude dependencies that are purely internal or local in nature, such as
+    testing frameworks, build tools, linters, formatters, UI libraries, general
+    utility libraries, or developer-only tooling, unless they are directly
+    responsible for runtime interaction with external systems.
+
+    For each included dependency, assign one or more tags describing its role.
+    Use the following tags and add new ones only if necessary:
+      - http
+      - graphql
+      - grpc
+      - thrift
+      - websocket
+      - soap
+      - openapi
+      - queue
+      - database
+      - s3
+      - security
+      - cryptography
+      - authentication
+      - authorization
+      - secrets
+
+    When assigning tags, base the decision on the primary responsibility of the
+    dependency (for example: REST clients or servers → http; Kafka/RabbitMQ →
+    queue; JDBC/ORM/Redis/Elasticsearch → database; OIDC/OAuth/JWT identity
+    libraries → authentication).
+
+    For every dependency that is kept, provide evidence for why it is included.
+    Evidence may include the dependency declaration itself, typical usage
+    patterns implied by the library, configuration references, or hints from
+    file paths and module names. If the usage is inferred rather than explicitly
+    confirmed, mark it as suspected and explain the reasoning.
+
+    Do not invent dependencies or usage. If dependency information is missing
+    or incomplete (for example due to absent lock files or private registries),
+    explicitly state this limitation.
+
+  output_format: >
+    Produce Markdown output with the following structure:
+
+    1. Detected stack and dependency sources
+       - Programming languages and frameworks inferred
+       - Dependency manifest files analyzed
+
+    2. External-service dependencies (filtered)
+       - Present a table with the following columns:
+         | Dependency | Version | Ecosystem | Tags | Why included | Evidence |
+
+    3. Summary by tag
+       - Group dependencies by tag and list them under each tag
+
+    4. Gaps and follow-ups
+       - Uncertain or suspected dependencies
+       - Missing information or assumptions made during analysis

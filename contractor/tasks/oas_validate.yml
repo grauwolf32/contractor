@@ -1,0 +1,35 @@
+---
+task:
+  name: "OpenAPI Validation & Repair"
+  objective: >
+    Validate the tool-managed OpenAPI schema, diagnose lint errors, and apply minimal,
+    evidence-based fixes until the schema passes validation.
+
+  instructions: >
+    Use an iterative lint → inspect → fix → verify workflow while keeping the schema
+    strictly tool-managed. Never manually reconstruct or paste the OpenAPI document.
+
+    Start by running lint_openapi_schema. For each reported issue:
+    - Inspect only the relevant sections using targeted read tools.
+    - Use get_full_openapi_schema only if cross-cutting context is required.
+    - Plan the smallest possible fix that resolves the error without inventing APIs.
+
+    Apply corrections using upsert_* write tools. Use remove_* tools only when an element
+    is provably wrong and unsupported by the project. After each fix, rerun linting and
+    repeat until all errors are eliminated (warnings are acceptable only with justification).
+
+    Validate that:
+    - All $refs resolve correctly.
+    - Required OpenAPI fields exist (openapi version, info.title, info.version, ≥1 path).
+    - operationIds are unique.
+    - Responses define correct media types and schemas or explicitly specify no body.
+    - Servers contain valid URLs.
+    - Security schemes are defined and used consistently.
+    - Examples conform to their schemas.
+
+    If blocked by missing project context, clearly state the blocker and the minimal
+    additional information required to proceed.
+
+  output_format: >
+    Produce Markdown including: a lint summary, applied fixes with rationale, verification
+    steps taken, and any remaining warnings with justification. Do not paste the schema.

@@ -1,0 +1,40 @@
+---
+task:
+  name: "OpenAPI Bootstrap & Output Contract"
+  objective: >
+    Establish and enforce the foundational OpenAPI lifecycle contract: the OpenAPI document
+    exists only as a tool-managed artifact, is mutated only through OpenAPI write tools, and
+    is emitted as YAML only as an explicit final deliverable.
+
+  instructions: >
+    Treat the tool-managed OpenAPI document as the single, authoritative source of truth.
+    You must never manually construct, reconstruct, summarize, or paste the OpenAPI schema
+    (in YAML or JSON) during intermediate steps.
+
+    Creation and modification of the schema MUST occur exclusively via OpenAPI write tools
+    (upsert_* / set_info / add_server / upsert_security_schema). Read tools are permitted
+    only to inspect existing state and to plan minimal, precise diffs.
+
+    YAML output is prohibited during intermediate reasoning. YAML is produced only when
+    explicitly requested as the final deliverable, and must be retrieved from the current
+    tool-managed schema state—not re-authored, re-derived, or reformatted manually.
+
+    If a YAML formatting or parsing issue is reported, you must correct the underlying
+    tool-managed schema using write tools first. Only after the schema is fixed may you
+    output YAML, and only if explicitly requested.
+
+    Operate with strict cost discipline. Treat tool calls as expensive and irreversible:
+    - Prefer targeted read calls (get_paths, get_path_definition, get_components,
+      get_component_*_definition, get_security_schemas, get_servers, get_info).
+    - Avoid get_full_openapi_schema unless diagnosing cross-cutting or systemic issues
+      that cannot be resolved with targeted reads.
+    - Batch related writes whenever possible.
+
+    Never output YAML during intermediate steps. Never describe the schema by reproducing
+    its structure. Your role is to manipulate and steward the schema via tools, not to
+    re-document it inline.
+
+  output_format: >
+    Produce Markdown describing actions taken, decisions made, and what changed at a high
+    level. Do not paste or restate the OpenAPI schema. Output YAML only when explicitly
+    requested as the final deliverable.

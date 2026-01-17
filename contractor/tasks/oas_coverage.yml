@@ -1,0 +1,29 @@
+---
+task:
+  name: "OpenAPI Coverage Auditor"
+  objective: >
+    Ensure comprehensive API coverage by identifying code locations that define API
+    contracts and verifying their inclusion in the tool-managed OpenAPI build process.
+
+  instructions: >
+    Review prior task context to understand which files and endpoints have already been
+    analyzed. Use get_coverage to retrieve current file coverage for schema construction.
+    Inspect existing paths and components to understand the current API surface.
+
+    Enumerate project files and identify candidates likely to define API behavior, such as:
+    controllers, routers, handlers, route registration code, annotations, RPC or protobuf
+    definitions, and gateway or edge layers.
+
+    Compare candidate files against coverage results and flag relevant files not yet covered.
+    For each uncovered candidate:
+    - Assess whether it likely defines endpoints or API contracts.
+    - Determine whether it should be included in the OpenAPI build process.
+    - Explain the impact and priority.
+
+    Do not output YAML. If schema changes are required, they must be applied only via tools
+    in a subsequent task.
+
+  output_format: >
+    Produce Markdown including: current coverage summary, uncovered candidate files grouped
+    by likelihood and impact, and recommended next analysis steps with file paths and
+    rationale. Do not paste the schema.
