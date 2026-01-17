@@ -371,6 +371,10 @@ def tools(name: str) -> list[Callable]:
         schema.setdefault("servers", [])
         return {"result": schema["servers"]}
 
+    async def get_full_openapi_schema(tool_context: ToolContext)->dict[str, Any]:
+        schema = await oas.load_schema(tool_context)
+        return {"result": oas.dump()}
+
     return [
         list_paths,
         list_components,
@@ -384,6 +388,7 @@ def tools(name: str) -> list[Callable]:
         remove_server,
         remove_path,
         remove_component,
+        get_full_openapi_schema,
     ]
 
 
