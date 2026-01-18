@@ -267,7 +267,10 @@ class PodmanContainer:
                 }
 
             out, err = self.execute(command)
-            return {"result": out, "error": err}
+            if err.strip():
+                return {"result": out, "error": err}
+
+            return {"result": out}
 
         return [code_execution_tool]
 

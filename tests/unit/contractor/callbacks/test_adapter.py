@@ -1,6 +1,6 @@
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.tokens import TokenUsageCallback
-from tests.contractor.helpers import mk_callback_context, mk_llm_response
+from tests.unit.contractor.helpers import mk_callback_context, mk_llm_response
 
 
 def test_middleware_registration():
