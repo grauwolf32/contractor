@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 from contractor.tools.tasks import TaskFormat, Subtask, TaskExecutionResult
-from tests.unit.contractor.helpers import MockAgentTool, mk_tool_context
+from tests.units.contractor.helpers import MockAgentTool, mk_tool_context
 from unittest.mock import AsyncMock
 
 import contractor.tools.tasks as m

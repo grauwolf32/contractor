@@ -372,7 +372,7 @@ def tools(name: str) -> list[Callable]:
         return {"result": schema["servers"]}
 
     async def get_full_openapi_schema(tool_context: ToolContext) -> dict[str, Any]:
-        schema = await oas.load_schema(tool_context)
+        await oas.load_schema(tool_context)
         return {"result": oas.dump()}
 
     return [

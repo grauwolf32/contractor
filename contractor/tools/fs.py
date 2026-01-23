@@ -1,25 +1,31 @@
 from __future__ import annotations
 
+import fnmatch
+import json
 import re
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+from typing import Any, Final, Literal, Optional, Union
+
 import fsspec
-from typing import Final, Literal, Optional, Any
-from magika import Magika, ContentTypeInfo
-from dataclasses import dataclass, field, asdict
+from magika import ContentTypeInfo, Magika
 
 _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.pyc",
     "*/__pycache__/*",
     "__pycache__/*",
     "*.so",
-    ".dll",
+    "*.dll",
     "*.bin",
     "*.o",
-    "*.dylib*.jpg",
+    "*.dylib",
+    "*.jpg",
     "*.jpeg",
     "*.webp",
     "*.png",
     "*.svg",
-    "*.heic*.mov",
+    "*.heic",
+    "*.mov",
     "*.mp4",
     "*.avi",
     "*.zip",
@@ -34,12 +40,37 @@ PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
 
+def _xml_escape(s: str) -> str:
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+
+def _is_ignored(path: str, patterns: list[str]) -> bool:
+    """
+    Match both full-path and basename against ignore patterns.
+    Uses forward-slash normalization for consistency across FS backends.
+    """
+    p = path.replace("\\", "/")
+    name = p.split("/")[-1]
+    for pat in patterns:
+        if fnmatch.fnmatch(p, pat) or fnmatch.fnmatch(name, pat):
+            return True
+    return False
+
+
 @dataclass
 class FileLoc:
     """
-    Marks location in file.
-    start, end: lines in file
-    content: content within those lines
+    Marks a location in file.
+
+    - line_start, line_end: 0-based line indices (inclusive)
+    - byte_start, byte_end: 0-based byte offsets (half-open: [start, end))
+    - content: a small excerpt around the match or the matched line(s)
     """
 
     line_start: Optional[int] = None
@@ -57,108 +88,127 @@ class FileEntry:
     filetype: Optional[ContentTypeInfo] = None
     loc: Optional[FileLoc] = None
 
+    _magika: Magika = Magika()
+
     @staticmethod
-    @lru_cache()
+    @lru_cache(maxsize=2048)
     def identify_type(
         file: str, fs: fsspec.AbstractFileSystem
     ) -> Optional[ContentTypeInfo]:
-        if not fs.exists(file):
-            return
-        with fs.open(file) as f:
-            res = self._magika.identify_stream(f).output
-            return res
+        if not fs.exists(file) or not fs.isfile(file):
+            return None
+        try:
+            with fs.open(file, mode="rb") as f:
+                return FileEntry._magika.identify_stream(f).output
+        except Exception:
+            return None
 
     @classmethod
     def from_file(
-        cls, file: str, fs: fsspec.AbstractFileSystem, with_types: bool
+        cls,
+        file: str,
+        fs: fsspec.AbstractFileSystem,
+        with_types: bool = True,
     ) -> Optional[FileEntry]:
-        if not fs.exists(file):
-            return
+        if not fs.exists(file) or not fs.isfile(file):
+            return None
 
         filetype: Optional[ContentTypeInfo] = None
         if with_types:
-            filetype = FileEntry.identify_type(file, fs)
+            filetype = cls.identify_type(file, fs)
 
         return cls(
-            filename=file.split("/")[-1],
+            filename=file.rstrip("/").split("/")[-1],
             path=file,
-            size=fs.size(file),
+            size=int(fs.size(file)),
             filetype=filetype,
-            locs=None,
+            loc=None,
         )
+
+    @staticmethod
+    def _compute_line_starts(text: str) -> list[int]:
+        starts = [0]
+        for m in re.finditer(r"\n", text):
+            starts.append(m.end())
+        return starts
+
+    @staticmethod
+    def _char_to_line(line_starts: list[int], char_pos: int) -> int:
+        lo, hi = 0, len(line_starts) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if line_starts[mid] <= char_pos:
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return max(0, hi)
 
     @classmethod
     def from_matches(
         cls,
-        matches: re.Match,
+        matches: list[re.Match[str]],
         file: str,
         fs: fsspec.AbstractFileSystem,
         *,
-        content: Optional[str],
+        content: Optional[str] = None,
         with_types: bool = True,
-    ) -> Optional[list[FileEntry]]:
-        if not fs.exists(file):
-            return
-
-        if not match:
-            return []
-
-        if not content:
-            content = fs.read_text(file, encoding="utf-8", errors="ignore")
-
-        lines = content.split("\n")
-        proto = cls.from_file(file, fs, with_types)
-
-        entries: list[FileEntry] = []
-        for m in maches:
-            begin_pos, end_pos = m.span
-            entry = copy.deepcopy(proto)
-            ...  # define corresponding lines for matches and fill loc of the entry
-            entries.append(entry)
-
-        return entry
-
-
-@dataclass
-class FileAnalysisTools:
-    fs: fsspec.AbstractFileSystem
-    max_output: int  # max output in bytes
-    ignored_patterns: list[str] = field(default_factory=list)
-    with_types: bool = True
-    _magika: Magika = Magika()
-
-    def _is_ignored(self, filename) -> bool:
-        return False  # TODO: Implement
-
-    def _process_match(
-        self, match: re.Match, filename: str, content: str
-    ) -> FileEntry: ...  # TODO: Implement
-
-    def search_pattern(
-        self, pattern: str, path: str = "."
-    ) -> Optional[list[FileEntry]]:
-        pattern = re.compile(pattern)
-        if not fs.exists(path):
+        excerpt_max_chars: int = 500,
+        context_lines: int = 0,
+    ) -> Optional[list["FileEntry"]]:
+        if not fs.exists(file) or not fs.isfile(file):
             return None
 
-        results: list[FileEntry] = []
-        for current_path, dirs, files in self.fs.walk(path):
-            for file in files:
-                full_path = "/".join((current_path, file))
-                if self._is_ignored(full_path):
-                    continue
-                with fs.open(full_path, encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-                    matches = list(re.finditer(pattern, content))
-                    results += FileEntry.from_matches(
-                        matches=matches,
-                        file=file,
-                        fs=fs,
-                        content=content,
-                        with_types=self.with_types,
-                    )
+        if not matches:
+            return []
 
-        return results
+        if content is None:
+            try:
+                content = fs.read_text(file, encoding="utf-8", errors="ignore")
+            except Exception:
+                return []
+
+        proto = cls.from_file(file, fs, with_types=with_types)
+        if proto is None:
+            return None
+
+        line_starts = cls._compute_line_starts(content)
+        lines = content.splitlines()
+
+        entries: list[FileEntry] = []
+        for m in matches:
+            begin_char, end_char = m.span()
+            line_idx = cls._char_to_line(line_starts, begin_char)
+
+            ls = max(0, line_idx - context_lines)
+            le = min(len(lines) - 1, line_idx + context_lines)
+
+            try:
+                byte_start = len(content[:begin_char].encode("utf-8", errors="ignore"))
+                byte_end = len(content[:end_char].encode("utf-8", errors="ignore"))
+            except Exception:
+                byte_start, byte_end = None, None
+
+            excerpt = "\n".join(lines[ls : le + 1])
+            if len(excerpt) > excerpt_max_chars:
+                excerpt = excerpt[:excerpt_max_chars] + "…"
+
+            entries.append(
+                cls(
+                    filename=proto.filename,
+                    path=proto.path,
+                    size=proto.size,
+                    filetype=proto.filetype,
+                    loc=FileLoc(
+                        line_start=ls,
+                        line_end=le,
+                        byte_start=byte_start,
+                        byte_end=byte_end,
+                        content=excerpt,
+                    ),
+                )
+            )
+
+        return entries
 
 
 @dataclass
@@ -168,132 +218,247 @@ class FileFormat:
     _format: Literal["str", "json", "xml"] = "json"
     loc: Literal["lines", "bytes"] = "lines"
 
-    def format_file_entry(f: FileEntry) -> Union[str, dict]: ...
+    def _format_loc(self, loc: FileLoc) -> Union[str, dict[str, Any]]:
+        if self.loc == "bytes":
+            payload: dict[str, Any] = {
+                "byte_start": loc.byte_start,
+                "byte_end": loc.byte_end,
+            }
+        else:
+            payload = {"line_start": loc.line_start, "line_end": loc.line_end}
 
-    def _format_loc(loc: FileLoc) -> Union[str, dict]: ...
+        if loc.content is not None:
+            payload["content"] = loc.content
+
+        if self._format == "str":
+            return json.dumps(payload, ensure_ascii=False)
+        if self._format == "xml":
+            parts = ["<loc>"]
+            for k, v in payload.items():
+                parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
+            parts.append("</loc>")
+            return "".join(parts)
+        return payload
+
+    def format_file_entry(self, f: FileEntry) -> Union[str, dict[str, Any]]:
+        base: dict[str, Any] = {}
+        if self.with_file_info:
+            base.update({"filename": f.filename, "path": f.path, "size": f.size})
+
+        if self.with_types and f.filetype is not None:
+            try:
+                base["filetype"] = asdict(f.filetype)
+            except Exception:
+                base["filetype"] = str(f.filetype)
+
+        if f.loc is not None:
+            base["loc"] = self._format_loc(f.loc)
+
+        if self._format == "str":
+            return json.dumps(base, ensure_ascii=False)
+        if self._format == "xml":
+            parts = ["<file>"]
+            for k, v in base.items():
+                if isinstance(v, (dict, list)):
+                    parts.append(
+                        f"<{k}>{_xml_escape(json.dumps(v, ensure_ascii=False))}</{k}>"
+                    )
+                else:
+                    parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
+            parts.append("</file>")
+            return "".join(parts)
+        return base
 
     def format_file_list(
-        files: list[FileEntry],
-    ) -> Union[str, list[dict[str, Any]]]: ...
+        self, files: list[Optional[FileEntry]]
+    ) -> Union[str, list[dict[str, Any]]]:
+        cleaned = [f for f in files if f is not None]
+        if self._format == "str":
+            return "\n".join(str(self.format_file_entry(f)) for f in cleaned)
+        if self._format == "xml":
+            inner = "".join(str(self.format_file_entry(f)) for f in cleaned)
+            return f"<files>{inner}</files>"
+        return [self.format_file_entry(f) for f in cleaned]  # type: ignore[return-value]
 
+    @staticmethod
     def format_output(content: str, max_output: int) -> str:
-        lines: list[str] = content.split("\n")
-        output: str = ""
-        count: int | None = None
+        # Truncate by bytes (utf-8) while preserving line boundaries.
+        lines = content.splitlines(True)  # keep line endings
+        out_parts: list[str] = []
+        out_bytes = 0
+        cut_at_line: Optional[int] = None
 
-        for idx, line in enumerate(lines):
-            if not len(line) + len(output) <= max_output:
-                count = max(0, idx - 1)
+        for i, line in enumerate(lines):
+            line_bytes = len(line.encode("utf-8", errors="ignore"))
+            if out_bytes + line_bytes > max_output:
+                cut_at_line = i
                 break
-            output += line
+            out_parts.append(line)
+            out_bytes += line_bytes
 
-        if count is None:
-            return output
+        if cut_at_line is None:
+            return "".join(out_parts)
 
-        footer: str = f"### current line: {count} ### lines left in the file: {len(lines) - count}"
-        output += footer
-        return output
+        remaining = max(0, len(lines) - cut_at_line)
+        footer = (
+            f"\n\n### truncated at line: {cut_at_line} ### "
+            f"lines left in the file: {remaining} ###"
+        )
+        footer_bytes = len(footer.encode("utf-8", errors="ignore"))
+        if footer_bytes > max_output:
+            return footer[:max_output]
+
+        while out_parts and (out_bytes + footer_bytes) > max_output:
+            removed = out_parts.pop()
+            out_bytes -= len(removed.encode("utf-8", errors="ignore"))
+
+        return "".join(out_parts) + footer
 
 
 def file_tools(
     fs: fsspec.AbstractFileSystem,
     fmt: FileFormat,
     max_output: int = 8 * 10**4,
-    ignored_patterns: Optional[list[str]] = _IGNORE_DEFAULTS,
+    ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
-):
-    tools = FileAnalysisTools(fs, max_output, ignored_patterns, with_types)
+) -> dict[str, Any]:
+    """
+    Returns a registry of tools:
+      - ls(path)
+      - glob(pattern, path=None)
+      - read_file(file, offset=None, limit=None)
+      - grep(pattern, path=None)
+
+    The implementation is filesystem-backend agnostic via fsspec.
+    """
+    fmt.with_types = with_types
+    fmt.with_file_info = with_file_info
+
+    patterns = []
+    for pat in _IGNORE_DEFAULTS + (ignored_patterns or []):
+        if pat and pat not in patterns:
+            patterns.append(pat)
 
     def ls(path: str) -> dict[str, Any]:
-        """
-        Lists the names of files and subdirectories directly within a specified directory path.
-        Args:
-          path: The absolute path to the directory to list (must be absolute, not relative)
-        """
-
-        if not tools.fs.exists(path):
+        if not fs.exists(path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+        try:
+            items = fs.ls(path, detail=False)
+        except TypeError:
+            items = fs.ls(path)
 
         res = [
-            FileEntry.from_file(f, fs, with_types=with_types)
-            for f in tools.fs.ls(path)
-            if not tools._is_ignored(f)
+            FileEntry.from_file(str(p), fs, with_types=with_types)
+            for p in items
+            if not _is_ignored(str(p), patterns)
         ]
-
         return {"result": fmt.format_file_list(res)}
 
-    def glob(pattern: str, path: Optional[str]) -> dict[str, Any]:
-        """
-        Fast file pattern matching tool that works with any codebase size
-        - Supports glob patterns like "**/*.js" or "src/**/*.ts"
-        - Returns matching file paths sorted by modification time
-        - Use this tool when you need to find files by name patterns
-        - When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
-        - You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.',
-        Args:
-          pattern: The glob pattern to match files against
-          path: The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.
-        """
-
-        if path and not tools.fs.exists(path):
+    def glob(pattern: str, path: Optional[str] = None) -> dict[str, Any]:
+        if path and not fs.exists(path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
 
-        res = [
-            FileEntry.from_file(f)
-            for f in tools.fs.glob(pattern)
-            if not tools._is_ignored(f)
-        ]
-
+        matches = [str(p) for p in fs.glob(pattern)]
         if path:
-            res = [entry for entry in res if entry.path.startswith(path)]
+            prefix = path.rstrip("/").replace("\\", "/") + "/"
+            matches = [m for m in matches if m.replace("\\", "/").startswith(prefix)]
 
+        res = [
+            FileEntry.from_file(p, fs, with_types=with_types)
+            for p in matches
+            if not _is_ignored(p, patterns)
+        ]
         return {"result": fmt.format_file_list(res)}
 
     def read_file(
-        file: str, offset: Optional[int], limit: Optional[int]
+        file: str, offset: Optional[int] = None, limit: Optional[int] = None
     ) -> dict[str, Any]:
-        """
-        Reads and returns the content of a specified file.
-        If the file is large, the content will be truncated.
-        The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'offset' and 'limit' parameters.
-        For text files, it can read specific line ranges.
-        Args:
-          file: The absolute path to the file to read (e.g., '/home/user/project/file.txt'). Relative paths are not supported. You must provide an absolute path.
-          offset: (Optional) For text files, the 0-based line number to start reading from. Requires 'limit' to be set. Use for paginating through large files.
-          limit: (Optional) For text files, maximum number of lines to read. Use with 'offset' to paginate through large files. If omitted, reads the entire file (if feasible, up to a default limit).
-        """
-
-        if not tools.fs.exists(file) or tools._is_ignored(file):
+        if not fs.exists(file) or _is_ignored(file, patterns):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=file)}
-
-        if not tools.fs.isfile(file):
+        if not fs.isfile(file):
             return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=file)}
 
-        content = fs.read_text(file, encoding="utf-8", errors="ignore")
-        lines = content.split("\n")
-        if offset and offset < len(lines):
+        try:
+            content = fs.read_text(file, encoding="utf-8", errors="ignore")
+        except Exception:
+            return {"result": ""}
+
+        lines = content.splitlines()
+        if offset is not None:
+            offset = max(0, offset)
+            if offset >= len(lines):
+                return {"result": ""}
             lines = lines[offset:]
-        if limit:
+        if limit is not None:
+            limit = max(0, limit)
             lines = lines[:limit]
-        content = "\n".join(lines)
 
-        return fmt.format_output(content, tools.max_output)
+        sliced = "\n".join(lines)
+        return {"result": fmt.format_output(sliced, max_output)}
 
-    def grep(pattern: str, path: Optional[str]):
+    def grep(pattern: str, path: Optional[str] = None) -> dict[str, Any]:
         """
-        A powerful search tool for finding patterns in files
-        Args:
-          pattern: The regular expression pattern to search for in file contents
-          path: (Optional) Absolute path to file or directory to search in. Defaults to current working directory.
-
-        Usage:
-          - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
-          - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+        Regex search across a file or directory tree.
+        Returns one FileEntry per match, with loc describing where it matched.
         """
+        try:
+            regex = re.compile(pattern)
+        except re.error as err:
+            return {"error": INCORRECT_REGEXP_ERROR.format(regex=pattern, err=str(err))}
 
-        if not tools.fs.exists(file) or tools._is_ignored(file):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=file)}
+        target = path or "."
+        if not fs.exists(target):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=target)}
 
-        res = tools.search_pattern(pattern, path=path or ".")
-        return {"result": fmt.format_file_list(res)}
+        # Search a single file
+        if fs.isfile(target):
+            if _is_ignored(target, patterns):
+                return {"result": []}
+            try:
+                content = fs.read_text(target, encoding="utf-8", errors="ignore")
+            except Exception:
+                return {"result": []}
+            matches = list(regex.finditer(content))
+            entries = FileEntry.from_matches(
+                matches=matches,
+                file=target,
+                fs=fs,
+                content=content,
+                with_types=with_types,
+            )
+            return {"result": fmt.format_file_list(entries or [])}
+
+        # Walk a directory tree
+        results: list[FileEntry] = []
+        for current_path, _dirs, files in fs.walk(target):
+            for fname in files:
+                full_path = (str(current_path).rstrip("/") + "/" + str(fname)).replace(
+                    "\\", "/"
+                )
+                if _is_ignored(full_path, patterns):
+                    continue
+                try:
+                    content = fs.read_text(full_path, encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+
+                matches = list(regex.finditer(content))
+                entries = FileEntry.from_matches(
+                    matches=matches,
+                    file=full_path,
+                    fs=fs,
+                    content=content,
+                    with_types=with_types,
+                )
+                if entries:
+                    results.extend(entries)
+
+        return {"result": fmt.format_file_list(results)}
+
+    return {
+        "ls": ls,
+        "glob": glob,
+        "read_file": read_file,
+        "grep": grep,
+    }
