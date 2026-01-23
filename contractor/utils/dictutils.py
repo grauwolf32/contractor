@@ -3,6 +3,7 @@ import collections.abc
 from dataclasses import dataclass, field
 from typing import Any
 
+
 def deep_merge(target: dict, diff: dict) -> dict:
     """
     Deep merge dictionaries. Lists are replaced (not concatenated) to avoid
