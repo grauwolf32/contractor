@@ -417,8 +417,9 @@ def file_tools(
                 return {"result": []}
             try:
                 content = fs.read_text(target, encoding="utf-8", errors="ignore")
-            except Exception:
-                return {"result": []}
+            except Exception as exc:
+                return {"error": str(exc)}
+
             matches = list(regex.finditer(content))
             entries = FileEntry.from_matches(
                 matches=matches,
