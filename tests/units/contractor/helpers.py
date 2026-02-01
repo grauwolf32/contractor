@@ -9,7 +9,9 @@ class MockCtx:
     invocation_id: str | None = None
 
 
-def mk_callback_context(initial_state:Optional[dict[str, Any]]=None, invocation_id:Optional[str]=None) -> MockCtx:
+def mk_callback_context(
+    initial_state: Optional[dict[str, Any]] = None, invocation_id: Optional[str] = None
+) -> MockCtx:
     """
     CallbackContext нам нужен только с полем .state (dict).
     """
@@ -18,7 +20,11 @@ def mk_callback_context(initial_state:Optional[dict[str, Any]]=None, invocation_
     ctx.invocation_id = invocation_id or str(uuid4())
     return ctx
 
-def mk_tool_context(initial_state:Optional[dict[str, Any]]=None, invocation_id:Optional[str]="invocation_id") -> MockCtx:
+
+def mk_tool_context(
+    initial_state: Optional[dict[str, Any]] = None,
+    invocation_id: Optional[str] = "invocation_id",
+) -> MockCtx:
     ctx = MockCtx()
     ctx.state = initial_state or {"callbacks": {}}
     ctx.invocation_id = invocation_id or str(uuid4())
@@ -42,6 +48,7 @@ class MockAgentTool:
     Minimal stand-in for google.adk.tools.AgentTool.
     task_tools() only needs an object with .run_async(...).
     """
+
     def __init__(self, agent):
         self._agent = agent
 

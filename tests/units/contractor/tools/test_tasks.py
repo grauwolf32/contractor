@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 
 import contractor.tools.tasks as m
 
+
 @pytest.fixture()
 def subtask() -> Subtask:
     return Subtask(
@@ -183,9 +184,11 @@ def test_subtask_format_description_xml():
     fmt = TaskFormat(_format="xml")
     assert type(fmt.format_task_result_description()) is str
 
+
 # ---------------------------
 # Behavior tests
 # ---------------------------
+
 
 def _mk_tools(monkeypatch, *, worker, max_tasks=100, use_skip=False):
     monkeypatch.setattr(m, "AgentTool", MockAgentTool)
@@ -207,7 +210,9 @@ def _mk_tools(monkeypatch, *, worker, max_tasks=100, use_skip=False):
 
 
 @pytest.mark.anyio
-async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(monkeypatch):
+async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(
+    monkeypatch,
+):
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
@@ -229,9 +234,7 @@ async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(m
 
     # ---- Add several tasks ----
     for i in range(3):
-        res = tool["add_subtask"](
-            title=f"t{i}", description=f"d{i}", tool_context=ctx
-        )
+        res = tool["add_subtask"](title=f"t{i}", description=f"d{i}", tool_context=ctx)
         assert "error" not in res
 
     # ---- Current task should be 0 ----
@@ -283,9 +286,7 @@ async def test_add_new_task_after_decompose(monkeypatch):
 
     ctx = mk_tool_context()
 
-    res = tool["add_subtask"](
-        title=f"t0", description=f"d0", tool_context=ctx
-    )
+    res = tool["add_subtask"](title=f"t0", description=f"d0", tool_context=ctx)
     assert "error" not in res
 
     # ---- Current task should be 0 ----
@@ -303,17 +304,11 @@ async def test_add_new_task_after_decompose(monkeypatch):
         task_id="0",
         decomposition={
             "subtasks": [
-                {
-                    "title": "sub.t1",
-                    "description":"sub.d1"
-                },
-                {
-                    "title": "sub.t2",
-                    "description":"sub.d2"
-                }
+                {"title": "sub.t1", "description": "sub.d1"},
+                {"title": "sub.t2", "description": "sub.d2"},
             ],
         },
-        tool_context=ctx
+        tool_context=ctx,
     )
 
     assert "error" not in res
@@ -323,13 +318,13 @@ async def test_add_new_task_after_decompose(monkeypatch):
     assert cur_after["task_id"] == "0.1"
     assert cur_after["status"] == "new"
 
+
 @pytest.mark.anyio
 async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
-
 
     # Side-effect: always return a "done" result for the current task_id passed in args
     async def _incomplete_result(*, args, tool_context):
@@ -339,7 +334,7 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
             "output": f"completed {args['task_id']}",
             "summary": "ok",
         }
-    
+
     async def _done_result(*, args, tool_context):
         return {
             "task_id": args["task_id"],
@@ -352,14 +347,10 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
 
     ctx = mk_tool_context()
 
-    res = tool["add_subtask"](
-        title=f"t0", description=f"d0", tool_context=ctx
-    )
+    res = tool["add_subtask"](title=f"t0", description=f"d0", tool_context=ctx)
     assert "error" not in res
 
-    res = tool["add_subtask"](
-        title=f"t1", description=f"d1", tool_context=ctx
-    )
+    res = tool["add_subtask"](title=f"t1", description=f"d1", tool_context=ctx)
     assert "error" not in res
 
     # ---- Current task should be 0 ----
@@ -387,17 +378,11 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
         task_id="1",
         decomposition={
             "subtasks": [
-                {
-                    "title": "sub.t1",
-                    "description":"sub.d1"
-                },
-                {
-                    "title": "sub.t2",
-                    "description":"sub.d2"
-                }
+                {"title": "sub.t1", "description": "sub.d1"},
+                {"title": "sub.t2", "description": "sub.d2"},
             ],
         },
-        tool_context=ctx
+        tool_context=ctx,
     )
 
     assert "error" not in res
@@ -409,7 +394,9 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(monkeypatch):
+async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
+    monkeypatch,
+):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
 
@@ -434,6 +421,7 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(m
     assert rec["status"] == "incomplete"
     assert rec["summary"] == m.TASK_RESULT_MALFORMED
     assert "this is not a valid TaskExecutionResult" in rec["output"]
+
 
 @pytest.mark.anyio
 async def test_decompose_requires_current_task_id(monkeypatch):

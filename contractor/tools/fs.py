@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import unicodedata
 import fnmatch
 import json
 import re
+import os
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Final, Literal, Optional, Union
 
 import fsspec
+from fsspec.implementations.local import LocalFileSystem, stringify_path
 from magika import ContentTypeInfo, Magika
 
 _IGNORE_DEFAULTS: Final[list[str]] = [
@@ -39,6 +42,11 @@ INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
 PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
+def _norm_unicode(s: str) -> str:
+    if s is None:
+        return None
+    # NFC — стандарт де-факто для файловых путей
+    return unicodedata.normalize("NFC", s)
 
 def _xml_escape(s: str) -> str:
     return (
@@ -118,8 +126,8 @@ class FileEntry:
             filetype = cls.identify_type(file, fs)
 
         return cls(
-            filename=file.rstrip("/").split("/")[-1],
-            path=file,
+            filename=_norm_unicode(file.rstrip("/").split("/")[-1]),
+            path=_norm_unicode(file),
             size=int(fs.size(file)),
             filetype=filetype,
             loc=None,
@@ -341,6 +349,8 @@ def file_tools(
             patterns.append(pat)
 
     def ls(path: str) -> dict[str, Any]:
+        path = _norm_unicode(path)
+
         if not fs.exists(path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
         try:
@@ -356,6 +366,12 @@ def file_tools(
         return {"result": fmt.format_file_list(res)}
 
     def glob(pattern: str, path: Optional[str] = None) -> dict[str, Any]:
+        if path is None:
+            path = "/"
+
+        path = _norm_unicode(path)
+        pattern = _norm_unicode(pattern)
+
         if path and not fs.exists(path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
 
@@ -374,6 +390,8 @@ def file_tools(
     def read_file(
         file: str, offset: Optional[int] = None, limit: Optional[int] = None
     ) -> dict[str, Any]:
+        file = _norm_unicode(file)
+
         if not fs.exists(file) or _is_ignored(file, patterns):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=file)}
         if not fs.isfile(file):
@@ -402,6 +420,12 @@ def file_tools(
         Regex search across a file or directory tree.
         Returns one FileEntry per match, with loc describing where it matched.
         """
+        if path is None:
+            path = "/"
+        
+        path = _norm_unicode(path)
+        pattern = _norm_unicode(pattern)
+
         try:
             regex = re.compile(pattern)
         except re.error as err:
@@ -457,9 +481,110 @@ def file_tools(
 
         return {"result": fmt.format_file_list(results)}
 
-    return {
-        "ls": ls,
-        "glob": glob,
-        "read_file": read_file,
-        "grep": grep,
-    }
+    return [ls, glob, read_file, grep]
+
+
+import os
+from fsspec.implementations.local import LocalFileSystem, stringify_path
+
+
+class RootedLocalFileSystem(LocalFileSystem):
+    """
+    Local filesystem sandboxed to root_path.
+    Forbidden paths are treated as non-existent (silent sandbox).
+    """
+
+    def __init__(self, root_path: str, *args, **kwargs):
+        self.root_path = os.path.realpath(stringify_path(root_path))
+        if not os.path.isdir(self.root_path):
+            raise ValueError(f"root_path is not a directory: {root_path}")
+
+        # guaranteed non-existent path inside root
+        self._blocked_path = os.path.join(self.root_path, ".__blocked__")
+
+        super().__init__(*args, **kwargs)
+
+    def glob(self, pattern: str, **kwargs):
+        """
+        Sandbox-safe glob with Python-like semantics.
+        Returns virtual paths: "/file.txt", "/dir/inner.txt"
+        """
+        if not pattern:
+            return []
+
+        # Normalize
+        pattern = _norm_unicode(pattern.lstrip("/"))
+
+        # Parent traversal is forbidden
+        if ".." in pattern.split("/"):
+            return []
+
+        recursive = "**" in pattern
+        matches: list[str] = []
+
+        if recursive:
+            walker = os.walk(self.root_path, followlinks=False)
+        else:
+            try:
+                files = os.listdir(self.root_path)
+            except FileNotFoundError:
+                return []
+            walker = [(self.root_path, [], files)]
+
+        for host_root, dirs, files in walker:
+            dirs[:] = [
+                d for d in dirs if not os.path.islink(os.path.join(host_root, d))
+            ]
+
+            rel_root = os.path.relpath(host_root, self.root_path)
+            if rel_root == ".":
+                rel_root = ""
+
+            for name in files:
+                name = _norm_unicode(name)
+                host_path = os.path.join(host_root, name)
+
+                if os.path.islink(host_path):
+                    continue
+
+                rel_path = os.path.join(rel_root, name) if rel_root else name
+                rel_path = _norm_unicode(rel_path.replace(os.sep, "/"))
+
+                # Normal match
+                if fnmatch.fnmatch(rel_path, pattern):
+                    matches.append("/" + rel_path)
+                    continue
+
+                # "**/*.txt" should match "file.txt" in root
+                if recursive and "/" not in rel_path:
+                    tail = pattern.split("/")[-1]
+                    if fnmatch.fnmatch(name, tail):
+                        matches.append("/" + name)
+
+        # De-duplicate and sort
+        return sorted(set(matches))
+
+    def _strip_protocol(self, path):
+        path = _norm_unicode(stringify_path(path))
+
+        if path.startswith("file://"):
+            path = path[7:]
+
+        # If path already points inside root_path → accept as-is
+        real = os.path.realpath(path)
+        if real == self.root_path or real.startswith(self.root_path + os.sep):
+            return real
+
+        # Virtual FS paths: "/", "/file.txt", "dir/a.txt"
+        if path in ("", "/"):
+            candidate = self.root_path
+        else:
+            candidate = os.path.join(self.root_path, path.lstrip("/"))
+
+        candidate = os.path.realpath(os.path.normpath(candidate))
+
+        if candidate == self.root_path or candidate.startswith(self.root_path + os.sep):
+            return candidate
+
+        # Escape attempt → silent block
+        return self._blocked_path

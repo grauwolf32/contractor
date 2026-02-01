@@ -64,8 +64,11 @@ class MemoryTools:
         sk = self.state_key()
         ctx.state.setdefault(sk, {})
 
+        # HACK: You should rewrite whole object inside the state for changes to take effect
         m = MemoryNote(name, memory, description, tags)
-        ctx.state[sk][name] = asdict(m)
+        mempool = ctx.state[sk]
+        mempool[name] = asdict(m)
+        ctx.state[sk] = mempool
         return
 
     def read_memory(
