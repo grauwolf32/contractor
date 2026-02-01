@@ -1,3 +1,7 @@
+# ADK
+*/.adk/*
+.adk/
+
 old/*
 .venv/*
 */session.db

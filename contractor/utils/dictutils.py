@@ -1,6 +1,6 @@
 import copy
 import collections.abc
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any
 
 
@@ -44,7 +44,7 @@ def dict_diff(old: dict, new: dict) -> dict:
     for k in old_keys & new_keys:
         ov, nv = old[k], new[k]
         if isinstance(ov, dict) and isinstance(nv, dict):
-            nested = dict_diff(ov, nv)
+            nested = asdict(dict_diff(ov, nv))
             if any(nested.values()):
                 diff.changed[k] = nested
         elif ov != nv:
