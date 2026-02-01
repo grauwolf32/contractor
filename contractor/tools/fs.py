@@ -42,11 +42,13 @@ INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
 PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
+
 def _norm_unicode(s: str) -> str:
     if s is None:
         return None
     # NFC — стандарт де-факто для файловых путей
     return unicodedata.normalize("NFC", s)
+
 
 def _xml_escape(s: str) -> str:
     return (
@@ -422,7 +424,7 @@ def file_tools(
         """
         if path is None:
             path = "/"
-        
+
         path = _norm_unicode(path)
         pattern = _norm_unicode(pattern)
 

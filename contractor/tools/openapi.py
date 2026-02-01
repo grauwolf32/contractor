@@ -131,7 +131,7 @@ def validate_files(
     return None
 
 
-def tools(name: str) -> list[Callable]:
+def openapi_tools(name: str) -> list[Callable]:
     oas = OpenApiArtifact(name=name)
 
     async def upsert_path(
@@ -382,6 +382,7 @@ def tools(name: str) -> list[Callable]:
         get_info,
         get_path,
         get_component,
+        set_info,
         add_server,
         upsert_path,
         upsert_component,

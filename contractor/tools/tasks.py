@@ -554,9 +554,6 @@ class StreamlineManager:
     def _subtasks_key(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::tasks"
 
-    def _records_key(self, ctx: ToolContext | CallbackContext) -> str:
-        return self._state_key(ctx) + "::records"
-
     def _current_idx(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::idx"
 
@@ -624,31 +621,12 @@ class StreamlineManager:
             return None
         return subtasks[idx]
 
-    def get_pool(
-        self, ctx: ToolContext | CallbackContext
-    ) -> list[Union[str, dict[str, Any]]]:
-        ctx.state.setdefault(self._global_pool_key(ctx), [])
-        return ctx.state[self._global_pool_key(ctx)]
-
-    def save_to_pool(
-        self,
-        record: Union[str, dict[str, Any]],
-        ctx: ToolContext | CallbackContext,
-    ) -> None:
-        pool = self.get_pool(ctx)
-        pool.append(record)
-        ctx.state[self._global_pool_key(ctx)] = pool
-
     def get_records(
         self,
         ctx: ToolContext | CallbackContext,
-    ) -> Union[str, list[dict[str, Any]]]:
-        if self.fmt._format == "json":
-            ctx.state.setdefault(self._records_key(ctx), [])
-        else:
-            ctx.state.setdefault(self._records_key(ctx), "")
-
-        records: Union[str, list[dict[str, Any]]] = ctx.state[self._records_key(ctx)]
+    ) -> list[dict[str, Any]]:
+        ctx.state.setdefault(self._global_pool_key(ctx), [])
+        records: list[dict[str, Any]] = ctx.state[self._global_pool_key(ctx)]
         return records
 
     def save_record(
@@ -657,11 +635,8 @@ class StreamlineManager:
         ctx: ToolContext | CallbackContext,
     ):
         records = self.get_records(ctx)
-        if type(records) is list:
-            records.append(record)
-        else:
-            records += f"\n{record}"
-        ctx.state[self._records_key(ctx)] = records
+        records.append(record)
+        ctx.state[self._global_pool_key(ctx)] = records
         return
 
     def skip(
@@ -799,24 +774,28 @@ Follow this loop strictly:
 5. TASK PLANNING RULES (HARD CONSTRAINTS)
 --------------------------------------------------
 
-Rule 1: Single Active Task Rule
+Rule 1: Task description must be clear and concise.
+- Workers are not completeley aware of the full task context.
+- All required information must be provided within the task description.
+
+Rule 2: Single Active Task Rule
 - Do NOT work on future subtasks.
 - Do NOT skip ahead without strong justification.
 - Do NOT advance without a worker-reported result.
 
-Rule 2: Advancement Rules
+Rule 3: Advancement Rules
 - If the current subtask result is "done": advance automatically.
 - If the current subtask result is "incomplete": decomposition is mandatory.
 - Advancing an incomplete task without decomposition is forbidden.
 
-Rule 3: Decomposition Rules
+Rule 4: Decomposition Rules
 - Only decompose the CURRENT subtask.
 - Decomposition must:
   - Fully cover remaining work
   - Produce clear, actionable subtasks
   - Avoid trivial, redundant, or overly granular steps
 
-Rule 4: Completion Rules
+Rule 5: Completion Rules
 - Always analyze execution results before planning next steps.
 - Ensure subtasks remain if the overall task is not complete.
 - Never assume completion without explicit confirmation.
@@ -944,6 +923,7 @@ def task_tools(
     use_input_schema: bool = True,
     use_output_schema: bool = True,
     worker_instrumentation: bool = True,
+    max_records: int = 20,
 ) -> list[Callable]:
     if worker_instrumentation:
         worker = instrument_worker(
@@ -1004,7 +984,7 @@ def task_tools(
         - Use this to review results of the previous subtasks.
         """
 
-        records: Union[str, list[dict[str, Any]]] = mgr.get_records(tool_context)
+        records: Union[str, list[dict[str, Any]]] = mgr.get_records(tool_context)[:max_records]
         return {"result": records}
 
     def decompose_subtask(
@@ -1105,7 +1085,6 @@ def task_tools(
         current.status = task_result.status
         record = fmt.format_task_record(current, task_result)
         mgr.save_record(record, tool_context)
-        mgr.save_to_pool(record, tool_context)
 
         tool_context.state.setdefault(mgr._current_idx(tool_context), 0)
         idx = tool_context.state[mgr._current_idx(tool_context)]

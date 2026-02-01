@@ -368,6 +368,7 @@ def test_glob_respects_ignored_patterns_with_file_tools(fs_root):
 
     assert all(not p.endswith(".txt") for p in paths)
 
+
 @pytest.fixture()
 def cyrillic_fs(tmp_path: Path):
     fname = "Новая заметка 2 - о работе.md"
@@ -382,10 +383,12 @@ def test_ls_cyrillic_filename(tools_json, cyrillic_fs):
     paths = {e["filename"] for e in res["result"]}
     assert fname in paths
 
+
 def test_read_file_cyrillic(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["read_file"](str(root / fname))
     assert "привет мир" in res["result"]
+
 
 def test_glob_cyrillic(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
@@ -393,13 +396,16 @@ def test_glob_cyrillic(tools_json, cyrillic_fs):
     paths = {e["filename"] for e in res["result"]}
     assert fname in paths
 
+
 def test_grep_cyrillic(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["grep"]("привет", path=str(root))
     paths = {e["filename"] for e in res["result"]}
     assert fname in paths
 
+
 import unicodedata
+
 
 def test_unicode_normalization_glob(tools_json, tmp_path):
     name_nfc = "о"
