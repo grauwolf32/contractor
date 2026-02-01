@@ -42,6 +42,20 @@ DUMMY_SWE_PROMPT: Final[str] = (
     "- When blocked, report what you tried, what failed, and the smallest concrete next step.\n"
     "\n"
     "TOOLS:\n"
+    "- list_paths: List all API paths defined in the OpenAPI specification.\n"
+    "- list_components: List all components available in the OpenAPI specification.\n"
+    "- list_servers: List all configured API servers.\n"
+    "- get_info: Retrieve general API metadata (title, version, description).\n"
+    "- get_path: Get details for a specific API path.\n"
+    "- get_component: Get details for a specific component.\n"
+    "- set_info: Update general API metadata (title, version, description).\n"
+    "- add_server: Add a new API server definition.\n"
+    "- upsert_path: Create or update an API path definition.\n"
+    "- upsert_component: Create or update a component definition.\n"
+    "- remove_server: Remove an API server definition.\n"
+    "- remove_path: Remove an API path definition.\n"
+    "- remove_component: Remove a component definition.\n"
+    "- get_full_openapi_schema: Retrieve the complete OpenAPI schema."
     "- grep: Regex search across a file or directory tree.\n"
     "- ls: List files and directories.\n"
     "- read_file: Read the contents of a file.\n"
@@ -79,11 +93,15 @@ DUMMY_MODEL = LiteLlm(
 )
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "notes"
+    Path(__file__).parent.parent.parent.parent
+    / "tests"
+    / "playground"
+    / "java"
+    / "spring"
 )
 
 sandbox = PodmanContainer(
-    name="contractor_planner_sandbox",
+    name="contractor_oas_sandbox",
     image="docker.io/ubuntu:jammy",
     mounts=[playground_path],
     commands=None,
@@ -110,12 +128,12 @@ mem_tools = memory_tools("swe")
 fs_tools = file_tools(fs, fmt=FileFormat("json"))
 oas_tools = openapi_tools("playground")
 
-tools = [default_tool, *fs_tools, *sandbox.tools(), *mem_tools, *oas_tools]
+tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
 
 callback_adapter = CallbackAdapter(agent_name="dummy_swe")
 callback_adapter.register(TokenUsageCallback())
 callback_adapter.register(
-    SummarizationLimitCallback(max_tokens=50000, message=DUMMY_SUMMARIZATION_MESSAGE)
+    SummarizationLimitCallback(max_tokens=80000, message=DUMMY_SUMMARIZATION_MESSAGE)
 )
 callback_adapter.register(
     InvalidToolCallGuardrailCallback(

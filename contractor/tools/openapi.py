@@ -5,7 +5,7 @@ import yaml
 import copy
 from typing import Any, Literal, Optional, Final, Callable
 from dataclasses import dataclass, field, asdict
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
 
 from google.genai import types
 from google.adk.tools.tool_context import ToolContext
@@ -79,13 +79,13 @@ class OpenApiArtifact:
         return {}
 
     async def save_schema(self, ctx: ToolContext) -> int:
-        artifact = types.Part.from_text(self.dump())
+        artifact = types.Part.from_text(text=self.dump())
         meta = self.meta()
         self.version = await ctx.save_artifact(self.name, artifact, meta)
         return self.version
 
     async def load_schema(self, ctx: ToolContext) -> dict[str, Any]:
-        artifact = await ctx.load_artifact(self.name)
+        artifact = await ctx.load_artifact(filename=self.name)
         if artifact is None:
             return openapi_base_schema
         self.schema = yaml.safe_load(artifact.text)
@@ -104,13 +104,15 @@ class OpenApiArtifact:
         return schema_diff
 
 
-def validate_model(model, item: dict[str, Any]) -> Optional[str]:
+def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
     try:
-        model.validate_model(item)
+        model.model_validate(item)
     except ValidationError as exc:
         schema = json.dumps(model.model_json_schema())
         err = COMPONENT_VALIDATION_ERROR.format(
-            exception=str(exc), component=model.__name__, schema=schema
+            exception=str(exc),
+            component=model.__name__,
+            schema=schema,
         )
         return False, err
     return True, None
@@ -119,15 +121,18 @@ def validate_model(model, item: dict[str, Any]) -> Optional[str]:
 def validate_files(
     files: list[str], ext: list[str] = [".json", ".md", ".yaml", ".yml"]
 ) -> Optional[str]:
-    banned = [f for f in files if f.endswith(ext)]
-    if banned:
-        banned = "\n".join(banned)
-        return FILE_VALIDATION_BANNED_EXTENSIONS.format(
-            extensions=",".join(ext), banned=banned
-        )
-
     if not files:
         return FILE_VALIDATION_NO_FILES_PROVIDED
+
+    banned_ext = tuple(ext)
+    banned = [f for f in files if f.endswith(banned_ext)]
+
+    if banned:
+        return FILE_VALIDATION_BANNED_EXTENSIONS.format(
+            extensions=",".join(ext),
+            banned="\n".join(banned),
+        )
+
     return None
 
 
@@ -150,18 +155,33 @@ def openapi_tools(name: str) -> list[Callable]:
             files: list[str]
                 REQUIRED: The list of files in the project where the path is defined
         """
+
         if err := validate_files(path_files):
             return {"error": err}
 
-        if err := validate_model(PathItem, path_def):
+        ok, err = validate_model(PathItem, path_def)
+        if not ok:
             return {"error": err}
 
-        diff = {"paths": {path.strip(): path_def}}
+        diff = {
+            "paths": {
+                path.strip(): path_def.model_dump(
+                    by_alias=True,
+                    exclude_none=True,
+                )
+            }
+        }
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
         return {"result": asdict(schema_diff)}
 
     async def remove_path(path: str, tool_context: ToolContext) -> dict[str, Any]:
-        schema = oas.load_schema(tool_context)
+        """
+        Remove an existing API path from the schema.
+        Args:
+            path (str): API path to remove
+        """
+
+        schema = await oas.load_schema(tool_context)
         current = copy.deepcopy(schema)
 
         if "paths" in oas.schema and path in oas.schema["paths"]:
@@ -175,11 +195,21 @@ def openapi_tools(name: str) -> list[Callable]:
         return {"result": asdict(diff)}
 
     async def list_paths(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        List all API paths defined in the schema.
+        """
+
         schema = await oas.load_schema(tool_context)
         schema.setdefault("paths", {})
         return {"result": list(schema["paths"].keys())}
 
-    async def get_path(path: str, tool_context: ToolContext) -> dict[str.Any]:
+    async def get_path(path: str, tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Retrieve a specific API path definition.
+        Args:
+            path (str): API path to retrieve
+        """
+
         schema = await oas.load_schema(tool_context)
         schema.setdefault("paths", {})
 
@@ -194,10 +224,20 @@ def openapi_tools(name: str) -> list[Callable]:
         key: Literal[
             "schemas", "securitySchemes", "requestBodies", "headers", "responses"
         ],
+        name: str,
         component_def: dict[str, Any],
         component_files: list[str],
         tool_context: ToolContext,
     ) -> dict[str, Any]:
+        """
+        Upsert (create or update) an OpenAPI component definition.
+        Args:
+            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
+            name (str): The name of the component
+            component_def (dict): Component definition
+            component_files (list[str]): Required list of project files where the component is defined
+        """
+
         allowed_keys = {
             "schemas",
             "securitySchemes",
@@ -214,16 +254,19 @@ def openapi_tools(name: str) -> list[Callable]:
 
         match key:
             case "securitySchemes":
-                if err := validate_model(SecurityScheme, component_def):
+                ok, err = validate_model(SecurityScheme, component_def)
+                if not ok:
                     return {"error": err}
             case "requestBodies":
-                if err := validate_model(RequestBody, component_def):
+                ok, err = validate_model(RequestBody, component_def)
+                if not ok:
                     return {"error": err}
             case "responses":
-                if err := validate_model(Response, component_def):
+                ok, err = validate_model(Response, component_def)
+                if not ok:
                     return {"error": err}
 
-        diff = {"components": {key: component_def}}
+        diff = {"components": {key: {name: component_def}}}
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
         return {"result": asdict(schema_diff)}
 
@@ -234,6 +277,13 @@ def openapi_tools(name: str) -> list[Callable]:
         component_name: str,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
+        """
+        Remove an existing OpenAPI component.
+        Args:
+            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
+            component_name (str): Component name
+        """
+
         schema = await oas.load_schema(tool_context)
         current = copy.deepcopy(schema)
 
@@ -261,6 +311,10 @@ def openapi_tools(name: str) -> list[Callable]:
         ],
         tool_context: ToolContext,
     ) -> dict[str, Any]:
+        """
+        List component names for a given component type.
+        """
+
         allowed_keys = {
             "schemas",
             "securitySchemes",
@@ -281,6 +335,15 @@ def openapi_tools(name: str) -> list[Callable]:
         component_name: str,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
+        """
+        Retrieve a specific component definition.
+        Args:
+            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
+            component_name (str): Component name
+        """
+
+        await oas.load_schema(tool_context)
+
         if not (
             "components" in oas.schema
             and key in oas.schema["components"]
@@ -326,6 +389,10 @@ def openapi_tools(name: str) -> list[Callable]:
         return {"result": asdict(diff)}
 
     async def get_info(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Retrieve the OpenAPI info section.
+        """
+
         schema = await oas.load_schema(tool_context)
         schema.setdefault("info", {})
         return {"result": schema["info"]}
@@ -333,6 +400,13 @@ def openapi_tools(name: str) -> list[Callable]:
     async def add_server(
         url: str, description: Optional[str], tool_context: ToolContext
     ) -> dict[str, Any]:
+        """
+        Add a new server entry to the OpenAPI schema.
+        Args:
+            url (str): Server URL
+            description (Optional[str]): Server description
+        """
+
         schema = await oas.load_schema(tool_context)
         current = copy.deepcopy(schema)
 
@@ -350,6 +424,10 @@ def openapi_tools(name: str) -> list[Callable]:
         return {"result": asdict(diff)}
 
     async def remove_server(url: str, tool_context) -> dict[str, Any]:
+        """
+        Remove a server entry from the schema.
+        """
+
         schema = await oas.load_schema(tool_context)
         current = copy.deepcopy(schema)
 
@@ -367,11 +445,20 @@ def openapi_tools(name: str) -> list[Callable]:
         return {"result": asdict(diff)}
 
     async def list_servers(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        List all configured servers.
+        """
+
         schema = await oas.load_schema(tool_context)
         schema.setdefault("servers", [])
         return {"result": schema["servers"]}
 
     async def get_full_openapi_schema(tool_context: ToolContext) -> dict[str, Any]:
+        """
+        Retrieve the complete OpenAPI schema.
+        IMPORTANT: This is very heavy operation, use it when absoutely necessary.
+        """
+
         await oas.load_schema(tool_context)
         return {"result": oas.dump()}
 
@@ -399,24 +486,20 @@ def openapi_tools(name: str) -> list[Callable]:
 class SecurityScheme(BaseModel):
     """
     Defines a security scheme that can be used by the operations.
-
-    Supported schemes are HTTP authentication,
-    an API key (either as a header, a cookie parameter or as a query parameter),
-    mutual TLS (use of a client certificate),
-    OAuth2's common flows (implicit, password, client credentials and authorization code)
-    as defined in [RFC6749](https://tools.ietf.org/html/rfc6749),
-    and [OpenID Connect Discovery](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06).
     """
 
-    type: Literal["apiKey", "http", "mutualTLS", "oauth2", "openIdConnect"] = ...
+    type: Literal["apiKey", "http", "mutualTLS", "oauth2", "openIdConnect"]
 
     description: Optional[str] = Field(
-        description="A short description for security scheme.", default=None
+        description="A short description for security scheme.",
+        default=None,
     )
+
     name: Optional[str] = Field(
         description="**REQUIRED** for `apiKey`. The name of the header, query or cookie parameter to be used.",
         default=None,
     )
+
     security_scheme_in: Optional[Literal["query", "header", "cookie"]] = Field(
         alias="in",
         description="**REQUIRED** for `apiKey`. The location of the API key.",
@@ -425,56 +508,35 @@ class SecurityScheme(BaseModel):
 
     scheme: Optional[str] = Field(
         description=(
-            """
-        **REQUIRED** for `http` with the value `basic`.
-        The name of the HTTP Authorization scheme to be used in the
-        [Authorization header as defined in RFC7235](https://tools.ietf.org/html/rfc7235#section-5.1).
-        
-        The values used SHOULD be registered in the
-        [IANA Authentication Scheme registry](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml).
-        """
+            "**REQUIRED** for `http` with the value `basic`.\n"
+            "The name of the HTTP Authorization scheme to be used in the Authorization header."
         ),
         default=None,
     )
 
     bearerFormat: Optional[str] = Field(  # noqa: N815
-        description="A hint to the client to identify how the bearer token is formatted. Bearer tokens are usually generated by an authorization server, so this information is primarily for documentation purposes.",
+        description="A hint to the client to identify how the bearer token is formatted.",
         default=None,
     )
+
     flows: Optional[dict[str, Any]] = Field(
-        description="**REQUIRED** for `oauth2`. An object containing configuration information for the flow types supported.",
+        description="**REQUIRED** for `oauth2`.",
         default=None,
     )
 
     openIdConnectUrl: Optional[str] = Field(  # noqa: N815
-        description=(
-            """
-            **REQUIRED** for `openIdConnect`. OpenId Connect URL to discover OAuth2 configuration values.
-            This MUST be in the form of a URL. The OpenID Connect standard requires the use of TLS.
-            """
-        ),
+        description="**REQUIRED** for `openIdConnect`.",
         default=None,
     )
 
-    class Config:
-        extra = "allow"
-        allow_population_by_field_name = True
-        schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        validate_by_name=True,
+        json_schema_extra={
             "examples": [
-                {
-                    "type": "http",
-                    "scheme": "basic",
-                },
-                {
-                    "type": "apiKey",
-                    "name": "api_key",
-                    "in": "header",
-                },
-                {
-                    "type": "http",
-                    "scheme": "bearer",
-                    "bearerFormat": "JWT",
-                },
+                {"type": "http", "scheme": "basic"},
+                {"type": "apiKey", "name": "api_key", "in": "header"},
+                {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
                 {
                     "type": "oauth2",
                     "flows": {
@@ -496,58 +558,26 @@ class SecurityScheme(BaseModel):
                     "openIdConnectUrl": "openIdConnect",
                 },
             ]
-        }
+        },
+    )
 
 
 class Response(BaseModel):
     """
-    Describes a single response from an API Operation, including design-time,
-    static `links` to operations based on the response.
+    Describes a single response from an API Operation.
     """
 
     description: str = Field(
-        description=(
-            """
-            **REQUIRED**. A short description of the response.
-            """
-        )
+        description="**REQUIRED**. A short description of the response."
     )
 
-    headers: Optional[dict[str, Any]] = Field(
-        description=(
-            """
-            A map containing descriptions of potential response headers.
-            """
-        ),
-        default=None,
-    )
+    headers: Optional[dict[str, Any]] = Field(default=None)
+    content: Optional[dict[str, Any]] = Field(default=None)
+    links: Optional[dict[str, str]] = Field(default=None)
 
-    content: Optional[dict[str, Any]] = Field(
-        description=(
-            """
-            A map containing descriptions of potential response payloads.
-            The key is a media type or [media type range](https://tools.ietf.org/html/rfc7231#appendix-D)
-            and the value describes it.  
-            
-            For responses that match multiple keys, only the most specific key is applicable. e.g. text/plain overrides text/*
-            """
-        ),
-        default=None,
-    )
-
-    links: Optional[dict[str, str]] = Field(
-        description=(
-            """
-            A map of operations links that can be followed from the response.
-            The key of the map is a short name for the link,
-            following the naming constraints of the names for [Component Objects](#componentsObject).
-            """
-        )
-    )
-
-    class Config:
-        extra = "allow"
-        schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "examples": [
                 {
                     "description": "A complex object array response",
@@ -573,56 +603,35 @@ class Response(BaseModel):
                     },
                     "headers": {
                         "X-Rate-Limit-Limit": {
-                            "description": "The number of allowed requests in the current period",
+                            "description": "The number of allowed requests",
                             "schema": {"type": "integer"},
                         },
                         "X-Rate-Limit-Remaining": {
-                            "description": "The number of remaining requests in the current period",
+                            "description": "The number of remaining requests",
                             "schema": {"type": "integer"},
                         },
                         "X-Rate-Limit-Reset": {
-                            "description": "The number of seconds left in the current period",
+                            "description": "The number of seconds left",
                             "schema": {"type": "integer"},
                         },
                     },
                 },
-                {
-                    "description": "object created",
-                },
+                {"description": "object created"},
             ]
-        }
+        },
+    )
 
 
 class RequestBody(BaseModel):
     """Describes a single request body."""
 
-    description: Optional[str] = Field(
-        description=(
-            "A brief description of the request body."
-            "This could contain examples of use."
-            "CommonMark syntax MAY be used for rich text representation."
-        )
-    )
+    description: Optional[str] = Field(default=None)
+    content: dict[str, Any]
+    required: bool = Field(default=False)
 
-    content: dict[str, Any] = Field(
-        description=(
-            "**REQUIRED**. The content of the request body."
-            "The key is a media type or [media type range](https://tools.ietf.org/html/rfc7231#appendix-D)"
-            "and the value describes it."
-            "For requests that match multiple keys, only the most specific key is applicable. e.g. text/plain overrides text/*"
-        )
-    )
-
-    required: bool = Field(
-        description=(
-            "Determines if the request body is required in the request.Default is `false`."
-        ),
-        default=False,
-    )
-
-    class Config:
-        extra = "allow"
-        schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "examples": [
                 {
                     "description": "user to add to the system",
@@ -667,143 +676,37 @@ class RequestBody(BaseModel):
                     "description": "user to add to the system",
                     "content": {
                         "text/plain": {
-                            "schema": {"type": "array", "items": {"type": "string"}}
+                            "schema": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            }
                         }
                     },
                 },
             ]
-        }
+        },
+    )
 
 
 class Operation(BaseModel):
     """Describes a single API operation on a path."""
 
-    tags: Optional[list[str]] = Field(
-        description=(
-            """
-        A list of tags for API documentation control.
-        Tags can be used for logical grouping of operations by resources or any other qualifier.
-        """
-        ),
-        default=None,
-    )
+    tags: Optional[list[str]] = None
+    summary: Optional[str] = None
+    description: Optional[str] = None
+    externalDocs: Optional[dict[str, str]] = None
+    operationId: str
+    parameters: Optional[list[dict[str, Any]]] = None
+    requestBody: Optional[dict[str, Any]] = None
+    responses: Optional[dict[str, Any]] = None
+    callbacks: Optional[dict[str, Any]] = None
+    deprecated: bool = False
+    security: Optional[list[dict[str, Any]]] = None
 
-    summary: Optional[str] = Field(
-        description=(
-            """
-            A short summary of what the operation does.
-            """
-        ),
-        default=None,
-    )
-    description: Optional[str] = Field(
-        description=(
-            """
-            A verbose explanation of the operation behavior.
-            [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
-            """
-        ),
-        default=None,
-    )
-
-    externalDocs: Optional[dict[str, str]] = Field(  # noqa: N815
-        description=(
-            """
-            Additional external documentation for this operation.
-            """
-        ),
-        default=None,
-    )
-
-    operationId: str = Field(  # noqa: N815
-        description=(
-            """
-            Unique string used to identify the operation.
-            The id MUST be unique among all operations described in the API.
-            The operationId value is case-sensitive.
-            Tools and libraries MAY use the operationId to uniquely identify an operation, therefore, it is RECOMMENDED to follow common programming naming conventions.
-            """
-        )
-    )
-
-    parameters: Optional[list[dict[str, Any]]] = Field(
-        description=(
-            """
-            A list of parameters that are applicable for this operation.
-            If a parameter is already defined at the [Path Item](#pathItem), the new definition will override it but can never remove it.
-            The list MUST NOT include duplicated parameters.
-            A unique parameter is defined by a combination of a name and location.
-            The list can use the [Reference Object](#referenceObject) to link to parameters that are defined at the [OpenAPI Object's components/parameters](#componentsParameters).
-            """
-        ),
-        default=None,
-    )
-
-    requestBody: Optional[dict[str, Any]] = Field(  # noqa: N815
-        description=(
-            """
-            The request body applicable for this operation.  
-    
-            The `requestBody` is fully supported in HTTP methods where the HTTP 1.1 specification
-            [RFC7231](https://tools.ietf.org/html/rfc7231#section-4.3.1) has explicitly defined semantics for request bodies.
-
-            In other cases where the HTTP spec is vague (such as [GET](https://tools.ietf.org/html/rfc7231#section-4.3.1),
-            [HEAD](https://tools.ietf.org/html/rfc7231#section-4.3.2) and [DELETE](https://tools.ietf.org/html/rfc7231#section-4.3.5)),
-            `requestBody` is permitted but does not have well-defined semantics and SHOULD be avoided if possible.
-            """
-        ),
-        default=None,
-    )
-
-    responses: Optional[dict[str, any]] = Field(
-        description=(
-            """
-            The map of possible responses as they are returned from executing this operation.
-            Also could be a map of references to a responses defined in the [Components Object](#componentsResponses).
-            """
-        ),
-        default=None,
-    )
-
-    callbacks: Optional[dict[str, Any]] = Field(
-        description=(
-            """
-            A map of possible out-of band callbacks related to the parent operation.
-            Each value in the map is a Path Item Object that describes a set of requests that may be initiated by the API provider and the expected responses.
-            The key value used to identify the path item object is an expression, evaluated at runtime, that identifies a URL to use for the callback operation.
-            """
-        ),
-        default=None,
-    )
-
-    deprecated: bool = Field(
-        description=(
-            """
-            Declares this operation to be deprecated.
-            Consumers SHOULD refrain from usage of the declared operation.
-            Default value is `false`.
-            """
-        ),
-        default=False,
-    )
-
-    security: Optional[list[dict[str, Any]]] = Field(
-        description=(
-            """
-            A declaration of which security mechanisms can be used for this operation.
-            The list of values includes alternative security requirement objects that can be used.
-            Only one of the security requirement objects need to be satisfied to authorize a request.
-            This definition overrides any declared top-level [security](#openapi-security)
-            To remove a top-level security declaration, an empty array can be used.
-            """
-        ),
-        default=None,
-    )
-
-    class Config:
-        extra = "allow"
-        arbitrary_types_allowed = True
-        schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        arbitrary_types_allowed=True,
+        json_schema_extra={
             "examples": [
                 {
                     "tags": ["pet"],
@@ -813,113 +716,57 @@ class Operation(BaseModel):
                         {
                             "name": "petId",
                             "in": "path",
-                            "description": "ID of pet that needs to be updated",
                             "required": True,
                             "schema": {"type": "string"},
                         }
                     ],
-                    "requestBody": {
-                        "content": {
-                            "application/x-www-form-urlencoded": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "description": "Updated name of the pet",
-                                            "type": "string",
-                                        },
-                                        "status": {
-                                            "description": "Updated status of the pet",
-                                            "type": "string",
-                                        },
-                                    },
-                                    "required": ["status"],
-                                }
-                            }
-                        }
-                    },
                     "responses": {
                         "200": {
                             "description": "Pet updated.",
-                            "content": {"application/json": {}, "application/xml": {}},
+                            "content": {
+                                "application/json": {},
+                                "application/xml": {},
+                            },
                         },
                         "405": {
                             "description": "Method Not Allowed",
-                            "content": {"application/json": {}, "application/xml": {}},
+                            "content": {
+                                "application/json": {},
+                                "application/xml": {},
+                            },
                         },
                     },
                     "security": [{"petstore_auth": ["write:pets", "read:pets"]}],
                 }
             ]
-        }
+        },
+    )
 
 
 class PathItem(BaseModel):
     """
     Describes the operations available on a single path.
-    A Path Item MAY be empty, due to [ACL constraints](#securityFiltering).
-    The path itself is still exposed to the documentation viewer
-    but they will not know which operations and parameters are available.
     """
 
-    ref: Optional[str] = Field(
-        description=(
-            "Allows for an external definition of this path item."
-            "The referenced structure MUST be in the format of a [Path Item Object](#pathItemObject)."
-            "In case a Path Item Object field appears both in the defined object and the referenced object,"
-            "the behavior is undefined."
-        ),
-        default=None,
-        alias="$ref",
-    )
+    ref: Optional[str] = Field(default=None, alias="$ref")
+    summary: Optional[str] = None
+    description: Optional[str] = None
 
-    summary: Optional[str] = Field(
-        description="An optional, string summary, intended to apply to all operations in this path.",
-        default=None,
-    )
-    description: Optional[str] = Field(
-        description="An optional, string description, intended to apply to all operations in this path.",
-        default=None,
-    )
+    get: Optional[Operation] = None
+    put: Optional[Operation] = None
+    post: Optional[Operation] = None
+    delete: Optional[Operation] = None
+    options: Optional[Operation] = None
+    head: Optional[Operation] = None
+    patch: Optional[Operation] = None
+    trace: Optional[Operation] = None
 
-    get: Optional[Operation] = Field(
-        description="A definition of a GET operation on this path.", default=None
-    )
-    put: Optional[Operation] = Field(
-        description="A definition of a PUT operation on this path.", default=None
-    )
-    post: Optional[Operation] = Field(
-        description="A definition of a POST operation on this path.", default=None
-    )
-    delete: Optional[Operation] = Field(
-        description="A definition of a DELETE operation on this path.", default=None
-    )
-    options: Optional[Operation] = Field(
-        description="A definition of a OPTIONS operation on this path.", default=None
-    )
-    head: Optional[Operation] = Field(
-        description="A definition of a HEAD operation on this path.", default=None
-    )
-    patch: Optional[Operation] = Field(
-        description="A definition of a PATCH operation on this path.", default=None
-    )
-    trace: Optional[Operation] = Field(
-        description="A definition of a TRACE operation on this path.", default=None
-    )
-    parameters: Optional[list[dict[str, Any]]] = Field(
-        description=(
-            "A list of parameters that are applicable for all the operations described under this path."
-            "These parameters can be overridden at the operation level, but cannot be removed there."
-            "The list MUST NOT include duplicated parameters. A unique parameter is defined by a combination of a name and location."
-            "The list can use the [Reference Object](#referenceObject) to link to parameters that are defined at the OpenAPI Object's components/parameters."
-        ),
-        default=None,
-    )
+    parameters: Optional[list[dict[str, Any]]] = None
 
-    class Config:
-        extra = "allow"
-        allow_population_by_field_name = True
-        schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        validate_by_name=True,
+        json_schema_extra={
             "examples": [
                 {
                     "get": {
@@ -956,12 +803,15 @@ class PathItem(BaseModel):
                         {
                             "name": "id",
                             "in": "path",
-                            "description": "ID of pet to use",
                             "required": True,
-                            "schema": {"type": "array", "items": {"type": "string"}},
+                            "schema": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
                             "style": "simple",
                         }
                     ],
                 }
             ]
-        }
+        },
+    )

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 from contractor.callbacks.ratelimits import TpmRatelimitCallback
 from contractor.callbacks.tokens import TokenUsageCallback
-from tests.units.contractor.helpers import mk_callback_context
+from tests.units.contractor_tests.helpers import mk_callback_context
 
 
 def test_tpm_ratelimit_triggers_sleep__side_effect(monkeypatch):

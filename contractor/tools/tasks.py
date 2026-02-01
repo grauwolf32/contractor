@@ -984,7 +984,9 @@ def task_tools(
         - Use this to review results of the previous subtasks.
         """
 
-        records: Union[str, list[dict[str, Any]]] = mgr.get_records(tool_context)[:max_records]
+        records: Union[str, list[dict[str, Any]]] = mgr.get_records(tool_context)[
+            :max_records
+        ]
         return {"result": records}
 
     def decompose_subtask(
