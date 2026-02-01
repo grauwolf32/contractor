@@ -69,7 +69,7 @@ async def test_upsert_and_get_path(tool_context):
             "operationId": "listPets",
             "responses": {"200": {"description": "ok"}},
         }
-    )
+    ).model_dump()
 
     res = await upsert_path(
         "/pets",
@@ -91,7 +91,7 @@ async def test_remove_path(tool_context):
 
     await upsert_path(
         "/pets",
-        PathItem(get={"operationId": "x", "responses": {"200": {"description": "ok"}}}),
+        PathItem(get={"operationId": "x", "responses": {"200": {"description": "ok"}}}).model_dump(),
         ["pets.py"],
         tool_context,
     )

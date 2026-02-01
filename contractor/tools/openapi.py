@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import yaml
 import copy
+import asyncio
+
 from typing import Any, Literal, Optional, Final, Callable
 from dataclasses import dataclass, field, asdict
 from pydantic import BaseModel, Field, ConfigDict, ValidationError
@@ -66,6 +68,7 @@ class OpenApiArtifact:
     name: str = "openapi"
     schema: dict[str, Any] = field(default_factory=dict)
     version: int | None = None
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     def dump(self) -> str:
         return yaml.safe_dump(
@@ -76,19 +79,23 @@ class OpenApiArtifact:
         )
 
     def meta(self) -> dict[str, Any]:
-        return {}
+        return {"version": self.version or 0}
 
     async def save_schema(self, ctx: ToolContext) -> int:
-        artifact = types.Part.from_text(text=self.dump())
-        meta = self.meta()
-        self.version = await ctx.save_artifact(self.name, artifact, meta)
+        async with self._lock:
+            artifact = types.Part.from_text(text=self.dump())
+            meta = self.meta()
+            self.version = await ctx.save_artifact(self.name, artifact, meta)
+
         return self.version
 
     async def load_schema(self, ctx: ToolContext) -> dict[str, Any]:
-        artifact = await ctx.load_artifact(filename=self.name)
-        if artifact is None:
-            return openapi_base_schema
-        self.schema = yaml.safe_load(artifact.text)
+        async with self._lock:
+            artifact = await ctx.load_artifact(filename=self.name)
+            if artifact is None:
+                return openapi_base_schema
+            self.schema = yaml.safe_load(artifact.text)
+        
         return self.schema
 
     async def update_schema(self, diff: dict[str, Any], ctx: ToolContext) -> DictDiff:
@@ -99,6 +106,7 @@ class OpenApiArtifact:
         schema_diff: DictDiff = dict_diff(self.schema, schema)
 
         self.schema = schema
+
         await self.save_schema(ctx)
 
         return schema_diff
@@ -165,10 +173,7 @@ def openapi_tools(name: str) -> list[Callable]:
 
         diff = {
             "paths": {
-                path.strip(): path_def.model_dump(
-                    by_alias=True,
-                    exclude_none=True,
-                )
+                path.strip(): path_def
             }
         }
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
@@ -325,7 +330,11 @@ def openapi_tools(name: str) -> list[Callable]:
         if key not in allowed_keys:
             keys: str = ",".join(allowed_keys)
             return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
+        
         schema = await oas.load_schema(tool_context)
+        schema.setdefault("components", {})
+        schema["components"].setdefault(key, {})
+
         return {"result": list(schema["components"][key].keys())}
 
     async def get_component(

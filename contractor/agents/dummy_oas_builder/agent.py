@@ -121,6 +121,9 @@ def default_tool(meta: dict[str, Any]) -> dict:
             instructions
     """
 
+    if "error" in meta:
+        return {"error": meta["error"]}
+
     return {"error": f"tool {meta.get('func_name')} is not available!"}
 
 
