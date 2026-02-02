@@ -485,11 +485,6 @@ def file_tools(
 
     return [ls, glob, read_file, grep]
 
-
-import os
-from fsspec.implementations.local import LocalFileSystem, stringify_path
-
-
 class RootedLocalFileSystem(LocalFileSystem):
     """
     Local filesystem sandboxed to root_path.
