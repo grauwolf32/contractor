@@ -91,8 +91,8 @@ class FileLoc:
 
 
 @dataclass
-class FileEntry:
-    filename: str
+class FsEntry:
+    name: str
     path: str
     size: int
     is_dir: bool = False
@@ -110,7 +110,7 @@ class FileEntry:
             return None
         try:
             with fs.open(file, mode="rb") as f:
-                return FileEntry._magika.identify_stream(f).output
+                return FsEntry._magika.identify_stream(f).output
         except Exception:
             return None
 
@@ -121,7 +121,7 @@ class FileEntry:
         fs: fsspec.AbstractFileSystem,
         *,
         with_types: bool = True,
-    ) -> Optional["FileEntry"]:
+    ) -> Optional["FsEntry"]:
         if not fs.exists(path):
             return None
 
@@ -130,7 +130,7 @@ class FileEntry:
 
         if fs.isdir(path):
             return cls(
-                filename=name,
+                name=name,
                 path=path,
                 size=0,
                 is_dir=True,
@@ -144,7 +144,7 @@ class FileEntry:
                 filetype = cls.identify_type(path, fs)
 
             return cls(
-                filename=name,
+                name=name,
                 path=path,
                 size=int(fs.size(path)),
                 is_dir=False,
@@ -183,7 +183,7 @@ class FileEntry:
         with_types: bool = True,
         excerpt_max_chars: int = 500,
         context_lines: int = 0,
-    ) -> Optional[list["FileEntry"]]:
+    ) -> Optional[list["FsEntry"]]:
         if not fs.exists(file) or not fs.isfile(file):
             return None
 
@@ -203,7 +203,7 @@ class FileEntry:
         line_starts = cls._compute_line_starts(content)
         lines = content.splitlines()
 
-        entries: list[FileEntry] = []
+        entries: list[FsEntry] = []
         for m in matches:
             begin_char, end_char = m.span()
             line_idx = cls._char_to_line(line_starts, begin_char)
@@ -223,7 +223,7 @@ class FileEntry:
 
             entries.append(
                 cls(
-                    filename=proto.filename,
+                    name=proto.name,
                     path=proto.path,
                     size=proto.size,
                     filetype=proto.filetype,
@@ -237,7 +237,7 @@ class FileEntry:
                 )
             )
 
-        return sorted(entries, key=lambda e: (e.filename, e.loc.line_start))
+        return sorted(entries, key=lambda e: (e.path, e.loc.line_start or 0))
 
 
 @dataclass
@@ -269,27 +269,29 @@ class FileFormat:
             return "".join(parts)
         return payload
 
-    def format_file_entry(self, f: FileEntry) -> Union[str, dict[str, Any]]:
+    def format_fs_entry(self, f: FsEntry) -> Union[str, dict[str, Any]]:
         base: dict[str, Any] = {}
-        if not f.is_dir:
-            if self.with_file_info:
-                base.update({"filename": f.filename, "path": f.path, "size": f.size,})
+        kind: str = "dir" if f.is_dir else "file"
 
-            if self.with_types and f.filetype is not None:
-                try:
-                    base["filetype"] = asdict(f.filetype)
-                except Exception:
-                    base["filetype"] = str(f.filetype)
+        if self.with_file_info:
+            base.update({"kind": kind,"name": f.name, "path": f.path, "size": f.size,})
 
-            if f.loc is not None:
-                base["loc"] = self._format_loc(f.loc)
-        else:
-            base.update({"path": f.path, "is_dir": True})
+        if self.with_types and f.filetype is not None:
+            try:
+                base["filetype"] = asdict(f.filetype)
+            except Exception:
+                base["filetype"] = str(f.filetype)
+
+        if f.loc is not None:
+            base["loc"] = self._format_loc(f.loc)
 
         if self._format == "str":
             return json.dumps(base, ensure_ascii=False)
+        
         if self._format == "xml":
-            parts = ["<file>"]
+            parts = [f"<{kind}>"]
+            base.pop("kind", None)
+            
             for k, v in base.items():
                 if isinstance(v, (dict, list)):
                     parts.append(
@@ -297,21 +299,21 @@ class FileFormat:
                     )
                 else:
                     parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
-            parts.append("</file>")
+            parts.append(f"</{kind}>")
             return "".join(parts)
         
         return base
 
     def format_file_list(
-        self, files: list[Optional[FileEntry]]
+        self, files: list[Optional[FsEntry]]
     ) -> Union[str, list[dict[str, Any]]]:
         cleaned = [f for f in files if f is not None]
         if self._format == "str":
-            return "\n".join(str(self.format_file_entry(f)) for f in cleaned)
+            return "\n".join(str(self.format_fs_entry(f)) for f in cleaned)
         if self._format == "xml":
-            inner = "".join(str(self.format_file_entry(f)) for f in cleaned)
+            inner = "".join(str(self.format_fs_entry(f)) for f in cleaned)
             return f"<files>{inner}</files>"
-        return [self.format_file_entry(f) for f in cleaned]  # type: ignore[return-value]
+        return [self.format_fs_entry(f) for f in cleaned]  # type: ignore[return-value]
 
     @staticmethod
     def format_output(content: str, max_output: int) -> str:
@@ -386,13 +388,13 @@ def file_tools(
             items = fs.ls(path)
 
         res = [
-            FileEntry.from_path(str(p), fs, with_types=with_types)
+            FsEntry.from_path(str(p), fs, with_types=with_types)
             for p in items
             if not _is_ignored(str(p), patterns)
         ]
         return {"result": fmt.format_file_list(res)}
 
-    def glob(pattern: str, path: Optional[str] = None) -> dict[str, Any]:
+    def glob(pattern: str, path: Optional[str] = None, offset: int = 0) -> dict[str, Any]:
         if path is None:
             path = "/"
 
@@ -408,11 +410,16 @@ def file_tools(
             matches = [m for m in matches if m.replace("\\", "/").startswith(prefix)]
 
         res = [
-            FileEntry.from_path(p, fs, with_types=with_types)
+            FsEntry.from_path(p, fs, with_types=with_types)
             for p in matches
             if not _is_ignored(p, patterns)
         ]
-        return {"result": fmt.format_file_list(res)}
+
+        total = len(res)
+        res = sorted(res, key=lambda e: e.path)
+        res = res[offset : offset + max_items]
+
+        return {"result": fmt.format_file_list(res),  "offset": offset, "total_items": total, "limit": max_items}
 
     def read_file(
         file: str, offset: Optional[int] = None, limit: Optional[int] = None
@@ -448,7 +455,7 @@ def file_tools(
         Args:
             pattern: The regex pattern to search for.
             path: The path to search in. If None, search the current directory.
-        Returns one FileEntry per match, with loc describing where it matched.
+        Returns one FsEntry per match, with loc describing where it matched.
         """
         if path is None:
             path = "/"
@@ -475,7 +482,7 @@ def file_tools(
                 return {"error": str(exc)}
 
             matches = list(regex.finditer(content))
-            entries = FileEntry.from_matches(
+            entries = FsEntry.from_matches(
                 matches=matches,
                 file=target,
                 fs=fs,
@@ -490,7 +497,7 @@ def file_tools(
             return {"result": fmt.format_file_list(entries or []), "offset": offset, "total_items": total, "limit": max_items}
 
         # Walk a directory tree
-        results: list[FileEntry] = []
+        results: list[FsEntry] = []
         for current_path, _dirs, files in fs.walk(target):
             for fname in files:
                 full_path = (str(current_path).rstrip("/") + "/" + str(fname)).replace(
@@ -504,7 +511,7 @@ def file_tools(
                     continue
 
                 matches = list(regex.finditer(content))
-                entries = FileEntry.from_matches(
+                entries = FsEntry.from_matches(
                     matches=matches,
                     file=full_path,
                     fs=fs,
@@ -514,10 +521,9 @@ def file_tools(
                 if entries:
                     results.extend(entries)
         
-        results = sorted(results, key=lambda x: (x.filename, x.loc.line_start))
         total = len(results)
-        if offset:
-            results = results[offset:offset+max_items]
+        results = sorted(results, key=lambda x: (x.path, x.loc.line_start or 0))
+        results = results[offset:offset+max_items]
 
         return {"result": fmt.format_file_list(results),  "offset": offset, "total_items": total, "limit": max_items}
 
