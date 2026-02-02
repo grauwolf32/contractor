@@ -95,6 +95,7 @@ class FileEntry:
     filename: str
     path: str
     size: int
+    is_dir: bool = False
     filetype: Optional[ContentTypeInfo] = None
     loc: Optional[FileLoc] = None
 
@@ -114,26 +115,44 @@ class FileEntry:
             return None
 
     @classmethod
-    def from_file(
+    def from_path(
         cls,
-        file: str,
+        path: str,
         fs: fsspec.AbstractFileSystem,
+        *,
         with_types: bool = True,
-    ) -> Optional[FileEntry]:
-        if not fs.exists(file) or not fs.isfile(file):
+    ) -> Optional["FileEntry"]:
+        if not fs.exists(path):
             return None
 
-        filetype: Optional[ContentTypeInfo] = None
-        if with_types:
-            filetype = cls.identify_type(file, fs)
+        path = _norm_unicode(path)
+        name = _norm_unicode(path.rstrip("/").split("/")[-1])
 
-        return cls(
-            filename=_norm_unicode(file.rstrip("/").split("/")[-1]),
-            path=_norm_unicode(file),
-            size=int(fs.size(file)),
-            filetype=filetype,
-            loc=None,
-        )
+        if fs.isdir(path):
+            return cls(
+                filename=name,
+                path=path,
+                size=0,
+                is_dir=True,
+                filetype=None,
+                loc=None,
+            )
+
+        if fs.isfile(path):
+            filetype = None
+            if with_types:
+                filetype = cls.identify_type(path, fs)
+
+            return cls(
+                filename=name,
+                path=path,
+                size=int(fs.size(path)),
+                is_dir=False,
+                filetype=filetype,
+                loc=None,
+            )
+
+        return None
 
     @staticmethod
     def _compute_line_starts(text: str) -> list[int]:
@@ -177,7 +196,7 @@ class FileEntry:
             except Exception:
                 return []
 
-        proto = cls.from_file(file, fs, with_types=with_types)
+        proto = cls.from_path(file, fs, with_types=with_types)
         if proto is None:
             return None
 
@@ -218,7 +237,7 @@ class FileEntry:
                 )
             )
 
-        return entries
+        return sorted(entries, key=lambda e: (e.filename, e.loc.line_start))
 
 
 @dataclass
@@ -252,17 +271,20 @@ class FileFormat:
 
     def format_file_entry(self, f: FileEntry) -> Union[str, dict[str, Any]]:
         base: dict[str, Any] = {}
-        if self.with_file_info:
-            base.update({"filename": f.filename, "path": f.path, "size": f.size})
+        if not f.is_dir:
+            if self.with_file_info:
+                base.update({"filename": f.filename, "path": f.path, "size": f.size,})
 
-        if self.with_types and f.filetype is not None:
-            try:
-                base["filetype"] = asdict(f.filetype)
-            except Exception:
-                base["filetype"] = str(f.filetype)
+            if self.with_types and f.filetype is not None:
+                try:
+                    base["filetype"] = asdict(f.filetype)
+                except Exception:
+                    base["filetype"] = str(f.filetype)
 
-        if f.loc is not None:
-            base["loc"] = self._format_loc(f.loc)
+            if f.loc is not None:
+                base["loc"] = self._format_loc(f.loc)
+        else:
+            base.update({"path": f.path, "is_dir": True})
 
         if self._format == "str":
             return json.dumps(base, ensure_ascii=False)
@@ -277,6 +299,7 @@ class FileFormat:
                     parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
             parts.append("</file>")
             return "".join(parts)
+        
         return base
 
     def format_file_list(
@@ -328,7 +351,9 @@ class FileFormat:
 def file_tools(
     fs: fsspec.AbstractFileSystem,
     fmt: FileFormat,
+    *,
     max_output: int = 8 * 10**4,
+    max_items: int = 300,
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
@@ -361,7 +386,7 @@ def file_tools(
             items = fs.ls(path)
 
         res = [
-            FileEntry.from_file(str(p), fs, with_types=with_types)
+            FileEntry.from_path(str(p), fs, with_types=with_types)
             for p in items
             if not _is_ignored(str(p), patterns)
         ]
@@ -383,7 +408,7 @@ def file_tools(
             matches = [m for m in matches if m.replace("\\", "/").startswith(prefix)]
 
         res = [
-            FileEntry.from_file(p, fs, with_types=with_types)
+            FileEntry.from_path(p, fs, with_types=with_types)
             for p in matches
             if not _is_ignored(p, patterns)
         ]
@@ -411,15 +436,18 @@ def file_tools(
                 return {"result": ""}
             lines = lines[offset:]
         if limit is not None:
-            limit = max(0, limit)
+            limit = max(1, limit)
             lines = lines[:limit]
 
         sliced = "\n".join(lines)
         return {"result": fmt.format_output(sliced, max_output)}
 
-    def grep(pattern: str, path: Optional[str] = None) -> dict[str, Any]:
+    def grep(pattern: str, path: Optional[str] = None, offset: int = 0) -> dict[str, Any]:
         """
         Regex search across a file or directory tree.
+        Args:
+            pattern: The regex pattern to search for.
+            path: The path to search in. If None, search the current directory.
         Returns one FileEntry per match, with loc describing where it matched.
         """
         if path is None:
@@ -454,7 +482,12 @@ def file_tools(
                 content=content,
                 with_types=with_types,
             )
-            return {"result": fmt.format_file_list(entries or [])}
+
+            total = len(entries)
+            if offset:
+                entries = entries[offset:offset+max_items]
+
+            return {"result": fmt.format_file_list(entries or []), "offset": offset, "total_items": total, "limit": max_items}
 
         # Walk a directory tree
         results: list[FileEntry] = []
@@ -480,8 +513,13 @@ def file_tools(
                 )
                 if entries:
                     results.extend(entries)
+        
+        results = sorted(results, key=lambda x: (x.filename, x.loc.line_start))
+        total = len(results)
+        if offset:
+            results = results[offset:offset+max_items]
 
-        return {"result": fmt.format_file_list(results)}
+        return {"result": fmt.format_file_list(results),  "offset": offset, "total_items": total, "limit": max_items}
 
     return [ls, glob, read_file, grep]
 

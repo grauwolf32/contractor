@@ -380,7 +380,7 @@ def cyrillic_fs(tmp_path: Path):
 def test_ls_cyrillic_filename(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["ls"](str(root))
-    paths = {e["filename"] for e in res["result"]}
+    paths = {e.get("filename") for e in res["result"]}
     assert fname in paths
 
 
