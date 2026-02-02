@@ -21,6 +21,8 @@ TOOL_LIMIT_DEFAULT_RVALUE: dict[str, Any] = {"result": "Tool call limit reached.
 
 ADK_RESERVED_TOOLS: list[str] = ["transfer_to_agent"]
 
+TOOL_MALFORMED_FORMAT: Final[str] = "Tool call {name} has malformed format."
+
 
 def _format_llm_response(
     role: Literal["system", "user"],
@@ -150,35 +152,52 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         }
 
     def __call__(
-        self, callback_context: CallbackContext, llm_response: LlmResponse
+        self,
+        callback_context: CallbackContext,
+        llm_response: LlmResponse,
     ) -> Optional[LlmResponse]:
-        if not llm_response.content or not llm_response.content.parts:
-            return
+        content = llm_response.content
+        if not content or not content.parts:
+            return None
 
-        parts: list[types.Part] = []
-        for part in llm_response.content.parts:
-            if part.function_call is None:
-                parts.append(part)
+        new_parts: list[types.Part] = []
+
+        for part in content.parts:
+            fc = part.function_call
+
+            if fc is None:
+                new_parts.append(part)
                 continue
 
-            func_name = part.function_call.name
-            if func_name in self.tool_names:
-                parts.append(part)
+            func_name = fc.name
+            func_args = fc.args
+
+            if func_name in self.tool_names and isinstance(func_args, dict):
+                new_parts.append(part)
                 continue
 
-            part.function_call.name = self.default_tool_name
-            metadata = {
-                "func_name": func_name,
-                "func_args": part.function_call.args or {},
-            }
+            metadata: dict[str, Any] = {}
 
-            part.function_call.args = {
+            if func_name not in self.tool_names:
+                metadata.update(
+                    {
+                        "func_name": func_name,
+                        "func_args": func_args or {},
+                    }
+                )
+
+            if not isinstance(func_args, dict):
+                metadata["error"] = TOOL_MALFORMED_FORMAT.format(func_name)
+
+            fc.name = self.default_tool_name
+            fc.args = {
                 self.default_tool_arg: metadata,
             }
 
-            parts.append(part)
+            new_parts.append(part)
             self.history.append(metadata)
 
-        llm_response.content.parts = parts
+        content.parts = new_parts
         self.save_to_state(callback_context)
+
         return llm_response

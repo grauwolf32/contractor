@@ -91,7 +91,9 @@ async def test_remove_path(tool_context):
 
     await upsert_path(
         "/pets",
-        PathItem(get={"operationId": "x", "responses": {"200": {"description": "ok"}}}).model_dump(),
+        PathItem(
+            get={"operationId": "x", "responses": {"200": {"description": "ok"}}}
+        ).model_dump(),
         ["pets.py"],
         tool_context,
     )

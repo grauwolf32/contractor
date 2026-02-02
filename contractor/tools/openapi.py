@@ -95,7 +95,7 @@ class OpenApiArtifact:
             if artifact is None:
                 return openapi_base_schema
             self.schema = yaml.safe_load(artifact.text)
-        
+
         return self.schema
 
     async def update_schema(self, diff: dict[str, Any], ctx: ToolContext) -> DictDiff:
@@ -171,11 +171,7 @@ def openapi_tools(name: str) -> list[Callable]:
         if not ok:
             return {"error": err}
 
-        diff = {
-            "paths": {
-                path.strip(): path_def
-            }
-        }
+        diff = {"paths": {path.strip(): path_def}}
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
         return {"result": asdict(schema_diff)}
 
@@ -330,7 +326,7 @@ def openapi_tools(name: str) -> list[Callable]:
         if key not in allowed_keys:
             keys: str = ",".join(allowed_keys)
             return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
-        
+
         schema = await oas.load_schema(tool_context)
         schema.setdefault("components", {})
         schema["components"].setdefault(key, {})

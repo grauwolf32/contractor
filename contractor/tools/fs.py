@@ -485,6 +485,7 @@ def file_tools(
 
     return [ls, glob, read_file, grep]
 
+
 class RootedLocalFileSystem(LocalFileSystem):
     """
     Local filesystem sandboxed to root_path.
