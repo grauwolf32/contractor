@@ -21,7 +21,7 @@ TOOL_LIMIT_DEFAULT_RVALUE: dict[str, Any] = {"result": "Tool call limit reached.
 
 ADK_RESERVED_TOOLS: list[str] = ["transfer_to_agent"]
 
-TOOL_MALFORMED_FORMAT: Final[str] = "Tool call {name} has malformed format."
+TOOL_MALFORMED_FORMAT: Final[str] = "Tool call {name} has malformed or wrong format. Please, try again."
 
 
 def _format_llm_response(
