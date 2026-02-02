@@ -502,6 +502,38 @@ class RootedLocalFileSystem(LocalFileSystem):
 
         super().__init__(*args, **kwargs)
 
+    def ls(self, path: str = "", detail: bool = False, **kwargs):
+        path = "" if path in (None, "/", "") else path
+        host_path = self._strip_protocol(path)
+
+        if host_path == self._blocked_path:
+            return [] if not detail else []
+
+        try:
+            entries = super().ls(host_path, detail=True, **kwargs)
+        except FileNotFoundError:
+            return [] if not detail else []
+
+        out = []
+        for e in entries:
+            host_name = e["name"]
+
+            real = os.path.realpath(host_name)
+            if not (real == self.root_path or real.startswith(self.root_path + os.sep)):
+                continue
+
+            rel = os.path.relpath(real, self.root_path)
+            virt = "/" if rel == "." else "/" + rel.replace(os.sep, "/")
+
+            if detail:
+                e = e.copy()
+                e["name"] = virt
+                out.append(e)
+            else:
+                out.append(virt)
+
+        return out
+
     def glob(self, pattern: str, **kwargs):
         """
         Sandbox-safe glob with Python-like semantics.
@@ -548,18 +580,15 @@ class RootedLocalFileSystem(LocalFileSystem):
                 rel_path = os.path.join(rel_root, name) if rel_root else name
                 rel_path = _norm_unicode(rel_path.replace(os.sep, "/"))
 
-                # Normal match
                 if fnmatch.fnmatch(rel_path, pattern):
                     matches.append("/" + rel_path)
                     continue
 
-                # "**/*.txt" should match "file.txt" in root
                 if recursive and "/" not in rel_path:
                     tail = pattern.split("/")[-1]
                     if fnmatch.fnmatch(name, tail):
                         matches.append("/" + name)
 
-        # De-duplicate and sort
         return sorted(set(matches))
 
     def _strip_protocol(self, path):
