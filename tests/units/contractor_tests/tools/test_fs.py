@@ -377,10 +377,10 @@ def cyrillic_fs(tmp_path: Path):
     return tmp_path, fname
 
 
-def test_ls_cyrillic_filename(tools_json, cyrillic_fs):
+def test_ls_cyrillic_name(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["ls"](str(root))
-    paths = {e["filename"] for e in res["result"]}
+    paths = {e.get("name") for e in res["result"]}
     assert fname in paths
 
 
@@ -393,14 +393,14 @@ def test_read_file_cyrillic(tools_json, cyrillic_fs):
 def test_glob_cyrillic(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["glob"](str(root / "*.md"))
-    paths = {e["filename"] for e in res["result"]}
+    paths = {e["name"] for e in res["result"]}
     assert fname in paths
 
 
 def test_grep_cyrillic(tools_json, cyrillic_fs):
     root, fname = cyrillic_fs
     res = tools_json["grep"]("привет", path=str(root))
-    paths = {e["filename"] for e in res["result"]}
+    paths = {e["name"] for e in res["result"]}
     assert fname in paths
 
 
