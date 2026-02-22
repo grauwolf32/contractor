@@ -77,11 +77,9 @@ DUMMY_MODEL = LiteLlm(
     timeout=300,
 )
 
-#playground_path = (
-#    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "notes"
-#)
-
-playground_path = Path("/Users/r.bomin-kulakov/expirements/network_graph/personal/rbominkulakov/tests/data/lb_configs")
+playground_path = (
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "notes"
+)
 
 sandbox = PodmanContainer(
     name="contractor_planner_sandbox",
