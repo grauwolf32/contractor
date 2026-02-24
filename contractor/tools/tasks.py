@@ -563,12 +563,6 @@ class StreamlineManager:
         return f"task::{global_task_id}::pool"
 
     @staticmethod
-    def _global_summary_key(ctx: ToolContext | CallbackContext) -> str:
-        global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
-        invocation_id = ctx.invocation_id
-        return f"task::{global_task_id}::{invocation_id}::summary"
-
-    @staticmethod
     def _next_task_id(subtasks) -> str:
         if not subtasks:
             return "0"

@@ -1,0 +1,187 @@
+specification{
+element person {
+	style {
+		shape person
+	color red
+	}
+}
+
+element softwaresystem {
+	style {
+		shape component
+	}
+}
+element container {
+	style {
+	shape rectangle
+	}
+}
+
+element component {
+	style {
+		shape rectangle
+		color blue
+	}
+}
+element platformservice {
+	style {
+		shape cylinder
+		color green
+	}
+}
+element existingsystem {
+	style {
+		shape cylinder
+	}
+}
+}
+model {
+
+  // ================= PEOPLE =================
+
+  admin = person "System Administrator"
+  developer = person "Developer"
+  seceng = person "Security Engineer"
+  devops = person "DevOps Engineer"
+  auditor = person "Auditor"
+  infra_eng = person "Infrastructure Engineer"
+
+
+  // ================= SYSTEM =================
+
+  heimdall = softwaresystem "Heimdall" {
+    technology: "Python, FastAPI, PostgreSQL, Kafka, TaskIQ"
+
+    // -------- API --------
+
+    api = container "API Application" {
+      technology: "FastAPI"
+
+      app = component "FastAPI App"
+      router = component "API Router (v1/v2/RFC/ForceRemoval)"
+      middleware = component "Middleware (Auth, Logging, CORS, Metrics)"
+      observability_api = component "Health & Metrics Endpoints"
+      auth = component "Authentication (OAuth2/JWT)"
+    }
+
+    // -------- Services --------
+
+    services = container "Domain Services" {
+      technology: "Python"
+
+      publication = component "Publication Service"
+      rfc = component "RFC Service"
+      force_removal = component "Force Removal Service"
+      tech_debt = component "Tech Debt Service"
+      integration = component "Integration Services (S3, Tunnel, External APIs)"
+      common = component "Shared Utilities"
+    }
+
+    // -------- Workers --------
+
+    workers = container "Background Workers" {
+      technology: "TaskIQ"
+
+      scheduler = component "Task Scheduler"
+      rfc_worker = component "RFC Worker"
+      s3_worker = component "S3 ACL Worker"
+      audit_worker = component "Audit Worker"
+      token_worker = component "Token Refresh Worker"
+    }
+
+    // -------- Data Layer --------
+
+    data = container "Data Layer" {
+      technology: "SQLAlchemy"
+
+      repositories = component "Repositories / Query Layer"
+      pg = component "PostgreSQL Connection"
+      ch = component "ClickHouse Connection"
+    }
+
+    // -------- Domain Models --------
+
+    domain = container "Domain Models" {
+      technology: "SQLAlchemy ORM"
+
+      publication_model = component "Publication Aggregate"
+      rfc_model = component "RFC Aggregate"
+      user_model = component "User Model"
+      techdebt_model = component "Tech Debt Model"
+      removal_model = component "Removal Process Model"
+    }
+
+    // -------- CLI --------
+
+    cli = container "CLI Tools" {
+      technology: "Click"
+
+      admin_cli = component "Admin & Migration CLI"
+      ops_cli = component "Ops & Sync CLI"
+      force_cli = component "Force Removal CLI"
+    }
+  }
+
+
+  // ================= EXTERNAL SYSTEMS =================
+
+  database = existingsystem "PostgreSQL & ClickHouse"
+  kafka = existingsystem "Kafka"
+  s3 = existingsystem "Amazon S3"
+  observability = existingsystem "Monitoring Stack"
+  dev_tools = existingsystem "GitLab / Jira / NetBox"
+  infra = existingsystem "Infrastructure APIs"
+  ops_tools = existingsystem "Operations & Alerting"
+  security = existingsystem "Vault & Security Services"
+
+
+  // ================= RELATIONSHIPS =================
+
+  // People
+  admin -> api
+  admin -> cli
+  developer -> api
+  auditor -> api
+  infra_eng -> api
+  seceng -> security
+  devops -> observability
+
+  // API flow
+  app -> router
+  app -> middleware
+  middleware -> auth
+  router -> services
+  app -> observability_api
+
+  // Services
+  services -> data
+  services -> domain
+  services -> infra
+  services -> s3
+  services -> security
+
+  // Workers
+  scheduler -> workers
+  workers -> services
+  workers -> data
+  workers -> kafka
+  workers -> s3
+  workers -> dev_tools
+  workers -> observability
+
+  // Data
+  repositories -> pg
+  repositories -> ch
+  pg -> database
+  ch -> database
+  domain -> pg
+
+  // API integrations
+  api -> kafka
+  api -> s3
+  api -> dev_tools
+  api -> infra
+  api -> ops_tools
+  api -> observability
+  api -> security
+}

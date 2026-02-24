@@ -1,0 +1,43 @@
+views {
+
+  view context of heimdall {
+    title "Heimdall - System Context"
+    include
+      admin, developer, seceng, devops, auditor, infra_eng,
+      heimdall,
+      database, kafka, s3,
+      observability, dev_tools, infra,
+      ops_tools, security
+  }
+
+  view containers of heimdall {
+    title "Heimdall - Containers"
+    include
+      heimdall.api,
+      heimdall.services,
+      heimdall.workers,
+      heimdall.data,
+      heimdall.domain,
+      heimdall.cli
+  }
+
+  view api_components of heimdall.api {
+    title "API Components"
+    include *
+  }
+
+  view services_components of heimdall.services {
+    title "Domain Services"
+    include *
+  }
+
+  view workers_components of heimdall.workers {
+    title "Workers"
+    include *
+  }
+
+  view data_components of heimdall.data, heimdall.domain {
+    title "Data & Domain"
+    include *
+  }
+}
