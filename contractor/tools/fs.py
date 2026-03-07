@@ -274,7 +274,14 @@ class FileFormat:
         kind: str = "dir" if f.is_dir else "file"
 
         if self.with_file_info:
-            base.update({"kind": kind,"name": f.name, "path": f.path, "size": f.size,})
+            base.update(
+                {
+                    "kind": kind,
+                    "name": f.name,
+                    "path": f.path,
+                    "size": f.size,
+                }
+            )
 
         if self.with_types and f.filetype is not None:
             try:
@@ -287,11 +294,11 @@ class FileFormat:
 
         if self._format == "str":
             return json.dumps(base, ensure_ascii=False)
-        
+
         if self._format == "xml":
             parts = [f"<{kind}>"]
             base.pop("kind", None)
-            
+
             for k, v in base.items():
                 if isinstance(v, (dict, list)):
                     parts.append(
@@ -301,7 +308,7 @@ class FileFormat:
                     parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
             parts.append(f"</{kind}>")
             return "".join(parts)
-        
+
         return base
 
     def format_file_list(
@@ -394,7 +401,9 @@ def file_tools(
         ]
         return {"result": fmt.format_file_list(res)}
 
-    def glob(pattern: str, path: Optional[str] = None, offset: int = 0) -> dict[str, Any]:
+    def glob(
+        pattern: str, path: Optional[str] = None, offset: int = 0
+    ) -> dict[str, Any]:
         if path is None:
             path = "/"
 
@@ -419,7 +428,12 @@ def file_tools(
         res = sorted(res, key=lambda e: e.path)
         res = res[offset : offset + max_items]
 
-        return {"result": fmt.format_file_list(res),  "offset": offset, "total_items": total, "limit": max_items}
+        return {
+            "result": fmt.format_file_list(res),
+            "offset": offset,
+            "total_items": total,
+            "limit": max_items,
+        }
 
     def read_file(
         file: str, offset: Optional[int] = None, limit: Optional[int] = None
@@ -449,7 +463,9 @@ def file_tools(
         sliced = "\n".join(lines)
         return {"result": fmt.format_output(sliced, max_output)}
 
-    def grep(pattern: str, path: Optional[str] = None, offset: int = 0) -> dict[str, Any]:
+    def grep(
+        pattern: str, path: Optional[str] = None, offset: int = 0
+    ) -> dict[str, Any]:
         """
         Regex search across a file or directory tree.
         Args:
@@ -492,9 +508,14 @@ def file_tools(
 
             total = len(entries)
             if offset:
-                entries = entries[offset:offset+max_items]
+                entries = entries[offset : offset + max_items]
 
-            return {"result": fmt.format_file_list(entries or []), "offset": offset, "total_items": total, "limit": max_items}
+            return {
+                "result": fmt.format_file_list(entries or []),
+                "offset": offset,
+                "total_items": total,
+                "limit": max_items,
+            }
 
         # Walk a directory tree
         results: list[FsEntry] = []
@@ -520,12 +541,17 @@ def file_tools(
                 )
                 if entries:
                     results.extend(entries)
-        
+
         total = len(results)
         results = sorted(results, key=lambda x: (x.path, x.loc.line_start or 0))
-        results = results[offset:offset+max_items]
+        results = results[offset : offset + max_items]
 
-        return {"result": fmt.format_file_list(results),  "offset": offset, "total_items": total, "limit": max_items}
+        return {
+            "result": fmt.format_file_list(results),
+            "offset": offset,
+            "total_items": total,
+            "limit": max_items,
+        }
 
     return [ls, glob, read_file, grep]
 
@@ -642,7 +668,7 @@ class RootedLocalFileSystem(LocalFileSystem):
             path = path[7:]
 
         # If path already points inside root_path → accept as-is
-        real = os.path.realpath(path)
+        real = os.path.abspath(path)
         if real == self.root_path or real.startswith(self.root_path + os.sep):
             return real
 
@@ -652,7 +678,7 @@ class RootedLocalFileSystem(LocalFileSystem):
         else:
             candidate = os.path.join(self.root_path, path.lstrip("/"))
 
-        candidate = os.path.realpath(os.path.normpath(candidate))
+        candidate = os.path.abspath(os.path.normpath(candidate))
 
         if candidate == self.root_path or candidate.startswith(self.root_path + os.sep):
             return candidate
