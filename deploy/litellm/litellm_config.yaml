@@ -6,16 +6,16 @@ model_list:
       api_base: http://localhost:1234/v1
       tpm: 100000 
       rpm: 10 
-  - model_name: lm-studio-devstral
+  - model_name: lm-studio-openai
     litellm_params:
-      model: openai/mistralai/devstral-small-2-2512
+      model: openai/openai/gpt-oss-20b
       api_key: lm-studio
       api_base: http://localhost:1234/v1
       tpm: 100000
       rpm: 10
-  - model_name: lm-studio-openai
+  - model_name: lm-studio-qwen3.5
     litellm_params:
-      model: openai/openai/gpt-oss-20b
+      model: openai/qwen/qwen3.5-35b-a3b
       api_key: lm-studio
       api_base: http://localhost:1234/v1
       tpm: 100000

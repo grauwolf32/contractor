@@ -73,12 +73,12 @@ DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
 
 DUMMY_MODEL = LiteLlm(
-    model="tgpt-qwen3-coder-480b-a35b-instruct",
+    model="lm-studio-qwen3.5",
     timeout=300,
 )
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "notes"
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "python"
 )
 
 sandbox = PodmanContainer(
