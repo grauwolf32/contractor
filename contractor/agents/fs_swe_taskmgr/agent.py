@@ -81,7 +81,7 @@ DUMMY_MODEL = LiteLlm(
 #    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "notes"
 # )
 
-playground_path = Path("/Users/r.bomin-kulakov/src/heimdall")
+playground_path = Path("/Users/r.bomin-kulakov/src/lbaas/publications-controller")
 
 sandbox = PodmanContainer(
     name="contractor_planner_sandbox",
