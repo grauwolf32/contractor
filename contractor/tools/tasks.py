@@ -1220,7 +1220,7 @@ def task_tools(
         summarizer:LlmAgent = LlmAgent(
             name="task_summarizer",
             description="text summarization agent",
-            instructions=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
+            instruction=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
             tools=worker.agent.tools,
             model=worker.agent.model,
         )
