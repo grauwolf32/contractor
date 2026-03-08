@@ -617,7 +617,7 @@ class StreamlineManager:
     @staticmethod
     def _global_keys(
         ctx: ToolContext | CallbackContext,
-        key: Literal["", "pool", "summary", "result", "status"],
+        key: Literal["", "pool", "summary", "result", "status", "objective"],
     ) -> str:
         global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
         if key == "":
@@ -778,12 +778,12 @@ Each subtask has exactly one status:
 - new         : planned but not yet executed
 - done        : successfully completed
 - incomplete  : attempted but failed or partially completed
-- skip        : intentionally skipped due to irrelevance or redundancy
+- skipped        : intentionally skipped due to irrelevance or redundancy
 
 Valid state transitions:
 - new -> done
 - new -> incomplete
-- new -> skip
+- new -> skipped
 
 No other transitions are allowed.
 
@@ -844,7 +844,7 @@ Follow this loop strictly:
 --------------------------------------------------
 
 Rule 1: Task description must be clear and concise.
-- Workers are not completeley aware of the full task context.
+- Workers are not completely aware of the full task context.
 - All required information must be provided within the task description.
 
 Rule 2: Single Active Task Rule
@@ -980,7 +980,7 @@ def instrument_worker(
     type_hint: bool = False,
     use_input_schema: bool = True,
     use_output_schema: bool = True,
-) -> LlmAgent:
+) -> AgentTool:
     if use_input_schema or fmt._format == "json":
         worker.input_schema = Subtask
 
@@ -1231,33 +1231,32 @@ def task_tools(
             - You have completed all planned work and there is nothing left to do.
         """
 
-        tools: list[Callable] = []
-        model: LiteLlm | None = None
-
-        summarizer: LlmAgent = LlmAgent(
+        summarizer = LlmAgent(
             name="task_summarizer",
             description="text summarization agent",
             instruction=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
-            tools=worker.agent.tools,
-            model=worker.agent.model,
+            tools=worker.agent.tools if isinstance(worker, AgentTool) else worker.tools,
+            model=worker.agent.model if isinstance(worker, AgentTool) else worker.model,
         )
 
-        objective_key: str = mgr._global_keys(tool_context, "objective")
-        objective: str = tool_context.state.get(objective_key, "")
+        objective_key = StreamlineManager._global_keys(tool_context, "objective")
+        objective = tool_context.state.get(objective_key, "")
 
         args = {
             "request": {
                 "objective": objective,
                 "records": mgr.get_records(tool_context),
                 "result": result,
-                "status": status.lower() if status.lower() == "done" else "failed",
+                "status": status,
             }
         }
 
-        summarizer_tool: AgentTool = AgentTool(summarizer)
+        summarizer_tool = AgentTool(summarizer)
         raw = await summarizer_tool.run_async(args=args, tool_context=tool_context)
+
+        summary = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
         mgr.finish(status=status, result=result, summary=summary, ctx=tool_context)
-        return {"result": "ok"}
+        return {"result": "ok", "summary": summary}
 
     tools = [
         add_subtask,
