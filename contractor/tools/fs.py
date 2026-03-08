@@ -235,7 +235,9 @@ class FsEntry:
                 )
             )
 
-        return sorted(entries, key=lambda entry: (entry.path, entry.loc.line_start or 0))
+        return sorted(
+            entries, key=lambda entry: (entry.path, entry.loc.line_start or 0)
+        )
 
 
 @dataclass(slots=True)
@@ -510,12 +512,18 @@ class FsspecCoverageFileTools:
             relative = file_path.lstrip("/")
         else:
             prefix = root + "/"
-            relative = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+            relative = (
+                file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+            )
 
         return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
 
     def _matched_files(self, path: str, pattern: str) -> list[str]:
-        return [file_path for file_path in self._iter_all_files(path) if self._match_glob(file_path, path, pattern)]
+        return [
+            file_path
+            for file_path in self._iter_all_files(path)
+            if self._match_glob(file_path, path, pattern)
+        ]
 
     def _coverage_entry(self, path: str) -> Optional[FileCoverageEntry]:
         return self._coverage.get(path)
@@ -620,7 +628,12 @@ class FsspecCoverageFileTools:
         normalized_pattern = self._norm(pattern)
 
         if normalized_pattern is None:
-            return {"result": [], "offset": offset, "total_items": 0, "limit": self.max_items}
+            return {
+                "result": [],
+                "offset": offset,
+                "total_items": 0,
+                "limit": self.max_items,
+            }
 
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -660,7 +673,11 @@ class FsspecCoverageFileTools:
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         normalized_file = self._norm(file_path)
-        if normalized_file is None or not self.fs.exists(normalized_file) or self._is_ignored(normalized_file):
+        if (
+            normalized_file is None
+            or not self.fs.exists(normalized_file)
+            or self._is_ignored(normalized_file)
+        ):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_file)}
         if not self.fs.isfile(normalized_file):
             return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_file)}
@@ -715,7 +732,9 @@ class FsspecCoverageFileTools:
                 return []
 
             try:
-                content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
+                content = self.fs.read_text(
+                    file_path, encoding="utf-8", errors="ignore"
+                )
             except Exception:
                 return []
 
@@ -897,7 +916,7 @@ def file_tools(
     def ls(path: str) -> dict[str, Any]:
         """
         List immediate children of a directory.
-        
+
         Use this tool when you need to inspect the structure of a specific folder
         before deciding which files to open or search.
         Args:
@@ -909,7 +928,7 @@ def file_tools(
             - "result": formatted list of filesystem entries
         Behavior:
             - Only direct children are returned; this tool is not recursive.
-        
+
         Prefer this tool when:
             - You are exploring an unfamiliar directory
             - You need to discover candidate files to inspect
@@ -1189,9 +1208,7 @@ def file_tools(
         files = tools._matched_files(path, pattern)
 
         selected = [
-            f
-            for f in files
-            if (entry := tools._coverage_entry(f)) and entry.has_read
+            f for f in files if (entry := tools._coverage_entry(f)) and entry.has_read
         ]
 
         page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
@@ -1446,7 +1463,7 @@ class RootedLocalFileSystem(LocalFileSystem):
                     if rel_root
                     else normalized_name
                 )
-                rel_path = (_norm_unicode(rel_path.replace(os.sep, "/")) or rel_path)
+                rel_path = _norm_unicode(rel_path.replace(os.sep, "/")) or rel_path
 
                 if fnmatch.fnmatch(rel_path, pattern):
                     matches.append("/" + rel_path)
