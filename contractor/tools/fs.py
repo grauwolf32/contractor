@@ -874,6 +874,7 @@ def file_tools(
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
+    with_coverage_tools: bool = True,
 ) -> list[Callable[..., dict[str, Any]]]:
     """
     Return a registry of filesystem tools:
@@ -894,7 +895,29 @@ def file_tools(
     )
 
     def ls(path: str) -> dict[str, Any]:
-        """List files in the given path."""
+        """
+        List immediate children of a directory.
+        
+        Use this tool when you need to inspect the structure of a specific folder
+        before deciding which files to open or search.
+        Args:
+            path:
+                Absolute or backend-specific path to a directory or filesystem location.
+
+        Returns:
+            A dict with:
+            - "result": formatted list of filesystem entries
+        Behavior:
+            - Only direct children are returned; this tool is not recursive.
+        
+        Prefer this tool when:
+            - You are exploring an unfamiliar directory
+            - You need to discover candidate files to inspect
+
+        Prefer glob() instead when:
+            - You already know a filename mask or extension pattern
+        """
+
         return tools.ls(path=path)
 
     def glob(
@@ -902,7 +925,45 @@ def file_tools(
         path: Optional[str] = None,
         offset: int = 0,
     ) -> dict[str, Any]:
-        """Glob files by pattern."""
+        """
+        Find files or directories by glob pattern.
+
+        Use this tool when you know a filename/path pattern, such as:
+        - "*.py"
+        - "**/*.md"
+        - "/project/src/**/*.ts"
+
+        Args:
+            pattern:
+                Glob pattern to match against filesystem paths.
+            path:
+                Optional root path used as an additional filter.
+                If provided, only matches inside this path are returned.
+            offset:
+                Pagination offset for large result sets.
+
+        Returns:
+            A dict with:
+            - "result": formatted list of matching filesystem entries
+            - "offset": starting offset used for pagination
+            - "total_items": total number of matches before pagination
+            - "limit": page size
+
+            On error returns:
+            - {"error": "..."} if the provided path does not exist
+
+        Behavior:
+            - Results are sorted by path.
+            - Pagination is applied using offset and internal max_items.
+
+        Prefer this tool when:
+            - You want files by extension or path mask
+            - You need recursive discovery via patterns like "**/*.py"
+
+        Prefer ls() instead when:
+            - You want a direct non-recursive listing of one folder
+        """
+
         return tools.glob(pattern=pattern, path=path, offset=offset)
 
     def read_file(
@@ -910,7 +971,42 @@ def file_tools(
         offset: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
-        """Read a text file."""
+        """
+        Read text content from a file.
+
+        Use this tool to inspect file contents after locating a relevant file
+        through ls() or glob(), or after identifying an interesting match via grep().
+
+        Args:
+            file:
+                Path to a text file.
+            offset:
+                Optional 0-based line offset. If provided, reading starts from this line.
+            limit:
+                Optional maximum number of lines to return after applying offset.
+
+        Returns:
+            A dict with:
+            - "result": text content, possibly truncated to fit max_output
+
+            On error returns:
+            - {"error": "..."} if the path does not exist
+            - {"error": "..."} if the path is not a file
+
+        Behavior:
+            - Reads text as UTF-8 with errors ignored.
+            - Applies line-based slicing, not byte-based slicing.
+            - Large output is truncated safely by bytes while preserving line boundaries.
+            - Hidden/ignored paths are treated as unavailable.
+
+        Prefer this tool when:
+            - You already know which file should be inspected
+            - You need exact file contents, not just search hits
+
+        Prefer grep() instead when:
+            - You first need to locate relevant text across many files
+        """
+
         return tools.read_file(file_path=file, offset=offset, limit=limit)
 
     def grep(
@@ -919,12 +1015,341 @@ def file_tools(
         offset: int = 0,
     ) -> dict[str, Any]:
         """
-        Regex search across a file or directory tree.
-        Returns one FsEntry per match, with location metadata.
+        Search file contents using a regular expression.
+
+        Use this tool to locate relevant text in a single file or recursively
+        across a directory tree before reading full files.
+
+        Args:
+            pattern:
+                Python regular expression pattern.
+            path:
+                File or directory path to search in.
+                - If a file is provided, only that file is searched.
+                - If a directory is provided, files are searched recursively.
+                - If omitted, the filesystem root is searched.
+            offset:
+                Pagination offset over individual matches.
+
+        Returns:
+            A dict with:
+            - "result": one formatted FsEntry per regex match
+            - "offset": starting offset used for pagination
+            - "total_items": total number of matches before pagination
+            - "limit": page size
+
+            Each match entry may include:
+            - file metadata (path, name, size)
+            - loc with line range and excerpt
+            - optional filetype metadata
+
+            On error returns:
+            - {"error": "..."} if the regex is invalid
+            - {"error": "..."} if the path does not exist
+
+        Behavior:
+            - Uses Python regex syntax.
+            - Searches recursively when path is a directory.
+            - Returns matches, not whole-file contents.
+            - Ignore patterns are respected.
+            - Binary or unreadable files may be skipped silently.
+            - Output format depends on FileFormat.
+
+        Prefer this tool when:
+            - You need to find where a symbol, error, string, or pattern appears
+            - You want to narrow down which files to inspect further
         """
         return tools.grep(pattern=pattern, path=path, offset=offset)
 
-    return [ls, glob, read_file, grep]
+    def coverage_stats(
+        path: str = "/",
+        pattern: str = "**/*",
+    ) -> dict[str, Any]:
+        """
+        Summarize repository exploration progress.
+        Files are categorized using agent interaction history:
+            - covered:
+                files that were explicitly read using read_file()
+            - uncovered:
+                files that produced a grep() match but were not read afterward
+            - untracked:
+                files that were neither read nor matched by grep()
+
+        This tool helps to understand which parts of the filesystem
+        have already been inspected and where further exploration may be needed.
+
+        Args:
+            path:
+                Root path used to compute coverage.
+            pattern:
+                Glob pattern used to select files inside the path.
+
+        Returns:
+            {
+                "result": {
+                    "path": str,
+                    "pattern": str,
+                    "total_files": int,
+                    "covered_files_count": int,
+                    "uncovered_files_count": int,
+                    "untracked_files_count": int,
+                    "coverage_percent": float
+                }
+            }
+
+        Coverage percent reflects the fraction of files that were explicitly read.
+        """
+
+        path = tools._norm(path) or "/"
+        pattern = tools._norm(pattern) or "**/*"
+
+        if not tools.fs.exists(path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+
+        files = tools._matched_files(path, pattern)
+
+        covered = []
+        uncovered = []
+        untracked = []
+
+        for f in files:
+            entry = tools._coverage_entry(f)
+
+            if entry is None:
+                untracked.append(f)
+                continue
+
+            if entry.has_read:
+                covered.append(f)
+            elif entry.has_match:
+                uncovered.append(f)
+            else:
+                untracked.append(f)
+
+        total = len(files)
+        covered_count = len(covered)
+
+        percent = round((covered_count / total) * 100, 2) if total else 100.0
+
+        return {
+            "result": {
+                "path": path,
+                "pattern": pattern,
+                "total_files": total,
+                "covered_files_count": len(covered),
+                "uncovered_files_count": len(uncovered),
+                "untracked_files_count": len(untracked),
+                "coverage_percent": percent,
+            }
+        }
+
+    def covered(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that were already read by the agent.
+        A file is considered *covered* if read_file() was executed on it.
+
+        Args:
+            path:
+                Root directory to inspect.
+            pattern:
+                Glob pattern used to select candidate files.
+            offset:
+                Pagination offset.
+            limit:
+                Maximum number of results to return.
+
+        Returns:
+            {
+                "result": [coverage_entry, ...],
+                "offset": int,
+                "total_items": int,
+                "limit": int
+            }
+
+        Each coverage entry contains:
+            - path
+            - has_read
+            - has_match
+            - read_count
+            - match_count
+            - operations
+        """
+
+        path = tools._norm(path) or "/"
+        pattern = tools._norm(pattern) or "**/*"
+
+        if not tools.fs.exists(path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+
+        files = tools._matched_files(path, pattern)
+
+        selected = [
+            f
+            for f in files
+            if (entry := tools._coverage_entry(f)) and entry.has_read
+        ]
+
+        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
+
+        return {
+            "result": [tools._serialize_coverage_entry(p) for p in page],
+            "offset": offset,
+            "total_items": len(selected),
+            "limit": limit,
+        }
+
+    def uncovered(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that matched a grep() search but were never read.
+
+        These files are important follow-up candidates:
+        You had detected relevant content but did not inspect the file.
+
+        Args:
+            path:
+                Root directory to inspect.
+            pattern:
+                Glob pattern used to select candidate files.
+            offset:
+                Pagination offset.
+            limit:
+                Maximum number of results to return.
+
+        Returns:
+            {
+                "result": [coverage_entry, ...],
+                "offset": int,
+                "total_items": int,
+                "limit": int
+            }
+        """
+
+        path = tools._norm(path) or "/"
+        pattern = tools._norm(pattern) or "**/*"
+
+        if not tools.fs.exists(path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+
+        files = tools._matched_files(path, pattern)
+
+        selected = []
+
+        for f in files:
+            entry = tools._coverage_entry(f)
+
+            if entry and entry.has_match and not entry.has_read:
+                selected.append(f)
+
+        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
+
+        return {
+            "result": [tools._serialize_coverage_entry(p) for p in page],
+            "offset": offset,
+            "total_items": len(selected),
+            "limit": limit,
+        }
+
+    def untracked(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that were neither read nor matched by search.
+
+        These files represent unexplored areas of the repository.
+
+        Use this tool when the agent wants to systematically explore
+        files that have not yet been inspected in any way.
+
+        Args:
+            path:
+                Root directory to inspect.
+            pattern:
+                Glob pattern used to select candidate files.
+            offset:
+                Pagination offset.
+            limit:
+                Maximum number of results to return.
+
+        Returns:
+            {
+                "result": [{"path": ...}, ...],
+                "offset": int,
+                "total_items": int,
+                "limit": int
+            }
+        """
+
+        path = tools._norm(path) or "/"
+        pattern = tools._norm(pattern) or "**/*"
+
+        if not tools.fs.exists(path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+
+        files = tools._matched_files(path, pattern)
+
+        selected = []
+
+        for f in files:
+            entry = tools._coverage_entry(f)
+
+            if entry is None:
+                selected.append(f)
+            elif not entry.has_read and not entry.has_match:
+                selected.append(f)
+
+        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
+
+        return {
+            "result": [{"path": p} for p in page],
+            "offset": offset,
+            "total_items": len(selected),
+            "limit": limit,
+        }
+
+    def reset_coverage() -> dict[str, Any]:
+        """
+        Reset coverage tracking.
+
+        Clears all stored information about files that were read
+        or matched by grep().
+
+        This is useful when starting a new independent analysis task.
+        Call this tool only if you are absolutely sure, that you need this.
+
+        Returns:
+            {"result": "ok"}
+        """
+
+        tools.reset_coverage()
+        return {"result": "ok"}
+
+    registry = [ls, glob, read_file, grep]
+
+    if with_coverage_tools:
+        registry.extend(
+            [
+                coverage_stats,
+                covered,
+                uncovered,
+                untracked,
+                reset_coverage,
+            ]
+        )
+
+    return registry
 
 
 class RootedLocalFileSystem(LocalFileSystem):
