@@ -1246,13 +1246,15 @@ def task_tools(
         objective: str = tool_context.state.get(objective_key, "")
 
         args = {
-            "objective": objective,
-            "records": mgr.get_records(tool_context),
-            "result": result,
-            "status": status.lower() if status.lower() == "done" else "failed",
+            "request": {
+                "objective": objective,
+                "records": mgr.get_records(tool_context),
+                "result": result,
+                "status": status.lower() if status.lower() == "done" else "failed",
+            }
         }
 
-        summarizer_tool:AgentTool = AgentTool(summarizer)
+        summarizer_tool: AgentTool = AgentTool(summarizer)
         raw = await summarizer_tool.run_async(args=args, tool_context=tool_context)
         mgr.finish(status=status, result=result, summary=summary, ctx=tool_context)
         return {"result": "ok"}
