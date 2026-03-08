@@ -205,7 +205,9 @@ class SubtaskFormatter:
         return subtask_result.model_dump()
 
     @staticmethod
-    def _subtask_result_to_markdown(subtask_result: SubtaskExecutionResult, **kwargs) -> str:
+    def _subtask_result_to_markdown(
+        subtask_result: SubtaskExecutionResult, **kwargs
+    ) -> str:
         return (
             f"### RESULT [ID: {subtask_result.task_id}]\n"
             f"**Status**: {subtask_result.status}\n"
@@ -215,7 +217,9 @@ class SubtaskFormatter:
         )
 
     @staticmethod
-    def _subtask_result_to_yaml(subtask_result: SubtaskExecutionResult, **kwargs) -> str:
+    def _subtask_result_to_yaml(
+        subtask_result: SubtaskExecutionResult, **kwargs
+    ) -> str:
         payload = {
             f"result_{subtask_result.task_id}": {
                 "task_id": subtask_result.task_id,
@@ -310,7 +314,10 @@ class SubtaskFormatter:
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
             output = "\n".join(
-                [self.format_subtask_result(subtask_result) for subtask_result in subtask_results]
+                [
+                    self.format_subtask_result(subtask_result)
+                    for subtask_result in subtask_results
+                ]
             )
             return self._type_hint(output, type_hint)
 
@@ -326,7 +333,8 @@ class SubtaskFormatter:
             return self._type_hint(output, type_hint)
 
         return [
-            SubtaskFormatter._subtask_result_to_json(subtask_result) for subtask_result in subtask_results
+            SubtaskFormatter._subtask_result_to_json(subtask_result)
+            for subtask_result in subtask_results
         ]
 
     def format_task_record(
@@ -482,7 +490,6 @@ class SubtaskFormatter:
 
         return None
 
-
     @staticmethod
     def _parse_subtask_result_xml(output: str) -> Optional[SubtaskExecutionResult]:
         output = output.strip()
@@ -516,7 +523,7 @@ class SubtaskFormatter:
             return SubtaskFormatter._validate_result_payload(payload)
 
         return None
-    
+
     @staticmethod
     def _sanitize_llm_output(text: str) -> str:
         text = text.strip()
@@ -606,14 +613,16 @@ class StreamlineManager:
 
     def _current_idx(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::idx"
-    
+
     @staticmethod
-    def _global_keys(ctx: ToolContext | CallbackContext, key:Literal["", "pool", "summary", "result", "status"]) -> str:
+    def _global_keys(
+        ctx: ToolContext | CallbackContext,
+        key: Literal["", "pool", "summary", "result", "status"],
+    ) -> str:
         global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
         if key == "":
             return f"task::{global_task_id}"
         return f"task::{global_task_id}::{key}"
-
 
     @staticmethod
     def _next_task_id(subtasks) -> str:
@@ -742,7 +751,9 @@ class StreamlineManager:
         ctx.state[self._current_idx(ctx)] = idx + 1
         return insertion
 
-    def finish(self, status: str, result: str, summary:str, ctx: ToolContext | CallbackContext):
+    def finish(
+        self, status: str, result: str, summary: str, ctx: ToolContext | CallbackContext
+    ):
         result_key = self._global_keys(ctx, "result")
         summary_key = self._global_keys(ctx, "summary")
         status_key = self._global_keys(ctx, "status")
@@ -1194,7 +1205,9 @@ def task_tools(
 
         return result
 
-    async def finish(status: Literal["done", "failed"], result: str, tool_context: ToolContext)->dict[str, Any]:
+    async def finish(
+        status: Literal["done", "failed"], result: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
         """
         Finalize the overall task and report the final outcome.
 
@@ -1215,9 +1228,9 @@ def task_tools(
         """
 
         tools: list[Callable] = []
-        model: LiteLlm| None = None
-        
-        summarizer:LlmAgent = LlmAgent(
+        model: LiteLlm | None = None
+
+        summarizer: LlmAgent = LlmAgent(
             name="task_summarizer",
             description="text summarization agent",
             instruction=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
@@ -1230,9 +1243,9 @@ def task_tools(
 
         args = {
             "objective": objective,
-            "records" : mgr.get_records(tool_context),
-            "result" : result,
-            "status" : status.lower() if status.lower() == "done" else "failed",
+            "records": mgr.get_records(tool_context),
+            "result": result,
+            "status": status.lower() if status.lower() == "done" else "failed",
         }
 
         summarizer_tool: AgentTool(summarizer)

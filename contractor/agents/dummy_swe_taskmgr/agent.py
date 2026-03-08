@@ -15,8 +15,12 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.memory import memory_tools
 from contractor.tools.podman import PodmanContainer
-from contractor.tools.tasks import (SUBTASK_PLANNING_PROMPT, SubtaskFormatter,
-                                    _prepare_worker_instructions, task_tools)
+from contractor.tools.tasks import (
+    SUBTASK_PLANNING_PROMPT,
+    SubtaskFormatter,
+    _prepare_worker_instructions,
+    task_tools,
+)
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()

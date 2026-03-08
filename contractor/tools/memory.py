@@ -1,19 +1,10 @@
-from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional
-
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.tools.tool_context import ToolContext
-
-
 from __future__ import annotations
-
-import json
-import yaml
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Optional, Union
 from xml.sax.saxutils import escape as xml_escape
 
+import yaml
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 
@@ -189,7 +180,9 @@ class MemoryFormat:
         if self._format in {"markdown", "yaml"}:
             formatter = self.format_memory_preview if preview else self.format_memory
             output = "\n".join(
-                item for item in (formatter(m, type_hint=False) for m in memories) if isinstance(item, str)
+                item
+                for item in (formatter(m, type_hint=False) for m in memories)
+                if isinstance(item, str)
             )
             return self._type_hint(output, self._format, type_hint)
 
@@ -225,14 +218,17 @@ class MemoryFormat:
 
         if self._format == "xml":
             if tags:
-                output = "<tags>\n" + "\n".join(
-                    f"    <tag>{xml_escape(tag)}</tag>" for tag in tags
-                ) + "\n</tags>"
+                output = (
+                    "<tags>\n"
+                    + "\n".join(f"    <tag>{xml_escape(tag)}</tag>" for tag in tags)
+                    + "\n</tags>"
+                )
             else:
                 output = "<tags />"
             return self._type_hint(output, self._format, type_hint)
 
         return {"tags": tags}
+
 
 @dataclass
 class MemoryTools:
@@ -242,9 +238,7 @@ class MemoryTools:
     def state_key(self) -> str:
         return f"{self.__class__.__name__}::{self.name}"
 
-    def list_memories(
-        self, ctx: ToolContext | CallbackContext
-    ) -> list[MemoryNote]:
+    def list_memories(self, ctx: ToolContext | CallbackContext) -> list[MemoryNote]:
         sk = self.state_key()
         ctx.state.setdefault(sk, {})
 
@@ -331,7 +325,6 @@ class MemoryTools:
                     )
                 )
         return memories
-
 
 
 def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):

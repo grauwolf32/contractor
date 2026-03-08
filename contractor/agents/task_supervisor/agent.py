@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.events.event import Event
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events.event import Event
 from google.adk.tools.agent_tool import AgentTool
+from pydantic import Field
 
 from contractor.models.task import Task
-from contractor.tools.tasks import SubtaskFormatter, task_tools
 from contractor.tools.memory import memory_tools
-
-from pydantic import Field
+from contractor.tools.tasks import SubtaskFormatter, task_tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

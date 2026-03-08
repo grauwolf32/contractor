@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from google.adk.agents import LlmAgent
-from pydantic import BaseModel, Field
 from typing import Optional
 
+from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
+from pydantic import BaseModel, Field
 
 from contractor.models.task import Task
+from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import SubtaskFormatter, task_tools
-from contractor.tools.memory import memory_tools, MemoryFormat
+
 
 class TaskRunner(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
@@ -40,7 +41,7 @@ class TaskRunner(BaseModel):
             if repeats == self.tasks[name]._repeats:
                 return
             name = f"{name}.x{repeats}"
-        
+
         task._repeats = repeats
         self.tasks[name] = task
 
@@ -54,7 +55,7 @@ class TaskRunner(BaseModel):
 
         self.task_agents[name] = planner
 
-    def _format_task(task: Task)->str:
+    def _format_task(task: Task) -> str:
         return (
             f"{task.instructions}\n\n"
             f"OBJECTIVE:\n{task.objective}\n\n"
@@ -83,7 +84,7 @@ class TaskRunner(BaseModel):
         if namespace is None:
             namespace = self.name
 
-        mem_tools = memory_tools(name=namespace,fmt=MemoryFormat(_fromat=self._fromat))
+        mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_fromat=self._fromat))
 
         tools = [default_tool, *planning_tools, *mem_tools]
 
@@ -96,7 +97,7 @@ class TaskRunner(BaseModel):
             tools=tools,
         )
 
-    def _spawn_summarizer_agent(self, task: Task, namespace:str) -> LlmAgent:
+    def _spawn_summarizer_agent(self, task: Task, namespace: str) -> LlmAgent:
         return LlmAgent(
             name=f"{task.name}_summarizer",
             description="Summarizes task results",
@@ -106,5 +107,5 @@ class TaskRunner(BaseModel):
             ),
         )
 
-    async def summarize(self, task_name:str)->str:
+    async def summarize(self, task_name: str) -> str:
         task = self.tasks[task_name]
