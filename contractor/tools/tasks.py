@@ -869,6 +869,10 @@ Rule 5: Completion Rules
 - Ensure subtasks remain if the overall task is not complete.
 - Never assume completion without explicit confirmation.
 
+6. Finalization policy
+- Before exiting, always report the final global task status.
+- The final outcome must be reported by calling the finish tool.
+
 --------------------------------------------------
 6. AGENT MINDSET
 --------------------------------------------------
@@ -1248,7 +1252,7 @@ def task_tools(
             "status": status.lower() if status.lower() == "done" else "failed",
         }
 
-        summarizer_tool: AgentTool(summarizer)
+        summarizer_tool:AgentTool = AgentTool(summarizer)
         raw = await summarizer_tool.run_async(args=args, tool_context=tool_context)
         mgr.finish(status=status, result=result, summary=summary, ctx=tool_context)
         return {"result": "ok"}
