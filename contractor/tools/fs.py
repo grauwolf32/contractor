@@ -14,7 +14,6 @@ import fsspec
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 from magika import ContentTypeInfo, Magika
 
-
 _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.pyc",
     "*/__pycache__/*",

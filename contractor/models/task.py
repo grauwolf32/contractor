@@ -1,7 +1,7 @@
 import os
-import yaml
-from dataclasses import dataclass
 from pathlib import Path
+
+import yaml
 
 TASKS_BASE_DIR = Path(__file__).parent.parent / "tasks"
 
@@ -11,6 +11,7 @@ class Task:
     objective: str
     instructions: str
     output_format: str
+    _repeats: int = 1
     _format: str = "json"
 
     def load(name: str):

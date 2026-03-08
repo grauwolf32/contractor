@@ -1,6 +1,8 @@
-import pytest
 from pathlib import Path
 from typing import Callable
+
+import pytest
+
 from contractor.tools.podman import PodmanContainer
 
 

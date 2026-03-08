@@ -1,0 +1,122 @@
+📊 COVERAGE TOOL RESULTS - LIST OF COVERED FILES
+Overall Coverage Statistics:
+
+    Total Files Scanned: 7,380
+    Covered Files (Explicitly Read): 65 files (0.88% coverage)
+    Uncovered Files (grep matched but not read): 3,650 files
+    Untracked Files (neither read nor grep): 3,665 files
+
+📁 Complete List of Covered Files:
+Documentation Files (2)
+
+    /cloud-core/CHANGELOG.md - read_count: 1, match_count: 37
+    /cloud-core/README.md - read_count: 1, match_count: 3
+
+Route Configuration Files (10)
+
+    /cloud-core/apps/federatedfilesharing/appinfo/routes.php - read_count: 5, match_count: 10
+    /cloud-core/apps/federation/appinfo/routes.php - read_count: 7, match_count: 10
+    /cloud-core/apps/files/appinfo/routes.php - read_count: 7, match_count: 12
+    /cloud-core/apps/files_external/appinfo/routes.php - read_count: 3, match_count: 8
+    /cloud-core/apps/files_sharing/appinfo/routes.php - read_count: 14, match_count: 19 ⭐ (Most Read)
+    /cloud-core/apps/files_trashbin/appinfo/routes.php - read_count: 3, match_count: 0 (no grep matches)
+    /cloud-core/apps/files_versions/appinfo/routes.php - read_count: 3, match_count: 4
+    /cloud-core/apps/provisioning_api/appinfo/routes.php - read_count: 12, match_count: 14 ⭐
+    /cloud-core/apps/updatenotification/appinfo/routes.php - read_count: 2, match_count: 4
+    /cloud-core/core/routes.php - read_count: 6, match_count: 11
+
+Controller Classes (8)
+
+    /cloud-core/apps/files/lib/Controller/ApiController.php - read_count: 1, match_count: 13
+    /cloud-core/apps/files_sharing/lib/Controller/NotificationController.php - read_count: 1, match_count: 8
+    /cloud-core/apps/files_sharing/lib/Controller/RemoteOcsController.php - read_count: 2, match_count: 14
+    /cloud-core/apps/files_sharing/lib/Controller/Share20OcsController.php - read_count: 4, match_count: 24 ⭐ (Highest Matches)
+    /cloud-core/apps/files_sharing/lib/Controller/ShareesController.php - read_count: 3, match_count: 17
+    /cloud-core/apps/files_sharing/lib/Controllers/ExternalSharesController.php - read_count: 1, match_count: 7
+    /cloud-core/apps/files_sharing/lib/Controllers/ShareController.php - read_count: 1, match_count: 15
+    /cloud-core/core/Controller/OcsController.php - read_count: 3, match_count: 16
+    /cloud-core/core/Controller/SetupController.php - read_count: 1, match_count: 4
+    /cloud-core/core/Controller/UserSyncController.php - read_count: 1, match_count: 7
+    /cloud-core/settings/Controller/AppConfigController.php - read_count: 1, match_count: 6
+    /cloud-core/settings/Controller/UsersController.php - read_count: 4, match_count: 11
+
+Library & Business Logic Files (9)
+
+    /cloud-core/apps/files_sharing/lib/Controllers/ShareController.php - read_count: 1, match_count: 15
+    /cloud-core/apps/files_sharing/lib/External/Manager.php - read_count: 2, match_count: 8
+    /cloud-core/apps/provisioning_api/lib/Apps.php - read_count: 1, match_count: 2
+    /cloud-core/apps/provisioning_api/lib/Groups.php - read_count: 1, match_count: 6
+    /cloud-core/apps/provisioning_api/lib/Users.php - read_count: 5, match_count: 11 ⭐
+
+Core Framework Files (18)
+
+    /cloud-core/lib/private/OCS/Result.php - read_count: 1, match_count: 1
+    /cloud-core/lib/private/User/User.php - read_count: 1, match_count: 6
+    /cloud-core/lib/public/API.php - read_count: 2, match_count: 5
+    /cloud-core/lib/public/App.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/AppFramework/ApiController.php - read_count: 2, match_count: 7
+    /cloud-core/lib/public/AppFramework/Controller.php - read_count: 2, match_count: 8
+    /cloud-core/lib/public/AppFramework/Http/OCSResponse.php - read_count: 2, match_count: 4
+    /cloud-core/lib/public/AppFramework/OCSController.php - read_count: 3, match_count: 13 ⭐
+    /cloud-core/lib/public/DB.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/GroupInterface.php - read_count: 1, match_count: 3
+    /cloud-core/lib/public/IConfig.php - read_count: 1, match_count: 3
+    /cloud-core/lib/public/IGroup.php - read_count: 1, match_count: 2
+    /cloud-core/lib/public/IRequest.php - read_count: 1, match_count: 1
+    /cloud-core/lib/public/IUser.php - read_count: 1, match_count: 4
+    /cloud-core/lib/public/JSON.php - read_count: 1, match_count: 2
+    /cloud-core/lib/public/Response.php - read_count: 1, match_count: 2
+    /cloud-core/lib/public/Share.php - read_count: 1, match_count: 4
+    /cloud-core/lib/public/UserInterface.php - read_count: 1, match_count: 3
+
+Test Files (5)
+
+    /cloud-core/tests/acceptance/features/apiAuthOcs/ocsGETAuth.feature - read_count: 1, match_count: 20 ⭐
+    /cloud-core/tests/acceptance/features/bootstrap/Sharing.php - read_count: 6, match_count: 28 ⭐ (Highest Test Matches)
+    /cloud-core/tests/lib/AppFramework/Http/OCSResponseTest.php - read_count: 1, match_count: 3
+    /cloud-core/tests/lib/License/MessageServiceTest.php - read_count: 1, match_count: 1
+
+Entry Point Files (4)
+
+    /cloud-core/public.php - read_count: 1, match_count: 1
+    /cloud-core/remote.php - read_count: 1, match_count: 2
+    /cloud-core/ocs-provider/index.php - read_count: 1, match_count: 0 (no grep matches)
+
+API Interface Files (6)
+
+    /cloud-core/lib/public/IEventSource.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/IL10N.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/ILogger.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/ISearch.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/ISession.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/IURLGenerator.php - read_count: 1, match_count: 1
+
+Share API Interface Files (3)
+
+    /cloud-core/lib/public/Share/IRemoteShareesSearch.php - read_count: 1, match_count: 5
+    /cloud-core/lib/public/IUserManager.php - read_count: 1, match_count: 0 (no grep matches)
+    /cloud-core/lib/public/Template.php - read_count: 1, match_count: 0 (no grep matches)
+
+DAV Library Files (2)
+
+    /cloud-core/apps/dav/lib/DAV/Sharing/Xml/ShareRequest.php - read_count: 2, match_count: 1
+    /cloud-core/apps/dav/lib/Files/Xml/FilterRequest.php - read_count: 2, match_count: 1
+
+📈 Key Observations:
+
+Most Analyzed Files (by read count):
+
+    Share20OcsController.php (4 reads) - File sharing operations
+    Sharing.php test file (6 reads) - Acceptance tests for sharing features
+    files_sharing/appinfo/routes.php (14 reads) - Most frequently analyzed route config
+    provisioning_api/appinfo/routes.php (12 reads) - User/Group/App management routes
+
+Highest Grep Match Counts:
+
+    Sharing.php test file: 28 matches (comprehensive sharing tests)
+    Share20OcsController.php: 24 matches (core share operations)
+    ocsGETAuth.feature: 20 matches (authentication acceptance tests)
+
+Files with No Grep Matches: 12 files were read but had zero regex pattern matches, indicating they may be foundational or utility files not directly involved in the API endpoints being analyzed.
+
+Coverage Distribution: The coverage is heavily weighted toward file sharing functionality (8 covered files from files_sharing app), followed by provisioning API and core OCS controllers, which aligns with our OpenAPI schema enrichment focus on these areas.

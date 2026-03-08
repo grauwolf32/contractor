@@ -1,20 +1,20 @@
 import json
 import re
+from unittest.mock import AsyncMock
 
 import pytest
 import yaml
 
-from contractor.tools.tasks import TaskFormat, Subtask, TaskExecutionResult
-from tests.units.contractor_tests.helpers import MockAgentTool, mk_tool_context
-from unittest.mock import AsyncMock
-
 import contractor.tools.tasks as m
+from contractor.tools.tasks import (Subtask, SubtaskExecutionResult,
+                                    SubtaskFormatter)
+from tests.units.contractor_tests.helpers import MockAgentTool, mk_tool_context
 
 
 @pytest.fixture()
 def subtask() -> Subtask:
     return Subtask(
-        subtask_id="1.2",
+        task_id="1.2",
         title="Do thing",
         description="Do the thing safely & quickly",
         status="new",
@@ -22,8 +22,8 @@ def subtask() -> Subtask:
 
 
 @pytest.fixture()
-def task_result() -> TaskExecutionResult:
-    return TaskExecutionResult(
+def subtask_result() -> SubtaskExecutionResult:
+    return SubtaskExecutionResult(
         task_id="3",
         status="done",
         output="Produced artifact <ok> & validated.",
@@ -36,29 +36,29 @@ def task_result() -> TaskExecutionResult:
 # ---------------------------
 
 
-def test_parse_task_result_json_valid(task_result: TaskExecutionResult):
-    payload = task_result.model_dump()
+def test_parse_subtask_result_json_valid(subtask_result: SubtaskExecutionResult):
+    payload = subtask_result.model_dump()
     s = json.dumps(payload)
-    parsed = TaskFormat._parse_task_result_json(s)
+    parsed = SubtaskFormatter._parse_subtask_result_json(s)
 
-    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_task_result_json
+    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_subtask_result_json
     assert parsed is not None
-    assert parsed.task_id == task_result.task_id
-    assert parsed.status == task_result.status
-    assert parsed.output == task_result.output
-    assert parsed.summary == task_result.summary
+    assert parsed.task_id == subtask_result.task_id
+    assert parsed.status == subtask_result.status
+    assert parsed.output == subtask_result.output
+    assert parsed.summary == subtask_result.summary
 
 
 @pytest.mark.parametrize("bad", ["", "   \n\t", "not-json", "{bad:}", "[]", "123"])
-def test_parse_task_result_json_invalid_returns_none(bad: str):
-    parsed = TaskFormat._parse_task_result_json(bad)
+def test_parse_subtask_result_json_invalid_returns_none(bad: str):
+    parsed = SubtaskFormatter._parse_subtask_result_json(bad)
     assert parsed is None
 
 
-def test_parse_task_result_json_accepts_python_literal_dict():
+def test_parse_subtask_result_json_accepts_python_literal_dict():
     # ast.literal_eval ветка
     s = "{'task_id': '9', 'status': 'incomplete', 'output': 'x', 'summary': 'y'}"
-    parsed = TaskFormat._parse_task_result_json(s)
+    parsed = SubtaskFormatter._parse_subtask_result_json(s)
     assert parsed is not None
     assert parsed.task_id == "9"
     assert parsed.status == "incomplete"
@@ -69,8 +69,8 @@ def test_parse_task_result_json_accepts_python_literal_dict():
 # ---------------------------
 
 
-def test_parse_task_result_yaml_valid_mapping_style():
-    # ожидаемый формат в формате TaskFormat._task_result_to_yaml:
+def test_parse_subtask_result_yaml_valid_mapping_style():
+    # ожидаемый формат в формате SubtaskFormatter._subtask_result_to_yaml:
     # 3:
     #   status: done
     #   output: ...
@@ -80,9 +80,9 @@ def test_parse_task_result_yaml_valid_mapping_style():
         sort_keys=False,
     )
 
-    parsed = TaskFormat._parse_task_result_yaml(s)
+    parsed = SubtaskFormatter._parse_subtask_result_yaml(s)
 
-    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_task_result_yaml
+    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_subtask_result_yaml
     assert parsed is not None
     assert parsed.task_id == "3"
     assert parsed.status == "done"
@@ -91,8 +91,8 @@ def test_parse_task_result_yaml_valid_mapping_style():
 
 
 @pytest.mark.parametrize("bad", ["", "[]", "x: [1,2", "!!!", "- a\n- b\n"])
-def test_parse_task_result_yaml_invalid_returns_none(bad: str):
-    parsed = TaskFormat._parse_task_result_yaml(bad)
+def test_parse_subtask_result_yaml_invalid_returns_none(bad: str):
+    parsed = SubtaskFormatter._parse_subtask_result_yaml(bad)
     assert parsed is None
 
 
@@ -101,7 +101,7 @@ def test_parse_task_result_yaml_invalid_returns_none(bad: str):
 # ---------------------------
 
 
-def test_parse_task_result_markdown_valid_single_line_fields():
+def test_parse_subtask_result_markdown_valid_single_line_fields():
     text = (
         "### RESULT [ID: 42]\n"
         "**Status**: done\n"
@@ -109,7 +109,7 @@ def test_parse_task_result_markdown_valid_single_line_fields():
         "**Summary**: fine\n"
         "---\n"
     )
-    parsed = TaskFormat._parse_task_result_markdown(text)
+    parsed = SubtaskFormatter._parse_subtask_result_markdown(text)
 
     # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок (text vs output переменная)
     assert parsed is not None
@@ -119,7 +119,7 @@ def test_parse_task_result_markdown_valid_single_line_fields():
     assert parsed.summary == "fine"
 
 
-def test_parse_task_result_markdown_multiline_output_and_summary():
+def test_parse_subtask_result_markdown_multiline_output_and_summary():
     text = (
         "### RESULT [ID: 7]\n"
         "**Status**: incomplete\n"
@@ -130,7 +130,7 @@ def test_parse_task_result_markdown_multiline_output_and_summary():
         "s2\n"
         "---\n"
     )
-    parsed = TaskFormat._parse_task_result_markdown(text)
+    parsed = SubtaskFormatter._parse_subtask_result_markdown(text)
     assert parsed is not None
     assert parsed.task_id == "7"
     assert parsed.status == "incomplete"
@@ -145,13 +145,13 @@ def test_parse_task_result_markdown_multiline_output_and_summary():
 
 def test_parse_task_result_xml_valid():
     xml = (
-        '<task_result task_id="10">\n'
+        '<result task_id="10">\n'
         "  <status>done</status>\n"
         "  <output>o</output>\n"
         "  <summary>s</summary>\n"
-        "</task_result>"
+        "</result>"
     )
-    parsed = TaskFormat._parse_task_result_xml(xml)
+    parsed = SubtaskFormatter._parse_subtask_result_xml(xml)
     assert parsed is not None
     assert parsed.task_id == "10"
     assert parsed.status == "done"
@@ -159,9 +159,9 @@ def test_parse_task_result_xml_valid():
     assert parsed.summary == "s"
 
 
-@pytest.mark.parametrize("bad", ["", "<x></x>", "<task_result></task_result>"])
-def test_parse_task_result_xml_invalid_returns_none(bad: str):
-    parsed = TaskFormat._parse_task_result_xml(bad)
+@pytest.mark.parametrize("bad", ["", "<x></x>", "<result></result>"])
+def test_parse_subtask_result_xml_invalid_returns_none(bad: str):
+    parsed = SubtaskFormatter._parse_subtask_result_xml(bad)
     assert parsed is None
 
 
@@ -170,19 +170,19 @@ def test_parse_task_result_xml_invalid_returns_none(bad: str):
 # ---------------------------
 
 
-def test_type_hint_wraps_only_when_enabled(task_result: TaskExecutionResult):
-    fmt = TaskFormat(_format="markdown")
-    out_no_hint = fmt.format_task_result(task_result, type_hint=False)
+def test_type_hint_wraps_only_when_enabled(subtask_result: SubtaskExecutionResult):
+    fmt = SubtaskFormatter(_format="markdown")
+    out_no_hint = fmt.format_subtask_result(subtask_result, type_hint=False)
     assert not out_no_hint.startswith("```")
 
-    out_hint = fmt.format_task_result(task_result, type_hint=True)
+    out_hint = fmt.format_subtask_result(subtask_result, type_hint=True)
     assert out_hint.startswith("```markdown\n")
     assert out_hint.endswith("\n```")
 
 
 def test_subtask_format_description_xml():
-    fmt = TaskFormat(_format="xml")
-    assert type(fmt.format_task_result_description()) is str
+    fmt = SubtaskFormatter(_format="xml")
+    assert type(fmt.format_subtask_result_description()) is str
 
 
 # ---------------------------
@@ -194,7 +194,7 @@ def _mk_tools(monkeypatch, *, worker, max_tasks=100, use_skip=False):
     monkeypatch.setattr(m, "AgentTool", MockAgentTool)
     monkeypatch.setattr(m, "instrument_worker", lambda w, *a, **k: w)
 
-    fmt = m.TaskFormat(_format="json")
+    fmt = m.SubtaskFormatter(_format="json")
     tools = m.task_tools(
         name="tm",
         max_tasks=max_tasks,
@@ -401,7 +401,7 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
     worker.run_async = AsyncMock()
 
     async def _bad(*, args, tool_context):
-        return "this is not a valid TaskExecutionResult"
+        return "this is not a valid SubtaskExecutionResult"
 
     worker.run_async.side_effect = _bad
 
@@ -413,14 +413,14 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
 
     # Tool should flag malformed result
-    assert exec_res.get("error") == m.TASK_RESULT_MALFORMED
+    assert exec_res.get("error") == m.SUBTASK_RESULT_MALFORMED
 
     # Record is stored as dict in json mode
     rec = exec_res["record"]
     assert rec["task_id"] == "0"
     assert rec["status"] == "incomplete"
-    assert rec["summary"] == m.TASK_RESULT_MALFORMED
-    assert "this is not a valid TaskExecutionResult" in rec["output"]
+    assert rec["summary"] == m.SUBTASK_RESULT_MALFORMED
+    assert "this is not a valid SubtaskExecutionResult" in rec["output"]
 
 
 @pytest.mark.anyio
@@ -448,7 +448,7 @@ async def test_decompose_requires_current_task_id(monkeypatch):
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "incomplete"
-    assert m.TASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
+    assert m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
 
     # Try decomposing with wrong id
     res = tool["decompose_subtask"](
@@ -456,7 +456,7 @@ async def test_decompose_requires_current_task_id(monkeypatch):
         decomposition={"subtasks": [{"title": "x", "description": "y"}]},
         tool_context=ctx,
     )
-    assert res["error"] == m.TASK_NOT_CURRENT_MSG.format(task_id="1")
+    assert res["error"] == m.SUBTASK_NOT_CURRENT_MSG.format(task_id="1")
 
     # Correct id works
     res_ok = tool["decompose_subtask"](
@@ -485,7 +485,7 @@ async def test_skip_validations_and_state_transition(monkeypatch):
 
     # Wrong task_id rejected (current is 0)
     res = tool["skip"](task_id="1", reason="nope", tool_context=ctx)
-    assert res["error"] == m.TASK_NOT_CURRENT_MSG.format(task_id="1")
+    assert res["error"] == m.SUBTASK_NOT_CURRENT_MSG.format(task_id="1")
 
     # Valid skip moves to next task and marks 0 skipped
     res = tool["skip"](task_id="0", reason="redundant", tool_context=ctx)
@@ -570,7 +570,7 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "1"
     assert exec_res["record"]["status"] == "incomplete"
-    assert m.TASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
+    assert m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
 
     # Decompose 1 into 1.1 and 1.2 -> current becomes 1.1
     tool["decompose_subtask"](

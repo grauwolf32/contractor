@@ -1,6 +1,7 @@
 # ADK
 */.adk/*
 .adk/
+artifacts/*
 
 old/*
 .venv/*

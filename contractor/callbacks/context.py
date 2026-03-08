@@ -5,9 +5,8 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
 from google.genai import types
 
-from .tokens import TokenUsageCallback
 from .base import BaseCallback, CallbackTypes
-
+from .tokens import TokenUsageCallback
 
 TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 
