@@ -1383,6 +1383,29 @@ class RootedLocalFileSystem(LocalFileSystem):
         self._blocked_path = os.path.join(self.root_path, ".__blocked__")
         super().__init__(*args, **kwargs)
 
+    def walk(self, path: str = "", **kwargs: Any):
+        path = "" if path in (None, "/", "") else path
+        host_root = self._strip_protocol(path)
+
+        if host_root == self._blocked_path or not os.path.exists(host_root):
+            return
+
+        for current_root, dirs, files in os.walk(host_root, followlinks=False):
+            real_root = os.path.realpath(current_root)
+
+            if not (real_root == self.root_path or real_root.startswith(self.root_path + os.sep)):
+                continue
+
+            dirs[:] = [
+                d for d in dirs
+                if not os.path.islink(os.path.join(current_root, d))
+            ]
+
+            rel_root = os.path.relpath(real_root, self.root_path)
+            virtual_root = "/" if rel_root == "." else "/" + rel_root.replace(os.sep, "/")
+
+            yield virtual_root, dirs, files
+
     def ls(self, path: str = "", detail: bool = False, **kwargs: Any):
         path = "" if path in (None, "/", "") else path
         host_path = self._strip_protocol(path)

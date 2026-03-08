@@ -88,7 +88,7 @@ DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
 
 DUMMY_MODEL = LiteLlm(
-    model="tgpt-qwen3-235b-a22b-instruct-2507",
+    model="lm-studio-qwen3.5",
     timeout=300,
 )
 

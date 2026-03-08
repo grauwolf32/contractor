@@ -113,7 +113,7 @@ tools = [default_tool, *fs_tools, *sandbox.tools(), *mem_tools]
 callback_adapter = CallbackAdapter(agent_name="dummy_swe")
 callback_adapter.register(TokenUsageCallback())
 callback_adapter.register(
-    SummarizationLimitCallback(max_tokens=50000, message=DUMMY_SUMMARIZATION_MESSAGE)
+    SummarizationLimitCallback(max_tokens=80000, message=DUMMY_SUMMARIZATION_MESSAGE)
 )
 callback_adapter.register(
     InvalidToolCallGuardrailCallback(
