@@ -1393,16 +1393,20 @@ class RootedLocalFileSystem(LocalFileSystem):
         for current_root, dirs, files in os.walk(host_root, followlinks=False):
             real_root = os.path.realpath(current_root)
 
-            if not (real_root == self.root_path or real_root.startswith(self.root_path + os.sep)):
+            if not (
+                real_root == self.root_path
+                or real_root.startswith(self.root_path + os.sep)
+            ):
                 continue
 
             dirs[:] = [
-                d for d in dirs
-                if not os.path.islink(os.path.join(current_root, d))
+                d for d in dirs if not os.path.islink(os.path.join(current_root, d))
             ]
 
             rel_root = os.path.relpath(real_root, self.root_path)
-            virtual_root = "/" if rel_root == "." else "/" + rel_root.replace(os.sep, "/")
+            virtual_root = (
+                "/" if rel_root == "." else "/" + rel_root.replace(os.sep, "/")
+            )
 
             yield virtual_root, dirs, files
 
