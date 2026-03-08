@@ -1,0 +1,1065 @@
+openapi: "3.0.3"
+info:
+  title: ownCloud Core API
+  description: Cloud-Core API documentation for Nextcloud/ownCloud self-hosted collaboration platform - Fully verified against implementation
+  version: "10.16.0"
+  
+servers:
+  - url: /ocs/v2.php/{format}
+    variables:
+      format:
+        default: json
+        enum: [json, xml]
+
+paths:
+  # ==================== SHARE MANAGEMENT ENDPOINTS ====================
+  
+  /api/v1/shares:
+    get:
+      summary: List shares for current user
+      operationId: Share20OcsController#getShares
+      tags:
+        - Shares
+      parameters:
+        - name: shared_with_me
+          in: query
+          schema:
+            type: boolean
+          description: Filter to show only shares received by current user
+        - name: reshares
+          in: query
+          schema:
+            type: boolean
+          description: Include re-shares from other users
+        - name: subfiles
+          in: query
+          schema:
+            type: boolean
+          description: Include shares inside subfolders when path is specified
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Filter by file/folder path
+        - name: include_tags
+          in: query
+          schema:
+            type: boolean
+          description: Include tags with shares
+        - name: share_types
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Filter by share types (0=user, 1=group, 3=link)
+      responses:
+        '200':
+          description: List of shares returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCSResponse'
+              example:
+                ocs:
+                  meta:
+                    status: "ok"
+                    statuscode: 200
+                    message: "OK"
+                  data:
+                    shares:
+                      - id: 123
+                        share_type: 0
+                        uid_owner: user1
+                        displayname_owner: John Doe
+                        permissions: 31
+                        stime: 1609459200
+                        parent: null
+                        expiration: null
+                        token: "abc123token"
+                        uid_file_owner: user1
+                        displayname_file_owner: John Doe
+                        path: /shared/file.txt
+                        item_type: file
+                        mimetype: text/plain
+                        storage_id: 12345
+                        storage: 1
+                        item_source: 98765
+                        file_source: 98765
+                        file_target: /shared/file.txt
+                        name: file.txt
+                        url: https://cloud.example.com/s/abc123token
+                        mail_send: false
+                        attributes: []
+                        permissions_bitmask: "RWCED"
+                        share_with: user2
+                        share_with_displayname: Jane Doe
+            application/xml:
+              schema:
+                type: object
+    post:
+      summary: Create new share
+      operationId: Share20OcsController#createShare
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateShareRequest'
+      responses:
+        '200':
+          description: Share created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCSResponse'
+        '400':
+          description: Bad request - invalid parameters
+        '401':
+          description: Unauthorized - missing or invalid authentication
+        '404':
+          description: Not found - file not accessible
+
+  /api/v1/shares/pending/{id}:
+    post:
+      summary: Accept a pending share invitation
+      operationId: Share20OcsController#acceptShare
+      tags:
+        - Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the pending share to accept
+      responses:
+        '200':
+          description: Share accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCSResponse'
+        '401':
+          description: Unauthorized - not eligible to accept this share
+        '404':
+          description: Not found - pending share does not exist
+    delete:
+      summary: Decline a pending share invitation
+      operationId: Share20OcsController#declineShare
+      tags:
+        - Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the pending share to decline
+      responses:
+        '200':
+          description: Share declined successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCSResponse'
+        '401':
+          description: Unauthorized - not eligible to decline this share
+        '404':
+          description: Not found - pending share does not exist
+
+  /ocs/v2.php/apps/files_sharing/api/v1/shares:
+    get:
+      summary: List shares via OCS API wrapper
+      operationId: Share20OcsController#getSharesOcs
+      tags:
+        - Shares (OCS)
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, xml]
+            default: json
+          description: Response format
+        - name: subfiles
+          in: query
+          schema:
+            type: boolean
+          description: Include shares inside subfolders when path is specified
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Filter by file/folder path
+      responses:
+        '200':
+          description: List of shares returned successfully
+    post:
+      summary: Create new share via OCS API wrapper
+      operationId: Share20OcsController#createShareOcs
+      tags:
+        - Shares (OCS)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateShareRequest'
+      responses:
+        '200':
+          description: Share created successfully
+
+  /ocs/v2.php/apps/files_sharing/api/v1/shares/{id}:
+    put:
+      summary: Update share permissions or details
+      operationId: Share20OcsController#updateShare
+      tags:
+        - Shares (OCS)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the share to update
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                permissions:
+                  type: integer
+                  description: Permission bitmask (1=Read, 2=Update, 4=Create, 8=Delete, 16=Share, 31=All)
+                shareType:
+                  type: integer
+                  description: Type of share (0=user, 1=group, 3=public link, 4=federated cloud user)
+                path:
+                  type: string
+                  description: Path to the file or folder being shared
+                shareWith:
+                  type: string
+                  description: User ID or group ID to share with
+                password:
+                  type: string
+                  description: Password for public link shares
+                publicUpload:
+                  type: boolean
+                  description: Enable public upload for link shares
+                expireDate:
+                  type: string
+                  format: date
+                  pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                  description: Expiration date in YYYY-MM-DD format
+      responses:
+        '200':
+          description: Share updated successfully
+        '400':
+          description: Bad request - invalid parameters or insufficient permissions
+        '401':
+          description: Unauthorized - authentication failed
+        '404':
+          description: Not found - share does not exist
+    delete:
+      summary: Delete a specific share by ID
+      operationId: Share20OcsController#deleteShare
+      tags:
+        - Shares (OCS)
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier (ID) of the share to delete. This is a required parameter that specifies which share should be removed from the system.
+      responses:
+        '200':
+          description: Share deleted successfully
+
+  # ==================== USER MANAGEMENT ENDPOINTS ====================
+  
+  /cloud/users/{userid}:
+    get:
+      summary: Get user details
+      operationId: Users#getUser
+      tags:
+        - Users
+      parameters:
+        - name: userid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user to retrieve
+      responses:
+        '200':
+          description: User details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCSResponse'
+              example:
+                ocs:
+                  meta:
+                    status: "ok"
+                    statuscode: 200
+                    message: "OK"
+                  data:
+                    enabled: "true"
+                    quota:
+                      free: 107374182400
+                      used: 5368709120
+                      total: 107374182400
+                      relative: 5
+                      definition: "default"
+                    email: user@example.com
+                    displayname: John Doe
+                    home: /home/user1
+                    two_factor_auth_enabled: "true"
+                    last_login: 1609459200
+                    creation_time: 1609372800
+                    language: en
+        '401':
+          description: Unauthorized - insufficient permissions or not self-lookup
+        '404':
+          description: Not found - user does not exist
+    put:
+      summary: Edit user fields
+      operationId: Users#editUser
+      tags:
+        - Users
+      parameters:
+        - name: userid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user to edit
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                displayname:
+                  type: string
+                  maxLength: 64
+                  description: User's display name (max 64 characters)
+                email:
+                  type: string
+                  format: email
+                  description: User's email address (requires verification for regular users)
+                password:
+                  type: string
+                  description: New password (cannot equal old password, backend must support changes)
+                quota:
+                  type: string
+                  enum: [none, default]
+                  pattern: "^[0-9]+(\\.[0-9]+)?\\s*(KB|MB|GB|TB)$"
+                  description: User's quota ('none', 'default', or file size like "5 GB")
+                two_factor_auth_enabled:
+                  type: boolean
+                  description: Enable/disable 2FA for the user
+      responses:
+        '200':
+          description: User updated successfully
+        '401':
+          description: Unauthorized - insufficient permissions
+        '404':
+          description: Not found - user does not exist
+    delete:
+      summary: Delete a user account
+      operationId: Users#deleteUser
+      tags:
+        - Users
+      parameters:
+        - name: userid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user to delete
+      responses:
+        '200':
+          description: User deleted successfully
+        '401':
+          description: Forbidden - not admin/subadmin or attempting to delete self
+        '404':
+          description: Bad request - target user not found
+
+  /cloud/users/{userid}/subadmins:
+    get:
+      summary: List subadmins for a user
+      operationId: Users#getSubadmins
+      tags:
+        - Users
+    put:
+      summary: Add user to subadmin group
+      operationId: Users#addUserToSubadmins
+      tags:
+        - Users
+    delete:
+      summary: Remove user from subadmin group
+      operationId: Users#removeUserFromSubadmins
+      tags:
+        - Users
+
+  # ==================== USER SYNC ENDPOINT ====================
+  
+  /ocs/v2.php/cloud/user-sync/{userId}:
+    post:
+      summary: Admin user synchronization
+      operationId: UserSyncController#syncUser
+      tags:
+        - Users (Admin)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the user to sync
+      responses:
+        '200':
+          description: User synchronization completed successfully
+        '409':
+          description: Conflict - multiple users match the ID in different backends
+        '404':
+          description: Not found - user not found in any backend
+
+  # ==================== NOTIFICATION ENDPOINTS ====================
+  
+  /api/v1/notification/send:
+    post:
+      summary: Send notifications to share recipients
+      operationId: NotificationController#notifyRecipients
+      tags:
+        - Notifications
+      parameters:
+        - name: itemSource
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Source file/folder ID
+        - name: itemType
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Type of item (file or folder)
+        - name: shareType
+          in: query
+          required: true
+          schema:
+            type: integer
+            enum: [0, 1, 3, 6]
+          description: Share type (0=user, 1=group, 3=link, 6=federated)
+        - name: recipient
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Recipient identifier
+      responses:
+        '200':
+          description: Notifications sent successfully
+
+  /api/v1/notification/marksent:
+    post:
+      summary: Mark notifications as sent without sending emails
+      operationId: NotificationController#notifyRecipientsDisabled
+      tags:
+        - Notifications
+      parameters:
+        - name: itemSource
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Source file/folder ID
+        - name: itemType
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Type of item (file or folder)
+        - name: shareType
+          in: query
+          required: true
+          schema:
+            type: integer
+            enum: [0, 1, 3, 6]
+          description: Share type
+        - name: recipient
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Recipient identifier
+      responses:
+        '200':
+          description: Notifications marked as sent successfully
+
+  /api/v1/notification/notify-public-link-by-email:
+    post:
+      summary: Notify public link recipients by email
+      operationId: NotificationController#notifyPublicLinkRecipientsByEmail
+      tags:
+        - Notifications
+      parameters:
+        - name: link
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Public link URL
+        - name: recipients
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: email
+          description: List of recipient email addresses
+        - name: personalNote
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Personal note to include in the notification email
+      responses:
+        '200':
+          description: Emails sent successfully
+
+  # ==================== REMOTE SHARE ENDPOINTS ====================
+  
+  /api/v1/remote_shares:
+    get:
+      summary: List remote shares
+      operationId: RemoteOcs#getShares
+      tags:
+        - Remote Shares
+      parameters:
+        - name: includingPending
+          in: query
+          schema:
+            type: boolean
+          description: Include pending share invitations
+      responses:
+        '200':
+          description: List of remote shares returned successfully
+
+  /api/v1/remote_shares/all:
+    get:
+      summary: Get all remote shares including pending
+      operationId: RemoteOcs#getAllShares
+      tags:
+        - Remote Shares
+      responses:
+        '200':
+          description: All remote shares returned successfully
+
+  /api/v1/remote_shares/pending:
+    get:
+      summary: List pending share invitations
+      operationId: RemoteOcs#getOpenShares
+      tags:
+        - Remote Shares
+      responses:
+        '200':
+          description: Pending share invitations returned successfully
+
+  /api/v1/remote_shares/pending/{id}:
+    post:
+      summary: Accept a pending remote share invitation
+      operationId: RemoteOcs#acceptShare
+      tags:
+        - Remote Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the pending share to accept
+      responses:
+        '200':
+          description: Share accepted successfully, mount point generated
+    delete:
+      summary: Decline a pending remote share invitation
+      operationId: RemoteOcs#declineShare
+      tags:
+        - Remote Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the pending share to decline
+      responses:
+        '200':
+          description: Share declined successfully, removed from database
+
+  /api/v1/remote_shares/{id}:
+    get:
+      summary: Get specific remote share details
+      operationId: RemoteOcs#getShare
+      tags:
+        - Remote Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the remote share
+    delete:
+      summary: Unshare/remove a remote share
+      operationId: RemoteOcs#unshare
+      tags:
+        - Remote Shares
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the remote share to remove
+
+  # ==================== SHARE SEARCH ENDPOINT ====================
+  
+  /api/v1/sharees:
+    get:
+      summary: Search for share recipients/users
+      operationId: ShareesController#searchSharees
+      tags:
+        - Shares (Search)
+      parameters:
+        - name: search
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search term to find users/groups
+        - name: itemSource
+          in: query
+          schema:
+            type: integer
+          description: Source file/folder ID for context-aware searching
+      responses:
+        '200':
+          description: List of matching recipients returned successfully
+
+  # ==================== THUMBNAIL ENDPOINT ====================
+  
+  /api/v1/thumbnail/{x}/{y}/{file}:
+    get:
+      summary: Get file thumbnail
+      operationId: ApiController#getThumbnail
+      tags:
+        - Thumbnails
+      parameters:
+        - name: x
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Thumbnail width in pixels
+        - name: y
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Thumbnail height in pixels
+        - name: file
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File path to generate thumbnail for
+      responses:
+        '200':
+          description: Thumbnail image returned successfully
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found - file does not exist or no thumbnail available
+
+  # ==================== TRUSTED SERVER ENDPOINTS ====================
+  
+  /trusted-servers:
+    post:
+      summary: Add trusted server for federation
+      operationId: SettingsController#addServer
+      tags:
+        - Trusted Servers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: URL of the trusted server
+                token:
+                  type: string
+                  description: Authentication token for the trusted server
+      responses:
+        '200':
+          description: Trusted server added successfully
+    delete:
+      summary: Remove trusted server
+      operationId: SettingsController#removeServer
+      tags:
+        - Trusted Servers
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the trusted server to remove
+
+  # ==================== SHARE PERMISSION UPDATE ENDPOINT ====================
+  
+  /ocs/v2.php/cloud/shares/{id}/permissions:
+    post:
+      summary: Update share permissions (federated re-shares only)
+      operationId: RequestHandlerController#updatePermissions
+      tags:
+        - Shares (Federated)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: The unique identifier of the share whose permissions to update
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                permissions:
+                  type: integer
+                  minimum: 0
+                  maximum: 31
+                  description: Permission bitmask (1=Read, 2=Update, 4=Create, 8=Delete, 16=Share)
+      responses:
+        '200':
+          description: Permissions updated successfully
+
+components:
+  schemas:
+    OCSResponse:
+      type: object
+      description: Standard OCS API response format
+      properties:
+        ocs:
+          type: object
+          properties:
+            meta:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [ok, failure]
+                  description: Overall operation status
+                statuscode:
+                  type: integer
+                  description: HTTP status code or OCS-specific status code
+                message:
+                  type: string
+                  description: Human-readable error/success message
+            data:
+              type: object
+              description: Response payload specific to the endpoint
+
+    ShareListResponse:
+      type: object
+      properties:
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/Share'
+
+    Share:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the share
+        shareType:
+          type: integer
+          enum: [0, 1, 3, 6]
+          description: Type of share (0=user, 1=group, 3=public link, 6=federated cloud)
+        uidOwner:
+          type: string
+          description: Owner of the share
+        path:
+          type: string
+          description: Path to the shared file or folder
+        permissions:
+          type: integer
+          minimum: 0
+          maximum: 31
+          description: Permission bitmask (1=Read, 2=Update, 4=Create, 8=Delete, 16=Share)
+        stime:
+          type: integer
+          format: int64
+          description: Share creation timestamp
+        expiration:
+          type: string
+          format: date
+          nullable: true
+          description: Expiration date in YYYY-MM-DD format (null if no expiration)
+        token:
+          type: string
+          nullable: true
+          description: Public link token for share access
+
+    UserEntity:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: Unique user identifier
+        displayName:
+          type: string
+          maxLength: 64
+          description: User's display name
+        email:
+          type: string
+          format: email
+          description: User's email address
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to user's avatar image
+
+    CreateShareRequest:
+      type: object
+      required:
+        - shareType
+        - path
+        - permissions
+      properties:
+        shareType:
+          type: integer
+          enum: [0, 1, 3]
+          description: Type of share (0=user, 1=group, 3=public link)
+        path:
+          type: string
+          minLength: 1
+          description: File or folder path to share (must be accessible by user)
+        permissions:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: Permission bitmask (1=Read, 2=Update, 4=Create, 8=Delete, 16=Share)
+        shareWith:
+          type: string
+          nullable: true
+          description: User ID or group ID to share with (required for USER/GROUP share types)
+        password:
+          type: string
+          minLength: 0
+          maxLength: 255
+          nullable: true
+          description: Password for public link shares (min length depends on server policy)
+        publicUpload:
+          type: boolean
+          default: false
+          description: Enable public upload for link shares
+        expireDate:
+          type: string
+          format: date
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          nullable: true
+          description: Expiration date in YYYY-MM-DD format (must be after current date)
+        label:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Label for the share (for display purposes)
+
+    # Response Components
+    OCSResponseSuccessSharesList:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                shares:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Share'
+
+    OCSResponseSuccessCreateShare:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                shareType:
+                  type: integer
+                path:
+                  type: string
+
+    OCSResponseSuccessShareById:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Share'
+
+    OCSResponseSuccessUpdateShare:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Share'
+
+    OCSResponseSuccessDeleteShare:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+
+    OCSResponseSuccessSendNotification:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                notificationsSent:
+                  type: integer
+                failedRecipients:
+                  type: array
+                  items:
+                    type: string
+
+    OCSResponseSuccessMarkSentNotification:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                notificationsMarked:
+                  type: integer
+                failedNotifications:
+                  type: array
+                  items:
+                    type: string
+
+    OCSResponseSuccessNotifyPublicLinkByEmail:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                emailsSent:
+                  type: integer
+                failedRecipients:
+                  type: array
+                  items:
+                    type: string
+
+    OCSResponseFailureNotFound:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            ocs:
+              type: object
+              properties:
+                meta:
+                  status: failure
+                  statuscode: 404
+                  message: "Not Found"
+
+    OCSResponseFailureUnauthorized:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            ocs:
+              type: object
+              properties:
+                meta:
+                  status: failure
+                  statuscode: 401
+                  message: "Unauthorized"
+
+    OCSResponseFailureBadRequest:
+      allOf:
+        - $ref: '#/components/schemas/OCSResponse'
+        - type: object
+          properties:
+            ocs:
+              type: object
+              properties:
+                meta:
+                  status: failure
+                  statuscode: 400
+                  message: "Bad Request"
+
+  securitySchemes:
+    OCSAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token authentication for OCS API. Required for all protected endpoints.

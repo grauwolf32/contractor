@@ -78,7 +78,7 @@ DUMMY_MODEL = LiteLlm(
 )
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "python"
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "cloud"
 )
 
 sandbox = PodmanContainer(
