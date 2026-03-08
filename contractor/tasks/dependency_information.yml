@@ -3,13 +3,13 @@ task:
   name: "External Service Dependency Inventory"
 
   objective: >
-    Analyze the project dependencies and collect information only about those
+    Analyze the project {project_path} dependencies and collect information only about those
     dependencies that are used to interact with external services, systems,
     or infrastructure. The goal is to identify, classify, and tag such
     dependencies while excluding purely internal or local-only libraries.
 
   instructions: >
-    Analyze the project to identify its dependency ecosystem and locate the
+    Analyze the project {project_path} to identify its dependency ecosystem and locate the
     relevant dependency manifest files (for example: package.json, pyproject.toml,
     requirements.txt, pom.xml, build.gradle, go.mod, Gemfile, composer.json,
     *.csproj, and their corresponding lock files). Determine the primary
