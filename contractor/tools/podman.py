@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 
 class PodmanNotFoundException(Exception):

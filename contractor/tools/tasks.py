@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-import re
 import ast
 import json
-import yaml
-
+import re
+import xml.etree.ElementTree as ET
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Callable, Final, Literal, Optional, Union
-
-from contextlib import suppress
-from pydantic import BaseModel, Field, ValidationError
 from xml.sax.saxutils import escape as xml_escape
 
+import yaml
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import AgentTool
 from google.adk.tools.tool_context import ToolContext
+from pydantic import BaseModel, Field, ValidationError
 
 NO_ACTIVE_TASKS_MSG: Final[str] = (
     "There are no active subtasks. Add a subtask using `add_subtask` to begin."
@@ -26,22 +25,17 @@ TASK_LIMIT_REACHED_MSG: Final[str] = (
     "You MUST summarize records and finish the execution."
 )
 
-TASK_ID_NOT_FOUND_MSG: Final[str] = (
-    "Task with id `{task_id}` was not found. "
-    "Call `get_current_subtask` to retrieve the valid task_id."
-)
-
-TASK_NOT_CURRENT_MSG: Final[str] = (
-    "Task `{task_id}` is not the current task. "
+SUBTASK_NOT_CURRENT_MSG: Final[str] = (
+    "Subtask `{task_id}` is not the current subtask. "
     "Only the current task returned by `get_current_subtask` may be used."
 )
 
-TASK_REQUIRES_DECOMPOSITION_MSG: Final[str] = (
-    "Task `{task_id}` is incomplete. "
+SUBTASK_REQUIRES_DECOMPOSITION_MSG: Final[str] = (
+    "Subtask `{task_id}` is incomplete. "
     "Decompose this task into subtasks before calling `execute_current_subtask` again."
 )
 
-TASK_STATUS_TRANSITIONS: Final[dict[str, Any]] = {
+SUBTASK_STATUS_TRANSITIONS: Final[dict[str, Any]] = {
     "new": ["done", "incomplete", "skipped"],
     "incomplete": [],
     "done": [],
@@ -50,11 +44,11 @@ TASK_STATUS_TRANSITIONS: Final[dict[str, Any]] = {
 
 SKIP_REASON_MUST_NOT_BE_EMPTY: Final[str] = (
     "Skip reason MUST not be empty."
-    "Describe the reason why you have decided to skip current task."
+    "Describe the reason why you have decided to skip current subtask."
 )
 
-TASK_RESULT_MALFORMED: Final[str] = (
-    "Task result has malformed format. The result stored in the output."
+SUBTASK_RESULT_MALFORMED: Final[str] = (
+    "Subtask result has malformed format. The result stored in the output."
 )
 
 _GLOBAL_TASK_ID_KEY: Final[str] = "_global_task_id"
@@ -125,14 +119,14 @@ class Subtask(BaseModel):
     )
 
 
-class TaskExecutionResult(BaseModel):
+class SubtaskExecutionResult(BaseModel):
     """
     Result of executing the current task.
     """
 
     task_id: str = Field(
         ...,
-        description="Identifier of the task that was executed. MUST match the current task_id.",
+        description="Identifier of the subtask that was executed. MUST match the current task_id.",
     )
 
     status: Literal["done", "incomplete", "skipped"] = Field(
@@ -155,8 +149,12 @@ class TaskExecutionResult(BaseModel):
 
 
 @dataclass
-class TaskFormat:
+class SubtaskFormatter:
     _format: Literal["json", "markdown", "yaml", "xml"] = "json"
+    _CODE_BLOCK_RE = re.compile(
+        r"```(?P<lang>[a-zA-Z0-9_+-]+)?\s*\n(?P<body>.*?)\n```",
+        re.DOTALL,
+    )
 
     @staticmethod
     def _subtask_to_json(subtask: Subtask, **kwargs) -> dict[str, Any]:
@@ -201,51 +199,51 @@ class TaskFormat:
         )
 
     @staticmethod
-    def _task_result_to_json(
-        task_result: TaskExecutionResult, **kwargs
+    def _subtask_result_to_json(
+        subtask_result: SubtaskExecutionResult, **kwargs
     ) -> dict[str, Any]:
-        return task_result.model_dump()
+        return subtask_result.model_dump()
 
     @staticmethod
-    def _task_result_to_markdown(task_result: TaskExecutionResult, **kwargs) -> str:
+    def _subtask_result_to_markdown(subtask_result: SubtaskExecutionResult, **kwargs) -> str:
         return (
-            f"### RESULT [ID: {task_result.task_id}]\n"
-            f"**Status**: {task_result.status}\n"
-            f"**Output**: {task_result.output}\n"
-            f"**Summary**: {task_result.summary}\n"
+            f"### RESULT [ID: {subtask_result.task_id}]\n"
+            f"**Status**: {subtask_result.status}\n"
+            f"**Output**: {subtask_result.output}\n"
+            f"**Summary**: {subtask_result.summary}\n"
             f"---"
         )
 
     @staticmethod
-    def _task_result_to_yaml(task_result: TaskExecutionResult, **kwargs) -> str:
+    def _subtask_result_to_yaml(subtask_result: SubtaskExecutionResult, **kwargs) -> str:
         payload = {
-            f"result_{task_result.task_id}": {
-                "task_id": task_result.task_id,
-                "status": task_result.status,
-                "output": task_result.output,
-                "summary": task_result.summary,
+            f"result_{subtask_result.task_id}": {
+                "task_id": subtask_result.task_id,
+                "status": subtask_result.status,
+                "output": subtask_result.output,
+                "summary": subtask_result.summary,
             }
         }
         return yaml.safe_dump(payload, sort_keys=False)
 
     @staticmethod
-    def _task_result_to_xml(
-        task_result: TaskExecutionResult, indent: int = 0, **kwargs
+    def _subtask_result_to_xml(
+        subtask_result: SubtaskExecutionResult, indent: int = 0, **kwargs
     ) -> str:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
 
-        task_id = xml_escape(task_result.task_id)
-        task_status = xml_escape(task_result.status)
-        output = xml_escape(task_result.output)
-        summary = xml_escape(task_result.summary)
+        task_id = xml_escape(subtask_result.task_id)
+        task_status = xml_escape(subtask_result.status)
+        output = xml_escape(subtask_result.output)
+        summary = xml_escape(subtask_result.summary)
 
         return (
-            f'{pad}<task_result task_id="{task_id}">\n'
+            f'{pad}<result task_id="{task_id}">\n'
             f"{pad2}<status>{task_status}</status>\n"
             f"{pad2}<output>{output}</output>\n"
             f"{pad2}<summary>{summary}</summary>\n"
-            f"{pad}</task_result>"
+            f"{pad}</result>"
         )
 
     def _type_hint(
@@ -261,16 +259,16 @@ class TaskFormat:
         self, subtask: Subtask, type_hint: bool = False, **kwargs
     ) -> Union[str, dict[str, Any]]:
         formatters: dict[str, Callable] = {
-            "json": TaskFormat._subtask_to_json,
-            "markdown": TaskFormat._subtask_to_markdown,
-            "yaml": TaskFormat._subtask_to_yaml,
-            "xml": TaskFormat._subtask_to_xml,
+            "json": SubtaskFormatter._subtask_to_json,
+            "markdown": SubtaskFormatter._subtask_to_markdown,
+            "yaml": SubtaskFormatter._subtask_to_yaml,
+            "xml": SubtaskFormatter._subtask_to_xml,
         }
         if formatter := formatters.get(self._format):
             output = formatter(subtask, **kwargs)
             return self._type_hint(output, type_hint)
 
-        return TaskFormat._subtask_to_json(subtask, **kwargs)
+        return SubtaskFormatter._subtask_to_json(subtask, **kwargs)
 
     def format_subtasks(
         self, subtasks: list[Subtask], type_hint: bool = False
@@ -289,30 +287,30 @@ class TaskFormat:
             )
             return self._type_hint(output, type_hint)
 
-        return [TaskFormat._subtask_to_json(subtask) for subtask in subtasks]
+        return [SubtaskFormatter._subtask_to_json(subtask) for subtask in subtasks]
 
-    def format_task_result(
-        self, task_result: TaskExecutionResult, type_hint: bool = False, **kwargs
+    def format_subtask_result(
+        self, subtask_result: SubtaskExecutionResult, type_hint: bool = False, **kwargs
     ) -> Union[str, dict[str, Any]]:
         formatters: dict[str, Callable] = {
-            "json": TaskFormat._task_result_to_json,
-            "markdown": TaskFormat._task_result_to_markdown,
-            "yaml": TaskFormat._task_result_to_yaml,
-            "xml": TaskFormat._task_result_to_xml,
+            "json": SubtaskFormatter._subtask_result_to_json,
+            "markdown": SubtaskFormatter._subtask_result_to_markdown,
+            "yaml": SubtaskFormatter._subtask_result_to_yaml,
+            "xml": SubtaskFormatter._subtask_result_to_xml,
         }
 
         if formatter := formatters.get(self._format):
-            output = formatter(task_result, **kwargs)
+            output = formatter(subtask_result, **kwargs)
             return self._type_hint(output, type_hint)
 
-        return TaskFormat._task_result_to_json(task_result, **kwargs)
+        return SubtaskFormatter._subtask_result_to_json(subtask_result, **kwargs)
 
-    def format_task_results(
-        self, task_results: list[TaskExecutionResult], type_hint: bool = False
+    def format_subtask_results(
+        self, subtask_results: list[SubtaskExecutionResult], type_hint: bool = False
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
             output = "\n".join(
-                [self.format_task_result(task_result) for task_result in task_results]
+                [self.format_subtask_result(subtask_result) for subtask_result in subtask_results]
             )
             return self._type_hint(output, type_hint)
 
@@ -320,200 +318,225 @@ class TaskFormat:
             output = "\n".join(
                 [
                     "<results>\n"
-                    + self.format_task_result(task_result, indent=1)
+                    + self.format_subtask_result(subtask_result, indent=1)
                     + "\n</results>"
-                    for task_result in task_results
+                    for subtask_result in subtask_results
                 ]
             )
             return self._type_hint(output, type_hint)
 
         return [
-            TaskFormat._task_result_to_json(task_result) for task_result in task_results
+            SubtaskFormatter._subtask_result_to_json(subtask_result) for subtask_result in subtask_results
         ]
 
     def format_task_record(
-        self, subtask: Subtask, task_result: TaskExecutionResult
+        self, subtask: Subtask, subtask_result: SubtaskExecutionResult
     ) -> Union[str, dict[str, Any]]:
         if self._format == "json":
             record_dict: dict[str, Any] = self._subtask_to_json(subtask)
-            tr = self._task_result_to_json(task_result)
+            tr = self._subtask_result_to_json(subtask_result)
             tr.pop("task_id", None)
             record_dict |= tr
             return record_dict
 
         record: Union[str, dict[str, Any]] = self.format_subtask(subtask)
-        record += self.format_task_result(task_result)
+        record += self.format_subtask_result(subtask_result)
         return record
 
     @staticmethod
-    def _parse_task_result_json(output: str) -> Optional[TaskExecutionResult]:
-        output = output.strip()
+    def _validate_result_payload(payload: Any) -> Optional[SubtaskExecutionResult]:
+        with suppress(ValidationError, TypeError):
+            return SubtaskExecutionResult.model_validate(payload)
+        return None
 
+    @classmethod
+    def _extract_fenced_blocks(cls, text: str) -> list[tuple[Optional[str], str]]:
+        return [
+            (
+                (m.group("lang") or "").strip().lower() or None,
+                m.group("body").strip(),
+            )
+            for m in cls._CODE_BLOCK_RE.finditer(text)
+        ]
+
+    @staticmethod
+    def _parse_subtask_result_json(output: str) -> Optional[SubtaskExecutionResult]:
+        output = output.strip()
         if not output:
             return None
 
-        WHITESPACE_RE = re.compile(r"[ \t\r\n]+")
-        candidates = [output, WHITESPACE_RE.sub(" ", output)]
+        candidates = [output]
+
+        # Иногда LLM возвращает python-dict вместо JSON.
+        if output.startswith("{") or output.startswith("["):
+            candidates.append(output)
 
         for candidate in candidates:
-            with suppress(json.JSONDecodeError, ValidationError, TypeError):
-                task_result = json.loads(candidate)
-                return TaskExecutionResult.model_validate(task_result)
+            with suppress(json.JSONDecodeError, TypeError):
+                parsed = json.loads(candidate)
+                result = SubtaskFormatter._validate_result_payload(parsed)
+                if result:
+                    return result
 
-            with suppress(
-                ValueError, SyntaxError, ValidationError, TypeError, MemoryError
-            ):
-                task_result = ast.literal_eval(candidate)
-                return TaskExecutionResult.model_validate(task_result)
+        # Осторожный fallback только для dict/list-подобных строк
+        if output.startswith("{") or output.startswith("["):
+            with suppress(ValueError, SyntaxError, TypeError, MemoryError):
+                parsed = ast.literal_eval(output)
+                result = SubtaskFormatter._validate_result_payload(parsed)
+                if result:
+                    return result
 
         return None
 
     @staticmethod
-    def _parse_task_result_yaml(output: str) -> Optional[TaskExecutionResult]:
+    def _parse_subtask_result_yaml(output: str) -> Optional[SubtaskExecutionResult]:
         output = output.strip()
-
         if not output:
             return None
 
-        with suppress(ValidationError, TypeError, yaml.YAMLError):
-            task_meta = yaml.safe_load(output)
-            if type(task_meta) is not dict:
-                raise TypeError
+        with suppress(yaml.YAMLError, TypeError):
+            parsed = yaml.safe_load(output)
 
-            keys = list(task_meta.keys())
-            if len(keys) > 1:
-                return TaskExecutionResult.model_validate(task_meta)
+            # Вариант 1: нормальный объект результата
+            result = SubtaskFormatter._validate_result_payload(parsed)
+            if result:
+                return result
 
-            task_id = keys[0]
-            if type(task_meta[task_id]) is not dict:
-                raise TypeError
-
-            return TaskExecutionResult.model_validate(task_meta[task_id])
+            # Вариант 2: обёртка вида result_1: {...}
+            if isinstance(parsed, dict) and len(parsed) == 1:
+                inner = next(iter(parsed.values()))
+                result = SubtaskFormatter._validate_result_payload(inner)
+                if result:
+                    return result
 
         return None
 
     @staticmethod
-    def _parse_task_result_markdown(output: str) -> Optional[TaskExecutionResult]:
-        FIELD_RE = re.compile(
-            r"(?im)^\s*(?:\*\*)?(status|output|summary)(?:\*\*)?\s*:?\s*(.*)\s*$"
-        )
-        END_RE = re.compile(r"(?m)^\s*---\s*$")
-        TASK_ID_RE = re.compile(r"(?i)\[id:\s*(?P<task_id>[^\]]+)\]")
+    def _parse_subtask_result_markdown(output: str) -> Optional[SubtaskExecutionResult]:
+        output = output.strip()
+        if not output:
+            return None
 
-        task_result: dict[str, Optional[str]] = {
-            "task_id": None,
+        header_re = re.compile(
+            r"(?im)^\s*#{1,6}\s*result\s*\[id:\s*(?P<task_id>[^\]]+)\]\s*$"
+        )
+        field_re = re.compile(
+            r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?(status|output|summary)(?:\*\*)?\s*:\s*(.*)$"
+        )
+        end_re = re.compile(r"(?m)^\s*---\s*$")
+
+        task_id = None
+        header_match = header_re.search(output)
+        if header_match:
+            task_id = header_match.group("task_id").strip()
+
+        end_match = end_re.search(output)
+        body = output[: end_match.start()] if end_match else output
+
+        matches = list(field_re.finditer(body))
+        if not matches:
+            return None
+
+        data: dict[str, Any] = {
+            "task_id": task_id,
             "status": None,
             "output": None,
             "summary": None,
         }
 
-        m = TASK_ID_RE.search(output)
-        if m:
-            task_result["task_id"] = m.group("task_id").strip()
+        for i, match in enumerate(matches):
+            key = match.group(1).lower()
+            first_line = match.group(2).rstrip()
 
-        lines = output.splitlines()
+            section_start = match.end()
+            section_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+            section_tail = body[section_start:section_end]
 
-        i = 0
-        while i < len(lines):
-            if END_RE.match(lines[i]):
-                break
+            tail_lines = section_tail.splitlines()
 
-            m = FIELD_RE.match(lines[i])
-            if not m:
-                i += 1
-                continue
+            while tail_lines and not tail_lines[0].strip():
+                tail_lines.pop(0)
+            while tail_lines and not tail_lines[-1].strip():
+                tail_lines.pop()
 
-            key = m.group(1).lower()
-            buf = [m.group(2)]
-
-            i += 1
-            while (
-                i < len(lines)
-                and not END_RE.match(lines[i])
-                and not FIELD_RE.match(lines[i])
-            ):
-                if value := lines[i].strip():
-                    buf.append(value)
-                i += 1
-
-            value = "\n".join(buf).strip()
+            if tail_lines:
+                value = "\n".join([first_line, *tail_lines]).strip()
+            else:
+                value = first_line.strip()
 
             if key == "status":
-                task_result[key] = value.split("\n")[0]
+                value = value.splitlines()[0].strip()
+
+            data[key] = value
+
+        with suppress(ValidationError, TypeError):
+            return SubtaskExecutionResult.model_validate(data)
+
+        return None
+
+    @staticmethod
+    def _parse_subtask_result_xml(output: str) -> Optional[SubtaskExecutionResult]:
+        output = output.strip()
+        if not output:
+            return None
+
+        with suppress(ET.ParseError, AttributeError, TypeError):
+            root = ET.fromstring(output)
+
+            if root.tag.lower() == "results":
+                result_el = root.find("./result")
+            elif root.tag.lower() == "result":
+                result_el = root
             else:
-                task_result[key] = value if value else None
+                return None
 
-        with suppress(ValidationError):
-            return TaskExecutionResult.model_validate(task_result)
+            if result_el is None:
+                return None
+
+            payload = {
+                "task_id": (result_el.attrib.get("task_id") or "").strip(),
+                "status": (result_el.findtext("status") or "").strip(),
+                "output": (result_el.findtext("output") or "").strip(),
+                "summary": (result_el.findtext("summary") or "").strip(),
+            }
+
+            return SubtaskFormatter._validate_result_payload(payload)
 
         return None
 
-    @staticmethod
-    def _parse_task_result_xml(output: str) -> Optional[TaskExecutionResult]:
-        task_result_re = re.compile(
-            r"(?i)<task_result\s*task_id\s*=(?P<task_id>[^>]+)>(?P<result>.+?)</task_result>",
-            re.DOTALL,
-        )
-        status_re = re.compile(r"(?i)<status>(?P<status>.+?)</status>", re.DOTALL)
-        output_re = re.compile(r"(?i)<output>(?P<output>.+?)</output>", re.DOTALL)
-        summary_re = re.compile(r"(?i)<summary>(?P<summary>.+?)</summary>", re.DOTALL)
-
-        m = task_result_re.search(output)
-        if not m:
+    def parse_subtask_result(self, output: str) -> Optional[SubtaskExecutionResult]:
+        output = output.strip()
+        if not output:
             return None
 
-        task_id = m.group("task_id").strip().replace('"', "")
-        result = m.group("result").strip()
-
-        m = status_re.search(result)
-        if not m:
-            return None
-        status = m.group("status").strip()
-
-        m = output_re.search(result)
-        if not m:
-            return None
-        output = m.group("output").strip()
-
-        m = summary_re.search(result)
-        if not m:
-            return None
-        summary = m.group("summary").strip()
-
-        with suppress(ValidationError):
-            return TaskExecutionResult(
-                task_id=task_id,
-                status=status,
-                output=output,
-                summary=summary,
-            )
-        return None
-
-    @staticmethod
-    def parse_task_result(output: str) -> Optional[TaskExecutionResult]:
-        parsers: dict[str, Callable] = {
-            "json": TaskFormat._parse_task_result_json,
-            "markdown": TaskFormat._parse_task_result_markdown,
-            "yaml": TaskFormat._parse_task_result_yaml,
-            "xml": TaskFormat._parse_task_result_xml,
+        parsers: dict[str, Callable[[str], Optional[SubtaskExecutionResult]]] = {
+            "json": self._parse_subtask_result_json,
+            "markdown": self._parse_subtask_result_markdown,
+            "yaml": self._parse_subtask_result_yaml,
+            "xml": self._parse_subtask_result_xml,
         }
 
-        hints_re: dict[str, re.Pattern] = {
-            k: re.compile(rf"```{k}\s*(.+?)```", re.DOTALL) for k in parsers
-        }
+        parse_order = [self._format] + [fmt for fmt in parsers if fmt != self._format]
 
-        task_result: Optional[TaskExecutionResult] = None
-        for fmt_name, parser in parsers.items():
-            hint_re = hints_re.get(fmt_name)
-            if m := hint_re.search(output):
-                task_result = parser(m.group(1).strip())
-                if task_result:
-                    return task_result
+        # 1. Сначала fenced code blocks
+        fenced_blocks = self._extract_fenced_blocks(output)
+        for lang, body in fenced_blocks:
+            if lang in parsers:
+                result = parsers[lang](body)
+                if result:
+                    return result
 
-        for fmt_name, parser in parsers.items():
-            task_result = parser(output)
-            if task_result:
-                return task_result
+        # 2. Если блоки были, но язык не помог — пробуем expected format на теле блоков
+        for _, body in fenced_blocks:
+            result = parsers[self._format](body)
+            if result:
+                return result
+
+        # 3. Потом пробуем весь текст: сначала ожидаемый формат, потом fallback
+        for fmt_name in parse_order:
+            result = parsers[fmt_name](output)
+            if result:
+                return result
 
         return None
 
@@ -528,23 +551,23 @@ class TaskFormat:
         stub = Subtask.model_construct(**out)
         return self.format_subtask(stub, type_hint=type_hint)
 
-    def format_task_result_description(
+    def format_subtask_result_description(
         self, type_hint: bool = False
     ) -> Union[str, dict[str, Any]]:
         out: dict[str, str] = {}
-        for name, finfo in TaskExecutionResult.model_fields.items():
+        for name, finfo in SubtaskExecutionResult.model_fields.items():
             desc = (finfo.description or "").strip()
             out[name] = desc
 
-        stub = TaskExecutionResult.model_construct(**out)
-        return self.format_task_result(stub, type_hint=type_hint)
+        stub = SubtaskExecutionResult.model_construct(**out)
+        return self.format_subtask_result(stub, type_hint=type_hint)
 
 
 @dataclass
 class StreamlineManager:
     name: str
     max_tasks: int
-    fmt: TaskFormat
+    fmt: SubtaskFormatter
 
     def _state_key(self, ctx: ToolContext | CallbackContext) -> str:
         global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
@@ -650,11 +673,11 @@ class StreamlineManager:
         subtasks[idx].status = "skipped"
         ctx.state[self._subtasks_key(ctx)] = [sub.model_dump() for sub in subtasks]
 
-        task_result: TaskExecutionResult = TaskExecutionResult(
+        subtask_result: SubtaskExecutionResult = SubtaskExecutionResult(
             task_id=current.task_id, status="skipped", output=reason, summary=""
         )
         record: Union[str, dict[str, Any]] = self.fmt.format_task_record(
-            current, task_result
+            current, subtask_result
         )
         self.save_record(record, ctx)
         ctx.state[self._current_idx(ctx)] = idx + 1
@@ -688,8 +711,8 @@ class StreamlineManager:
         return insertion
 
 
-TASK_PLANNING_PROMPT = """
-TASK PLANNING WORKFLOW
+SUBTASK_PLANNING_PROMPT = """
+SUBTASK PLANNING WORKFLOW
 
 You are a task-planning agent responsible for coordinating multi-step work through explicit subtasks.
 Your role is to plan, monitor, and adapt based on worker execution results.
@@ -817,8 +840,8 @@ Rule 5: Completion Rules
 """.strip()
 
 
-def _prepare_worker_instructions(fmt: TaskFormat, type_hint: bool = False) -> str:
-    example_1: TaskExecutionResult = TaskExecutionResult(
+def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False) -> str:
+    example_1: SubtaskExecutionResult = SubtaskExecutionResult(
         task_id="1",
         status="done",
         output=(
@@ -840,7 +863,7 @@ def _prepare_worker_instructions(fmt: TaskFormat, type_hint: bool = False) -> st
         ),
     )
 
-    example_2: TaskExecutionResult = TaskExecutionResult(
+    example_2: SubtaskExecutionResult = SubtaskExecutionResult(
         task_id="2",
         status="incomplete",
         output=(
@@ -861,18 +884,18 @@ def _prepare_worker_instructions(fmt: TaskFormat, type_hint: bool = False) -> st
     )
 
     format_description: Union[str, dict[str, Any]] = (
-        fmt.format_task_result_description()
+        fmt.format_subtask_result_description()
     )
     if type(format_description) is dict:
         format_description = json.dumps(format_description)
 
-    ex1_fmt: Union[str, dict[str, Any]] = fmt.format_task_result(
+    ex1_fmt: Union[str, dict[str, Any]] = fmt.format_subtask_result(
         example_1, type_hint=type_hint
     )
     if type(ex1_fmt) is dict:
         ex1_fmt = json.dumps(ex1_fmt)
 
-    ex2_fmt: Union[str, dict[str, Any]] = fmt.format_task_result(
+    ex2_fmt: Union[str, dict[str, Any]] = fmt.format_subtask_result(
         example_2, type_hint=type_hint
     )
     if type(ex2_fmt) is dict:
@@ -887,7 +910,7 @@ def _prepare_worker_instructions(fmt: TaskFormat, type_hint: bool = False) -> st
 
 def instrument_worker(
     worker: LlmAgent,
-    fmt: TaskFormat,
+    fmt: SubtaskFormatter,
     type_hint: bool = False,
     use_input_schema: bool = True,
     use_output_schema: bool = True,
@@ -896,7 +919,7 @@ def instrument_worker(
         worker.input_schema = Subtask
 
     if use_output_schema:
-        worker.output_schema = TaskExecutionResult
+        worker.output_schema = SubtaskExecutionResult
 
     worker.instruction += _prepare_worker_instructions(fmt, type_hint=type_hint)
     if not isinstance(worker, AgentTool):
@@ -909,7 +932,7 @@ def task_tools(
     name: str,
     max_tasks: int,
     worker: LlmAgent | AgentTool,
-    fmt: TaskFormat,
+    fmt: SubtaskFormatter,
     *,
     use_skip: bool = True,
     use_summarization: bool = True,
@@ -1007,7 +1030,7 @@ def task_tools(
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
         if str(task_id) != current.task_id:
-            return {"error": TASK_NOT_CURRENT_MSG.format(task_id=task_id)}
+            return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
         insertion: list[Subtask] = mgr.decompose_current_subtask(
             decomposition.subtasks, tool_context
@@ -1028,7 +1051,7 @@ def task_tools(
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
         if str(task_id) != current.task_id:
-            return {"error": TASK_NOT_CURRENT_MSG.format(task_id=task_id)}
+            return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
         next_subtask = mgr.skip(reason, tool_context)
         if next_subtask is None:
@@ -1051,48 +1074,59 @@ def task_tools(
             args = {"request": fmt.format_subtask(current)}
 
         raw = await worker.run_async(args=args, tool_context=tool_context)
-        task_result: TaskExecutionResult | None = None
 
-        if isinstance(raw, str):
-            task_result = fmt.parse_task_result(raw)
+        subtask_result: SubtaskExecutionResult | dict[str, Any] | None = None
 
-        if task_result is None:
-            task_result = raw
+        if isinstance(raw, SubtaskExecutionResult):
+            subtask_result = raw
+        elif isinstance(raw, dict):
+            with suppress(ValidationError, TypeError):
+                subtask_result = SubtaskExecutionResult.model_validate(raw)
+        elif isinstance(raw, str):
+            subtask_result = fmt.parse_subtask_result(raw)
 
-        validated: bool = False
-        if isinstance(task_result, dict):
-            with suppress(ValidationError):
-                task_result = TaskExecutionResult.model_validate(task_result)
-                validated = True
+        validated = isinstance(subtask_result, SubtaskExecutionResult)
 
-        if isinstance(task_result, TaskExecutionResult):
-            validated = True
-
-        if not validated:
-            with suppress(ValueError, TypeError):
-                raw = json.dumps(raw)
-            task_result = TaskExecutionResult(
+        if validated and subtask_result.task_id != current.task_id:
+            subtask_result = SubtaskExecutionResult(
                 task_id=current.task_id,
                 status="incomplete",
-                output=raw,
-                summary=TASK_RESULT_MALFORMED,
+                output=(
+                    f"Worker returned mismatched task_id={subtask_result.task_id!r}. "
+                    f"Expected {current.task_id!r}.\n\n"
+                    f"Original output:\n{subtask_result.output}"
+                ),
+                summary="Worker returned a result for the wrong subtask.",
+            )
+            validated = False
+
+        if not validated:
+            raw_dump = raw
+            with suppress(ValueError, TypeError):
+                raw_dump = json.dumps(raw, ensure_ascii=False)
+
+            subtask_result = SubtaskExecutionResult(
+                task_id=current.task_id,
+                status="incomplete",
+                output=str(raw_dump),
+                summary=SUBTASK_RESULT_MALFORMED,
             )
 
-        current.status = task_result.status
-        record = fmt.format_task_record(current, task_result)
+        current.status = subtask_result.status
+        record = fmt.format_task_record(current, subtask_result)
         mgr.save_record(record, tool_context)
 
         tool_context.state.setdefault(mgr._current_idx(tool_context), 0)
         idx = tool_context.state[mgr._current_idx(tool_context)]
         subtasks = mgr.get_subtasks(tool_context)
 
-        subtasks[idx].status = task_result.status
+        subtasks[idx].status = subtask_result.status
         tool_context.state[mgr._subtasks_key(tool_context)] = [
             sub.model_dump() for sub in subtasks
         ]
 
         can_advance: bool = idx + 1 < len(subtasks)
-        if can_advance and task_result.status != "incomplete":
+        if can_advance and subtask_result.status != "incomplete":
             tool_context.state[mgr._current_idx(tool_context)] = idx + 1
 
         result: dict[str, Any] = {"record": record}
@@ -1100,12 +1134,12 @@ def task_tools(
 
         if not can_advance:
             action += NO_ACTIVE_TASKS_MSG
-        if task_result.status == "incomplete":
-            action += TASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)
+        if subtask_result.status == "incomplete":
+            action += SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)
 
         result["action"] = action
         if not validated:
-            result["error"] = TASK_RESULT_MALFORMED
+            result["error"] = SUBTASK_RESULT_MALFORMED
 
         return result
 

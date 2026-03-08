@@ -1,6 +1,6 @@
-import copy
 import collections.abc
-from dataclasses import dataclass, field, asdict
+import copy
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 

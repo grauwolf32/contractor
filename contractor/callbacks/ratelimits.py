@@ -1,10 +1,12 @@
-import time
 import logging
+import time
 from typing import Any
-from google.adk.models import LlmRequest
+
 from google.adk.agents.callback_context import CallbackContext
-from .tokens import TokenUsageCallback, TokenCounter
+from google.adk.models import LlmRequest
+
 from .base import BaseCallback, CallbackTypes
+from .tokens import TokenCounter, TokenUsageCallback
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

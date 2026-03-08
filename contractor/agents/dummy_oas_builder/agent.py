@@ -3,27 +3,22 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any, Final
-from langfuse import get_client
+
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-
+from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.tokens import TokenUsageCallback
-from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.context import SummarizationLimitCallback
-from contractor.tools.podman import PodmanContainer
-from contractor.tools.fs import file_tools, RootedLocalFileSystem, FileFormat
-from contractor.tools.openapi import openapi_tools
-from contractor.tools.tasks import (
-    task_tools,
-    TASK_PLANNING_PROMPT,
-    _prepare_worker_instructions,
-    TaskFormat,
-)
-
+from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
+from contractor.tools.openapi import openapi_tools
+from contractor.tools.podman import PodmanContainer
+from contractor.tools.tasks import (SUBTASK_PLANNING_PROMPT, SubtaskFormatter,
+                                    _prepare_worker_instructions, task_tools)
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
@@ -73,7 +68,7 @@ DUMMY_SWE_PROMPT: Final[str] = (
 DUMMY_PLANNER_PROMPT: Final[str] = (
     "You are a helpful assistant, task manager, and execution planner.\n"
     "Your job is to translate the user's request into a small, reliable plan and drive it to completion.\n"
-    f"\n\n{TASK_PLANNING_PROMPT}"
+    f"\n\n{SUBTASK_PLANNING_PROMPT}"
 )
 
 DUMMY_SWE_DESCRIPTION: Final[str] = (
@@ -82,7 +77,7 @@ DUMMY_SWE_DESCRIPTION: Final[str] = (
 
 DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
     "You have reached context limit.Summarize your progress and call report tool."
-    + _prepare_worker_instructions(TaskFormat("xml"))
+    + _prepare_worker_instructions(SubtaskFormatter("xml"))
 )
 
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
@@ -149,7 +144,7 @@ dummy_swe = LlmAgent(
     **callback_adapter(),
 )
 
-fmt = TaskFormat("xml")
+fmt = SubtaskFormatter("xml")
 planning_tools = task_tools(
     name="dummy_planner",
     max_tasks=15,

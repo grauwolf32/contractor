@@ -1,6 +1,6 @@
-from uuid import uuid4
-from typing import Any, Optional
 from dataclasses import dataclass, field
+from typing import Any, Optional
+from uuid import uuid4
 
 
 @dataclass

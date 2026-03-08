@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from contractor.callbacks.ratelimits import TpmRatelimitCallback
 from contractor.callbacks.tokens import TokenUsageCallback

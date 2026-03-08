@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator, Callable, Any
+from typing import AsyncGenerator, Any
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.events.event import Event
@@ -9,7 +9,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.tools.agent_tool import AgentTool
 
 from contractor.models.task import Task
-from contractor.tools.tasks import TaskFormat, task_tools
+from contractor.tools.tasks import SubtaskFormatter, task_tools
 from contractor.tools.memory import memory_tools
 
 from pydantic import Field
@@ -76,7 +76,7 @@ class TaskSupervisor(BaseAgent):
         max_steps: int = 15,
         shared_memory: bool = True,
     ) -> LlmAgent:
-        fmt = TaskFormat(task._format)
+        fmt = SubtaskFormatter(task._format)
 
         planning_tools = task_tools(
             name=task.name,
@@ -121,7 +121,7 @@ class TaskSupervisor(BaseAgent):
         task = self.tasks[task_name]
         agent = self.task_agents[task_name]
 
-        repeats = getattr(task, "_repeats", 1)
+        repeats = task._repeats
 
         for iteration in range(repeats):
             logger.debug(f"Running task {task_name}, iteration {iteration}")

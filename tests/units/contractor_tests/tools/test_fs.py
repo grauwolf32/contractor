@@ -6,15 +6,9 @@ from pathlib import Path
 import fsspec
 import pytest
 
-from contractor.tools.fs import (
-    file_tools,
-    FileFormat,
-    RootedLocalFileSystem,
-    CoverageFilter,
-    FileFormat,
-    FsspecCoverageFileTools,
-    InteractionKind,
-)
+from contractor.tools.fs import (CoverageFilter, FileFormat,
+                                 FsspecCoverageFileTools, InteractionKind,
+                                 RootedLocalFileSystem, file_tools)
 
 
 @pytest.fixture()
@@ -704,7 +698,7 @@ def test_glob_empty_result(fs_root):
 
 
 def test_glob_respects_ignored_patterns_with_file_tools(fs_root):
-    from contractor.tools.fs import file_tools, FileFormat
+    from contractor.tools.fs import FileFormat, file_tools
 
     fmt = FileFormat(_format="json", with_types=False)
     tools = file_tools(
