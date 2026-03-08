@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-import unicodedata
 import fnmatch
 import json
-import re
 import os
-from dataclasses import asdict, dataclass
+import re
+import unicodedata
+from dataclasses import asdict, dataclass, field
+from enum import Enum
 from functools import lru_cache
-from typing import Any, Final, Literal, Optional, Union
+from typing import Any, Callable, Final, Iterable, Literal, Optional, Union
 
 import fsspec
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 from magika import ContentTypeInfo, Magika
+
 
 _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.pyc",
@@ -43,16 +45,19 @@ PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
 
-def _norm_unicode(s: str) -> str:
-    if s is None:
+def _norm_unicode(value: Optional[str]) -> Optional[str]:
+    if value is None:
         return None
-    # NFC — стандарт де-факто для файловых путей
-    return unicodedata.normalize("NFC", s)
+    return unicodedata.normalize("NFC", value)
 
 
-def _xml_escape(s: str) -> str:
+def _normalize_slashes(path: str) -> str:
+    return path.replace("\\", "/")
+
+
+def _xml_escape(value: str) -> str:
     return (
-        s.replace("&", "&amp;")
+        value.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")
@@ -61,26 +66,22 @@ def _xml_escape(s: str) -> str:
 
 
 def _is_ignored(path: str, patterns: list[str]) -> bool:
-    """
-    Match both full-path and basename against ignore patterns.
-    Uses forward-slash normalization for consistency across FS backends.
-    """
-    p = path.replace("\\", "/")
-    name = p.split("/")[-1]
-    for pat in patterns:
-        if fnmatch.fnmatch(p, pat) or fnmatch.fnmatch(name, pat):
-            return True
-    return False
+    normalized = _normalize_slashes(path)
+    basename = normalized.split("/")[-1]
+    return any(
+        fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch(basename, pattern)
+        for pattern in patterns
+    )
 
 
-@dataclass
+@dataclass(slots=True)
 class FileLoc:
     """
-    Marks a location in file.
+    Location inside a file.
 
-    - line_start, line_end: 0-based line indices (inclusive)
-    - byte_start, byte_end: 0-based byte offsets (half-open: [start, end))
-    - content: a small excerpt around the match or the matched line(s)
+    - line_start, line_end: 0-based inclusive line indexes
+    - byte_start, byte_end: 0-based half-open byte range [start, end)
+    - content: excerpt around the match
     """
 
     line_start: Optional[int] = None
@@ -90,7 +91,7 @@ class FileLoc:
     content: Optional[str] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class FsEntry:
     name: str
     path: str
@@ -104,12 +105,14 @@ class FsEntry:
     @staticmethod
     @lru_cache(maxsize=2048)
     def identify_type(
-        file: str, fs: fsspec.AbstractFileSystem
+        file_path: str,
+        fs: fsspec.AbstractFileSystem,
     ) -> Optional[ContentTypeInfo]:
-        if not fs.exists(file) or not fs.isfile(file):
+        if not fs.exists(file_path) or not fs.isfile(file_path):
             return None
+
         try:
-            with fs.open(file, mode="rb") as f:
+            with fs.open(file_path, mode="rb") as f:
                 return FsEntry._magika.identify_stream(f).output
         except Exception:
             return None
@@ -122,34 +125,28 @@ class FsEntry:
         *,
         with_types: bool = True,
     ) -> Optional["FsEntry"]:
-        if not fs.exists(path):
+        normalized_path = _norm_unicode(path)
+        if normalized_path is None or not fs.exists(normalized_path):
             return None
 
-        path = _norm_unicode(path)
-        name = _norm_unicode(path.rstrip("/").split("/")[-1])
+        name = _norm_unicode(normalized_path.rstrip("/").split("/")[-1]) or ""
 
-        if fs.isdir(path):
+        if fs.isdir(normalized_path):
             return cls(
                 name=name,
-                path=path,
+                path=normalized_path,
                 size=0,
                 is_dir=True,
-                filetype=None,
-                loc=None,
             )
 
-        if fs.isfile(path):
-            filetype = None
-            if with_types:
-                filetype = cls.identify_type(path, fs)
-
+        if fs.isfile(normalized_path):
+            filetype = cls.identify_type(normalized_path, fs) if with_types else None
             return cls(
                 name=name,
-                path=path,
-                size=int(fs.size(path)),
+                path=normalized_path,
+                size=int(fs.size(normalized_path)),
                 is_dir=False,
                 filetype=filetype,
-                loc=None,
             )
 
         return None
@@ -157,8 +154,8 @@ class FsEntry:
     @staticmethod
     def _compute_line_starts(text: str) -> list[int]:
         starts = [0]
-        for m in re.finditer(r"\n", text):
-            starts.append(m.end())
+        for match in re.finditer(r"\n", text):
+            starts.append(match.end())
         return starts
 
     @staticmethod
@@ -176,7 +173,7 @@ class FsEntry:
     def from_matches(
         cls,
         matches: list[re.Match[str]],
-        file: str,
+        file_path: str,
         fs: fsspec.AbstractFileSystem,
         *,
         content: Optional[str] = None,
@@ -184,7 +181,7 @@ class FsEntry:
         excerpt_max_chars: int = 500,
         context_lines: int = 0,
     ) -> Optional[list["FsEntry"]]:
-        if not fs.exists(file) or not fs.isfile(file):
+        if not fs.exists(file_path) or not fs.isfile(file_path):
             return None
 
         if not matches:
@@ -192,11 +189,11 @@ class FsEntry:
 
         if content is None:
             try:
-                content = fs.read_text(file, encoding="utf-8", errors="ignore")
+                content = fs.read_text(file_path, encoding="utf-8", errors="ignore")
             except Exception:
                 return []
 
-        proto = cls.from_path(file, fs, with_types=with_types)
+        proto = cls.from_path(file_path, fs, with_types=with_types)
         if proto is None:
             return None
 
@@ -204,12 +201,12 @@ class FsEntry:
         lines = content.splitlines()
 
         entries: list[FsEntry] = []
-        for m in matches:
-            begin_char, end_char = m.span()
+        for match in matches:
+            begin_char, end_char = match.span()
             line_idx = cls._char_to_line(line_starts, begin_char)
 
-            ls = max(0, line_idx - context_lines)
-            le = min(len(lines) - 1, line_idx + context_lines)
+            line_start = max(0, line_idx - context_lines)
+            line_end = min(len(lines) - 1, line_idx + context_lines)
 
             try:
                 byte_start = len(content[:begin_char].encode("utf-8", errors="ignore"))
@@ -217,7 +214,7 @@ class FsEntry:
             except Exception:
                 byte_start, byte_end = None, None
 
-            excerpt = "\n".join(lines[ls : le + 1])
+            excerpt = "\n".join(lines[line_start : line_end + 1])
             if len(excerpt) > excerpt_max_chars:
                 excerpt = excerpt[:excerpt_max_chars] + "…"
 
@@ -226,10 +223,11 @@ class FsEntry:
                     name=proto.name,
                     path=proto.path,
                     size=proto.size,
+                    is_dir=False,
                     filetype=proto.filetype,
                     loc=FileLoc(
-                        line_start=ls,
-                        line_end=le,
+                        line_start=line_start,
+                        line_end=line_end,
                         byte_start=byte_start,
                         byte_end=byte_end,
                         content=excerpt,
@@ -237,10 +235,10 @@ class FsEntry:
                 )
             )
 
-        return sorted(entries, key=lambda e: (e.path, e.loc.line_start or 0))
+        return sorted(entries, key=lambda entry: (entry.path, entry.loc.line_start or 0))
 
 
-@dataclass
+@dataclass(slots=True)
 class FileFormat:
     with_types: bool = True
     with_file_info: bool = True
@@ -254,87 +252,97 @@ class FileFormat:
                 "byte_end": loc.byte_end,
             }
         else:
-            payload = {"line_start": loc.line_start, "line_end": loc.line_end}
+            payload = {
+                "line_start": loc.line_start,
+                "line_end": loc.line_end,
+            }
 
         if loc.content is not None:
             payload["content"] = loc.content
 
         if self._format == "str":
             return json.dumps(payload, ensure_ascii=False)
+
         if self._format == "xml":
             parts = ["<loc>"]
-            for k, v in payload.items():
-                parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
+            for key, value in payload.items():
+                parts.append(f"<{key}>{_xml_escape(str(value))}</{key}>")
             parts.append("</loc>")
             return "".join(parts)
+
         return payload
 
-    def format_fs_entry(self, f: FsEntry) -> Union[str, dict[str, Any]]:
-        base: dict[str, Any] = {}
-        kind: str = "dir" if f.is_dir else "file"
+    def format_fs_entry(self, entry: FsEntry) -> Union[str, dict[str, Any]]:
+        kind = "dir" if entry.is_dir else "file"
+        payload: dict[str, Any] = {}
 
         if self.with_file_info:
-            base.update(
+            payload.update(
                 {
                     "kind": kind,
-                    "name": f.name,
-                    "path": f.path,
-                    "size": f.size,
+                    "name": entry.name,
+                    "path": entry.path,
+                    "size": entry.size,
                 }
             )
 
-        if self.with_types and f.filetype is not None:
+        if self.with_types and entry.filetype is not None:
             try:
-                base["filetype"] = asdict(f.filetype)
+                payload["filetype"] = asdict(entry.filetype)
             except Exception:
-                base["filetype"] = str(f.filetype)
+                payload["filetype"] = str(entry.filetype)
 
-        if f.loc is not None:
-            base["loc"] = self._format_loc(f.loc)
+        if entry.loc is not None:
+            payload["loc"] = self._format_loc(entry.loc)
 
         if self._format == "str":
-            return json.dumps(base, ensure_ascii=False)
+            return json.dumps(payload, ensure_ascii=False)
 
         if self._format == "xml":
             parts = [f"<{kind}>"]
-            base.pop("kind", None)
+            xml_payload = dict(payload)
+            xml_payload.pop("kind", None)
 
-            for k, v in base.items():
-                if isinstance(v, (dict, list)):
-                    parts.append(
-                        f"<{k}>{_xml_escape(json.dumps(v, ensure_ascii=False))}</{k}>"
-                    )
+            for key, value in xml_payload.items():
+                if isinstance(value, (dict, list)):
+                    serialized = json.dumps(value, ensure_ascii=False)
+                    parts.append(f"<{key}>{_xml_escape(serialized)}</{key}>")
                 else:
-                    parts.append(f"<{k}>{_xml_escape(str(v))}</{k}>")
+                    parts.append(f"<{key}>{_xml_escape(str(value))}</{key}>")
+
             parts.append(f"</{kind}>")
             return "".join(parts)
 
-        return base
+        return payload
 
     def format_file_list(
-        self, files: list[Optional[FsEntry]]
+        self,
+        files: list[Optional[FsEntry]],
     ) -> Union[str, list[dict[str, Any]]]:
-        cleaned = [f for f in files if f is not None]
+        cleaned = [file for file in files if file is not None]
+
         if self._format == "str":
-            return "\n".join(str(self.format_fs_entry(f)) for f in cleaned)
+            return "\n".join(str(self.format_fs_entry(file)) for file in cleaned)
+
         if self._format == "xml":
-            inner = "".join(str(self.format_fs_entry(f)) for f in cleaned)
+            inner = "".join(str(self.format_fs_entry(file)) for file in cleaned)
             return f"<files>{inner}</files>"
-        return [self.format_fs_entry(f) for f in cleaned]  # type: ignore[return-value]
+
+        return [self.format_fs_entry(file) for file in cleaned]  # type: ignore[return-value]
 
     @staticmethod
     def format_output(content: str, max_output: int) -> str:
-        # Truncate by bytes (utf-8) while preserving line boundaries.
-        lines = content.splitlines(True)  # keep line endings
+        lines = content.splitlines(True)
         out_parts: list[str] = []
         out_bytes = 0
         cut_at_line: Optional[int] = None
 
-        for i, line in enumerate(lines):
+        for index, line in enumerate(lines):
             line_bytes = len(line.encode("utf-8", errors="ignore"))
             if out_bytes + line_bytes > max_output:
-                cut_at_line = i
+                cut_at_line = index
                 break
+
             out_parts.append(line)
             out_bytes += line_bytes
 
@@ -347,6 +355,7 @@ class FileFormat:
             f"lines left in the file: {remaining} ###"
         )
         footer_bytes = len(footer.encode("utf-8", errors="ignore"))
+
         if footer_bytes > max_output:
             return footer[:max_output]
 
@@ -355,6 +364,505 @@ class FileFormat:
             out_bytes -= len(removed.encode("utf-8", errors="ignore"))
 
         return "".join(out_parts) + footer
+
+
+class InteractionKind(str, Enum):
+    READ = "read"
+    MATCH = "match"
+
+
+class CoverageFilter(str, Enum):
+    ANY = "any"
+    READ_ONLY = "read_only"
+    MATCH_ONLY = "match_only"
+    READ_AND_MATCH = "read_and_match"
+
+
+@dataclass(slots=True)
+class FileCoverageEntry:
+    path: str
+    read_count: int = 0
+    match_count: int = 0
+    operations: dict[str, int] = field(default_factory=dict)
+
+    def touch(self, operation: str, *, interaction: InteractionKind) -> None:
+        self.operations[operation] = self.operations.get(operation, 0) + 1
+
+        if interaction == InteractionKind.READ:
+            self.read_count += 1
+        elif interaction == InteractionKind.MATCH:
+            self.match_count += 1
+
+    @property
+    def has_read(self) -> bool:
+        return self.read_count > 0
+
+    @property
+    def has_match(self) -> bool:
+        return self.match_count > 0
+
+    @property
+    def is_covered(self) -> bool:
+        return self.has_read or self.has_match
+
+    def matches_filter(self, flt: CoverageFilter) -> bool:
+        if flt == CoverageFilter.ANY:
+            return self.is_covered
+        if flt == CoverageFilter.READ_ONLY:
+            return self.has_read and not self.has_match
+        if flt == CoverageFilter.MATCH_ONLY:
+            return self.has_match and not self.has_read
+        if flt == CoverageFilter.READ_AND_MATCH:
+            return self.has_read and self.has_match
+        return False
+
+
+class FsspecCoverageFileTools:
+    def __init__(
+        self,
+        fs: fsspec.AbstractFileSystem,
+        fmt: FileFormat,
+        *,
+        max_output: int = 8 * 10**4,
+        max_items: int = 300,
+        ignored_patterns: Optional[list[str]] = None,
+        with_types: bool = True,
+        with_file_info: bool = True,
+    ) -> None:
+        self.fs = fs
+        self.fmt = fmt
+        self.max_output = max_output
+        self.max_items = max_items
+        self.with_types = with_types
+        self.with_file_info = with_file_info
+
+        self.fmt.with_types = with_types
+        self.fmt.with_file_info = with_file_info
+
+        self._coverage: dict[str, FileCoverageEntry] = {}
+
+        patterns: list[str] = []
+        for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
+            if pattern and pattern not in patterns:
+                patterns.append(pattern)
+        self.patterns = patterns
+
+    def _norm(self, path: Optional[str]) -> Optional[str]:
+        return _norm_unicode(path)
+
+    def _is_ignored(self, path: str) -> bool:
+        return _is_ignored(path, self.patterns)
+
+    def _paginate(
+        self,
+        items: list[str],
+        *,
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> tuple[list[str], int, int]:
+        offset = max(0, offset)
+        resolved_limit = self.max_items if limit is None else max(1, limit)
+        return items[offset : offset + resolved_limit], offset, resolved_limit
+
+    def _read_text(
+        self,
+        file_path: str,
+        *,
+        operation: str,
+        interaction: InteractionKind,
+    ) -> str:
+        content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
+        self.mark_interaction(file_path, operation, interaction=interaction)
+        return content
+
+    def _iter_all_files(self, root: str) -> list[str]:
+        files: list[str] = []
+
+        if not self.fs.exists(root):
+            return files
+
+        if self.fs.isfile(root):
+            if not self._is_ignored(root):
+                files.append(root)
+            return sorted(set(files))
+
+        for current_path, _dirs, filenames in self.fs.walk(root):
+            for filename in filenames:
+                full_path = (
+                    str(current_path).rstrip("/") + "/" + str(filename)
+                ).replace("\\", "/")
+                if self._is_ignored(full_path):
+                    continue
+                if self.fs.isfile(full_path):
+                    files.append(full_path)
+
+        return sorted(set(files))
+
+    def _match_glob(self, file_path: str, root: str, pattern: str) -> bool:
+        file_path = _normalize_slashes(file_path)
+        root = _normalize_slashes(root).rstrip("/") or "/"
+        pattern = _normalize_slashes(pattern)
+
+        if pattern == "**/*":
+            return True
+
+        if root == "/":
+            relative = file_path.lstrip("/")
+        else:
+            prefix = root + "/"
+            relative = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+
+        return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
+
+    def _matched_files(self, path: str, pattern: str) -> list[str]:
+        return [file_path for file_path in self._iter_all_files(path) if self._match_glob(file_path, path, pattern)]
+
+    def _coverage_entry(self, path: str) -> Optional[FileCoverageEntry]:
+        return self._coverage.get(path)
+
+    def _is_covered_path(self, path: str) -> bool:
+        entry = self._coverage_entry(path)
+        return bool(entry and entry.is_covered)
+
+    def _covered_files(
+        self,
+        files: Iterable[str],
+        *,
+        interaction: CoverageFilter = CoverageFilter.ANY,
+    ) -> list[str]:
+        selected: list[str] = []
+        for path in files:
+            entry = self._coverage_entry(path)
+            if entry is not None and entry.matches_filter(interaction):
+                selected.append(path)
+        return sorted(selected)
+
+    def _uncovered_files(self, files: Iterable[str]) -> list[str]:
+        return sorted(path for path in files if not self._is_covered_path(path))
+
+    def _serialize_coverage_entry(self, path: str) -> dict[str, Any]:
+        entry = self._coverage_entry(path)
+        if entry is None:
+            return {
+                "path": path,
+                "has_read": False,
+                "has_match": False,
+                "read_count": 0,
+                "match_count": 0,
+                "operations": {},
+            }
+
+        return {
+            "path": path,
+            "has_read": entry.has_read,
+            "has_match": entry.has_match,
+            "read_count": entry.read_count,
+            "match_count": entry.match_count,
+            "operations": dict(entry.operations),
+        }
+
+    def mark_interaction(
+        self,
+        path: str,
+        operation: str,
+        *,
+        interaction: InteractionKind,
+    ) -> None:
+        entry = self._coverage.get(path)
+        if entry is None:
+            entry = FileCoverageEntry(path=path)
+            self._coverage[path] = entry
+
+        entry.touch(operation, interaction=interaction)
+
+    def reset_coverage(self) -> None:
+        self._coverage.clear()
+
+    def get_coverage(self) -> dict[str, Any]:
+        return {
+            "files_seen": len(self._coverage),
+            "files": {
+                path: {
+                    "read_count": entry.read_count,
+                    "match_count": entry.match_count,
+                    "has_read": entry.has_read,
+                    "has_match": entry.has_match,
+                    "operations": dict(entry.operations),
+                }
+                for path, entry in sorted(self._coverage.items())
+            },
+        }
+
+    def ls(self, path: str) -> dict[str, Any]:
+        normalized_path = self._norm(path)
+        if normalized_path is None or not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        try:
+            items = self.fs.ls(normalized_path, detail=False)
+        except TypeError:
+            items = self.fs.ls(normalized_path)
+
+        entries = [
+            FsEntry.from_path(str(item), self.fs, with_types=self.with_types)
+            for item in items
+            if not self._is_ignored(str(item))
+        ]
+        return {"result": self.fmt.format_file_list(entries)}
+
+    def glob(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        normalized_path = self._norm(path) or "/"
+        normalized_pattern = self._norm(pattern)
+
+        if normalized_pattern is None:
+            return {"result": [], "offset": offset, "total_items": 0, "limit": self.max_items}
+
+        if normalized_path and not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        matches = [str(match) for match in self.fs.glob(normalized_pattern)]
+
+        prefix = normalized_path.rstrip("/").replace("\\", "/") + "/"
+        if normalized_path != "/":
+            matches = [
+                match
+                for match in matches
+                if match.replace("\\", "/").startswith(prefix)
+            ]
+
+        entries = [
+            FsEntry.from_path(match, self.fs, with_types=self.with_types)
+            for match in matches
+            if not self._is_ignored(match)
+        ]
+        entries = [entry for entry in entries if entry is not None]
+        entries.sort(key=lambda entry: entry.path)
+
+        total = len(entries)
+        paged = entries[offset : offset + self.max_items]
+
+        return {
+            "result": self.fmt.format_file_list(paged),
+            "offset": offset,
+            "total_items": total,
+            "limit": self.max_items,
+        }
+
+    def read_file(
+        self,
+        file_path: str,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        normalized_file = self._norm(file_path)
+        if normalized_file is None or not self.fs.exists(normalized_file) or self._is_ignored(normalized_file):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_file)}
+        if not self.fs.isfile(normalized_file):
+            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_file)}
+
+        try:
+            content = self._read_text(
+                normalized_file,
+                operation="read_file",
+                interaction=InteractionKind.READ,
+            )
+        except Exception:
+            return {"result": ""}
+
+        lines = content.splitlines()
+
+        if offset is not None:
+            offset = max(0, offset)
+            if offset >= len(lines):
+                return {"result": ""}
+            lines = lines[offset:]
+
+        if limit is not None:
+            lines = lines[: max(1, limit)]
+
+        sliced = "\n".join(lines)
+        return {"result": self.fmt.format_output(sliced, self.max_output)}
+
+    def grep(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        normalized_path = self._norm(path) or "/"
+        normalized_pattern = self._norm(pattern)
+
+        try:
+            regex = re.compile(normalized_pattern or "")
+        except re.error as err:
+            return {
+                "error": INCORRECT_REGEXP_ERROR.format(
+                    regex=normalized_pattern,
+                    err=str(err),
+                )
+            }
+
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        def build_entries_for_file(file_path: str) -> list[FsEntry]:
+            if self._is_ignored(file_path):
+                return []
+
+            try:
+                content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
+            except Exception:
+                return []
+
+            matches = list(regex.finditer(content))
+            if matches:
+                self.mark_interaction(
+                    file_path,
+                    "grep",
+                    interaction=InteractionKind.MATCH,
+                )
+
+            return (
+                FsEntry.from_matches(
+                    matches=matches,
+                    file_path=file_path,
+                    fs=self.fs,
+                    content=content,
+                    with_types=self.with_types,
+                )
+                or []
+            )
+
+        if self.fs.isfile(normalized_path):
+            entries = build_entries_for_file(normalized_path)
+            total = len(entries)
+            paged = entries[offset : offset + self.max_items]
+
+            return {
+                "result": self.fmt.format_file_list(paged),
+                "offset": offset,
+                "total_items": total,
+                "limit": self.max_items,
+            }
+
+        results: list[FsEntry] = []
+        for current_path, _dirs, filenames in self.fs.walk(normalized_path):
+            for filename in filenames:
+                full_path = (
+                    str(current_path).rstrip("/") + "/" + str(filename)
+                ).replace("\\", "/")
+                results.extend(build_entries_for_file(full_path))
+
+        results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
+        total = len(results)
+        paged = results[offset : offset + self.max_items]
+
+        return {
+            "result": self.fmt.format_file_list(paged),
+            "offset": offset,
+            "total_items": total,
+            "limit": self.max_items,
+        }
+
+    def coverage_stats(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+    ) -> dict[str, Any]:
+        normalized_path = self._norm(path) or "/"
+        normalized_pattern = self._norm(pattern) or "**/*"
+
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        files = self._matched_files(normalized_path, normalized_pattern)
+        covered_files = self._covered_files(files)
+        uncovered_files = self._uncovered_files(files)
+
+        total = len(files)
+        covered = len(covered_files)
+        uncovered = len(uncovered_files)
+        coverage_percent = round((covered / total) * 100, 2) if total else 100.0
+
+        return {
+            "result": {
+                "path": normalized_path,
+                "pattern": normalized_pattern,
+                "total_files": total,
+                "covered_files_count": covered,
+                "uncovered_files_count": uncovered,
+                "coverage_percent": coverage_percent,
+            }
+        }
+
+    def covered(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        interaction: CoverageFilter = CoverageFilter.ANY,
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        normalized_path = self._norm(path) or "/"
+        normalized_pattern = self._norm(pattern) or "**/*"
+
+        if isinstance(interaction, str):
+            interaction = CoverageFilter(interaction)
+
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        files = self._matched_files(normalized_path, normalized_pattern)
+        selected = self._covered_files(files, interaction=interaction)
+        page, resolved_offset, resolved_limit = self._paginate(
+            selected,
+            offset=offset,
+            limit=limit,
+        )
+
+        return {
+            "result": [self._serialize_coverage_entry(path) for path in page],
+            "offset": resolved_offset,
+            "total_items": len(selected),
+            "limit": resolved_limit,
+            "interaction": interaction.value,
+        }
+
+    def uncovered(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        normalized_path = self._norm(path) or "/"
+        normalized_pattern = self._norm(pattern) or "**/*"
+
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+
+        files = self._matched_files(normalized_path, normalized_pattern)
+        selected = self._uncovered_files(files)
+        page, resolved_offset, resolved_limit = self._paginate(
+            selected,
+            offset=offset,
+            limit=limit,
+        )
+
+        return {
+            "result": [{"path": path} for path in page],
+            "offset": resolved_offset,
+            "total_items": len(selected),
+            "limit": resolved_limit,
+        }
 
 
 def file_tools(
@@ -366,192 +874,55 @@ def file_tools(
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
-) -> dict[str, Any]:
+) -> list[Callable[..., dict[str, Any]]]:
     """
-    Returns a registry of tools:
+    Return a registry of filesystem tools:
       - ls(path)
-      - glob(pattern, path=None)
+      - glob(pattern, path=None, offset=0)
       - read_file(file, offset=None, limit=None)
-      - grep(pattern, path=None)
-
-    The implementation is filesystem-backend agnostic via fsspec.
+      - grep(pattern, path=None, offset=0)
     """
-    fmt.with_types = with_types
-    fmt.with_file_info = with_file_info
 
-    patterns = []
-    for pat in _IGNORE_DEFAULTS + (ignored_patterns or []):
-        if pat and pat not in patterns:
-            patterns.append(pat)
+    tools = FsspecCoverageFileTools(
+        fs=fs,
+        fmt=fmt,
+        max_output=max_output,
+        max_items=max_items,
+        ignored_patterns=ignored_patterns,
+        with_types=with_types,
+        with_file_info=with_file_info,
+    )
 
     def ls(path: str) -> dict[str, Any]:
-        path = _norm_unicode(path)
-
-        if not fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-        try:
-            items = fs.ls(path, detail=False)
-        except TypeError:
-            items = fs.ls(path)
-
-        res = [
-            FsEntry.from_path(str(p), fs, with_types=with_types)
-            for p in items
-            if not _is_ignored(str(p), patterns)
-        ]
-        return {"result": fmt.format_file_list(res)}
+        """List files in the given path."""
+        return tools.ls(path=path)
 
     def glob(
-        pattern: str, path: Optional[str] = None, offset: int = 0
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
     ) -> dict[str, Any]:
-        if path is None:
-            path = "/"
-
-        path = _norm_unicode(path)
-        pattern = _norm_unicode(pattern)
-
-        if path and not fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-
-        matches = [str(p) for p in fs.glob(pattern)]
-        if path:
-            prefix = path.rstrip("/").replace("\\", "/") + "/"
-            matches = [m for m in matches if m.replace("\\", "/").startswith(prefix)]
-
-        res = [
-            FsEntry.from_path(p, fs, with_types=with_types)
-            for p in matches
-            if not _is_ignored(p, patterns)
-        ]
-
-        total = len(res)
-        res = sorted(res, key=lambda e: e.path)
-        res = res[offset : offset + max_items]
-
-        return {
-            "result": fmt.format_file_list(res),
-            "offset": offset,
-            "total_items": total,
-            "limit": max_items,
-        }
+        """Glob files by pattern."""
+        return tools.glob(pattern=pattern, path=path, offset=offset)
 
     def read_file(
-        file: str, offset: Optional[int] = None, limit: Optional[int] = None
+        file: str,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
     ) -> dict[str, Any]:
-        file = _norm_unicode(file)
-
-        if not fs.exists(file) or _is_ignored(file, patterns):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=file)}
-        if not fs.isfile(file):
-            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=file)}
-
-        try:
-            content = fs.read_text(file, encoding="utf-8", errors="ignore")
-        except Exception:
-            return {"result": ""}
-
-        lines = content.splitlines()
-        if offset is not None:
-            offset = max(0, offset)
-            if offset >= len(lines):
-                return {"result": ""}
-            lines = lines[offset:]
-        if limit is not None:
-            limit = max(1, limit)
-            lines = lines[:limit]
-
-        sliced = "\n".join(lines)
-        return {"result": fmt.format_output(sliced, max_output)}
+        """Read a text file."""
+        return tools.read_file(file_path=file, offset=offset, limit=limit)
 
     def grep(
-        pattern: str, path: Optional[str] = None, offset: int = 0
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
     ) -> dict[str, Any]:
         """
         Regex search across a file or directory tree.
-        Args:
-            pattern: The regex pattern to search for.
-            path: The path to search in. If None, search the current directory.
-        Returns one FsEntry per match, with loc describing where it matched.
+        Returns one FsEntry per match, with location metadata.
         """
-        if path is None:
-            path = "/"
-
-        path = _norm_unicode(path)
-        pattern = _norm_unicode(pattern)
-
-        try:
-            regex = re.compile(pattern)
-        except re.error as err:
-            return {"error": INCORRECT_REGEXP_ERROR.format(regex=pattern, err=str(err))}
-
-        target = path or "."
-        if not fs.exists(target):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=target)}
-
-        # Search a single file
-        if fs.isfile(target):
-            if _is_ignored(target, patterns):
-                return {"result": []}
-            try:
-                content = fs.read_text(target, encoding="utf-8", errors="ignore")
-            except Exception as exc:
-                return {"error": str(exc)}
-
-            matches = list(regex.finditer(content))
-            entries = FsEntry.from_matches(
-                matches=matches,
-                file=target,
-                fs=fs,
-                content=content,
-                with_types=with_types,
-            )
-
-            total = len(entries)
-            if offset:
-                entries = entries[offset : offset + max_items]
-
-            return {
-                "result": fmt.format_file_list(entries or []),
-                "offset": offset,
-                "total_items": total,
-                "limit": max_items,
-            }
-
-        # Walk a directory tree
-        results: list[FsEntry] = []
-        for current_path, _dirs, files in fs.walk(target):
-            for fname in files:
-                full_path = (str(current_path).rstrip("/") + "/" + str(fname)).replace(
-                    "\\", "/"
-                )
-                if _is_ignored(full_path, patterns):
-                    continue
-                try:
-                    content = fs.read_text(full_path, encoding="utf-8", errors="ignore")
-                except Exception:
-                    continue
-
-                matches = list(regex.finditer(content))
-                entries = FsEntry.from_matches(
-                    matches=matches,
-                    file=full_path,
-                    fs=fs,
-                    content=content,
-                    with_types=with_types,
-                )
-                if entries:
-                    results.extend(entries)
-
-        total = len(results)
-        results = sorted(results, key=lambda x: (x.path, x.loc.line_start or 0))
-        results = results[offset : offset + max_items]
-
-        return {
-            "result": fmt.format_file_list(results),
-            "offset": offset,
-            "total_items": total,
-            "limit": max_items,
-        }
+        return tools.grep(pattern=pattern, path=path, offset=offset)
 
     return [ls, glob, read_file, grep]
 
@@ -559,63 +930,59 @@ def file_tools(
 class RootedLocalFileSystem(LocalFileSystem):
     """
     Local filesystem sandboxed to root_path.
-    Forbidden paths are treated as non-existent (silent sandbox).
+    Forbidden paths are treated as non-existent.
     """
 
-    def __init__(self, root_path: str, *args, **kwargs):
+    def __init__(self, root_path: str, *args: Any, **kwargs: Any) -> None:
         self.root_path = os.path.realpath(stringify_path(root_path))
         if not os.path.isdir(self.root_path):
             raise ValueError(f"root_path is not a directory: {root_path}")
 
-        # guaranteed non-existent path inside root
         self._blocked_path = os.path.join(self.root_path, ".__blocked__")
-
         super().__init__(*args, **kwargs)
 
-    def ls(self, path: str = "", detail: bool = False, **kwargs):
+    def ls(self, path: str = "", detail: bool = False, **kwargs: Any):
         path = "" if path in (None, "/", "") else path
         host_path = self._strip_protocol(path)
 
         if host_path == self._blocked_path:
-            return [] if not detail else []
+            return []
 
         try:
             entries = super().ls(host_path, detail=True, **kwargs)
         except FileNotFoundError:
-            return [] if not detail else []
+            return []
 
-        out = []
-        for e in entries:
-            host_name = e["name"]
-
+        result = []
+        for entry in entries:
+            host_name = entry["name"]
             real = os.path.realpath(host_name)
+
             if not (real == self.root_path or real.startswith(self.root_path + os.sep)):
                 continue
 
-            rel = os.path.relpath(real, self.root_path)
-            virt = "/" if rel == "." else "/" + rel.replace(os.sep, "/")
+            relative = os.path.relpath(real, self.root_path)
+            virtual = "/" if relative == "." else "/" + relative.replace(os.sep, "/")
 
             if detail:
-                e = e.copy()
-                e["name"] = virt
-                out.append(e)
+                normalized_entry = entry.copy()
+                normalized_entry["name"] = virtual
+                result.append(normalized_entry)
             else:
-                out.append(virt)
+                result.append(virtual)
 
-        return out
+        return result
 
-    def glob(self, pattern: str, **kwargs):
+    def glob(self, pattern: str, **kwargs: Any):
         """
         Sandbox-safe glob with Python-like semantics.
-        Returns virtual paths: "/file.txt", "/dir/inner.txt"
+        Returns virtual paths like /file.txt, /dir/inner.txt.
         """
         if not pattern:
             return []
 
-        # Normalize
-        pattern = _norm_unicode(pattern.lstrip("/"))
+        pattern = _norm_unicode(pattern.lstrip("/")) or ""
 
-        # Parent traversal is forbidden
         if ".." in pattern.split("/"):
             return []
 
@@ -633,7 +1000,9 @@ class RootedLocalFileSystem(LocalFileSystem):
 
         for host_root, dirs, files in walker:
             dirs[:] = [
-                d for d in dirs if not os.path.islink(os.path.join(host_root, d))
+                directory
+                for directory in dirs
+                if not os.path.islink(os.path.join(host_root, directory))
             ]
 
             rel_root = os.path.relpath(host_root, self.root_path)
@@ -641,14 +1010,18 @@ class RootedLocalFileSystem(LocalFileSystem):
                 rel_root = ""
 
             for name in files:
-                name = _norm_unicode(name)
-                host_path = os.path.join(host_root, name)
+                normalized_name = _norm_unicode(name) or name
+                host_path = os.path.join(host_root, normalized_name)
 
                 if os.path.islink(host_path):
                     continue
 
-                rel_path = os.path.join(rel_root, name) if rel_root else name
-                rel_path = _norm_unicode(rel_path.replace(os.sep, "/"))
+                rel_path = (
+                    os.path.join(rel_root, normalized_name)
+                    if rel_root
+                    else normalized_name
+                )
+                rel_path = (_norm_unicode(rel_path.replace(os.sep, "/")) or rel_path)
 
                 if fnmatch.fnmatch(rel_path, pattern):
                     matches.append("/" + rel_path)
@@ -656,8 +1029,8 @@ class RootedLocalFileSystem(LocalFileSystem):
 
                 if recursive and "/" not in rel_path:
                     tail = pattern.split("/")[-1]
-                    if fnmatch.fnmatch(name, tail):
-                        matches.append("/" + name)
+                    if fnmatch.fnmatch(normalized_name, tail):
+                        matches.append("/" + normalized_name)
 
         return sorted(set(matches))
 
@@ -668,7 +1041,7 @@ class RootedLocalFileSystem(LocalFileSystem):
             path = path[7:]
 
         # If path already points inside root_path → accept as-is
-        real = os.path.abspath(path)
+        real = os.path.realpath(path)
         if real == self.root_path or real.startswith(self.root_path + os.sep):
             return real
 
@@ -679,8 +1052,9 @@ class RootedLocalFileSystem(LocalFileSystem):
             candidate = os.path.join(self.root_path, path.lstrip("/"))
 
         candidate = os.path.abspath(os.path.normpath(candidate))
+        resolved = os.path.realpath(candidate)
 
-        if candidate == self.root_path or candidate.startswith(self.root_path + os.sep):
+        if resolved == self.root_path or resolved.startswith(self.root_path + os.sep):
             return candidate
 
         # Escape attempt → silent block
