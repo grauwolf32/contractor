@@ -475,8 +475,21 @@ class SubtaskFormatter:
         return None
 
     @staticmethod
+    def _extract_nested_result_xml(text: str) -> Optional[str]:
+        m = re.search(r"(<result\b.*?</result>)", text, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1).strip()
+
+        return None
+
+
+    @staticmethod
     def _parse_subtask_result_xml(output: str) -> Optional[SubtaskExecutionResult]:
         output = output.strip()
+        if not output:
+            return None
+
+        output = SubtaskFormatter._extract_nested_result_xml(output)
         if not output:
             return None
 
@@ -503,8 +516,22 @@ class SubtaskFormatter:
             return SubtaskFormatter._validate_result_payload(payload)
 
         return None
+    
+    @staticmethod
+    def _sanitize_llm_output(text: str) -> str:
+        text = text.strip()
+
+        # Убираем случайные think-теги
+        text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
+
+        # Убираем обрамляющие кавычки вокруг всего payload
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+            text = text[1:-1].strip()
+
+        return text
 
     def parse_subtask_result(self, output: str) -> Optional[SubtaskExecutionResult]:
+        output = SubtaskFormatter._sanitize_llm_output(output)
         output = output.strip()
         if not output:
             return None
@@ -579,11 +606,14 @@ class StreamlineManager:
 
     def _current_idx(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::idx"
-
+    
     @staticmethod
-    def _global_pool_key(ctx: ToolContext | CallbackContext) -> str:
+    def _global_keys(ctx: ToolContext | CallbackContext, key:Literal["", "pool", "summary", "result", "status"]) -> str:
         global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY) or 0
-        return f"task::{global_task_id}::pool"
+        if key == "":
+            return f"task::{global_task_id}"
+        return f"task::{global_task_id}::{key}"
+
 
     @staticmethod
     def _next_task_id(subtasks) -> str:
@@ -642,8 +672,9 @@ class StreamlineManager:
         self,
         ctx: ToolContext | CallbackContext,
     ) -> list[dict[str, Any]]:
-        ctx.state.setdefault(self._global_pool_key(ctx), [])
-        records: list[dict[str, Any]] = ctx.state[self._global_pool_key(ctx)]
+        pool_key = self._global_keys(ctx, "pool")
+        ctx.state.setdefault(pool_key, [])
+        records: list[dict[str, Any]] = ctx.state[pool_key]
         return records
 
     def save_record(
@@ -653,7 +684,8 @@ class StreamlineManager:
     ):
         records = self.get_records(ctx)
         records.append(record)
-        ctx.state[self._global_pool_key(ctx)] = records
+        pool_key = self._global_keys(ctx, "pool")
+        ctx.state[pool_key] = records
         return
 
     def skip(
@@ -710,8 +742,17 @@ class StreamlineManager:
         ctx.state[self._current_idx(ctx)] = idx + 1
         return insertion
 
+    def finish(self, status: str, result: str, summary:str, ctx: ToolContext | CallbackContext):
+        result_key = self._global_keys(ctx, "result")
+        summary_key = self._global_keys(ctx, "summary")
+        status_key = self._global_keys(ctx, "status")
+        ctx.state[result_key] = result
+        ctx.state[summary_key] = summary
+        ctx.state[status_key] = status
+        return
 
-SUBTASK_PLANNING_PROMPT = """
+
+SUBTASK_PLANNING_PROMPT: Final[str] = """
 SUBTASK PLANNING WORKFLOW
 
 You are a task-planning agent responsible for coordinating multi-step work through explicit subtasks.
@@ -837,6 +878,16 @@ Rule 5: Completion Rules
 - execute_current_subtask
 - decompose_subtask
 - skip 
+""".strip()
+
+TASK_RESULT_SUMMARIZATION_INSTRUCTIONS: Final[str] = """
+OBJECTIVE:
+Analyze the task objective, execution records, final result, and final status.
+Provide a detailed summary that explains the goal of the task, the main actions taken, the outcome, and the final status.
+Include any important notes, warnings, blockers, or other relevant observations if present.
+
+OUTPUT FORMAT:
+Detailed summary
 """.strip()
 
 
@@ -1143,6 +1194,52 @@ def task_tools(
 
         return result
 
+    async def finish(status: Literal["done", "failed"], result: str, tool_context: ToolContext)->dict[str, Any]:
+        """
+        Finalize the overall task and report the final outcome.
+
+        Args:
+            status: Final task status. Must be either "done" or "failed".
+            result: A detailed description of the outcome, including what was completed,
+                what failed, and any important context.
+
+        Behavior:
+            - Always report the final global task status before exiting.
+            - Use "done" only if the global objective has been fully completed.
+            - Use "failed" only if the global objective cannot be completed.
+
+        Prefer this tool when:
+            - You have fully achieved the global goal.
+            - You have definitively failed to achieve the global goal.
+            - You have completed all planned work and there is nothing left to do.
+        """
+
+        tools: list[Callable] = []
+        model: LiteLlm| None = None
+        
+        summarizer:LlmAgent = LlmAgent(
+            name="task_summarizer",
+            description="text summarization agent",
+            instructions=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
+            tools=worker.agent.tools,
+            model=worker.agent.model,
+        )
+
+        objective_key: str = mgr._global_keys(tool_context, "objective")
+        objective: str = tool_context.state.get(objective_key, "")
+
+        args = {
+            "objective": objective,
+            "records" : mgr.get_records(tool_context),
+            "result" : result,
+            "status" : status.lower() if status.lower() == "done" else "failed",
+        }
+
+        summarizer_tool: AgentTool(summarizer)
+        raw = await summarizer_tool.run_async(args=args, tool_context=tool_context)
+        mgr.finish(status=status, result=result, summary=summary, ctx=tool_context)
+        return {"result": "ok"}
+
     tools = [
         add_subtask,
         get_current_subtask,
@@ -1150,6 +1247,7 @@ def task_tools(
         get_records,
         execute_current_subtask,
         decompose_subtask,
+        finish,
     ]
     if use_skip:
         tools.append(skip)

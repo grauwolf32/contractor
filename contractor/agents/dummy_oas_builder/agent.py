@@ -88,7 +88,7 @@ DUMMY_MODEL = LiteLlm(
 )
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "cloud"
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "java"
 )
 
 sandbox = PodmanContainer(
@@ -119,7 +119,7 @@ def default_tool(meta: dict[str, Any]) -> dict:
 
 
 mem_tools = memory_tools("swe")
-fs_tools = file_tools(fs, fmt=FileFormat("json"))
+fs_tools = file_tools(fs=fs, fmt=FileFormat(_format="xml"))
 oas_tools = openapi_tools("playground")
 
 tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
@@ -144,7 +144,7 @@ dummy_swe = LlmAgent(
     **callback_adapter(),
 )
 
-fmt = SubtaskFormatter("xml")
+fmt = SubtaskFormatter(_format="xml")
 planning_tools = task_tools(
     name="dummy_planner",
     max_tasks=15,
