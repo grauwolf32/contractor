@@ -108,8 +108,8 @@ def save_vulnerability(
             parameters=parameters,
             vulnerability=vulnerability,
             description=description,
-            severity=severity,
-            confidence=confidence,
+            severity=severity.lower(),
+            confidence=confidence.lower(),
             tag=tag,
         ).model_dump()
     )

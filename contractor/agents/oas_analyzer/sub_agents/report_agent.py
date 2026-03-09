@@ -148,7 +148,7 @@ class ReportAgent(BaseAgent):
             role="system",
         )
 
-        ctx.artifact_service.save_artifact(
+        await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,
             user_id=ctx.user_id,
             filename="oas_vulnerabilities.md",
