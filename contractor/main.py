@@ -1,16 +1,16 @@
-import json
 import argparse
 import asyncio
+import json
 import logging
-
-from pathlib import Path
 from functools import partial
-from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
-from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.tools.fs import RootedLocalFileSystem
-from contractor.utils.formatting import make_jsonable, handle_event
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+from contractor.agents.swe_agent.agent import build_swe_agent
+from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
+from contractor.tools.fs import RootedLocalFileSystem
+from contractor.utils.formatting import handle_event, make_jsonable
 
 load_dotenv()
 

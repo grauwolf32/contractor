@@ -1,9 +1,9 @@
 import os
-import yaml
-
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from dataclasses import dataclass
+
+import yaml
 
 TASKS_BASE_DIR = Path(__file__).parent.parent / "tasks"
 

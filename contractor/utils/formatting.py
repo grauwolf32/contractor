@@ -1,7 +1,7 @@
-import sys
 import json
-from typing import Any
+import sys
 from textwrap import indent
+from typing import Any
 
 
 def make_jsonable(value):
