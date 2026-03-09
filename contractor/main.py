@@ -1,6 +1,42 @@
 import json
+import argparse
+import asyncio
+import logging
 
+from pathlib import Path
+from functools import partial
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
+from contractor.agents.swe_agent.agent import build_swe_agent
+from contractor.tools.fs import RootedLocalFileSystem
+from contractor.utils.formatting import make_jsonable, handle_event
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def turn_off_logger():
+    names = [
+        "httpcore",
+        "fsspec",
+        "google_adk",
+        "google_genai",
+        "openai",
+        "litellm",
+        "LiteLLM",
+        "asyncio",
+    ]
+    for name in names:
+        logging.getLogger(name).setLevel(logging.CRITICAL)
+
+
+turn_off_logger()
+
+# Базовый уровень для твоего приложения
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -10,10 +46,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "project_path",
+        "--project-path",
         type=Path,
         help="Path to the project directory",
     )
+    parser.add_argument("--folder-name", type=str, default="/")
     parser.add_argument(
         "--user-id",
         default="cli-user",
@@ -23,49 +60,28 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def handle_event(event: TaskRunnerEvent) -> None:
-    if event.type == "task_started":
-        print(f"START TASK: {event.task_id} / {event.task_name}")
+def oas_builder(project_path: str, folder_name: str) -> TaskRunner:
+    runner = TaskRunner(name="oas_builder")
+    fs = RootedLocalFileSystem(root_path=project_path)
 
-    elif event.type == "tool_call":
-        print(f"[tool] {event.payload['tool_name']}")
-        print(json.dumps(event.payload["tool_args"], ensure_ascii=False, indent=2))
-
-    elif event.type == "final_text":
-        print(f"[final-text] {event.task_name}")
-        print(event.payload["text"])
-
-    elif event.type == "iteration_result":
-        print(
-            json.dumps(
-                {
-                    "task": event.task_name,
-                    "iteration": event.payload["iteration"],
-                    "status": event.payload["status"],
-                    "completed": event.payload["completed"],
-                    "summary": event.payload["summary"],
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-
-    elif event.type == "global_task_finished":
-        print(f"END TASK: {event.task_name}")
-        print(event.payload["summary"])
-
-
-def get_oas_builder(project_path: str) -> TaskRunner:
-    runner = TaskRunner(name="contractor")
-    runner.add_task("dependency_information")
+    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
+    runner.add_variable(name="project_path", value=folder_name)
+    runner.add_task(
+        name="dependency_information", worker_builder=swe_builder, max_iterations=3
+    )
+    return runner
 
 
 async def async_main():
+    args = parse_args()
+    runner = oas_builder(project_path=args.project_path, folder_name=args.folder_name)
+
     results = await runner.run(
         user_id="cli-user",
         on_event=handle_event,
     )
 
+    results = make_jsonable(results)
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
 

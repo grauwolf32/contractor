@@ -15,6 +15,7 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
+from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
     SUBTASK_PLANNING_PROMPT,
@@ -27,7 +28,7 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
-SWE_PROMPT: Final[str] = (
+OAS_PROMPT: Final[str] = (
     "You are a professional, helpful Software Engineer (SWE) agent.\n"
     "You must complete the currently assigned subtask to the best of your ability.\n"
     "\n"
@@ -37,6 +38,7 @@ SWE_PROMPT: Final[str] = (
     "- Use the coverage-related tools to monitor exploration progress and find gaps.\n"
     "- Prefer small, safe, verifiable steps. If something is unclear, infer reasonable defaults and proceed.\n"
     "- Do not stop early: keep working until the subtask is completed or you are blocked by missing inputs.\n"
+    "- Use only openapi tools to build openapi schema\n"
     "- When blocked, report what you tried, what failed, and the smallest concrete next step.\n"
     "\n"
     "TOOLS:\n"
@@ -52,6 +54,21 @@ SWE_PROMPT: Final[str] = (
     "- write_memory: write the memory to the memory store.\n"
     "- list_memories: list all the memories in the memory store.\n"
     "- list_tags: list all the tags in the memory store.\n"
+    "OPENAPI TOOLS:\n"
+    "- list_paths: List all API paths defined in the OpenAPI specification.\n"
+    "- list_components: List all components available in the OpenAPI specification.\n"
+    "- list_servers: List all configured API servers.\n"
+    "- get_info: Retrieve general API metadata (title, version, description).\n"
+    "- get_path: Get details for a specific API path.\n"
+    "- get_component: Get details for a specific component.\n"
+    "- set_info: Update general API metadata (title, version, description).\n"
+    "- add_server: Add a new API server definition.\n"
+    "- upsert_path: Create or update an API path definition.\n"
+    "- upsert_component: Create or update a component definition.\n"
+    "- remove_server: Remove an API server definition.\n"
+    "- remove_path: Remove an API path definition.\n"
+    "- remove_component: Remove a component definition.\n"
+    "- get_full_openapi_schema: Retrieve the complete OpenAPI schema."
     "IMPORTANT: always write useful information to the memory\n"
     "\n"
 )
@@ -64,7 +81,7 @@ def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -
     )
 
 
-SWE_MODEL = LiteLlm(
+OAS_MODEL = LiteLlm(
     model="lm-studio-qwen3.5",
     timeout=300,
 )
@@ -82,7 +99,7 @@ def default_tool(meta: dict[str, Any]) -> dict:
     return {"error": f"tool {meta.get('func_name')} is not available!"}
 
 
-def build_swe_agent(
+def build_oas_builder_agent(
     name: str,
     fs,
     *,
@@ -93,8 +110,9 @@ def build_swe_agent(
 ):
     mem_tools = memory_tools(namespace)
     fs_tools = file_tools(fs, fmt=FileFormat(_format=format))
+    oas_tools = openapi_tools(name=namespace)
 
-    tools = [default_tool, *fs_tools, *mem_tools]
+    tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
 
     callback_adapter = CallbackAdapter(agent_name=name)
     callback_adapter.register(TokenUsageCallback())

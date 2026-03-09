@@ -872,6 +872,7 @@ Rule 5: Completion Rules
 6. Finalization policy
 - Before exiting, always report the final global task status.
 - The final outcome must be reported by calling the finish tool.
+- After calling finish tool, finish the execution
 
 --------------------------------------------------
 6. AGENT MINDSET
@@ -1242,14 +1243,14 @@ def task_tools(
         objective_key = StreamlineManager._global_keys(tool_context, "objective")
         objective = tool_context.state.get(objective_key, "")
 
-        args = {
-            "request": {
-                "objective": objective,
-                "records": mgr.get_records(tool_context),
-                "result": result,
-                "status": status,
-            }
+        payload = {
+            "objective": objective,
+            "records": mgr.get_records(tool_context),
+            "result": result,
+            "status": status,
         }
+
+        args = {"request": json.dumps(payload, ensure_ascii=False, indent=2)}
 
         summarizer_tool = AgentTool(summarizer)
         raw = await summarizer_tool.run_async(args=args, tool_context=tool_context)

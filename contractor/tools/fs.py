@@ -1168,7 +1168,7 @@ def file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that were already read by the agent.
+        List files that were already read during the task execution.
         A file is considered *covered* if read_file() was executed on it.
 
         Args:

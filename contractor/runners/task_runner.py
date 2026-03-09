@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Optional
 from uuid import uuid4
@@ -9,6 +10,8 @@ from google.adk.agents import LlmAgent
 from google.adk.events import Event
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import InMemoryArtifactService, BaseArtifactService
+from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import AgentTool
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -17,7 +20,21 @@ from contractor.models.task import Task
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import SubtaskFormatter, task_tools
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 _GLOBAL_TASK_ID_KEY = "_global_task_id"
+WorkerBuilder = Callable[..., LlmAgent | AgentTool]
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+PLANNER_MODEL = LiteLlm(
+    model="lm-studio-qwen3.5",
+    timeout=300,
+)
 
 
 @dataclass(slots=True)
@@ -40,20 +57,24 @@ class TaskRunner(BaseModel):
     tasks: dict[str, Task] = Field(default_factory=dict)
     queue: list[str] = Field(default_factory=list)
     task_agents: dict[str, LlmAgent] = Field(default_factory=dict)
-    variables: dict[str, Any] = Field(default_factory=dict)
+    variables: dict[str, str] = Field(default_factory=dict)
 
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
 
+    def add_variable(self, name: str, value: str):
+        self.variables[name] = value
+
     def add_task(
         self,
         name: str,
-        worker: LlmAgent | AgentTool,
         *,
+        worker_builder: WorkerBuilder,
         max_iterations: int = 1,
         max_steps: int = 15,
         namespace: Optional[str] = None,
+        model: Optional[LiteLlm] = None,
     ) -> None:
         task = Task.load(name, self.variables)
 
@@ -67,19 +88,25 @@ class TaskRunner(BaseModel):
         self.tasks[task_name] = task
         self.queue.append(task_name)
 
+        if namespace is None:
+            namespace = self.name
+
+        worker = worker_builder(namespace=namespace, _format=task._format)
         planner = self._spawn_planner_agent(
             task_name=task_name,
             task=task,
             worker=worker,
             max_steps=max_steps,
             namespace=namespace,
+            model=model if model else PLANNER_MODEL,
         )
+
         self.task_agents[task_name] = planner
 
     def _format_task(self, task: Task) -> str:
         return (
-            f"{task.instructions}\n\n"
             f"OBJECTIVE:\n{task.objective}\n\n"
+            f"INSTRUCTIONS:\n{task.instructions}\n\n"
             f"OUTPUT FORMAT:\n{task.output_format}"
         )
 
@@ -89,6 +116,7 @@ class TaskRunner(BaseModel):
         task: Task,
         worker: LlmAgent | AgentTool,
         *,
+        model: LiteLlm,
         max_steps: int = 15,
         namespace: Optional[str] = None,
     ) -> LlmAgent:
@@ -101,9 +129,6 @@ class TaskRunner(BaseModel):
             fmt=fmt,
             use_output_schema=False,
         )
-
-        if namespace is None:
-            namespace = self.name
 
         mem_tools = memory_tools(
             name=namespace,
@@ -118,6 +143,7 @@ class TaskRunner(BaseModel):
             description=f"Planner for global task {task_name}",
             instruction=instruction,
             tools=tools,
+            model=model,
         )
 
     async def _emit(

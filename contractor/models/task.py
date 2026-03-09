@@ -3,10 +3,12 @@ import yaml
 
 from pathlib import Path
 from typing import Any
+from dataclasses import dataclass
 
 TASKS_BASE_DIR = Path(__file__).parent.parent / "tasks"
 
 
+@dataclass
 class Task:
     name: str
     objective: str
