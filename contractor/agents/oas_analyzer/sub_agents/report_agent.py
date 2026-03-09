@@ -100,28 +100,28 @@ def format_service_information(service_information: dict) -> str:
     mermaid_diagram = extract_mermaid_diagram(service_information.diagram)
 
     return f"""
-    # Service Information
+# Service Information
 
-    ## Name
-    {service_information.name}
+## Name
+{service_information.name}
 
-    ## Description
-    {service_information.description}
+## Description
+{service_information.description}
 
-    ## Summary
-    {service_information.summary}
+## Summary
+{service_information.summary}
 
-    ## Diagram
-    ```mermaid
-    {mermaid_diagram}
-    ```
+## Diagram
+```mermaid
+{mermaid_diagram}
+```
 
-    ## Criticality
-    {service_information.criticality}
+## Criticality
+{service_information.criticality}
 
-    ## Criticality Reason
-    {service_information.criticality_reason}
-    """
+## Criticality Reason
+{service_information.criticality_reason}
+""".strip()
 
 
 class ReportAgent(BaseAgent):
@@ -143,10 +143,7 @@ class ReportAgent(BaseAgent):
             report += "\n\n"
             report += format_vulnerabilities(vulnerabilities)
 
-        content = types.Content(
-            parts=[types.Part.from_text(text=report)],
-            role="system",
-        )
+        content = types.Part.from_text(text=report)
 
         await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,
