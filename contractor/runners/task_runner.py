@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner

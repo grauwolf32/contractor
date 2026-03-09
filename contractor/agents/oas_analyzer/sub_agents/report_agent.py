@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import AsyncGenerator
 
@@ -10,7 +9,10 @@ from google.adk.events.event import Event
 from google.genai import types
 from typing_extensions import override
 
-from contractor.agents.oas_analyzer.models import EndpointVulnerability
+from contractor.agents.oas_analyzer.models import (
+    EndpointVulnerability,
+    ServiceBasicInfo,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -132,14 +134,10 @@ class ReportAgent(BaseAgent):
     async def _run_async_impl(
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
-        service_information = ctx.session.state.get("service_information")
-        vulnerabilities = ctx.session.state.get("vulnerabilities")
-        security_posture = ctx.session.state.get("security_posture")
+        service_information = ctx.session.state.get("oas_analyzer::service_information")
+        vulnerabilities = ctx.session.state.get("oas_analyzer::vulnerabilities", [])
 
         report = format_service_information(service_information)
-        if security_posture:
-            report += "\n"
-            report += security_posture
 
         if vulnerabilities:
             report += "\n\n"
@@ -150,8 +148,15 @@ class ReportAgent(BaseAgent):
             role="system",
         )
 
+        ctx.artifact_service.save_artifact(
+            app_name=ctx.app_name,
+            user_id=ctx.user_id,
+            filename="oas_vulnerabilities.md",
+            artifact=content,
+        )
+
         yield Event(
-            content=json.dumps(vulnerabilities),
+            content=content,
             turn_complete=True,
             invocation_id=ctx.invocation_id,
             author=self.name,

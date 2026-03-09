@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,9 +36,9 @@ class SectionPrompts:
 
     def format_task(self, task_description: TaskDescription) -> str:
         return (
-            "ROLE:\n{self.role}\n\n"
+            f"ROLE:\n{self.role}\n\n"
             f"{task_description.format()}"
-            "OUTPUT FORMAT:\n{self.fmt}\n\n"
+            f"OUTPUT FORMAT:\n{self.fmt}\n\n"
         )
 
     def format(self, name: str = "general") -> str:
@@ -57,5 +59,5 @@ class SectionPrompts:
         if role := raw.pop("role", DEFAULT_ROLE):
             self.role = role
 
-        self.tasks = {k: TaskDescription(**v) for k, v in raw.items}
+        self.tasks = {k: TaskDescription(**v) for k, v in raw.items()}
         return self

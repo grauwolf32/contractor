@@ -1,21 +1,24 @@
 from __future__ import annotations
 
+import os
 import logging
-from typing import Any, AsyncGenerator, Callable, Literal
+from dataclasses import dataclass
+from typing import AsyncGenerator, Callable, Literal, Optional
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
-from google.adk.models import LlmRequest
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from pydantic import BaseModel
 from typing_extensions import override
 
-from contractor.agents.oas_analyzer.models import EndpointVulnerabilityDescription
+from contractor.agents.oas_analyzer.models import (
+    EndpointVulnerability,
+    ServiceBasicInfo,
+)
 from contractor.agents.oas_analyzer.prompts.factory import SectionPrompts
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,6 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
-from dataclasses import dataclass, field
 
 DEFAULT_MODEL = LiteLlm(
     model="lm-studio-qwen3.5",
@@ -39,8 +41,10 @@ class BotFactory:
     def build(
         spec: Literal["appsec", "datasec", "ddos", "review"],
         *,
-        model: Optional[LiteLlm],
+        model: Optional[LiteLlm] = None,
         tools: list[Callable] = [],
+        output_schema: Optional[BaseModel] = None,
+        output_key: Optional[str] = None,
     ) -> list[LlmAgent]:
         bots: list[LlmAgent] = []
         section = SectionPrompts().load(name=spec)
@@ -49,9 +53,11 @@ class BotFactory:
                 LlmAgent(
                     model=model if model else DEFAULT_MODEL,
                     name=f"{spec}_{task_name}",
-                    instructions=section.format(name=task_name),
+                    instruction=section.format(name=task_name),
                     description=section.role,
                     tools=tools,
+                    output_schema=output_schema,
+                    output_key=output_key,
                 )
             )
         return bots
@@ -92,10 +98,11 @@ def save_vulnerability(
     key = "oas_analyzer::vulnerabilities"
     state = tool_context.state
     state.setdefault(key, [])
+    tag = tool_context.agent_name.split("_")[0]
 
     vulnerabilities = state[key]
     vulnerabilities.append(
-        EndpointVulnerabilityDescription(
+        EndpointVulnerability(
             path=path,
             method=method.lower(),
             parameters=parameters,
@@ -103,7 +110,8 @@ def save_vulnerability(
             description=description,
             severity=severity,
             confidence=confidence,
-        )
+            tag=tag,
+        ).model_dump()
     )
     tool_context.state[key] = vulnerabilities
 
@@ -130,23 +138,32 @@ class AnalyticAgent(BaseAgent):
     class Config:
         extra = "allow"
 
-    def __init__(self, name: str, summarizer: LlmAgent):
-        review_agent: LlmAgent = BotFactory.build(spec="review")
-        sub_agents = get_bots_collection()
-        super().__init__(name=name, sub_agents=sub_agents, summarizer=summarizer_agent)
+    def __init__(self):
+        review_agent: LlmAgent = BotFactory.build(
+            spec="review",
+            output_schema=ServiceBasicInfo,
+            output_key="oas_analyzer::service_information",
+        )[0]
+        sub_agents = []
+        for spec in {"appsec", "datasec", "ddos"}:
+            sub_agents.extend(BotFactory.build(spec=spec, tools=[save_vulnerability]))
+
+        super().__init__(
+            name="analytic_agent", sub_agents=sub_agents, review_agent=review_agent
+        )
 
     @override
     async def _run_async_impl(
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
+        async for event in self.review_agent.run_async(ctx):
+            yield event
+
         for agent in self.sub_agents:
             async for event in agent.run_async(
                 _create_branch_ctx_for_sub_agent(self, agent, ctx)
             ):
                 yield event
 
-        async for event in self.summarizer.run_async(ctx):
-            yield event
 
-
-analytic_agent = AnalyticAgent("analytic_agent", summarizer=summarizer)
+analytic_agent = AnalyticAgent()

@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
+from contractor.runners.task_runner import TaskRunner
 from contractor.tools.fs import RootedLocalFileSystem
 from contractor.utils.formatting import handle_event, make_jsonable
 

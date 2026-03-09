@@ -27,32 +27,16 @@ class EndpointVulnerability(BaseModel):
     )
 
 
-class EndpointVulnerabilities(BaseModel):
-    vulnerabilities: list[EndpointVulnerability] = Field(
-        default_factory=list, description="A list of vulnerabilities in the endpoints."
-    )
-
-
-class Report(BaseModel):
-    service_info: ServiceInfo = Field(
-        default_factory=ServiceInfo, description="The service information."
-    )
-    vulneabilities: list[EndpointVulnerability] = Field(
-        default_factory=list, description="The vulnerabilities found in the service."
-    )
-    reccomendation: str = Field(
-        default="", description="The reccomendation for mitigating the vulnerabilities."
-    )
-
-
 class ServiceBasicInfo(BaseModel):
     """
     Model to describe a service.
     """
 
-    name: str = Field(description="The name of the service.")
-    description: str = Field(description="A description of the service.")
-    summary: str = Field(description="A summary of the service.")
+    name: str = Field(description="The name of the analyzed service.")
+    description: str = Field(description="Description of the service.")
+    summary: str = Field(
+        description="Detailed summary of the service business functions."
+    )
     diagram: str = Field(description="A diagram of the service.")
     criticality: Literal["low", "medium", "high"] = Field(
         description="The criticality of the service."
@@ -60,22 +44,3 @@ class ServiceBasicInfo(BaseModel):
     criticality_reason: str = Field(
         description="The reason for the criticality of the service."
     )
-
-
-class ServiceInfo(ServiceBasicInfo):
-    """
-    Model to describe a service (internal usage)
-    """
-
-    servers: dict[str, Any] = Field(
-        default_factory=dict,
-        description="The servers of the service, as described in the OpenAPI specification.",
-    )
-    security: dict[str, Any] = Field(
-        default_factory=dict,
-        description="The security of the service, as described in the OpenAPI specification.",
-    )
-    language: str = Field(
-        default="", description="The programming language of the service."
-    )
-    framework: str = Field(default="", description="The framework of the service.")

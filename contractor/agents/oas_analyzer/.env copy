@@ -1,0 +1,11 @@
+# langfuse settings
+LANGFUSE_SECRET_KEY = "sk-lf-367b38dd-9426-42cb-bd54-fc0e04989377"
+LANGFUSE_PUBLIC_KEY = "pk-lf-3dfbd786-2d7d-40af-a3c3-f976f747b8c2"
+LANGFUSE_BASE_URL = "http://localhost:3000"
+USE_LANGFUSE=False
+
+#litellm settings
+LITELLM_PROXY_API_KEY=sk-litellm-changeme
+LITELLM_PROXY_API_BASE=http://localhost:4000
+USE_LITELLM_PROXY=True
+

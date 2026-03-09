@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Optional, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -15,12 +15,9 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
-from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
-    SUBTASK_PLANNING_PROMPT,
     SubtaskFormatter,
     _prepare_worker_instructions,
-    task_tools,
 )
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":

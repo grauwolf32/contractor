@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Optional, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -16,12 +16,9 @@ from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.openapi import openapi_tools
-from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
-    SUBTASK_PLANNING_PROMPT,
     SubtaskFormatter,
     _prepare_worker_instructions,
-    task_tools,
 )
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
@@ -130,8 +127,8 @@ def build_oas_builder_agent(
     swe_agent = LlmAgent(
         name=name,
         description="software engineering agent",
-        instruction=SWE_PROMPT,
-        model=model if model is not None else SWE_MODEL,
+        instruction=OAS_PROMPT,
+        model=model if model is not None else OAS_MODEL,
         tools=tools,
         **callback_adapter(),
     )
@@ -145,8 +142,8 @@ playground_path = (
 
 fs = RootedLocalFileSystem(root_path=playground_path)
 
-root_agent = build_swe_agent(
-    name="swe_agent",
+root_agent = build_oas_builder_agent(
+    name="oas_builder_agent",
     namespace="code_review",
     fs=fs,
 )
