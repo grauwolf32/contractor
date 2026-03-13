@@ -1,5 +1,7 @@
 from typing import Optional
 import unicodedata
+from urllib.parse import quote as url_quote
+
 
 def norm_unicode(value: Optional[str]) -> Optional[str]:
     if value is None:
@@ -19,3 +21,9 @@ def xml_escape(value: str) -> str:
         .replace('"', "&quot;")
         .replace("'", "&apos;")
     )
+
+
+def project_id_encoded(project_id: str) -> str:
+    if project_id.isdigit():
+        return project_id
+    return url_quote(project_id, safe="")

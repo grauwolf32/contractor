@@ -5,6 +5,7 @@ from typing import Any
 from contractor.utils.fs import norm_unicode
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 
+
 class RootedLocalFileSystem(LocalFileSystem):
     """
     Local filesystem sandboxed to root_path.

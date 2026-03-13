@@ -51,6 +51,7 @@ INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
 PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
+
 def _is_ignored(path: str, patterns: list[str]) -> bool:
     normalized = normalize_slashes(path)
     basename = normalized.split("/")[-1]
@@ -1353,5 +1354,3 @@ def file_tools(
         )
 
     return registry
-
-

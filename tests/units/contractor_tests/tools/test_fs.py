@@ -6,9 +6,14 @@ from pathlib import Path
 import fsspec
 import pytest
 
-from contractor.tools.fs import (CoverageFilter, FileFormat,
-                                 FsspecCoverageFileTools, InteractionKind,
-                                 RootedLocalFileSystem, file_tools)
+from contractor.tools.fs import (
+    CoverageFilter,
+    FileFormat,
+    FsspecCoverageFileTools,
+    InteractionKind,
+    RootedLocalFileSystem,
+    file_tools,
+)
 
 
 @pytest.fixture()
@@ -40,8 +45,11 @@ def fs() -> fsspec.AbstractFileSystem:
     # Local FS backend
     return fsspec.filesystem("file")
 
+
 @pytest.fixture()
-def coverage_tools(fs: fsspec.AbstractFileSystem, tmpdir_path: Path) -> FsspecCoverageFileTools:
+def coverage_tools(
+    fs: fsspec.AbstractFileSystem, tmpdir_path: Path
+) -> FsspecCoverageFileTools:
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
     return FsspecCoverageFileTools(
         fs=fs,
@@ -234,29 +242,37 @@ def test_covered_and_uncovered_support_pattern_filter(
     coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
 ):
     assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "README.md"))
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "src" / "a.py"))
+    assert "error" not in coverage_tools.read_file(
+        abs_path(tmpdir_path / "src" / "a.py")
+    )
 
     res = coverage_tools.covered(
         path=abs_path(tmpdir_path),
         pattern="src/*",
     )
     assert "error" not in res
-    assert {x["path"] for x in res["result"]} == {abs_path(tmpdir_path / "src" / "a.py")}
+    assert {x["path"] for x in res["result"]} == {
+        abs_path(tmpdir_path / "src" / "a.py")
+    }
 
     res = coverage_tools.uncovered(
         path=abs_path(tmpdir_path),
         pattern="src/*",
     )
     assert "error" not in res
-    assert {x["path"] for x in res["result"]} == {abs_path(tmpdir_path / "src" / "b.txt")}
+    assert {x["path"] for x in res["result"]} == {
+        abs_path(tmpdir_path / "src" / "b.txt")
+    }
 
 
-def test_covered_pagination(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
-):
+def test_covered_pagination(coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path):
     assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "README.md"))
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "src" / "a.py"))
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "src" / "b.txt"))
+    assert "error" not in coverage_tools.read_file(
+        abs_path(tmpdir_path / "src" / "a.py")
+    )
+    assert "error" not in coverage_tools.read_file(
+        abs_path(tmpdir_path / "src" / "b.txt")
+    )
 
     page1 = coverage_tools.covered(
         path=abs_path(tmpdir_path),
@@ -308,7 +324,9 @@ def test_get_coverage_returns_raw_state(
 def test_reset_coverage_clears_state(
     coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
 ):
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "src" / "a.py"))
+    assert "error" not in coverage_tools.read_file(
+        abs_path(tmpdir_path / "src" / "a.py")
+    )
     assert coverage_tools.get_coverage()["files_seen"] == 1
 
     coverage_tools.reset_coverage()
