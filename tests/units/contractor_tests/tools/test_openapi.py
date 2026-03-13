@@ -1,8 +1,13 @@
 import pytest
 from google.genai import types
 
-from contractor.tools.openapi import (PathItem, SecurityScheme, openapi_tools,
-                                      validate_files, validate_model)
+from contractor.tools.openapi import (
+    PathItem,
+    SecurityScheme,
+    openapi_tools,
+    validate_files,
+    validate_model,
+)
 
 
 class MockToolContext:

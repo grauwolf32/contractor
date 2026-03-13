@@ -6,8 +6,7 @@ import pytest
 import yaml
 
 import contractor.tools.tasks as m
-from contractor.tools.tasks import (Subtask, SubtaskExecutionResult,
-                                    SubtaskFormatter)
+from contractor.tools.tasks import Subtask, SubtaskExecutionResult, SubtaskFormatter
 from tests.units.contractor_tests.helpers import MockAgentTool, mk_tool_context
 
 
@@ -448,7 +447,9 @@ async def test_decompose_requires_current_task_id(monkeypatch):
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "incomplete"
-    assert m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
+    assert (
+        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
+    )
 
     # Try decomposing with wrong id
     res = tool["decompose_subtask"](
@@ -570,7 +571,9 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "1"
     assert exec_res["record"]["status"] == "incomplete"
-    assert m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
+    assert (
+        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
+    )
 
     # Decompose 1 into 1.1 and 1.2 -> current becomes 1.1
     tool["decompose_subtask"](
