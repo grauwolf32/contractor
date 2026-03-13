@@ -24,7 +24,7 @@ DUMMY_AGENT_PROMPT: Final[str] = (
 DUMMY_AGENT_DESCRIPTION: Final[str] = "agent to test tools and integrational scenarios."
 
 DUMMY_MODEL = LiteLlm(
-    model="lm-studio-nemotron",
+    model="lm-studio-qwen3.5",
     timeout=300,
 )
 

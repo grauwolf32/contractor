@@ -66,7 +66,7 @@ class GitlabFileSystemSettings(BaseSettings):
     )
 
     ref: str = Field(
-        default="main",
+        default="master",
         description="Branch, tag, or commit SHA.",
     )
 
@@ -107,7 +107,7 @@ class GitlabFileSystemSettings(BaseSettings):
 
     # -- retry --
     max_retries: int = Field(
-        default=4,
+        default=5,
         ge=0,
         description="Number of retry attempts for failed HTTP requests.",
     )
