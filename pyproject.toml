@@ -20,18 +20,9 @@ dependencies = [
     "dotenv (>=0.9.9,<0.10.0)",
 ]
 
-[[tool.poetry.source]]
-name = "registry.tcsbank.ru"
-url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple/"
-
-[[tool.poetry.source]]
-name = "tinkoff"
-url = "https://nexus.tcsbank.ru/repository/pypi-all/simple"
-priority = "primary"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"
-pytest-cov = "^7.0.0"
 
 [dependency-groups]
 dev = [
