@@ -64,7 +64,7 @@ class OpenAPIFormat: ...
 
 @dataclass
 class OpenApiArtifact:
-    name: str 
+    name: str
     schema: dict[str, Any] = field(default_factory=dict)
     version: int | None = None
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
@@ -80,7 +80,7 @@ class OpenApiArtifact:
     def meta(self) -> dict[str, Any]:
         return {"version": self.version or 0}
 
-    def openapi_key(self)->str:
+    def openapi_key(self) -> str:
         return f"user:oas-{self.name}"
 
     async def save_schema(self, ctx: ToolContext) -> int:

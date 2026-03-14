@@ -14,6 +14,7 @@ IGNORED_TOOLS = (
     "skip",
 )
 
+
 def make_jsonable(value):
     if isinstance(value, dict):
         return {k: make_jsonable(v) for k, v in value.items()}
@@ -267,7 +268,7 @@ def _render_event(event) -> str | None:
     if event.type == "tool_result":
         tool_name = event.payload["tool_name"]
         if tool_name in IGNORED_TOOLS:
-            return 
+            return
 
         title = f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} result', C.GREEN)}"
         body = _fmt_tool_result(tool_name, event.payload.get("result"))

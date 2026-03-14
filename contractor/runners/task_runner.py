@@ -284,13 +284,12 @@ class TaskRunner(BaseModel):
         task_id: int,
         result: dict[str, Any],
     ) -> dict[str, int]:
-        
         task_summary: str = f"user:{task_name}-summary"
         artifact = types.Part.from_text(text=result.get("summary", ""))
         await self.artifact_service.save_artifact(
             app_name=self.name,
             user_id=user_id,
-            session_id=None, 
+            session_id=None,
             filename=task_summary,
             artifact=artifact,
         )
@@ -305,7 +304,7 @@ class TaskRunner(BaseModel):
             artifact=artifact,
         )
 
-        task_records:str = f"user:{task_name}-records"
+        task_records: str = f"user:{task_name}-records"
         records: Union[str, list] = result.get("records", "")
         if type(records) is list:
             records = json.dumps(records)
