@@ -248,10 +248,7 @@ class MemoryTools:
                 return
 
             raw = yaml.safe_load(artifact.text) or []
-            self.notes = {
-                item[name]: MemoryNote(**item)
-                for name, item in raw.items()
-            }
+            self.notes = {item[name]: MemoryNote(**item) for name, item in raw.items()}
 
     def dump(self) -> str:
         notes = [asdict(memory) for memory in self.notes.values()]
@@ -267,7 +264,9 @@ class MemoryTools:
             text = self.dump()
             await ctx.save_artifact(filename=self.memory_key(), text=text)
 
-    async def list_memories(self, ctx: ToolContext | CallbackContext) -> list[MemoryNote]:
+    async def list_memories(
+        self, ctx: ToolContext | CallbackContext
+    ) -> list[MemoryNote]:
         await self.load(ctx)
         return list(self.notes.values())
 
@@ -294,6 +293,21 @@ class MemoryTools:
             tags=tags or [],
         )
         await self.save(ctx)
+
+    async def append_memory(
+        self, name: str, text: str, ctx: ToolContext | CallbackContext
+    ) -> Optional[MemoryNote]:
+        note = await self.read_memory(name, ctx)
+        if note is None:
+            return
+        note.memory = "\n".join((note.memory, text))
+        await self.write_memory(
+            name=note.name,
+            memory=note.memory,
+            description=note.description,
+            tags=note.tags,
+        )
+        return note
 
     async def read_memory(
         self, name: str, ctx: ToolContext | CallbackContext
@@ -337,6 +351,22 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         await m.write_memory(name, memory, description, tags, tool_context)
         return {"result": "ok"}
 
+    async def append_memory(
+        name: str, text: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
+        """
+        Appends text to existing memory
+        Args:
+           name: The name of the memory to append to.
+           text: The text to append to the memory.
+        """
+
+        memory = await m.append_memory(name, text, ctx)
+        if memory is None:
+            return {"error": f"memory {name} not found"}
+
+        return {"result": m.fmt.format_memory(memory)}
+
     async def read_memory(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
         Reads a memory from the memory store.
@@ -352,7 +382,9 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
 
         return {"result": m.fmt.format_memory(memory)}
 
-    async def search_memory(tags: list[str], tool_context: ToolContext) -> dict[str, Any]:
+    async def search_memory(
+        tags: list[str], tool_context: ToolContext
+    ) -> dict[str, Any]:
         """
         Searches for memories in the memory store.
         Args:
