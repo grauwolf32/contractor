@@ -234,38 +234,51 @@ class MemoryFormat:
 class MemoryTools:
     name: str
     fmt: MemoryFormat = field(default_factory=MemoryFormat)
+    notes: dict[str, MemoryNote] = field(default_factory=dict)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
-    def state_key(self) -> str:
-        return f"{self.__class__.__name__}::{self.name}"
+    def memory_key(self) -> str:
+        return f"memorytools-{self.name}"
 
-    def list_memories(self, ctx: ToolContext | CallbackContext) -> list[MemoryNote]:
-        sk = self.state_key()
-        ctx.state.setdefault(sk, {})
+    async def load(self, ctx: ToolContext | CallbackContext):
+        async with self._lock:
+            artifact = await ctx.load_artifact(filename=self.memory_key())
+            if artifact is None:
+                self.notes = {}
+                return
 
-        memories: list[MemoryNote] = []
-        for name, memory in ctx.state[sk].items():
-            memories.append(
-                MemoryNote(
-                    name=name,
-                    memory=memory.get("memory", ""),
-                    description=memory.get("description", ""),
-                    tags=memory.get("tags", []) or [],
-                )
-            )
+            raw = yaml.safe_load(artifact.text) or []
+            self.notes = {
+                item[name]: MemoryNote(**item)
+                for name, item in raw.items()
+            }
 
-        return memories
+    def dump(self) -> str:
+        notes = [asdict(memory) for memory in self.notes.values()]
+        return yaml.safe_dump(
+            notes,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+        )
 
-    def list_tags(self, ctx: ToolContext | CallbackContext) -> list[str]:
-        sk = self.state_key()
-        ctx.state.setdefault(sk, {})
+    async def save(self, ctx: ToolContext | CallbackContext):
+        async with self._lock:
+            text = self.dump()
+            await ctx.save_artifact(filename=self.memory_key(), text=text)
 
+    async def list_memories(self, ctx: ToolContext | CallbackContext) -> list[MemoryNote]:
+        await self.load(ctx)
+        return list(self.notes.values())
+
+    async def list_tags(self, ctx: ToolContext | CallbackContext) -> list[str]:
+        await self.load(ctx)
         tags = set()
-        for _, memory in ctx.state[sk].items():
-            tags.update(memory.get("tags", []) or [])
-
+        for memory in self.notes.values():
+            tags.update(memory.tags)
         return sorted(tags)
 
-    def write_memory(
+    async def write_memory(
         self,
         name: str,
         memory: str,
@@ -273,64 +286,36 @@ class MemoryTools:
         tags: Optional[list[str]],
         ctx: ToolContext | CallbackContext,
     ):
-        sk = self.state_key()
-        ctx.state.setdefault(sk, {})
-
-        m = MemoryNote(
+        await self.load(ctx)
+        self.notes[name] = MemoryNote(
             name=name,
             memory=memory,
             description=description,
             tags=tags or [],
         )
+        await self.save(ctx)
 
-        # HACK: You should rewrite whole object inside the state for changes to take effect
-        mempool = ctx.state[sk]
-        mempool[name] = asdict(m)
-        ctx.state[sk] = mempool
-        return
-
-    def read_memory(
+    async def read_memory(
         self, name: str, ctx: ToolContext | CallbackContext
     ) -> Optional[MemoryNote]:
-        sk = self.state_key()
-        ctx.state.setdefault(sk, {})
+        await self.load(ctx)
+        return self.notes.get(name)
 
-        if name not in ctx.state[sk]:
-            return None
-
-        raw = ctx.state[sk][name]
-        return MemoryNote(
-            name=name,
-            memory=raw.get("memory", ""),
-            description=raw.get("description", ""),
-            tags=raw.get("tags", []) or [],
-        )
-
-    def search_memory(
+    async def search_memory(
         self, tags: list[str], ctx: ToolContext | CallbackContext
     ) -> list[MemoryNote]:
-        sk = self.state_key()
-        ctx.state.setdefault(sk, {})
-
-        memories: list[MemoryNote] = []
-        for name, memory in ctx.state[sk].items():
-            memory_tags = memory.get("tags", []) or []
-            if any(tag in memory_tags for tag in tags):
-                memories.append(
-                    MemoryNote(
-                        name=name,
-                        memory=memory.get("memory", ""),
-                        description=memory.get("description", ""),
-                        tags=memory_tags,
-                    )
-                )
-        return memories
+        await self.load(ctx)
+        return [
+            memory
+            for memory in self.notes.values()
+            if any(tag in memory.tags for tag in tags)
+        ]
 
 
 def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
     m = MemoryTools(name=name, fmt=fmt)
 
-    def write_memory(
+    async def write_memory(
         name: str,
         memory: str,
         description: str,
@@ -349,10 +334,10 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         - Tags should be short and reflect the topic of the memory.
         """
 
-        m.write_memory(name, memory, description, tags, tool_context)
+        await m.write_memory(name, memory, description, tags, tool_context)
         return {"result": "ok"}
 
-    def read_memory(name: str, tool_context: ToolContext) -> dict[str, Any]:
+    async def read_memory(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
         Reads a memory from the memory store.
         Args:
@@ -361,13 +346,13 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             The memory content, if it exists.
         """
 
-        memory = m.read_memory(name, tool_context)
+        memory = await m.read_memory(name, tool_context)
         if memory is None:
             return {"error": f"memory {name} not found"}
 
         return {"result": m.fmt.format_memory(memory)}
 
-    def search_memory(tags: list[str], tool_context: ToolContext) -> dict[str, Any]:
+    async def search_memory(tags: list[str], tool_context: ToolContext) -> dict[str, Any]:
         """
         Searches for memories in the memory store.
         Args:
@@ -376,25 +361,26 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
            A list of memory names that match the tags with description.
         """
 
-        memories = m.search_memory(tags, tool_context)
+        memories = await m.search_memory(tags, tool_context)
         return {"result": m.fmt.format_memories(memories, preview=True)}
 
-    def list_tags(tool_context: ToolContext) -> dict[str, Any]:
+    async def list_tags(tool_context: ToolContext) -> dict[str, Any]:
         """
         Lists all tags in the memory store.
         Returns:
             A list of all tags.
         """
-        return {"result": m.fmt.format_tags(m.list_tags(tool_context))}
+        tags = await m.list_tags(tool_context)
+        return {"result": m.fmt.format_tags(tags)}
 
-    def list_memories(tool_context: ToolContext) -> dict[str, Any]:
+    async def list_memories(tool_context: ToolContext) -> dict[str, Any]:
         """
         Lists all memories in the memory store.
         Returns:
             A list of all memories.
         """
 
-        memories = m.list_memories(tool_context)
+        memories = await m.list_memories(tool_context)
         return {"result": m.fmt.format_memories(memories, preview=True)}
 
     return [
