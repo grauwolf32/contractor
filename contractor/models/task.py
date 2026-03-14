@@ -18,7 +18,9 @@ def _normalize_name(name: str) -> str:
 
 @dataclass(slots=True, frozen=True)
 class TaskTemplate:
-    name: str
+    key: str
+    title: str
+
     objective: str
     instructions: str
     output_format: str
@@ -28,10 +30,11 @@ class TaskTemplate:
     format: str = "json"
 
     @classmethod
-    def load(cls, name: str) -> TaskTemplate:
-        fname = TASKS_BASE_DIR / f"{name}.yml"
+    def load(cls, name: str) -> "TaskTemplate":
+        template_key = Path(name).stem
+        fname = TASKS_BASE_DIR / f"{template_key}.yml"
         if not os.path.exists(fname):
-            raise ValueError(f"Task {name} not found")
+            raise ValueError(f"Task template '{template_key}' not found")
 
         with open(fname, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
@@ -39,7 +42,8 @@ class TaskTemplate:
         raw = data["task"]
 
         return cls(
-            name=raw["name"],
+            key=template_key,
+            title=raw.get("name", template_key) or template_key,
             objective=raw["objective"],
             instructions=raw["instructions"],
             output_format=raw["output_format"],
@@ -51,7 +55,9 @@ class TaskTemplate:
 
 @dataclass(slots=True, frozen=True)
 class RenderedTask:
-    name: str
+    key: str
+    title: str
+
     objective: str
     instructions: str
     output_format: str
@@ -75,13 +81,14 @@ class RenderedTask:
             sort_keys=False,
         )
 
-        for producer_task_name, payloads in artifacts.items():
-            producer_key = _normalize_name(producer_task_name)
+        for producer_task_key, payloads in artifacts.items():
+            producer_key = _normalize_name(producer_task_key)
             for kind, value in payloads.items():
                 scope[f"artifact__{producer_key}__{kind}"] = value
 
         return cls(
-            name=template.name,
+            key=template.key,
+            title=template.title,
             objective=template.objective.format(**scope),
             instructions=template.instructions.format(**scope),
             output_format=template.output_format.format(**scope),
