@@ -240,7 +240,7 @@ class MemoryTools:
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     def memory_key(self) -> str:
-        return f"memorytools-{self.name}"
+        return f"user:memorytools-{self.name}"
 
     async def load(self, ctx: ToolContext | CallbackContext):
         async with self._lock:
@@ -308,6 +308,7 @@ class MemoryTools:
             memory=note.memory,
             description=note.description,
             tags=note.tags,
+            ctx=ctx,
         )
         return note
 

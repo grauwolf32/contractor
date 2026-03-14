@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Optional
@@ -275,6 +276,49 @@ class TaskRunner(BaseModel):
     ) -> bool:
         return state.get(self._global_state_key(task_id, "status")) == "done"
 
+    async def _save_task_result_artifacts(
+        self,
+        *,
+        user_id: str,
+        task_name: str,
+        task_id: int,
+        result: dict[str, Any],
+    ) -> dict[str, int]:
+        
+        task_summary: str = f"user:{task_name}-summary"
+        artifact = types.Part.from_text(text=result.get("summary", ""))
+        await self.artifact_service.save_artifact(
+            app_name=self.name,
+            user_id=user_id,
+            session_id=None, 
+            filename=task_summary,
+            artifact=artifact,
+        )
+
+        task_result: str = f"user:{task_name}-result"
+        artifact = types.Part.from_text(text=result.get("result", ""))
+        await self.artifact_service.save_artifact(
+            app_name=self.name,
+            user_id=user_id,
+            session_id=None,  # user-scoped
+            filename=task_result,
+            artifact=artifact,
+        )
+
+        task_records:str = f"user:{task_name}-records"
+        records: Union[str, list] = result.get("records", "")
+        if type(records) is list:
+            records = json.dumps(records)
+
+        artifact = types.Part.from_text(text=records)
+        await self.artifact_service.save_artifact(
+            app_name=self.name,
+            user_id=user_id,
+            session_id=None,  # user-scoped
+            filename=task_records,
+            artifact=artifact,
+        )
+
     async def _run_single_iteration(
         self,
         *,
@@ -405,7 +449,8 @@ class TaskRunner(BaseModel):
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> dict[str, Any]:
         task = self.tasks[task_name]
-        max_iterations = getattr(task, "_max_iterations", 1)
+        max_iterations = task._max_iterations
+        forced_iterations = task._iterations
 
         current_carry_state = copy.deepcopy(carry_state)
         last_result: Optional[dict[str, Any]] = None
@@ -448,6 +493,14 @@ class TaskRunner(BaseModel):
             )
 
             if completed:
+                await self._save_task_result_artifacts(
+                    user_id=user_id,
+                    task_name=task_name,
+                    task_id=task_id,
+                    result=result,
+                )
+
+            if completed and iteration >= forced_iterations:
                 await self._emit(
                     on_event,
                     type="task_finished",

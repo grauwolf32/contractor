@@ -180,7 +180,7 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Поиск паттернов:', C.BOLD)} {args.get('pattern', '')} в {args.get('path', '/')}\n"
 
     if tool_name == "read_file":
-        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Чтение файла:', C.BOLD)} {args.get('path', '')}\n"
+        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Чтение файла:', C.BOLD)} {args.get('file', '')}\n"
 
     if tool_name in {
         "execute_current_subtask",

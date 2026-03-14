@@ -64,7 +64,7 @@ class OpenAPIFormat: ...
 
 @dataclass
 class OpenApiArtifact:
-    name: str = "openapi"
+    name: str 
     schema: dict[str, Any] = field(default_factory=dict)
     version: int | None = None
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
@@ -80,17 +80,20 @@ class OpenApiArtifact:
     def meta(self) -> dict[str, Any]:
         return {"version": self.version or 0}
 
+    def openapi_key(self)->str:
+        return f"user:oas-{self.name}"
+
     async def save_schema(self, ctx: ToolContext) -> int:
         async with self._lock:
             artifact = types.Part.from_text(text=self.dump())
             meta = self.meta()
-            self.version = await ctx.save_artifact(self.name, artifact, meta)
+            self.version = await ctx.save_artifact(self.openapi_key(), artifact, meta)
 
         return self.version
 
     async def load_schema(self, ctx: ToolContext) -> dict[str, Any]:
         async with self._lock:
-            artifact = await ctx.load_artifact(filename=self.name)
+            artifact = await ctx.load_artifact(filename=self.openapi_key())
             if artifact is None:
                 return openapi_base_schema
             self.schema = yaml.safe_load(artifact.text)

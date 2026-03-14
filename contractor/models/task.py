@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,8 @@ class Task:
     objective: str
     instructions: str
     output_format: str
+    _artifacts: list[str] = field(default_factory=list)
+    _iterations: int = 1
     _max_iterations: int = 1
     _format: str = "json"
 

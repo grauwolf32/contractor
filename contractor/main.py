@@ -39,7 +39,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-ARTIFACTS_DIR: Path = Path(__file__).parent / "artifacts"
+ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
 
 
 def parse_args() -> argparse.Namespace:
