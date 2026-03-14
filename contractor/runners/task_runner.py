@@ -155,7 +155,8 @@ class TaskRunner(BaseModel):
             raise ValueError("template_key must not be empty")
         if ".." in clean_template_key.split("/"):
             raise ValueError("template_key must not contain path traversal segments")
-        return f"tasks/{clean_template_key}/{kind}"
+        return f"{clean_template_key}/{kind}"
+
 
     @classmethod
     def _artifact_names_for_task(cls, template_key: str) -> dict[ArtifactKind, str]:
@@ -363,19 +364,16 @@ class TaskRunner(BaseModel):
         self,
         *,
         user_id: str,
-        template_key: str,
-        kind: ArtifactKind,
+        artifact_ref: str,
     ) -> str:
         part = await self.artifact_service.load_artifact(
             app_name=self.name,
             user_id=user_id,
             session_id=None,
-            filename=self._artifact_filename(template_key, kind),
+            filename=artifact_ref,
         )
         if part is None:
-            raise FileNotFoundError(
-                f"Artifact '{kind}' for task '{template_key}' not found"
-            )
+            raise FileNotFoundError(f"Artifact '{artifact_ref}' not found")
 
         text = getattr(part, "text", None)
         if text is not None:
@@ -391,34 +389,23 @@ class TaskRunner(BaseModel):
 
         return ""
 
-    async def _load_artifacts_for_tasks(
+
+    async def _load_artifacts(
         self,
         *,
         user_id: str,
-        template_keys: list[str],
-    ) -> dict[str, dict[str, str]]:
-        loaded: dict[str, dict[str, str]] = {}
+        artifact_refs: list[str],
+    ) -> dict[str, str]:
+        loaded: dict[str, str] = {}
 
-        for producer_key in template_keys:
-            loaded[producer_key] = {
-                "result": await self._load_artifact_text(
-                    user_id=user_id,
-                    template_key=producer_key,
-                    kind="result",
-                ),
-                "summary": await self._load_artifact_text(
-                    user_id=user_id,
-                    template_key=producer_key,
-                    kind="summary",
-                ),
-                "records": await self._load_artifact_text(
-                    user_id=user_id,
-                    template_key=producer_key,
-                    kind="records",
-                ),
-            }
+        for artifact_ref in artifact_refs:
+            loaded[artifact_ref] = await self._load_artifact_text(
+                user_id=user_id,
+                artifact_ref=artifact_ref,
+            )
 
         return loaded
+
 
     async def _publish_task_artifacts(
         self,
@@ -447,6 +434,7 @@ class TaskRunner(BaseModel):
                 filename=self._artifact_filename(template_key, kind),
                 artifact=types.Part.from_text(text=text),
             )
+
 
     async def _run_single_iteration(
         self,
@@ -587,9 +575,9 @@ class TaskRunner(BaseModel):
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> dict[str, Any]:
         template = self.templates[item.template_key]
-        input_artifacts = await self._load_artifacts_for_tasks(
+        input_artifacts = await self._load_artifacts(
             user_id=user_id,
-            template_keys=item.artifacts,
+            artifact_refs=item.artifacts,
         )
 
         rendered_task = self._render_task(

@@ -16,15 +16,19 @@ def _normalize_name(name: str) -> str:
     return normalized or "task"
 
 
+def _artifact_var_name(artifact_ref: str) -> str:
+    return "artifact__" + "__".join(
+        _normalize_name(part) for part in artifact_ref.split("/") if part.strip()
+    )
+
+
 @dataclass(slots=True, frozen=True)
 class TaskTemplate:
     key: str
     title: str
-
     objective: str
     instructions: str
     output_format: str
-
     default_artifacts: list[str] = field(default_factory=list)
     default_iterations: int = 1
     format: str = "json"
@@ -57,7 +61,6 @@ class TaskTemplate:
 class RenderedTask:
     key: str
     title: str
-
     objective: str
     instructions: str
     output_format: str
@@ -70,21 +73,19 @@ class RenderedTask:
         *,
         variables: Mapping[str, Any],
         params: Mapping[str, Any],
-        artifacts: Mapping[str, Mapping[str, str]],
+        artifacts: Mapping[str, str],
     ) -> "RenderedTask":
         scope: dict[str, Any] = dict(variables)
         scope.update(params)
 
         scope["artifacts"] = yaml.safe_dump(
-            {k: dict(v) for k, v in artifacts.items()},
+            dict(artifacts),
             allow_unicode=True,
             sort_keys=False,
         )
 
-        for producer_task_key, payloads in artifacts.items():
-            producer_key = _normalize_name(producer_task_key)
-            for kind, value in payloads.items():
-                scope[f"artifact__{producer_key}__{kind}"] = value
+        for artifact_ref, value in artifacts.items():
+            scope[_artifact_var_name(artifact_ref)] = value
 
         return cls(
             key=template.key,
