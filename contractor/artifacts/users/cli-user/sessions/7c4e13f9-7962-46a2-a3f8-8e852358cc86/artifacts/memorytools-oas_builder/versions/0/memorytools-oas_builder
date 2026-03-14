@@ -1,0 +1,26 @@
+project_structure_analysis:
+  name: project_structure_analysis
+  memory: "Project: spring/secure-messages\n\nLanguages/Frameworks Identified:\n-\
+    \ Java 21 (configured via maven-compiler-plugin)\n- Spring Boot 3.3.2\n- Hibernate\
+    \ with SQLite JDBC\n- Lombok for code generation\n- Spring Security Crypto\n-\
+    \ Jackson for JSON processing\n\nDependency Manifest Files Found:\n1. /spring/pom.xml\
+    \ - Maven POM file (PRIMARY MANIFEST)\n   - Main artifact: app/secure-messages/0.0.1-SNAPSHOT\n\
+    \   - Key dependencies:\n     * spring-boot-starter-web\n     * spring-boot-starter-data-jpa\n\
+    \     * sqlite-jdbc 3.46.0.0\n     * spring-boot-starter-validation\n     * spring-security-crypto\n\
+    \     * lombok (optional)\n     * jackson-datatype-jsr310\n     * hibernate-community-dialects\n\
+    \n2. /spring/application.properties - Application configuration\n   - SQLite database:\
+    \ messages.db\n   - Custom Hibernate dialect: app.sqlite.SQLiteDialect\n\nNo other\
+    \ manifest files found:\n- No build.gradle or build.gradle.kts (Gradle projects)\n\
+    - No package.json (Node.js project)\n- No requirements.txt (Python project)\n\
+    - No settings.gradle* files\n\nProject Structure (src/main/java/app/):\n- App.java\
+    \ - Main application entry point\n- repo/ - Repository layer (UserRepo, MessageRepo,\
+    \ SessionRepo)\n- security/ - Security-related classes\n- models/ - Data models/entities\n\
+    - service/ - Business logic services\n- web/ - Web controllers/endpoints\n- dto/\
+    \ - Data transfer objects"
+  description: Summary of project structure and dependency manifest files found in
+    the spring directory
+  tags:
+  - spring
+  - java
+  - maven
+  - structure

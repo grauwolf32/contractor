@@ -12,6 +12,7 @@ from google.adk.events import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.tools import AgentTool
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -19,9 +20,9 @@ from pydantic import BaseModel, Field
 from contractor.models.task import Task
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import SubtaskFormatter, task_tools
+from contractor.runners.trace_plugin import AdkTracePlugin
 
 load_dotenv()
-
 
 _GLOBAL_TASK_ID_KEY = "_global_task_id"
 WorkerBuilder = Callable[..., LlmAgent | AgentTool]
@@ -60,6 +61,8 @@ class TaskRunner(BaseModel):
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
+
+    artifact_service: BaseArtifactService = Field(default_factory=BaseArtifactService)
 
     def add_variable(self, name: str, value: str):
         self.variables[name] = value
@@ -129,18 +132,15 @@ class TaskRunner(BaseModel):
         )
 
         mem_tools = memory_tools(
-            name=namespace,
+            name=namespace or self.name,
             fmt=MemoryFormat(_format=task._format),
         )
-
-        tools = [*planning_tools, *mem_tools]
-        instruction = self._format_task(task)
 
         return LlmAgent(
             name=f"task_{task_name}_planner",
             description=f"Planner for global task {task_name}",
-            instruction=instruction,
-            tools=tools,
+            instruction=self._format_task(task),
+            tools=[*planning_tools, *mem_tools],
             model=model,
         )
 
@@ -155,7 +155,6 @@ class TaskRunner(BaseModel):
     ) -> None:
         if handler is None:
             return
-
         await handler(
             TaskRunnerEvent(
                 type=type,
@@ -250,30 +249,6 @@ class TaskRunner(BaseModel):
         return carry
 
     @staticmethod
-    def _extract_function_call_from_event(
-        event: Event,
-    ) -> list[tuple[str, Any]]:
-        """
-        Best-effort extractor for ADK events that contain function/tool calls.
-        Returns list of (function_name, args) pairs.
-        """
-        content = getattr(event, "content", None)
-        if not content:
-            return []
-
-        parts = getattr(content, "parts", None) or []
-        calls: list[tuple[str, Any]] = []
-
-        for part in parts:
-            function_call = getattr(part, "function_call", None)
-            if function_call:
-                name = getattr(function_call, "name", None) or "<unknown_function>"
-                args = getattr(function_call, "args", None)
-                calls.append((name, args))
-
-        return calls
-
-    @staticmethod
     def _extract_final_text(event: Event) -> str:
         if not event.is_final_response():
             return ""
@@ -297,10 +272,8 @@ class TaskRunner(BaseModel):
         *,
         task_id: int,
         state: dict[str, Any],
-        final_response: str,
     ) -> bool:
-        status = state.get(self._global_state_key(task_id, "status"))
-        return status == "done"
+        return state.get(self._global_state_key(task_id, "status")) == "done"
 
     async def _run_single_iteration(
         self,
@@ -314,12 +287,6 @@ class TaskRunner(BaseModel):
     ) -> dict[str, Any]:
         task = self.tasks[task_name]
         agent = self.task_agents[task_name]
-
-        runner = Runner(
-            agent=agent,
-            app_name=self.name,
-            session_service=self.session_service,
-        )
 
         session_id = str(uuid4())
         initial_state = self._build_task_initial_state(
@@ -346,6 +313,22 @@ class TaskRunner(BaseModel):
             initial_state=initial_state,
         )
 
+        plugin = AdkTracePlugin(
+            task_name=task_name,
+            task_id=task_id,
+            iteration=iteration,
+            session_id=session_id,
+            emit=lambda **kw: self._emit(on_event, **kw),
+        )
+
+        runner = Runner(
+            agent=agent,
+            app_name=self.name,
+            session_service=self.session_service,
+            artifact_service=self.artifact_service,
+            plugins=[plugin],
+        )
+
         message = types.Content(
             role="user",
             parts=[types.Part(text=task.objective)],
@@ -362,33 +345,6 @@ class TaskRunner(BaseModel):
                 user_id=user_id,
                 session_id=session_id,
             )
-
-            await self._emit(
-                on_event,
-                type="adk_event",
-                task_name=task_name,
-                task_id=task_id,
-                iteration=iteration,
-                session_id=session_id,
-                author=getattr(event, "author", None),
-                state=state,
-                event=event,
-            )
-
-            calls = self._extract_function_call_from_event(event)
-            for tool_name, tool_args in calls:
-                await self._emit(
-                    on_event,
-                    type="tool_call",
-                    task_name=task_name,
-                    task_id=task_id,
-                    iteration=iteration,
-                    session_id=session_id,
-                    author=getattr(event, "author", None),
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                    state=state,
-                )
 
             event_final = self._extract_final_text(event)
             if event_final:
@@ -476,7 +432,6 @@ class TaskRunner(BaseModel):
             completed = self._is_task_completed(
                 task_id=task_id,
                 state=result["state"],
-                final_response=result["final_response"],
             )
 
             await self._emit(
@@ -528,13 +483,6 @@ class TaskRunner(BaseModel):
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[dict[str, Any]]:
-        """
-        Run all registered global tasks sequentially.
-
-        Each task gets its own session_id.
-        State is transferred between tasks through carry_state.
-        If a task is not completed after max_iterations, execution stops.
-        """
         results: list[dict[str, Any]] = []
         carry_state: dict[str, Any] = {}
 

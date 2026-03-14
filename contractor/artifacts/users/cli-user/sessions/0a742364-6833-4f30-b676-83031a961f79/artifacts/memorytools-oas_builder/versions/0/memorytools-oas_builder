@@ -1,0 +1,29 @@
+spring_dependency_analysis_notes:
+  name: spring_dependency_analysis_notes
+  memory: "Analysis of project spring dependencies for external service interaction:\n\
+    \nLIMITATION: Cannot directly access file system to examine actual dependency\
+    \ manifest files in the \"spring\" project directory.\n\nCOMMON SPRING PROJECT\
+    \ EXTERNAL SERVICE DEPENDENCIES (Typical patterns):\n\n1. HTTP/REST Clients:\n\
+    \   - spring-boot-starter-web (includes Spring Boot Web, Tomcat/Jetty)\n   - spring-cloud-openfeign\
+    \ (declarative REST clients)\n   - resteasy-client or jersey-client\n   - okhttp3\
+    \ or apache-httpclient\n\n2. GraphQL:\n   - spring-graphql (Spring's GraphQL support)\n\
+    \   - graphql-java (GraphQL library)\n\n3. gRPC:\n   - grpc-spring-boot-starter\n\
+    \   - netty-transport-native-epoll\n\n4. Message Queues:\n   - spring-boot-starter-amqp\
+    \ (RabbitMQ)\n   - spring-kafka (Apache Kafka)\n   - spring-cloud-stream-binder-rabbit/kafka\n\
+    \n5. Databases:\n   - spring-boot-starter-data-jpa (JPA/Hibernate ORM)\n   - spring-boot-starter-data-redis\n\
+    \   - spring-boot-starter-data-mongodb\n   - spring-boot-starter-data-elasticsearch\n\
+    \   - Database drivers: mysql-connector-java, postgresql, etc.\n\n6. Security/Authentication:\n\
+    \   - spring-boot-starter-security (Spring Security)\n   - spring-security-oauth2-resource-server\n\
+    \   - spring-security-oauth2-client\n   - jsonwebtoken-jose (JWT handling)\n\n\
+    7. Secrets Management:\n   - vault-config (HashiCorp Vault integration)\n   -\
+    \ awsssm-parameter-store-adapter\n\nTAGS TO USE FOR CLASSIFICATION:\n- http: REST\
+    \ clients/servers, Spring Web\n- graphql: GraphQL support libraries\n- grpc: gRPC\
+    \ client/server dependencies\n- queue: Message brokers (Kafka, RabbitMQ)\n- database:\
+    \ Database drivers and ORMs\n- security: Security frameworks\n- authentication:\
+    \ Identity/authentication libraries\n- authorization: Access control libraries\n\
+    - secrets: Secrets management integrations"
+  description: Notes on Spring project dependency analysis approach and common patterns
+  tags:
+  - spring
+  - dependency-analysis
+  - external-services

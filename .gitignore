@@ -2,6 +2,7 @@
 */.adk/*
 .adk/
 artifacts/*
+contractor/artifacts/*
 
 old/*
 .venv/*

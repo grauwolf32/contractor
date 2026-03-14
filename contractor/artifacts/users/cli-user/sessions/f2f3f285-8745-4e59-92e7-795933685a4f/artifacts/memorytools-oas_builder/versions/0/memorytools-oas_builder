@@ -1,0 +1,31 @@
+- name: project_structure
+  memory: "Project: Spring Boot Java Application (secure-messages)\n\nProject Type:\
+    \ Java/Spring Boot application using Maven as build tool\n\nDirectory Structure:\n\
+    /spring/\n├── pom.xml                          # Maven dependency manifest file\n\
+    ├── application.properties           # Configuration file for database and JPA\
+    \ settings\n└── src/main/java/app/               # Main source code directory\n\
+    \    ├── App.java                     # Application entry point\n    ├── repo/\
+    \                        # Repository layer (data access)\n    │   ├── UserRepo.java\n\
+    \    │   ├── MessageRepo.java\n    │   └── SessionRepo.java\n    ├── security/\
+    \                    # Security-related components\n    │   ├── SessionFilter.java\n\
+    \    │   └── AuthContext.java\n    ├── models/                      # Entity models\n\
+    \    │   ├── User.java\n    │   ├── Message.java\n    │   └── Session.java\n \
+    \   ├── service/                     # Service layer (business logic)\n    │ \
+    \  ├── AuthService.java\n    │   └── MessageService.java\n    ├── web/       \
+    \                  # Web controllers (REST endpoints)\n    │   ├── MessageController.java\n\
+    \    │   └── AuthController.java\n    └── dto/                         # Data\
+    \ transfer objects\n        ├── RegisterRequest.java\n        ├── TokenResponse.java\n\
+    \        ├── LoginRequest.java\n        └── SendMessageRequest.java\n\nDependency\
+    \ Manifest File: pom.xml\n- Build Tool: Maven\n- Java Version: 21\n- Spring Boot\
+    \ Version: 3.3.2\n- Main Dependencies:\n  * spring-boot-starter-web\n  * spring-boot-starter-data-jpa\n\
+    \  * sqlite-jdbc (version 3.46.0.0)\n  * spring-boot-starter-validation\n  * spring-security-crypto\n\
+    \  * lombok\n  * jackson-datatype-jsr310\n  * hibernate-community-dialects\n-\
+    \ Test Dependencies: spring-boot-starter-test\n\nDatabase Configuration (application.properties):\n\
+    - Database: SQLite (messages.db)\n- JPA dialect: Custom app.sqlite.SQLiteDialect\
+    \ and org.hibernate.community.dialect.SQLiteDialect"
+  description: Complete project structure and dependency manifest files for the spring
+    project
+  tags:
+  - project-structure
+  - dependencies
+  - spring
