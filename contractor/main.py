@@ -83,12 +83,24 @@ def oas_builder(
     swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
 
     runner.add_variable(name="project_path", value=folder_name)
-    
+
     runner.add_task(
         name="dependency_information",
         worker_builder=swe_builder,
         iterations=1,
         max_attempts=3,
+        namespace="dependency_information",
+    )
+
+    runner.add_task(
+        name="project_information",
+        worker_builder=swe_builder,
+        iterations=1,
+        max_attempts=3,
+        artifacts=[
+            "dependency_information/result"
+        ],
+        namespace="project_information",
     )
 
     return runner
