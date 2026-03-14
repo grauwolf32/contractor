@@ -6,17 +6,17 @@ from functools import partial
 from pathlib import Path
 
 from dotenv import load_dotenv
+from google.adk.artifacts import FileArtifactService
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner
 from contractor.tools.fs import RootedLocalFileSystem
 from contractor.utils.formatting import handle_event, make_jsonable
-from google.adk.artifacts import FileArtifactService
 
 load_dotenv()
 
 
-def turn_off_logger():
+def turn_off_logger() -> None:
     names = [
         "httpcore",
         "fsspec",
@@ -33,7 +33,6 @@ def turn_off_logger():
 
 turn_off_logger()
 
-# Базовый уровень для твоего приложения
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -51,9 +50,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--project-path",
         type=Path,
+        required=True,
         help="Path to the project directory",
     )
-    parser.add_argument("--folder-name", type=str, default="/")
+    parser.add_argument(
+        "--folder-name",
+        type=str,
+        default="/",
+        help="Project-relative folder path used inside task templates",
+    )
     parser.add_argument(
         "--user-id",
         default="cli-user",
@@ -63,25 +68,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def oas_builder(project_path: str, folder_name: str) -> TaskRunner:
-    artifact_service: FileArtifactService = FileArtifactService(root_dir=ARTIFACTS_DIR)
-    runner = TaskRunner(name="oas_builder", artifact_service=artifact_service)
-    fs = RootedLocalFileSystem(root_path=project_path)
-
-    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
-    runner.add_variable(name="project_path", value=folder_name)
-    runner.add_task(
-        name="dependency_information", worker_builder=swe_builder, max_iterations=3
+def oas_builder(
+    *,
+    project_path: Path,
+    folder_name: str,
+) -> TaskRunner:
+    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    runner = TaskRunner(
+        name="oas_builder",
+        artifact_service=artifact_service,
     )
+
+    fs = RootedLocalFileSystem(root_path=project_path)
+    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
+
+    runner.add_variable(name="project_path", value=folder_name)
+    
+    runner.add_task(
+        name="dependency_information",
+        worker_builder=swe_builder,
+        iterations=1,
+        max_attempts=3,
+    )
+
     return runner
 
 
-async def async_main():
+async def async_main() -> None:
     args = parse_args()
-    runner = oas_builder(project_path=args.project_path, folder_name=args.folder_name)
+
+    runner = oas_builder(
+        project_path=args.project_path,
+        folder_name=args.folder_name,
+    )
 
     results = await runner.run(
-        user_id="cli-user",
+        user_id=args.user_id,
         on_event=handle_event,
     )
 

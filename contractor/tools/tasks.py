@@ -1225,6 +1225,9 @@ def task_tools(
             - Always report the final global task status before exiting.
             - Use "done" only if the global objective has been fully completed.
             - Use "failed" only if the global objective cannot be completed.
+            - Result must be self-contained and sufficient for another agent or system
+              to understand the full outcome without access to notes, or intermediate memory.
+            - Result must contain all information required by the task description and must fully follow the OUTPUT FORMAT rules.
 
         Prefer this tool when:
             - You have fully achieved the global goal.

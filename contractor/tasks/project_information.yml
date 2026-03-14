@@ -3,12 +3,12 @@ task:
   name: "Project structure & security-relevant information"
 
   objective: >
-    Analyze the repository structure and map directories and files to their
+    Analyze the project {project_path} structure and map directories and files to their
     responsibilities. The goal is to produce a clear, categorized inventory
     of the project, with special attention to security-relevant components.
 
   instructions: >
-    Analyze the repository by walking the directory tree from the top level
+    Analyze the project {project_path} by walking the directory tree from the top level
     downward. Identify what directories exist, what files are located inside
     them, and what responsibilities they have. For each category listed below,
     determine where the relevant code or artifacts are located, list concrete

@@ -9,24 +9,25 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.artifacts import BaseArtifactService
 from google.adk.tools import AgentTool
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from contractor.models.task import Task
+from contractor.models.task import RenderedTask, TaskTemplate
+from contractor.runners.trace_plugin import AdkTracePlugin
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import SubtaskFormatter, task_tools
-from contractor.runners.trace_plugin import AdkTracePlugin
 
 load_dotenv()
 
 _GLOBAL_TASK_ID_KEY = "_global_task_id"
 WorkerBuilder = Callable[..., LlmAgent | AgentTool]
+ArtifactPayload = Literal["summary", "result", "records", "final_response"]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -48,24 +49,51 @@ class TaskRunnerEvent:
 TaskRunnerEventHandler = Callable[[TaskRunnerEvent], Awaitable[None]]
 
 
+@dataclass(slots=True)
+class TaskInvocation:
+    id: str
+    ref: str
+    template_name: str
+    worker_builder: WorkerBuilder
+    params: dict[str, Any] = field(default_factory=dict)
+
+    # входные глобальные артефакты
+    input_artifacts: list[str] = field(default_factory=list)
+
+    # какие данные этой задачи публиковать в глобальные артефакты:
+    # {"research.summary": "summary", "research.result": "result"}
+    output_artifacts: dict[str, ArtifactPayload] = field(default_factory=dict)
+
+    # выполнить как минимум столько успешных запусков
+    iterations: int = 1
+
+    # но не больше стольких попыток
+    max_attempts: int = 1
+    max_steps: int = 15
+
+    namespace: str | None = None
+    model: LiteLlm | None = None
+
+
 class TaskRunner(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     name: str = Field(description="Runner name")
     output_format: Literal["json", "markdown", "yaml", "xml"] = Field(default="json")
 
-    tasks: dict[str, Task] = Field(default_factory=dict)
-    queue: list[str] = Field(default_factory=list)
-    task_agents: dict[str, LlmAgent] = Field(default_factory=dict)
+    templates: dict[str, TaskTemplate] = Field(default_factory=dict)
+    queue: list[TaskInvocation] = Field(default_factory=list)
     variables: dict[str, str] = Field(default_factory=dict)
+    completed: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
+    artifact_service: BaseArtifactService = Field(
+        default_factory=InMemoryArtifactService
+    )
 
-    artifact_service: BaseArtifactService = Field(default_factory=BaseArtifactService)
-
-    def add_variable(self, name: str, value: str):
+    def add_variable(self, name: str, value: str) -> None:
         self.variables[name] = value
 
     def add_task(
@@ -73,76 +101,113 @@ class TaskRunner(BaseModel):
         name: str,
         *,
         worker_builder: WorkerBuilder,
-        max_iterations: int = 1,
+        ref: str | None = None,
+        params: dict[str, Any] | None = None,
+        input_artifacts: list[str] | None = None,
+        output_artifacts: dict[str, ArtifactPayload] | None = None,
+        iterations: int | None = None,
+        max_attempts: int | None = None,
         max_steps: int = 15,
         namespace: Optional[str] = None,
         model: Optional[LiteLlm] = None,
-    ) -> None:
-        task = Task.load(name, self.variables)
+    ) -> str:
+        template = self.templates.get(name)
+        if template is None:
+            template = TaskTemplate.load(name)
+            self.templates[name] = template
 
-        task_name = name
-        if task_name in self.tasks and max_iterations != getattr(
-            self.tasks[task_name], "_max_iterations", 1
-        ):
-            task_name = f"{name}.x{max_iterations}"
+        task_ref = ref or f"{name}:{len(self.queue)}"
+        if any(item.ref == task_ref for item in self.queue):
+            raise ValueError(f"Queued task ref '{task_ref}' already exists")
 
-        task._max_iterations = max_iterations
-        self.tasks[task_name] = task
-        self.queue.append(task_name)
-
-        if namespace is None:
-            namespace = self.name
-
-        worker = worker_builder(namespace=namespace, _format=task._format)
-        planner = self._spawn_planner_agent(
-            task_name=task_name,
-            task=task,
-            worker=worker,
+        item = TaskInvocation(
+            id=uuid4().hex,
+            ref=task_ref,
+            template_name=name,
+            worker_builder=worker_builder,
+            params=params or {},
+            input_artifacts=list(input_artifacts or template.default_input_artifacts),
+            output_artifacts=dict(
+                output_artifacts or template.default_output_artifacts
+            ),
+            iterations=iterations if iterations is not None else template.default_iterations,
+            max_attempts=max_attempts if max_attempts is not None else max(
+                1, iterations if iterations is not None else template.default_iterations
+            ),
             max_steps=max_steps,
             namespace=namespace,
-            model=model if model else PLANNER_MODEL,
+            model=model,
         )
 
-        self.task_agents[task_name] = planner
+        if item.iterations < 1:
+            raise ValueError("iterations must be >= 1")
 
-    def _format_task(self, task: Task) -> str:
+        if item.max_attempts < item.iterations:
+            raise ValueError("max_attempts must be >= iterations")
+
+        self.queue.append(item)
+        return item.ref
+
+    @staticmethod
+    def _artifact_filename(name: str) -> str:
+        clean = (name or "").strip().strip("/")
+        if not clean:
+            raise ValueError("Artifact name must not be empty")
+        return f"artifacts/{clean}"
+
+    def _format_task(self, task: RenderedTask) -> str:
         return (
             f"OBJECTIVE:\n{task.objective}\n\n"
             f"INSTRUCTIONS:\n{task.instructions}\n\n"
             f"OUTPUT FORMAT:\n{task.output_format}"
         )
 
+    def _render_task(
+        self,
+        *,
+        template: TaskTemplate,
+        params: dict[str, Any],
+        artifacts: dict[str, str],
+    ) -> RenderedTask:
+        return RenderedTask.from_template(
+            template,
+            variables=self.variables,
+            params=params,
+            artifacts=artifacts,
+        )
+
     def _spawn_planner_agent(
         self,
-        task_name: str,
-        task: Task,
-        worker: LlmAgent | AgentTool,
         *,
-        model: LiteLlm,
-        max_steps: int = 15,
-        namespace: Optional[str] = None,
+        item: TaskInvocation,
+        task: RenderedTask,
     ) -> LlmAgent:
-        fmt = SubtaskFormatter(task._format)
+        fmt = SubtaskFormatter(task.format)
+
+        worker = item.worker_builder(
+            namespace=item.namespace or self.name,
+            _format=task.format,
+        )
 
         planning_tools = task_tools(
             name=task.name,
-            max_tasks=max_steps,
+            max_tasks=item.max_steps,
             worker=worker,
             fmt=fmt,
             use_output_schema=False,
         )
 
         mem_tools = memory_tools(
-            name=namespace or self.name,
-            fmt=MemoryFormat(_format=task._format),
+            name=item.namespace or self.name,
+            fmt=MemoryFormat(_format=task.format),
         )
 
         return LlmAgent(
-            name=f"task_{task_name}_planner",
-            description=f"Planner for global task {task_name}",
+            name=f"task_{item.ref}_planner",
+            description=f"Planner for queued task {item.ref}",
             instruction=self._format_task(task),
             tools=[*planning_tools, *mem_tools],
-            model=model,
+            model=item.model or PLANNER_MODEL,
         )
 
     async def _emit(
@@ -156,6 +221,7 @@ class TaskRunner(BaseModel):
     ) -> None:
         if handler is None:
             return
+
         await handler(
             TaskRunnerEvent(
                 type=type,
@@ -207,9 +273,11 @@ class TaskRunner(BaseModel):
         self,
         *,
         task_id: int,
-        task: Task,
+        task: RenderedTask,
+        item: TaskInvocation,
         carry_state: dict[str, Any],
         iteration: int,
+        input_artifacts: dict[str, str],
     ) -> dict[str, Any]:
         state = copy.deepcopy(carry_state)
 
@@ -223,8 +291,10 @@ class TaskRunner(BaseModel):
 
         state["runner:last_task_id"] = task_id
         state["runner:last_task_name"] = task.name
-        state["runner:active_task_name"] = task.name
+        state["runner:active_task_ref"] = item.ref
         state["runner:iteration"] = iteration
+        state["runner:params"] = copy.deepcopy(item.params)
+        state["runner:input_artifacts"] = copy.deepcopy(input_artifacts)
 
         return state
 
@@ -276,67 +346,100 @@ class TaskRunner(BaseModel):
     ) -> bool:
         return state.get(self._global_state_key(task_id, "status")) == "done"
 
-    async def _save_task_result_artifacts(
+    async def _load_artifact_text(
         self,
         *,
         user_id: str,
-        task_name: str,
-        task_id: int,
-        result: dict[str, Any],
-    ) -> dict[str, int]:
-        task_summary: str = f"user:{task_name}-summary"
-        artifact = types.Part.from_text(text=result.get("summary", ""))
-        await self.artifact_service.save_artifact(
+        artifact_name: str,
+    ) -> str:
+        part = await self.artifact_service.load_artifact(
             app_name=self.name,
             user_id=user_id,
             session_id=None,
-            filename=task_summary,
-            artifact=artifact,
+            filename=self._artifact_filename(artifact_name),
         )
+        if part is None:
+            raise FileNotFoundError(f"Artifact '{artifact_name}' not found")
 
-        task_result: str = f"user:{task_name}-result"
-        artifact = types.Part.from_text(text=result.get("result", ""))
-        await self.artifact_service.save_artifact(
-            app_name=self.name,
-            user_id=user_id,
-            session_id=None,  # user-scoped
-            filename=task_result,
-            artifact=artifact,
-        )
+        text = getattr(part, "text", None)
+        if text is not None:
+            return text
 
-        task_records: str = f"user:{task_name}-records"
-        records: Union[str, list] = result.get("records", "")
-        if type(records) is list:
-            records = json.dumps(records)
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data is not None and getattr(inline_data, "data", None) is not None:
+            data = inline_data.data
+            if isinstance(data, str):
+                return data
+            if isinstance(data, (bytes, bytearray)):
+                return data.decode("utf-8")
 
-        artifact = types.Part.from_text(text=records)
-        await self.artifact_service.save_artifact(
-            app_name=self.name,
-            user_id=user_id,
-            session_id=None,  # user-scoped
-            filename=task_records,
-            artifact=artifact,
-        )
+        return ""
+
+    async def _load_input_artifacts(
+        self,
+        *,
+        user_id: str,
+        item: TaskInvocation,
+    ) -> dict[str, str]:
+        resolved: dict[str, str] = {}
+
+        for artifact_name in item.input_artifacts:
+            resolved[artifact_name] = await self._load_artifact_text(
+                user_id=user_id,
+                artifact_name=artifact_name,
+            )
+
+        return resolved
+
+    async def _save_named_artifacts(
+        self,
+        *,
+        user_id: str,
+        item: TaskInvocation,
+        result: dict[str, Any],
+    ) -> None:
+        payload_values: dict[ArtifactPayload, str] = {
+            "summary": result.get("summary", "") or "",
+            "result": result.get("result", "") or "",
+            "final_response": result.get("final_response", "") or "",
+            "records": json.dumps(
+                result.get("records", []),
+                ensure_ascii=False,
+            ),
+        }
+
+        for artifact_name, payload_kind in item.output_artifacts.items():
+            text = payload_values[payload_kind]
+            await self.artifact_service.save_artifact(
+                app_name=self.name,
+                user_id=user_id,
+                session_id=None,
+                filename=self._artifact_filename(artifact_name),
+                artifact=types.Part.from_text(text=text),
+            )
 
     async def _run_single_iteration(
         self,
         *,
-        task_name: str,
+        item: TaskInvocation,
+        rendered_task: RenderedTask,
+        input_artifacts: dict[str, str],
         task_id: int,
         user_id: str,
         carry_state: dict[str, Any],
         iteration: int,
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> dict[str, Any]:
-        task = self.tasks[task_name]
-        agent = self.task_agents[task_name]
+        agent = self._spawn_planner_agent(item=item, task=rendered_task)
 
         session_id = str(uuid4())
         initial_state = self._build_task_initial_state(
             task_id=task_id,
-            task=task,
+            task=rendered_task,
+            item=item,
             carry_state=carry_state,
             iteration=iteration,
+            input_artifacts=input_artifacts,
         )
 
         await self._ensure_session(
@@ -348,16 +451,16 @@ class TaskRunner(BaseModel):
         await self._emit(
             on_event,
             type="iteration_started",
-            task_name=task_name,
+            task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
             session_id=session_id,
-            objective=task.objective,
+            objective=rendered_task.objective,
             initial_state=initial_state,
         )
 
         plugin = AdkTracePlugin(
-            task_name=task_name,
+            task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
             session_id=session_id,
@@ -374,7 +477,7 @@ class TaskRunner(BaseModel):
 
         message = types.Content(
             role="user",
-            parts=[types.Part(text=task.objective)],
+            parts=[types.Part(text=rendered_task.objective)],
         )
 
         final_text = ""
@@ -395,7 +498,7 @@ class TaskRunner(BaseModel):
                 await self._emit(
                     on_event,
                     type="final_text",
-                    task_name=task_name,
+                    task_name=item.ref,
                     task_id=task_id,
                     iteration=iteration,
                     session_id=session_id,
@@ -414,7 +517,9 @@ class TaskRunner(BaseModel):
         )
 
         result = {
-            "task_name": task_name,
+            "invocation_id": item.id,
+            "task_ref": item.ref,
+            "task_name": rendered_task.name,
             "task_id": task_id,
             "session_id": session_id,
             "final_response": final_text,
@@ -424,12 +529,15 @@ class TaskRunner(BaseModel):
             "result": final_state.get(self._global_state_key(task_id, "result")),
             "summary": final_state.get(self._global_state_key(task_id, "summary")),
             "records": final_state.get(self._global_state_key(task_id, "pool"), []),
+            "params": copy.deepcopy(item.params),
+            "input_artifacts": copy.deepcopy(input_artifacts),
+            "published_artifacts": list(item.output_artifacts.keys()),
         }
 
         await self._emit(
             on_event,
             type="iteration_finished",
-            task_name=task_name,
+            task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
             session_id=session_id,
@@ -441,30 +549,44 @@ class TaskRunner(BaseModel):
     async def _run_task_with_retries(
         self,
         *,
-        task_name: str,
+        item: TaskInvocation,
         task_id: int,
         user_id: str,
-        carry_state: dict[str, Any],
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> dict[str, Any]:
-        task = self.tasks[task_name]
-        max_iterations = task._max_iterations
-        forced_iterations = task._iterations
+        template = self.templates[item.template_name]
+        input_artifacts = await self._load_input_artifacts(
+            user_id=user_id,
+            item=item,
+        )
 
-        current_carry_state = copy.deepcopy(carry_state)
+        rendered_task = self._render_task(
+            template=template,
+            params=item.params,
+            artifacts=input_artifacts,
+        )
+
+        current_carry_state: dict[str, Any] = {}
         last_result: Optional[dict[str, Any]] = None
+        successful_runs = 0
 
         await self._emit(
             on_event,
             type="task_started",
-            task_name=task_name,
+            task_name=item.ref,
             task_id=task_id,
-            max_iterations=max_iterations,
+            iterations=item.iterations,
+            max_attempts=item.max_attempts,
+            params=item.params,
+            input_artifacts=item.input_artifacts,
+            output_artifacts=item.output_artifacts,
         )
 
-        for iteration in range(1, max_iterations + 1):
+        for iteration in range(1, item.max_attempts + 1):
             result = await self._run_single_iteration(
-                task_name=task_name,
+                item=item,
+                rendered_task=rendered_task,
+                input_artifacts=input_artifacts,
                 task_id=task_id,
                 user_id=user_id,
                 carry_state=current_carry_state,
@@ -481,7 +603,7 @@ class TaskRunner(BaseModel):
             await self._emit(
                 on_event,
                 type="iteration_result",
-                task_name=task_name,
+                task_name=item.ref,
                 task_id=task_id,
                 iteration=iteration,
                 session_id=result["session_id"],
@@ -492,24 +614,25 @@ class TaskRunner(BaseModel):
             )
 
             if completed:
-                await self._save_task_result_artifacts(
+                successful_runs += 1
+                await self._save_named_artifacts(
                     user_id=user_id,
-                    task_name=task_name,
-                    task_id=task_id,
+                    item=item,
                     result=result,
                 )
 
-            if completed and iteration >= forced_iterations:
+            if completed and successful_runs >= item.iterations:
                 await self._emit(
                     on_event,
                     type="task_finished",
-                    task_name=task_name,
+                    task_name=item.ref,
                     task_id=task_id,
                     session_id=result["session_id"],
                     status=result["status"],
                     result=result["result"],
                     summary=result["summary"],
                     records=result["records"],
+                    published_artifacts=list(item.output_artifacts.keys()),
                 )
                 return result
 
@@ -518,15 +641,15 @@ class TaskRunner(BaseModel):
         await self._emit(
             on_event,
             type="task_failed",
-            task_name=task_name,
+            task_name=item.ref,
             task_id=task_id,
-            max_iterations=max_iterations,
+            max_attempts=item.max_attempts,
             last_result=last_result,
         )
 
         raise RuntimeError(
-            f"Task '{task_name}' was not completed after {max_iterations} iterations. "
-            "Execution aborted."
+            f"Task '{item.ref}' was not completed "
+            f"{item.iterations} time(s) after {item.max_attempts} attempt(s)."
         )
 
     async def run(
@@ -536,7 +659,6 @@ class TaskRunner(BaseModel):
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
-        carry_state: dict[str, Any] = {}
 
         await self._emit(
             on_event,
@@ -547,26 +669,26 @@ class TaskRunner(BaseModel):
             user_id=user_id,
         )
 
-        for task_id, task_name in enumerate(self.queue):
+        for task_id, item in enumerate(self.queue):
             result = await self._run_task_with_retries(
-                task_name=task_name,
+                item=item,
                 task_id=task_id,
                 user_id=user_id,
-                carry_state=carry_state,
                 on_event=on_event,
             )
             results.append(result)
-            carry_state = result["carry_state"]
+            self.completed[item.ref] = result
 
             await self._emit(
                 on_event,
                 type="global_task_finished",
-                task_name=task_name,
+                task_name=item.ref,
                 task_id=task_id,
                 session_id=result["session_id"],
                 status=result["status"],
                 result=result["result"],
                 summary=result["summary"],
+                published_artifacts=result["published_artifacts"],
             )
 
         await self._emit(
