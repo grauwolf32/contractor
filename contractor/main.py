@@ -11,6 +11,7 @@ from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner
 from contractor.tools.fs import RootedLocalFileSystem
 from contractor.utils.formatting import handle_event, make_jsonable
+from google.adk.artifacts import FileArtifactService
 
 load_dotenv()
 
@@ -38,6 +39,8 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
+ARTIFACTS_DIR: Path = Path(__file__).parent / "artifacts"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -61,7 +64,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def oas_builder(project_path: str, folder_name: str) -> TaskRunner:
-    runner = TaskRunner(name="oas_builder")
+    artifact_service: FileArtifactService = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    runner = TaskRunner(name="oas_builder", artifact_service=artifact_service)
     fs = RootedLocalFileSystem(root_path=project_path)
 
     swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)

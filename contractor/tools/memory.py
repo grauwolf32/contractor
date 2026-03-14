@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Optional, Union
 from xml.sax.saxutils import escape as xml_escape
@@ -7,6 +8,7 @@ from xml.sax.saxutils import escape as xml_escape
 import yaml
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
 
 @dataclass
@@ -248,10 +250,10 @@ class MemoryTools:
                 return
 
             raw = yaml.safe_load(artifact.text) or []
-            self.notes = {item[name]: MemoryNote(**item) for name, item in raw.items()}
+            self.notes = {name: MemoryNote(**item) for name, item in raw.items()}
 
     def dump(self) -> str:
-        notes = [asdict(memory) for memory in self.notes.values()]
+        notes = {name: asdict(memory) for name, memory in self.notes.items()}
         return yaml.safe_dump(
             notes,
             sort_keys=False,
@@ -261,8 +263,8 @@ class MemoryTools:
 
     async def save(self, ctx: ToolContext | CallbackContext):
         async with self._lock:
-            text = self.dump()
-            await ctx.save_artifact(filename=self.memory_key(), text=text)
+            artifact = types.Part.from_text(text=self.dump())
+            await ctx.save_artifact(filename=self.memory_key(), artifact=artifact)
 
     async def list_memories(
         self, ctx: ToolContext | CallbackContext
@@ -361,7 +363,7 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
            text: The text to append to the memory.
         """
 
-        memory = await m.append_memory(name, text, ctx)
+        memory = await m.append_memory(name, text, tool_context)
         if memory is None:
             return {"error": f"memory {name} not found"}
 
@@ -416,6 +418,7 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         return {"result": m.fmt.format_memories(memories, preview=True)}
 
     return [
+        append_memory,
         write_memory,
         read_memory,
         search_memory,

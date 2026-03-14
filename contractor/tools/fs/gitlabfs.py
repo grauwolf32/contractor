@@ -550,22 +550,6 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         tree_entries, self._errors = _run_async(loader.load_all)
         self._build_index(tree_entries)
 
-    def reload(self, **kwargs: Any) -> None:
-        """
-        Перезагрузить всё из GitLab.
-
-        Можно передать любые параметры из Settings для переопределения:
-            fs.reload(ref="develop", timeout=120)
-        """
-        if kwargs:
-            current = self._settings.model_dump()
-            current.update(kwargs)
-            self._settings = GitlabFileSystemSettings(**current)
-            self.gitlab_url = self._settings.gitlab_url
-            self.ref = self._settings.ref
-
-        self._do_load()
-
     # ------------------------------------------------------------------ #
     #  Properties
     # ------------------------------------------------------------------ #
