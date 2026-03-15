@@ -6,6 +6,7 @@ from typing import Any, Literal, Optional, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
+from google.adk.artifacts import BaseArtifactService
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
@@ -241,6 +242,38 @@ class MemoryTools:
 
     def memory_key(self) -> str:
         return f"user:memory/{self.name}"
+
+    async def inject(
+        self,
+        memories: list[MemoryNote],
+        artifact_service: BaseArtifactService,
+        app_name: str,
+        user_id: str,
+    ):
+        """
+        Inject memories from the outer world
+        """
+        artifact = await artifact_service.load_artifact(
+            filename=self.memory_key(), app_name=app_name, user_id=user_id
+        )
+        raw: dict[str, Any] = {}
+        if artifact is not None:
+            raw = yaml.safe_load(artifact.text)
+        for memory in memories:
+            raw[memory.name] = asdict(memory)
+        dump = yaml.safe_dump(
+            raw,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+        )
+        artifact = types.Part.from_text(text=dump)
+        await artifact_service.save_artifact(
+            filename=self.memory_key(),
+            artifact=artifact,
+            app_name=app_name,
+            user_id=user_id,
+        )
 
     async def load(self, ctx: ToolContext | CallbackContext):
         async with self._lock:

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 
 from contractor.agents.swe_agent.agent import build_swe_agent
+from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.runners.task_runner import TaskRunner
 from contractor.tools.fs import RootedLocalFileSystem
 from contractor.utils.formatting import handle_event, make_jsonable
@@ -81,6 +82,7 @@ def oas_builder(
 
     fs = RootedLocalFileSystem(root_path=project_path)
     swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
+    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs)
 
     runner.add_variable(name="project_path", value=folder_name)
 
@@ -97,10 +99,20 @@ def oas_builder(
         worker_builder=swe_builder,
         iterations=1,
         max_attempts=3,
-        artifacts=[
-            "dependency_information/result"
-        ],
+        artifacts=["dependency_information/result"],
         namespace="project_information",
+    )
+
+    runner.add_task(
+        name="oas_bootstrap",
+        worker_builder=oas_builder,
+        iterations=1,
+        max_attempts=3,
+        artifacts=[
+            "dependency_information/result",
+            "project_information/result",
+        ],
+        namespace="openapi-building",
     )
 
     return runner

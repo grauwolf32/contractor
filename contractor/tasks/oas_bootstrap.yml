@@ -2,6 +2,7 @@
 task:
   name: "OpenAPI Bootstrap & Output Contract"
   objective: >
+    You are working on project {project_path}
     Establish and enforce the foundational OpenAPI lifecycle contract: the OpenAPI document
     exists only as a tool-managed artifact, is mutated only through OpenAPI write tools, and
     is emitted as YAML only as an explicit final deliverable.

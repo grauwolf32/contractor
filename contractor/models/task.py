@@ -34,7 +34,7 @@ class TaskTemplate:
     format: str = "json"
 
     @classmethod
-    def load(cls, name: str) -> "TaskTemplate":
+    def load(cls, name: str) -> TaskTemplate:
         template_key = Path(name).stem
         fname = TASKS_BASE_DIR / f"{template_key}.yml"
         if not os.path.exists(fname):
@@ -65,6 +65,7 @@ class RenderedTask:
     instructions: str
     output_format: str
     format: str
+    artifacts: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_template(
@@ -74,7 +75,7 @@ class RenderedTask:
         variables: Mapping[str, Any],
         params: Mapping[str, Any],
         artifacts: Mapping[str, str],
-    ) -> "RenderedTask":
+    ) -> RenderedTask:
         scope: dict[str, Any] = dict(variables)
         scope.update(params)
 
@@ -93,5 +94,23 @@ class RenderedTask:
             objective=template.objective.format(**scope),
             instructions=template.instructions.format(**scope),
             output_format=template.output_format.format(**scope),
+            artifacts=dict(artifacts),
             format=template.format,
         )
+
+    def _format_artifacts(self) -> str:
+        fmt: str = "artifacts from previous tasks, stored as memories:\n"
+        for name in self.artifacts.keys():
+            fmt += f"* {name}\n"
+        return fmt
+
+    def _format_task(self) -> str:
+        task: str = (
+            f"TASK:\n{self.title}\n\n"
+            f"OBJECTIVE:\n{self.objective}\n\n"
+            f"INSTRUCTIONS:\n{self.instructions}\n\n"
+            f"OUTPUT FORMAT:\n{self.output_format}\n\n"
+        )
+        if self.artifacts:
+            task += f"INBOX:\n{self._format_artifacts()}"
+        return task

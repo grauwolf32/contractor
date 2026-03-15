@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Final, Optional, Literal
+from typing import Final, Optional, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -13,6 +13,7 @@ from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.tasks import (
@@ -35,6 +36,7 @@ SWE_PROMPT: Final[str] = (
     "- Prefer small, safe, verifiable steps. If something is unclear, infer reasonable defaults and proceed.\n"
     "- Do not stop early: keep working until the subtask is completed or you are blocked by missing inputs.\n"
     "- When blocked, report what you tried, what failed, and the smallest concrete next step.\n"
+    "- Existing memories could contain usefull information\n"
     "\n"
     "TOOLS:\n"
     "- grep: Regex search across a file or directory tree.\n"
@@ -45,6 +47,7 @@ SWE_PROMPT: Final[str] = (
     "- covered: List files that were already read during the task execution\n"
     "- uncovered: List files that matched a grep search but were never read\n"
     "- untracked: List files that were neither read nor matched by search.\n"
+    "- append_memory: Appends text to existing memory\n"
     "- read_memory: read the memory from the memory store.\n"
     "- write_memory: write the memory to the memory store.\n"
     "- list_memories: list all the memories in the memory store.\n"
@@ -65,18 +68,6 @@ SWE_MODEL = LiteLlm(
     model="lm-studio-qwen3.5",
     timeout=300,
 )
-
-
-def default_tool(meta: dict[str, Any]) -> dict:
-    """
-    default_tool: You must not use this tool. This is safeguard mechanism.
-        Args:
-            meta: meta information about failed tool call
-        Returns:
-            instructions
-    """
-
-    return {"error": f"tool {meta.get('func_name')} is not available!"}
 
 
 def build_swe_agent(
