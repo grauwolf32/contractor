@@ -10,7 +10,10 @@ from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    ToolMaxCallsGuardrailCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.memory import memory_tools, MemoryFormat
@@ -170,6 +173,10 @@ PLANNING_MODEL = LiteLlm(
     timeout=300,
 )
 
+FINISH_MAX_CALLS_RVALUE: dict[str, str] = {
+    "error": "The 'finish' tool has already been called once. Stop execution."
+}
+
 
 def _safe_identifier(value: str) -> str:
     safe = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
@@ -203,6 +210,11 @@ def build_planning_agent(
     agent_name = f"task_planner_{_safe_identifier(name)}"
     callback_adapter = CallbackAdapter(agent_name=agent_name)
     callback_adapter.register(TokenUsageCallback())
+    callback_adapter.register(
+        ToolMaxCallsGuardrailCallback(
+            max_calls=1, tool_name="finish", rvalue=FINISH_MAX_CALLS_RVALUE
+        )
+    )
 
     callback_adapter.register(
         InvalidToolCallGuardrailCallback(

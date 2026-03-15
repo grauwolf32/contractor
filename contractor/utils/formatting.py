@@ -11,7 +11,6 @@ IGNORED_TOOLS = (
     "ls",
     "add_subtask",
     "decompose_subtask",
-    "skip",
 )
 
 
