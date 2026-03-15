@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Optional
 from uuid import uuid4
@@ -21,8 +20,9 @@ from pydantic import BaseModel, Field
 
 from contractor.models.task import RenderedTask, TaskTemplate
 from contractor.runners.trace_plugin import AdkTracePlugin
-from contractor.tools.memory import MemoryFormat, memory_tools
-from contractor.tools.tasks import SubtaskFormatter, task_tools
+from contractor.tools.memory import MemoryTools, MemoryNote
+
+from contractor.agents.planning_agent.agent import build_planning_agent
 
 load_dotenv()
 
@@ -33,7 +33,7 @@ WorkerBuilder = Callable[..., LlmAgent | AgentTool]
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-PLANNER_MODEL = LiteLlm(
+DEFAULT_MODEL = LiteLlm(
     model="lm-studio-qwen3.5",
     timeout=300,
 )
@@ -80,6 +80,7 @@ class TaskRunner(BaseModel):
     templates: dict[str, TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
     variables: dict[str, str] = Field(default_factory=dict)
+    default_model: LiteLlm = Field(default=DEFAULT_MODEL)
 
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
@@ -116,9 +117,7 @@ class TaskRunner(BaseModel):
             iterations if iterations is not None else template.default_iterations
         )
         effective_max_attempts = (
-            max_attempts
-            if max_attempts is not None
-            else max(1, effective_iterations)
+            max_attempts if max_attempts is not None else max(1, effective_iterations)
         )
 
         if effective_iterations < 1:
@@ -144,11 +143,6 @@ class TaskRunner(BaseModel):
         return item.ref
 
     @staticmethod
-    def _safe_identifier(value: str) -> str:
-        safe = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
-        return safe or "task"
-
-    @staticmethod
     def _artifact_filename(template_key: str, kind: ArtifactKind) -> str:
         clean_template_key = (template_key or "").strip().strip("/")
         if not clean_template_key:
@@ -157,7 +151,6 @@ class TaskRunner(BaseModel):
             raise ValueError("template_key must not contain path traversal segments")
         return f"{clean_template_key}/{kind}"
 
-
     @classmethod
     def _artifact_names_for_task(cls, template_key: str) -> dict[ArtifactKind, str]:
         return {
@@ -165,14 +158,6 @@ class TaskRunner(BaseModel):
             "summary": cls._artifact_filename(template_key, "summary"),
             "records": cls._artifact_filename(template_key, "records"),
         }
-
-    def _format_task(self, task: RenderedTask) -> str:
-        return (
-            f"TASK:\n{task.title}\n\n"
-            f"OBJECTIVE:\n{task.objective}\n\n"
-            f"INSTRUCTIONS:\n{task.instructions}\n\n"
-            f"OUTPUT FORMAT:\n{task.output_format}"
-        )
 
     def _render_task(
         self,
@@ -188,39 +173,23 @@ class TaskRunner(BaseModel):
             artifacts=artifacts,
         )
 
-    def _spawn_planner_agent(
+    def _spawn_planning_agent(
         self,
         *,
         item: TaskInvocation,
         task: RenderedTask,
     ) -> LlmAgent:
-        fmt = SubtaskFormatter(task.format)
-
         worker = item.worker_builder(
             namespace=item.namespace or self.name,
             _format=task.format,
         )
-
-        planning_tools = task_tools(
+        planner = build_planning_agent(
             name=item.ref,
-            max_tasks=item.max_steps,
+            namespace=item.namespace or self.name,
             worker=worker,
-            fmt=fmt,
-            use_output_schema=False,
+            model=item.model or self.default_model,
         )
-
-        mem_tools = memory_tools(
-            name=item.namespace or self.name,
-            fmt=MemoryFormat(_format=task.format),
-        )
-
-        return LlmAgent(
-            name=f"task_{self._safe_identifier(item.ref)}_planner",
-            description=f"Planner for queued task {item.ref}",
-            instruction=self._format_task(task),
-            tools=[*planning_tools, *mem_tools],
-            model=item.model or PLANNER_MODEL,
-        )
+        return planner
 
     async def _emit(
         self,
@@ -389,7 +358,6 @@ class TaskRunner(BaseModel):
 
         return ""
 
-
     async def _load_artifacts(
         self,
         *,
@@ -405,7 +373,6 @@ class TaskRunner(BaseModel):
             )
 
         return loaded
-
 
     async def _publish_task_artifacts(
         self,
@@ -435,20 +402,50 @@ class TaskRunner(BaseModel):
                 artifact=types.Part.from_text(text=text),
             )
 
+    async def _inject_artifacts(
+        self, user_id: str, namespace: str, input_artifacts: dict[str, str]
+    ):
+        mem_tools = MemoryTools(name=namespace)
+        memories: list[MemoryNote] = []
+        for name, text in input_artifacts.items():
+            description: str = f"result from previous task {name}"
+            if "/" in name:
+                template_key = name.split("/")[0]
+                if template_key in self.templates:
+                    task_template = self.templates.get(template_key)
+                    description = task_template.title
+
+            memories.append(
+                MemoryNote(
+                    name=name,
+                    memory=text,
+                    description=description,
+                    tags=[name, "inbox", "previous-task-result"],
+                )
+            )
+        await mem_tools.inject(
+            memories=memories,
+            artifact_service=self.artifact_service,
+            app_name=self.name,
+            user_id=user_id,
+        )
 
     async def _run_single_iteration(
         self,
         *,
         item: TaskInvocation,
         rendered_task: RenderedTask,
-        input_artifacts: dict[str, dict[str, str]],
+        input_artifacts: dict[str, str],
         task_id: int,
         user_id: str,
         carry_state: dict[str, Any],
         iteration: int,
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> dict[str, Any]:
-        agent = self._spawn_planner_agent(item=item, task=rendered_task)
+        agent = self._spawn_planning_agent(item=item, task=rendered_task)
+        await self._inject_artifacts(
+            user_id=user_id, namespace=item.ref, input_artifacts=input_artifacts
+        )
 
         session_id = str(uuid4())
         initial_state = self._build_task_initial_state(
