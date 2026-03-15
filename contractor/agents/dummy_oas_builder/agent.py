@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -13,15 +13,14 @@ from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
-    SUBTASK_PLANNING_PROMPT,
     SubtaskFormatter,
     _prepare_worker_instructions,
-    task_tools,
 )
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
@@ -69,12 +68,6 @@ DUMMY_SWE_PROMPT: Final[str] = (
 )
 
 
-DUMMY_PLANNER_PROMPT: Final[str] = (
-    "You are a helpful assistant, task manager, and execution planner.\n"
-    "Your job is to translate the user's request into a small, reliable plan and drive it to completion.\n"
-    f"\n\n{SUBTASK_PLANNING_PROMPT}"
-)
-
 DUMMY_SWE_DESCRIPTION: Final[str] = (
     "Professional software engineer focused on implementing and validating assigned subtasks."
 )
@@ -107,21 +100,6 @@ sandbox = PodmanContainer(
 fs = RootedLocalFileSystem(root_path=playground_path)
 
 
-def default_tool(meta: dict[str, Any]) -> dict:
-    """
-    default_tool: You must not use this tool. This is safeguard mechanism.
-        Args:
-            meta: meta information about failed tool call
-        Returns:
-            instructions
-    """
-
-    if "error" in meta:
-        return {"error": meta["error"]}
-
-    return {"error": f"tool {meta.get('func_name')} is not available!"}
-
-
 mem_tools = memory_tools("swe")
 fs_tools = file_tools(fs=fs, fmt=FileFormat(_format="xml"))
 oas_tools = openapi_tools("playground")
@@ -139,8 +117,8 @@ callback_adapter.register(
     )
 )
 
-dummy_swe = LlmAgent(
-    name="dummy_swe",
+dummy_oas_builder = LlmAgent(
+    name="dummy_oas_builder",
     description=DUMMY_SWE_DESCRIPTION,
     instruction=DUMMY_SWE_PROMPT,
     model=DUMMY_MODEL,
@@ -148,33 +126,4 @@ dummy_swe = LlmAgent(
     **callback_adapter(),
 )
 
-fmt = SubtaskFormatter(_format="xml")
-planning_tools = task_tools(
-    name="dummy_planner",
-    max_tasks=15,
-    worker=dummy_swe,
-    fmt=fmt,
-    use_output_schema=False,
-)
-
-
-tools = [default_tool, *planning_tools, *mem_tools]
-
-callback_adapter = CallbackAdapter(agent_name="dummy_planner")
-callback_adapter.register(TokenUsageCallback())
-callback_adapter.register(
-    InvalidToolCallGuardrailCallback(
-        tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
-    )
-)
-
-dummy_planner = LlmAgent(
-    name="dummy_planner",
-    description=DUMMY_PLANNER_DESCRIPTION,
-    instruction=DUMMY_PLANNER_PROMPT,
-    model=DUMMY_MODEL,
-    tools=tools,
-    **callback_adapter(),
-)
-
-root_agent = dummy_planner
+root_agent = dummy_oas_builder

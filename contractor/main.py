@@ -115,6 +115,18 @@ def oas_builder(
         namespace="openapi-building",
     )
 
+    runner.add_task(
+        name="oas_update",
+        worker_builder=oas_builder,
+        iterations=3,
+        max_attempts=9,
+        artifacts=[
+            "dependency_information/result",
+            "project_information/result",
+        ],
+        namespace="openapi-building",
+    )
+
     return runner
 
 

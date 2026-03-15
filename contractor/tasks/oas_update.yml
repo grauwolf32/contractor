@@ -2,6 +2,7 @@
 task:
   name: "OpenAPI Incremental Update"
   objective: >
+    You are working on project {project_path}
     Incrementally discover, model, and maintain the OpenAPI specification based on the
     project’s source code, evolving the tool-managed schema in small, verifiable steps.
 
