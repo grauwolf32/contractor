@@ -135,7 +135,7 @@ Rule 5: Completion Rules
 6. Finalization policy
 - Before exiting, always report the final global task status.
 - The final outcome must be reported by calling the finish tool.
-- After calling finish tool, finish the execution
+- After calling finish tool, stop the execution
 
 --------------------------------------------------
 6. AGENT MINDSET
