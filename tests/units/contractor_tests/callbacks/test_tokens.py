@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from contractor.callbacks.tokens import TokenUsageCallback
 from tests.units.contractor_tests.helpers import mk_callback_context, mk_llm_response
 
