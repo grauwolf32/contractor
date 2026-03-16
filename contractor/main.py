@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
+from google.adk.models import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
@@ -15,7 +16,6 @@ from contractor.tools.fs import RootedLocalFileSystem
 from contractor.utils.formatting import handle_event, make_jsonable
 
 load_dotenv()
-
 
 def turn_off_logger() -> None:
     names = [
@@ -46,6 +46,7 @@ def oas_builder(
     *,
     project_path: Path,
     folder_name: str,
+    model: str,
 ) -> TaskRunner:
     artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
     runner = TaskRunner(
@@ -53,9 +54,10 @@ def oas_builder(
         artifact_service=artifact_service,
     )
 
+    model = LiteLlm(model=model)
     fs = RootedLocalFileSystem(root_path=project_path)
-    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
-    oas_builder_fn = partial(build_oas_builder_agent, name="oas_builder", fs=fs)
+    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs, model=model)
+    oas_builder_fn = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=model)
 
     runner.add_variable(name="project_path", value=folder_name)
 
@@ -65,6 +67,7 @@ def oas_builder(
         iterations=1,
         max_attempts=3,
         namespace="dependency_information",
+        model=model,
     )
 
     runner.add_task(
@@ -74,6 +77,7 @@ def oas_builder(
         max_attempts=3,
         artifacts=["dependency_information/result"],
         namespace="project_information",
+        model=model,
     )
 
     runner.add_task(
@@ -86,6 +90,7 @@ def oas_builder(
             "project_information/result",
         ],
         namespace="openapi-building",
+        model=model,
     )
 
     runner.add_task(
@@ -98,15 +103,17 @@ def oas_builder(
             "project_information/result",
         ],
         namespace="openapi-building",
+        model=model
     )
 
     return runner
 
 
-async def async_main(project_path: Path, folder_name: str, user_id: str) -> None:
+async def async_main(project_path: Path, folder_name: str, user_id: str, model:str) -> None:
     runner = oas_builder(
         project_path=project_path,
         folder_name=folder_name,
+        model=model,
     )
 
     results = await runner.run(
@@ -142,13 +149,13 @@ async def async_main(project_path: Path, folder_name: str, user_id: str) -> None
 @click.option(
     "--model",
     type=str,
-    default="gpt-4-1106-preview",
+    default="lm-studio-qwen3.5",
     show_default=True,
     help="Model name to use for the task",
 )
-def main(project_path: Path, folder_name: str, user_id: str) -> None:
+def main(project_path: Path, folder_name: str, user_id: str, model:str) -> None:
     """Run contractor task pipeline for a project."""
-    asyncio.run(async_main(project_path, folder_name, user_id))
+    asyncio.run(async_main(project_path, folder_name, user_id, model))
 
 
 if __name__ == "__main__":

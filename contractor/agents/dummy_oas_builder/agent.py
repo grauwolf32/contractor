@@ -16,7 +16,7 @@ from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
 from contractor.tools.memory import memory_tools
-from contractor.tools.openapi import openapi_tools
+from contractor.tools.openapi.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
     SubtaskFormatter,

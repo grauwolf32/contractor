@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import logging
 from typing import Final, Optional, Literal
 
 from google.adk.agents import LlmAgent
@@ -193,15 +194,13 @@ def build_planning_agent(
     use_output_schema: bool = False,
     model: Optional[LiteLlm] = None,
 ):
-    fmt = MemoryFormat(_format=_format)
-    mem_tools = memory_tools(name=namespace, fmt=fmt)
+    mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
 
-    fmt = SubtaskFormatter(_format=_format)
     planning_tools = task_tools(
         name=name,
         max_tasks=max_steps,
         worker=worker,
-        fmt=fmt,
+        fmt=SubtaskFormatter(_format=_format),
         use_output_schema=use_output_schema,
     )
 

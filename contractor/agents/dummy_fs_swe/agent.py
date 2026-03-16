@@ -15,7 +15,7 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
-from contractor.tools.memory import memory_tools
+from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
     SubtaskFormatter,
@@ -80,7 +80,7 @@ sandbox = PodmanContainer(
 fs = RootedLocalFileSystem(root_path=playground_path)
 
 
-mem_tools = memory_tools("swe")
+mem_tools = memory_tools(name="swe", fmt=MemoryFormat("json"))
 fs_tools = file_tools(fs, fmt=FileFormat("json"))
 
 tools = [default_tool, *fs_tools, *sandbox.tools(), *mem_tools]

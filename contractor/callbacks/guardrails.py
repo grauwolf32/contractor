@@ -108,7 +108,7 @@ class ToolMaxCallsGuardrailCallback(BaseCallback):
 
     @property
     def name(self):
-        return ".".join(self.__class__.__name__, self.tool_name)
+        return ".".join((self.__class__.__name__, self.tool_name))
 
     def __call__(
         self, tool: BaseTool, args: dict[str, Any], tool_context: ToolContext

@@ -15,7 +15,7 @@ from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
-from contractor.tools.memory import memory_tools
+from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.tools.tasks import (
     SubtaskFormatter,
     _prepare_worker_instructions,
@@ -79,7 +79,7 @@ def build_swe_agent(
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
 ):
-    mem_tools = memory_tools(namespace)
+    mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = file_tools(fs, fmt=FileFormat(_format=format))
 
     tools = [default_tool, *fs_tools, *mem_tools]
@@ -110,7 +110,7 @@ def build_swe_agent(
 
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "cloud"
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 )
 
 fs = RootedLocalFileSystem(root_path=playground_path)
