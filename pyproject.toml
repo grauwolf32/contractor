@@ -18,6 +18,7 @@ dependencies = [
     "fsspec (>=2026.1.0,<2027.0.0)",
     "magika (>=1.0.1,<2.0.0)",
     "dotenv (>=0.9.9,<0.10.0)",
+    "click (>=8.3.1,<9.0.0)",
 ]
 
 [[tool.poetry.source]]

@@ -1,10 +1,10 @@
-import argparse
 import asyncio
 import json
 import logging
 from functools import partial
 from pathlib import Path
 
+import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 
@@ -42,33 +42,6 @@ logging.basicConfig(
 ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="contractor",
-        description="Run contractor task pipeline for a project",
-    )
-
-    parser.add_argument(
-        "--project-path",
-        type=Path,
-        required=True,
-        help="Path to the project directory",
-    )
-    parser.add_argument(
-        "--folder-name",
-        type=str,
-        default="/",
-        help="Project-relative folder path used inside task templates",
-    )
-    parser.add_argument(
-        "--user-id",
-        default="cli-user",
-        help="User id for ADK session runner",
-    )
-
-    return parser.parse_args()
-
-
 def oas_builder(
     *,
     project_path: Path,
@@ -82,7 +55,7 @@ def oas_builder(
 
     fs = RootedLocalFileSystem(root_path=project_path)
     swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs)
-    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs)
+    oas_builder_fn = partial(build_oas_builder_agent, name="oas_builder", fs=fs)
 
     runner.add_variable(name="project_path", value=folder_name)
 
@@ -105,7 +78,7 @@ def oas_builder(
 
     runner.add_task(
         name="oas_bootstrap",
-        worker_builder=oas_builder,
+        worker_builder=oas_builder_fn,
         iterations=1,
         max_attempts=3,
         artifacts=[
@@ -117,7 +90,7 @@ def oas_builder(
 
     runner.add_task(
         name="oas_update",
-        worker_builder=oas_builder,
+        worker_builder=oas_builder_fn,
         iterations=3,
         max_attempts=9,
         artifacts=[
@@ -130,16 +103,14 @@ def oas_builder(
     return runner
 
 
-async def async_main() -> None:
-    args = parse_args()
-
+async def async_main(project_path: Path, folder_name: str, user_id: str) -> None:
     runner = oas_builder(
-        project_path=args.project_path,
-        folder_name=args.folder_name,
+        project_path=project_path,
+        folder_name=folder_name,
     )
 
     results = await runner.run(
-        user_id=args.user_id,
+        user_id=user_id,
         on_event=handle_event,
     )
 
@@ -147,8 +118,30 @@ async def async_main() -> None:
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
 
-def main() -> None:
-    asyncio.run(async_main())
+@click.command(name="contractor")
+@click.option(
+    "--project-path",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    help="Path to the project directory",
+)
+@click.option(
+    "--folder-name",
+    type=str,
+    default="/",
+    show_default=True,
+    help="Project-relative folder path used inside task templates",
+)
+@click.option(
+    "--user-id",
+    type=str,
+    default="cli-user",
+    show_default=True,
+    help="User id for ADK session runner",
+)
+def main(project_path: Path, folder_name: str, user_id: str) -> None:
+    """Run contractor task pipeline for a project."""
+    asyncio.run(async_main(project_path, folder_name, user_id))
 
 
 if __name__ == "__main__":
