@@ -18,7 +18,7 @@ task:
       over inline definitions to minimize duplication and drift.
 
     Follow this operating procedure strictly:
-    1. Understand the assigned subtask and review prior task context.
+    1. Understand the assigned subtask and review prior task context. Read existing memories and records.
     2. Inspect the current OpenAPI state using the smallest necessary read calls.
     3. Plan minimal, additive updates; preserve backward compatibility whenever possible.
     4. For every change, cite evidence from the codebase (file paths or directories; if line
@@ -43,3 +43,4 @@ task:
   output_format: >
     Produce Markdown summarizing what was added or updated, why the change was made, and
     where the supporting evidence exists in the codebase. Do not paste the schema.
+    Check get_full_openapi_schema output to be sure that you have produced complete schema.

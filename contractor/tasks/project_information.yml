@@ -6,6 +6,7 @@ task:
     Analyze the project {project_path} structure and map directories and files to their
     responsibilities. The goal is to produce a clear, categorized inventory
     of the project, with special attention to security-relevant components.
+    Before start, analyze existing memories and records.
 
   instructions: >
     Analyze the project {project_path} by walking the directory tree from the top level

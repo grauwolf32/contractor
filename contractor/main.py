@@ -66,6 +66,7 @@ def oas_builder(
         worker_builder=swe_builder,
         iterations=1,
         max_attempts=3,
+        max_steps=20,
         namespace="dependency_information",
         model=model,
     )
@@ -75,21 +76,9 @@ def oas_builder(
         worker_builder=swe_builder,
         iterations=1,
         max_attempts=3,
+        max_steps=20,
         artifacts=["dependency_information/result"],
         namespace="project_information",
-        model=model,
-    )
-
-    runner.add_task(
-        name="oas_bootstrap",
-        worker_builder=oas_builder_fn,
-        iterations=1,
-        max_attempts=3,
-        artifacts=[
-            "dependency_information/result",
-            "project_information/result",
-        ],
-        namespace="openapi-building",
         model=model,
     )
 
@@ -98,6 +87,7 @@ def oas_builder(
         worker_builder=oas_builder_fn,
         iterations=3,
         max_attempts=9,
+        max_steps=20,
         artifacts=[
             "dependency_information/result",
             "project_information/result",
