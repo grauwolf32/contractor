@@ -18,21 +18,11 @@ dependencies = [
     "fsspec (>=2026.1.0,<2027.0.0)",
     "magika (>=1.0.1,<2.0.0)",
     "dotenv (>=0.9.9,<0.10.0)",
-    "click (>=8.3.1,<9.0.0)",
 ]
 
-[[tool.poetry.source]]
-name = "registry.tcsbank.ru"
-url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple/"
-
-[[tool.poetry.source]]
-name = "tinkoff"
-url = "https://nexus.tcsbank.ru/repository/pypi-all/simple"
-priority = "primary"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"
-pytest-cov = "^7.0.0"
 
 [dependency-groups]
 dev = [
