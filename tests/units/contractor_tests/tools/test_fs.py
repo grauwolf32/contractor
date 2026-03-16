@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import unicodedata
 from pathlib import Path
 
 import fsspec
@@ -767,9 +768,6 @@ def test_grep_cyrillic(tools_json, cyrillic_fs):
     res = tools_json["grep"]("привет", path=str(root))
     paths = {e["name"] for e in res["result"]}
     assert fname in paths
-
-
-import unicodedata
 
 
 def test_unicode_normalization_glob(tools_json, tmp_path):

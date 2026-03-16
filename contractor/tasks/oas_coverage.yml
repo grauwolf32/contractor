@@ -7,7 +7,7 @@ task:
 
   instructions: >
     Review prior task context to understand which files and endpoints have already been
-    analyzed. Use get_coverage to retrieve current file coverage for schema construction.
+    analyzed. Use get_coverage_stats, uncovered, untracked, to analyze coverage for schema construction.
     Inspect existing paths and components to understand the current API surface.
 
     Enumerate project files and identify candidates likely to define API behavior, such as:

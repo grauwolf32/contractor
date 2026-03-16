@@ -282,7 +282,7 @@ class MemoryTools:
                 self.notes = {}
                 return
 
-            raw = yaml.safe_load(artifact.text) or []
+            raw = yaml.safe_load(artifact.text) or {}
             self.notes = {name: MemoryNote(**item) for name, item in raw.items()}
 
     def dump(self) -> str:

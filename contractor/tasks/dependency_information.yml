@@ -7,6 +7,7 @@ task:
     dependencies that are used to interact with external services, systems,
     or infrastructure. The goal is to identify, classify, and tag such
     dependencies while excluding purely internal or local-only libraries.
+    Before start, analyze existing memories and records.
 
   instructions: >
     Analyze the project {project_path} to identify its dependency ecosystem and locate the

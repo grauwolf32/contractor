@@ -89,7 +89,7 @@ def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
 
 
 def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
-    if not args:
+    if not args or type(args) is not dict:
         return ""
 
     if tool_name == "add_subtask":
@@ -102,7 +102,11 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
 
     if tool_name == "decompose_subtask":
         task_id = args.get("task_id")
-        subtasks = (args.get("decomposition") or {}).get("subtasks") or []
+        decomposition = (args.get("decomposition") or {})
+        if type(decomposition) is str:
+            return ""
+        
+        subtasks = decomposition.get("subtasks") or []
         lines = [
             f"    {C.wrap('↳', C.MAGENTA)} "
             f"{C.wrap(f'Декомпозиция подзадачи {task_id}', C.BOLD)} "

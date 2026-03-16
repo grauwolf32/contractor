@@ -1,5 +1,4 @@
 import json
-import re
 from unittest.mock import AsyncMock
 
 import pytest
@@ -285,7 +284,7 @@ async def test_add_new_task_after_decompose(monkeypatch):
 
     ctx = mk_tool_context()
 
-    res = tool["add_subtask"](title=f"t0", description=f"d0", tool_context=ctx)
+    res = tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     assert "error" not in res
 
     # ---- Current task should be 0 ----
@@ -346,10 +345,10 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
 
     ctx = mk_tool_context()
 
-    res = tool["add_subtask"](title=f"t0", description=f"d0", tool_context=ctx)
+    res = tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     assert "error" not in res
 
-    res = tool["add_subtask"](title=f"t1", description=f"d1", tool_context=ctx)
+    res = tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
     assert "error" not in res
 
     # ---- Current task should be 0 ----

@@ -444,7 +444,7 @@ class TaskRunner(BaseModel):
     ) -> dict[str, Any]:
         agent = self._spawn_planning_agent(item=item, task=rendered_task)
         await self._inject_artifacts(
-            user_id=user_id, namespace=item.ref, input_artifacts=input_artifacts
+            user_id=user_id, namespace=item.namespace, input_artifacts=input_artifacts
         )
 
         session_id = str(uuid4())

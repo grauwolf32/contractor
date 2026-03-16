@@ -731,8 +731,11 @@ class StreamlineManager:
         subtasks = self.get_subtasks(ctx)
         idx = ctx.state.get(self._current_idx(ctx))
 
-        if idx is None:
+        if len(subtasks) >= self.max_tasks:
             return
+
+        if idx is None:
+            return []
 
         current_id: str = subtasks[idx].task_id
         insertion: list[Subtask] = []
@@ -966,9 +969,16 @@ def task_tools(
         if str(task_id) != current.task_id:
             return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
-        insertion: list[Subtask] = mgr.decompose_current_subtask(
+        insertion: Optional[list[Subtask]]  = mgr.decompose_current_subtask(
             decomposition.subtasks, tool_context
         )
+
+        if insertion is None:
+            return {"error": TASK_LIMIT_REACHED_MSG}
+        
+        if len(insertion) == 0:
+            return {"error": NO_ACTIVE_TASKS_MSG}
+
         return {"result": fmt.format_subtasks(insertion)}
 
     def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
