@@ -367,10 +367,11 @@ class TaskRunner(BaseModel):
         loaded: dict[str, str] = {}
 
         for artifact_ref in artifact_refs:
-            loaded[artifact_ref] = await self._load_artifact_text(
+            text: Optional[str] = await self._load_artifact_text(
                 user_id=user_id,
                 artifact_ref=artifact_ref,
             )
+            loaded[artifact_ref] = text or ""
 
         return loaded
 
