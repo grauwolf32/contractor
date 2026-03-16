@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Awaitable, Optional
 
 import click
 from dotenv import load_dotenv
@@ -46,7 +46,7 @@ ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
 
 @dataclass(frozen=True)
 class PipelineSpec:
-    builder: Callable[..., TaskRunner]
+    builder: Callable[..., Awaitable[TaskRunner]]
     requires_artifact: bool = False
 
 
@@ -138,7 +138,7 @@ def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
         ) from exc
 
 
-def oas_building_pipeline(
+async def oas_building_pipeline(
     *,
     project_path: Path,
     folder_name: str,
@@ -197,12 +197,12 @@ def oas_building_pipeline(
     return runner
 
 
-def oas_enrichment_pipeline(
+async def oas_enrichment_pipeline(
     *,
     project_path: Path,
     folder_name: str,
     model: str,
-    oas: str,
+    artifact: Optional[str]=None,
 ) -> TaskRunner:
     _ensure_artifacts_dir()
 
@@ -217,39 +217,22 @@ def oas_enrichment_pipeline(
     swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs, model=llm)
     oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
 
+    if artifact:
+        artifact = types.Part.from_text(text=artifact) 
+        await artifact_service.save_artifact(app_name=app_name, user_id=user_id, filename="oas-openapi-building")
+
     runner.add_variable(name="project_path", value=folder_name)
-    runner.add_variable(name="oas", value=oas)
-
-    runner.add_task(
-        name="dependency_information",
-        worker_builder=swe_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        namespace="dependency_information",
-        model=llm,
-    )
-
-    runner.add_task(
-        name="project_information",
-        worker_builder=swe_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        artifacts=["dependency_information/result"],
-        namespace="project_information",
-        model=llm,
-    )
 
     runner.add_task(
         name="oas_enrich",
         worker_builder=oas_builder,
-        iterations=3,
-        max_attempts=9,
+        iterations=1,
+        max_attempts=3,
         max_steps=20,
         artifacts=[
             "dependency_information/result",
             "project_information/result",
+            "oas-openapi-building",
         ],
         namespace="openapi-building",
         model=llm,
@@ -281,7 +264,7 @@ async def async_main(
     user_id: str,
     model: str,
     pipeline: str,
-    oas: Optional[str],
+    artifact: Optional[str],
 ) -> None:
     pipeline = pipeline.lower()
     pipelines = get_pipelines()
@@ -293,19 +276,16 @@ async def async_main(
             f"Unsupported pipeline: {pipeline}. Available: {available}"
         )
 
-    if spec.requires_artifact and not oas:
-        raise click.UsageError(f"--artifact is required for --pipeline {pipeline}")
-
     builder_kwargs = {
         "project_path": project_path,
         "folder_name": folder_name,
         "model": model,
     }
 
-    if spec.requires_artifact:
-        builder_kwargs["oas"] = oas
+    if spec.requires_artifact and artifact:
+        builder_kwargs["artifact"] = artifact
 
-    runner = spec.builder(**builder_kwargs)
+    runner = await spec.builder(**builder_kwargs)
 
     _ = await runner.run(
         user_id=user_id,
@@ -365,7 +345,7 @@ def main(
     pipeline = pipeline.lower()
     project_path = _validate_project_path(project_path)
     folder_name = _validate_folder_name(project_path, folder_name)
-    oas = _read_artifact_file(artifact)
+    artifact_text = _read_artifact_file(artifact)
 
     pipelines = get_pipelines()
     spec = pipelines[pipeline]
@@ -382,7 +362,7 @@ def main(
             user_id=user_id,
             model=model,
             pipeline=pipeline,
-            oas=oas,
+            artifact=artifact_text,
         )
     )
 
