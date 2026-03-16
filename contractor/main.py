@@ -139,6 +139,13 @@ async def async_main(project_path: Path, folder_name: str, user_id: str) -> None
     show_default=True,
     help="User id for ADK session runner",
 )
+@click.option(
+    "--model",
+    type=str,
+    default="gpt-4-1106-preview",
+    show_default=True,
+    help="Model name to use for the task",
+)
 def main(project_path: Path, folder_name: str, user_id: str) -> None:
     """Run contractor task pipeline for a project."""
     asyncio.run(async_main(project_path, folder_name, user_id))
