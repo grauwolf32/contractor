@@ -109,9 +109,7 @@ def build_swe_agent(
     return swe_agent
 
 
-playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground"
-)
+playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 
 fs = RootedLocalFileSystem(root_path=playground_path)
 

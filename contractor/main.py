@@ -9,6 +9,7 @@ import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 from google.adk.models import LiteLlm
+from google.genai import types
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
@@ -202,7 +203,9 @@ async def oas_enrichment_pipeline(
     project_path: Path,
     folder_name: str,
     model: str,
-    artifact: Optional[str]=None,
+    artifact: Optional[str] = None,
+    app_name: str,
+    user_id: str,
 ) -> TaskRunner:
     _ensure_artifacts_dir()
 
@@ -217,8 +220,10 @@ async def oas_enrichment_pipeline(
     oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
 
     if artifact:
-        artifact = types.Part.from_text(text=artifact) 
-        await artifact_service.save_artifact(app_name=app_name, user_id=user_id, filename="oas-openapi-building")
+        artifact = types.Part.from_text(text=artifact)
+        await artifact_service.save_artifact(
+            app_name=app_name, user_id=user_id, filename="oas-openapi-building"
+        )
 
     runner.add_variable(name="project_path", value=folder_name)
 
@@ -279,6 +284,8 @@ async def async_main(
         "project_path": project_path,
         "folder_name": folder_name,
         "model": model,
+        "user_id": user_id,
+        "app_name": "contractor",
     }
 
     if spec.requires_artifact and artifact:
@@ -290,6 +297,7 @@ async def async_main(
         user_id=user_id,
         on_event=handle_event,
     )
+
 
 @click.command(name="contractor")
 @click.option(
@@ -350,9 +358,7 @@ def main(
     spec = pipelines[pipeline]
 
     if artifact is not None and not spec.requires_artifact:
-        raise click.UsageError(
-            f"--artifact cannot be used with --pipeline {pipeline}"
-        )
+        raise click.UsageError(f"--artifact cannot be used with --pipeline {pipeline}")
 
     asyncio.run(
         async_main(
