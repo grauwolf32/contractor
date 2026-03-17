@@ -342,7 +342,7 @@ class TaskRunner(BaseModel):
             filename=artifact_ref,
         )
         if part is None:
-            raise FileNotFoundError(f"Artifact '{artifact_ref}' not found")
+            return ""
 
         text = getattr(part, "text", None)
         if text is not None:

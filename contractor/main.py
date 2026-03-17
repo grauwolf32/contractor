@@ -221,9 +221,9 @@ async def oas_enrichment_pipeline(
     oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
 
     if artifact:
-        artifact = types.Part.from_text(text=artifact)
+        artifact_text = types.Part.from_text(text=artifact)
         await artifact_service.save_artifact(
-            app_name=app_name, user_id=user_id, filename="oas-openapi-building"
+            app_name=app_name, user_id=user_id, filename="oas-openapi-building", artifact=artifact_text
         )
 
     runner.add_variable(name="project_path", value=folder_name)
