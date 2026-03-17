@@ -14,7 +14,7 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner
 from contractor.tools.fs import RootedLocalFileSystem
-from contractor.utils.formatting import handle_event, make_jsonable
+from contractor.utils.formatting import handle_event
 
 load_dotenv()
 
@@ -214,7 +214,6 @@ async def oas_enrichment_pipeline(
 
     llm = LiteLlm(model=model)
     fs = RootedLocalFileSystem(root_path=project_path)
-    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs, model=llm)
     oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
 
     if artifact:
