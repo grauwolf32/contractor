@@ -102,10 +102,10 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
 
     if tool_name == "decompose_subtask":
         task_id = args.get("task_id")
-        decomposition = (args.get("decomposition") or {})
+        decomposition = args.get("decomposition") or {}
         if type(decomposition) is str:
             return ""
-        
+
         subtasks = decomposition.get("subtasks") or []
         lines = [
             f"    {C.wrap('↳', C.MAGENTA)} "

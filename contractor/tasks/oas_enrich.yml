@@ -29,6 +29,8 @@ task:
     Follow this operating procedure strictly:
     1. Understand the assigned subtask and review prior task context. Read existing memories and records.
     2. Inspect the current OpenAPI state using the smallest necessary read calls.
+       - Use tools: get_full_openapi_schema, list_paths, list_components, list_servers,
+        get_info, get_path, get_component.
     3. Plan minimal, additive updates; preserve backward compatibility whenever possible.
     4. For every change, cite evidence from the codebase:
        - for paths/operations: include file paths or directories and best-guess code locations;
@@ -36,7 +38,9 @@ task:
        - when possible, mirror this evidence into x-file-path and x-component-path.
     5. Before writing, check whether the affected paths/components already contain x-file-path
        and x-component-path; if not, include those metadata updates in the same change set.
-    6. Apply changes using write tools only.
+    6. Apply changes using write tools only:
+      - Use tools: set_info, add_server, upsert_path, upsert_component, remove_server,
+        remove_path, remove_component.
     7. Re-check only the modified sections using targeted reads.
 
     Never assume schema state—verify with read tools before writing. Deletions (remove_path,

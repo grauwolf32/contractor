@@ -969,13 +969,13 @@ def task_tools(
         if str(task_id) != current.task_id:
             return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
-        insertion: Optional[list[Subtask]]  = mgr.decompose_current_subtask(
+        insertion: Optional[list[Subtask]] = mgr.decompose_current_subtask(
             decomposition.subtasks, tool_context
         )
 
         if insertion is None:
             return {"error": TASK_LIMIT_REACHED_MSG}
-        
+
         if len(insertion) == 0:
             return {"error": NO_ACTIVE_TASKS_MSG}
 

@@ -179,7 +179,7 @@ def openapi_tools(name: str) -> list[Callable]:
         if not ok:
             return {"error": err}
 
-        path_def.update({"x-path-files" : path_files})
+        path_def.update({"x-path-files": path_files})
 
         diff = {"paths": {path.strip(): path_def}}
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
@@ -277,7 +277,7 @@ def openapi_tools(name: str) -> list[Callable]:
                 if not ok:
                     return {"error": err}
 
-        component_def.update({"x-component-files" : component_files})
+        component_def.update({"x-component-files": component_files})
         diff = {"components": {key: {name: component_def}}}
         schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
         return {"result": asdict(schema_diff)}
