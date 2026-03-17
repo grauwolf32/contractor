@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import click
+
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Callable, Awaitable, Optional
 
-import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 from google.adk.models import LiteLlm
@@ -262,6 +263,42 @@ def get_pipeline_names() -> list[str]:
     return sorted(get_pipelines().keys())
 
 
+async def save_artifact(
+    app_name: str,
+    user_id: str,
+    output_dir: Path,
+):
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    artifact_keys = await artifact_service.list_artifact_keys(
+        app_name=app_name, user_id=user_id
+    )
+    for filename in artifact_keys:
+        upload_path = output_dir / filename
+        upload_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact = await artifact_service.load_artifact(
+            app_name=app_name, user_id=user_id, filename=filename
+        )
+        text = artifact.text or ""
+        with open(upload_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+
+async def remove_artifacts(
+    app_name: str,
+    user_id: str,
+):
+    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    artifact_keys = await artifact_service.list_artifact_keys(
+        app_name=app_name, user_id=user_id
+    )
+    for filename in artifact_keys:
+        await artifact_service.delete_artifact(
+            app_name=app_name, user_id=user_id, filename=filename
+        )
+
+
 async def async_main(
     project_path: Path,
     folder_name: str,
@@ -269,6 +306,8 @@ async def async_main(
     model: str,
     pipeline: str,
     artifact: Optional[str],
+    output_dir: Optional[Path],
+    rm_artifacts: bool,
 ) -> None:
     pipeline = pipeline.lower()
     pipelines = get_pipelines()
@@ -297,6 +336,18 @@ async def async_main(
         user_id=user_id,
         on_event=handle_event,
     )
+
+    await save_artifact(
+        app_name="contractor",
+        user_id=user_id,
+        output_dir=output_dir,
+    )
+
+    if rm_artifacts:
+        await remove_artifacts(
+            app_name="contractor",
+            user_id=user_id,
+        )
 
 
 @click.command(name="contractor")
@@ -340,19 +391,35 @@ async def async_main(
     show_default=True,
     help="Model name to use for the task",
 )
+@click.option(
+    "--rm",
+    is_flag=True,
+    help="Remove artifacts after completion",
+)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Path to save the artifacts",
+)
 def main(
     pipeline: str,
     project_path: Path,
     folder_name: str,
     artifact: Optional[Path],
+    output: Optional[Path],
     user_id: str,
     model: str,
+    rm: bool,
 ) -> None:
     """Run contractor task pipeline for a project."""
     pipeline = pipeline.lower()
     project_path = _validate_project_path(project_path)
     folder_name = _validate_folder_name(project_path, folder_name)
     artifact_text = _read_artifact_file(artifact)
+    output_dir = output if output else project_path / ".contractor"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     pipelines = get_pipelines()
     spec = pipelines[pipeline]
@@ -368,9 +435,10 @@ def main(
             model=model,
             pipeline=pipeline,
             artifact=artifact_text,
+            rm_artifacts=rm,
+            output_dir=output_dir,
         )
     )
-
 
 if __name__ == "__main__":
     main()
