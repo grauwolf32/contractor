@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from contractor.models.task import RenderedTask, TaskTemplate
 from contractor.runners.trace_plugin import AdkTracePlugin
+from contractor.runners.metrics_plugin import AdkMetricsPlugin
 from contractor.tools.memory import MemoryTools, MemoryNote
 
 from contractor.agents.planning_agent.agent import build_planning_agent
@@ -475,7 +476,15 @@ class TaskRunner(BaseModel):
             initial_state=initial_state,
         )
 
-        plugin = AdkTracePlugin(
+        trace_plugin = AdkTracePlugin(
+            task_name=item.ref,
+            task_id=task_id,
+            iteration=iteration,
+            session_id=session_id,
+            emit=lambda **kw: self._emit(on_event, **kw),
+        )
+
+        metrics_plugin = AdkMetricsPlugin(
             task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
@@ -488,7 +497,7 @@ class TaskRunner(BaseModel):
             app_name=self.name,
             session_service=self.session_service,
             artifact_service=self.artifact_service,
-            plugins=[plugin],
+            plugins=[trace_plugin, metrics_plugin],
         )
 
         message = types.Content(

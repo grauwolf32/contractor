@@ -4,14 +4,63 @@ from textwrap import indent
 from typing import Any
 
 
-IGNORED_TOOLS = (
+IGNORED_TOOL_RESULTS = {
+    "add_subtask",
+    "decompose_subtask",
+}
+
+LOW_SIGNAL_TOOL_RESULTS = {
+    "get_current_subtask",
+    "list_subtasks",
+    "get_records",
+}
+
+FS_TOOLS = {
+    "ls",
     "glob",
     "read_file",
     "grep",
-    "ls",
+    "coverage_stats",
+    "covered",
+    "uncovered",
+}
+
+MEMORY_TOOLS = {
+    "write_memory",
+    "append_memory",
+    "read_memory",
+    "search_memory",
+    "list_tags",
+    "list_memories",
+}
+
+OPENAPI_TOOLS = {
+    "list_paths",
+    "list_components",
+    "list_servers",
+    "get_info",
+    "get_path",
+    "get_component",
+    "set_info",
+    "add_server",
+    "upsert_path",
+    "upsert_component",
+    "remove_server",
+    "remove_path",
+    "remove_component",
+    "get_full_openapi_schema",
+}
+
+TASK_TOOLS = {
     "add_subtask",
+    "get_current_subtask",
+    "list_subtasks",
+    "get_records",
     "decompose_subtask",
-)
+    "skip",
+    "finish",
+    "execute_current_subtask",
+}
 
 
 def make_jsonable(value):
@@ -65,10 +114,23 @@ def _short(text: Any, limit: int = 160) -> str:
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
+def _short_block(text: Any, limit: int = 1200) -> str:
+    s = str(text)
+    return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+def _first_nonempty_line(text: Any) -> str:
+    for line in str(text).splitlines():
+        line = line.strip()
+        if line:
+            return line
+    return ""
+
+
 def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for idx, subtask in enumerate(subtasks, start=1):
-        title = subtask.get("title", "Без названия")
+        title = subtask.get("title", "Untitled")
         description = subtask.get("description", "")
         task_id = subtask.get("task_id")
         status = subtask.get("status")
@@ -88,12 +150,42 @@ def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _render_kv_lines(items: list[tuple[str, Any]]) -> str:
+    lines: list[str] = []
+    for key, value in items:
+        if value in (None, "", [], {}, ()):
+            continue
+        lines.append(f"    {C.wrap(f'{key}:', C.DIM)} {value}")
+    return "\n".join(lines)
+
+
+def _fmt_fs_paging(result: dict[str, Any]) -> str | None:
+    total = result.get("total_items")
+    offset = result.get("offset")
+    limit = result.get("limit")
+    interaction = result.get("interaction")
+
+    parts: list[str] = []
+    if total is not None:
+        parts.append(f"total={total}")
+    if offset is not None:
+        parts.append(f"offset={offset}")
+    if limit is not None:
+        parts.append(f"limit={limit}")
+    if interaction:
+        parts.append(f"interaction={interaction}")
+
+    if not parts:
+        return None
+    return f"    {C.wrap('meta:', C.DIM)} " + ", ".join(parts)
+
+
 def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
     if not args or type(args) is not dict:
         return ""
 
     if tool_name == "add_subtask":
-        title = args.get("title", "Без названия")
+        title = args.get("title", "Untitled")
         description = args.get("description", "")
         lines = [f"    {C.wrap('•', C.CYAN)} {C.wrap(title, C.BOLD)}"]
         if description:
@@ -109,8 +201,8 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         subtasks = decomposition.get("subtasks") or []
         lines = [
             f"    {C.wrap('↳', C.MAGENTA)} "
-            f"{C.wrap(f'Декомпозиция подзадачи {task_id}', C.BOLD)} "
-            f"{C.wrap(f'({len(subtasks)} шт.)', C.DIM)}"
+            f"{C.wrap(f'Subtask decomposition {task_id}', C.BOLD)} "
+            f"{C.wrap(f'({len(subtasks)} pcs.)', C.DIM)}"
         ]
         body = _render_subtasks(subtasks)
         if body:
@@ -121,7 +213,7 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         task_id = args.get("task_id")
         reason = args.get("reason", "")
         lines = [
-            f"    {C.wrap('⤼', C.YELLOW)} {C.wrap(f'Пропуск подзадачи {task_id}', C.BOLD)}"
+            f"    {C.wrap('⤼', C.YELLOW)} {C.wrap(f'Skipping subtask {task_id}', C.BOLD)}"
         ]
         if reason:
             lines.append(f"    {C.wrap('reason:', C.DIM)} {reason}")
@@ -131,7 +223,7 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         status = args.get("status", "unknown")
         result = args.get("result", "")
         lines = [
-            f"    {C.wrap('🏁', C.GREEN)} {C.wrap('Завершение глобальной задачи', C.BOLD)}",
+            f"    {C.wrap('🏁', C.GREEN)} {C.wrap('Finalizing global subtask', C.BOLD)}",
             f"    {C.wrap('status:', C.DIM)} {status}",
         ]
         if result:
@@ -140,7 +232,7 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
 
     if tool_name == "write_memory":
         lines = [
-            f"    {C.wrap('🧠', C.CYAN)} {C.wrap(args.get('name', 'Без названия'), C.BOLD)}"
+            f"    {C.wrap('🧠', C.CYAN)} {C.wrap(args.get('name', 'Untitled'), C.BOLD)}"
         ]
         if args.get("description"):
             lines.append(f"    {C.wrap('description:', C.DIM)} {args['description']}")
@@ -157,41 +249,175 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         text = args.get("text", "")
         return (
             f"    {C.wrap('➕', C.CYAN)} "
-            f"{C.wrap(f'Дополнить memory {name}', C.BOLD)}\n"
+            f"{C.wrap(f'Appending to memory {name}', C.BOLD)}\n"
             f"    {C.wrap('text:', C.DIM)} {_short(text)}"
         )
 
     if tool_name == "read_memory":
         name = args.get("name")
-        return (
-            f"    {C.wrap('📖', C.CYAN)} {C.wrap(f'Прочитать memory {name}', C.BOLD)}"
-        )
+        return f"    {C.wrap('📖', C.CYAN)} {C.wrap(f'Reading memory {name}', C.BOLD)}"
 
     if tool_name == "search_memory":
         tags = args.get("tags") or []
-        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Поиск memory', C.BOLD)}\n    {C.wrap('tags:', C.DIM)} {', '.join(map(str, tags)) if tags else '—'}"
+        return (
+            f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Memory search', C.BOLD)}\n"
+            f"    {C.wrap('tags:', C.DIM)} {', '.join(map(str, tags)) if tags else '—'}"
+        )
 
     if tool_name == "list_tags":
-        return f"    {C.wrap('🏷', C.CYAN)} {C.wrap('Показать все теги', C.BOLD)}"
+        return f"    {C.wrap('🏷', C.CYAN)} {C.wrap('List memory tags', C.BOLD)}"
 
     if tool_name == "list_memories":
-        return f"    {C.wrap('🗃', C.CYAN)} {C.wrap('Показать все memories', C.BOLD)}"
+        return f"    {C.wrap('🗃', C.CYAN)} {C.wrap('List memories', C.BOLD)}"
 
     if tool_name == "ls":
-        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Список файлов в директории:', C.BOLD)} {args.get('path', '/')}\n"
+        return (
+            f"    {C.wrap('📁', C.CYAN)} {C.wrap('List directory', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}"
+        )
 
     if tool_name == "glob":
-        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Поиск паттернов:', C.BOLD)} {args.get('pattern', '')} в {args.get('path', '/')}\n"
+        return (
+            f"    {C.wrap('🧭', C.CYAN)} {C.wrap('Glob search', C.BOLD)}\n"
+            f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '')}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
+            f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
+        )
 
     if tool_name == "read_file":
-        return f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Чтение файла:', C.BOLD)} {args.get('file', '')}\n"
+        lines = [
+            f"    {C.wrap('📄', C.CYAN)} {C.wrap('Read file', C.BOLD)}",
+            f"    {C.wrap('file:', C.DIM)} {args.get('file', '')}",
+        ]
+        if args.get("offset") is not None:
+            lines.append(f"    {C.wrap('offset:', C.DIM)} {args['offset']}")
+        if args.get("limit") is not None:
+            lines.append(f"    {C.wrap('limit:', C.DIM)} {args['limit']}")
+        return "\n".join(lines)
 
-    if tool_name in {
-        "execute_current_subtask",
-        "get_current_subtask",
-        "list_subtasks",
-        "get_records",
-    }:
+    if tool_name == "grep":
+        return (
+            f"    {C.wrap('🔎', C.CYAN)} {C.wrap('Regex search', C.BOLD)}\n"
+            f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '')}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
+            f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
+        )
+
+    if tool_name == "coverage_stats":
+        return (
+            f"    {C.wrap('📊', C.CYAN)} {C.wrap('Coverage stats', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
+            f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '**/*')}"
+        )
+
+    if tool_name == "covered":
+        return (
+            f"    {C.wrap('✅', C.CYAN)} {C.wrap('Covered files', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
+            f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '**/*')}\n"
+            f"    {C.wrap('interaction:', C.DIM)} {args.get('interaction', 'any')}\n"
+            f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
+        )
+
+    if tool_name == "uncovered":
+        return (
+            f"    {C.wrap('🫥', C.CYAN)} {C.wrap('Uncovered files', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
+            f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '**/*')}\n"
+            f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
+        )
+
+    if tool_name == "code_execution_tool":
+        return (
+            f"    {C.wrap('🐚', C.CYAN)} {C.wrap('Execute command in container', C.BOLD)}\n"
+            f"    {C.wrap('command:', C.DIM)} {_short(args.get('command', ''))}"
+        )
+
+    if tool_name == "list_paths":
+        return f"    {C.wrap('🛣', C.CYAN)} {C.wrap('List OpenAPI paths', C.BOLD)}"
+
+    if tool_name == "list_components":
+        return (
+            f"    {C.wrap('🧩', C.CYAN)} {C.wrap('List OpenAPI components', C.BOLD)}\n"
+            f"    {C.wrap('key:', C.DIM)} {args.get('key', '')}"
+        )
+
+    if tool_name == "list_servers":
+        return f"    {C.wrap('🌐', C.CYAN)} {C.wrap('List OpenAPI servers', C.BOLD)}"
+
+    if tool_name == "get_info":
+        return f"    {C.wrap('ℹ', C.CYAN)} {C.wrap('Read OpenAPI info', C.BOLD)}"
+
+    if tool_name == "get_path":
+        return (
+            f"    {C.wrap('🛣', C.CYAN)} {C.wrap('Read path definition', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '')}"
+        )
+
+    if tool_name == "get_component":
+        return (
+            f"    {C.wrap('🧩', C.CYAN)} {C.wrap('Read component', C.BOLD)}\n"
+            f"    {C.wrap('key:', C.DIM)} {args.get('key', '')}\n"
+            f"    {C.wrap('component:', C.DIM)} {args.get('component_name', '')}"
+        )
+
+    if tool_name == "set_info":
+        lines = [
+            f"    {C.wrap('✍', C.CYAN)} {C.wrap('Update OpenAPI info', C.BOLD)}",
+        ]
+        if args.get("title"):
+            lines.append(f"    {C.wrap('title:', C.DIM)} {args['title']}")
+        if args.get("version"):
+            lines.append(f"    {C.wrap('version:', C.DIM)} {args['version']}")
+        if args.get("description"):
+            lines.append(f"    {C.wrap('description:', C.DIM)} {_short(args['description'])}")
+        if args.get("code_language"):
+            lines.append(f"    {C.wrap('language:', C.DIM)} {args['code_language']}")
+        return "\n".join(lines)
+
+    if tool_name == "add_server":
+        return (
+            f"    {C.wrap('🌐', C.CYAN)} {C.wrap('Add server', C.BOLD)}\n"
+            f"    {C.wrap('url:', C.DIM)} {args.get('url', '')}\n"
+            f"    {C.wrap('description:', C.DIM)} {_short(args.get('description', '')) or '—'}"
+        )
+
+    if tool_name == "remove_server":
+        return (
+            f"    {C.wrap('🗑', C.CYAN)} {C.wrap('Remove server', C.BOLD)}\n"
+            f"    {C.wrap('url:', C.DIM)} {args.get('url', '')}"
+        )
+
+    if tool_name == "upsert_path":
+        return (
+            f"    {C.wrap('🛠', C.CYAN)} {C.wrap('Upsert path', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '')}"
+        )
+
+    if tool_name == "remove_path":
+        return (
+            f"    {C.wrap('🗑', C.CYAN)} {C.wrap('Remove path', C.BOLD)}\n"
+            f"    {C.wrap('path:', C.DIM)} {args.get('path', '')}"
+        )
+
+    if tool_name == "upsert_component":
+        return (
+            f"    {C.wrap('🧩', C.CYAN)} {C.wrap('Upsert component', C.BOLD)}\n"
+            f"    {C.wrap('key:', C.DIM)} {args.get('key', '')}\n"
+            f"    {C.wrap('component:', C.DIM)} {args.get('component_name', '')}"
+        )
+
+    if tool_name == "remove_component":
+        return (
+            f"    {C.wrap('🗑', C.CYAN)} {C.wrap('Remove component', C.BOLD)}\n"
+            f"    {C.wrap('key:', C.DIM)} {args.get('key', '')}\n"
+            f"    {C.wrap('component:', C.DIM)} {args.get('component_name', '')}"
+        )
+
+    if tool_name == "get_full_openapi_schema":
+        return f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
+
+    if tool_name in {"execute_current_subtask"}:
         return ""
 
     return indent(_j(args), "    ")
@@ -201,34 +427,164 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
     if not result:
         return None
 
-    if "error" in result:
+    if result.get("error") not in (None, "", [], {}):
         return f"    {C.wrap('error:', C.DIM, C.RED)} {result['error']}"
+
+    if result.get("error_message") not in (None, "", [], {}):
+        return f"    {C.wrap('error:', C.DIM, C.RED)} {result['error_message']}"
+
+    if result.get("errors") not in (None, "", [], {}):
+        return f"    {C.wrap('errors:', C.DIM, C.RED)} {_short(result['errors'])}"
 
     if tool_name == "execute_current_subtask":
         lines: list[str] = []
         if result.get("record"):
             lines.append(f"    {C.wrap('record:', C.DIM)}")
-            lines.append(indent(str(result["record"]), "      "))
+            lines.append(indent(str(result['record']), "      "))
         if result.get("action"):
             lines.append(f"    {C.wrap('action:', C.DIM)} {result['action']}")
-        if result.get("error"):
-            lines.append(f"    {C.wrap('error:', C.DIM, C.RED)} {result['error']}")
         return "\n".join(lines) if lines else None
 
     if tool_name == "finish":
         lines: list[str] = []
         if "result" in result:
-            lines.append(f"    {C.wrap('result:', C.DIM)} {result['result']}")
+            lines.append(f"    {C.wrap('result:', C.DIM)} {_short(result['result'])}")
         if result.get("summary"):
             lines.append(f"    {C.wrap('summary:', C.DIM)}")
-            lines.append(indent(str(result["summary"]), "      "))
+            lines.append(indent(_short_block(result["summary"]), "      "))
         return "\n".join(lines) if lines else None
+
+    if tool_name == "read_file":
+        payload = result.get("result")
+        if payload is None:
+            return None
+        lines = []
+        meta = _fmt_fs_paging(result)
+        if meta:
+            lines.append(meta)
+        lines.append(f"    {C.wrap('content:', C.DIM)}")
+        lines.append(indent(_short_block(payload), "      "))
+        return "\n".join(lines)
+
+    if tool_name in {"ls", "glob", "grep"}:
+        lines: list[str] = []
+        meta = _fmt_fs_paging(result)
+        if meta:
+            lines.append(meta)
+        payload = result.get("result")
+        if payload not in (None, "", [], {}):
+            lines.append(f"    {C.wrap('result:', C.DIM)}")
+            if isinstance(payload, (dict, list)):
+                lines.append(indent(_j(payload), "      "))
+            else:
+                lines.append(indent(_short_block(payload, 1200), "      "))
+        return "\n".join(lines) if lines else None
+
+    if tool_name == "coverage_stats":
+        payload = result.get("result")
+        if isinstance(payload, dict):
+            return _render_kv_lines(
+                [
+                    ("path", payload.get("path")),
+                    ("pattern", payload.get("pattern")),
+                    ("total_files", payload.get("total_files")),
+                    ("covered", payload.get("covered_files_count")),
+                    ("uncovered", payload.get("uncovered_files_count")),
+                    ("coverage", f"{payload.get('coverage_percent')}%"),
+                ]
+            )
+        return indent(_j(result), "    ")
+
+    if tool_name in {"covered", "uncovered"}:
+        lines: list[str] = []
+        meta = _fmt_fs_paging(result)
+        if meta:
+            lines.append(meta)
+        payload = result.get("result")
+        if payload not in (None, "", [], {}):
+            lines.append(f"    {C.wrap('files:', C.DIM)}")
+            if isinstance(payload, (dict, list)):
+                lines.append(indent(_j(payload), "      "))
+            else:
+                lines.append(indent(_short_block(payload, 1200), "      "))
+        return "\n".join(lines) if lines else None
+
+    if tool_name in {"list_tags", "list_memories", "search_memory", "read_memory"}:
+        payload = result.get("result")
+        if payload is None:
+            return None
+        if isinstance(payload, (dict, list)):
+            return indent(_j(payload), "    ")
+        return indent(_short_block(payload, 1200), "    ")
+
+    if tool_name == "write_memory":
+        return f"    {C.wrap('status:', C.DIM)} ok"
+
+    if tool_name == "append_memory":
+        payload = result.get("result")
+        if payload is None:
+            return f"    {C.wrap('status:', C.DIM)} ok"
+        if isinstance(payload, (dict, list)):
+            return indent(_j(payload), "    ")
+        return indent(_short_block(payload, 1200), "    ")
+
+    if tool_name == "code_execution_tool":
+        lines: list[str] = []
+        stdout = result.get("result")
+        stderr = result.get("error")
+        if stdout:
+            lines.append(f"    {C.wrap('stdout:', C.DIM)}")
+            lines.append(indent(_short_block(stdout, 1200), "      "))
+        if stderr:
+            lines.append(f"    {C.wrap('stderr:', C.DIM, C.RED)}")
+            lines.append(indent(_short_block(stderr, 1200), "      "))
+        return "\n".join(lines) if lines else None
+
+    if tool_name in {
+        "list_paths",
+        "list_components",
+        "list_servers",
+        "get_info",
+        "get_path",
+        "get_component",
+        "get_full_openapi_schema",
+    }:
+        payload = result.get("result")
+        if payload is None:
+            return None
+        if isinstance(payload, list):
+            return (
+                f"    {C.wrap('items:', C.DIM)} {len(payload)}\n"
+                + indent(_j(payload), "    ")
+            )
+        if isinstance(payload, dict):
+            return indent(_j(payload), "    ")
+        return indent(_short_block(payload, 1200), "    ")
+
+    if tool_name in {
+        "set_info",
+        "add_server",
+        "remove_server",
+        "upsert_path",
+        "remove_path",
+        "upsert_component",
+        "remove_component",
+    }:
+        payload = result.get("result")
+        if payload is None:
+            return f"    {C.wrap('status:', C.DIM)} ok"
+        if isinstance(payload, dict):
+            return (
+                f"    {C.wrap('diff:', C.DIM)}\n"
+                + indent(_j(payload), "      ")
+            )
+        return indent(_short_block(payload, 1200), "    ")
 
     if "result" in result:
         payload = result["result"]
         if isinstance(payload, (dict, list)):
             return indent(_j(payload), "    ")
-        return indent(str(payload), "    ")
+        return indent(_short_block(payload, 1200), "    ")
 
     return indent(_j(result), "    ")
 
@@ -237,20 +593,20 @@ def _render_event(event) -> str | None:
     if event.type == "run_started":
         return (
             f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
-            f"{C.wrap('▶ Запуск runner', C.BOLD, C.BLUE)}\n"
+            f"{C.wrap('▶ Runner launch', C.BOLD, C.BLUE)}\n"
             f"{C.wrap(_hr('═'), C.BLUE)}"
         )
 
     if event.type == "task_started":
         max_iterations = event.payload.get("max_iterations")
         extra = (
-            f" {C.wrap(f'(итераций: {max_iterations})', C.DIM)}"
+            f" {C.wrap(f'(iterations: {max_iterations})', C.DIM)}"
             if max_iterations
             else ""
         )
         return (
             f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
-            f"{C.wrap(f'▶ Задача #{event.task_id}: {event.task_name}', C.BOLD, C.BLUE)}{extra}\n"
+            f"{C.wrap(f'▶ Task #{event.task_id}: {event.task_name}', C.BOLD, C.BLUE)}{extra}\n"
             f"{C.wrap(_hr('═'), C.BLUE)}"
         )
 
@@ -258,7 +614,7 @@ def _render_event(event) -> str | None:
         iteration = event.payload.get("iteration")
         objective = event.payload.get("objective", "")
         return (
-            f"\n  {C.wrap(f'🔁 Итерация {iteration}', C.BOLD, C.YELLOW)}\n"
+            f"\n  {C.wrap(f'🔁 Iteration {iteration}', C.BOLD, C.YELLOW)}\n"
             f"    {C.wrap('objective:', C.DIM)} {_short(objective, 200)}"
         )
 
@@ -270,8 +626,12 @@ def _render_event(event) -> str | None:
 
     if event.type == "tool_result":
         tool_name = event.payload["tool_name"]
-        if tool_name in IGNORED_TOOLS:
-            return
+        if tool_name in IGNORED_TOOL_RESULTS:
+            return None
+
+        # низкосигнальные tool results не шумим полностью, но даем короткую метку
+        if tool_name in LOW_SIGNAL_TOOL_RESULTS:
+            return f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} ok', C.GREEN)}"
 
         title = f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} result', C.GREEN)}"
         body = _fmt_tool_result(tool_name, event.payload.get("result"))
@@ -279,7 +639,7 @@ def _render_event(event) -> str | None:
 
     if event.type == "tool_error":
         return (
-            f"\n  {C.wrap('✖ Ошибка tool', C.BOLD, C.RED)}\n"
+            f"\n  {C.wrap('✖ Tool error', C.BOLD, C.RED)}\n"
             f"    {C.wrap('tool:', C.DIM)} {event.payload.get('tool_name')}\n"
             f"    {C.wrap('error:', C.DIM)} {event.payload.get('error')}"
         )
@@ -289,14 +649,14 @@ def _render_event(event) -> str | None:
         if not text:
             return None
         return (
-            f"\n  {C.wrap('✅ Финальный ответ', C.BOLD, C.GREEN)}\n"
+            f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n"
             f"{indent(text, '     ')}"
         )
 
     if event.type == "iteration_result":
         it = event.payload.get("iteration")
         return (
-            f"\n  {C.wrap(f'📌 Итог итерации {it}', C.BOLD, C.YELLOW)}\n"
+            f"\n  {C.wrap(f'📌 Iteration result: {it}', C.BOLD, C.YELLOW)}\n"
             f"    {C.wrap('status:', C.DIM)} {event.payload.get('status')}\n"
             f"    {C.wrap('completed:', C.DIM)} {'yes' if event.payload.get('completed') else 'no'}\n"
             f"    {C.wrap('summary:', C.DIM)} {event.payload.get('summary') or '—'}"
@@ -305,7 +665,7 @@ def _render_event(event) -> str | None:
     if event.type == "global_task_finished":
         return (
             f"\n{C.wrap(_hr(), C.GREEN)}\n"
-            f"{C.wrap(f'✓ Завершена задача: {event.task_name}', C.BOLD, C.GREEN)}\n"
+            f"{C.wrap(f'✓ Task finished: {event.task_name}', C.BOLD, C.GREEN)}\n"
             f"{C.wrap('  ' + (event.payload.get('summary') or '—'), C.DIM)}\n"
             f"{C.wrap(_hr(), C.GREEN)}"
         )
@@ -314,17 +674,17 @@ def _render_event(event) -> str | None:
         last_result = event.payload.get("last_result")
         lines = [
             f"\n{C.wrap(_hr('!'), C.RED)}",
-            f"{C.wrap(f'✖ Ошибка в задаче #{event.task_id}: {event.task_name}', C.BOLD, C.RED)}",
+            f"{C.wrap(f'✖ Task error #{event.task_id}: {event.task_name}', C.BOLD, C.RED)}",
         ]
         if last_result:
             lines.append(C.wrap(indent(_j(last_result), "  "), C.DIM))
-        lines.append(C.wrap(_hr("!"), C.RED))
+        lines.append(C.wrap(_hr('!'), C.RED))
         return "\n".join(lines)
 
     return None
 
 
-async def handle_event(event) -> None:
+async def render_event(event) -> None:
     rendered = _render_event(event)
     if rendered:
         print(rendered)

@@ -26,6 +26,9 @@ COMPONENT_VALIDATION_ERROR: Final[str] = (
 COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED: Final[str] = (
     "{name} in {key} is not found, or already removed"
 )
+COMPONENT_SHOULD_BE_DICT_NOT_STR: Final[str] = (
+    "component should be dict not string"
+)
 PATH_NOT_FOUND_OR_ALREADY_REMOVED: Final[str] = (
     "{path} is not found, or already removed"
 )
@@ -41,6 +44,7 @@ FILE_VALIDATION_NO_FILES_PROVIDED: Final[str] = (
 SERVER_ALREADY_EXISTS: Final[str] = "Server with url {url} already exists."
 
 SERVER_NOT_EXISTS: Final[str] = "Server with url {url} is not exists."
+
 
 openapi_base_schema: Final[dict[str, Any]] = {
     "openapi": "3.0.3",
@@ -276,6 +280,9 @@ def openapi_tools(name: str) -> list[Callable]:
                 ok, err = validate_model(Response, component_def)
                 if not ok:
                     return {"error": err}
+
+        if type(component_def) is not dict:
+            return {"error": COMPONENT_SHOULD_BE_DICT_NOT_STR} 
 
         component_def.update({"x-component-files": component_files})
         diff = {"components": {key: {name: component_def}}}

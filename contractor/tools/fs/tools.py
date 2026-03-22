@@ -45,6 +45,7 @@ _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.tar",
     "*.tar.gz",
     "*.DS_Store",
+    ".git/*",
 ]
 
 INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
@@ -60,6 +61,14 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
         for pattern in patterns
     )
 
+def _ensure_int_or_none(value):
+    if value is None:
+        return None
+
+    try:
+        value = int(value)
+    except ValueError:
+        return None
 
 @dataclass(slots=True)
 class FileLoc:
@@ -970,6 +979,7 @@ def file_tools(
             - You want a direct non-recursive listing of one folder
         """
 
+        offset = _ensure_int_or_none(offset) or 0
         return tools.glob(pattern=pattern, path=path, offset=offset)
 
     def read_file(
@@ -1012,6 +1022,9 @@ def file_tools(
         Prefer grep() instead when:
             - You first need to locate relevant text across many files
         """
+
+        offset = _ensure_int_or_none(offset)
+        limit = _ensure_int_or_none(limit)
 
         return tools.read_file(file_path=file, offset=offset, limit=limit)
 
@@ -1065,6 +1078,8 @@ def file_tools(
             - You need to find where a symbol, error, string, or pattern appears
             - You want to narrow down which files to inspect further
         """
+
+        offset = _ensure_int_or_none(offset) or 0
         return tools.grep(pattern=pattern, path=path, offset=offset)
 
     def coverage_stats(
@@ -1185,6 +1200,9 @@ def file_tools(
             - match_count
             - operations
         """
+        
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
 
         path = tools._norm(path) or "/"
         pattern = tools._norm(pattern) or "**/*"
@@ -1237,6 +1255,9 @@ def file_tools(
                 "limit": int
             }
         """
+
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
 
         path = tools._norm(path) or "/"
         pattern = tools._norm(pattern) or "**/*"
@@ -1295,6 +1316,9 @@ def file_tools(
                 "limit": int
             }
         """
+
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
 
         path = tools._norm(path) or "/"
         pattern = tools._norm(pattern) or "**/*"
