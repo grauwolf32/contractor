@@ -1,12 +1,15 @@
-import asyncio
-import logging
-import click
+from __future__ import annotations
 
+import asyncio
+import json
+import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
-from typing import Callable, Awaitable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
+import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 from google.adk.models import LiteLlm
@@ -14,9 +17,9 @@ from google.genai import types
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.runners.task_runner import TaskRunner
+from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
 from contractor.tools.fs import RootedLocalFileSystem
-from contractor.utils.formatting import handle_event
+from contractor.utils.formatting import render_event
 
 load_dotenv()
 
@@ -44,6 +47,7 @@ logging.basicConfig(
 )
 
 ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
+_METRICS_LOCK = asyncio.Lock()
 
 
 @dataclass(frozen=True)
@@ -140,11 +144,100 @@ def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
         ) from exc
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_jsonable(v) for v in value]
+
+    for method_name in ("model_dump", "to_dict", "dict"):
+        method = getattr(value, method_name, None)
+        if callable(method):
+            try:
+                return _jsonable(method())
+            except Exception:
+                pass
+
+    if hasattr(value, "__dict__"):
+        try:
+            return _jsonable(vars(value))
+        except Exception:
+            pass
+
+    return repr(value)
+
+
+def _metrics_file(output_dir: Path) -> Path:
+    return output_dir / "metrics.jsonl"
+
+
+def _event_to_metrics_record(event: TaskRunnerEvent) -> dict[str, Any]:
+    payload = _jsonable(getattr(event, "payload", {}) or {})
+
+    return {
+        "ts": _utc_now_iso(),
+        "type": getattr(event, "type", None),
+        "task_name": getattr(event, "task_name", None),
+        "task_id": getattr(event, "task_id", None),
+        "payload": payload,
+        "iteration": payload.get("iteration") if isinstance(payload, dict) else None,
+        "session_id": payload.get("session_id") if isinstance(payload, dict) else None,
+        "invocation_id": payload.get("invocation_id") if isinstance(payload, dict) else None,
+        "agent_name": payload.get("agent_name") if isinstance(payload, dict) else None,
+        "tool_name": payload.get("tool_name") if isinstance(payload, dict) else None,
+    }
+
+
+def _append_jsonl_sync(path: Path, record: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False)
+        f.write("\n")
+
+
+async def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    await asyncio.to_thread(_append_jsonl_sync, path, record)
+
+
+def _is_metrics_event(event: TaskRunnerEvent) -> bool:
+    event_type = getattr(event, "type", "") or ""
+    return event_type.startswith("metrics_")
+
+
+def build_handle_event(output_dir: Path) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
+    metrics_path = _metrics_file(output_dir)
+
+    async def handle_event(event: TaskRunnerEvent) -> None:
+        if _is_metrics_event(event):
+            record = _event_to_metrics_record(event)
+
+            async with _METRICS_LOCK:
+                await _append_jsonl(metrics_path, record)
+
+            return
+
+        await render_event(event=event)
+
+    return handle_event
+
+
 async def oas_building_pipeline(
     *,
     project_path: Path,
     folder_name: str,
     model: str,
+    **kwargs,
 ) -> TaskRunner:
     _ensure_artifacts_dir()
 
@@ -207,6 +300,7 @@ async def oas_enrichment_pipeline(
     artifact: Optional[str] = None,
     app_name: str,
     user_id: str,
+    **kwargs,
 ) -> TaskRunner:
     _ensure_artifacts_dir()
 
@@ -223,7 +317,10 @@ async def oas_enrichment_pipeline(
     if artifact:
         artifact_text = types.Part.from_text(text=artifact)
         await artifact_service.save_artifact(
-            app_name=app_name, user_id=user_id, filename="oas-openapi-building", artifact=artifact_text
+            app_name=app_name,
+            user_id=user_id,
+            filename="oas-openapi-building",
+            artifact=artifact_text,
         )
 
     runner.add_variable(name="project_path", value=folder_name)
@@ -267,18 +364,22 @@ async def save_artifact(
     app_name: str,
     user_id: str,
     output_dir: Path,
-):
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
     artifact_keys = await artifact_service.list_artifact_keys(
-        app_name=app_name, user_id=user_id
+        app_name=app_name,
+        user_id=user_id,
     )
+
     for filename in artifact_keys:
         upload_path = output_dir / filename
         upload_path.parent.mkdir(parents=True, exist_ok=True)
         artifact = await artifact_service.load_artifact(
-            app_name=app_name, user_id=user_id, filename=filename
+            app_name=app_name,
+            user_id=user_id,
+            filename=filename,
         )
         text = artifact.text or ""
         with open(upload_path, "w", encoding="utf-8") as f:
@@ -288,14 +389,17 @@ async def save_artifact(
 async def remove_artifacts(
     app_name: str,
     user_id: str,
-):
+) -> None:
     artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
     artifact_keys = await artifact_service.list_artifact_keys(
-        app_name=app_name, user_id=user_id
+        app_name=app_name,
+        user_id=user_id,
     )
     for filename in artifact_keys:
         await artifact_service.delete_artifact(
-            app_name=app_name, user_id=user_id, filename=filename
+            app_name=app_name,
+            user_id=user_id,
+            filename=filename,
         )
 
 
@@ -306,7 +410,7 @@ async def async_main(
     model: str,
     pipeline: str,
     artifact: Optional[str],
-    output_dir: Optional[Path],
+    output_dir: Path,
     rm_artifacts: bool,
 ) -> None:
     pipeline = pipeline.lower()
@@ -331,10 +435,11 @@ async def async_main(
         builder_kwargs["artifact"] = artifact
 
     runner = await spec.builder(**builder_kwargs)
+    event_handler = build_handle_event(output_dir)
 
     _ = await runner.run(
         user_id=user_id,
-        on_event=handle_event,
+        on_event=event_handler,
     )
 
     await save_artifact(
@@ -439,6 +544,7 @@ def main(
             output_dir=output_dir,
         )
     )
+
 
 if __name__ == "__main__":
     main()
