@@ -19,7 +19,7 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
 from contractor.tools.fs import RootedLocalFileSystem
-from contractor.utils.formatting import render_event
+from cli.render import render_event
 
 load_dotenv()
 

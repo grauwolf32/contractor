@@ -18,14 +18,16 @@ dependencies = [
     "fsspec>=2026.1.0,<2027.0.0",
     "magika>=1.0.1,<2.0.0",
     "python-dotenv>=1.0.1,<2.0.0",
+    "bs4 (>=0.0.2,<0.0.3)",
 ]
 
 [project.scripts]
-contractor = "contractor.main:main"
+contractor = "cli.main:main"
 
 [tool.poetry]
 packages = [
-    { include = "contractor" }
+  { include = "contractor" },
+  { include = "cli" },
 ]
 
 [tool.poetry.group.dev.dependencies]

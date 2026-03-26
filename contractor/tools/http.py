@@ -365,6 +365,8 @@ class HTTPClient:
 
 
 def http_tools(
+    name: str,
+    *,
     proxy: str | None = None,
     history_size: int = 20,
     timeout: float = 30.0,
