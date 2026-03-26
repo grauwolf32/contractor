@@ -5,7 +5,6 @@ from typing import Any, Final
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import AgentTool
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
@@ -13,6 +12,7 @@ from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.http import http_tools
+from contractor.tools.memory import memory_tools, MemoryFormat
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
@@ -31,6 +31,7 @@ DUMMY_MODEL = LiteLlm(
     timeout=300,
 )
 
+
 def default_tool(meta: dict[str, Any]) -> dict:
     """
     default_tool: You must not use this tool. This is safeguard mechanism.
@@ -44,7 +45,8 @@ def default_tool(meta: dict[str, Any]) -> dict:
 
 
 httptools = http_tools(name="dummy")
-tools = [default_tool, *httptools]
+mem_tools = memory_tools(name="dummy", fmt=MemoryFormat())
+tools = [default_tool, *httptools, *mem_tools]
 
 callback_adapter = CallbackAdapter()
 callback_adapter.register(TokenUsageCallback())

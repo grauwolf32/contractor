@@ -15,10 +15,11 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 
-JSONScalar: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONScalar | dict[str, "JSONValue"] | list["JSONValue"]
-JSONLike: TypeAlias = dict[str, JSONValue] | list[JSONValue]
+JSONLike: TypeAlias = dict[str, Any] | list[Any]
 ParsedBody: TypeAlias = JSONLike | str
+ResponseRecord: TypeAlias = dict[str, Any]
+SessionState: TypeAlias = dict[str, Any]
+ContextLike: TypeAlias = ToolContext | CallbackContext
 HTTPRequestMethod: TypeAlias = Literal[
     "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
 ]
@@ -394,11 +395,11 @@ def http_tools(
 
     async def request(
         url: str,
-        method: HTTPRequestMethod | str = "GET",
-        cookies: Mapping[str, str] | None = None,
-        headers: Mapping[str, str] | None = None,
-        json_body: JSONValue | Mapping[str, object] | Sequence[object] | None = None,
-        params: Mapping[str, object] | None = None,
+        method: HTTPRequestMethod = "GET",
+        cookies: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        json_body: JSONLike | None = None,
+        params: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
     ) -> ResponseRecord | dict[str, str]:
         """
@@ -436,9 +437,9 @@ def http_tools(
 
     async def get_json(
         url: str,
-        params: Mapping[str, object] | None = None,
-        headers: Mapping[str, str] | None = None,
-        cookies: Mapping[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        cookies: dict[str, str] | None = None,
         tool_context: ToolContext | None = None,
     ) -> JSONLike | dict[str, object]:
         """
@@ -468,7 +469,7 @@ def http_tools(
 
     async def post_json(
         url: str,
-        json_body: JSONValue | Mapping[str, object] | Sequence[object],
+        json_body: JSONLike | None = None,
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, object] | None = None,
         cookies: Mapping[str, str] | None = None,
