@@ -27,6 +27,21 @@ model_list:
       api_base: http://localhost:1234/v1
       tpm: 1000000
       rpm: 20
+  - model_name: lm-studio-qwen3.5-opus
+    litellm_params:
+      model: openai/qwen3.5-27b-claude-4.6-opus-reasoning-distilled
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 1000000
+      rpm: 20
+  - model_name: lm-studio-qwen3.5-hauhau
+    litellm_params:
+      model: openai/qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 1000000
+      rpm: 20
+      
 
 litellm_settings:
   num_retries: 3 
