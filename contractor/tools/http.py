@@ -1,20 +1,55 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Deque, Optional, TypeAlias
+from types import TracebackType
+from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
 
-JSONLike: TypeAlias = dict[str, Any] | list[Any]
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | dict[str, "JSONValue"] | list["JSONValue"]
+JSONLike: TypeAlias = dict[str, JSONValue] | list[JSONValue]
 ParsedBody: TypeAlias = JSONLike | str
-ResponseRecord: TypeAlias = dict[str, Any]
+HTTPRequestMethod: TypeAlias = Literal[
+    "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
+]
+ContextLike: TypeAlias = ToolContext | CallbackContext
 
 
-@dataclass
+class ArtifactContext(Protocol):
+    async def save_artifact(self, *, filename: str, artifact: types.Part) -> None: ...
+    async def load_artifact(self, *, filename: str) -> types.Part | None: ...
+
+
+class ResponseRecord(TypedDict):
+    url: str
+    method: str
+    status_code: int
+    headers: dict[str, str]
+    cookies: dict[str, str]
+    body: ParsedBody
+    attempt_count: int
+
+
+class SessionState(TypedDict):
+    cookies: dict[str, str]
+    history: list[ResponseRecord]
+    last_response: ResponseRecord | None
+
+
+ToolFn: TypeAlias = Callable[..., Any]
+
+
+@dataclass(slots=True)
 class RetryConfig:
     attempts: int = 3
     base_delay: float = 0.5
@@ -29,26 +64,36 @@ class HTTPClientError(Exception):
 class HTTPClient:
     """
     Async HTTP client with persistent session storage for LLM agents.
+
+    Features:
+    - Shared cookie/session state
+    - Optional proxy configured at initialization
+    - Automatic retries on all requests
+    - Bounded request history
+    - Auto-parse response body as JSON if possible, else text
+    - Internal artifact-backed session persistence
     """
 
     def __init__(
         self,
         name: str,
         *,
-        proxy: Optional[str] = None,
+        proxy: str | None = None,
         history_size: int = 20,
         timeout: float = 30.0,
         verify_ssl: bool = True,
         user_agent: str = "LLM-Agent-HTTP-Tools/1.0",
-        retry_config: Optional[RetryConfig] = None,
+        retry_config: RetryConfig | None = None,
     ) -> None:
         if history_size <= 0:
             raise ValueError("history_size must be > 0")
 
         self.name = name
         self.retry_config = retry_config or RetryConfig()
-        self._history: Deque[ResponseRecord] = deque(maxlen=history_size)
-        self._last_response_record: Optional[ResponseRecord] = None
+        self._history_size = history_size
+        self._history: deque[ResponseRecord] = deque(maxlen=history_size)
+        self._last_response_record: ResponseRecord | None = None
+        self._state_lock = asyncio.Lock()
 
         self._client = httpx.AsyncClient(
             proxy=proxy,
@@ -64,30 +109,118 @@ class HTTPClient:
     async def __aenter__(self) -> HTTPClient:
         return self
 
-    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         await self.aclose()
 
-    def set_cookies(self, cookies: dict[str, str]) -> None:
+    def set_cookies(self, cookies: Mapping[str, str]) -> None:
         for key, value in cookies.items():
-            self._client.cookies.set(key, value)
+            self._client.cookies.set(str(key), str(value))
 
     def get_cookies(self) -> dict[str, str]:
         return dict(self._client.cookies.items())
 
+    def clear_session_state(self) -> None:
+        self._client.cookies.clear()
+        self._history.clear()
+        self._last_response_record = None
+
+    def session_artifact_name(self) -> str:
+        return f"http/{self.name}/session.json"
+
+    def _dump_session_state(self) -> SessionState:
+        return {
+            "cookies": self.get_cookies(),
+            "history": list(self._history),
+            "last_response": self._last_response_record,
+        }
+
+    def _restore_session_state(self, state: SessionState) -> None:
+        self.clear_session_state()
+
+        self.set_cookies(state["cookies"])
+
+        for item in state["history"][-self._history_size :]:
+            self._history.append(item)
+
+        self._last_response_record = state["last_response"]
+
+    async def save_session(self, ctx: ArtifactContext) -> None:
+        async with self._state_lock:
+            payload = self._dump_session_state()
+            await ctx.save_artifact(
+                filename=self.session_artifact_name(),
+                artifact=types.Part.from_text(
+                    text=json.dumps(payload, ensure_ascii=False, indent=2)
+                ),
+            )
+
+    async def load_session(self, ctx: ArtifactContext) -> bool:
+        async with self._state_lock:
+            artifact = await ctx.load_artifact(filename=self.session_artifact_name())
+            if artifact is None or not artifact.text:
+                self.clear_session_state()
+                return False
+
+            try:
+                raw = json.loads(artifact.text)
+            except json.JSONDecodeError as exc:
+                raise HTTPClientError(
+                    "Stored HTTP session artifact is not valid JSON"
+                ) from exc
+
+            if not isinstance(raw, dict):
+                raise HTTPClientError("Stored HTTP session artifact is malformed")
+
+            cookies = raw.get("cookies")
+            history = raw.get("history")
+            last_response = raw.get("last_response")
+
+            if not isinstance(cookies, dict):
+                raise HTTPClientError("Stored HTTP session cookies are malformed")
+            if not isinstance(history, list):
+                raise HTTPClientError("Stored HTTP session history is malformed")
+            if last_response is not None and not isinstance(last_response, dict):
+                raise HTTPClientError("Stored HTTP session last_response is malformed")
+
+            state: SessionState = {
+                "cookies": {str(k): str(v) for k, v in cookies.items()},
+                "history": [item for item in history if isinstance(item, dict)],
+                "last_response": last_response
+                if isinstance(last_response, dict)
+                else None,
+            }
+
+            self._restore_session_state(state)
+            return True
+
     def _parse_response_body(self, response: httpx.Response) -> ParsedBody:
+        """
+        Return dict/list if JSON-decoding succeeds, otherwise text.
+        """
         text = response.text
         content_type = response.headers.get("content-type", "").lower()
 
         if "application/json" in content_type:
             try:
-                return response.json()
+                parsed = response.json()
+                if isinstance(parsed, (dict, list)):
+                    return parsed
             except Exception:
                 return text
 
         try:
-            return response.json()
+            parsed = response.json()
+            if isinstance(parsed, (dict, list)):
+                return parsed
         except Exception:
-            return text
+            pass
+
+        return text
 
     def _make_response_record(
         self,
@@ -106,19 +239,22 @@ class HTTPClient:
             "attempt_count": attempt_count,
         }
 
-    async def _send_with_retries(self, request: httpx.Request) -> httpx.Response:
-        last_error: Optional[BaseException] = None
+    async def _send_with_retries(
+        self,
+        request: httpx.Request,
+    ) -> tuple[httpx.Response, int]:
+        last_error: BaseException | None = None
 
         for attempt in range(1, self.retry_config.attempts + 1):
             try:
                 response = await self._client.send(request)
 
                 if response.status_code not in self.retry_config.retry_on_statuses:
-                    return response
+                    return response, attempt
 
                 last_error = HTTPClientError(
-                    f"Retryable HTTP status {response.status_code} for "
-                    f"{request.method} {request.url}"
+                    f"Retryable HTTP status {response.status_code} "
+                    f"for {request.method} {request.url}"
                 )
 
             except (
@@ -144,38 +280,92 @@ class HTTPClient:
         self,
         *,
         url: str,
-        method: str = "GET",
-        cookies: Optional[dict[str, str]] = None,
-        headers: Optional[dict[str, str]] = None,
-        json_body: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
+        method: HTTPRequestMethod | str = "GET",
+        cookies: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+        json_body: JSONValue | Mapping[str, object] | Sequence[object] | None = None,
+        params: Mapping[str, object] | None = None,
+        ctx: ArtifactContext | None = None,
     ) -> ResponseRecord:
+        if ctx is not None:
+            await self.load_session(ctx)
+
         if cookies:
             self.set_cookies(cookies)
 
         request = self._client.build_request(
             method=method.upper(),
             url=url,
-            headers=headers,
+            headers=dict(headers) if headers is not None else None,
             json=json_body,
-            params=params,
+            params=dict(params) if params is not None else None,
         )
 
-        response = await self._send_with_retries(request)
+        response, attempt_count = await self._send_with_retries(request)
         parsed_body = self._parse_response_body(response)
         record = self._make_response_record(
             response,
             parsed_body,
-            attempt_count=self.retry_config.attempts,
+            attempt_count=attempt_count,
         )
 
         self._last_response_record = record
         self._history.append(record)
+
+        if ctx is not None:
+            await self.save_session(ctx)
+
         return record
+
+    async def get_last_response(
+        self,
+        ctx: ArtifactContext | None = None,
+    ) -> ResponseRecord | None:
+        if ctx is not None:
+            await self.load_session(ctx)
+        return self._last_response_record
+
+    async def get_request_history(
+        self,
+        ctx: ArtifactContext | None = None,
+    ) -> list[ResponseRecord]:
+        if ctx is not None:
+            await self.load_session(ctx)
+        return list(self._history)
+
+    async def get_session_cookies(
+        self,
+        ctx: ArtifactContext | None = None,
+    ) -> dict[str, str]:
+        if ctx is not None:
+            await self.load_session(ctx)
+        return self.get_cookies()
+
+    async def update_cookies(
+        self,
+        cookies: Mapping[str, str],
+        ctx: ArtifactContext | None = None,
+    ) -> dict[str, str]:
+        if ctx is not None:
+            await self.load_session(ctx)
+        self.set_cookies(cookies)
+        if ctx is not None:
+            await self.save_session(ctx)
+        return self.get_cookies()
+
+    async def clear_session(
+        self,
+        ctx: ArtifactContext | None = None,
+    ) -> None:
+        if ctx is not None:
+            await self.load_session(ctx)
+        self.clear_session_state()
+        if ctx is not None:
+            await self.save_session(ctx)
 
 
 def http_tools(
-    proxy: Optional[str] = None,
+    proxy: str | None = None,
     history_size: int = 20,
     timeout: float = 30.0,
     verify_ssl: bool = True,
@@ -184,7 +374,7 @@ def http_tools(
     base_delay: float = 0.5,
     max_delay: float = 8.0,
     retry_on_statuses: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504),
-) -> list[Callable[..., Any]]:
+) -> list[ToolFn]:
     cli = HTTPClient(
         name="http_tools",
         proxy=proxy,
@@ -202,12 +392,21 @@ def http_tools(
 
     async def request(
         url: str,
-        method: str = "GET",
-        cookies: Optional[dict[str, str]] = None,
-        headers: Optional[dict[str, str]] = None,
-        json_body: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
-    ) -> ResponseRecord:
+        method: HTTPRequestMethod | str = "GET",
+        cookies: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+        json_body: JSONValue | Mapping[str, object] | Sequence[object] | None = None,
+        params: Mapping[str, object] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> ResponseRecord | dict[str, str]:
+        """
+        Generic request tool.
+
+        Notes:
+        - cookies update the current session cookies instead of replacing them
+        - persisted session is loaded before the request when tool_context is available
+        - response body is parsed as JSON if possible, else string
+        """
         try:
             return await cli.request(
                 url=url,
@@ -216,22 +415,34 @@ def http_tools(
                 headers=headers,
                 json_body=json_body,
                 params=params,
+                ctx=tool_context,
             )
         except HTTPClientError as exc:
             return {"error": str(exc)}
 
-    async def fetch(url: str) -> ResponseRecord:
+    async def fetch(
+        url: str,
+        tool_context: ToolContext | None = None,
+    ) -> ResponseRecord | dict[str, str]:
+        """
+        Convenience GET request.
+        """
         try:
-            return await cli.request(url=url, method="GET")
+            return await cli.request(url=url, method="GET", ctx=tool_context)
         except HTTPClientError as exc:
             return {"error": str(exc)}
 
     async def get_json(
         url: str,
-        params: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
-        cookies: Optional[dict[str, str]] = None,
-    ) -> JSONLike:
+        params: Mapping[str, object] | None = None,
+        headers: Mapping[str, str] | None = None,
+        cookies: Mapping[str, str] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> JSONLike | dict[str, object]:
+        """
+        GET request that expects JSON.
+        Returns only the parsed JSON body, or an error payload.
+        """
         try:
             result = await cli.request(
                 url=url,
@@ -239,6 +450,7 @@ def http_tools(
                 params=params,
                 headers=headers,
                 cookies=cookies,
+                ctx=tool_context,
             )
         except HTTPClientError as exc:
             return {"error": str(exc)}
@@ -254,11 +466,16 @@ def http_tools(
 
     async def post_json(
         url: str,
-        json_body: Any,
-        headers: Optional[dict[str, str]] = None,
-        params: Optional[dict[str, Any]] = None,
-        cookies: Optional[dict[str, str]] = None,
-    ) -> JSONLike:
+        json_body: JSONValue | Mapping[str, object] | Sequence[object],
+        headers: Mapping[str, str] | None = None,
+        params: Mapping[str, object] | None = None,
+        cookies: Mapping[str, str] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> JSONLike | dict[str, object]:
+        """
+        POST JSON and expect JSON response.
+        Returns the parsed JSON body, or an error payload.
+        """
         try:
             result = await cli.request(
                 url=url,
@@ -267,6 +484,7 @@ def http_tools(
                 headers=headers,
                 params=params,
                 cookies=cookies,
+                ctx=tool_context,
             )
         except HTTPClientError as exc:
             return {"error": str(exc)}
@@ -280,41 +498,95 @@ def http_tools(
             "response": result,
         }
 
-    def clear_session() -> dict[str, str]:
-        cli._client.cookies.clear()
-        return {"status": "ok", "message": "Session cookies cleared"}
+    async def clear_session(
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, str]:
+        """
+        Clear current session cookies and in-memory state.
+        Persists the cleared state when tool_context is available.
+        """
+        try:
+            await cli.clear_session(ctx=tool_context)
+            return {"status": "ok", "message": "Session state cleared"}
+        except HTTPClientError as exc:
+            return {"error": str(exc)}
 
-    def set_cookies(cookies: dict[str, str]) -> dict[str, Any]:
-        if not isinstance(cookies, dict):
-            return {"error": "cookies must be a dictionary"}
+    async def set_cookies(
+        cookies: Mapping[str, str],
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, object]:
+        """
+        Update the existing cookie jar; does not replace it.
+        """
+        try:
+            updated = await cli.update_cookies(cookies, ctx=tool_context)
+        except HTTPClientError as exc:
+            return {"error": str(exc)}
 
-        cli.set_cookies(cookies)
         return {
             "status": "ok",
-            "cookies": cli.get_cookies(),
+            "cookies": updated,
         }
 
-    def get_cookies() -> dict[str, str]:
-        return cli.get_cookies()
+    async def get_cookies(
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, str] | dict[str, str]:
+        """
+        Return current session cookies as a plain dict.
+        """
+        try:
+            return await cli.get_session_cookies(ctx=tool_context)
+        except HTTPClientError as exc:
+            return {"error": str(exc)}
 
-    def last_response() -> Optional[ResponseRecord]:
-        return cli._last_response_record
+    async def last_response(
+        tool_context: ToolContext | None = None,
+    ) -> ResponseRecord | dict[str, str] | None:
+        """
+        Return the last response record.
+        """
+        try:
+            return await cli.get_last_response(ctx=tool_context)
+        except HTTPClientError as exc:
+            return {"error": str(exc)}
 
-    def request_history() -> list[ResponseRecord]:
-        return list(cli._history)
+    async def request_history(
+        tool_context: ToolContext | None = None,
+    ) -> list[ResponseRecord] | dict[str, str]:
+        """
+        Return bounded request history, oldest first.
+        """
+        try:
+            return await cli.get_request_history(ctx=tool_context)
+        except HTTPClientError as exc:
+            return {"error": str(exc)}
 
     async def extract_from_html(
         selector: str,
-        url: Optional[str] = None,
-        attr: Optional[str] = None,
+        url: str | None = None,
+        attr: str | None = None,
         first_only: bool = False,
         strip: bool = True,
-    ) -> Any | list[Any] | dict[str, Any] | None:
-        html: Optional[str] = None
+        tool_context: ToolContext | None = None,
+    ) -> str | list[str | None] | None | dict[str, object]:
+        """
+        Extract data from HTML using CSS selectors.
+
+        Behavior:
+        - If url is provided, fetch that page first.
+        - Otherwise use the body of the last response.
+        - If attr is provided, extract that attribute.
+        - Otherwise extract text content.
+
+        Returns:
+        - first_only=True  -> single value or None
+        - first_only=False -> list of values
+        """
+        html: str | None = None
 
         if url is not None:
             try:
-                result = await cli.request(url=url, method="GET")
+                result = await cli.request(url=url, method="GET", ctx=tool_context)
             except HTTPClientError as exc:
                 return {"error": str(exc)}
 
@@ -326,21 +598,26 @@ def http_tools(
                 }
             html = body
         else:
-            if cli._last_response_record is None:
+            try:
+                last = await cli.get_last_response(ctx=tool_context)
+            except HTTPClientError as exc:
+                return {"error": str(exc)}
+
+            if last is None:
                 return {"error": "No last response available to extract HTML from"}
 
-            body = cli._last_response_record["body"]
+            body = last["body"]
             if not isinstance(body, str):
                 return {
                     "error": "Last response body is not HTML/text",
-                    "response": cli._last_response_record,
+                    "response": last,
                 }
             html = body
 
         soup = BeautifulSoup(html, "html.parser")
         elements = soup.select(selector)
 
-        extracted: list[Any] = []
+        extracted: list[str | None] = []
         for el in elements:
             value = el.get(attr) if attr is not None else el.get_text(strip=strip)
             extracted.append(value)
