@@ -61,6 +61,7 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
         for pattern in patterns
     )
 
+
 def _ensure_int_or_none(value):
     if value is None:
         return None
@@ -69,6 +70,7 @@ def _ensure_int_or_none(value):
         value = int(value)
     except ValueError:
         return None
+
 
 @dataclass(slots=True)
 class FileLoc:
@@ -1200,7 +1202,7 @@ def file_tools(
             - match_count
             - operations
         """
-        
+
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
 

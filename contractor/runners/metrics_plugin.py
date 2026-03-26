@@ -77,7 +77,9 @@ class AgentMetrics:
     total_tokens: int = 0
     thoughts_tokens: int = 0
     cached_tokens: int = 0
-    tools: dict[str, ToolMetrics] = field(default_factory=lambda: defaultdict(ToolMetrics))
+    tools: dict[str, ToolMetrics] = field(
+        default_factory=lambda: defaultdict(ToolMetrics)
+    )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -87,7 +89,10 @@ class AgentMetrics:
             "total_tokens": self.total_tokens,
             "thoughts_tokens": self.thoughts_tokens,
             "cached_tokens": self.cached_tokens,
-            "tools": {tool_name: metrics.as_dict() for tool_name, metrics in self.tools.items()},
+            "tools": {
+                tool_name: metrics.as_dict()
+                for tool_name, metrics in self.tools.items()
+            },
         }
 
 
@@ -115,13 +120,17 @@ class AdkMetricsPlugin(BasePlugin):
         plugin_name: str | None = None,
         result_error_detector: Optional[Callable[[Any], bool]] = None,
     ) -> None:
-        super().__init__(name=plugin_name or f"metrics_plugin_{task_name}_{task_id}_{iteration}")
+        super().__init__(
+            name=plugin_name or f"metrics_plugin_{task_name}_{task_id}_{iteration}"
+        )
         self._task_name = task_name
         self._task_id = task_id
         self._iteration = iteration
         self._session_id = session_id
         self._emit = emit
-        self._result_error_detector = result_error_detector or self._default_result_error_detector
+        self._result_error_detector = (
+            result_error_detector or self._default_result_error_detector
+        )
 
         self._metrics: dict[str, dict[str, AgentMetrics]] = defaultdict(
             lambda: defaultdict(AgentMetrics)
@@ -131,7 +140,9 @@ class AdkMetricsPlugin(BasePlugin):
         self._pending_by_fp: dict[str, deque[int]] = defaultdict(deque)
         self._calls: dict[int, CallState] = {}
 
-    def _agent_bucket(self, invocation_id: str | None, agent_name: str | None) -> AgentMetrics:
+    def _agent_bucket(
+        self, invocation_id: str | None, agent_name: str | None
+    ) -> AgentMetrics:
         inv = invocation_id or "unknown_invocation"
         agent = agent_name or "unknown_agent"
         return self._metrics[inv][agent]
@@ -203,7 +214,11 @@ class AdkMetricsPlugin(BasePlugin):
         call.finished = True
 
     def _cleanup_invocation_calls(self, invocation_id: str) -> None:
-        to_delete = [cid for cid, call in self._calls.items() if call.invocation_id == invocation_id]
+        to_delete = [
+            cid
+            for cid, call in self._calls.items()
+            if call.invocation_id == invocation_id
+        ]
         for cid in to_delete:
             self._calls.pop(cid, None)
 
@@ -387,7 +402,9 @@ class AdkMetricsPlugin(BasePlugin):
         return None
 
     async def after_run_callback(self, *, invocation_context) -> None:
-        invocation_id = getattr(invocation_context, "invocation_id", None) or "unknown_invocation"
+        invocation_id = (
+            getattr(invocation_context, "invocation_id", None) or "unknown_invocation"
+        )
         by_agent = self._metrics.pop(invocation_id, {})
 
         await self._emit(
@@ -397,7 +414,10 @@ class AdkMetricsPlugin(BasePlugin):
             iteration=self._iteration,
             session_id=self._session_id,
             invocation_id=invocation_id,
-            agents={agent_name: metrics.as_dict() for agent_name, metrics in by_agent.items()},
+            agents={
+                agent_name: metrics.as_dict()
+                for agent_name, metrics in by_agent.items()
+            },
         )
 
         self._cleanup_invocation_calls(invocation_id)

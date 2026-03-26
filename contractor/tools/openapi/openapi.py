@@ -26,9 +26,7 @@ COMPONENT_VALIDATION_ERROR: Final[str] = (
 COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED: Final[str] = (
     "{name} in {key} is not found, or already removed"
 )
-COMPONENT_SHOULD_BE_DICT_NOT_STR: Final[str] = (
-    "component should be dict not string"
-)
+COMPONENT_SHOULD_BE_DICT_NOT_STR: Final[str] = "component should be dict not string"
 PATH_NOT_FOUND_OR_ALREADY_REMOVED: Final[str] = (
     "{path} is not found, or already removed"
 )
@@ -282,7 +280,7 @@ def openapi_tools(name: str) -> list[Callable]:
                     return {"error": err}
 
         if type(component_def) is not dict:
-            return {"error": COMPONENT_SHOULD_BE_DICT_NOT_STR} 
+            return {"error": COMPONENT_SHOULD_BE_DICT_NOT_STR}
 
         component_def.update({"x-component-files": component_files})
         diff = {"components": {key: {name: component_def}}}
