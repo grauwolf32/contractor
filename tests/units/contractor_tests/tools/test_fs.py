@@ -14,7 +14,7 @@ from contractor.tools.fs import (
     InteractionKind,
     RootedLocalFileSystem,
     file_tools,
-    write_tools
+    write_tools,
 )
 
 
@@ -224,7 +224,9 @@ def test_untouched_files_returns_only_not_touched_files(
 def test_interaction_stats_after_mixed_operations(
     interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.read_file(
+        abs_path(tmpdir_path / "README.md")
+    )
     assert "error" not in interaction_tools.grep(
         r"ERROR:\s+\w+", path=abs_path(tmpdir_path / "src" / "a.py")
     )
@@ -242,7 +244,9 @@ def test_interaction_stats_after_mixed_operations(
 def test_touched_and_untouched_support_pattern_filter(
     interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.read_file(
+        abs_path(tmpdir_path / "README.md")
+    )
     assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "a.py")
     )
@@ -269,7 +273,9 @@ def test_touched_and_untouched_support_pattern_filter(
 def test_touched_files_pagination(
     interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.read_file(
+        abs_path(tmpdir_path / "README.md")
+    )
     assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "a.py")
     )
@@ -381,7 +387,9 @@ def test_interaction_stats_missing_path_returns_error(
 def test_files_with_interactions_missing_path_returns_error(
     interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    res = interaction_tools.files_with_interactions(path=abs_path(tmpdir_path / "missing"))
+    res = interaction_tools.files_with_interactions(
+        path=abs_path(tmpdir_path / "missing")
+    )
     assert "error" in res
 
 
@@ -766,6 +774,7 @@ def test_unicode_normalization_glob(tools_json, tmp_path):
 
     assert len(res["result"]) == 1
 
+
 @pytest.fixture()
 def write_tmpdir(tmp_path: Path) -> Path:
     (tmp_path / "src").mkdir()
@@ -932,7 +941,9 @@ def test_insert_comment_is_noop_when_same_comment_already_adjacent(
     assert result["reason"] == "comment already present"
 
 
-def test_insert_comment_missing_anchor_returns_error(write_tool_map, write_tmpdir: Path):
+def test_insert_comment_missing_anchor_returns_error(
+    write_tool_map, write_tmpdir: Path
+):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
     res = write_tool_map["insert_comment"](
@@ -1063,7 +1074,9 @@ def test_replace_range_rejects_missing_file(write_tool_map, write_tmpdir: Path):
     assert "error" in res
 
 
-def test_write_tools_respect_ignored_patterns(write_fs: fsspec.AbstractFileSystem, write_tmpdir: Path):
+def test_write_tools_respect_ignored_patterns(
+    write_fs: fsspec.AbstractFileSystem, write_tmpdir: Path
+):
     tools = write_tools(
         fs=write_fs,
         ignored_patterns=["*.txt"],

@@ -7,7 +7,7 @@ task:
 
   instructions: >
     Review prior task context to understand which files and endpoints have already been
-    analyzed. Use get_coverage_stats, uncovered, untracked, to analyze coverage for schema construction.
+    analyzed. Use interaction_stats, list_untouched_files, list_match_only_files, to analyze coverage for schema construction.
     Inspect existing paths and components to understand the current API surface.
 
     Enumerate project files and identify candidates likely to define API behavior, such as:
@@ -15,7 +15,7 @@ task:
     definitions, and gateway or edge layers.
 
     Compare candidate files against coverage results and flag relevant files not yet covered.
-    For each uncovered candidate:
+    For each untouched candidate:
     - Assess whether it likely defines endpoints or API contracts.
     - Determine whether it should be included in the OpenAPI build process.
     - Explain the impact and priority.
@@ -24,6 +24,6 @@ task:
     in a subsequent task.
 
   output_format: >
-    Produce Markdown including: current coverage summary, uncovered candidate files grouped
+    Produce Markdown including: current coverage summary, untouched candidate files grouped
     by likelihood and impact, and recommended next analysis steps with file paths and
     rationale. Do not paste the schema.

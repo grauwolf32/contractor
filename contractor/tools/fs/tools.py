@@ -7,7 +7,17 @@ import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Callable, ClassVar, Final, Iterable, Literal, Optional, TypeAlias, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Final,
+    Iterable,
+    Literal,
+    Optional,
+    TypeAlias,
+    Union,
+)
 
 import fsspec
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
@@ -321,7 +331,9 @@ class FsEntry:
                 )
             )
 
-        return sorted(entries, key=lambda entry: (entry.path, entry.loc.line_start or 0))
+        return sorted(
+            entries, key=lambda entry: (entry.path, entry.loc.line_start or 0)
+        )
 
 
 @dataclass(slots=True)
@@ -574,7 +586,9 @@ class FsspecInteractionFileTools:
 
         for current_path, _dirs, filenames in self.fs.walk(root):
             for filename in filenames:
-                full_path = (str(current_path).rstrip("/") + "/" + str(filename)).replace("\\", "/")
+                full_path = (
+                    str(current_path).rstrip("/") + "/" + str(filename)
+                ).replace("\\", "/")
                 if self._is_ignored(full_path):
                     continue
                 if self.fs.isfile(full_path):
@@ -594,7 +608,9 @@ class FsspecInteractionFileTools:
             relative = file_path.lstrip("/")
         else:
             prefix = root + "/"
-            relative = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+            relative = (
+                file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+            )
 
         return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
 
@@ -708,7 +724,12 @@ class FsspecInteractionFileTools:
         normalized_pattern = self._norm(pattern)
 
         if normalized_pattern is None:
-            return {"result": [], "offset": offset, "total_items": 0, "limit": self.max_items}
+            return {
+                "result": [],
+                "offset": offset,
+                "total_items": 0,
+                "limit": self.max_items,
+            }
 
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -717,7 +738,11 @@ class FsspecInteractionFileTools:
 
         prefix = normalized_path.rstrip("/").replace("\\", "/") + "/"
         if normalized_path != "/":
-            matches = [match for match in matches if match.replace("\\", "/").startswith(prefix)]
+            matches = [
+                match
+                for match in matches
+                if match.replace("\\", "/").startswith(prefix)
+            ]
 
         entries = [
             FsEntry.from_path(match, self.fs, with_types=self.with_types)
@@ -744,7 +769,11 @@ class FsspecInteractionFileTools:
         limit: Optional[int] = None,
     ) -> ToolResult:
         normalized_file = self._norm(file_path)
-        if normalized_file is None or not self.fs.exists(normalized_file) or self._is_ignored(normalized_file):
+        if (
+            normalized_file is None
+            or not self.fs.exists(normalized_file)
+            or self._is_ignored(normalized_file)
+        ):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_file)}
         if not self.fs.isfile(normalized_file):
             return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_file)}
@@ -799,13 +828,17 @@ class FsspecInteractionFileTools:
                 return []
 
             try:
-                content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
+                content = self.fs.read_text(
+                    file_path, encoding="utf-8", errors="ignore"
+                )
             except Exception:
                 return []
 
             matches = list(regex.finditer(content))
             if matches:
-                self.record_interaction(file_path, "grep", interaction=InteractionKind.MATCH)
+                self.record_interaction(
+                    file_path, "grep", interaction=InteractionKind.MATCH
+                )
 
             return (
                 FsEntry.from_matches(
@@ -833,7 +866,9 @@ class FsspecInteractionFileTools:
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
             for filename in filenames:
-                full_path = (str(current_path).rstrip("/") + "/" + str(filename)).replace("\\", "/")
+                full_path = (
+                    str(current_path).rstrip("/") + "/" + str(filename)
+                ).replace("\\", "/")
                 results.extend(build_entries_for_file(full_path))
 
         results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
@@ -899,7 +934,9 @@ class FsspecInteractionFileTools:
 
         files = self._matched_files(normalized_path, normalized_pattern)
         selected = self._files_with_interactions(files, interaction=interaction)
-        page, resolved_offset, resolved_limit = self._paginate(selected, offset=offset, limit=limit)
+        page, resolved_offset, resolved_limit = self._paginate(
+            selected, offset=offset, limit=limit
+        )
 
         return {
             "result": [self._serialize_interaction_entry(path) for path in page],
@@ -941,7 +978,9 @@ class FsspecInteractionFileTools:
 
         files = self._matched_files(normalized_path, normalized_pattern)
         selected = self._untouched_files(files)
-        page, resolved_offset, resolved_limit = self._paginate(selected, offset=offset, limit=limit)
+        page, resolved_offset, resolved_limit = self._paginate(
+            selected, offset=offset, limit=limit
+        )
 
         return {
             "result": [{"path": path} for path in page],
@@ -1012,7 +1051,7 @@ def file_tools(
         offset = _ensure_int_or_none(offset) or 0
         return tools.grep(pattern=pattern, path=path, offset=offset)
 
-    def coverage_stats(
+    def interaction_stats(
         path: str = "/",
         pattern: str = "**/*",
     ) -> dict[str, Any]:
@@ -1025,7 +1064,7 @@ def file_tools(
         """
         return tools.interaction_stats(path=path, pattern=pattern)
 
-    def covered(
+    def list_touched_files(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
@@ -1036,9 +1075,11 @@ def file_tools(
         """
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-        return tools.touched_files(path=path, pattern=pattern, offset=offset, limit=limit)
+        return tools.touched_files(
+            path=path, pattern=pattern, offset=offset, limit=limit
+        )
 
-    def uncovered(
+    def list_untouched_files(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
@@ -1049,20 +1090,64 @@ def file_tools(
         """
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(path=path, pattern=pattern, offset=offset, limit=limit)
+        return tools.untouched_files(
+            path=path, pattern=pattern, offset=offset, limit=limit
+        )
 
-    def untracked(
+    def list_match_only_files(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        Alias for uncovered().
+        List files that were matched (e.g. via grep) but never read.
+
+        Use this tool to identify files where a search hit occurred,
+        but the file content has not yet been inspected.
+
+        This is useful for:
+        - following up on grep results
+        - ensuring all relevant matches are reviewed
+        - detecting incomplete exploration of code/data
+
+        Args:
+            path:
+                Root directory to search within.
+            pattern:
+                Glob pattern to filter files (applied after traversal).
+            offset:
+                Pagination offset (0-based).
+            limit:
+                Maximum number of items to return.
+
+        Returns:
+            A dict containing:
+            - "result": list of file interaction entries
+            - "offset": pagination offset
+            - "total_items": total matching files
+            - "limit": page size
+
+            On failure:
+            - {"error": "..."} if path is invalid
+
+        Notes:
+            - A file is included if:
+                - it has at least one match interaction (e.g. grep)
+                - it has zero read interactions
+            - Equivalent to InteractionFilter.MATCH_ONLY
+            - Files never seen (no grep, no read) are NOT included
         """
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(path=path, pattern=pattern, offset=offset, limit=limit)
+
+        return tools.files_with_interactions(
+            path=path,
+            pattern=pattern,
+            interaction=InteractionFilter.MATCH_ONLY,
+            offset=offset,
+            limit=limit,
+        )
 
     def reset_coverage() -> dict[str, Any]:
         """
@@ -1074,7 +1159,15 @@ def file_tools(
     registry = [ls, glob, read_file, grep]
 
     if with_coverage_tools:
-        registry.extend([coverage_stats, covered, uncovered, untracked, reset_coverage])
+        registry.extend(
+            [
+                interaction_stats,
+                list_touched_files,
+                list_untouched_files,
+                list_match_only_files,
+                reset_coverage,
+            ]
+        )
 
     return registry
 
@@ -1330,7 +1423,11 @@ class FsspecWriteTools:
 
         matched_indexes = [i for i, line in enumerate(lines) if anchor in line]
         if not matched_indexes:
-            return {"error": f"anchor not found in {normalized_path}", "path": normalized_path, "anchor": anchor}
+            return {
+                "error": f"anchor not found in {normalized_path}",
+                "path": normalized_path,
+                "anchor": anchor,
+            }
 
         if occurrence > len(matched_indexes):
             return {
@@ -1444,9 +1541,13 @@ class FsspecWriteTools:
         max_end = line_count
 
         if start_line > max_start:
-            return {"error": f"start_line {start_line} is out of range; file has {line_count} lines"}
+            return {
+                "error": f"start_line {start_line} is out of range; file has {line_count} lines"
+            }
         if end_line > max_end:
-            return {"error": f"end_line {end_line} is out of range; file has {line_count} lines"}
+            return {
+                "error": f"end_line {end_line} is out of range; file has {line_count} lines"
+            }
 
         start_idx = start_line - 1
         end_idx = end_line
@@ -1490,7 +1591,11 @@ class FsspecWriteTools:
             return {"error": str(err)}
 
         inserted_line_count = len(replacement_lines)
-        new_end_line = start_line + inserted_line_count - 1 if inserted_line_count else start_line - 1
+        new_end_line = (
+            start_line + inserted_line_count - 1
+            if inserted_line_count
+            else start_line - 1
+        )
 
         return {
             "result": {
@@ -1618,7 +1723,9 @@ def write_tools(
             start_line=int(start_line),
             end_line=int(end_line),
             content=content,
-            preserve_trailing_newline=tools._parse_bool(preserve_trailing_newline, True),
+            preserve_trailing_newline=tools._parse_bool(
+                preserve_trailing_newline, True
+            ),
         )
 
     registry = [

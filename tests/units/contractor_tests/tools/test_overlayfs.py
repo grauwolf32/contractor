@@ -15,7 +15,9 @@ def base_tree(tmp_path: Path) -> Path:
     (tmp_path / "README.md").write_text("# readme\n", encoding="utf-8")
     (tmp_path / "src" / "a.py").write_text("print('base a')\n", encoding="utf-8")
     (tmp_path / "src" / "b.py").write_text("print('base b')\n", encoding="utf-8")
-    (tmp_path / "src" / "nested" / "deep.py").write_text("print('deep')\n", encoding="utf-8")
+    (tmp_path / "src" / "nested" / "deep.py").write_text(
+        "print('deep')\n", encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -40,7 +42,9 @@ def test_write_existing_file_goes_only_to_overlay(
     overlay_fs.write_text("/src/a.py", "print('overlay a')\n", encoding="utf-8")
 
     assert overlay_fs.read_text("/src/a.py") == "print('overlay a')\n"
-    assert (base_tree / "src" / "a.py").read_text(encoding="utf-8") == "print('base a')\n"
+    assert (base_tree / "src" / "a.py").read_text(
+        encoding="utf-8"
+    ) == "print('base a')\n"
 
 
 def test_can_create_new_file_only_in_memory(
@@ -69,8 +73,12 @@ def test_open_append_existing_base_file_without_touching_base(
     with overlay_fs.open("/src/b.py", "a", encoding="utf-8") as f:
         f.write("print('overlay tail')\n")
 
-    assert overlay_fs.read_text("/src/b.py") == "print('base b')\nprint('overlay tail')\n"
-    assert (base_tree / "src" / "b.py").read_text(encoding="utf-8") == "print('base b')\n"
+    assert (
+        overlay_fs.read_text("/src/b.py") == "print('base b')\nprint('overlay tail')\n"
+    )
+    assert (base_tree / "src" / "b.py").read_text(
+        encoding="utf-8"
+    ) == "print('base b')\n"
 
 
 def test_pipe_file_writes_into_overlay_only(
@@ -94,7 +102,9 @@ def test_touch_creates_empty_overlay_file_only(
     assert not (base_tree / "src" / "empty.txt").exists()
 
 
-def test_info_prefers_overlay_version_for_modified_file(overlay_fs: MemoryOverlayFileSystem):
+def test_info_prefers_overlay_version_for_modified_file(
+    overlay_fs: MemoryOverlayFileSystem,
+):
     overlay_fs.write_text("/src/a.py", "12345\n", encoding="utf-8")
 
     info = overlay_fs.info("/src/a.py")
@@ -115,10 +125,16 @@ def test_ls_merges_base_and_overlay_entries(overlay_fs: MemoryOverlayFileSystem)
     assert "/src/new_overlay.py" in names
 
 
-def test_walk_includes_overlay_created_files_and_dirs(overlay_fs: MemoryOverlayFileSystem):
-    overlay_fs.write_text("/src/mem/sub/created.py", "print('created')\n", encoding="utf-8")
+def test_walk_includes_overlay_created_files_and_dirs(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.write_text(
+        "/src/mem/sub/created.py", "print('created')\n", encoding="utf-8"
+    )
 
-    walked = {root: (set(dirs), set(files)) for root, dirs, files in overlay_fs.walk("/src")}
+    walked = {
+        root: (set(dirs), set(files)) for root, dirs, files in overlay_fs.walk("/src")
+    }
 
     assert "/src" in walked
     assert "mem" in walked["/src"][0]
@@ -193,7 +209,9 @@ def test_rm_hides_base_file_without_deleting_from_base(
 
     assert not overlay_fs.exists("/src/a.py")
     assert (base_tree / "src" / "a.py").exists()
-    assert (base_tree / "src" / "a.py").read_text(encoding="utf-8") == "print('base a')\n"
+    assert (base_tree / "src" / "a.py").read_text(
+        encoding="utf-8"
+    ) == "print('base a')\n"
 
 
 def test_recursive_rm_hides_base_directory_without_touching_base(
@@ -220,7 +238,9 @@ def test_mkdir_and_makedirs_create_virtual_overlay_dirs_only(
     assert not (base_tree / "virtual").exists()
 
 
-def test_expand_path_supports_recursive_overlay_view(overlay_fs: MemoryOverlayFileSystem):
+def test_expand_path_supports_recursive_overlay_view(
+    overlay_fs: MemoryOverlayFileSystem,
+):
     overlay_fs.write_text("/src/generated/out.py", "print('out')\n", encoding="utf-8")
 
     expanded = set(overlay_fs.expand_path("/src/generated", recursive=True))
@@ -239,7 +259,9 @@ def test_du_counts_overlay_sizes(overlay_fs: MemoryOverlayFileSystem):
     assert sizes["/src/size2.txt"] == 5
 
 
-def test_x_mode_fails_when_target_already_exists_in_base(overlay_fs: MemoryOverlayFileSystem):
+def test_x_mode_fails_when_target_already_exists_in_base(
+    overlay_fs: MemoryOverlayFileSystem,
+):
     with pytest.raises(FileExistsError):
         with overlay_fs.open("/src/a.py", "x", encoding="utf-8") as f:
             f.write("should fail\n")
@@ -256,4 +278,6 @@ def test_removed_base_file_can_be_recreated_in_overlay(
 
     assert overlay_fs.exists("/src/a.py")
     assert overlay_fs.read_text("/src/a.py") == "print('reborn')\n"
-    assert (base_tree / "src" / "a.py").read_text(encoding="utf-8") == "print('base a')\n"
+    assert (base_tree / "src" / "a.py").read_text(
+        encoding="utf-8"
+    ) == "print('base a')\n"

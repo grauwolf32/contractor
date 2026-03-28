@@ -20,9 +20,9 @@ FS_TOOLS = {
     "glob",
     "read_file",
     "grep",
-    "coverage_stats",
-    "covered",
-    "uncovered",
+    "interaction_stats",
+    "list_touched_files",
+    "list_untouched_files",
 }
 
 MEMORY_TOOLS = {
@@ -303,14 +303,14 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
             f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
         )
 
-    if tool_name == "coverage_stats":
+    if tool_name == "interaction_stats":
         return (
-            f"    {C.wrap('📊', C.CYAN)} {C.wrap('Coverage stats', C.BOLD)}\n"
+            f"    {C.wrap('📊', C.CYAN)} {C.wrap('Interaction stats', C.BOLD)}\n"
             f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
             f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '**/*')}"
         )
 
-    if tool_name == "covered":
+    if tool_name == "list_touched_files":
         return (
             f"    {C.wrap('✅', C.CYAN)} {C.wrap('Covered files', C.BOLD)}\n"
             f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
@@ -319,9 +319,9 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
             f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
         )
 
-    if tool_name == "uncovered":
+    if tool_name == "list_untouched_files":
         return (
-            f"    {C.wrap('🫥', C.CYAN)} {C.wrap('Uncovered files', C.BOLD)}\n"
+            f"    {C.wrap('🫥', C.CYAN)} {C.wrap('Untouched files', C.BOLD)}\n"
             f"    {C.wrap('path:', C.DIM)} {args.get('path', '/')}\n"
             f"    {C.wrap('pattern:', C.DIM)} {args.get('pattern', '**/*')}\n"
             f"    {C.wrap('offset:', C.DIM)} {args.get('offset', 0)}"
@@ -480,7 +480,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
                 lines.append(indent(_short_block(payload, 1200), "      "))
         return "\n".join(lines) if lines else None
 
-    if tool_name == "coverage_stats":
+    if tool_name == "interaction_stats":
         payload = result.get("result")
         if isinstance(payload, dict):
             return _render_kv_lines(
@@ -495,7 +495,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
             )
         return indent(_j(result), "    ")
 
-    if tool_name in {"covered", "uncovered"}:
+    if tool_name in {"list_touched_files", "uncovered"}:
         lines: list[str] = []
         meta = _fmt_fs_paging(result)
         if meta:
