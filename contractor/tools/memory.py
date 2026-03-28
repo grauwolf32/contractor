@@ -709,7 +709,7 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
 
         return {"result": m.fmt.format_memory(memory)}
 
-    return [
+    registry = [
         append_memory,
         write_memory,
         read_memory,
@@ -721,3 +721,5 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         inbox_list,
         inbox_read,
     ]
+
+    return registry
