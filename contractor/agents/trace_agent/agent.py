@@ -26,6 +26,7 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
+
 TRACE_AGENT_PROMPT: Final[str] = (
     "You are a precise and conservative request-trace annotation agent.\n"
     "Your task is to analyze code for a specific OpenAPI operation and insert trace annotations.\n"
@@ -118,7 +119,6 @@ TRACE_AGENT_PROMPT: Final[str] = (
     "- write_memory: persist structured insights\n"
     "- list_memories: inspect stored context\n"
     "- list_tags: inspect memory taxonomy\n"
-    "- write_vulnerability_report: to securely notify security team about vulnerability you have discovered\n"
     "\n"
     "IMPORTANT:\n"
     "- Always write useful findings to memory (entrypoint, sinks, validation patterns)\n"
@@ -131,7 +131,9 @@ TRACE_AGENT_PROMPT: Final[str] = (
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
-        "You have reached context limit. Summarize your progress and call report tool."
+        "You have reached the context limit. Summarize your progress, including "
+        "candidate entrypoints, traced functions, discovered sinks, validations, "
+        "files modified, and remaining uncertainties."
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 
@@ -144,37 +146,51 @@ TRACE_MODEL = LiteLlm(
 
 def build_trace_agent(
     name: str,
-    fs,
+    fs: RootedLocalFileSystem,
     *,
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
-):
+    enable_vuln_reporting: bool = False,
+) -> LlmAgent:
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-    fs_tools = rw_file_tools(fs, fmt=FileFormat(_format=format), with_interaction_tools=True)
-    vuln_tools = vulnerability_report_tools(name=namespace, fmt=VulnerabilityReportFormat(_format=_format))
+    fs_tools = rw_file_tools(
+        fs,
+        fmt=FileFormat(_format=_format),
+        with_interaction_tools=True,
+    )
 
-    tools = [default_tool, *fs_tools, *mem_tools, *vuln_tools]
+    tools = [default_tool, *fs_tools, *mem_tools]
+
+    if enable_vuln_reporting:
+        vuln_tools = vulnerability_report_tools(
+            name=namespace,
+            fmt=VulnerabilityReportFormat(_format=_format),
+        )
+        tools.extend(vuln_tools)
 
     callback_adapter = CallbackAdapter(agent_name=name)
     callback_adapter.register(TokenUsageCallback())
     callback_adapter.register(
         SummarizationLimitCallback(
-            max_tokens=max_tokens, message=summarization_message(_format=_format)
+            max_tokens=max_tokens,
+            message=summarization_message(_format=_format),
         )
     )
     callback_adapter.register(
         InvalidToolCallGuardrailCallback(
-            tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
+            tools=tools,
+            default_tool_name="default_tool",
+            default_tool_arg="meta",
         )
     )
 
     trace_agent = LlmAgent(
         name=name,
-        description="software engineering agent",
-        instruction=SWE_PROMPT,
-        model=model if model is not None else SWE_MODEL,
+        description="request trace annotation agent",
+        instruction=TRACE_AGENT_PROMPT,
+        model=model if model is not None else TRACE_MODEL,
         tools=tools,
         **callback_adapter(),
     )
@@ -183,11 +199,10 @@ def build_trace_agent(
 
 
 playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
-
 fs = RootedLocalFileSystem(root_path=playground_path)
 
 root_agent = build_trace_agent(
-    name="swe_agent",
+    name="trace_agent",
     namespace="code_review",
     fs=fs,
 )

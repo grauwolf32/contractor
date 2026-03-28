@@ -55,7 +55,9 @@ class VulnerabilityReportFormat:
         return asdict(report)
 
     @staticmethod
-    def _report_preview_to_json(report: VulnerabilityReport, **kwargs) -> dict[str, Any]:
+    def _report_preview_to_json(
+        report: VulnerabilityReport, **kwargs
+    ) -> dict[str, Any]:
         return {
             "name": report.name,
             "title": report.title,
@@ -140,7 +142,7 @@ class VulnerabilityReportFormat:
         return (
             f'{pad}<vulnerability name="{xml_escape(report.name)}">\n'
             f"{pad2}<title>{xml_escape(report.title)}</title>\n"
-            f"{pad2}<place type=\"{xml_escape(report.place_type)}\">{xml_escape(report.place)}</place>\n"
+            f'{pad2}<place type="{xml_escape(report.place_type)}">{xml_escape(report.place)}</place>\n'
             f"{pad2}<severity>{xml_escape(report.severity)}</severity>\n"
             f"{pad2}<confidence>{xml_escape(report.confidence)}</confidence>\n"
             f"{pad2}<summary>{xml_escape(report.summary)}</summary>\n"
@@ -151,13 +153,15 @@ class VulnerabilityReportFormat:
         )
 
     @staticmethod
-    def _report_preview_to_xml(report: VulnerabilityReport, indent: int = 0, **kwargs) -> str:
+    def _report_preview_to_xml(
+        report: VulnerabilityReport, indent: int = 0, **kwargs
+    ) -> str:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
         return (
             f'{pad}<vulnerability name="{xml_escape(report.name)}">\n'
             f"{pad2}<title>{xml_escape(report.title)}</title>\n"
-            f"{pad2}<place type=\"{xml_escape(report.place_type)}\">{xml_escape(report.place)}</place>\n"
+            f'{pad2}<place type="{xml_escape(report.place_type)}">{xml_escape(report.place)}</place>\n'
             f"{pad2}<severity>{xml_escape(report.severity)}</severity>\n"
             f"{pad2}<confidence>{xml_escape(report.confidence)}</confidence>\n"
             f"{pad2}<summary>{xml_escape(report.summary)}</summary>\n"
@@ -213,13 +217,19 @@ class VulnerabilityReportFormat:
         if self._format in {"markdown", "yaml"}:
             formatter = self.format_report_preview if preview else self.format_report
             output = "\n".join(
-                item for item in (formatter(r, type_hint=False) for r in reports) if isinstance(item, str)
+                item
+                for item in (formatter(r, type_hint=False) for r in reports)
+                if isinstance(item, str)
             )
             return self._type_hint(output, self._format, type_hint)
 
         if self._format == "xml":
             formatter = self._report_preview_to_xml if preview else self._report_to_xml
-            output = "<vulnerabilities>\n" + "\n".join(formatter(r, indent=1) for r in reports) + "\n</vulnerabilities>"
+            output = (
+                "<vulnerabilities>\n"
+                + "\n".join(formatter(r, indent=1) for r in reports)
+                + "\n</vulnerabilities>"
+            )
             return self._type_hint(output, self._format, type_hint)
 
         if preview:
@@ -275,7 +285,9 @@ class VulnerabilityReportTools:
             for index, (name, item) in enumerate(raw.items(), start=1):
                 if not isinstance(item, dict):
                     continue
-                report = self._normalize_report(name=name, item=item, fallback_ordinal=index)
+                report = self._normalize_report(
+                    name=name, item=item, fallback_ordinal=index
+                )
                 reports[report.name] = report
 
             self.reports = reports
@@ -300,7 +312,9 @@ class VulnerabilityReportTools:
             artifact = types.Part.from_text(text=self.dump())
             await ctx.save_artifact(filename=self.artifact_key(), artifact=artifact)
 
-    async def list_reports(self, ctx: ToolContext | CallbackContext) -> list[VulnerabilityReport]:
+    async def list_reports(
+        self, ctx: ToolContext | CallbackContext
+    ) -> list[VulnerabilityReport]:
         await self.load(ctx)
         return sorted(self.reports.values(), key=lambda r: (r.ordinal, r.name))
 
@@ -437,3 +451,5 @@ def vulnerability_report_tools(
         get_vulnerability_report,
         list_vulnerability_reports,
     ]
+
+    return registry

@@ -18,10 +18,10 @@ task:
     - If unsure about a function’s role, do not annotate it.
 
     Target operation:
-    {{ operation_id }}
+    {operation_id}
 
     Schema definition:
-    {{ operation_schema }}
+    {operation_schema}
 
     Comment format:
     Use one or more single-line comments directly above function definitions.

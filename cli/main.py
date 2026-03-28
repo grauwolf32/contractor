@@ -19,7 +19,13 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
 from contractor.tools.fs import RootedLocalFileSystem
+
 from cli.render import render_event
+from cli.pipelines import(
+    oas_building_pipeline,
+    oas_enrichment_pipeline,
+    trace_annotation_pipeline
+)
 
 load_dotenv()
 
@@ -231,173 +237,6 @@ def build_handle_event(output_dir: Path) -> Callable[[TaskRunnerEvent], Awaitabl
 
     return handle_event
 
-
-async def oas_building_pipeline(
-    *,
-    project_path: Path,
-    folder_name: str,
-    model: str,
-    **kwargs,
-) -> TaskRunner:
-    _ensure_artifacts_dir()
-
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-    runner = TaskRunner(
-        name="oas_builder",
-        artifact_service=artifact_service,
-    )
-
-    llm = LiteLlm(model=model)
-    fs = RootedLocalFileSystem(root_path=project_path)
-    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs, model=llm)
-    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
-
-    runner.add_variable(name="project_path", value=folder_name)
-
-    runner.add_task(
-        name="dependency_information",
-        worker_builder=swe_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        namespace="dependency_information",
-        model=llm,
-    )
-
-    runner.add_task(
-        name="project_information",
-        worker_builder=swe_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        artifacts=["dependency_information/result"],
-        namespace="project_information",
-        model=llm,
-    )
-
-    runner.add_task(
-        name="oas_update",
-        worker_builder=oas_builder,
-        iterations=3,
-        max_attempts=9,
-        max_steps=20,
-        artifacts=[
-            "dependency_information/result",
-            "project_information/result",
-        ],
-        namespace="openapi-building",
-        model=llm,
-    )
-
-    return runner
-
-async def oas_enrichment_pipeline(
-    *,
-    project_path: Path,
-    folder_name: str,
-    model: str,
-    artifact: Optional[str] = None,
-    app_name: str,
-    user_id: str,
-    **kwargs,
-) -> TaskRunner:
-    _ensure_artifacts_dir()
-
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-    runner = TaskRunner(
-        name="oas_builder",
-        artifact_service=artifact_service,
-    )
-
-    llm = LiteLlm(model=model)
-    fs = RootedLocalFileSystem(root_path=project_path)
-    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
-
-    if artifact:
-        artifact_text = types.Part.from_text(text=artifact)
-        await artifact_service.save_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            filename="oas-openapi-building",
-            artifact=artifact_text,
-        )
-
-    runner.add_variable(name="project_path", value=folder_name)
-
-    runner.add_task(
-        name="oas_enrich",
-        worker_builder=oas_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        artifacts=[
-            "dependency_information/result",
-            "project_information/result",
-            "oas-openapi-building",
-        ],
-        namespace="openapi-building",
-        model=llm,
-    )
-
-    return runner
-
-async def trace_annotation_pipeline(
-    *,
-    project_path: Path,
-    folder_name: str,
-    model: str,
-    artifact: Optional[str] = None,
-    app_name: str,
-    user_id: str,
-    operation_id: str,
-    operation_schema: Optional[str] = None,
-    **kwargs,
-) -> TaskRunner:
-    _ensure_artifacts_dir()
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-
-    runner = TaskRunner(
-        name="contractor",
-        artifact_service=artifact_service,
-    )
-
-    llm = LiteLlm(model=model)
-    fs = RootedLocalFileSystem(root_path=project_path)
-
-    trace_builder = partial(
-        build_trace_agent,
-        name="trace_agent",
-        fs=fs,
-        model=llm,
-    )
-
-    if artifact:
-        artifact_text = types.Part.from_text(text=artifact)
-        await artifact_service.save_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            filename="oas-openapi-building",
-            artifact=artifact_text,
-        )
-
-    runner.add_variable(name="project_path", value=folder_name)
-    runner.add_variable(name="operation_id", value=operation_id)
-    if operation_schema:
-        runner.add_variable(name="operation_schema", value=operation_schema)
-
-    runner.add_task(
-        name="trace_annotation",
-        worker_builder=trace_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        artifacts=["oas-openapi-building"],
-        namespace="trace-annotation",
-        model=llm,
-    )
-
-    return runner
-
 def get_pipelines() -> dict[str, PipelineSpec]:
     return {
         "build": PipelineSpec(
@@ -482,12 +321,16 @@ async def async_main(
             f"Unsupported pipeline: {pipeline}. Available: {available}"
         )
 
+    _ensure_artifacts_dir()
+    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+
     builder_kwargs = {
         "project_path": project_path,
         "folder_name": folder_name,
         "model": model,
         "user_id": user_id,
         "app_name": "contractor",
+        "artifact_service": artifact_service,
     }
 
     if spec.requires_artifact and artifact:

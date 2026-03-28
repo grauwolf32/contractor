@@ -38,7 +38,7 @@ class TaskTemplate:
         template_key = Path(name).stem
         fname = TASKS_BASE_DIR / f"{template_key}.yml"
         if not os.path.exists(fname):
-            raise ValueError(f"Task template '{template_key}' not found")
+            raise ValueError(f"Task template {template_key} not found")
 
         with open(fname, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}

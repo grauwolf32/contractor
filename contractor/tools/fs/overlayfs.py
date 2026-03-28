@@ -33,9 +33,9 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     root_marker = "/"
     PATCH_VERSION = 1
 
-    def __init__(self, base_fs: AbstractFileSystem, **kwargs: Any) -> None:
+    def __init__(self, fs: AbstractFileSystem, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.base_fs = base_fs
+        self.base_fs = fs
 
         # Overlay state
         self._files: dict[str, bytes] = {}
@@ -963,44 +963,53 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
     def _iter_overlay_children(self, path: str) -> Iterator[FileInfo]:
         path = self._norm(path)
-        prefix = "" if path == self.root_marker else path.rstrip("/") + "/"
         seen: set[str] = set()
 
+        def _immediate_child(parent: str, candidate: str) -> str | None:
+            parent = self._norm(parent)
+            candidate = self._norm(candidate)
+
+            if candidate in {parent, self.root_marker}:
+                return None
+
+            rel = posixpath.relpath(candidate, parent)
+
+            # Not below parent, or same path
+            if rel in {".", ".."} or rel.startswith("../"):
+                return None
+
+            first = rel.split("/", 1)[0]
+            if not first or first == ".":
+                return None
+
+            if parent == self.root_marker:
+                return self._norm("/" + first)
+
+            return self._norm(posixpath.join(parent, first))
+
         for dir_path in sorted(self._dirs):
-            if dir_path in {path, self.root_marker}:
+            child = _immediate_child(path, dir_path)
+            if child is None:
                 continue
-            if not dir_path.startswith(prefix):
-                continue
-
-            rest = dir_path[len(prefix) :]
-            if not rest or "/" in rest:
-                continue
-
-            child = prefix + rest if prefix else "/" + rest
-            if child not in seen and not self._is_deleted(child):
-                seen.add(child)
-                yield {"name": child, "size": 0, "type": "directory"}
-
-        for file_path, content in sorted(self._files.items()):
-            if not file_path.startswith(prefix):
-                continue
-
-            rest = file_path[len(prefix) :]
-            if not rest:
-                continue
-
-            first = rest.split("/", 1)[0]
-            child = prefix + first if prefix else "/" + first
-
             if self._is_deleted(child) or child in seen:
                 continue
 
-            if "/" in rest:
-                seen.add(child)
-                yield {"name": child, "size": 0, "type": "directory"}
-            else:
-                seen.add(child)
+            seen.add(child)
+            yield {"name": child, "size": 0, "type": "directory"}
+
+        for file_path, content in sorted(self._files.items()):
+            child = _immediate_child(path, file_path)
+            if child is None:
+                continue
+            if self._is_deleted(child) or child in seen:
+                continue
+
+            seen.add(child)
+
+            if child == self._norm(file_path):
                 yield {"name": child, "size": len(content), "type": "file"}
+            else:
+                yield {"name": child, "size": 0, "type": "directory"}
 
     def ls(self, path: str = "", detail: bool = True, **kwargs: Any):
         path = self._norm(path)
@@ -1024,6 +1033,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             pass
 
         for entry in self._iter_overlay_children(path):
+            if self._norm(entry["name"]) == path:
+                continue
             merged[entry["name"]] = entry
 
         items = sorted(merged.values(), key=lambda item: item["name"])
@@ -1043,18 +1054,36 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if not self.exists(path):
             return
 
+        visited: set[str] = set()
+
         def _walk(current: str, depth: int):
+            current = self._norm(current)
+
+            if current in visited:
+                return
+            visited.add(current)
+
             entries = self.ls(current, detail=True)
-            dirs = sorted(
-                posixpath.basename(entry["name"])
-                for entry in entries
-                if entry["type"] == "directory"
-            )
-            files = sorted(
-                posixpath.basename(entry["name"])
-                for entry in entries
-                if entry["type"] == "file"
-            )
+
+            dirs: list[str] = []
+            files: list[str] = []
+
+            for entry in entries:
+                name = self._norm(entry["name"])
+                base = posixpath.basename(name)
+
+                if not base:
+                    continue
+                if name == current:
+                    continue
+
+                if entry["type"] == "directory":
+                    dirs.append(base)
+                elif entry["type"] == "file":
+                    files.append(base)
+
+            dirs = sorted(set(dirs))
+            files = sorted(set(files))
 
             if topdown:
                 yield current, dirs, files
@@ -1063,9 +1092,14 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 for dirname in dirs:
                     child = (
                         posixpath.join(current, dirname)
-                        if current != "/"
+                        if current != self.root_marker
                         else "/" + dirname
                     )
+                    child = self._norm(child)
+
+                    if child == current or child in visited:
+                        continue
+
                     yield from _walk(child, depth + 1)
 
             if not topdown:
