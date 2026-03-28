@@ -3,7 +3,7 @@ task:
 
   objective: >
     Given a single OpenAPI operation, identify the most likely request entrypoint
-    in the codebase, trace the execution path up to 3 function calls deep,
+    in the codebase, trace the execution path up to 5 function calls deep,
     and insert structured trace annotations above the relevant function definitions.
 
     The goal is to capture how request data flows through the system toward
@@ -11,8 +11,8 @@ task:
 
     Scope:
     - Work only on the code path relevant to the target operation.
-    - Annotate at most 4 functions total.
-    - Trace at most 3 levels deep from the entrypoint.
+    - Annotate at most 25 functions total.
+    - Trace at most 5 levels deep from the entrypoint.
     - Modify only by inserting comments.
     - Do not modify logic, formatting, or unrelated code.
     - If unsure about a function’s role, do not annotate it.
@@ -55,7 +55,7 @@ task:
     Step 2 — Build bounded trace:
     - Follow the execution path from the entrypoint.
     - Trace only directly relevant calls.
-    - Limit to 3 levels of depth.
+    - Limit to 5 levels of depth.
     - Ignore generic utilities unless they contain sinks or validation.
 
     Step 3 — Select functions to annotate:
@@ -64,7 +64,7 @@ task:
       - functions that propagate request data
       - functions that perform validation
       - functions that contain sinks
-    - Maximum: 4 functions total.
+    - Maximum: 25 functions total.
     - Prefer fewer, higher-confidence annotations.
 
     Step 4 — Infer annotations:

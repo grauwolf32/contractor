@@ -14,6 +14,7 @@ _IGNORE_DEFAULTS: Final[list[str]] = [
     "Release/*",
     "cmake-build-*/*",
     "DerivedData/*",
+    ".contractor/*",
     "*.so",
     "*.dll",
     "*.bin",
