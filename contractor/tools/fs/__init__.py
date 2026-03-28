@@ -6,8 +6,8 @@ from .tools import (
     FsspecInteractionFileTools,
     InteractionFilter,
     InteractionKind,
-    file_tools,
-    write_tools,
+    ro_file_tools,
+    rw_file_tools,
 )
 
 from .rootfs import RootedLocalFileSystem
@@ -19,8 +19,8 @@ __all__ = [
     "FileInteractionEntry",
     "FsEntry",
     "FsspecInteractionFileTools",
-    "file_tools",
-    "write_tools",
+    "ro_file_tools",
+    "rw_file_tools",
     "RootedLocalFileSystem",
     "MemoryOverlayFileSystem",
     "InteractionFilter",

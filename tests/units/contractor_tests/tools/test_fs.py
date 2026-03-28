@@ -13,8 +13,8 @@ from contractor.tools.fs import (
     InteractionFilter,
     InteractionKind,
     RootedLocalFileSystem,
-    file_tools,
-    write_tools,
+    ro_file_tools,
+    rw_file_tools,
 )
 
 
@@ -418,7 +418,7 @@ def test_files_with_interactions_accepts_string_filter(
 @pytest.fixture()
 def tools_json(fs: fsspec.AbstractFileSystem, tmpdir_path: Path):
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
-    tools = file_tools(
+    tools = ro_file_tools(
         fs=fs,
         fmt=fmt,
         max_output=80_000,
@@ -432,7 +432,7 @@ def tools_json(fs: fsspec.AbstractFileSystem, tmpdir_path: Path):
 @pytest.fixture()
 def tools_xml(fs: fsspec.AbstractFileSystem, tmpdir_path: Path):
     fmt = FileFormat(_format="xml", loc="lines", with_types=False, with_file_info=True)
-    tools = file_tools(
+    tools = ro_file_tools(
         fs=fs,
         fmt=fmt,
         max_output=80_000,
@@ -492,7 +492,7 @@ def test_read_file_errors(tools_json, tmpdir_path: Path):
 
 def test_read_file_truncation_footer(fs, tmpdir_path: Path):
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
-    tools = file_tools(fs=fs, fmt=fmt, max_output=25, with_types=False)
+    tools = ro_file_tools(fs=fs, fmt=fmt, max_output=25, with_types=False)
     tools = {fn.__name__: fn for fn in tools}
 
     f = abs_path(tmpdir_path / "src" / "a.py")
@@ -551,7 +551,7 @@ def test_xml_formatting(tools_xml, tmpdir_path: Path):
 
 def test_custom_ignored_patterns_override_additional(fs, tmpdir_path: Path):
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
-    tools = file_tools(
+    tools = ro_file_tools(
         fs=fs,
         fmt=fmt,
         ignored_patterns=["*.txt"],
@@ -708,11 +708,10 @@ def test_glob_empty_result(fs_root):
     assert paths == []
 
 
-def test_glob_respects_ignored_patterns_with_file_tools(fs_root):
-    from contractor.tools.fs import FileFormat, file_tools
+def test_glob_respects_ignored_patterns_with_ro_file_tools(fs_root):
 
     fmt = FileFormat(_format="json", with_types=False)
-    tools = file_tools(
+    tools = ro_file_tools(
         fs=fs_root,
         fmt=fmt,
         ignored_patterns=["*.txt"],
@@ -793,7 +792,7 @@ def write_fs() -> fsspec.AbstractFileSystem:
 
 @pytest.fixture()
 def write_tool_map(write_fs: fsspec.AbstractFileSystem):
-    tools = write_tools(
+    tools = rw_file_tools(
         fs=write_fs,
         ignored_patterns=None,
         wrap_overlay=True,
@@ -1074,10 +1073,10 @@ def test_replace_range_rejects_missing_file(write_tool_map, write_tmpdir: Path):
     assert "error" in res
 
 
-def test_write_tools_respect_ignored_patterns(
+def test_rw_file_tools_respect_ignored_patterns(
     write_fs: fsspec.AbstractFileSystem, write_tmpdir: Path
 ):
-    tools = write_tools(
+    tools = rw_file_tools(
         fs=write_fs,
         ignored_patterns=["*.txt"],
         wrap_overlay=True,

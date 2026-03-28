@@ -990,7 +990,7 @@ class FsspecInteractionFileTools:
         }
 
 
-def file_tools(
+def ro_file_tools(
     fs: fsspec.AbstractFileSystem,
     fmt: FileFormat,
     *,
@@ -1184,6 +1184,7 @@ class FsspecWriteTools:
         max_items: int = 300,
         with_types: bool = True,
         with_file_info: bool = True,
+        with_interaction_tools: bool = False,
     ) -> None:
         self.base_fs = fs
         self.fs = (
@@ -1206,6 +1207,7 @@ class FsspecWriteTools:
         self.max_items = max_items
         self.with_types = with_types
         self.with_file_info = with_file_info
+        self.with_interaction_tools = with_interaction_tools
 
         self._reader = FsspecInteractionFileTools(
             fs=self.fs,
@@ -1244,6 +1246,16 @@ class FsspecWriteTools:
         if isinstance(patch, str):
             return json.loads(patch)
         raise ValueError("patch must be a dict or JSON string")
+
+    def _ensure_interactions_enabled(self) -> Optional[ToolResult]:
+        if not self.with_interaction_tools:
+            return {
+                "error": (
+                    "interaction tools are disabled for this write toolset; "
+                    "enable with_interaction_tools=True"
+                )
+            }
+        return None
 
     # ---- read-like tools on overlay ----
 
@@ -1442,6 +1454,80 @@ class FsspecWriteTools:
                 "recursive": recursive,
             }
         }
+
+    def interaction_stats(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+    ) -> ToolResult:
+        disabled = self._ensure_interactions_enabled()
+        if disabled is not None:
+            return disabled
+        return self._reader.interaction_stats(path=path, pattern=pattern)
+
+    def files_with_interactions(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        interaction: InteractionFilter = InteractionFilter.ANY,
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> ToolResult:
+        disabled = self._ensure_interactions_enabled()
+        if disabled is not None:
+            return disabled
+        return self._reader.files_with_interactions(
+            path=path,
+            pattern=pattern,
+            interaction=interaction,
+            offset=offset,
+            limit=limit,
+        )
+
+    def touched_files(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> ToolResult:
+        disabled = self._ensure_interactions_enabled()
+        if disabled is not None:
+            return disabled
+        return self._reader.touched_files(
+            path=path,
+            pattern=pattern,
+            offset=offset,
+            limit=limit,
+        )
+
+    def untouched_files(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> ToolResult:
+        disabled = self._ensure_interactions_enabled()
+        if disabled is not None:
+            return disabled
+        return self._reader.untouched_files(
+            path=path,
+            pattern=pattern,
+            offset=offset,
+            limit=limit,
+        )
+
+    def reset_interactions(self) -> ToolResult:
+        disabled = self._ensure_interactions_enabled()
+        if disabled is not None:
+            return disabled
+        self._reader.reset_interactions()
+        return {"result": "ok"}
 
     def insert_comment(
         self,
@@ -1668,7 +1754,7 @@ class FsspecWriteTools:
         }
 
 
-def write_tools(
+def rw_file_tools(
     fs: fsspec.AbstractFileSystem,
     *,
     ignored_patterns: Optional[list[str]] = None,
@@ -1678,6 +1764,7 @@ def write_tools(
     max_items: int = 300,
     with_types: bool = True,
     with_file_info: bool = True,
+    with_interaction_tools: bool = False,
 ) -> list[Callable[..., dict[str, Any]]]:
     tools = FsspecWriteTools(
         fs=fs,
@@ -1809,6 +1896,76 @@ def write_tools(
             ),
         )
 
+    def interaction_stats(
+        path: str = "/",
+        pattern: str = "**/*",
+    ) -> dict[str, Any]:
+        """
+        Summarize overlay-visible filesystem interaction progress.
+        """
+        return tools.interaction_stats(path=path, pattern=pattern)
+
+    def list_touched_files(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that had at least one recorded interaction.
+        """
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
+        return tools.touched_files(
+            path=path,
+            pattern=pattern,
+            offset=offset,
+            limit=limit,
+        )
+
+    def list_untouched_files(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that have not been read and did not match grep().
+        """
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
+        return tools.untouched_files(
+            path=path,
+            pattern=pattern,
+            offset=offset,
+            limit=limit,
+        )
+
+    def list_match_only_files(
+        path: str = "/",
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        List files that were matched but never read.
+        """
+        offset = _ensure_int_or_none(offset) or 0
+        limit = _ensure_int_or_none(limit)
+        return tools.files_with_interactions(
+            path=path,
+            pattern=pattern,
+            interaction=InteractionFilter.MATCH_ONLY,
+            offset=offset,
+            limit=limit,
+        )
+
+    def reset_interaction_tracking() -> dict[str, Any]:
+        """
+        Reset interaction tracking for the overlay-visible read tools.
+        """
+        return tools.reset_interactions()
+
     registry = [
         ls,
         glob,
@@ -1823,5 +1980,16 @@ def write_tools(
         cp,
         mv,
     ]
+
+    if with_interaction_tools:
+        registry.extend(
+            [
+                interaction_stats,
+                list_touched_files,
+                list_untouched_files,
+                list_match_only_files,
+                reset_interaction_tracking,
+            ]
+        )
 
     return registry

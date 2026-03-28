@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -14,13 +14,14 @@ from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
-from contractor.tools.fs import FileFormat, RootedLocalFileSystem, file_tools
+from contractor.tools.fs import FileFormat, RootedLocalFileSystem, ro_file_tools
 from contractor.tools.memory import memory_tools
-from contractor.tools.openapi.openapi import openapi_tools
+from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (
     SubtaskFormatter,
     _prepare_worker_instructions,
+    task_tools,
 )
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
@@ -99,9 +100,8 @@ sandbox = PodmanContainer(
 
 fs = RootedLocalFileSystem(root_path=playground_path)
 
-
 mem_tools = memory_tools("swe")
-fs_tools = file_tools(fs=fs, fmt=FileFormat(_format="xml"))
+fs_tools = ro_file_tools(fs=fs, fmt=FileFormat(_format="xml"))
 oas_tools = openapi_tools("playground")
 
 tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
