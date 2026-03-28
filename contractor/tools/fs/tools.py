@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fsspec
 import fnmatch
 import json
 import re
@@ -8,9 +7,17 @@ import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Callable, Final, Iterable, Literal, Optional, Union
-from contractor.utils.fs import norm_unicode, xml_escape, normalize_slashes
+from typing import Any, Callable, ClassVar, Final, Iterable, Literal, Optional, TypeAlias, Union
+
+import fsspec
+from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
+from contractor.utils.fs import norm_unicode, normalize_slashes, xml_escape
 from magika import ContentTypeInfo, Magika
+
+
+ToolResult: TypeAlias = dict[str, Any]
+BackendTool: TypeAlias = Callable[..., ToolResult]
+PatchPayload: TypeAlias = dict[str, Any] | str
 
 _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.pyc",
@@ -48,8 +55,49 @@ _IGNORE_DEFAULTS: Final[list[str]] = [
     ".git/*",
 ]
 
+_COMMENT_PREFIX_BY_EXT: Final[dict[str, str]] = {
+    ".py": "#",
+    ".sh": "#",
+    ".bash": "#",
+    ".zsh": "#",
+    ".yaml": "#",
+    ".yml": "#",
+    ".toml": "#",
+    ".ini": "#",
+    ".conf": "#",
+    ".properties": "#",
+    ".rb": "#",
+    ".pl": "#",
+    ".ps1": "#",
+    ".r": "#",
+    ".dockerfile": "#",
+    ".mk": "#",
+    ".make": "#",
+    ".sql": "--",
+    ".js": "//",
+    ".jsx": "//",
+    ".ts": "//",
+    ".tsx": "//",
+    ".java": "//",
+    ".kt": "//",
+    ".kts": "//",
+    ".go": "//",
+    ".rs": "//",
+    ".c": "//",
+    ".cc": "//",
+    ".cpp": "//",
+    ".cxx": "//",
+    ".h": "//",
+    ".hh": "//",
+    ".hpp": "//",
+    ".swift": "//",
+    ".scala": "//",
+    ".dart": "//",
+    ".php": "//",
+}
+
 INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
-PATH_NOT_FOUND_ERROR: Final[str] = "path {path} is not exists"
+PATH_NOT_FOUND_ERROR: Final[str] = "path {path} does not exist"
 PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
 
 
@@ -62,13 +110,59 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
     )
 
 
-def _ensure_int_or_none(value):
+def _ensure_int_or_none(value: Any) -> Optional[int]:
     if value is None:
         return None
     try:
         return int(value)
     except (ValueError, TypeError):
         return None
+
+
+def _split_lines_keepends(text: str) -> list[str]:
+    if not text:
+        return []
+    return text.splitlines(keepends=True)
+
+
+def _line_ending_for_text(text: str) -> str:
+    if "\r\n" in text:
+        return "\r\n"
+    return "\n"
+
+
+def _leading_ws(line: str) -> str:
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
+def _comment_prefix_for_path(path: str, comment_style: Optional[str] = None) -> str:
+    if comment_style:
+        return comment_style
+
+    normalized = normalize_slashes(path)
+    basename = normalized.split("/")[-1].lower()
+
+    if basename in {"dockerfile", "makefile"}:
+        return "#"
+
+    for ext, prefix in _COMMENT_PREFIX_BY_EXT.items():
+        if basename.endswith(ext):
+            return prefix
+
+    return "#"
+
+
+def _format_comment_line(
+    *,
+    comment: str,
+    indent: str,
+    prefix: str,
+    newline: str,
+) -> str:
+    stripped = comment.strip()
+    if prefix in {"<!--", "<!-- -->"}:
+        return f"{indent}<!-- {stripped} -->{newline}"
+    return f"{indent}{prefix} {stripped}{newline}"
 
 
 @dataclass(slots=True)
@@ -97,7 +191,7 @@ class FsEntry:
     filetype: Optional[ContentTypeInfo] = None
     loc: Optional[FileLoc] = None
 
-    _magika: Magika = Magika()
+    _magika: ClassVar[Magika] = Magika()
 
     @staticmethod
     @lru_cache(maxsize=2048)
@@ -129,12 +223,7 @@ class FsEntry:
         name = norm_unicode(normalized_path.rstrip("/").split("/")[-1]) or ""
 
         if fs.isdir(normalized_path):
-            return cls(
-                name=name,
-                path=normalized_path,
-                size=0,
-                is_dir=True,
-            )
+            return cls(name=name, path=normalized_path, size=0, is_dir=True)
 
         if fs.isfile(normalized_path):
             filetype = cls.identify_type(normalized_path, fs) if with_types else None
@@ -232,9 +321,7 @@ class FsEntry:
                 )
             )
 
-        return sorted(
-            entries, key=lambda entry: (entry.path, entry.loc.line_start or 0)
-        )
+        return sorted(entries, key=lambda entry: (entry.path, entry.loc.line_start or 0))
 
 
 @dataclass(slots=True)
@@ -370,7 +457,7 @@ class InteractionKind(str, Enum):
     MATCH = "match"
 
 
-class CoverageFilter(str, Enum):
+class InteractionFilter(str, Enum):
     ANY = "any"
     READ_ONLY = "read_only"
     MATCH_ONLY = "match_only"
@@ -378,7 +465,7 @@ class CoverageFilter(str, Enum):
 
 
 @dataclass(slots=True)
-class FileCoverageEntry:
+class FileInteractionEntry:
     path: str
     read_count: int = 0
     match_count: int = 0
@@ -401,22 +488,22 @@ class FileCoverageEntry:
         return self.match_count > 0
 
     @property
-    def is_covered(self) -> bool:
+    def has_any_interaction(self) -> bool:
         return self.has_read or self.has_match
 
-    def matches_filter(self, flt: CoverageFilter) -> bool:
-        if flt == CoverageFilter.ANY:
-            return self.is_covered
-        if flt == CoverageFilter.READ_ONLY:
+    def matches_filter(self, flt: InteractionFilter) -> bool:
+        if flt == InteractionFilter.ANY:
+            return self.has_any_interaction
+        if flt == InteractionFilter.READ_ONLY:
             return self.has_read and not self.has_match
-        if flt == CoverageFilter.MATCH_ONLY:
+        if flt == InteractionFilter.MATCH_ONLY:
             return self.has_match and not self.has_read
-        if flt == CoverageFilter.READ_AND_MATCH:
+        if flt == InteractionFilter.READ_AND_MATCH:
             return self.has_read and self.has_match
         return False
 
 
-class FsspecCoverageFileTools:
+class FsspecInteractionFileTools:
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
@@ -438,7 +525,7 @@ class FsspecCoverageFileTools:
         self.fmt.with_types = with_types
         self.fmt.with_file_info = with_file_info
 
-        self._coverage: dict[str, FileCoverageEntry] = {}
+        self._interactions: dict[str, FileInteractionEntry] = {}
 
         patterns: list[str] = []
         for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
@@ -471,7 +558,7 @@ class FsspecCoverageFileTools:
         interaction: InteractionKind,
     ) -> str:
         content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
-        self.mark_interaction(file_path, operation, interaction=interaction)
+        self.record_interaction(file_path, operation, interaction=interaction)
         return content
 
     def _iter_all_files(self, root: str) -> list[str]:
@@ -487,9 +574,7 @@ class FsspecCoverageFileTools:
 
         for current_path, _dirs, filenames in self.fs.walk(root):
             for filename in filenames:
-                full_path = (
-                    str(current_path).rstrip("/") + "/" + str(filename)
-                ).replace("\\", "/")
+                full_path = (str(current_path).rstrip("/") + "/" + str(filename)).replace("\\", "/")
                 if self._is_ignored(full_path):
                     continue
                 if self.fs.isfile(full_path):
@@ -509,9 +594,7 @@ class FsspecCoverageFileTools:
             relative = file_path.lstrip("/")
         else:
             prefix = root + "/"
-            relative = (
-                file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
-            )
+            relative = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
 
         return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
 
@@ -522,31 +605,31 @@ class FsspecCoverageFileTools:
             if self._match_glob(file_path, path, pattern)
         ]
 
-    def _coverage_entry(self, path: str) -> Optional[FileCoverageEntry]:
-        return self._coverage.get(path)
+    def _interaction_entry(self, path: str) -> Optional[FileInteractionEntry]:
+        return self._interactions.get(path)
 
-    def _is_covered_path(self, path: str) -> bool:
-        entry = self._coverage_entry(path)
-        return bool(entry and entry.is_covered)
+    def _has_any_interaction(self, path: str) -> bool:
+        entry = self._interaction_entry(path)
+        return bool(entry and entry.has_any_interaction)
 
-    def _covered_files(
+    def _files_with_interactions(
         self,
         files: Iterable[str],
         *,
-        interaction: CoverageFilter = CoverageFilter.ANY,
+        interaction: InteractionFilter = InteractionFilter.ANY,
     ) -> list[str]:
         selected: list[str] = []
         for path in files:
-            entry = self._coverage_entry(path)
+            entry = self._interaction_entry(path)
             if entry is not None and entry.matches_filter(interaction):
                 selected.append(path)
         return sorted(selected)
 
-    def _uncovered_files(self, files: Iterable[str]) -> list[str]:
-        return sorted(path for path in files if not self._is_covered_path(path))
+    def _untouched_files(self, files: Iterable[str]) -> list[str]:
+        return sorted(path for path in files if not self._has_any_interaction(path))
 
-    def _serialize_coverage_entry(self, path: str) -> dict[str, Any]:
-        entry = self._coverage_entry(path)
+    def _serialize_interaction_entry(self, path: str) -> dict[str, Any]:
+        entry = self._interaction_entry(path)
         if entry is None:
             return {
                 "path": path,
@@ -566,26 +649,26 @@ class FsspecCoverageFileTools:
             "operations": dict(entry.operations),
         }
 
-    def mark_interaction(
+    def record_interaction(
         self,
         path: str,
         operation: str,
         *,
         interaction: InteractionKind,
     ) -> None:
-        entry = self._coverage.get(path)
+        entry = self._interactions.get(path)
         if entry is None:
-            entry = FileCoverageEntry(path=path)
-            self._coverage[path] = entry
+            entry = FileInteractionEntry(path=path)
+            self._interactions[path] = entry
 
         entry.touch(operation, interaction=interaction)
 
-    def reset_coverage(self) -> None:
-        self._coverage.clear()
+    def reset_interactions(self) -> None:
+        self._interactions.clear()
 
-    def get_coverage(self) -> dict[str, Any]:
+    def get_interactions(self) -> dict[str, Any]:
         return {
-            "files_seen": len(self._coverage),
+            "files_seen": len(self._interactions),
             "files": {
                 path: {
                     "read_count": entry.read_count,
@@ -594,11 +677,11 @@ class FsspecCoverageFileTools:
                     "has_match": entry.has_match,
                     "operations": dict(entry.operations),
                 }
-                for path, entry in sorted(self._coverage.items())
+                for path, entry in sorted(self._interactions.items())
             },
         }
 
-    def ls(self, path: str) -> dict[str, Any]:
+    def ls(self, path: str) -> ToolResult:
         normalized_path = self._norm(path)
         if normalized_path is None or not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -620,17 +703,12 @@ class FsspecCoverageFileTools:
         pattern: str,
         path: Optional[str] = None,
         offset: int = 0,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         normalized_path = self._norm(path) or "/"
         normalized_pattern = self._norm(pattern)
 
         if normalized_pattern is None:
-            return {
-                "result": [],
-                "offset": offset,
-                "total_items": 0,
-                "limit": self.max_items,
-            }
+            return {"result": [], "offset": offset, "total_items": 0, "limit": self.max_items}
 
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -639,11 +717,7 @@ class FsspecCoverageFileTools:
 
         prefix = normalized_path.rstrip("/").replace("\\", "/") + "/"
         if normalized_path != "/":
-            matches = [
-                match
-                for match in matches
-                if match.replace("\\", "/").startswith(prefix)
-            ]
+            matches = [match for match in matches if match.replace("\\", "/").startswith(prefix)]
 
         entries = [
             FsEntry.from_path(match, self.fs, with_types=self.with_types)
@@ -668,13 +742,9 @@ class FsspecCoverageFileTools:
         file_path: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         normalized_file = self._norm(file_path)
-        if (
-            normalized_file is None
-            or not self.fs.exists(normalized_file)
-            or self._is_ignored(normalized_file)
-        ):
+        if normalized_file is None or not self.fs.exists(normalized_file) or self._is_ignored(normalized_file):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_file)}
         if not self.fs.isfile(normalized_file):
             return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_file)}
@@ -707,7 +777,7 @@ class FsspecCoverageFileTools:
         pattern: str,
         path: Optional[str] = None,
         offset: int = 0,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         normalized_path = self._norm(path) or "/"
         normalized_pattern = self._norm(pattern)
 
@@ -729,19 +799,13 @@ class FsspecCoverageFileTools:
                 return []
 
             try:
-                content = self.fs.read_text(
-                    file_path, encoding="utf-8", errors="ignore"
-                )
+                content = self.fs.read_text(file_path, encoding="utf-8", errors="ignore")
             except Exception:
                 return []
 
             matches = list(regex.finditer(content))
             if matches:
-                self.mark_interaction(
-                    file_path,
-                    "grep",
-                    interaction=InteractionKind.MATCH,
-                )
+                self.record_interaction(file_path, "grep", interaction=InteractionKind.MATCH)
 
             return (
                 FsEntry.from_matches(
@@ -769,9 +833,7 @@ class FsspecCoverageFileTools:
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
             for filename in filenames:
-                full_path = (
-                    str(current_path).rstrip("/") + "/" + str(filename)
-                ).replace("\\", "/")
+                full_path = (str(current_path).rstrip("/") + "/" + str(filename)).replace("\\", "/")
                 results.extend(build_entries_for_file(full_path))
 
         results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
@@ -785,12 +847,12 @@ class FsspecCoverageFileTools:
             "limit": self.max_items,
         }
 
-    def coverage_stats(
+    def interaction_stats(
         self,
         path: str = "/",
         *,
         pattern: str = "**/*",
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         normalized_path = self._norm(path) or "/"
         normalized_pattern = self._norm(pattern) or "**/*"
 
@@ -798,67 +860,79 @@ class FsspecCoverageFileTools:
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
 
         files = self._matched_files(normalized_path, normalized_pattern)
-        covered_files = self._covered_files(files)
-        uncovered_files = self._uncovered_files(files)
+        touched_files = self._files_with_interactions(files)
+        untouched_files = self._untouched_files(files)
 
         total = len(files)
-        covered = len(covered_files)
-        uncovered = len(uncovered_files)
-        coverage_percent = round((covered / total) * 100, 2) if total else 100.0
+        touched = len(touched_files)
+        untouched = len(untouched_files)
+        interaction_percent = round((touched / total) * 100, 2) if total else 100.0
 
         return {
             "result": {
                 "path": normalized_path,
                 "pattern": normalized_pattern,
                 "total_files": total,
-                "covered_files_count": covered,
-                "uncovered_files_count": uncovered,
-                "coverage_percent": coverage_percent,
+                "touched_files_count": touched,
+                "untouched_files_count": untouched,
+                "interaction_percent": interaction_percent,
             }
         }
 
-    def covered(
+    def files_with_interactions(
         self,
         path: str = "/",
         *,
         pattern: str = "**/*",
-        interaction: CoverageFilter = CoverageFilter.ANY,
+        interaction: InteractionFilter = InteractionFilter.ANY,
         offset: int = 0,
         limit: Optional[int] = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         normalized_path = self._norm(path) or "/"
         normalized_pattern = self._norm(pattern) or "**/*"
 
         if isinstance(interaction, str):
-            interaction = CoverageFilter(interaction)
+            interaction = InteractionFilter(interaction)
 
         if not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
 
         files = self._matched_files(normalized_path, normalized_pattern)
-        selected = self._covered_files(files, interaction=interaction)
-        page, resolved_offset, resolved_limit = self._paginate(
-            selected,
-            offset=offset,
-            limit=limit,
-        )
+        selected = self._files_with_interactions(files, interaction=interaction)
+        page, resolved_offset, resolved_limit = self._paginate(selected, offset=offset, limit=limit)
 
         return {
-            "result": [self._serialize_coverage_entry(path) for path in page],
+            "result": [self._serialize_interaction_entry(path) for path in page],
             "offset": resolved_offset,
             "total_items": len(selected),
             "limit": resolved_limit,
             "interaction": interaction.value,
         }
 
-    def uncovered(
+    def touched_files(
         self,
         path: str = "/",
         *,
         pattern: str = "**/*",
         offset: int = 0,
         limit: Optional[int] = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
+        return self.files_with_interactions(
+            path=path,
+            pattern=pattern,
+            interaction=InteractionFilter.ANY,
+            offset=offset,
+            limit=limit,
+        )
+
+    def untouched_files(
+        self,
+        path: str = "/",
+        *,
+        pattern: str = "**/*",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> ToolResult:
         normalized_path = self._norm(path) or "/"
         normalized_pattern = self._norm(pattern) or "**/*"
 
@@ -866,12 +940,8 @@ class FsspecCoverageFileTools:
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
 
         files = self._matched_files(normalized_path, normalized_pattern)
-        selected = self._uncovered_files(files)
-        page, resolved_offset, resolved_limit = self._paginate(
-            selected,
-            offset=offset,
-            limit=limit,
-        )
+        selected = self._untouched_files(files)
+        page, resolved_offset, resolved_limit = self._paginate(selected, offset=offset, limit=limit)
 
         return {
             "result": [{"path": path} for path in page],
@@ -892,15 +962,7 @@ def file_tools(
     with_file_info: bool = True,
     with_coverage_tools: bool = True,
 ) -> list[Callable[..., dict[str, Any]]]:
-    """
-    Return a registry of filesystem tools:
-      - ls(path)
-      - glob(pattern, path=None, offset=0)
-      - read_file(file, offset=None, limit=None)
-      - grep(pattern, path=None, offset=0)
-    """
-
-    tools = FsspecCoverageFileTools(
+    tools = FsspecInteractionFileTools(
         fs=fs,
         fmt=fmt,
         max_output=max_output,
@@ -913,27 +975,7 @@ def file_tools(
     def ls(path: str) -> dict[str, Any]:
         """
         List immediate children of a directory.
-
-        Use this tool when you need to inspect the structure of a specific folder
-        before deciding which files to open or search.
-        Args:
-            path:
-                Absolute or backend-specific path to a directory or filesystem location.
-
-        Returns:
-            A dict with:
-            - "result": formatted list of filesystem entries
-        Behavior:
-            - Only direct children are returned; this tool is not recursive.
-
-        Prefer this tool when:
-            - You are exploring an unfamiliar directory
-            - You need to discover candidate files to inspect
-
-        Prefer glob() instead when:
-            - You already know a filename mask or extension pattern
         """
-
         return tools.ls(path=path)
 
     def glob(
@@ -943,43 +985,7 @@ def file_tools(
     ) -> dict[str, Any]:
         """
         Find files or directories by glob pattern.
-
-        Use this tool when you know a filename/path pattern, such as:
-        - "*.py"
-        - "**/*.md"
-        - "/project/src/**/*.ts"
-
-        Args:
-            pattern:
-                Glob pattern to match against filesystem paths.
-            path:
-                Optional root path used as an additional filter.
-                If provided, only matches inside this path are returned.
-            offset:
-                Pagination offset for large result sets.
-
-        Returns:
-            A dict with:
-            - "result": formatted list of matching filesystem entries
-            - "offset": starting offset used for pagination
-            - "total_items": total number of matches before pagination
-            - "limit": page size
-
-            On error returns:
-            - {"error": "..."} if the provided path does not exist
-
-        Behavior:
-            - Results are sorted by path.
-            - Pagination is applied using offset and internal max_items.
-
-        Prefer this tool when:
-            - You want files by extension or path mask
-            - You need recursive discovery via patterns like "**/*.py"
-
-        Prefer ls() instead when:
-            - You want a direct non-recursive listing of one folder
         """
-
         offset = _ensure_int_or_none(offset) or 0
         return tools.glob(pattern=pattern, path=path, offset=offset)
 
@@ -990,43 +996,9 @@ def file_tools(
     ) -> dict[str, Any]:
         """
         Read text content from a file.
-
-        Use this tool to inspect file contents after locating a relevant file
-        through ls() or glob(), or after identifying an interesting match via grep().
-
-        Args:
-            file:
-                Path to a text file.
-            offset:
-                Optional 0-based line offset. If provided, reading starts from this line.
-            limit:
-                Optional maximum number of lines to return after applying offset.
-
-        Returns:
-            A dict with:
-            - "result": text content, possibly truncated to fit max_output
-
-            On error returns:
-            - {"error": "..."} if the path does not exist
-            - {"error": "..."} if the path is not a file
-
-        Behavior:
-            - Reads text as UTF-8 with errors ignored.
-            - Applies line-based slicing, not byte-based slicing.
-            - Large output is truncated safely by bytes while preserving line boundaries.
-            - Hidden/ignored paths are treated as unavailable.
-
-        Prefer this tool when:
-            - You already know which file should be inspected
-            - You need exact file contents, not just search hits
-
-        Prefer grep() instead when:
-            - You first need to locate relevant text across many files
         """
-
         offset = _ensure_int_or_none(offset)
         limit = _ensure_int_or_none(limit)
-
         return tools.read_file(file_path=file, offset=offset, limit=limit)
 
     def grep(
@@ -1036,50 +1008,7 @@ def file_tools(
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression.
-
-        Use this tool to locate relevant text in a single file or recursively
-        across a directory tree before reading full files.
-
-        Args:
-            pattern:
-                Python regular expression pattern.
-            path:
-                File or directory path to search in.
-                - If a file is provided, only that file is searched.
-                - If a directory is provided, files are searched recursively.
-                - If omitted, the filesystem root is searched.
-            offset:
-                Pagination offset over individual matches.
-
-        Returns:
-            A dict with:
-            - "result": one formatted FsEntry per regex match
-            - "offset": starting offset used for pagination
-            - "total_items": total number of matches before pagination
-            - "limit": page size
-
-            Each match entry may include:
-            - file metadata (path, name, size)
-            - loc with line range and excerpt
-            - optional filetype metadata
-
-            On error returns:
-            - {"error": "..."} if the regex is invalid
-            - {"error": "..."} if the path does not exist
-
-        Behavior:
-            - Uses Python regex syntax.
-            - Searches recursively when path is a directory.
-            - Returns matches, not whole-file contents.
-            - Ignore patterns are respected.
-            - Binary or unreadable files may be skipped silently.
-            - Output format depends on FileFormat.
-
-        Prefer this tool when:
-            - You need to find where a symbol, error, string, or pattern appears
-            - You want to narrow down which files to inspect further
         """
-
         offset = _ensure_int_or_none(offset) or 0
         return tools.grep(pattern=pattern, path=path, offset=offset)
 
@@ -1088,82 +1017,13 @@ def file_tools(
         pattern: str = "**/*",
     ) -> dict[str, Any]:
         """
-        Summarize repository exploration progress.
-        Files are categorized using agent interaction history:
-            - covered:
-                files that were explicitly read using read_file()
-            - uncovered:
-                files that produced a grep() match but were not read afterward
-            - untracked:
-                files that were neither read nor matched by grep()
+        Summarize filesystem interaction progress.
 
-        This tool helps to understand which parts of the filesystem
-        have already been inspected and where further exploration may be needed.
-
-        Args:
-            path:
-                Root path used to compute coverage.
-            pattern:
-                Glob pattern used to select files inside the path.
-
-        Returns:
-            {
-                "result": {
-                    "path": str,
-                    "pattern": str,
-                    "total_files": int,
-                    "covered_files_count": int,
-                    "uncovered_files_count": int,
-                    "untracked_files_count": int,
-                    "coverage_percent": float
-                }
-            }
-
-        Coverage percent reflects the fraction of files that were explicitly read.
+        Notes:
+            - "touched" means the file was either read or matched by grep()
+            - "untouched" means the file had no recorded interaction
         """
-
-        path = tools._norm(path) or "/"
-        pattern = tools._norm(pattern) or "**/*"
-
-        if not tools.fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-
-        files = tools._matched_files(path, pattern)
-
-        covered = []
-        uncovered = []
-        untracked = []
-
-        for f in files:
-            entry = tools._coverage_entry(f)
-
-            if entry is None:
-                untracked.append(f)
-                continue
-
-            if entry.has_read:
-                covered.append(f)
-            elif entry.has_match:
-                uncovered.append(f)
-            else:
-                untracked.append(f)
-
-        total = len(files)
-        covered_count = len(covered)
-
-        percent = round((covered_count / total) * 100, 2) if total else 100.0
-
-        return {
-            "result": {
-                "path": path,
-                "pattern": pattern,
-                "total_files": total,
-                "covered_files_count": len(covered),
-                "uncovered_files_count": len(uncovered),
-                "untracked_files_count": len(untracked),
-                "coverage_percent": percent,
-            }
-        }
+        return tools.interaction_stats(path=path, pattern=pattern)
 
     def covered(
         path: str = "/",
@@ -1172,59 +1032,11 @@ def file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that were already read during the task execution.
-        A file is considered *covered* if read_file() was executed on it.
-
-        Args:
-            path:
-                Root directory to inspect.
-            pattern:
-                Glob pattern used to select candidate files.
-            offset:
-                Pagination offset.
-            limit:
-                Maximum number of results to return.
-
-        Returns:
-            {
-                "result": [coverage_entry, ...],
-                "offset": int,
-                "total_items": int,
-                "limit": int
-            }
-
-        Each coverage entry contains:
-            - path
-            - has_read
-            - has_match
-            - read_count
-            - match_count
-            - operations
+        List files that had at least one recorded interaction.
         """
-
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-
-        path = tools._norm(path) or "/"
-        pattern = tools._norm(pattern) or "**/*"
-
-        if not tools.fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-
-        files = tools._matched_files(path, pattern)
-
-        selected = [
-            f for f in files if (entry := tools._coverage_entry(f)) and entry.has_read
-        ]
-
-        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
-
-        return {
-            "result": [tools._serialize_coverage_entry(p) for p in page],
-            "offset": offset,
-            "total_items": len(selected),
-            "limit": limit,
-        }
+        return tools.touched_files(path=path, pattern=pattern, offset=offset, limit=limit)
 
     def uncovered(
         path: str = "/",
@@ -1233,57 +1045,11 @@ def file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that matched a grep() search but were never read.
-
-        These files are important follow-up candidates:
-        You had detected relevant content but did not inspect the file.
-
-        Args:
-            path:
-                Root directory to inspect.
-            pattern:
-                Glob pattern used to select candidate files.
-            offset:
-                Pagination offset.
-            limit:
-                Maximum number of results to return.
-
-        Returns:
-            {
-                "result": [coverage_entry, ...],
-                "offset": int,
-                "total_items": int,
-                "limit": int
-            }
+        List files that have not been read and did not match grep().
         """
-
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-
-        path = tools._norm(path) or "/"
-        pattern = tools._norm(pattern) or "**/*"
-
-        if not tools.fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-
-        files = tools._matched_files(path, pattern)
-
-        selected = []
-
-        for f in files:
-            entry = tools._coverage_entry(f)
-
-            if entry and entry.has_match and not entry.has_read:
-                selected.append(f)
-
-        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
-
-        return {
-            "result": [tools._serialize_coverage_entry(p) for p in page],
-            "offset": offset,
-            "total_items": len(selected),
-            "limit": limit,
-        }
+        return tools.untouched_files(path=path, pattern=pattern, offset=offset, limit=limit)
 
     def untracked(
         path: str = "/",
@@ -1292,90 +1058,578 @@ def file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that were neither read nor matched by search.
-
-        These files represent unexplored areas of the repository.
-
-        Use this tool when the agent wants to systematically explore
-        files that have not yet been inspected in any way.
-
-        Args:
-            path:
-                Root directory to inspect.
-            pattern:
-                Glob pattern used to select candidate files.
-            offset:
-                Pagination offset.
-            limit:
-                Maximum number of results to return.
-
-        Returns:
-            {
-                "result": [{"path": ...}, ...],
-                "offset": int,
-                "total_items": int,
-                "limit": int
-            }
+        Alias for uncovered().
         """
-
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
-
-        path = tools._norm(path) or "/"
-        pattern = tools._norm(pattern) or "**/*"
-
-        if not tools.fs.exists(path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-
-        files = tools._matched_files(path, pattern)
-
-        selected = []
-
-        for f in files:
-            entry = tools._coverage_entry(f)
-
-            if entry is None:
-                selected.append(f)
-            elif not entry.has_read and not entry.has_match:
-                selected.append(f)
-
-        page, offset, limit = tools._paginate(selected, offset=offset, limit=limit)
-
-        return {
-            "result": [{"path": p} for p in page],
-            "offset": offset,
-            "total_items": len(selected),
-            "limit": limit,
-        }
+        return tools.untouched_files(path=path, pattern=pattern, offset=offset, limit=limit)
 
     def reset_coverage() -> dict[str, Any]:
         """
-        Reset coverage tracking.
-
-        Clears all stored information about files that were read
-        or matched by grep().
-
-        This is useful when starting a new independent analysis task.
-        Call this tool only if you are absolutely sure, that you need this.
-
-        Returns:
-            {"result": "ok"}
+        Reset interaction tracking.
         """
-
-        tools.reset_coverage()
+        tools.reset_interactions()
         return {"result": "ok"}
 
     registry = [ls, glob, read_file, grep]
 
     if with_coverage_tools:
-        registry.extend(
-            [
-                coverage_stats,
-                covered,
-                uncovered,
-                untracked,
-                reset_coverage,
-            ]
+        registry.extend([coverage_stats, covered, uncovered, untracked, reset_coverage])
+
+    return registry
+
+
+class FsspecWriteTools:
+    def __init__(
+        self,
+        fs: fsspec.AbstractFileSystem,
+        *,
+        ignored_patterns: Optional[list[str]] = None,
+        wrap_overlay: bool = True,
+    ) -> None:
+        self.base_fs = fs
+        self.fs = (
+            fs
+            if isinstance(fs, MemoryOverlayFileSystem) or not wrap_overlay
+            else MemoryOverlayFileSystem(fs)
         )
+
+        patterns: list[str] = []
+        for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
+            if pattern and pattern not in patterns:
+                patterns.append(pattern)
+        self.patterns = patterns
+
+    def _norm(self, path: Optional[str]) -> Optional[str]:
+        return norm_unicode(path)
+
+    def _is_ignored(self, path: str) -> bool:
+        return _is_ignored(path, self.patterns)
+
+    def _parse_bool(self, value: Any, default: bool = False) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "y", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "n", "off"}:
+                return False
+        return default
+
+    def _parse_patch_payload(self, patch: Any) -> PatchPayload:
+        if isinstance(patch, dict):
+            return patch
+        if isinstance(patch, str):
+            return json.loads(patch)
+        raise ValueError("patch must be a dict or JSON string")
+
+    def write_file(
+        self,
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        try:
+            self.fs.write_text(
+                normalized_path,
+                value=content,
+                encoding=encoding,
+                errors="strict",
+            )
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "write_file",
+                "path": normalized_path,
+                "size": len(content.encode(encoding, errors="ignore")),
+            }
+        }
+
+    def append_file(
+        self,
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        try:
+            with self.fs.open(normalized_path, mode="a", encoding=encoding) as f:
+                f.write(content)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "append_file",
+                "path": normalized_path,
+                "size": len(content.encode(encoding, errors="ignore")),
+            }
+        }
+
+    def mkdir(
+        self,
+        path: str,
+        create_parents: bool = True,
+        exist_ok: bool = True,
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        try:
+            if exist_ok:
+                self.fs.makedirs(normalized_path, exist_ok=True)
+            else:
+                self.fs.mkdir(normalized_path, create_parents=create_parents)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {"result": {"ok": True, "op": "mkdir", "path": normalized_path}}
+
+    def rm(
+        self,
+        path: str,
+        recursive: bool = False,
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None or not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        try:
+            self.fs.rm(normalized_path, recursive=recursive)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "rm",
+                "path": normalized_path,
+                "recursive": recursive,
+            }
+        }
+
+    def cp(
+        self,
+        src: str,
+        dst: str,
+        recursive: bool = False,
+    ) -> ToolResult:
+        normalized_src = self._norm(src)
+        normalized_dst = self._norm(dst)
+
+        if normalized_src is None or not self.fs.exists(normalized_src):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_src)}
+        if normalized_dst is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_dst)}
+        if self._is_ignored(normalized_src) or self._is_ignored(normalized_dst):
+            return {"error": "source or destination path is ignored"}
+
+        try:
+            self.fs.copy(normalized_src, normalized_dst, recursive=recursive)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "cp",
+                "src": normalized_src,
+                "dst": normalized_dst,
+                "recursive": recursive,
+            }
+        }
+
+    def mv(
+        self,
+        src: str,
+        dst: str,
+        recursive: bool = False,
+    ) -> ToolResult:
+        normalized_src = self._norm(src)
+        normalized_dst = self._norm(dst)
+
+        if normalized_src is None or not self.fs.exists(normalized_src):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_src)}
+        if normalized_dst is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_dst)}
+        if self._is_ignored(normalized_src) or self._is_ignored(normalized_dst):
+            return {"error": "source or destination path is ignored"}
+
+        try:
+            self.fs.mv(normalized_src, normalized_dst, recursive=recursive)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "mv",
+                "src": normalized_src,
+                "dst": normalized_dst,
+                "recursive": recursive,
+            }
+        }
+
+    def insert_comment(
+        self,
+        path: str,
+        comment: str,
+        *,
+        anchor: str,
+        where: Literal["before", "after"] = "before",
+        occurrence: int = 1,
+        comment_style: Optional[str] = None,
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if not self.fs.isfile(normalized_path):
+            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
+        if not anchor:
+            return {"error": "anchor is required"}
+        if occurrence < 1:
+            return {"error": "occurrence must be >= 1"}
+
+        try:
+            text = self.fs.read_text(normalized_path, encoding="utf-8")
+        except Exception as err:
+            return {"error": str(err)}
+
+        lines = _split_lines_keepends(text)
+        newline = _line_ending_for_text(text)
+        prefix = _comment_prefix_for_path(normalized_path, comment_style=comment_style)
+
+        matched_indexes = [i for i, line in enumerate(lines) if anchor in line]
+        if not matched_indexes:
+            return {"error": f"anchor not found in {normalized_path}", "path": normalized_path, "anchor": anchor}
+
+        if occurrence > len(matched_indexes):
+            return {
+                "error": (
+                    f"anchor occurrence {occurrence} not found in {normalized_path}; "
+                    f"found {len(matched_indexes)} matches"
+                ),
+                "path": normalized_path,
+                "anchor": anchor,
+                "matches": len(matched_indexes),
+            }
+
+        anchor_index = matched_indexes[occurrence - 1]
+        anchor_line = lines[anchor_index]
+        indent = _leading_ws(anchor_line)
+        comment_line = _format_comment_line(
+            comment=comment,
+            indent=indent,
+            prefix=prefix,
+            newline=newline,
+        )
+
+        insert_at = anchor_index if where == "before" else anchor_index + 1
+
+        prev_line = lines[insert_at - 1] if insert_at - 1 >= 0 else None
+        next_line = lines[insert_at] if insert_at < len(lines) else None
+        if prev_line == comment_line or next_line == comment_line:
+            return {
+                "result": {
+                    "ok": True,
+                    "changed": False,
+                    "reason": "comment already present",
+                    "path": normalized_path,
+                    "anchor": anchor,
+                    "where": where,
+                    "occurrence": occurrence,
+                    "comment_line": comment_line.rstrip("\r\n"),
+                }
+            }
+
+        new_lines = list(lines)
+        new_lines.insert(insert_at, comment_line)
+        new_text = "".join(new_lines)
+
+        try:
+            self.fs.write_text(
+                normalized_path,
+                value=new_text,
+                encoding="utf-8",
+                errors="strict",
+            )
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "changed": True,
+                "op": "insert_comment",
+                "path": normalized_path,
+                "anchor": anchor,
+                "where": where,
+                "occurrence": occurrence,
+                "line": insert_at + 1,
+                "comment_line": comment_line.rstrip("\r\n"),
+            }
+        }
+
+    def replace_range(
+        self,
+        path: str,
+        start_line: int,
+        end_line: int,
+        content: str,
+        *,
+        preserve_trailing_newline: bool = True,
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+        if not self.fs.exists(normalized_path):
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if not self.fs.isfile(normalized_path):
+            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
+
+        try:
+            start_line = int(start_line)
+            end_line = int(end_line)
+        except (TypeError, ValueError):
+            return {"error": "start_line and end_line must be integers"}
+
+        if start_line < 1:
+            return {"error": "start_line must be >= 1"}
+        if end_line < 0:
+            return {"error": "end_line must be >= 0"}
+        if end_line < start_line - 1:
+            return {"error": "invalid range: end_line must be >= start_line - 1"}
+
+        try:
+            text = self.fs.read_text(normalized_path, encoding="utf-8")
+        except Exception as err:
+            return {"error": str(err)}
+
+        lines = _split_lines_keepends(text)
+        newline = _line_ending_for_text(text)
+        line_count = len(lines)
+
+        max_start = line_count + 1
+        max_end = line_count
+
+        if start_line > max_start:
+            return {"error": f"start_line {start_line} is out of range; file has {line_count} lines"}
+        if end_line > max_end:
+            return {"error": f"end_line {end_line} is out of range; file has {line_count} lines"}
+
+        start_idx = start_line - 1
+        end_idx = end_line
+
+        if content == "":
+            replacement_lines: list[str] = []
+        else:
+            replacement_lines = _split_lines_keepends(content)
+            if preserve_trailing_newline and replacement_lines:
+                if not replacement_lines[-1].endswith(("\n", "\r")):
+                    replacement_lines[-1] += newline
+
+        old_segment = "".join(lines[start_idx:end_idx])
+        new_segment = "".join(replacement_lines)
+
+        if old_segment == new_segment:
+            return {
+                "result": {
+                    "ok": True,
+                    "changed": False,
+                    "reason": "range already matches requested content",
+                    "op": "replace_range",
+                    "path": normalized_path,
+                    "start_line": start_line,
+                    "end_line": end_line,
+                }
+            }
+
+        new_lines = list(lines)
+        new_lines[start_idx:end_idx] = replacement_lines
+        new_text = "".join(new_lines)
+
+        try:
+            self.fs.write_text(
+                normalized_path,
+                value=new_text,
+                encoding="utf-8",
+                errors="strict",
+            )
+        except Exception as err:
+            return {"error": str(err)}
+
+        inserted_line_count = len(replacement_lines)
+        new_end_line = start_line + inserted_line_count - 1 if inserted_line_count else start_line - 1
+
+        return {
+            "result": {
+                "ok": True,
+                "changed": True,
+                "op": "replace_range",
+                "path": normalized_path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "new_start_line": start_line,
+                "new_end_line": new_end_line,
+                "removed_line_count": max(0, end_line - start_line + 1),
+                "inserted_line_count": inserted_line_count,
+            }
+        }
+
+
+def write_tools(
+    fs: fsspec.AbstractFileSystem,
+    *,
+    ignored_patterns: Optional[list[str]] = None,
+    wrap_overlay: bool = True,
+) -> list[Callable[..., dict[str, Any]]]:
+    tools = FsspecWriteTools(
+        fs=fs,
+        ignored_patterns=ignored_patterns,
+        wrap_overlay=wrap_overlay,
+    )
+
+    def write_file(
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> dict[str, Any]:
+        """
+        Replace file contents in the overlay.
+        """
+        return tools.write_file(path=path, content=content, encoding=encoding)
+
+    def append_file(
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> dict[str, Any]:
+        """
+        Append text to a file in the overlay.
+        """
+        return tools.append_file(path=path, content=content, encoding=encoding)
+
+    def mkdir(
+        path: str,
+        create_parents: bool = True,
+        exist_ok: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Create a directory in the overlay.
+        """
+        return tools.mkdir(
+            path=path,
+            create_parents=tools._parse_bool(create_parents, True),
+            exist_ok=tools._parse_bool(exist_ok, True),
+        )
+
+    def rm(
+        path: str,
+        recursive: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Remove a file or directory in the overlay.
+        """
+        return tools.rm(path=path, recursive=tools._parse_bool(recursive, False))
+
+    def cp(
+        src: str,
+        dst: str,
+        recursive: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Copy a file or directory inside the overlay-visible tree.
+        """
+        return tools.cp(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
+
+    def mv(
+        src: str,
+        dst: str,
+        recursive: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Move a file or directory inside the overlay-visible tree.
+        """
+        return tools.mv(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
+
+    def insert_comment(
+        path: str,
+        comment: str,
+        anchor: str,
+        where: Literal["before", "after"] = "before",
+        occurrence: int = 1,
+        comment_style: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Insert a single-line comment before or after the selected anchor line.
+        """
+        return tools.insert_comment(
+            path=path,
+            comment=comment,
+            anchor=anchor,
+            where=where,
+            occurrence=int(occurrence),
+            comment_style=comment_style,
+        )
+
+    def replace_range(
+        path: str,
+        start_line: int,
+        end_line: int,
+        content: str,
+        preserve_trailing_newline: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Replace an inclusive 1-based line range with new content.
+        """
+        return tools.replace_range(
+            path=path,
+            start_line=int(start_line),
+            end_line=int(end_line),
+            content=content,
+            preserve_trailing_newline=tools._parse_bool(preserve_trailing_newline, True),
+        )
+
+    registry = [
+        write_file,
+        append_file,
+        insert_comment,
+        replace_range,
+        mkdir,
+        rm,
+        cp,
+        mv,
+    ]
 
     return registry
