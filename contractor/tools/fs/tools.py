@@ -1679,6 +1679,7 @@ def rw_file_tools(
         max_items=max_items,
         with_types=with_types,
         with_file_info=with_file_info,
+        with_interaction_tools=with_interaction_tools,
     )
 
     def ls(path: str) -> dict[str, Any]:
