@@ -488,9 +488,9 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
                     ("path", payload.get("path")),
                     ("pattern", payload.get("pattern")),
                     ("total_files", payload.get("total_files")),
-                    ("covered", payload.get("covered_files_count")),
-                    ("uncovered", payload.get("uncovered_files_count")),
-                    ("coverage", f"{payload.get('coverage_percent')}%"),
+                    ("touched_files_count", payload.get("touched_files_count")),
+                    ("untouched_files_count", payload.get("untouched_files_count")),
+                    ("interaction_percent", f"{payload.get('interaction_percent')}%"),
                 ]
             )
         return indent(_j(result), "    ")

@@ -1179,6 +1179,11 @@ class FsspecWriteTools:
         *,
         ignored_patterns: Optional[list[str]] = None,
         wrap_overlay: bool = True,
+        fmt: Optional[FileFormat] = None,
+        max_output: int = 8 * 10**4,
+        max_items: int = 300,
+        with_types: bool = True,
+        with_file_info: bool = True,
     ) -> None:
         self.base_fs = fs
         self.fs = (
@@ -1192,6 +1197,25 @@ class FsspecWriteTools:
             if pattern and pattern not in patterns:
                 patterns.append(pattern)
         self.patterns = patterns
+
+        self.fmt = fmt or FileFormat(
+            with_types=with_types,
+            with_file_info=with_file_info,
+        )
+        self.max_output = max_output
+        self.max_items = max_items
+        self.with_types = with_types
+        self.with_file_info = with_file_info
+
+        self._reader = FsspecInteractionFileTools(
+            fs=self.fs,
+            fmt=self.fmt,
+            max_output=max_output,
+            max_items=max_items,
+            ignored_patterns=self.patterns,
+            with_types=with_types,
+            with_file_info=with_file_info,
+        )
 
     def _norm(self, path: Optional[str]) -> Optional[str]:
         return norm_unicode(path)
@@ -1220,6 +1244,37 @@ class FsspecWriteTools:
         if isinstance(patch, str):
             return json.loads(patch)
         raise ValueError("patch must be a dict or JSON string")
+
+    # ---- read-like tools on overlay ----
+
+    def ls(self, path: str) -> ToolResult:
+        return self._reader.ls(path=path)
+
+    def glob(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> ToolResult:
+        return self._reader.glob(pattern=pattern, path=path, offset=offset)
+
+    def read_file(
+        self,
+        file_path: str,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> ToolResult:
+        return self._reader.read_file(file_path=file_path, offset=offset, limit=limit)
+
+    def grep(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> ToolResult:
+        return self._reader.grep(pattern=pattern, path=path, offset=offset)
+
+    # ---- write tools ----
 
     def write_file(
         self,
@@ -1618,21 +1673,68 @@ def write_tools(
     *,
     ignored_patterns: Optional[list[str]] = None,
     wrap_overlay: bool = True,
+    fmt: Optional[FileFormat] = None,
+    max_output: int = 8 * 10**4,
+    max_items: int = 300,
+    with_types: bool = True,
+    with_file_info: bool = True,
 ) -> list[Callable[..., dict[str, Any]]]:
     tools = FsspecWriteTools(
         fs=fs,
         ignored_patterns=ignored_patterns,
         wrap_overlay=wrap_overlay,
+        fmt=fmt,
+        max_output=max_output,
+        max_items=max_items,
+        with_types=with_types,
+        with_file_info=with_file_info,
     )
+
+    def ls(path: str) -> dict[str, Any]:
+        """
+        List immediate children of a directory from the overlay-visible tree.
+        """
+        return tools.ls(path=path)
+
+    def glob(
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """
+        Find files or directories by glob pattern in the overlay-visible tree.
+        """
+        offset = _ensure_int_or_none(offset) or 0
+        return tools.glob(pattern=pattern, path=path, offset=offset)
+
+    def read_file(
+        file: str,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        Read text content from a file in the overlay-visible tree.
+        """
+        offset = _ensure_int_or_none(offset)
+        limit = _ensure_int_or_none(limit)
+        return tools.read_file(file_path=file, offset=offset, limit=limit)
+
+    def grep(
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """
+        Search file contents using a regular expression in the overlay-visible tree.
+        """
+        offset = _ensure_int_or_none(offset) or 0
+        return tools.grep(pattern=pattern, path=path, offset=offset)
 
     def write_file(
         path: str,
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
-        """
-        Replace file contents in the overlay.
-        """
         return tools.write_file(path=path, content=content, encoding=encoding)
 
     def append_file(
@@ -1640,9 +1742,6 @@ def write_tools(
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
-        """
-        Append text to a file in the overlay.
-        """
         return tools.append_file(path=path, content=content, encoding=encoding)
 
     def mkdir(
@@ -1650,9 +1749,6 @@ def write_tools(
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> dict[str, Any]:
-        """
-        Create a directory in the overlay.
-        """
         return tools.mkdir(
             path=path,
             create_parents=tools._parse_bool(create_parents, True),
@@ -1663,9 +1759,6 @@ def write_tools(
         path: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        """
-        Remove a file or directory in the overlay.
-        """
         return tools.rm(path=path, recursive=tools._parse_bool(recursive, False))
 
     def cp(
@@ -1673,9 +1766,6 @@ def write_tools(
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        """
-        Copy a file or directory inside the overlay-visible tree.
-        """
         return tools.cp(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
 
     def mv(
@@ -1683,9 +1773,6 @@ def write_tools(
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        """
-        Move a file or directory inside the overlay-visible tree.
-        """
         return tools.mv(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
 
     def insert_comment(
@@ -1696,9 +1783,6 @@ def write_tools(
         occurrence: int = 1,
         comment_style: Optional[str] = None,
     ) -> dict[str, Any]:
-        """
-        Insert a single-line comment before or after the selected anchor line.
-        """
         return tools.insert_comment(
             path=path,
             comment=comment,
@@ -1715,9 +1799,6 @@ def write_tools(
         content: str,
         preserve_trailing_newline: bool = True,
     ) -> dict[str, Any]:
-        """
-        Replace an inclusive 1-based line range with new content.
-        """
         return tools.replace_range(
             path=path,
             start_line=int(start_line),
@@ -1729,6 +1810,10 @@ def write_tools(
         )
 
     registry = [
+        ls,
+        glob,
+        read_file,
+        grep,
         write_file,
         append_file,
         insert_comment,
