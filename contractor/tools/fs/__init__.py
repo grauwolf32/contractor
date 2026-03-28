@@ -9,6 +9,7 @@ from .tools import (
     file_tools,
 )
 from .rootfs import RootedLocalFileSystem
+from .overlayfs import MemoryOverlayFileSystem
 
 __all__ = [
     "FileLoc",
@@ -18,6 +19,7 @@ __all__ = [
     "FsspecCoverageFileTools",
     "file_tools",
     "RootedLocalFileSystem",
+    "MemoryOverlayFileSystem",
     "CoverageFilter",
     "InteractionKind",
 ]
