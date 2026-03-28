@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import deque
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Literal, Protocol, TypeAlias, TypedDict
@@ -17,9 +17,6 @@ from google.genai import types
 
 JSONLike: TypeAlias = dict[str, Any] | list[Any]
 ParsedBody: TypeAlias = JSONLike | str
-ResponseRecord: TypeAlias = dict[str, Any]
-SessionState: TypeAlias = dict[str, Any]
-ContextLike: TypeAlias = ToolContext | CallbackContext
 HTTPRequestMethod: TypeAlias = Literal[
     "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
 ]
@@ -284,7 +281,7 @@ class HTTPClient:
         method: HTTPRequestMethod | str = "GET",
         cookies: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
-        json_body: JSONValue | Mapping[str, object] | Sequence[object] | None = None,
+        json_body: JSONLike | None = None,
         params: Mapping[str, object] | None = None,
         ctx: ArtifactContext | None = None,
     ) -> ResponseRecord:

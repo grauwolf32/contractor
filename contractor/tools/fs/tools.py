@@ -11,7 +11,6 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Final,
     Iterable,
     Literal,
     Optional,
@@ -21,158 +20,31 @@ from typing import (
 
 import fsspec
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
-from contractor.utils.fs import norm_unicode, normalize_slashes, xml_escape
+from contractor.tools.fs.const import (
+    INCORRECT_REGEXP_ERROR,
+    PATH_NOT_FOUND_ERROR,
+    PATH_IS_NOT_A_FILE_ERROR,
+    _IGNORE_DEFAULTS,
+)
+from contractor.tools.fs.utils import (
+    norm_unicode,
+    normalize_slashes,
+    xml_escape,
+    _is_ignored,
+    _ensure_int_or_none,
+    _split_lines_keepends,
+    _line_ending_for_text,
+    _leading_ws,
+    _comment_prefix_for_path,
+    _format_comment_line,
+)
+
 from magika import ContentTypeInfo, Magika
 
 
 ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]
 PatchPayload: TypeAlias = dict[str, Any] | str
-
-_IGNORE_DEFAULTS: Final[list[str]] = [
-    "*.pyc",
-    "*/__pycache__/*",
-    "__pycache__/*",
-    "target/*",
-    "build/*",
-    "dist/*",
-    "out/*",
-    "bin/*",
-    "obj/*",
-    "Debug/*",
-    "Release/*",
-    "cmake-build-*/*",
-    "DerivedData/*",
-    "*.so",
-    "*.dll",
-    "*.bin",
-    "*.o",
-    "*.dylib",
-    "*.jpg",
-    "*.jpeg",
-    "*.webp",
-    "*.png",
-    "*.svg",
-    "*.heic",
-    "*.mov",
-    "*.mp4",
-    "*.avi",
-    "*.zip",
-    "*.rar",
-    "*.tar",
-    "*.tar.gz",
-    "*.DS_Store",
-    ".git/*",
-]
-
-_COMMENT_PREFIX_BY_EXT: Final[dict[str, str]] = {
-    ".py": "#",
-    ".sh": "#",
-    ".bash": "#",
-    ".zsh": "#",
-    ".yaml": "#",
-    ".yml": "#",
-    ".toml": "#",
-    ".ini": "#",
-    ".conf": "#",
-    ".properties": "#",
-    ".rb": "#",
-    ".pl": "#",
-    ".ps1": "#",
-    ".r": "#",
-    ".dockerfile": "#",
-    ".mk": "#",
-    ".make": "#",
-    ".sql": "--",
-    ".js": "//",
-    ".jsx": "//",
-    ".ts": "//",
-    ".tsx": "//",
-    ".java": "//",
-    ".kt": "//",
-    ".kts": "//",
-    ".go": "//",
-    ".rs": "//",
-    ".c": "//",
-    ".cc": "//",
-    ".cpp": "//",
-    ".cxx": "//",
-    ".h": "//",
-    ".hh": "//",
-    ".hpp": "//",
-    ".swift": "//",
-    ".scala": "//",
-    ".dart": "//",
-    ".php": "//",
-}
-
-INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
-PATH_NOT_FOUND_ERROR: Final[str] = "path {path} does not exist"
-PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"
-
-
-def _is_ignored(path: str, patterns: list[str]) -> bool:
-    normalized = normalize_slashes(path)
-    basename = normalized.split("/")[-1]
-    return any(
-        fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch(basename, pattern)
-        for pattern in patterns
-    )
-
-
-def _ensure_int_or_none(value: Any) -> Optional[int]:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return None
-
-
-def _split_lines_keepends(text: str) -> list[str]:
-    if not text:
-        return []
-    return text.splitlines(keepends=True)
-
-
-def _line_ending_for_text(text: str) -> str:
-    if "\r\n" in text:
-        return "\r\n"
-    return "\n"
-
-
-def _leading_ws(line: str) -> str:
-    return line[: len(line) - len(line.lstrip(" \t"))]
-
-
-def _comment_prefix_for_path(path: str, comment_style: Optional[str] = None) -> str:
-    if comment_style:
-        return comment_style
-
-    normalized = normalize_slashes(path)
-    basename = normalized.split("/")[-1].lower()
-
-    if basename in {"dockerfile", "makefile"}:
-        return "#"
-
-    for ext, prefix in _COMMENT_PREFIX_BY_EXT.items():
-        if basename.endswith(ext):
-            return prefix
-
-    return "#"
-
-
-def _format_comment_line(
-    *,
-    comment: str,
-    indent: str,
-    prefix: str,
-    newline: str,
-) -> str:
-    stripped = comment.strip()
-    if prefix in {"<!--", "<!-- -->"}:
-        return f"{indent}<!-- {stripped} -->{newline}"
-    return f"{indent}{prefix} {stripped}{newline}"
 
 
 @dataclass(slots=True)
