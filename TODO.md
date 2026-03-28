@@ -7,5 +7,10 @@
 * Add http tools [done]
 * Add caido tools
 * Add playwright tools 
-* Add jupyter environment in the sandbox 
+* Add overlay fs for writting 
+* Add jupyter environment in the sandbox
+* Add inbox for memory tools
+* Add skills for memory tools
+* Add skills for tasks
+* Add tools to report vulnerabilities
 

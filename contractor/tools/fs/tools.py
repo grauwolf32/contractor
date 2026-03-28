@@ -999,7 +999,7 @@ def file_tools(
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
-    with_coverage_tools: bool = True,
+    with_interaction_tools: bool = True,
 ) -> list[Callable[..., dict[str, Any]]]:
     tools = FsspecInteractionFileTools(
         fs=fs,
@@ -1149,7 +1149,7 @@ def file_tools(
             limit=limit,
         )
 
-    def reset_coverage() -> dict[str, Any]:
+    def reset_interaction_tracking() -> dict[str, Any]:
         """
         Reset interaction tracking.
         """
@@ -1158,14 +1158,14 @@ def file_tools(
 
     registry = [ls, glob, read_file, grep]
 
-    if with_coverage_tools:
+    if with_interaction_tools:
         registry.extend(
             [
                 interaction_stats,
                 list_touched_files,
                 list_untouched_files,
                 list_match_only_files,
-                reset_coverage,
+                reset_interaction_tracking,
             ]
         )
 
