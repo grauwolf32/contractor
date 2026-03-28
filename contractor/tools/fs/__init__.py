@@ -9,6 +9,7 @@ from .tools import (
     file_tools,
 )
 from .rootfs import RootedLocalFileSystem
+from .overlayfs import MemoryOverlayFileSystem
 
 __all__ = [
     "FileLoc",

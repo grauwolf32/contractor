@@ -65,10 +65,9 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
 def _ensure_int_or_none(value):
     if value is None:
         return None
-
     try:
-        value = int(value)
-    except ValueError:
+        return int(value)
+    except (ValueError, TypeError):
         return None
 
 
