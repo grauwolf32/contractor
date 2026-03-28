@@ -8,12 +8,13 @@ import fsspec
 import pytest
 
 from contractor.tools.fs import (
-    CoverageFilter,
     FileFormat,
-    FsspecCoverageFileTools,
+    FsspecInteractionFileTools,
+    InteractionFilter,
     InteractionKind,
     RootedLocalFileSystem,
     file_tools,
+    write_tools
 )
 
 
@@ -43,16 +44,15 @@ def tmpdir_path(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def fs() -> fsspec.AbstractFileSystem:
-    # Local FS backend
     return fsspec.filesystem("file")
 
 
 @pytest.fixture()
-def coverage_tools(
+def interaction_tools(
     fs: fsspec.AbstractFileSystem, tmpdir_path: Path
-) -> FsspecCoverageFileTools:
+) -> FsspecInteractionFileTools:
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
-    return FsspecCoverageFileTools(
+    return FsspecInteractionFileTools(
         fs=fs,
         fmt=fmt,
         max_output=80_000,
@@ -63,32 +63,32 @@ def coverage_tools(
     )
 
 
-def test_coverage_empty_stats_for_unread_tree(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_interaction_stats_empty_for_unread_tree(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    res = coverage_tools.coverage_stats(path=abs_path(tmpdir_path))
+    res = interaction_tools.interaction_stats(path=abs_path(tmpdir_path))
     assert "error" not in res
 
     stats = res["result"]
     assert stats["path"] == abs_path(tmpdir_path)
     assert stats["total_files"] == 3  # README.md, src/a.py, src/b.txt ; png/pyc ignored
-    assert stats["covered_files_count"] == 0
-    assert stats["uncovered_files_count"] == 3
-    assert stats["coverage_percent"] == 0.0
+    assert stats["touched_files_count"] == 0
+    assert stats["untouched_files_count"] == 3
+    assert stats["interaction_percent"] == 0.0
 
 
 def test_read_file_marks_file_as_read(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "a.py")
 
-    read_res = coverage_tools.read_file(file_path)
+    read_res = interaction_tools.read_file(file_path)
     assert "error" not in read_res
 
-    covered_res = coverage_tools.covered(path=abs_path(tmpdir_path))
-    assert "error" not in covered_res
+    touched_res = interaction_tools.touched_files(path=abs_path(tmpdir_path))
+    assert "error" not in touched_res
 
-    out = covered_res["result"]
+    out = touched_res["result"]
     assert len(out) == 1
     assert out[0]["path"] == file_path
     assert out[0]["has_read"] is True
@@ -99,21 +99,21 @@ def test_read_file_marks_file_as_read(
 
 
 def test_grep_marks_file_as_match_only_when_match_found(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "a.py")
 
-    grep_res = coverage_tools.grep(r"ERROR:\s+\w+", path=file_path)
+    grep_res = interaction_tools.grep(r"ERROR:\s+\w+", path=file_path)
     assert "error" not in grep_res
     assert len(grep_res["result"]) == 1
 
-    covered_res = coverage_tools.covered(
+    touched_res = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.MATCH_ONLY,
+        interaction=InteractionFilter.MATCH_ONLY,
     )
-    assert "error" not in covered_res
+    assert "error" not in touched_res
 
-    out = covered_res["result"]
+    out = touched_res["result"]
     assert len(out) == 1
     assert out[0]["path"] == file_path
     assert out[0]["has_read"] is False
@@ -123,34 +123,34 @@ def test_grep_marks_file_as_match_only_when_match_found(
     assert out[0]["operations"]["grep"] == 1
 
 
-def test_grep_without_matches_does_not_mark_coverage(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_grep_without_matches_does_not_mark_interaction(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "b.txt")
 
-    grep_res = coverage_tools.grep(r"does-not-exist", path=file_path)
+    grep_res = interaction_tools.grep(r"does-not-exist", path=file_path)
     assert "error" not in grep_res
     assert grep_res["result"] == []
 
-    covered_res = coverage_tools.covered(path=abs_path(tmpdir_path))
-    assert "error" not in covered_res
-    assert covered_res["result"] == []
+    touched_res = interaction_tools.touched_files(path=abs_path(tmpdir_path))
+    assert "error" not in touched_res
+    assert touched_res["result"] == []
 
 
 def test_read_and_grep_same_file_moves_it_to_read_and_match(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "a.py")
 
-    read_res = coverage_tools.read_file(file_path)
+    read_res = interaction_tools.read_file(file_path)
     assert "error" not in read_res
 
-    grep_res = coverage_tools.grep(r"ERROR:\s+\w+", path=file_path)
+    grep_res = interaction_tools.grep(r"ERROR:\s+\w+", path=file_path)
     assert "error" not in grep_res
 
-    both_res = coverage_tools.covered(
+    both_res = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.READ_AND_MATCH,
+        interaction=InteractionFilter.READ_AND_MATCH,
     )
     assert "error" not in both_res
 
@@ -165,47 +165,47 @@ def test_read_and_grep_same_file_moves_it_to_read_and_match(
     assert out[0]["operations"]["grep"] == 1
 
 
-def test_covered_filters_split_files_by_interaction_kind(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_files_with_interactions_filters_split_files_by_interaction_kind(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     read_only_file = abs_path(tmpdir_path / "README.md")
     match_only_file = abs_path(tmpdir_path / "src" / "b.txt")
     both_file = abs_path(tmpdir_path / "src" / "a.py")
 
-    assert "error" not in coverage_tools.read_file(read_only_file)
-    assert "error" not in coverage_tools.grep(r"beta", path=match_only_file)
-    assert "error" not in coverage_tools.read_file(both_file)
-    assert "error" not in coverage_tools.grep(r"ERROR:\s+\w+", path=both_file)
+    assert "error" not in interaction_tools.read_file(read_only_file)
+    assert "error" not in interaction_tools.grep(r"beta", path=match_only_file)
+    assert "error" not in interaction_tools.read_file(both_file)
+    assert "error" not in interaction_tools.grep(r"ERROR:\s+\w+", path=both_file)
 
-    read_only = coverage_tools.covered(
+    read_only = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.READ_ONLY,
+        interaction=InteractionFilter.READ_ONLY,
     )
-    match_only = coverage_tools.covered(
+    match_only = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.MATCH_ONLY,
+        interaction=InteractionFilter.MATCH_ONLY,
     )
-    both = coverage_tools.covered(
+    both = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.READ_AND_MATCH,
+        interaction=InteractionFilter.READ_AND_MATCH,
     )
-    any_cov = coverage_tools.covered(
+    any_interaction = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
-        interaction=CoverageFilter.ANY,
+        interaction=InteractionFilter.ANY,
     )
 
     assert {x["path"] for x in read_only["result"]} == {read_only_file}
     assert {x["path"] for x in match_only["result"]} == {match_only_file}
     assert {x["path"] for x in both["result"]} == {both_file}
-    assert {x["path"] for x in any_cov["result"]} == {
+    assert {x["path"] for x in any_interaction["result"]} == {
         read_only_file,
         match_only_file,
         both_file,
     }
 
 
-def test_uncovered_returns_only_not_touched_files(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_untouched_files_returns_only_not_touched_files(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     touched_file = abs_path(tmpdir_path / "src" / "a.py")
     untouched_files = {
@@ -213,41 +213,41 @@ def test_uncovered_returns_only_not_touched_files(
         abs_path(tmpdir_path / "src" / "b.txt"),
     }
 
-    assert "error" not in coverage_tools.read_file(touched_file)
+    assert "error" not in interaction_tools.read_file(touched_file)
 
-    res = coverage_tools.uncovered(path=abs_path(tmpdir_path))
+    res = interaction_tools.untouched_files(path=abs_path(tmpdir_path))
     assert "error" not in res
 
     assert {x["path"] for x in res["result"]} == untouched_files
 
 
-def test_coverage_stats_after_mixed_operations(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_interaction_stats_after_mixed_operations(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "README.md"))
-    assert "error" not in coverage_tools.grep(
+    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.grep(
         r"ERROR:\s+\w+", path=abs_path(tmpdir_path / "src" / "a.py")
     )
 
-    res = coverage_tools.coverage_stats(path=abs_path(tmpdir_path))
+    res = interaction_tools.interaction_stats(path=abs_path(tmpdir_path))
     assert "error" not in res
 
     stats = res["result"]
     assert stats["total_files"] == 3
-    assert stats["covered_files_count"] == 2
-    assert stats["uncovered_files_count"] == 1
-    assert stats["coverage_percent"] == round((2 / 3) * 100, 2)
+    assert stats["touched_files_count"] == 2
+    assert stats["untouched_files_count"] == 1
+    assert stats["interaction_percent"] == round((2 / 3) * 100, 2)
 
 
-def test_covered_and_uncovered_support_pattern_filter(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_touched_and_untouched_support_pattern_filter(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "README.md"))
-    assert "error" not in coverage_tools.read_file(
+    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "a.py")
     )
 
-    res = coverage_tools.covered(
+    res = interaction_tools.touched_files(
         path=abs_path(tmpdir_path),
         pattern="src/*",
     )
@@ -256,7 +256,7 @@ def test_covered_and_uncovered_support_pattern_filter(
         abs_path(tmpdir_path / "src" / "a.py")
     }
 
-    res = coverage_tools.uncovered(
+    res = interaction_tools.untouched_files(
         path=abs_path(tmpdir_path),
         pattern="src/*",
     )
@@ -266,21 +266,23 @@ def test_covered_and_uncovered_support_pattern_filter(
     }
 
 
-def test_covered_pagination(coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path):
-    assert "error" not in coverage_tools.read_file(abs_path(tmpdir_path / "README.md"))
-    assert "error" not in coverage_tools.read_file(
+def test_touched_files_pagination(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
+):
+    assert "error" not in interaction_tools.read_file(abs_path(tmpdir_path / "README.md"))
+    assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "a.py")
     )
-    assert "error" not in coverage_tools.read_file(
+    assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "b.txt")
     )
 
-    page1 = coverage_tools.covered(
+    page1 = interaction_tools.touched_files(
         path=abs_path(tmpdir_path),
         offset=0,
         limit=2,
     )
-    page2 = coverage_tools.covered(
+    page2 = interaction_tools.touched_files(
         path=abs_path(tmpdir_path),
         offset=2,
         limit=2,
@@ -300,15 +302,15 @@ def test_covered_pagination(coverage_tools: FsspecCoverageFileTools, tmpdir_path
     assert len(page2["result"]) == 1
 
 
-def test_get_coverage_returns_raw_state(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_get_interactions_returns_raw_state(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "a.py")
 
-    assert "error" not in coverage_tools.read_file(file_path)
-    assert "error" not in coverage_tools.grep(r"ERROR:\s+\w+", path=file_path)
+    assert "error" not in interaction_tools.read_file(file_path)
+    assert "error" not in interaction_tools.grep(r"ERROR:\s+\w+", path=file_path)
 
-    res = coverage_tools.get_coverage()
+    res = interaction_tools.get_interactions()
 
     assert res["files_seen"] == 1
     assert file_path in res["files"]
@@ -322,43 +324,43 @@ def test_get_coverage_returns_raw_state(
     assert entry["operations"]["grep"] == 1
 
 
-def test_reset_coverage_clears_state(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_reset_interactions_clears_state(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    assert "error" not in coverage_tools.read_file(
+    assert "error" not in interaction_tools.read_file(
         abs_path(tmpdir_path / "src" / "a.py")
     )
-    assert coverage_tools.get_coverage()["files_seen"] == 1
+    assert interaction_tools.get_interactions()["files_seen"] == 1
 
-    coverage_tools.reset_coverage()
+    interaction_tools.reset_interactions()
 
-    res = coverage_tools.get_coverage()
+    res = interaction_tools.get_interactions()
     assert res["files_seen"] == 0
     assert res["files"] == {}
 
 
-def test_mark_interaction_manual(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_record_interaction_manual(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "b.txt")
 
-    coverage_tools.mark_interaction(
+    interaction_tools.record_interaction(
         file_path,
         "custom_read",
         interaction=InteractionKind.READ,
     )
-    coverage_tools.mark_interaction(
+    interaction_tools.record_interaction(
         file_path,
         "custom_match",
         interaction=InteractionKind.MATCH,
     )
-    coverage_tools.mark_interaction(
+    interaction_tools.record_interaction(
         file_path,
         "custom_match",
         interaction=InteractionKind.MATCH,
     )
 
-    res = coverage_tools.get_coverage()
+    res = interaction_tools.get_interactions()
     entry = res["files"][file_path]
 
     assert entry["read_count"] == 1
@@ -369,35 +371,35 @@ def test_mark_interaction_manual(
     assert entry["operations"]["custom_match"] == 2
 
 
-def test_coverage_stats_missing_path_returns_error(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_interaction_stats_missing_path_returns_error(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    res = coverage_tools.coverage_stats(path=abs_path(tmpdir_path / "missing"))
+    res = interaction_tools.interaction_stats(path=abs_path(tmpdir_path / "missing"))
     assert "error" in res
 
 
-def test_covered_missing_path_returns_error(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_files_with_interactions_missing_path_returns_error(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    res = coverage_tools.covered(path=abs_path(tmpdir_path / "missing"))
+    res = interaction_tools.files_with_interactions(path=abs_path(tmpdir_path / "missing"))
     assert "error" in res
 
 
-def test_uncovered_missing_path_returns_error(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_untouched_files_missing_path_returns_error(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
-    res = coverage_tools.uncovered(path=abs_path(tmpdir_path / "missing"))
+    res = interaction_tools.untouched_files(path=abs_path(tmpdir_path / "missing"))
     assert "error" in res
 
 
-def test_covered_accepts_string_filter(
-    coverage_tools: FsspecCoverageFileTools, tmpdir_path: Path
+def test_files_with_interactions_accepts_string_filter(
+    interaction_tools: FsspecInteractionFileTools, tmpdir_path: Path
 ):
     file_path = abs_path(tmpdir_path / "src" / "a.py")
 
-    assert "error" not in coverage_tools.read_file(file_path)
+    assert "error" not in interaction_tools.read_file(file_path)
 
-    res = coverage_tools.covered(
+    res = interaction_tools.files_with_interactions(
         path=abs_path(tmpdir_path),
         interaction="read_only",
     )
@@ -413,7 +415,7 @@ def tools_json(fs: fsspec.AbstractFileSystem, tmpdir_path: Path):
         fmt=fmt,
         max_output=80_000,
         ignored_patterns=None,
-        with_types=False,  # keep tests deterministic + fast (no Magika dependency behavior)
+        with_types=False,
         with_file_info=True,
     )
     return {fn.__name__: fn for fn in tools}
@@ -438,24 +440,18 @@ def abs_path(p: Path) -> str:
 
 
 def test_ls_lists_and_ignores_defaults(tools_json, tmpdir_path: Path):
-    # __pycache__ and *.pyc should be ignored by default patterns
     res = tools_json["ls"](abs_path(tmpdir_path / "src"))
     assert "error" not in res
     out = res["result"]
-    # JSON format => list[dict]
     assert isinstance(out, list)
 
     paths = {e["path"] for e in out}
     assert abs_path(tmpdir_path / "src" / "a.py") in paths
     assert abs_path(tmpdir_path / "src" / "b.txt") in paths
-
-    # The __pycache__ directory might appear depending on backend ls results;
-    # but .pyc file should be ignored.
     assert all(not e["path"].endswith(".pyc") for e in out)
 
 
 def test_glob_respects_path_filter(tools_json, tmpdir_path: Path):
-    # Glob all *.py under tmpdir, then filter to src
     pattern = abs_path(tmpdir_path) + "/**/*.py"
     res = tools_json["glob"](pattern, path=abs_path(tmpdir_path / "src"))
     assert "error" not in res
@@ -482,13 +478,11 @@ def test_read_file_errors(tools_json, tmpdir_path: Path):
     missing = tools_json["read_file"](abs_path(tmpdir_path / "nope.txt"))
     assert "error" in missing
 
-    # Directory => not a file
     not_a_file = tools_json["read_file"](abs_path(tmpdir_path / "src"))
     assert "error" in not_a_file
 
 
 def test_read_file_truncation_footer(fs, tmpdir_path: Path):
-    # Force truncation with tiny max_output
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
     tools = file_tools(fs=fs, fmt=fmt, max_output=25, with_types=False)
     tools = {fn.__name__: fn for fn in tools}
@@ -496,7 +490,7 @@ def test_read_file_truncation_footer(fs, tmpdir_path: Path):
     f = abs_path(tmpdir_path / "src" / "a.py")
     res = tools["read_file"](f)
     assert "error" not in res
-    assert "truncated" in res["result"]  # footer should be present
+    assert "truncated" in res["result"]
 
 
 def test_grep_invalid_regex(tools_json):
@@ -526,19 +520,15 @@ def test_grep_directory_walk_finds_across_files(tools_json, tmpdir_path: Path):
     res = tools_json["grep"](r"hello", path=abs_path(tmpdir_path))
     assert "error" not in res
     out = res["result"]
-    # should match README.md and src/a.py ("hello world")
     paths = {e["path"] for e in out}
     assert abs_path(tmpdir_path / "README.md") in paths
     assert abs_path(tmpdir_path / "src" / "a.py") in paths
 
 
 def test_grep_respects_ignored_patterns(tools_json, tmpdir_path: Path):
-    # There is a .pyc file in __pycache__; searching for binary-ish bytes won't matter,
-    # but ensure ignored file doesn't show up as a match path even if regex matches empty etc.
     res = tools_json["grep"](r".", path=abs_path(tmpdir_path / "src" / "__pycache__"))
     assert "error" not in res
     out = res["result"]
-    # directory contains only ignored *.pyc; should return empty
     assert out == []
 
 
@@ -552,7 +542,6 @@ def test_xml_formatting(tools_xml, tmpdir_path: Path):
 
 
 def test_custom_ignored_patterns_override_additional(fs, tmpdir_path: Path):
-    # Add "*.txt" to ignore patterns and ensure b.txt disappears
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
     tools = file_tools(
         fs=fs,
@@ -576,12 +565,8 @@ def test_loc_byte_offsets_present_when_possible(tools_json, tmpdir_path: Path):
     out = res["result"]
     assert len(out) == 1
     loc = out[0]["loc"]
-    # In JSON/lines mode, bytes are not required, but your implementation includes both in loc object.
-    # We check they exist and are ints if present.
-    # (If you later decide to omit bytes entirely in lines mode, change this test accordingly.)
     assert isinstance(loc.get("line_start"), int)
     assert isinstance(loc.get("line_end"), int)
-    # byte offsets might be absent in some weird cases; if present they should be ints
     if "byte_start" in loc:
         assert isinstance(loc["byte_start"], int)
     if "byte_end" in loc:
@@ -640,7 +625,6 @@ def test_symlink_escape_denied(fs_root, fs_root_fixture, tmp_path):
 
     os.symlink(outside, fs_root_fixture / "link")
 
-    # Symlink exists as name, but should not be accessible
     assert not fs_root.exists("/link")
 
     with pytest.raises(FileNotFoundError):
@@ -781,3 +765,333 @@ def test_unicode_normalization_glob(tools_json, tmp_path):
     res = tools_json["glob"](str(tmp_path / pattern))
 
     assert len(res["result"]) == 1
+
+@pytest.fixture()
+def write_tmpdir(tmp_path: Path) -> Path:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text(
+        "def hello():\n    print('hi')\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "notes.txt").write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture()
+def write_fs() -> fsspec.AbstractFileSystem:
+    return fsspec.filesystem("file")
+
+
+@pytest.fixture()
+def write_tool_map(write_fs: fsspec.AbstractFileSystem):
+    tools = write_tools(
+        fs=write_fs,
+        ignored_patterns=None,
+        wrap_overlay=True,
+    )
+    return {fn.__name__: fn for fn in tools}
+
+
+def abs_path(p: Path) -> str:
+    return str(p.resolve())
+
+
+def test_write_file_creates_new_file(write_tool_map, write_tmpdir: Path):
+    target = abs_path(write_tmpdir / "new.txt")
+
+    res = write_tool_map["write_file"](target, "hello\nworld\n")
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "write_file"
+    assert res["result"]["path"] == target
+    assert res["result"]["size"] == len("hello\nworld\n".encode("utf-8"))
+
+
+def test_write_file_replaces_existing_content(write_tool_map, write_tmpdir: Path):
+    target = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["write_file"](target, "replaced\n")
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+
+
+def test_append_file_appends_content(write_tool_map, write_tmpdir: Path):
+    target = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["append_file"](target, "delta\n")
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "append_file"
+
+
+def test_mkdir_creates_directory(write_tool_map, write_tmpdir: Path):
+    target = abs_path(write_tmpdir / "nested" / "dir")
+
+    res = write_tool_map["mkdir"](target)
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "mkdir"
+    assert res["result"]["path"] == target
+
+
+def test_rm_deletes_file(write_tool_map, write_tmpdir: Path):
+    target = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["rm"](target)
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "rm"
+    assert res["result"]["path"] == target
+    assert res["result"]["recursive"] is False
+
+
+def test_cp_copies_file(write_tool_map, write_tmpdir: Path):
+    src = abs_path(write_tmpdir / "notes.txt")
+    dst = abs_path(write_tmpdir / "notes-copy.txt")
+
+    res = write_tool_map["cp"](src, dst)
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "cp"
+    assert res["result"]["src"] == src
+    assert res["result"]["dst"] == dst
+
+
+def test_mv_moves_file(write_tool_map, write_tmpdir: Path):
+    src = abs_path(write_tmpdir / "notes.txt")
+    dst = abs_path(write_tmpdir / "notes-moved.txt")
+
+    res = write_tool_map["mv"](src, dst)
+    assert "error" not in res
+    assert res["result"]["ok"] is True
+    assert res["result"]["op"] == "mv"
+    assert res["result"]["src"] == src
+    assert res["result"]["dst"] == dst
+
+
+def test_insert_comment_before_anchor(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "src" / "main.py")
+
+    res = write_tool_map["insert_comment"](
+        path=path,
+        comment="say hello",
+        anchor="print('hi')",
+        where="before",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["op"] == "insert_comment"
+    assert result["path"] == path
+    assert result["anchor"] == "print('hi')"
+    assert result["where"] == "before"
+    assert result["occurrence"] == 1
+    assert result["comment_line"] == "    # say hello"
+
+
+def test_insert_comment_after_anchor(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "src" / "main.py")
+
+    res = write_tool_map["insert_comment"](
+        path=path,
+        comment="done",
+        anchor="print('hi')",
+        where="after",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["comment_line"] == "    # done"
+
+
+def test_insert_comment_is_noop_when_same_comment_already_adjacent(
+    write_tool_map, write_tmpdir: Path
+):
+    path = abs_path(write_tmpdir / "src" / "main.py")
+
+    first = write_tool_map["insert_comment"](
+        path=path,
+        comment="say hello",
+        anchor="print('hi')",
+        where="before",
+    )
+    assert "error" not in first
+
+    second = write_tool_map["insert_comment"](
+        path=path,
+        comment="say hello",
+        anchor="print('hi')",
+        where="before",
+    )
+    assert "error" not in second
+    result = second["result"]
+    assert result["ok"] is True
+    assert result["changed"] is False
+    assert result["reason"] == "comment already present"
+
+
+def test_insert_comment_missing_anchor_returns_error(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "src" / "main.py")
+
+    res = write_tool_map["insert_comment"](
+        path=path,
+        comment="x",
+        anchor="does not exist",
+    )
+    assert "error" in res
+    assert res["path"] == path
+    assert res["anchor"] == "does not exist"
+
+
+def test_replace_range_replaces_single_line(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=2,
+        end_line=2,
+        content="BETA",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["op"] == "replace_range"
+    assert result["path"] == path
+    assert result["start_line"] == 2
+    assert result["end_line"] == 2
+    assert result["new_start_line"] == 2
+    assert result["new_end_line"] == 2
+    assert result["removed_line_count"] == 1
+    assert result["inserted_line_count"] == 1
+
+
+def test_replace_range_insert_before_line(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=2,
+        end_line=1,
+        content="inserted",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["start_line"] == 2
+    assert result["end_line"] == 1
+    assert result["inserted_line_count"] == 1
+    assert result["removed_line_count"] == 0
+
+
+def test_replace_range_append_at_eof(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=4,
+        end_line=3,
+        content="delta",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["inserted_line_count"] == 1
+    assert result["removed_line_count"] == 0
+
+
+def test_replace_range_delete_lines(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=2,
+        end_line=3,
+        content="",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["removed_line_count"] == 2
+    assert result["inserted_line_count"] == 0
+    assert result["new_end_line"] == 1
+
+
+def test_replace_range_noop_when_content_matches(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=2,
+        end_line=2,
+        content="beta",
+    )
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is False
+    assert result["reason"] == "range already matches requested content"
+
+
+def test_replace_range_rejects_bad_range(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=3,
+        end_line=1,
+        content="x",
+    )
+    assert "error" in res
+    assert "invalid range" in res["error"]
+
+
+def test_replace_range_rejects_missing_file(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "missing.txt")
+
+    res = write_tool_map["replace_range"](
+        path=path,
+        start_line=1,
+        end_line=1,
+        content="x",
+    )
+    assert "error" in res
+
+
+def test_write_tools_respect_ignored_patterns(write_fs: fsspec.AbstractFileSystem, write_tmpdir: Path):
+    tools = write_tools(
+        fs=write_fs,
+        ignored_patterns=["*.txt"],
+        wrap_overlay=True,
+    )
+    tool_map = {fn.__name__: fn for fn in tools}
+
+    res = tool_map["write_file"](abs_path(write_tmpdir / "notes.txt"), "blocked")
+    assert "error" in res
+    assert "ignored" in res["error"]
+
+
+def test_rm_missing_path_returns_error(write_tool_map, write_tmpdir: Path):
+    res = write_tool_map["rm"](abs_path(write_tmpdir / "missing.txt"))
+    assert "error" in res
+
+
+def test_cp_missing_source_returns_error(write_tool_map, write_tmpdir: Path):
+    res = write_tool_map["cp"](
+        abs_path(write_tmpdir / "missing.txt"),
+        abs_path(write_tmpdir / "copy.txt"),
+    )
+    assert "error" in res
+
+
+def test_mv_missing_source_returns_error(write_tool_map, write_tmpdir: Path):
+    res = write_tool_map["mv"](
+        abs_path(write_tmpdir / "missing.txt"),
+        abs_path(write_tmpdir / "moved.txt"),
+    )
+    assert "error" in res
