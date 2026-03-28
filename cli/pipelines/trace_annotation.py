@@ -64,7 +64,7 @@ class MockRunner:
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[dict[str, Any]]:
         await self.task_runner.run(user_id=user_id, on_event=on_event)
-        patch = fs.save()
+        patch = self.fs.save()
         with open(str(TEST_DATA_PATH / "patch.json"), "w") as f:
             f.write(json.dumps(patch))
         
