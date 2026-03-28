@@ -2,7 +2,7 @@ import os
 import fnmatch
 
 from typing import Any
-from contractor.utils.fs import norm_unicode
+from contractor.utils.formatting import norm_unicode
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 
 

@@ -27,9 +27,6 @@ from contractor.tools.fs.const import (
     _IGNORE_DEFAULTS,
 )
 from contractor.tools.fs.utils import (
-    norm_unicode,
-    normalize_slashes,
-    xml_escape,
     _is_ignored,
     _ensure_int_or_none,
     _split_lines_keepends,
@@ -37,6 +34,11 @@ from contractor.tools.fs.utils import (
     _leading_ws,
     _comment_prefix_for_path,
     _format_comment_line,
+)
+from contractor.utils.formatting import (
+    norm_unicode,
+    normalize_slashes,
+    xml_escape,
 )
 
 from magika import ContentTypeInfo, Magika

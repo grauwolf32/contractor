@@ -19,7 +19,7 @@ import posixpath
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 from urllib.parse import quote as url_quote
-from contractor.utils.fs import project_id_encoded
+from contractor.utils.fs import _project_id_encoded
 
 import aiohttp
 import fsspec
@@ -216,7 +216,7 @@ class GitlabAsyncLoader:
         self.project_id = project_id
         self.api_base = (
             f"{settings.gitlab_url}/api/v4"
-            f"/projects/{project_id_encoded(self.project_id)}"
+            f"/projects/{_project_id_encoded(self.project_id)}"
         )
         self.ref = settings.ref
         self.headers = settings.auth_headers
@@ -780,7 +780,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         return (
             f"GitlabFileSystem("
             f"url={self.gitlab_url!r}, "
-            f"project={project_id_encoded(self.project_id)}, "
+            f"project={_project_id_encoded(self.project_id)}, "
             f"ref={self.ref!r}, "
             f"files={self.file_count}, "
             f"dirs={self.dir_count}, "

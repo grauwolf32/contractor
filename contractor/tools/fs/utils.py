@@ -1,4 +1,3 @@
-import unicodedata
 import fnmatch
 
 from typing import Optional, Any
@@ -8,28 +7,10 @@ from contractor.tools.fs.const import (
     _COMMENT_PREFIX_BY_EXT,
 )
 
-
-def norm_unicode(value: Optional[str]) -> Optional[str]:
-    if value is None:
-        return None
-    return unicodedata.normalize("NFC", value)
+from contractor.utils.formatting import normalize_slashes
 
 
-def normalize_slashes(path: str) -> str:
-    return path.replace("\\", "/")
-
-
-def xml_escape(value: str) -> str:
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("'", "&apos;")
-    )
-
-
-def project_id_encoded(project_id: str) -> str:
+def _project_id_encoded(project_id: str) -> str:
     if project_id.isdigit():
         return project_id
     return url_quote(project_id, safe="")
