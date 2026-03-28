@@ -19,6 +19,7 @@ __all__ = [
     "FsspecCoverageFileTools",
     "file_tools",
     "RootedLocalFileSystem",
+    "MemoryOverlayFileSystem",
     "CoverageFilter",
     "InteractionKind",
 ]
