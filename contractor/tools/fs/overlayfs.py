@@ -384,6 +384,45 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         self.restore_snapshot(payload["state"])
 
+    def restore(self, path: str, *, recursive: bool = True) -> None:
+        """
+        Restore a path back to the original base_fs view.
+
+        This removes any overlay-only files/directories for ``path`` and clears
+        tombstones so the underlay version becomes visible again. The target
+        path must exist in ``base_fs``.
+        """
+        path = self._norm(path)
+
+        if not self._base_exists(path):
+            raise FileNotFoundError(f"No base filesystem entry exists for {path}")
+
+        if path == self.root_marker:
+            self.reset_overlay()
+            return
+
+        prefix = path.rstrip("/") + "/"
+
+        # Drop any overlay materialized files at/under the path.
+        for file_path in list(self._files):
+            if file_path == path or (recursive and file_path.startswith(prefix)):
+                del self._files[file_path]
+
+        # Drop overlay-created directories at/under the path.
+        for dir_path in sorted(
+            self._dirs, key=lambda item: (item.count("/"), item), reverse=True
+        ):
+            if dir_path == self.root_marker:
+                continue
+            if dir_path == path or (recursive and dir_path.startswith(prefix)):
+                self._dirs.discard(dir_path)
+
+        # Remove tombstones so the base view becomes visible again.
+        self._unhide_path(path)
+
+        # Ensure ancestors created in the overlay remain valid for any sibling paths.
+        self._dirs.add(self.root_marker)
+
     # -------------------------------------------------------------------------
     # Patch save / load
     # -------------------------------------------------------------------------

@@ -1511,6 +1511,36 @@ class FsspecWriteTools:
             }
         }
 
+    def restore(self, path: str, recursive: bool = True) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        overlay_fs = self._ensure_overlay_fs()
+        if not overlay_fs.base_fs.exists(normalized_path):
+            return {
+                "error": (
+                    f"path {normalized_path} does not exist in the base filesystem; "
+                    "nothing can be restored"
+                )
+            }
+
+        try:
+            overlay_fs.restore(normalized_path, recursive=recursive)
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "op": "restore",
+                "path": normalized_path,
+                "recursive": recursive,
+            }
+        }
+
     def replace_range(
         self,
         path: str,
@@ -1815,6 +1845,16 @@ def rw_file_tools(
             limit=limit,
         )
 
+    def restore(
+        path: str,
+        recursive: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Revert all changes and resore original file
+        """
+
+        return tools.restore(path=path, recursive=tools._parse_bool(recursive, True))
+
     def list_match_only_files(
         path: str = "/",
         pattern: str = "**/*",
@@ -1849,6 +1889,7 @@ def rw_file_tools(
         append_file,
         insert_comment,
         replace_range,
+        restore,
         mkdir,
         rm,
         cp,
