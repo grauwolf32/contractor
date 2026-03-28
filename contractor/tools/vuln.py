@@ -432,8 +432,8 @@ def vulnerability_report_tools(
         reports = await vr.list_reports(tool_context)
         return {"result": vr.fmt.format_reports(reports, preview=True)}
 
-    return {
-        "vulnerability_report_write": write_vulnerability_report,
-        "vulnerability_report_get": get_vulnerability_report,
-        "vulnerability_report_list": list_vulnerability_reports,
-    }
+    registry = [
+        write_vulnerability_report,
+        get_vulnerability_report,
+        list_vulnerability_reports,
+    ]

@@ -34,12 +34,16 @@ task:
     remove_server, remove_component) are allowed only when the element is provably incorrect;
     when uncertain, prefer deprecation or documentation notes.
 
-    Ensure:
-    - All $ref targets resolve.
-    - JSON Schema is valid (types, required fields, enums, formats).
-    - HTTP semantics are correct (methods, status codes, content types).
-    - operationIds are stable and unique.
-    - The schema always contains at least one path.
+    Provenance:
+    - Ensure provenance metadata is present:
+      - Paths must carry x-path-files with the relevant source code files.
+      - Reusable components must carry x-component-files with the relevant source code files.
+    - When updating a path or component, include the best-supported source code file list
+      in the same write operation.
+    - Do not pass OpenAPI artifacts, Markdown, or YAML files as provenance inputs;
+      use implementation/source files only.
+    - If exact source files are uncertain, include the smallest justified set of likely
+      source files and note the uncertainty in the summary.
 
     Use tools economically. Avoid get_full_openapi_schema unless a global consistency review
     is unavoidable. Batch related updates. Never output YAML during intermediate steps.

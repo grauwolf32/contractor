@@ -1,0 +1,125 @@
+task:
+  name: "annotate_request_trace_for_vulnerability_analysis"
+
+  objective: >
+    Given a single OpenAPI operation, identify the most likely request entrypoint
+    in the codebase, trace the execution path up to 3 function calls deep,
+    and insert structured trace annotations above the relevant function definitions.
+
+    The goal is to capture how request data flows through the system toward
+    potentially sensitive operations (sinks), while identifying validation steps.
+
+    Scope:
+    - Work only on the code path relevant to the target operation.
+    - Annotate at most 4 functions total.
+    - Trace at most 3 levels deep from the entrypoint.
+    - Modify only by inserting comments.
+    - Do not modify logic, formatting, or unrelated code.
+    - If unsure about a function’s role, do not annotate it.
+
+    Target operation:
+    {{ operation_id }}
+
+    Schema definition:
+    {{ operation_schema }}
+
+    Comment format:
+    Use one or more single-line comments directly above function definitions.
+
+      # @trace op=<operation_id> args=<arg_name:state,...> calls=<symbol,...>
+      # @validate arg=<arg_name> kind=<validation_kind>
+      # @sink kind=<sink_kind> arg=<arg_name_or_unknown>
+
+    Argument states:
+    - tainted      (directly from request or untrusted input)
+    - validated    (explicit validation observed)
+    - clean        (trusted or constant)
+    - derived      (computed from other values)
+
+    Allowed sink kinds:
+    - filesystem.read
+    - filesystem.write
+    - db.query
+    - db.exec
+    - http.request
+    - shell.exec
+    - template.render
+
+
+  instructions: >
+    Step 1 — Identify entrypoint:
+    - Use the OpenAPI operation (method + path + schema) to find the most likely handler.
+    - Prefer framework routing patterns (e.g., decorators, route maps).
+    - If multiple candidates exist, pick the most plausible one.
+
+    Step 2 — Build bounded trace:
+    - Follow the execution path from the entrypoint.
+    - Trace only directly relevant calls.
+    - Limit to 3 levels of depth.
+    - Ignore generic utilities unless they contain sinks or validation.
+
+    Step 3 — Select functions to annotate:
+    - Include:
+      - the entrypoint
+      - functions that propagate request data
+      - functions that perform validation
+      - functions that contain sinks
+    - Maximum: 4 functions total.
+    - Prefer fewer, higher-confidence annotations.
+
+    Step 4 — Infer annotations:
+    For each selected function:
+    - Identify arguments originating from request input → mark as tainted
+    - Track propagation → mark derived where appropriate
+    - Mark validated only if explicit validation is present in code
+    - Identify sinks only if clearly observable
+    - Add calls= only for direct, relevant downstream calls
+
+    Step 5 — Write annotations:
+    - Use rw_file_tools to insert comments
+    - Insert directly above function definitions
+    - Do not duplicate existing annotations
+    - Do not overwrite or remove existing comments
+    - Do not rewrite entire files for small changes
+
+    Step 6 — Be conservative:
+    - Do not invent calls, validation, or sinks
+    - If uncertain, skip annotation
+    - Prefer missing annotations over incorrect ones
+    
+
+    Pre-write requirement:
+    Before writing any changes:
+    - List candidate functions you plan to annotate
+    - Explain briefly why each is on the request path
+    - Proceed to writing only after this reasoning
+
+
+    Success criteria:
+    - Comments follow exact format
+    - Placement is correct (above function definitions)
+    - Only relevant functions are modified
+    - No code changes beyond comments
+    - Trace is coherent and bounded
+    - No hallucinated behavior
+
+
+  output_format: >
+    Return:
+
+    Planned annotations:
+    - list of functions selected for annotation with reasoning
+
+    Changes applied:
+    - files modified
+    - functions annotated
+    - exact comment blocks inserted
+
+    Trace summary:
+    - entrypoint function
+    - key data flow (source → propagation → sink)
+
+    Uncertainties:
+    - unclear routing
+    - ambiguous function calls
+    - missing validation evidence

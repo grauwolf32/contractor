@@ -291,7 +291,6 @@ async def oas_building_pipeline(
 
     return runner
 
-
 async def oas_enrichment_pipeline(
     *,
     project_path: Path,
@@ -342,6 +341,62 @@ async def oas_enrichment_pipeline(
 
     return runner
 
+async def trace_annotation_pipeline(
+    *,
+    project_path: Path,
+    folder_name: str,
+    model: str,
+    artifact: Optional[str] = None,
+    app_name: str,
+    user_id: str,
+    operation_id: str,
+    operation_schema: Optional[str] = None,
+    **kwargs,
+) -> TaskRunner:
+    _ensure_artifacts_dir()
+    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+
+    runner = TaskRunner(
+        name="contractor",
+        artifact_service=artifact_service,
+    )
+
+    llm = LiteLlm(model=model)
+    fs = RootedLocalFileSystem(root_path=project_path)
+
+    trace_builder = partial(
+        build_trace_agent,
+        name="trace_agent",
+        fs=fs,
+        model=llm,
+    )
+
+    if artifact:
+        artifact_text = types.Part.from_text(text=artifact)
+        await artifact_service.save_artifact(
+            app_name=app_name,
+            user_id=user_id,
+            filename="oas-openapi-building",
+            artifact=artifact_text,
+        )
+
+    runner.add_variable(name="project_path", value=folder_name)
+    runner.add_variable(name="operation_id", value=operation_id)
+    if operation_schema:
+        runner.add_variable(name="operation_schema", value=operation_schema)
+
+    runner.add_task(
+        name="trace_annotation",
+        worker_builder=trace_builder,
+        iterations=1,
+        max_attempts=3,
+        max_steps=20,
+        artifacts=["oas-openapi-building"],
+        namespace="trace-annotation",
+        model=llm,
+    )
+
+    return runner
 
 def get_pipelines() -> dict[str, PipelineSpec]:
     return {
@@ -351,6 +406,10 @@ def get_pipelines() -> dict[str, PipelineSpec]:
         ),
         "enrich": PipelineSpec(
             builder=oas_enrichment_pipeline,
+            requires_artifact=True,
+        ),
+        "trace": PipelineSpec(
+            builder=trace_annotation_pipeline,
             requires_artifact=True,
         ),
     }
