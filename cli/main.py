@@ -92,35 +92,7 @@ def _validate_project_path(project_path: Path) -> Path:
     return project_path
 
 
-def _validate_folder_name(project_path: Path, folder_name: str) -> str:
-    normalized_folder = _normalize_folder_name(folder_name)
 
-    if normalized_folder == "/":
-        target_dir = project_path
-    else:
-        target_dir = (project_path / normalized_folder.lstrip("/")).resolve()
-
-    try:
-        target_dir.relative_to(project_path)
-    except ValueError as exc:
-        raise click.BadParameter(
-            "--folder-name must point to a directory inside --project-path",
-            param_hint="--folder-name",
-        ) from exc
-
-    if not target_dir.exists():
-        raise click.BadParameter(
-            f"Directory does not exist: {target_dir}",
-            param_hint="--folder-name",
-        )
-
-    if not target_dir.is_dir():
-        raise click.BadParameter(
-            f"Path is not a directory: {target_dir}",
-            param_hint="--folder-name",
-        )
-
-    return normalized_folder
 
 
 def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
@@ -148,10 +120,6 @@ def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
             f"Artifact file must be a UTF-8 text file: {artifact_path}",
             param_hint="--artifact",
         ) from exc
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _jsonable(value: Any) -> Any:
@@ -258,47 +226,10 @@ def get_pipeline_names() -> list[str]:
     return sorted(get_pipelines().keys())
 
 
-async def save_artifact(
-    app_name: str,
-    user_id: str,
-    output_dir: Path,
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-    artifact_keys = await artifact_service.list_artifact_keys(
-        app_name=app_name,
-        user_id=user_id,
-    )
-
-    for filename in artifact_keys:
-        upload_path = output_dir / filename
-        upload_path.parent.mkdir(parents=True, exist_ok=True)
-        artifact = await artifact_service.load_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            filename=filename,
-        )
-        text = artifact.text or ""
-        with open(upload_path, "w", encoding="utf-8") as f:
-            f.write(text)
 
 
-async def remove_artifacts(
-    app_name: str,
-    user_id: str,
-) -> None:
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-    artifact_keys = await artifact_service.list_artifact_keys(
-        app_name=app_name,
-        user_id=user_id,
-    )
-    for filename in artifact_keys:
-        await artifact_service.delete_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            filename=filename,
-        )
+
+
 
 
 async def async_main(
