@@ -21,10 +21,13 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
 from contractor.tools.fs import RootedLocalFileSystem
 
 from cli.render import render_event
-from cli.pipelines import(
-    oas_building_pipeline,
-    oas_enrichment_pipeline,
-    trace_annotation_pipeline
+from cli.pipelines import get_pipelines, PipelineSpec
+from cli.utils import (
+    utc_now_iso,
+    save_artifact,
+    remove_artifacts,
+    validate_folder_name,
+    validate_project_path,
 )
 
 load_dotenv()
@@ -56,44 +59,8 @@ ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
 _METRICS_LOCK = asyncio.Lock()
 
 
-@dataclass(frozen=True)
-class PipelineSpec:
-    builder: Callable[..., Awaitable[TaskRunner]]
-    requires_artifact: bool = False
-
-
 def _ensure_artifacts_dir() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _normalize_folder_name(folder_name: str) -> str:
-    if folder_name in ("", "/"):
-        return "/"
-
-    normalized = Path(folder_name.lstrip("/")).as_posix().strip("/")
-    return f"/{normalized}" if normalized else "/"
-
-
-def _validate_project_path(project_path: Path) -> Path:
-    project_path = project_path.resolve()
-
-    if not project_path.exists():
-        raise click.BadParameter(
-            f"Directory does not exist: {project_path}",
-            param_hint="--project-path",
-        )
-
-    if not project_path.is_dir():
-        raise click.BadParameter(
-            f"Path is not a directory: {project_path}",
-            param_hint="--project-path",
-        )
-
-    return project_path
-
-
-
-
 
 def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
     if artifact_path is None:
@@ -160,7 +127,7 @@ def _event_to_metrics_record(event: TaskRunnerEvent) -> dict[str, Any]:
     payload = _jsonable(getattr(event, "payload", {}) or {})
 
     return {
-        "ts": _utc_now_iso(),
+        "ts": utc_now_iso(),
         "type": getattr(event, "type", None),
         "task_name": getattr(event, "task_name", None),
         "task_id": getattr(event, "task_id", None),
@@ -205,32 +172,10 @@ def build_handle_event(output_dir: Path) -> Callable[[TaskRunnerEvent], Awaitabl
 
     return handle_event
 
-def get_pipelines() -> dict[str, PipelineSpec]:
-    return {
-        "build": PipelineSpec(
-            builder=oas_building_pipeline,
-            requires_artifact=False,
-        ),
-        "enrich": PipelineSpec(
-            builder=oas_enrichment_pipeline,
-            requires_artifact=True,
-        ),
-        "trace": PipelineSpec(
-            builder=trace_annotation_pipeline,
-            requires_artifact=True,
-        ),
-    }
 
 
 def get_pipeline_names() -> list[str]:
     return sorted(get_pipelines().keys())
-
-
-
-
-
-
-
 
 async def async_main(
     project_path: Path,
@@ -264,11 +209,18 @@ async def async_main(
         "artifact_service": artifact_service,
     }
 
-    if spec.requires_artifact and artifact:
+    if "artifact" in spec.required and artifact:
         builder_kwargs["artifact"] = artifact
 
     runner = await spec.builder(**builder_kwargs)
     event_handler = build_handle_event(output_dir)
+
+    if rm_artifacts:
+        await remove_artifacts(
+            app_name="contractor",
+            user_id=user_id,
+            artifact_service=artifact_service,
+        )
 
     _ = await runner.run(
         user_id=user_id,
@@ -279,13 +231,9 @@ async def async_main(
         app_name="contractor",
         user_id=user_id,
         output_dir=output_dir,
+        artifact_service=artifact_service,
     )
 
-    if rm_artifacts:
-        await remove_artifacts(
-            app_name="contractor",
-            user_id=user_id,
-        )
 
 
 @click.command(name="contractor")
@@ -332,7 +280,7 @@ async def async_main(
 @click.option(
     "--rm",
     is_flag=True,
-    help="Remove artifacts after completion",
+    help="Remove previous artifacts",
 )
 @click.option(
     "-o",
@@ -353,17 +301,14 @@ def main(
 ) -> None:
     """Run contractor task pipeline for a project."""
     pipeline = pipeline.lower()
-    project_path = _validate_project_path(project_path)
-    folder_name = _validate_folder_name(project_path, folder_name)
+    project_path = validate_project_path(project_path)
+    folder_name = validate_folder_name(project_path, folder_name)
     artifact_text = _read_artifact_file(artifact)
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pipelines = get_pipelines()
     spec = pipelines[pipeline]
-
-    if artifact is not None and not spec.requires_artifact:
-        raise click.UsageError(f"--artifact cannot be used with --pipeline {pipeline}")
 
     asyncio.run(
         async_main(
