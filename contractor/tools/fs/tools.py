@@ -33,7 +33,6 @@ from contractor.tools.fs.utils import (
     _line_ending_for_text,
     _leading_ws,
     _comment_prefix_for_path,
-    _format_comment_line,
 )
 from contractor.utils.formatting import (
     norm_unicode,
@@ -1403,15 +1402,14 @@ class FsspecWriteTools:
         self._reader.reset_interactions()
         return {"result": "ok"}
 
-    def insert_comment(
+    def insert_line(
         self,
         path: str,
-        comment: str,
+        content: str,
         *,
         anchor: str,
         where: Literal["before", "after"] = "before",
         occurrence: int = 1,
-        comment_style: Optional[str] = None,
     ) -> ToolResult:
         normalized_path = self._norm(path)
         if normalized_path is None:
@@ -1458,33 +1456,28 @@ class FsspecWriteTools:
         anchor_index = matched_indexes[occurrence - 1]
         anchor_line = lines[anchor_index]
         indent = _leading_ws(anchor_line)
-        comment_line = _format_comment_line(
-            comment=comment,
-            indent=indent,
-            prefix=prefix,
-            newline=newline,
-        )
+        new_line = content
 
         insert_at = anchor_index if where == "before" else anchor_index + 1
 
         prev_line = lines[insert_at - 1] if insert_at - 1 >= 0 else None
         next_line = lines[insert_at] if insert_at < len(lines) else None
-        if prev_line == comment_line or next_line == comment_line:
+        if prev_line == new_line or next_line == new_line:
             return {
                 "result": {
                     "ok": True,
                     "changed": False,
-                    "reason": "comment already present",
+                    "reason": "already present",
                     "path": normalized_path,
                     "anchor": anchor,
                     "where": where,
                     "occurrence": occurrence,
-                    "comment_line": comment_line.rstrip("\r\n"),
+                    "content": new_line,
                 }
             }
 
         new_lines = list(lines)
-        new_lines.insert(insert_at, comment_line)
+        new_lines.insert(insert_at, new_line)
         new_text = "".join(new_lines)
 
         try:
@@ -1501,13 +1494,13 @@ class FsspecWriteTools:
             "result": {
                 "ok": True,
                 "changed": True,
-                "op": "insert_comment",
+                "op": "insert_line",
                 "path": normalized_path,
                 "anchor": anchor,
                 "where": where,
                 "occurrence": occurrence,
                 "line": insert_at + 1,
-                "comment_line": comment_line.rstrip("\r\n"),
+                "insert_line": new_line,
             }
         }
 
@@ -1518,8 +1511,7 @@ class FsspecWriteTools:
         if self._is_ignored(normalized_path):
             return {"error": f"path {normalized_path} is ignored"}
 
-        overlay_fs = self._ensure_overlay_fs()
-        if not overlay_fs.base_fs.exists(normalized_path):
+        if not self.fs.base_fs.exists(normalized_path):
             return {
                 "error": (
                     f"path {normalized_path} does not exist in the base filesystem; "
@@ -1528,7 +1520,7 @@ class FsspecWriteTools:
             }
 
         try:
-            overlay_fs.restore(normalized_path, recursive=recursive)
+            self.fs.restore(normalized_path, recursive=recursive)
         except Exception as err:
             return {"error": str(err)}
 
@@ -1767,7 +1759,7 @@ def rw_file_tools(
     ) -> dict[str, Any]:
         return tools.mv(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
 
-    def insert_comment(
+    def insert_line(
         path: str,
         comment: str,
         anchor: str,
@@ -1775,7 +1767,7 @@ def rw_file_tools(
         occurrence: int = 1,
         comment_style: Optional[str] = None,
     ) -> dict[str, Any]:
-        return tools.insert_comment(
+        return tools.insert_line(
             path=path,
             comment=comment,
             anchor=anchor,
@@ -1888,7 +1880,7 @@ def rw_file_tools(
         grep,
         write_file,
         append_file,
-        insert_comment,
+        insert_line,
         replace_range,
         restore,
         mkdir,

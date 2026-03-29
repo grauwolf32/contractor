@@ -33,6 +33,8 @@ async def trace_annotation_runner(
         name="trace_agent",
         fs=fs,
         model=llm,
+        max_tokens=120000,
+        enable_vuln_reporting=True,
     )
 
     runner.add_variable(name="project_path", value=folder_name)
@@ -53,7 +55,7 @@ async def trace_annotation_runner(
 
     return runner
 
-TEST_DATA_PATH = Path(__file__).parent.parent.parent / "tests" / "data" / "fakeproj"
+TEST_DATA_PATH = Path(__file__).parent.parent.parent / "tests" / "data" / "fakeproj" / "2"
 
 @dataclass
 class MockRunner:
@@ -94,7 +96,7 @@ async def trace_annotation_pipeline(
             artifact=artifact_text,
         )
 
-    operation_id = "resetUserPassword"
+    operation_id = "lostPasswordResetForm"
     spec_path = TEST_DATA_PATH / "spec.yml"
 
     raw: str = ""

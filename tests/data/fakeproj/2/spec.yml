@@ -1,0 +1,53 @@
+/lostpassword/reset/form/{token}/{userId}:
+    get:
+      operationId: lostPasswordResetForm
+      parameters:
+      - in: path
+        name: token
+        required: true
+        schema:
+          type: string
+          description: Secure reset token sent to user's email
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+          description: User ID of the account requesting password reset
+      responses:
+        '200':
+          description: Success - Password reset form displayed
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      summary: Display password reset form
+      description: Displays the password reset form page to users who have received
+        a password recovery link via email. The token and userId are validated before
+        showing the form.
+      tags:
+      - Authentication
+    parameters:
+    - in: path
+      name: token
+      required: true
+      schema:
+        type: string
+    - in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+    summary: Password Recovery - Reset Form
+    x-path-files:
+    - /cloud-core/core/routes.php
+    - /cloud-core/core/Controller/LostController.php
+    security: []
