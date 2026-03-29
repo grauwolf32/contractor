@@ -4,27 +4,27 @@ import fnmatch
 import json
 import re
 
-from dataclasses import asdict, dataclass, field
-from enum import Enum
-from functools import lru_cache
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Iterable,
     Literal,
     Optional,
     TypeAlias,
-    Union,
 )
 
 import fsspec
-from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
 from contractor.tools.fs.const import (
     INCORRECT_REGEXP_ERROR,
     PATH_NOT_FOUND_ERROR,
     PATH_IS_NOT_A_FILE_ERROR,
     _IGNORE_DEFAULTS,
+)
+from contractor.tools.fs.models import (
+    FileInteractionEntry,
+    FsEntry,
+    InteractionFilter,
+    InteractionKind,
 )
 from contractor.tools.fs.utils import (
     _is_ignored,
@@ -35,355 +35,13 @@ from contractor.tools.fs.utils import (
 from contractor.utils.formatting import (
     norm_unicode,
     normalize_slashes,
-    xml_escape,
 )
-
-from magika import ContentTypeInfo, Magika
-
+from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
+from contractor.tools.fs.format import FileFormat
 
 ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]
 PatchPayload: TypeAlias = dict[str, Any] | str
-
-
-@dataclass(slots=True)
-class FileLoc:
-    """
-    Location inside a file.
-
-    - line_start, line_end: 0-based inclusive line indexes
-    - byte_start, byte_end: 0-based half-open byte range [start, end)
-    - content: excerpt around the match
-    """
-
-    line_start: Optional[int] = None
-    line_end: Optional[int] = None
-    byte_start: Optional[int] = None
-    byte_end: Optional[int] = None
-    content: Optional[str] = None
-
-
-@dataclass(slots=True)
-class FsEntry:
-    name: str
-    path: str
-    size: int
-    is_dir: bool = False
-    filetype: Optional[ContentTypeInfo] = None
-    loc: Optional[FileLoc] = None
-
-    _magika: ClassVar[Magika] = Magika()
-
-    @staticmethod
-    @lru_cache(maxsize=2048)
-    def identify_type(
-        file_path: str,
-        fs: fsspec.AbstractFileSystem,
-    ) -> Optional[ContentTypeInfo]:
-        if not fs.exists(file_path) or not fs.isfile(file_path):
-            return None
-
-        try:
-            with fs.open(file_path, mode="rb") as f:
-                return FsEntry._magika.identify_stream(f).output
-        except Exception:
-            return None
-
-    @classmethod
-    def from_path(
-        cls,
-        path: str,
-        fs: fsspec.AbstractFileSystem,
-        *,
-        with_types: bool = True,
-    ) -> Optional["FsEntry"]:
-        normalized_path = norm_unicode(path)
-        if normalized_path is None or not fs.exists(normalized_path):
-            return None
-
-        name = norm_unicode(normalized_path.rstrip("/").split("/")[-1]) or ""
-
-        if fs.isdir(normalized_path):
-            return cls(name=name, path=normalized_path, size=0, is_dir=True)
-
-        if fs.isfile(normalized_path):
-            filetype = cls.identify_type(normalized_path, fs) if with_types else None
-            return cls(
-                name=name,
-                path=normalized_path,
-                size=int(fs.size(normalized_path)),
-                is_dir=False,
-                filetype=filetype,
-            )
-
-        return None
-
-    @staticmethod
-    def _compute_line_starts(text: str) -> list[int]:
-        starts = [0]
-        for match in re.finditer(r"\n", text):
-            starts.append(match.end())
-        return starts
-
-    @staticmethod
-    def _char_to_line(line_starts: list[int], char_pos: int) -> int:
-        lo, hi = 0, len(line_starts) - 1
-        while lo <= hi:
-            mid = (lo + hi) // 2
-            if line_starts[mid] <= char_pos:
-                lo = mid + 1
-            else:
-                hi = mid - 1
-        return max(0, hi)
-
-    @classmethod
-    def from_matches(
-        cls,
-        matches: list[re.Match[str]],
-        file_path: str,
-        fs: fsspec.AbstractFileSystem,
-        *,
-        content: Optional[str] = None,
-        with_types: bool = True,
-        excerpt_max_chars: int = 500,
-        context_lines: int = 0,
-    ) -> Optional[list["FsEntry"]]:
-        if not fs.exists(file_path) or not fs.isfile(file_path):
-            return None
-
-        if not matches:
-            return []
-
-        if content is None:
-            try:
-                content = fs.read_text(file_path, encoding="utf-8", errors="ignore")
-            except Exception:
-                return []
-
-        proto = cls.from_path(file_path, fs, with_types=with_types)
-        if proto is None:
-            return None
-
-        line_starts = cls._compute_line_starts(content)
-        lines = content.splitlines()
-
-        entries: list[FsEntry] = []
-        for match in matches:
-            begin_char, end_char = match.span()
-            line_idx = cls._char_to_line(line_starts, begin_char)
-
-            line_start = max(0, line_idx - context_lines)
-            line_end = min(len(lines) - 1, line_idx + context_lines)
-
-            try:
-                byte_start = len(content[:begin_char].encode("utf-8", errors="ignore"))
-                byte_end = len(content[:end_char].encode("utf-8", errors="ignore"))
-            except Exception:
-                byte_start, byte_end = None, None
-
-            excerpt = "\n".join(lines[line_start : line_end + 1])
-            if len(excerpt) > excerpt_max_chars:
-                excerpt = excerpt[:excerpt_max_chars] + "…"
-
-            entries.append(
-                cls(
-                    name=proto.name,
-                    path=proto.path,
-                    size=proto.size,
-                    is_dir=False,
-                    filetype=proto.filetype,
-                    loc=FileLoc(
-                        line_start=line_start,
-                        line_end=line_end,
-                        byte_start=byte_start,
-                        byte_end=byte_end,
-                        content=excerpt,
-                    ),
-                )
-            )
-
-        return sorted(
-            entries, key=lambda entry: (entry.path, entry.loc.line_start or 0)
-        )
-
-
-@dataclass(slots=True)
-class FileFormat:
-    with_types: bool = True
-    with_file_info: bool = True
-    _format: Literal["str", "json", "xml"] = "json"
-    loc: Literal["lines", "bytes"] = "lines"
-
-    def _format_loc(self, loc: FileLoc) -> Union[str, dict[str, Any]]:
-        if self.loc == "bytes":
-            payload: dict[str, Any] = {
-                "byte_start": loc.byte_start,
-                "byte_end": loc.byte_end,
-            }
-        else:
-            payload = {
-                "line_start": loc.line_start,
-                "line_end": loc.line_end,
-            }
-
-        if loc.content is not None:
-            payload["content"] = loc.content
-
-        if self._format == "str":
-            return json.dumps(payload, ensure_ascii=False)
-
-        if self._format == "xml":
-            parts = ["<loc>"]
-            for key, value in payload.items():
-                parts.append(f"<{key}>{xml_escape(str(value))}</{key}>")
-            parts.append("</loc>")
-            return "".join(parts)
-
-        return payload
-
-    def format_fs_entry(self, entry: FsEntry) -> Union[str, dict[str, Any]]:
-        kind = "dir" if entry.is_dir else "file"
-        payload: dict[str, Any] = {}
-
-        if self.with_file_info:
-            payload.update(
-                {
-                    "kind": kind,
-                    "name": entry.name,
-                    "path": entry.path,
-                    "size": entry.size,
-                }
-            )
-
-        if self.with_types and entry.filetype is not None:
-            try:
-                payload["filetype"] = asdict(entry.filetype)
-            except Exception:
-                payload["filetype"] = str(entry.filetype)
-
-        if entry.loc is not None:
-            payload["loc"] = self._format_loc(entry.loc)
-
-        if self._format == "str":
-            return json.dumps(payload, ensure_ascii=False)
-
-        if self._format == "xml":
-            parts = [f"<{kind}>"]
-            xml_payload = dict(payload)
-            xml_payload.pop("kind", None)
-
-            for key, value in xml_payload.items():
-                if isinstance(value, (dict, list)):
-                    serialized = json.dumps(value, ensure_ascii=False)
-                    parts.append(f"<{key}>{xml_escape(serialized)}</{key}>")
-                else:
-                    parts.append(f"<{key}>{xml_escape(str(value))}</{key}>")
-
-            parts.append(f"</{kind}>")
-            return "".join(parts)
-
-        return payload
-
-    def format_file_list(
-        self,
-        files: list[Optional[FsEntry]],
-    ) -> Union[str, list[dict[str, Any]]]:
-        cleaned = [file for file in files if file is not None]
-
-        if self._format == "str":
-            return "\n".join(str(self.format_fs_entry(file)) for file in cleaned)
-
-        if self._format == "xml":
-            inner = "".join(str(self.format_fs_entry(file)) for file in cleaned)
-            return f"<files>{inner}</files>"
-
-        return [self.format_fs_entry(file) for file in cleaned]  # type: ignore[return-value]
-
-    @staticmethod
-    def format_output(content: str, max_output: int) -> str:
-        lines = content.splitlines(True)
-        out_parts: list[str] = []
-        out_bytes = 0
-        cut_at_line: Optional[int] = None
-
-        for index, line in enumerate(lines):
-            line_bytes = len(line.encode("utf-8", errors="ignore"))
-            if out_bytes + line_bytes > max_output:
-                cut_at_line = index
-                break
-
-            out_parts.append(line)
-            out_bytes += line_bytes
-
-        if cut_at_line is None:
-            return "".join(out_parts)
-
-        remaining = max(0, len(lines) - cut_at_line)
-        footer = (
-            f"\n\n### truncated at line: {cut_at_line} ### "
-            f"lines left in the file: {remaining} ###"
-        )
-        footer_bytes = len(footer.encode("utf-8", errors="ignore"))
-
-        if footer_bytes > max_output:
-            return footer[:max_output]
-
-        while out_parts and (out_bytes + footer_bytes) > max_output:
-            removed = out_parts.pop()
-            out_bytes -= len(removed.encode("utf-8", errors="ignore"))
-
-        return "".join(out_parts) + footer
-
-
-class InteractionKind(str, Enum):
-    READ = "read"
-    MATCH = "match"
-
-
-class InteractionFilter(str, Enum):
-    ANY = "any"
-    READ_ONLY = "read_only"
-    MATCH_ONLY = "match_only"
-    READ_AND_MATCH = "read_and_match"
-
-
-@dataclass(slots=True)
-class FileInteractionEntry:
-    path: str
-    read_count: int = 0
-    match_count: int = 0
-    operations: dict[str, int] = field(default_factory=dict)
-
-    def touch(self, operation: str, *, interaction: InteractionKind) -> None:
-        self.operations[operation] = self.operations.get(operation, 0) + 1
-
-        if interaction == InteractionKind.READ:
-            self.read_count += 1
-        elif interaction == InteractionKind.MATCH:
-            self.match_count += 1
-
-    @property
-    def has_read(self) -> bool:
-        return self.read_count > 0
-
-    @property
-    def has_match(self) -> bool:
-        return self.match_count > 0
-
-    @property
-    def has_any_interaction(self) -> bool:
-        return self.has_read or self.has_match
-
-    def matches_filter(self, flt: InteractionFilter) -> bool:
-        if flt == InteractionFilter.ANY:
-            return self.has_any_interaction
-        if flt == InteractionFilter.READ_ONLY:
-            return self.has_read and not self.has_match
-        if flt == InteractionFilter.MATCH_ONLY:
-            return self.has_match and not self.has_read
-        if flt == InteractionFilter.READ_AND_MATCH:
-            return self.has_read and self.has_match
-        return False
 
 
 class FsspecInteractionFileTools:
@@ -1500,6 +1158,7 @@ class FsspecWriteTools:
                 "insert_line": content,
             }
         }
+
     def restore(self, path: str, recursive: bool = True) -> ToolResult:
         normalized_path = self._norm(path)
         if normalized_path is None:

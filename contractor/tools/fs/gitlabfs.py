@@ -19,7 +19,7 @@ import posixpath
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 from urllib.parse import quote as url_quote
-from contractor.utils.fs import _project_id_encoded
+from contractor.tools.fs.utils import _project_id_encoded
 
 import aiohttp
 import fsspec

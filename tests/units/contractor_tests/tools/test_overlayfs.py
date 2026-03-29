@@ -281,3 +281,106 @@ def test_removed_base_file_can_be_recreated_in_overlay(
     assert (base_tree / "src" / "a.py").read_text(
         encoding="utf-8"
     ) == "print('base a')\n"
+
+def test_strip_protocol_handles_empty_overlay_and_relative_paths(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    assert overlay_fs._strip_protocol("") == "/"
+    assert overlay_fs._strip_protocol("overlay://src/a.py") == "/src/a.py"
+    assert overlay_fs._strip_protocol("src/a.py") == "/src/a.py"
+
+
+def test_parent_of_root_is_root(overlay_fs: MemoryOverlayFileSystem):
+    assert overlay_fs._parent("/") == "/"
+
+
+def test_snapshot_and_restore_snapshot_roundtrip(
+    overlay_fs: MemoryOverlayFileSystem,
+    base_tree: Path,
+):
+    overlay_fs.write_text("/src/generated.py", "print('generated')\n", encoding="utf-8")
+    overlay_fs.rm("/src/a.py")
+
+    snapshot = overlay_fs.snapshot()
+
+    overlay_fs.write_text("/src/generated.py", "print('changed')\n", encoding="utf-8")
+    overlay_fs.write_text("/src/another.py", "print('another')\n", encoding="utf-8")
+    overlay_fs.write_text("/src/a.py", "print('reborn')\n", encoding="utf-8")
+
+    overlay_fs.restore_snapshot(snapshot)
+
+    assert overlay_fs.read_text("/src/generated.py") == "print('generated')\n"
+    assert not overlay_fs.exists("/src/another.py")
+    assert not overlay_fs.exists("/src/a.py")
+    assert (base_tree / "src" / "a.py").read_text(encoding="utf-8") == "print('base a')\n"
+
+
+def test_restore_snapshot_without_snapshot_raises(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    with pytest.raises(ValueError, match="No snapshot to restore"):
+        overlay_fs.restore_snapshot()
+
+
+def test_restore_snapshot_uses_internal_snapshot_when_no_arg_given(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.write_text("/src/keep.py", "v1\n", encoding="utf-8")
+    overlay_fs.snapshot()
+
+    overlay_fs.write_text("/src/keep.py", "v2\n", encoding="utf-8")
+    overlay_fs.restore_snapshot()
+
+    assert overlay_fs.read_text("/src/keep.py") == "v1\n"
+
+
+def test_getattr_delegates_to_base_fs(
+    overlay_fs: MemoryOverlayFileSystem,
+    base_fs: RootedLocalFileSystem,
+):
+    assert overlay_fs.sep == base_fs.sep
+
+def test_open_binary_write_and_read_roundtrip(overlay_fs: MemoryOverlayFileSystem):
+    with overlay_fs.open("/src/blob.bin", "wb") as f:
+        f.write(b"\x00\x01abc")
+
+    with overlay_fs.open("/src/blob.bin", "rb") as f:
+        assert f.read() == b"\x00\x01abc"
+
+
+def test_open_x_creates_new_overlay_file(overlay_fs: MemoryOverlayFileSystem):
+    with overlay_fs.open("/src/brand_new.py", "x", encoding="utf-8") as f:
+        f.write("print('new')\n")
+
+    assert overlay_fs.read_text("/src/brand_new.py") == "print('new')\n"
+
+
+def test_open_append_creates_file_when_missing(overlay_fs: MemoryOverlayFileSystem):
+    with overlay_fs.open("/src/appended.txt", "a", encoding="utf-8") as f:
+        f.write("hello\n")
+
+    assert overlay_fs.read_text("/src/appended.txt") == "hello\n"
+
+
+def test_flush_persists_written_content_before_context_exit(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    f = overlay_fs.open("/src/flushed.txt", "w", encoding="utf-8")
+    f.write("hello\n")
+    f.flush()
+
+    assert overlay_fs.read_text("/src/flushed.txt") == "hello\n"
+    f.close()
+
+def test_reset_overlay_discards_overlay_changes_and_reveals_base(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.write_text("/src/a.py", "print('overlay')\n", encoding="utf-8")
+    overlay_fs.write_text("/src/new.py", "print('new')\n", encoding="utf-8")
+    overlay_fs.rm("/src/b.py")
+
+    overlay_fs.reset_overlay()
+
+    assert overlay_fs.read_text("/src/a.py") == "print('base a')\n"
+    assert overlay_fs.exists("/src/b.py")
+    assert not overlay_fs.exists("/src/new.py")
