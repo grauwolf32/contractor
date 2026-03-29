@@ -31,8 +31,6 @@ from contractor.tools.fs.utils import (
     _ensure_int_or_none,
     _split_lines_keepends,
     _line_ending_for_text,
-    _leading_ws,
-    _comment_prefix_for_path,
 )
 from contractor.utils.formatting import (
     norm_unicode,
@@ -1431,8 +1429,6 @@ class FsspecWriteTools:
             return {"error": str(err)}
 
         lines = _split_lines_keepends(text)
-        newline = _line_ending_for_text(text)
-        prefix = _comment_prefix_for_path(normalized_path, comment_style=comment_style)
 
         matched_indexes = [i for i, line in enumerate(lines) if anchor in line]
         if not matched_indexes:
@@ -1454,11 +1450,12 @@ class FsspecWriteTools:
             }
 
         anchor_index = matched_indexes[occurrence - 1]
-        anchor_line = lines[anchor_index]
-        indent = _leading_ws(anchor_line)
-        new_line = content
-
         insert_at = anchor_index if where == "before" else anchor_index + 1
+
+        newline = _line_ending_for_text(text)
+        new_line = content
+        if not new_line.endswith(("\n", "\r")):
+            new_line += newline
 
         prev_line = lines[insert_at - 1] if insert_at - 1 >= 0 else None
         next_line = lines[insert_at] if insert_at < len(lines) else None
@@ -1472,7 +1469,7 @@ class FsspecWriteTools:
                     "anchor": anchor,
                     "where": where,
                     "occurrence": occurrence,
-                    "content": new_line,
+                    "insert_line": content,
                 }
             }
 
@@ -1500,10 +1497,9 @@ class FsspecWriteTools:
                 "where": where,
                 "occurrence": occurrence,
                 "line": insert_at + 1,
-                "insert_line": new_line,
+                "insert_line": content,
             }
         }
-
     def restore(self, path: str, recursive: bool = True) -> ToolResult:
         normalized_path = self._norm(path)
         if normalized_path is None:
@@ -1761,19 +1757,17 @@ def rw_file_tools(
 
     def insert_line(
         path: str,
-        comment: str,
+        content: str,
         anchor: str,
         where: Literal["before", "after"] = "before",
         occurrence: int = 1,
-        comment_style: Optional[str] = None,
     ) -> dict[str, Any]:
         return tools.insert_line(
             path=path,
-            comment=comment,
+            content=content,
             anchor=anchor,
             where=where,
             occurrence=int(occurrence),
-            comment_style=comment_style,
         )
 
     def replace_range(

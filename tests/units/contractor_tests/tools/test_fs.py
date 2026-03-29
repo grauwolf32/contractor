@@ -22,7 +22,6 @@ from contractor.tools.fs.const import(
     PATH_NOT_FOUND_ERROR,
     PATH_IS_NOT_A_FILE_ERROR,
     _IGNORE_DEFAULTS,
-    _COMMENT_PREFIX_BY_EXT,
 )
 
 
@@ -885,12 +884,12 @@ def test_mv_moves_file(write_tool_map, write_tmpdir: Path):
     assert res["result"]["dst"] == dst
 
 
-def test_insert_comment_before_anchor(write_tool_map, write_tmpdir: Path):
+def test_insert_line_before_anchor(write_tool_map, write_tmpdir: Path):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
-    res = write_tool_map["insert_comment"](
+    res = write_tool_map["insert_line"](
         path=path,
-        comment="say hello",
+        content="say hello",
         anchor="print('hi')",
         where="before",
     )
@@ -898,20 +897,20 @@ def test_insert_comment_before_anchor(write_tool_map, write_tmpdir: Path):
     result = res["result"]
     assert result["ok"] is True
     assert result["changed"] is True
-    assert result["op"] == "insert_comment"
+    assert result["op"] == "insert_line"
     assert result["path"] == path
     assert result["anchor"] == "print('hi')"
     assert result["where"] == "before"
     assert result["occurrence"] == 1
-    assert result["comment_line"] == "    # say hello"
+    assert result["insert_line"] == "say hello"
 
 
-def test_insert_comment_after_anchor(write_tool_map, write_tmpdir: Path):
+def test_insert_line_after_anchor(write_tool_map, write_tmpdir: Path):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
-    res = write_tool_map["insert_comment"](
+    res = write_tool_map["insert_line"](
         path=path,
-        comment="done",
+        content="done",
         anchor="print('hi')",
         where="after",
     )
@@ -919,25 +918,25 @@ def test_insert_comment_after_anchor(write_tool_map, write_tmpdir: Path):
     result = res["result"]
     assert result["ok"] is True
     assert result["changed"] is True
-    assert result["comment_line"] == "    # done"
+    assert result["insert_line"] == "done"
 
 
-def test_insert_comment_is_noop_when_same_comment_already_adjacent(
+def test_insert_line_is_noop_when_same_line_already_adjacent(
     write_tool_map, write_tmpdir: Path
 ):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
-    first = write_tool_map["insert_comment"](
+    first = write_tool_map["insert_line"](
         path=path,
-        comment="say hello",
+        content="say hello",
         anchor="print('hi')",
         where="before",
     )
     assert "error" not in first
 
-    second = write_tool_map["insert_comment"](
+    second = write_tool_map["insert_line"](
         path=path,
-        comment="say hello",
+        content="say hello",
         anchor="print('hi')",
         where="before",
     )
@@ -945,17 +944,17 @@ def test_insert_comment_is_noop_when_same_comment_already_adjacent(
     result = second["result"]
     assert result["ok"] is True
     assert result["changed"] is False
-    assert result["reason"] == "comment already present"
+    assert result["reason"] == "already present"
 
 
-def test_insert_comment_missing_anchor_returns_error(
+def test_insert_line_missing_anchor_returns_error(
     write_tool_map, write_tmpdir: Path
 ):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
-    res = write_tool_map["insert_comment"](
+    res = write_tool_map["insert_line"](
         path=path,
-        comment="x",
+        content="x",
         anchor="does not exist",
     )
     assert "error" in res

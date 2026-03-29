@@ -2,11 +2,6 @@ import fnmatch
 
 from typing import Optional, Any
 from urllib.parse import quote as url_quote
-
-from contractor.tools.fs.const import (
-    _COMMENT_PREFIX_BY_EXT,
-)
-
 from contractor.utils.formatting import normalize_slashes
 
 
@@ -48,23 +43,6 @@ def _line_ending_for_text(text: str) -> str:
 
 def _leading_ws(line: str) -> str:
     return line[: len(line) - len(line.lstrip(" \t"))]
-
-
-def _comment_prefix_for_path(path: str, comment_style: Optional[str] = None) -> str:
-    if comment_style:
-        return comment_style
-
-    normalized = normalize_slashes(path)
-    basename = normalized.split("/")[-1].lower()
-
-    if basename in {"dockerfile", "makefile"}:
-        return "#"
-
-    for ext, prefix in _COMMENT_PREFIX_BY_EXT.items():
-        if basename.endswith(ext):
-            return prefix
-
-    return "#"
 
 
 def _format_comment_line(
