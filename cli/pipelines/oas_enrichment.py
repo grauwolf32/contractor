@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional
 from functools import partial
 from contractor.tools.fs import RootedLocalFileSystem
-from google.adk.artifacts import FileArtifactService
+from google.adk.artifacts import BaseArtifactService
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
@@ -13,9 +13,10 @@ async def oas_enrichment_pipeline(
     project_path: Path,
     folder_name: str,
     model: str,
-    artifact: Optional[str] = None,
     app_name: str,
     user_id: str,
+    artifact_service: BaseArtifactService,
+    artifact: Optional[str] = None,
     **kwargs,
 ) -> TaskRunner:
     runner = TaskRunner(

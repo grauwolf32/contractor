@@ -748,6 +748,23 @@ class FsspecWriteTools:
             with_file_info=with_file_info,
         )
 
+    def _normalize_edit_strings(
+        self,
+        current_content: Optional[str],
+        old_string: str,
+        new_string: str,
+    ) -> tuple[str, str]:
+        """
+        Если файл использует CRLF, а агент прислал LF,
+        приводим old/new к фактическим line endings файла.
+        """
+        if current_content is None or "\r\n" not in current_content:
+            return old_string, new_string
+
+        normalized_old = old_string.replace("\r\n", "\n").replace("\n", "\r\n")
+        normalized_new = new_string.replace("\r\n", "\n").replace("\n", "\r\n")
+        return normalized_old, normalized_new
+
     def _norm(self, path: Optional[str]) -> Optional[str]:
         return norm_unicode(path)
 
@@ -1159,6 +1176,158 @@ class FsspecWriteTools:
             }
         }
 
+    def edit(
+        self,
+        path: str,
+        old_string: str,
+        new_string: str,
+        *,
+        replace_all: bool = False,
+        encoding: str = "utf-8",
+    ) -> ToolResult:
+        normalized_path = self._norm(path)
+        if normalized_path is None:
+            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        if self._is_ignored(normalized_path):
+            return {"error": f"path {normalized_path} is ignored"}
+
+        file_exists = self.fs.exists(normalized_path)
+
+        # Qwen-like behavior: empty old_string + missing file => create
+        if not file_exists:
+            if old_string != "":
+                return {
+                    "error": (
+                        f"file not found: {normalized_path}; "
+                        "use empty old_string to create a new file"
+                    ),
+                    "path": normalized_path,
+                }
+
+            try:
+                self.fs.write_text(
+                    normalized_path,
+                    value=new_string,
+                    encoding=encoding,
+                    errors="strict",
+                )
+            except Exception as err:
+                return {"error": str(err)}
+
+            return {
+                "result": {
+                    "ok": True,
+                    "changed": True,
+                    "created": True,
+                    "op": "edit",
+                    "path": normalized_path,
+                    "occurrences": 0,
+                    "replaced_occurrences": 0,
+                    "size": len(new_string.encode(encoding, errors="ignore")),
+                }
+            }
+
+        if not self.fs.isfile(normalized_path):
+            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
+
+        try:
+            current_content = self.fs.read_text(
+                normalized_path,
+                encoding=encoding,
+                errors="ignore",
+            )
+        except Exception as err:
+            return {"error": str(err)}
+
+        if old_string == "":
+            return {
+                "error": (
+                    "failed to edit: attempted to create a file that already exists"
+                ),
+                "path": normalized_path,
+            }
+
+        old_string, new_string = self._normalize_edit_strings(
+            current_content,
+            old_string,
+            new_string,
+        )
+
+        occurrences = current_content.count(old_string)
+        if occurrences == 0:
+            return {
+                "error": (
+                    "failed to edit, could not find the string to replace; "
+                    "check whitespace, indentation, and surrounding context"
+                ),
+                "path": normalized_path,
+            }
+
+        if not replace_all and occurrences > 1:
+            return {
+                "error": (
+                    "failed to edit because the text matches multiple locations; "
+                    "provide more context or set replace_all=True"
+                ),
+                "path": normalized_path,
+                "occurrences": occurrences,
+            }
+
+        if old_string == new_string:
+            return {
+                "result": {
+                    "ok": True,
+                    "changed": False,
+                    "reason": "old_string and new_string are identical",
+                    "op": "edit",
+                    "path": normalized_path,
+                    "occurrences": occurrences,
+                    "replaced_occurrences": 0,
+                }
+            }
+
+        new_content = (
+            current_content.replace(old_string, new_string)
+            if replace_all
+            else current_content.replace(old_string, new_string, 1)
+        )
+
+        if new_content == current_content:
+            return {
+                "result": {
+                    "ok": True,
+                    "changed": False,
+                    "reason": "new content is identical to current content",
+                    "op": "edit",
+                    "path": normalized_path,
+                    "occurrences": occurrences,
+                    "replaced_occurrences": 0,
+                }
+            }
+
+        try:
+            self.fs.write_text(
+                normalized_path,
+                value=new_content,
+                encoding=encoding,
+                errors="strict",
+            )
+        except Exception as err:
+            return {"error": str(err)}
+
+        return {
+            "result": {
+                "ok": True,
+                "changed": True,
+                "created": False,
+                "op": "edit",
+                "path": normalized_path,
+                "occurrences": occurrences,
+                "replaced_occurrences": occurrences if replace_all else 1,
+                "size": len(new_content.encode(encoding, errors="ignore")),
+            }
+        }
+
     def restore(self, path: str, recursive: bool = True) -> ToolResult:
         normalized_path = self._norm(path)
         if normalized_path is None:
@@ -1436,6 +1605,59 @@ def rw_file_tools(
         content: str,
         preserve_trailing_newline: bool = True,
     ) -> dict[str, Any]:
+        """
+        Replace a specific line range in a file with new content.
+
+        This tool replaces lines by their positions (line numbers),
+        NOT by matching text.
+
+        Args:
+            path (str):
+                Path to the file.
+
+            start_line (int):
+                The starting line number (1-based, inclusive).
+
+            end_line (int):
+                The ending line number (1-based, inclusive).
+
+            new_content (str):
+                The content that will replace the specified line range.
+
+            encoding (str, optional):
+                File encoding (default: "utf-8").
+
+        Behavior:
+            - Replaces all lines from start_line to end_line (inclusive)
+            - Line numbers are based on the current file content
+            - If line numbers are incorrect, the wrong region will be modified
+
+        How to use:
+            1. ALWAYS call read_file first.
+            2. Carefully count line numbers.
+            3. Ensure the range exactly matches what you intend to replace.
+            4. Use for contiguous blocks only.
+
+        Good usage:
+            - Replacing a full function or class when you know exact boundaries
+            - Large block rewrites
+            - Structured edits where line numbers are known
+
+        Bad usage:
+            - Small or precise edits (use edit instead)
+            - When the file may change between steps
+            - When line numbers are uncertain
+
+        Warnings:
+            - This tool is FRAGILE: line numbers can shift after edits
+            - A small mistake in line numbers can corrupt the file
+
+        Prefer using `edit` instead unless:
+            - the target text is not unique, OR
+            - you need to replace a large continuous block
+
+        This tool is best used as a fallback when text-based matching is not reliable.
+        """
         return tools.replace_range(
             path=path,
             start_line=int(start_line),
@@ -1444,6 +1666,88 @@ def rw_file_tools(
             preserve_trailing_newline=tools._parse_bool(
                 preserve_trailing_newline, True
             ),
+        )
+
+    def edit(
+        path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+        encoding: str = "utf-8",
+    ) -> dict[str, Any]:
+        """
+        Edit a file by replacing a specific text fragment with new content.
+
+        This tool performs an exact (literal) string replacement:
+        it finds `old_string` in the file and replaces it with `new_string`.
+
+        This is the PRIMARY tool for modifying files.
+        Prefer using `edit` over other editing tools whenever possible.
+
+        Args:
+            path (str):
+                Path to the file to edit.
+
+            old_string (str):
+                The exact text to find in the file.
+                Must match the file content exactly, including whitespace,
+                indentation, and line breaks.
+
+            new_string (str):
+                The text that will replace `old_string`.
+
+            replace_all (bool, optional):
+                If False (default):
+                    - exactly ONE occurrence must exist in the file
+                    - otherwise the tool fails
+
+                If True:
+                    - ALL occurrences will be replaced
+
+            encoding (str, optional):
+                File encoding (default: "utf-8").
+
+        Behavior:
+            - If the file does not exist:
+                - it will be created ONLY if old_string == ""
+            - If old_string is not found:
+                - the tool fails
+            - If multiple matches are found and replace_all=False:
+                - the tool fails
+            - If old_string == new_string:
+                - no changes are made
+
+        How to use:
+            1. ALWAYS call read_file first to inspect the current content.
+            2. Copy the exact fragment you want to modify.
+            3. Include enough surrounding context to make it UNIQUE.
+            4. Do NOT guess formatting — match it exactly.
+
+        Good usage:
+            - Modifying a function body
+            - Renaming variables in a specific block
+            - Updating a config value with context
+
+        Bad usage:
+            - Using partial or ambiguous snippets
+            - Ignoring indentation or whitespace
+            - Trying to modify multiple locations without replace_all=True
+
+        Tips:
+            - If you get "multiple locations" error:
+                add more surrounding context to old_string
+            - If you get "not found":
+                re-check whitespace, indentation, and line endings
+            - Prefer unique, multi-line snippets over short strings
+
+        This tool is robust to file changes and should be used for most edits.
+        """
+        return tools.edit(
+            path=path,
+            old_string=old_string,
+            new_string=new_string,
+            replace_all=tools._parse_bool(replace_all, False),
+            encoding=encoding,
         )
 
     def interaction_stats(
@@ -1535,6 +1839,7 @@ def rw_file_tools(
         append_file,
         insert_line,
         replace_range,
+        edit,
         restore,
         mkdir,
         rm,

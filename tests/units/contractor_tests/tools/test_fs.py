@@ -17,7 +17,7 @@ from contractor.tools.fs import (
     rw_file_tools,
 )
 
-from contractor.tools.fs.const import(
+from contractor.tools.fs.const import (
     INCORRECT_REGEXP_ERROR,
     PATH_NOT_FOUND_ERROR,
     PATH_IS_NOT_A_FILE_ERROR,
@@ -716,7 +716,6 @@ def test_glob_empty_result(fs_root):
 
 
 def test_glob_respects_ignored_patterns_with_ro_file_tools(fs_root):
-
     fmt = FileFormat(_format="json", with_types=False)
     tools = ro_file_tools(
         fs=fs_root,
@@ -947,9 +946,7 @@ def test_insert_line_is_noop_when_same_line_already_adjacent(
     assert result["reason"] == "already present"
 
 
-def test_insert_line_missing_anchor_returns_error(
-    write_tool_map, write_tmpdir: Path
-):
+def test_insert_line_missing_anchor_returns_error(write_tool_map, write_tmpdir: Path):
     path = abs_path(write_tmpdir / "src" / "main.py")
 
     res = write_tool_map["insert_line"](
@@ -1114,3 +1111,90 @@ def test_mv_missing_source_returns_error(write_tool_map, write_tmpdir: Path):
         abs_path(write_tmpdir / "moved.txt"),
     )
     assert "error" in res
+
+
+def test_edit_replaces_single_occurrence(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "src" / "main.py")
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="print('hi')",
+        new_string="print('hello')",
+    )
+
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["created"] is False
+    assert result["op"] == "edit"
+    assert result["path"] == path
+    assert result["occurrences"] == 1
+    assert result["replaced_occurrences"] == 1
+
+
+def test_edit_rejects_multiple_occurrences_without_replace_all(
+    write_tool_map, write_tmpdir: Path
+):
+    path = abs_path(write_tmpdir / "dups.txt")
+    (write_tmpdir / "dups.txt").write_text("x\nx\nx\n", encoding="utf-8")
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="x",
+        new_string="y",
+    )
+
+    assert "error" in res
+    assert "multiple locations" in res["error"]
+    assert res["occurrences"] == 3
+
+
+def test_edit_replace_all(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "dups.txt")
+    (write_tmpdir / "dups.txt").write_text("x\nx\nx\n", encoding="utf-8")
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="x",
+        new_string="y",
+        replace_all=True,
+    )
+
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["replaced_occurrences"] == 3
+
+
+def test_edit_creates_new_file_when_old_string_empty(
+    write_tool_map, write_tmpdir: Path
+):
+    path = abs_path(write_tmpdir / "created.txt")
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="",
+        new_string="hello\n",
+    )
+
+    assert "error" not in res
+    result = res["result"]
+    assert result["ok"] is True
+    assert result["changed"] is True
+    assert result["created"] is True
+    assert result["op"] == "edit"
+
+
+def test_edit_fails_when_old_string_not_found(write_tool_map, write_tmpdir: Path):
+    path = abs_path(write_tmpdir / "notes.txt")
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="does-not-exist",
+        new_string="beta",
+    )
+
+    assert "error" in res
+    assert "could not find the string" in res["error"]
