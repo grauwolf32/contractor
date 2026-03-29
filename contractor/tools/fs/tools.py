@@ -821,8 +821,30 @@ class FsspecWriteTools:
         file_path: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
+        with_line_numbers: bool = False,
     ) -> ToolResult:
-        return self._reader.read_file(file_path=file_path, offset=offset, limit=limit)
+        result = self._reader.read_file(
+            file_path=file_path,
+            offset=offset,
+            limit=limit,
+        )
+
+        if with_line_numbers is not True:
+            return result
+
+        if "error" in result:
+            return result
+
+        content = result.get("result", "")
+        if not isinstance(content, str) or content == "":
+            return result
+
+        start_line = 1 if offset is None else max(0, offset) + 1
+        numbered = "\n".join(
+            f"{line_no} | {line}"
+            for line_no, line in enumerate(content.splitlines(), start=start_line)
+        )
+        return {"result": numbered}
 
     def grep(
         self,
@@ -1519,13 +1541,47 @@ def rw_file_tools(
         file: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
+        with_line_numbers: bool = False,
     ) -> dict[str, Any]:
         """
-        Read text content from a file in the overlay-visible tree.
+        Read text content from a file.
+
+        This is the preferred tool to inspect a file before editing it.
+
+        Args:
+            file (str):
+                Path to the file to read.
+
+            offset (int, optional):
+                Zero-based line offset. If provided, reading starts from this line.
+
+            limit (int, optional):
+                Maximum number of lines to return after applying offset.
+
+            with_line_numbers (bool, optional):
+                If True, each returned line is prefixed with its 1-based line number.
+
+                Example:
+                    10 | def hello():
+                    11 |     return "world"
+
+                Line numbers are NOT part of the file content.
+                Do NOT include them in edit, insert_line, or replace_range content.
+
+        How to use:
+            - Call read_file before editing
+            - Use with_line_numbers=True for insert_line and replace_range
+            - Use raw text (without numbers) for edit.old_string
         """
+
         offset = _ensure_int_or_none(offset)
         limit = _ensure_int_or_none(limit)
-        return tools.read_file(file_path=file, offset=offset, limit=limit)
+        return tools.read_file(
+            file_path=file,
+            offset=offset,
+            limit=limit,
+            with_line_numbers=bool(with_line_numbers),
+        )
 
     def grep(
         pattern: str,

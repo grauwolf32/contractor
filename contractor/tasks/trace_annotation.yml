@@ -78,7 +78,7 @@ task:
     - Add calls= only for direct, relevant downstream calls
 
     Step 5 — Write annotations:
-    - Use insert_line or replace_range to insert comments
+    - Use insert_line or edit to insert comments
     - Insert directly above function definitions
     - Do not duplicate existing annotations
     - Do not overwrite or remove existing comments
