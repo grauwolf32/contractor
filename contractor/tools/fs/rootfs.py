@@ -188,8 +188,10 @@ class RootedLocalFileSystem(LocalFileSystem):
 
                 if fnmatch.fnmatch(rel_path, pattern):
                     matches.add("/" + rel_path)
-                elif recursive and "/" not in rel_path and fnmatch.fnmatch(
-                    normalized_name, tail_pattern
+                elif (
+                    recursive
+                    and "/" not in rel_path
+                    and fnmatch.fnmatch(normalized_name, tail_pattern)
                 ):
                     matches.add("/" + normalized_name)
 

@@ -263,7 +263,9 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             ctx=ctx,
             emit=emit,
         )
-        self._detect_result_error = result_error_detector or default_result_error_detector
+        self._detect_result_error = (
+            result_error_detector or default_result_error_detector
+        )
         self._metrics: dict[str, dict[str, AgentMetrics]] = defaultdict(
             lambda: defaultdict(AgentMetrics)
         )
@@ -292,7 +294,9 @@ class AdkMetricsPlugin(BaseAdkPlugin):
     def _extract_usage(llm_response: Any) -> dict[str, int]:
         usage = getattr(llm_response, "usage_metadata", None)
         if usage is None:
-            return {k: 0 for k in ("prompt", "completion", "total", "thoughts", "cached")}
+            return {
+                k: 0 for k in ("prompt", "completion", "total", "thoughts", "cached")
+            }
 
         data = snapshot_state(usage)
         return {

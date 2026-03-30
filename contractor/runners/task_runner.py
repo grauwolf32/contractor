@@ -403,9 +403,7 @@ class TaskRunner(BaseModel):
             state=initial_state or {},
         )
 
-    async def _get_session_state(
-        self, user_id: str, session_id: str
-    ) -> dict[str, Any]:
+    async def _get_session_state(self, user_id: str, session_id: str) -> dict[str, Any]:
         session = await self.session_service.get_session(
             app_name=self.name, user_id=user_id, session_id=session_id
         )
@@ -422,7 +420,8 @@ class TaskRunner(BaseModel):
         iteration: int,
         input_artifacts: dict[str, str],
     ) -> dict[str, Any]:
-        key = lambda k: _global_state_key(task_id, k)
+        def key(k):
+            return _global_state_key(task_id, k)
         state = copy.deepcopy(carry_state)
 
         # Task-scoped keys
@@ -454,7 +453,8 @@ class TaskRunner(BaseModel):
         state: dict[str, Any], finished_task_id: int
     ) -> dict[str, Any]:
         carry = copy.deepcopy(state)
-        key = lambda k: _global_state_key(finished_task_id, k)
+        def key(k):
+            return _global_state_key(finished_task_id, k)
 
         carry.update(
             {
@@ -564,7 +564,8 @@ class TaskRunner(BaseModel):
         final_state: dict[str, Any],
         input_artifacts: dict[str, str],
     ) -> TaskResult:
-        key = lambda k: _global_state_key(task_id, k)
+        def key(k):
+            return _global_state_key(task_id, k)
         carry_state = self._extract_carry_state(final_state, task_id)
 
         return TaskResult(
@@ -655,7 +656,12 @@ class TaskRunner(BaseModel):
 
         final_state = await self._get_session_state(user_id, session_id)
         result = self._build_iteration_result(
-            item, rendered_task, task_id, session_id, final_text, final_state,
+            item,
+            rendered_task,
+            task_id,
+            session_id,
+            final_text,
+            final_state,
             input_artifacts,
         )
 
@@ -678,7 +684,8 @@ class TaskRunner(BaseModel):
         session_id: str,
         on_event: Optional[TaskRunnerEventHandler],
     ) -> list:
-        emit_fn = lambda **kw: self._emit(on_event, **kw)
+        def emit_fn(**kw):
+            return self._emit(on_event, **kw)
         common = dict(
             task_name=item.ref,
             task_id=task_id,
@@ -739,7 +746,9 @@ class TaskRunner(BaseModel):
         input_artifacts = await self._load_artifacts(user_id, item.artifacts)
 
         rendered_task = self._render_task(
-            template, item.params, input_artifacts  # type: ignore[arg-type]
+            template,
+            item.params,
+            input_artifacts,  # type: ignore[arg-type]
         )
 
         await self._emit(
@@ -789,9 +798,7 @@ class TaskRunner(BaseModel):
 
             if completed:
                 successful_runs += 1
-                await self._publish_task_artifacts(
-                    user_id, template.key, result
-                )
+                await self._publish_task_artifacts(user_id, template.key, result)
 
                 if successful_runs >= item.iterations:
                     await self._emit(

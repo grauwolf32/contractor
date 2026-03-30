@@ -1,5 +1,4 @@
 import json
-import yaml
 import fsspec
 from pathlib import Path
 from dataclasses import dataclass
@@ -7,10 +6,13 @@ from typing import Optional, Any
 from functools import partial
 from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
 from google.adk.artifacts import BaseArtifactService
-from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
-from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent, TaskRunnerEventHandler
+from contractor.runners.task_runner import (
+    TaskRunner,
+    TaskRunnerEventHandler,
+)
 from google.adk.models import LiteLlm
+
 
 async def trace_annotation_runner(
     *,
@@ -20,7 +22,6 @@ async def trace_annotation_runner(
     operation_id: str,
     operation_schema: str,
     artifact_service: BaseArtifactService,
-    
     **kwargs,
 ) -> TaskRunner:
     runner = TaskRunner(
@@ -55,34 +56,40 @@ async def trace_annotation_runner(
 
     return runner
 
-TEST_DATA_PATH = Path(__file__).parent.parent.parent / "tests" / "data" / "fakeproj" / "2"
+
+TEST_DATA_PATH = (
+    Path(__file__).parent.parent.parent / "tests" / "data" / "fakeproj" / "2"
+)
+
 
 @dataclass
 class MockRunner:
     fs: MemoryOverlayFileSystem
     task_runner: TaskRunner
-    
-    async def run(self, * ,user_id: str = "cli-user",
+
+    async def run(
+        self,
+        *,
+        user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[dict[str, Any]]:
         await self.task_runner.run(user_id=user_id, on_event=on_event)
         patch = self.fs.save()
         with open(str(TEST_DATA_PATH / "patch.json"), "w") as f:
             f.write(json.dumps(patch))
-        
 
 
 # Mock pipeline for tests
 async def trace_annotation_pipeline(
     project_path: Path,
-    folder_name: str, 
+    folder_name: str,
     model: str,
     app_name: str,
     user_id: str,
     artifact_service: BaseArtifactService,
     artifact: Optional[str] = None,
     **kwargs,
-)-> TaskRunner:
+) -> TaskRunner:
     llm = LiteLlm(model=model)
     base_fs = RootedLocalFileSystem(root_path=project_path)
     overlay_fs = MemoryOverlayFileSystem(fs=base_fs)
@@ -105,16 +112,11 @@ async def trace_annotation_pipeline(
 
     task_runner = await trace_annotation_runner(
         folder_name=folder_name,
-        llm = llm,
-        fs = overlay_fs,
+        llm=llm,
+        fs=overlay_fs,
         operation_id=operation_id,
         operation_schema=raw,
         artifact_service=artifact_service,
     )
 
     return MockRunner(fs=overlay_fs, task_runner=task_runner)
-
-
-
-
-    

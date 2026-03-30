@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 class LoadingState(enum.Enum):
     """State of the background file loader."""
+
     NOT_STARTED = "not_started"
     LOADING_TREE = "loading_tree"
     LOADING_FILES = "loading_files"
@@ -179,7 +180,7 @@ def _project_id_encoded(project_id: str) -> str:
 def _normalize_path(path: str) -> str:
     path = path.replace("\\", "/")
     if path.startswith("gitlab://"):
-        path = path[len("gitlab://"):]
+        path = path[len("gitlab://") :]
     path = posixpath.normpath(path)
     if path == ".":
         path = ""
@@ -282,7 +283,7 @@ class GitlabAsyncLoader:
                 last_exc = exc
 
             if attempt < self._max_retries:
-                delay = self._backoff_factor * (2 ** attempt)
+                delay = self._backoff_factor * (2**attempt)
                 logger.warning(
                     "Retry %d/%d for %s %s (reason: %s), sleeping %.2fs",
                     attempt + 1,
@@ -419,7 +420,9 @@ class GitlabAsyncLoader:
             }
 
             try:
-                resp = await self._request_with_retry(session, "GET", url, params=params)
+                resp = await self._request_with_retry(
+                    session, "GET", url, params=params
+                )
                 data = await resp.json()
                 if not data:
                     break
@@ -745,14 +748,17 @@ class _GitlabApiFallback:
         results: List[Dict[str, Any]] = []
 
         if fixed_string:
-            matcher = lambda line: pattern in line
+            def matcher(line):
+                return pattern in line
         else:
             try:
                 compiled = re.compile(pattern)
-                matcher = lambda line: compiled.search(line) is not None
+                def matcher(line):
+                    return compiled.search(line) is not None
             except re.error:
                 # If pattern is not valid regex, treat as fixed string
-                matcher = lambda line: pattern in line
+                def matcher(line):
+                    return pattern in line
 
         for item in raw_results:
             file_path = item.get("filename", item.get("path", ""))
@@ -1098,10 +1104,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             return entry.data
 
         # If loading and we know the path exists in tree
-        if (
-            not self.is_ready
-            and norm_path in self._tree_paths
-        ):
+        if not self.is_ready and norm_path in self._tree_paths:
             logger.debug("Fallback: fetching %s via API (cache not ready)", norm_path)
             data = self._fallback.read_file_via_api(norm_path)
             return data
@@ -1126,7 +1129,9 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
                     f"File content not available (skipped during load): {norm_path}"
                 )
             # Still loading — try API
-            logger.debug("Fallback: fetching %s via API (data not yet loaded)", norm_path)
+            logger.debug(
+                "Fallback: fetching %s via API (data not yet loaded)", norm_path
+            )
             data = self._fallback.read_file_via_api(norm_path)
             return data
 
@@ -1356,13 +1361,16 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         results: List[Dict[str, Any]] = []
 
         if fixed_string:
-            matcher = lambda line: pattern in line
+            def matcher(line):
+                return pattern in line
         else:
             try:
                 compiled = re.compile(pattern)
-                matcher = lambda line: compiled.search(line) is not None
+                def matcher(line):
+                    return compiled.search(line) is not None
             except re.error:
-                matcher = lambda line: pattern in line
+                def matcher(line):
+                    return pattern in line
 
         for entry_path, entry in self._entries.items():
             if not entry_path or not entry.is_file or entry.data is None:

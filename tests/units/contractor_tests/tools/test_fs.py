@@ -17,12 +17,6 @@ from contractor.tools.fs import (
     rw_file_tools,
 )
 
-from contractor.tools.fs.const import (
-    INCORRECT_REGEXP_ERROR,
-    PATH_NOT_FOUND_ERROR,
-    PATH_IS_NOT_A_FILE_ERROR,
-    _IGNORE_DEFAULTS,
-)
 
 
 @pytest.fixture()
@@ -804,11 +798,6 @@ def write_tool_map(write_fs: fsspec.AbstractFileSystem):
         wrap_overlay=True,
     )
     return {fn.__name__: fn for fn in tools}
-
-
-def abs_path(p: Path) -> str:
-    return str(p.resolve())
-
 
 def test_write_file_creates_new_file(write_tool_map, write_tmpdir: Path):
     target = abs_path(write_tmpdir / "new.txt")

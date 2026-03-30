@@ -6,11 +6,10 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Final,
     Generator,
     Literal,
@@ -428,17 +427,13 @@ class SubtaskFormatter:
             "yaml": self._subtask_to_yaml,
             "xml": self._subtask_to_xml,
         }
-        return self._dispatch(
-            formatters, subtask, type_hint=type_hint, **kwargs
-        )
+        return self._dispatch(formatters, subtask, type_hint=type_hint, **kwargs)
 
     def format_subtasks(
         self, subtasks: list[Subtask], type_hint: bool = False
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
-            output = "\n".join(
-                self.format_subtask(subtask) for subtask in subtasks
-            )
+            output = "\n".join(self.format_subtask(subtask) for subtask in subtasks)
             return self._type_hint(output, type_hint)
 
         if self._format == "xml":
@@ -463,9 +458,7 @@ class SubtaskFormatter:
             "yaml": self._subtask_result_to_yaml,
             "xml": self._subtask_result_to_xml,
         }
-        return self._dispatch(
-            formatters, subtask_result, type_hint=type_hint, **kwargs
-        )
+        return self._dispatch(formatters, subtask_result, type_hint=type_hint, **kwargs)
 
     def format_subtask_results(
         self,
@@ -473,9 +466,7 @@ class SubtaskFormatter:
         type_hint: bool = False,
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
-            output = "\n".join(
-                self.format_subtask_result(r) for r in subtask_results
-            )
+            output = "\n".join(self.format_subtask_result(r) for r in subtask_results)
             return self._type_hint(output, type_hint)
 
         if self._format == "xml":
@@ -514,9 +505,7 @@ class SubtaskFormatter:
             return SubtaskExecutionResult.model_validate(payload)
         return None
 
-    def _extract_fenced_blocks(
-        self, text: str
-    ) -> list[tuple[Optional[str], str]]:
+    def _extract_fenced_blocks(self, text: str) -> list[tuple[Optional[str], str]]:
         return [
             (
                 (m.group("lang") or "").strip().lower() or None,
@@ -539,9 +528,8 @@ class SubtaskFormatter:
             if result:
                 return result
 
-        if (
-            len(output) <= _MAX_LITERAL_EVAL_LEN
-            and (output.startswith("{") or output.startswith("["))
+        if len(output) <= _MAX_LITERAL_EVAL_LEN and (
+            output.startswith("{") or output.startswith("[")
         ):
             with suppress(ValueError, SyntaxError, TypeError, MemoryError):
                 parsed = ast.literal_eval(output)
@@ -615,9 +603,7 @@ class SubtaskFormatter:
             first_line = match.group(2).rstrip()
 
             section_start = match.end()
-            section_end = (
-                matches[i + 1].start() if i + 1 < len(matches) else len(body)
-            )
+            section_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
             section_tail = body[section_start:section_end]
 
             tail_lines = section_tail.splitlines()
@@ -722,9 +708,7 @@ class SubtaskFormatter:
             "xml": self._parse_subtask_result_xml,
         }
 
-        parse_order = [self._format] + [
-            fmt for fmt in parsers if fmt != self._format
-        ]
+        parse_order = [self._format] + [fmt for fmt in parsers if fmt != self._format]
 
         # 1. Try fenced code blocks first
         fenced_blocks = self._extract_fenced_blocks(output)
@@ -817,9 +801,7 @@ class StreamlineManager:
 
     # ── Subtask persistence ─────────────────────────────────────────
 
-    def get_subtasks(
-        self, ctx: Union[ToolContext, CallbackContext]
-    ) -> list[Subtask]:
+    def get_subtasks(self, ctx: Union[ToolContext, CallbackContext]) -> list[Subtask]:
         key = self._subtasks_key(ctx)
         ctx.state.setdefault(key, [])
         return [Subtask(**sub) for sub in ctx.state[key]]
@@ -829,9 +811,7 @@ class StreamlineManager:
         subtasks: list[Subtask],
         ctx: Union[ToolContext, CallbackContext],
     ) -> None:
-        ctx.state[self._subtasks_key(ctx)] = [
-            sub.model_dump() for sub in subtasks
-        ]
+        ctx.state[self._subtasks_key(ctx)] = [sub.model_dump() for sub in subtasks]
 
     @contextmanager
     def _locked_subtasks(
@@ -1150,9 +1130,7 @@ RULES:
 """.strip()
 
 
-def _prepare_worker_instructions(
-    fmt: SubtaskFormatter, type_hint: bool = False
-) -> str:
+def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False) -> str:
     example_done = SubtaskExecutionResult(
         task_id="1",
         status="done",
@@ -1341,9 +1319,7 @@ def task_tools(
             SubtaskSpec(title=title, description=description), tool_context
         )
         if subtask is None:
-            return {
-                "error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)
-            }
+            return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
 
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
@@ -1367,9 +1343,7 @@ def task_tools(
         if subtask is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
 
-        return {
-            "result": fmt.format_subtask(subtask, type_hint=use_type_hint)
-        }
+        return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
     def list_subtasks(tool_context: ToolContext) -> dict[str, Any]:
         """List all subtasks in the execution plan with their current status.
@@ -1387,9 +1361,7 @@ def task_tools(
             - To understand context before executing the current subtask
         """
         subtasks = mgr.get_subtasks(tool_context)
-        return {
-            "result": fmt.format_subtasks(subtasks, type_hint=use_type_hint)
-        }
+        return {"result": fmt.format_subtasks(subtasks, type_hint=use_type_hint)}
 
     def get_records(tool_context: ToolContext) -> dict[str, Any]:
         """Retrieve execution records from previously completed subtasks.
@@ -1440,9 +1412,7 @@ def task_tools(
             - Together, children MUST cover ALL remaining work.
         """
         if isinstance(decomposition, str):
-            schema = json.dumps(
-                SubtaskDecomposition.model_json_schema(), indent=2
-            )
+            schema = json.dumps(SubtaskDecomposition.model_json_schema(), indent=2)
             return {
                 "error": (
                     "TypeError: 'decomposition' must be a SubtaskDecomposition "
@@ -1459,9 +1429,7 @@ def task_tools(
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
         if str(task_id) != current.task_id:
-            return {
-                "error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)
-            }
+            return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
         if current.status != "incomplete":
             return {
                 "error": SUBTASK_DECOMPOSE_NOT_INCOMPLETE.format(
@@ -1474,18 +1442,14 @@ def task_tools(
         )
 
         if insertion is None:
-            return {
-                "error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)
-            }
+            return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
 
         if len(insertion) == 0:
             return {"error": NO_ACTIVE_TASKS_MSG}
 
         return {"result": fmt.format_subtasks(insertion)}
 
-    def skip(
-        task_id: str, reason: str, tool_context: ToolContext
-    ) -> dict[str, Any]:
+    def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
         """Skip execution of the current subtask.
 
         Marks the current subtask as 'skipped' and advances to the next one.
@@ -1515,9 +1479,7 @@ def task_tools(
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
         if str(task_id) != current.task_id:
-            return {
-                "error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)
-            }
+            return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
         next_subtask = mgr.skip(reason, tool_context)
         if next_subtask is None:
@@ -1632,9 +1594,7 @@ def task_tools(
             )
 
         # ── Apply result via manager ────────────────────────────────
-        success, error_msg = mgr.complete_current_subtask(
-            subtask_result, tool_context
-        )
+        success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
         # ── Build response ──────────────────────────────────────────
         record = fmt.format_task_record(current, subtask_result)
@@ -1651,9 +1611,7 @@ def task_tools(
         if not can_advance and subtask_result.status != "incomplete":
             action += NO_ACTIVE_TASKS_MSG
         if subtask_result.status == "incomplete":
-            action += SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(
-                task_id=current.task_id
-            )
+            action += SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)
 
         if action:
             response["action"] = action
@@ -1704,9 +1662,7 @@ def task_tools(
         summary = ""
 
         if use_summarization and summarizer_tool is not None:
-            objective_key = StreamlineManager._global_keys(
-                tool_context, "objective"
-            )
+            objective_key = StreamlineManager._global_keys(tool_context, "objective")
             objective = tool_context.state.get(objective_key, "")
 
             payload = {
@@ -1716,18 +1672,14 @@ def task_tools(
                 "status": status,
             }
 
-            sum_args = {
-                "request": json.dumps(payload, ensure_ascii=False, indent=2)
-            }
+            sum_args = {"request": json.dumps(payload, ensure_ascii=False, indent=2)}
 
             raw = await summarizer_tool.run_async(
                 args=sum_args, tool_context=tool_context
             )
 
             summary = (
-                raw
-                if isinstance(raw, str)
-                else json.dumps(raw, ensure_ascii=False)
+                raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
             )
 
         mgr.finish(

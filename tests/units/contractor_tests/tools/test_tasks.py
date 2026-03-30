@@ -552,7 +552,7 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     worker.run_async = AsyncMock()
     worker.tools = []
     worker.model = "gpt-3.5-turbo"
-    
+
     async def _done_or_incomplete(*, args, tool_context):
         # Make task 1 incomplete; everything else done
         if args["task_id"] == "1":

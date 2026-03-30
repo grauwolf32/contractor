@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Analyze contractor metrics.jsonl and produce charts, tables, and a report."""
+
 from __future__ import annotations
 
 import argparse
@@ -78,9 +79,7 @@ class OutputPaths:
     def from_args(cls, input_file: Path, output_dir: Path | None) -> OutputPaths:
         input_file = input_file.resolve()
         root = (
-            output_dir.resolve()
-            if output_dir
-            else input_file.parent / "metrics_report"
+            output_dir.resolve() if output_dir else input_file.parent / "metrics_report"
         )
         charts = root / "charts"
         tables = root / "tables"
@@ -141,14 +140,10 @@ def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
                 "agent_name": _opt_str(
                     rec.get("agent_name", payload.get("agent_name"))
                 ),
-                "tool_name": _opt_str(
-                    rec.get("tool_name", payload.get("tool_name"))
-                ),
+                "tool_name": _opt_str(rec.get("tool_name", payload.get("tool_name"))),
                 "author": _opt_str(rec.get("author", payload.get("author"))),
                 "result_error": bool(payload.get("result_error", False)),
-                "error": _opt_str(
-                    payload.get("error") or payload.get("error_message")
-                ),
+                "error": _opt_str(payload.get("error") or payload.get("error_message")),
                 "model": _opt_str(payload.get("model")),
                 **{
                     col: pd.to_numeric(
@@ -230,9 +225,7 @@ class MetricSlices:
     adk_events: pd.DataFrame
 
     # Aggregated tables (computed once, used by many charts)
-    tools_by_calls: pd.Series = field(
-        default_factory=lambda: pd.Series(dtype="int64")
-    )
+    tools_by_calls: pd.Series = field(default_factory=lambda: pd.Series(dtype="int64"))
     err_table: pd.DataFrame = field(default_factory=pd.DataFrame)
     tokens_by_agent: pd.DataFrame = field(default_factory=pd.DataFrame)
     tokens_by_task: pd.DataFrame = field(default_factory=pd.DataFrame)
@@ -423,9 +416,7 @@ class MetricSlices:
             parts["calls"] = tc.groupby("tool_name_f").size().rename("calls")
         if not tr.empty:
             parts["result_errors"] = (
-                tr.groupby("tool_name_f")["result_error"]
-                .sum()
-                .rename("result_errors")
+                tr.groupby("tool_name_f")["result_error"].sum().rename("result_errors")
             )
         if not te.empty:
             parts["exception_errors"] = (
@@ -630,9 +621,7 @@ def _heatmap(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_xticks(range(matrix.shape[1]))
-    ax.set_xticklabels(
-        [str(c) for c in matrix.columns], rotation=45, ha="right"
-    )
+    ax.set_xticklabels([str(c) for c in matrix.columns], rotation=45, ha="right")
     ax.set_yticks(range(matrix.shape[0]))
     ax.set_yticklabels([str(i) for i in matrix.index])
     fig.colorbar(im, ax=ax)
@@ -646,9 +635,7 @@ def _boxplot(
     ylabel: str,
     path: Path,
 ) -> None:
-    clean = {
-        k: pd.to_numeric(v, errors="coerce").dropna() for k, v in groups.items()
-    }
+    clean = {k: pd.to_numeric(v, errors="coerce").dropna() for k, v in groups.items()}
     clean = {k: v for k, v in clean.items() if not v.empty}
     if not clean:
         return
@@ -684,7 +671,9 @@ def _pie(
 # ─── Summary computation ─────────────────────────────────────────────────────
 
 
-def compute_summary(df: pd.DataFrame, slices: MetricSlices | None = None) -> dict[str, Any]:
+def compute_summary(
+    df: pd.DataFrame, slices: MetricSlices | None = None
+) -> dict[str, Any]:
     out: dict[str, Any] = {
         "rows": len(df),
         "date_min": None,
@@ -721,9 +710,14 @@ def compute_summary(df: pd.DataFrame, slices: MetricSlices | None = None) -> dic
 
     out["tool_calls"] = int(masks.get("tool_call", pd.Series(dtype=bool)).sum())
     out["tool_result_errors"] = int(
-        (masks.get("tool_result", pd.Series(dtype=bool)) & df["result_error"].fillna(False)).sum()
+        (
+            masks.get("tool_result", pd.Series(dtype=bool))
+            & df["result_error"].fillna(False)
+        ).sum()
     )
-    out["tool_exception_errors"] = int(masks.get("tool_exc", pd.Series(dtype=bool)).sum())
+    out["tool_exception_errors"] = int(
+        masks.get("tool_exc", pd.Series(dtype=bool)).sum()
+    )
     out["llm_calls"] = int(masks.get("llm", pd.Series(dtype=bool)).sum())
 
     llm_mask = masks.get("llm", pd.Series(dtype=bool))
@@ -743,9 +737,7 @@ def compute_summary(df: pd.DataFrame, slices: MetricSlices | None = None) -> dic
 
     # Retries
     if slices is not None and not slices.tool_calls_with_retries.empty:
-        out["retry_count"] = int(
-            slices.tool_calls_with_retries["is_retry"].sum()
-        )
+        out["retry_count"] = int(slices.tool_calls_with_retries["is_retry"].sum())
 
     # Durations
     if slices is not None and not slices.invocation_durations.empty:
@@ -855,9 +847,7 @@ def write_markdown_report(
         top_agents = (
             df.loc[llm_mask]
             .assign(
-                agent=_fill_label(
-                    df.loc[llm_mask, "agent_name"], _FALLBACKS["agent"]
-                )
+                agent=_fill_label(df.loc[llm_mask, "agent_name"], _FALLBACKS["agent"])
             )
             .groupby("agent", dropna=False)["total_tokens"]
             .sum()
@@ -865,9 +855,7 @@ def write_markdown_report(
             .head(10)
         )
         lines += ["## Top Agents by Total Tokens", ""]
-        lines += [
-            f"- {agent}: {int(n):,}" for agent, n in top_agents.items()
-        ]
+        lines += [f"- {agent}: {int(n):,}" for agent, n in top_agents.items()]
         lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -942,9 +930,7 @@ def _chart_total_tokens_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_prompt_vs_completion_by_agent(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_prompt_vs_completion_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     if s.tokens_by_agent.empty:
         return
     _stacked_bar(
@@ -1020,9 +1006,7 @@ def _chart_cumulative_tokens(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_cumulative_tool_calls_errors(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_cumulative_tool_calls_errors(s: MetricSlices, p: OutputPaths) -> None:
     if not s.all["ts"].notna().any():
         return
     t = (
@@ -1089,9 +1073,7 @@ def _chart_error_rate_by_tool(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_result_vs_exception_errors(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_result_vs_exception_errors(s: MetricSlices, p: OutputPaths) -> None:
     if s.err_table.empty:
         return
     _stacked_bar(
@@ -1201,10 +1183,7 @@ def _chart_tool_calls_by_iteration(s: MetricSlices, p: OutputPaths) -> None:
     if s.tool_calls.empty or not s.tool_calls["iteration"].notna().any():
         return
     by_iter = (
-        s.tool_calls.groupby("iteration")
-        .size()
-        .rename("tool_calls")
-        .reset_index()
+        s.tool_calls.groupby("iteration").size().rename("tool_calls").reset_index()
     )
     _line(
         by_iter,
@@ -1239,9 +1218,7 @@ def _chart_avg_tokens_by_task(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty:
         return
     avg = (
-        s.llm.groupby("task_name_f")["total_tokens"]
-        .mean()
-        .sort_values(ascending=False)
+        s.llm.groupby("task_name_f")["total_tokens"].mean().sort_values(ascending=False)
     )
     _bar(
         avg,
@@ -1257,11 +1234,7 @@ def _chart_token_boxplot_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty:
         return
     top = (
-        s.llm.groupby("agent_name_f")
-        .size()
-        .sort_values(ascending=False)
-        .head(8)
-        .index
+        s.llm.groupby("agent_name_f").size().sort_values(ascending=False).head(8).index
     )
     groups = {
         agent: s.llm.loc[s.llm["agent_name_f"] == agent, "total_tokens"]
@@ -1286,9 +1259,7 @@ def _chart_task_calls_vs_tokens(s: MetricSlices, p: OutputPaths) -> None:
         )
     if not s.llm.empty:
         parts["total_tokens"] = (
-            s.llm.groupby("task_name_f")["total_tokens"]
-            .sum()
-            .rename("total_tokens")
+            s.llm.groupby("task_name_f")["total_tokens"].sum().rename("total_tokens")
         )
     if not parts:
         return
@@ -1309,11 +1280,7 @@ def _chart_tool_calls_vs_errors(s: MetricSlices, p: OutputPaths) -> None:
     if s.err_table.empty:
         return
     scatter_df = s.err_table.reset_index().rename(columns={"index": "tool_name"})
-    label = (
-        "tool_name_f"
-        if "tool_name_f" in scatter_df.columns
-        else "tool_name"
-    )
+    label = "tool_name_f" if "tool_name_f" in scatter_df.columns else "tool_name"
     _scatter(
         scatter_df,
         "calls",
@@ -1381,9 +1348,7 @@ def _chart_thoughts_vs_cached(s: MetricSlices, p: OutputPaths) -> None:
     ta = s.tokens_by_agent
     if ta.empty:
         return
-    if not (
-        (ta["thoughts_tokens"] > 0).any() or (ta["cached_tokens"] > 0).any()
-    ):
+    if not ((ta["thoughts_tokens"] > 0).any() or (ta["cached_tokens"] > 0).any()):
         return
     _stacked_bar(
         ta,
@@ -1481,9 +1446,7 @@ def _chart_tool_duration_boxplot(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_tool_duration_percentiles(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_tool_duration_percentiles(s: MetricSlices, p: OutputPaths) -> None:
     if s.tool_durations.empty:
         return
     pcts = (
@@ -1500,13 +1463,9 @@ def _chart_tool_duration_percentiles(
     fig, ax = plt.subplots(figsize=(11, 6))
     x_pos = range(len(top))
     width = 0.25
-    ax.bar(
-        [i - width for i in x_pos], top["p50"], width=width, label="p50"
-    )
+    ax.bar([i - width for i in x_pos], top["p50"], width=width, label="p50")
     ax.bar(x_pos, top["p90"], width=width, label="p90")
-    ax.bar(
-        [i + width for i in x_pos], top["p99"], width=width, label="p99"
-    )
+    ax.bar([i + width for i in x_pos], top["p99"], width=width, label="p99")
     ax.set_xticks(list(x_pos))
     ax.set_xticklabels(top.index.astype(str), rotation=45, ha="right")
     ax.set_title("Tool duration percentiles (p50/p90/p99)")
@@ -1515,9 +1474,7 @@ def _chart_tool_duration_percentiles(
     _save_fig(fig, p.charts / "34_tool_duration_percentiles.png")
 
 
-def _chart_invocation_duration_histogram(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_invocation_duration_histogram(s: MetricSlices, p: OutputPaths) -> None:
     if s.invocation_durations.empty:
         return
     _hist(
@@ -1530,9 +1487,7 @@ def _chart_invocation_duration_histogram(
     )
 
 
-def _chart_invocation_duration_by_invocation(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_invocation_duration_by_invocation(s: MetricSlices, p: OutputPaths) -> None:
     if s.invocation_durations.empty:
         return
     dur = s.invocation_durations["duration_s"].sort_values(ascending=False)
@@ -1547,19 +1502,13 @@ def _chart_invocation_duration_by_invocation(
     )
 
 
-def _chart_duration_vs_tokens_scatter(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_duration_vs_tokens_scatter(s: MetricSlices, p: OutputPaths) -> None:
     if s.invocation_durations.empty or s.llm.empty:
         return
     tokens_per_inv = (
-        s.llm.groupby("invocation_id_f")["total_tokens"]
-        .sum()
-        .rename("total_tokens")
+        s.llm.groupby("invocation_id_f")["total_tokens"].sum().rename("total_tokens")
     )
-    merged = s.invocation_durations[["duration_s"]].join(
-        tokens_per_inv, how="inner"
-    )
+    merged = s.invocation_durations[["duration_s"]].join(tokens_per_inv, how="inner")
     if merged.empty:
         return
     _scatter(
@@ -1658,9 +1607,9 @@ def _chart_cost_by_model(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm_with_cost.empty:
         return
     cost = (
-        s.llm_with_cost.groupby(
-            s.llm_with_cost["model"].fillna(_FALLBACKS["model"])
-        )["estimated_cost"]
+        s.llm_with_cost.groupby(s.llm_with_cost["model"].fillna(_FALLBACKS["model"]))[
+            "estimated_cost"
+        ]
         .sum()
         .sort_values(ascending=False)
     )
@@ -1748,9 +1697,7 @@ def _chart_retry_rate_by_tool(s: MetricSlices, p: OutputPaths) -> None:
     tbl["retry_rate"] = tbl["retries"] / tbl["calls"].replace(0, pd.NA)
     tbl = tbl.fillna(0)
     _save_table(tbl.reset_index(), p.tables / "retry_rate_by_tool.csv")
-    filtered = tbl[tbl["retries"] > 0].sort_values(
-        "retry_rate", ascending=False
-    )
+    filtered = tbl[tbl["retries"] > 0].sort_values("retry_rate", ascending=False)
     if filtered.empty:
         return
     _bar(
@@ -1782,9 +1729,7 @@ def _chart_retries_by_tool(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_tool_calls_per_invocation_hist(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_tool_calls_per_invocation_hist(s: MetricSlices, p: OutputPaths) -> None:
     if s.tool_calls.empty:
         return
     per_inv = s.tool_calls.groupby("invocation_id_f").size()
@@ -1798,9 +1743,7 @@ def _chart_tool_calls_per_invocation_hist(
     )
 
 
-def _chart_llm_calls_per_invocation_hist(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_llm_calls_per_invocation_hist(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty:
         return
     per_inv = s.llm.groupby("invocation_id_f").size()
@@ -1814,9 +1757,7 @@ def _chart_llm_calls_per_invocation_hist(
     )
 
 
-def _chart_calls_before_first_success(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_calls_before_first_success(s: MetricSlices, p: OutputPaths) -> None:
     tc = s.tool_calls_with_retries
     tr = s.tool_results
     if tc.empty or tr.empty:
@@ -1842,14 +1783,14 @@ def _chart_calls_before_first_success(
             & (tc["tool_name_f"] == tool)
             & (tc["row_id"] <= success_row)
         )
-        call_counts.append(
-            {"tool": tool, "calls_before_success": int(mask.sum())}
-        )
+        call_counts.append({"tool": tool, "calls_before_success": int(mask.sum())})
 
     if not call_counts:
         return
     cdf = pd.DataFrame(call_counts)
-    avg = cdf.groupby("tool")["calls_before_success"].mean().sort_values(ascending=False)
+    avg = (
+        cdf.groupby("tool")["calls_before_success"].mean().sort_values(ascending=False)
+    )
     if avg.empty:
         return
     _bar(
@@ -1866,9 +1807,7 @@ def _chart_calls_before_first_success(
 # ── NEW: Agent interaction & flow charts ──────────────────────────────────────
 
 
-def _chart_agent_transition_heatmap(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_agent_transition_heatmap(s: MetricSlices, p: OutputPaths) -> None:
     events = s.adk_events
     if events.empty or not events["author"].notna().any():
         return
@@ -1899,9 +1838,7 @@ def _chart_agent_transition_heatmap(
         "From agent",
         p.charts / "50_agent_transition_heatmap.png",
     )
-    _save_table(
-        matrix.reset_index(), p.tables / "agent_transition_matrix.csv"
-    )
+    _save_table(matrix.reset_index(), p.tables / "agent_transition_matrix.csv")
 
 
 def _chart_tool_bigrams(s: MetricSlices, p: OutputPaths) -> None:
@@ -1928,9 +1865,7 @@ def _chart_tool_bigrams(s: MetricSlices, p: OutputPaths) -> None:
         horizontal=True,
         top_n=15,
     )
-    _save_table(
-        counts.head(30).reset_index(), p.tables / "tool_bigrams.csv"
-    )
+    _save_table(counts.head(30).reset_index(), p.tables / "tool_bigrams.csv")
 
 
 def _chart_tool_trigrams(s: MetricSlices, p: OutputPaths) -> None:
@@ -1957,9 +1892,7 @@ def _chart_tool_trigrams(s: MetricSlices, p: OutputPaths) -> None:
         horizontal=True,
         top_n=15,
     )
-    _save_table(
-        counts.head(30).reset_index(), p.tables / "tool_trigrams.csv"
-    )
+    _save_table(counts.head(30).reset_index(), p.tables / "tool_trigrams.csv")
 
 
 def _chart_agents_per_invocation(s: MetricSlices, p: OutputPaths) -> None:
@@ -1967,9 +1900,7 @@ def _chart_agents_per_invocation(s: MetricSlices, p: OutputPaths) -> None:
     if df.empty:
         return
     agents_per = (
-        df[df["agent_name"].notna()]
-        .groupby("invocation_id_f")["agent_name"]
-        .nunique()
+        df[df["agent_name"].notna()].groupby("invocation_id_f")["agent_name"].nunique()
     )
     if agents_per.empty:
         return
@@ -2005,9 +1936,7 @@ def _chart_error_recovery_rate(s: MetricSlices, p: OutputPaths) -> None:
         fails_followed.groupby("tool_name_f").size().rename("after_fail")
     )
     tbl = pd.concat([fail_follow_by_tool, recovery_by_tool], axis=1).fillna(0)
-    tbl["recovery_rate"] = tbl["recoveries"] / tbl["after_fail"].replace(
-        0, pd.NA
-    )
+    tbl["recovery_rate"] = tbl["recoveries"] / tbl["after_fail"].replace(0, pd.NA)
     tbl = tbl.fillna(0).sort_values("recovery_rate", ascending=False)
     _save_table(tbl.reset_index(), p.tables / "error_recovery_rate.csv")
 
@@ -2061,9 +1990,7 @@ def _chart_errors_per_iteration(s: MetricSlices, p: OutputPaths) -> None:
             & t["result_error"].fillna(False)
         )
     ).astype(int)
-    by_iter = (
-        t.groupby("iteration")["is_error"].sum().rename("errors").reset_index()
-    )
+    by_iter = t.groupby("iteration")["is_error"].sum().rename("errors").reset_index()
     if by_iter.empty or by_iter["errors"].sum() == 0:
         return
     _line(
@@ -2085,17 +2012,12 @@ def _chart_first_error_position(s: MetricSlices, p: OutputPaths) -> None:
         return
 
     # Number each tool call within its invocation
-    numbered = (
-        tc.sort_values(["invocation_id_f", "ts", "row_id"])
-        .copy()
-    )
+    numbered = tc.sort_values(["invocation_id_f", "ts", "row_id"]).copy()
     numbered["call_seq"] = numbered.groupby("invocation_id_f").cumcount() + 1
 
     error_rows = set()
     if not tr.empty:
-        error_rows |= set(
-            tr[tr["result_error"].fillna(False)]["row_id"].tolist()
-        )
+        error_rows |= set(tr[tr["result_error"].fillna(False)]["row_id"].tolist())
     if not te.empty:
         error_rows |= set(te["row_id"].tolist())
 
@@ -2111,8 +2033,7 @@ def _chart_first_error_position(s: MetricSlices, p: OutputPaths) -> None:
         inv_error_tools = set()
         if not tr.empty:
             inv_errors = tr[
-                (tr["invocation_id_f"] == inv)
-                & tr["result_error"].fillna(False)
+                (tr["invocation_id_f"] == inv) & tr["result_error"].fillna(False)
             ]
             inv_error_tools |= set(inv_errors["tool_name_f"].tolist())
         if not te.empty:
@@ -2120,9 +2041,7 @@ def _chart_first_error_position(s: MetricSlices, p: OutputPaths) -> None:
             inv_error_tools |= set(inv_exc["tool_name_f"].tolist())
 
         if inv_error_tools:
-            first = group[group["tool_name_f"].isin(inv_error_tools)][
-                "call_seq"
-            ].min()
+            first = group[group["tool_name_f"].isin(inv_error_tools)]["call_seq"].min()
             if pd.notna(first):
                 positions.append(int(first))
 
@@ -2145,9 +2064,9 @@ def _chart_top_error_messages(s: MetricSlices, p: OutputPaths) -> None:
     truncated = errors.str[:120]
     counts = truncated.value_counts()
     _save_table(
-        counts.head(30).reset_index().rename(
-            columns={"index": "error_message", "count": "count"}
-        ),
+        counts.head(30)
+        .reset_index()
+        .rename(columns={"index": "error_message", "count": "count"}),
         p.tables / "top_error_messages.csv",
     )
     _bar(
@@ -2167,15 +2086,9 @@ def _chart_tokens_per_tool_call(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty or s.tool_calls.empty:
         return
     tokens = (
-        s.llm.groupby("invocation_id_f")["total_tokens"]
-        .sum()
-        .rename("total_tokens")
+        s.llm.groupby("invocation_id_f")["total_tokens"].sum().rename("total_tokens")
     )
-    calls = (
-        s.tool_calls.groupby("invocation_id_f")
-        .size()
-        .rename("tool_calls")
-    )
+    calls = s.tool_calls.groupby("invocation_id_f").size().rename("tool_calls")
     merged = pd.concat([tokens, calls], axis=1).dropna()
     merged = merged[merged["tool_calls"] > 0]
     merged["tokens_per_call"] = merged["total_tokens"] / merged["tool_calls"]
@@ -2195,9 +2108,7 @@ def _chart_cache_hit_rate_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     if s.tokens_by_agent.empty:
         return
     ta = s.tokens_by_agent.copy()
-    ta["cache_hit_rate"] = ta["cached_tokens"] / ta["prompt_tokens"].replace(
-        0, pd.NA
-    )
+    ta["cache_hit_rate"] = ta["cached_tokens"] / ta["prompt_tokens"].replace(0, pd.NA)
     ta = ta.dropna(subset=["cache_hit_rate"])
     if ta.empty or (ta["cache_hit_rate"] == 0).all():
         return
@@ -2211,15 +2122,11 @@ def _chart_cache_hit_rate_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
-def _chart_thinking_overhead_by_agent(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_thinking_overhead_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     if s.tokens_by_agent.empty:
         return
     ta = s.tokens_by_agent.copy()
-    ta["thinking_ratio"] = ta["thoughts_tokens"] / ta["total_tokens"].replace(
-        0, pd.NA
-    )
+    ta["thinking_ratio"] = ta["thoughts_tokens"] / ta["total_tokens"].replace(0, pd.NA)
     ta = ta.dropna(subset=["thinking_ratio"])
     if ta.empty or (ta["thinking_ratio"] == 0).all():
         return
@@ -2233,9 +2140,7 @@ def _chart_thinking_overhead_by_agent(
     )
 
 
-def _chart_useful_work_ratio_by_tool(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_useful_work_ratio_by_tool(s: MetricSlices, p: OutputPaths) -> None:
     if s.err_table.empty:
         return
     tbl = s.err_table.copy()
@@ -2258,31 +2163,19 @@ def _chart_useful_work_ratio_by_tool(
     )
 
 
-def _chart_tokens_per_successful_call(
-    s: MetricSlices, p: OutputPaths
-) -> None:
+def _chart_tokens_per_successful_call(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty or s.err_table.empty:
         return
     tokens = (
-        s.llm.groupby("invocation_id_f")["total_tokens"]
-        .sum()
-        .rename("total_tokens")
+        s.llm.groupby("invocation_id_f")["total_tokens"].sum().rename("total_tokens")
     )
-    success_results = s.tool_results[
-        ~s.tool_results["result_error"].fillna(False)
-    ]
+    success_results = s.tool_results[~s.tool_results["result_error"].fillna(False)]
     if success_results.empty:
         return
-    successes = (
-        success_results.groupby("invocation_id_f")
-        .size()
-        .rename("successes")
-    )
+    successes = success_results.groupby("invocation_id_f").size().rename("successes")
     merged = pd.concat([tokens, successes], axis=1).dropna()
     merged = merged[merged["successes"] > 0]
-    merged["tokens_per_success"] = (
-        merged["total_tokens"] / merged["successes"]
-    )
+    merged["tokens_per_success"] = merged["total_tokens"] / merged["successes"]
     if merged.empty:
         return
     _hist(
@@ -2320,9 +2213,7 @@ def _chart_error_rate_by_iteration(s: MetricSlices, p: OutputPaths) -> None:
             te.groupby("iteration").size().rename("errors"), fill_value=0
         )
 
-    tbl = pd.concat(
-        [calls_per, err_count.rename("errors")], axis=1
-    ).fillna(0)
+    tbl = pd.concat([calls_per, err_count.rename("errors")], axis=1).fillna(0)
     tbl["error_rate"] = tbl["errors"] / tbl["calls"].replace(0, pd.NA)
     tbl = tbl.fillna(0).sort_index().reset_index()
     if tbl.empty:
@@ -2463,21 +2354,15 @@ _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]
 
 def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
     _save_table(
-        s.all.drop(
-            columns=["raw", "payload", "tool_args", "result"], errors="ignore"
-        ),
+        s.all.drop(columns=["raw", "payload", "tool_args", "result"], errors="ignore"),
         p.tables / "events_flat.csv",
     )
 
     if not s.tools_by_calls.empty:
-        _save_table(
-            s.tools_by_calls.reset_index(), p.tables / "tools_by_calls.csv"
-        )
+        _save_table(s.tools_by_calls.reset_index(), p.tables / "tools_by_calls.csv")
 
     if not s.err_table.empty:
-        _save_table(
-            s.err_table.reset_index(), p.tables / "tool_error_table.csv"
-        )
+        _save_table(s.err_table.reset_index(), p.tables / "tool_error_table.csv")
 
     if not s.tokens_by_agent.empty:
         _save_table(
@@ -2486,9 +2371,7 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
         )
 
     if not s.tokens_by_task.empty:
-        _save_table(
-            s.tokens_by_task.reset_index(), p.tables / "tokens_by_task.csv"
-        )
+        _save_table(s.tokens_by_task.reset_index(), p.tables / "tokens_by_task.csv")
 
     if not s.llm.empty:
         llm_calls = (
@@ -2497,9 +2380,7 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
             .rename("llm_calls")
             .sort_values(ascending=False)
         )
-        _save_table(
-            llm_calls.reset_index(), p.tables / "llm_calls_by_agent.csv"
-        )
+        _save_table(llm_calls.reset_index(), p.tables / "llm_calls_by_agent.csv")
 
     if not s.calls_by_agent_tool.empty:
         _save_table(
@@ -2529,18 +2410,14 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
             .sum()
             .sort_values(ascending=False)
         )
-        _save_table(
-            cost_by_agent.reset_index(), p.tables / "cost_by_agent.csv"
-        )
+        _save_table(cost_by_agent.reset_index(), p.tables / "cost_by_agent.csv")
 
         cost_by_task = (
             s.llm_with_cost.groupby("task_name_f")["estimated_cost"]
             .sum()
             .sort_values(ascending=False)
         )
-        _save_table(
-            cost_by_task.reset_index(), p.tables / "cost_by_task.csv"
-        )
+        _save_table(cost_by_task.reset_index(), p.tables / "cost_by_task.csv")
 
         cost_by_model = (
             s.llm_with_cost.groupby(
@@ -2549,15 +2426,11 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
             .sum()
             .sort_values(ascending=False)
         )
-        _save_table(
-            cost_by_model.reset_index(), p.tables / "cost_by_model.csv"
-        )
+        _save_table(cost_by_model.reset_index(), p.tables / "cost_by_model.csv")
 
     # Retry tables
     if not s.tool_calls_with_retries.empty:
-        retries = s.tool_calls_with_retries[
-            s.tool_calls_with_retries["is_retry"]
-        ]
+        retries = s.tool_calls_with_retries[s.tool_calls_with_retries["is_retry"]]
         if not retries.empty:
             _save_table(
                 retries[
@@ -2599,7 +2472,6 @@ def analyze(df: pd.DataFrame, paths: OutputPaths) -> None:
 
     # Charts — each isolated so one failure doesn't abort the rest
     generated = 0
-    skipped = 0
     failed = 0
     for chart_name, chart_fn in _CHART_PIPELINE:
         try:
@@ -2607,9 +2479,7 @@ def analyze(df: pd.DataFrame, paths: OutputPaths) -> None:
             generated += 1
         except Exception:
             failed += 1
-            logger.warning(
-                "Chart '%s' failed:\n%s", chart_name, traceback.format_exc()
-            )
+            logger.warning("Chart '%s' failed:\n%s", chart_name, traceback.format_exc())
 
     logger.info(
         "Charts complete: %d generated, %d failed out of %d",

@@ -10,6 +10,7 @@ from typing import (
     Literal,
     Optional,
     TypeAlias,
+    Iterable,
 )
 
 import fsspec
@@ -261,7 +262,9 @@ class FsspecInteractionFileTools:
         }
 
     def ls(self, path: str) -> ToolResult:
-        normalized_path, err = self._validate_path(path, must_exist=True, check_ignored=False)
+        normalized_path, err = self._validate_path(
+            path, must_exist=True, check_ignored=False
+        )
         if err:
             return err
 
@@ -332,7 +335,9 @@ class FsspecInteractionFileTools:
         limit: Optional[int] = None,
     ) -> ToolResult:
         normalized_file, err = self._validate_path(
-            file_path, must_be_file=True, check_ignored=True,
+            file_path,
+            must_be_file=True,
+            check_ignored=True,
         )
         if err:
             return err
@@ -855,7 +860,9 @@ class FsspecWriteTools:
             "grep",
         ):
             return getattr(self._reader, name)
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
 
     def read_file(
         self,
@@ -1727,9 +1734,7 @@ def rw_file_tools(
             start_line=int(start_line),
             end_line=int(end_line),
             content=content,
-            preserve_trailing_newline=_parse_bool(
-                preserve_trailing_newline, True
-            ),
+            preserve_trailing_newline=_parse_bool(preserve_trailing_newline, True),
         )
 
     def edit(

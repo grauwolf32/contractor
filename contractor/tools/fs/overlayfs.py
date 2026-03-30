@@ -133,7 +133,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             return cls.root_marker
 
         if path.startswith("overlay://"):
-            path = path[len("overlay://"):]
+            path = path[len("overlay://") :]
 
         if not path.startswith("/"):
             path = "/" + path
@@ -442,9 +442,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
             self.reset_overlay()
             self._dirs.update(self._norm(path) for path in state.get("dirs", []))
-            self._deleted.update(
-                self._norm(path) for path in state.get("deleted", [])
-            )
+            self._deleted.update(self._norm(path) for path in state.get("deleted", []))
             self._files = {
                 self._norm(path): self._b64decode(content)
                 for path, content in state.get("files", {}).items()
@@ -483,9 +481,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             path = self._norm(path)
 
             if not self._base_exists(path):
-                raise FileNotFoundError(
-                    f"No base filesystem entry exists for {path}"
-                )
+                raise FileNotFoundError(f"No base filesystem entry exists for {path}")
 
             if path == self.root_marker:
                 self.reset_overlay()
@@ -495,9 +491,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
             # Drop any overlay materialized files at/under the path.
             for file_path in list(self._files):
-                if file_path == path or (
-                    recursive and file_path.startswith(prefix)
-                ):
+                if file_path == path or (recursive and file_path.startswith(prefix)):
                     del self._files[file_path]
 
             # Drop overlay-created directories at/under the path.
@@ -508,9 +502,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             ):
                 if dir_path == self.root_marker:
                     continue
-                if dir_path == path or (
-                    recursive and dir_path.startswith(prefix)
-                ):
+                if dir_path == path or (recursive and dir_path.startswith(prefix)):
                     self._dirs.discard(dir_path)
 
             # Remove tombstones so the base view becomes visible again.
@@ -567,9 +559,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
                 if entry_type == "file":
                     try:
-                        patch["base_hash"] = self._sha256_bytes(
-                            _read_base_cached(path)
-                        )
+                        patch["base_hash"] = self._sha256_bytes(_read_base_cached(path))
                     except FileNotFoundError:
                         pass
 
@@ -602,9 +592,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
                 base_info = base_entries[path]
                 if base_info.get("type") != "file":
-                    raise RuntimeError(
-                        f"Type mismatch for {path}: base is not a file"
-                    )
+                    raise RuntimeError(f"Type mismatch for {path}: base is not a file")
 
                 base_bytes = _read_base_cached(path)
                 if base_bytes != current_bytes:
@@ -665,9 +653,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                         and self._base_exists(path)
                         and self._base_isfile(path)
                     ):
-                        actual_hash = self._sha256_bytes(
-                            self._base_read_bytes(path)
-                        )
+                        actual_hash = self._sha256_bytes(self._base_read_bytes(path))
                         if actual_hash != base_hash:
                             raise RuntimeError(
                                 f"Base hash mismatch for {path}: "
@@ -1247,17 +1233,13 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
                 for dirname in dirs:
                     dir_path = (
-                        posixpath.join(root, dirname)
-                        if root != "/"
-                        else "/" + dirname
+                        posixpath.join(root, dirname) if root != "/" else "/" + dirname
                     )
                     result[dir_path] = self.info(dir_path)
 
             for filename in files:
                 file_path = (
-                    posixpath.join(root, filename)
-                    if root != "/"
-                    else "/" + filename
+                    posixpath.join(root, filename) if root != "/" else "/" + filename
                 )
                 result[file_path] = self.info(file_path)
 
@@ -1275,9 +1257,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             if self.exists(search_root):
                 candidates.add(search_root)
 
-            candidates.update(
-                self.find(search_root, withdirs=True, detail=False)
-            )
+            candidates.update(self.find(search_root, withdirs=True, detail=False))
         else:
             parts = pattern.strip("/").split("/")
             prefix_parts: list[str] = []
@@ -1298,9 +1278,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         pattern_no_root = pattern.lstrip("/")
         return sorted(
-            p
-            for p in candidates
-            if PurePosixPath(p.lstrip("/")).match(pattern_no_root)
+            p for p in candidates if PurePosixPath(p.lstrip("/")).match(pattern_no_root)
         )
 
     def du(
@@ -1311,9 +1289,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         withdirs: bool = False,
         **kwargs: Any,
     ):
-        entries = self.find(
-            path, maxdepth=maxdepth, withdirs=withdirs, detail=True
-        )
+        entries = self.find(path, maxdepth=maxdepth, withdirs=withdirs, detail=True)
         sizes = {p: int(info.get("size", 0)) for p, info in entries.items()}
 
         if total:
@@ -1355,6 +1331,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             self.base_fs.invalidate_cache(path)
         except Exception:
             pass
+
 
 class _OverlayWriteFile:
     def __init__(
@@ -1431,7 +1408,14 @@ class _OverlayWriteFile:
             if not line:
                 break
             lines.append(line)
-            if 0 <= hint <= sum(len(ln) if isinstance(ln, bytes) else len(ln.encode(self.encoding)) for ln in lines):
+            if (
+                0
+                <= hint
+                <= sum(
+                    len(ln) if isinstance(ln, bytes) else len(ln.encode(self.encoding))
+                    for ln in lines
+                )
+            ):
                 break
         return lines
 

@@ -4,8 +4,6 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable
 
 from google.adk.plugins.base_plugin import BasePlugin
-from google.adk.tools.base_tool import BaseTool
-from google.adk.tools.tool_context import ToolContext
 
 
 def snapshot_state(state_obj: Any) -> dict[str, Any]:

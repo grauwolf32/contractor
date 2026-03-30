@@ -57,6 +57,7 @@ def _format_comment_line(
         return f"{indent}<!-- {stripped} -->{newline}"
     return f"{indent}{prefix} {stripped}{newline}"
 
+
 def _parse_bool(value: Any, default: bool = False) -> bool:
     """Parse a value into a boolean, with a fallback default."""
     if value is None:
