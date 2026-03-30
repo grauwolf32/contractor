@@ -21,8 +21,8 @@ from pydantic import BaseModel, Field
 
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.models.task import RenderedTask, TaskTemplate
-from contractor.runners.metrics_plugin import AdkMetricsPlugin
-from contractor.runners.trace_plugin import AdkTracePlugin
+from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
+from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.tools.memory import MemoryNote, MemoryTools
 
 load_dotenv()
