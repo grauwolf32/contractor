@@ -21,15 +21,6 @@ dependencies = [
     "bs4 (>=0.0.2,<0.0.3)",
 ]
 
-[[tool.poetry.source]]
-name = "registry.tcsbank.ru"
-url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple/"
-
-[[tool.poetry.source]]
-name = "tinkoff"
-url = "https://nexus.tcsbank.ru/repository/pypi-all/simple"
-priority = "primary"
-
 [project.scripts]
 contractor = "cli.main:main"
 
