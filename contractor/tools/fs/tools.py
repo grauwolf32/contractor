@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import fnmatch
-import json
 import re
 
 from typing import (
     Any,
     Callable,
-    Iterable,
+    Iterator,
     Literal,
     Optional,
     TypeAlias,
@@ -31,6 +30,7 @@ from contractor.tools.fs.utils import (
     _ensure_int_or_none,
     _split_lines_keepends,
     _line_ending_for_text,
+    _parse_bool,
 )
 from contractor.utils.formatting import (
     norm_unicode,
@@ -44,13 +44,27 @@ BackendTool: TypeAlias = Callable[..., ToolResult]
 PatchPayload: TypeAlias = dict[str, Any] | str
 
 
+def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
+        if pattern and pattern not in seen:
+            seen.add(pattern)
+            result.append(pattern)
+    return result
+
+
+def _join_path(directory: str, filename: str) -> str:
+    return f"{str(directory).rstrip('/')}/{filename}".replace("\\", "/")
+
+
 class FsspecInteractionFileTools:
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
         fmt: FileFormat,
         *,
-        max_output: int = 8 * 10**4,
+        max_output: int = 80_000,
         max_items: int = 300,
         ignored_patterns: Optional[list[str]] = None,
         with_types: bool = True,
@@ -67,18 +81,44 @@ class FsspecInteractionFileTools:
         self.fmt.with_file_info = with_file_info
 
         self._interactions: dict[str, FileInteractionEntry] = {}
+        self.patterns = _build_ignore_patterns(ignored_patterns)
 
-        patterns: list[str] = []
-        for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
-            if pattern and pattern not in patterns:
-                patterns.append(pattern)
-        self.patterns = patterns
+    def _norm(self, path: str) -> str:
+        result = norm_unicode(path)
+        if result is None:
+            raise ValueError(f"Cannot normalize path: {path!r}")
+        return result
 
-    def _norm(self, path: Optional[str]) -> Optional[str]:
+    def _norm_optional(self, path: Optional[str]) -> Optional[str]:
+        if path is None:
+            return None
         return norm_unicode(path)
 
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
+
+    def _validate_path(
+        self,
+        path: str,
+        *,
+        must_exist: bool = False,
+        must_be_file: bool = False,
+        check_ignored: bool = True,
+    ) -> tuple[Optional[str], Optional[ToolResult]]:
+        try:
+            normalized = self._norm(path)
+        except ValueError:
+            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+        if check_ignored and self._is_ignored(normalized):
+            return None, {"error": f"path {normalized} is ignored"}
+        if must_exist and not self.fs.exists(normalized):
+            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+        if must_be_file:
+            if not self.fs.exists(normalized):
+                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+            if not self.fs.isfile(normalized):
+                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
+        return normalized, None
 
     def _paginate(
         self,
@@ -102,28 +142,22 @@ class FsspecInteractionFileTools:
         self.record_interaction(file_path, operation, interaction=interaction)
         return content
 
-    def _iter_all_files(self, root: str) -> list[str]:
-        files: list[str] = []
-
+    def _iter_all_files(self, root: str) -> Iterator[str]:
         if not self.fs.exists(root):
-            return files
+            return
 
         if self.fs.isfile(root):
             if not self._is_ignored(root):
-                files.append(root)
-            return sorted(set(files))
+                yield root
+            return
 
+        seen: set[str] = set()
         for current_path, _dirs, filenames in self.fs.walk(root):
             for filename in filenames:
-                full_path = (
-                    str(current_path).rstrip("/") + "/" + str(filename)
-                ).replace("\\", "/")
-                if self._is_ignored(full_path):
-                    continue
-                if self.fs.isfile(full_path):
-                    files.append(full_path)
-
-        return sorted(set(files))
+                full_path = _join_path(current_path, filename)
+                if full_path not in seen and not self._is_ignored(full_path):
+                    seen.add(full_path)
+                    yield full_path
 
     def _match_glob(self, file_path: str, root: str, pattern: str) -> bool:
         file_path = normalize_slashes(file_path)
@@ -144,11 +178,11 @@ class FsspecInteractionFileTools:
         return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
 
     def _matched_files(self, path: str, pattern: str) -> list[str]:
-        return [
+        return sorted(
             file_path
             for file_path in self._iter_all_files(path)
             if self._match_glob(file_path, path, pattern)
-        ]
+        )
 
     def _interaction_entry(self, path: str) -> Optional[FileInteractionEntry]:
         return self._interactions.get(path)
@@ -227,9 +261,9 @@ class FsspecInteractionFileTools:
         }
 
     def ls(self, path: str) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None or not self.fs.exists(normalized_path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
+        normalized_path, err = self._validate_path(path, must_exist=True, check_ignored=False)
+        if err:
+            return err
 
         try:
             items = self.fs.ls(normalized_path, detail=False)
@@ -249,8 +283,8 @@ class FsspecInteractionFileTools:
         path: Optional[str] = None,
         offset: int = 0,
     ) -> ToolResult:
-        normalized_path = self._norm(path) or "/"
-        normalized_pattern = self._norm(pattern)
+        normalized_path = self._norm_optional(path) or "/"
+        normalized_pattern = self._norm_optional(pattern)
 
         if normalized_pattern is None:
             return {
@@ -297,15 +331,11 @@ class FsspecInteractionFileTools:
         offset: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> ToolResult:
-        normalized_file = self._norm(file_path)
-        if (
-            normalized_file is None
-            or not self.fs.exists(normalized_file)
-            or self._is_ignored(normalized_file)
-        ):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_file)}
-        if not self.fs.isfile(normalized_file):
-            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_file)}
+        normalized_file, err = self._validate_path(
+            file_path, must_be_file=True, check_ignored=True,
+        )
+        if err:
+            return err
 
         try:
             content = self._read_text(
@@ -336,8 +366,8 @@ class FsspecInteractionFileTools:
         path: Optional[str] = None,
         offset: int = 0,
     ) -> ToolResult:
-        normalized_path = self._norm(path) or "/"
-        normalized_pattern = self._norm(pattern)
+        normalized_path = self._norm_optional(path) or "/"
+        normalized_pattern = self._norm_optional(pattern)
 
         try:
             regex = re.compile(normalized_pattern or "")
@@ -395,9 +425,7 @@ class FsspecInteractionFileTools:
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
             for filename in filenames:
-                full_path = (
-                    str(current_path).rstrip("/") + "/" + str(filename)
-                ).replace("\\", "/")
+                full_path = _join_path(current_path, filename)
                 results.extend(build_entries_for_file(full_path))
 
         results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
@@ -417,8 +445,8 @@ class FsspecInteractionFileTools:
         *,
         pattern: str = "**/*",
     ) -> ToolResult:
-        normalized_path = self._norm(path) or "/"
-        normalized_pattern = self._norm(pattern) or "**/*"
+        normalized_path = self._norm_optional(path) or "/"
+        normalized_pattern = self._norm_optional(pattern) or "**/*"
 
         if not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -452,8 +480,8 @@ class FsspecInteractionFileTools:
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> ToolResult:
-        normalized_path = self._norm(path) or "/"
-        normalized_pattern = self._norm(pattern) or "**/*"
+        normalized_path = self._norm_optional(path) or "/"
+        normalized_pattern = self._norm_optional(pattern) or "**/*"
 
         if isinstance(interaction, str):
             interaction = InteractionFilter(interaction)
@@ -468,7 +496,7 @@ class FsspecInteractionFileTools:
         )
 
         return {
-            "result": [self._serialize_interaction_entry(path) for path in page],
+            "result": [self._serialize_interaction_entry(p) for p in page],
             "offset": resolved_offset,
             "total_items": len(selected),
             "limit": resolved_limit,
@@ -499,8 +527,8 @@ class FsspecInteractionFileTools:
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> ToolResult:
-        normalized_path = self._norm(path) or "/"
-        normalized_pattern = self._norm(pattern) or "**/*"
+        normalized_path = self._norm_optional(path) or "/"
+        normalized_pattern = self._norm_optional(pattern) or "**/*"
 
         if not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -512,7 +540,7 @@ class FsspecInteractionFileTools:
         )
 
         return {
-            "result": [{"path": path} for path in page],
+            "result": [{"path": p} for p in page],
             "offset": resolved_offset,
             "total_items": len(selected),
             "limit": resolved_limit,
@@ -523,7 +551,7 @@ def ro_file_tools(
     fs: fsspec.AbstractFileSystem,
     fmt: FileFormat,
     *,
-    max_output: int = 8 * 10**4,
+    max_output: int = 80_000,
     max_items: int = 300,
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
@@ -709,7 +737,7 @@ class FsspecWriteTools:
         ignored_patterns: Optional[list[str]] = None,
         wrap_overlay: bool = True,
         fmt: Optional[FileFormat] = None,
-        max_output: int = 8 * 10**4,
+        max_output: int = 80_000,
         max_items: int = 300,
         with_types: bool = True,
         with_file_info: bool = True,
@@ -722,11 +750,7 @@ class FsspecWriteTools:
             else MemoryOverlayFileSystem(fs)
         )
 
-        patterns: list[str] = []
-        for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
-            if pattern and pattern not in patterns:
-                patterns.append(pattern)
-        self.patterns = patterns
+        self.patterns = _build_ignore_patterns(ignored_patterns)
 
         self.fmt = fmt or FileFormat(
             with_types=with_types,
@@ -755,43 +779,62 @@ class FsspecWriteTools:
         new_string: str,
     ) -> tuple[str, str]:
         """
-        Если файл использует CRLF, а агент прислал LF,
-        приводим old/new к фактическим line endings файла.
+        If the file uses CRLF but the agent sent LF,
+        adapt old/new to the file's actual line endings.
         """
-        if current_content is None or "\r\n" not in current_content:
+        if current_content is None:
             return old_string, new_string
 
-        normalized_old = old_string.replace("\r\n", "\n").replace("\n", "\r\n")
-        normalized_new = new_string.replace("\r\n", "\n").replace("\n", "\r\n")
-        return normalized_old, normalized_new
+        # If old_string already matches verbatim, no adaptation needed
+        if old_string in current_content:
+            return old_string, new_string
 
-    def _norm(self, path: Optional[str]) -> Optional[str]:
+        file_ending = _line_ending_for_text(current_content)
+
+        def adapt(s: str) -> str:
+            canonical = s.replace("\r\n", "\n")
+            if file_ending == "\r\n":
+                return canonical.replace("\n", "\r\n")
+            return canonical
+
+        return adapt(old_string), adapt(new_string)
+
+    def _norm(self, path: str) -> str:
+        result = norm_unicode(path)
+        if result is None:
+            raise ValueError(f"Cannot normalize path: {path!r}")
+        return result
+
+    def _norm_optional(self, path: Optional[str]) -> Optional[str]:
+        if path is None:
+            return None
         return norm_unicode(path)
 
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
 
-    def _parse_bool(self, value: Any, default: bool = False) -> bool:
-        if value is None:
-            return default
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)):
-            return bool(value)
-        if isinstance(value, str):
-            normalized = value.strip().lower()
-            if normalized in {"1", "true", "yes", "y", "on"}:
-                return True
-            if normalized in {"0", "false", "no", "n", "off"}:
-                return False
-        return default
-
-    def _parse_patch_payload(self, patch: Any) -> PatchPayload:
-        if isinstance(patch, dict):
-            return patch
-        if isinstance(patch, str):
-            return json.loads(patch)
-        raise ValueError("patch must be a dict or JSON string")
+    def _validate_path(
+        self,
+        path: str,
+        *,
+        must_exist: bool = False,
+        must_be_file: bool = False,
+        check_ignored: bool = True,
+    ) -> tuple[Optional[str], Optional[ToolResult]]:
+        try:
+            normalized = self._norm(path)
+        except ValueError:
+            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+        if check_ignored and self._is_ignored(normalized):
+            return None, {"error": f"path {normalized} is ignored"}
+        if must_exist and not self.fs.exists(normalized):
+            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+        if must_be_file:
+            if not self.fs.exists(normalized):
+                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+            if not self.fs.isfile(normalized):
+                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
+        return normalized, None
 
     def _ensure_interactions_enabled(self) -> Optional[ToolResult]:
         if not self.with_interaction_tools:
@@ -803,18 +846,16 @@ class FsspecWriteTools:
             }
         return None
 
-    # ---- read-like tools on overlay ----
+    # ---- read-like tools delegated to _reader ----
 
-    def ls(self, path: str) -> ToolResult:
-        return self._reader.ls(path=path)
-
-    def glob(
-        self,
-        pattern: str,
-        path: Optional[str] = None,
-        offset: int = 0,
-    ) -> ToolResult:
-        return self._reader.glob(pattern=pattern, path=path, offset=offset)
+    def __getattr__(self, name: str) -> Any:
+        if name in (
+            "ls",
+            "glob",
+            "grep",
+        ):
+            return getattr(self._reader, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def read_file(
         self,
@@ -846,14 +887,6 @@ class FsspecWriteTools:
         )
         return {"result": numbered}
 
-    def grep(
-        self,
-        pattern: str,
-        path: Optional[str] = None,
-        offset: int = 0,
-    ) -> ToolResult:
-        return self._reader.grep(pattern=pattern, path=path, offset=offset)
-
     # ---- write tools ----
 
     def write_file(
@@ -862,11 +895,9 @@ class FsspecWriteTools:
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        normalized_path, err = self._validate_path(path)
+        if err:
+            return err
 
         try:
             self.fs.write_text(
@@ -875,8 +906,8 @@ class FsspecWriteTools:
                 encoding=encoding,
                 errors="strict",
             )
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -893,17 +924,15 @@ class FsspecWriteTools:
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        normalized_path, err = self._validate_path(path)
+        if err:
+            return err
 
         try:
             with self.fs.open(normalized_path, mode="a", encoding=encoding) as f:
                 f.write(content)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -920,19 +949,17 @@ class FsspecWriteTools:
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        normalized_path, err = self._validate_path(path)
+        if err:
+            return err
 
         try:
             if exist_ok:
                 self.fs.makedirs(normalized_path, exist_ok=True)
             else:
                 self.fs.mkdir(normalized_path, create_parents=create_parents)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {"result": {"ok": True, "op": "mkdir", "path": normalized_path}}
 
@@ -941,16 +968,14 @@ class FsspecWriteTools:
         path: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None or not self.fs.exists(normalized_path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        normalized_path, err = self._validate_path(path, must_exist=True)
+        if err:
+            return err
 
         try:
             self.fs.rm(normalized_path, recursive=recursive)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -967,20 +992,17 @@ class FsspecWriteTools:
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src = self._norm(src)
-        normalized_dst = self._norm(dst)
-
-        if normalized_src is None or not self.fs.exists(normalized_src):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_src)}
-        if normalized_dst is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_dst)}
-        if self._is_ignored(normalized_src) or self._is_ignored(normalized_dst):
-            return {"error": "source or destination path is ignored"}
+        normalized_src, err = self._validate_path(src, must_exist=True)
+        if err:
+            return err
+        normalized_dst, err = self._validate_path(dst)
+        if err:
+            return err
 
         try:
             self.fs.copy(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -998,20 +1020,17 @@ class FsspecWriteTools:
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src = self._norm(src)
-        normalized_dst = self._norm(dst)
-
-        if normalized_src is None or not self.fs.exists(normalized_src):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_src)}
-        if normalized_dst is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_dst)}
-        if self._is_ignored(normalized_src) or self._is_ignored(normalized_dst):
-            return {"error": "source or destination path is ignored"}
+        normalized_src, err = self._validate_path(src, must_exist=True)
+        if err:
+            return err
+        normalized_dst, err = self._validate_path(dst)
+        if err:
+            return err
 
         try:
             self.fs.mv(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -1106,15 +1125,10 @@ class FsspecWriteTools:
         where: Literal["before", "after"] = "before",
         occurrence: int = 1,
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
-        if not self.fs.exists(normalized_path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if not self.fs.isfile(normalized_path):
-            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
+        normalized_path, err = self._validate_path(path, must_be_file=True)
+        if err:
+            return err
+
         if not anchor:
             return {"error": "anchor is required"}
         if occurrence < 1:
@@ -1122,8 +1136,8 @@ class FsspecWriteTools:
 
         try:
             text = self.fs.read_text(normalized_path, encoding="utf-8")
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         lines = _split_lines_keepends(text)
 
@@ -1181,8 +1195,8 @@ class FsspecWriteTools:
                 encoding="utf-8",
                 errors="strict",
             )
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -1207,15 +1221,13 @@ class FsspecWriteTools:
         replace_all: bool = False,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        normalized_path, err = self._validate_path(path)
+        if err:
+            return err
 
         file_exists = self.fs.exists(normalized_path)
 
-        # Qwen-like behavior: empty old_string + missing file => create
+        # Empty old_string + missing file => create
         if not file_exists:
             if old_string != "":
                 return {
@@ -1233,8 +1245,8 @@ class FsspecWriteTools:
                     encoding=encoding,
                     errors="strict",
                 )
-            except Exception as err:
-                return {"error": str(err)}
+            except Exception as exc:
+                return {"error": str(exc)}
 
             return {
                 "result": {
@@ -1258,8 +1270,8 @@ class FsspecWriteTools:
                 encoding=encoding,
                 errors="ignore",
             )
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         if old_string == "":
             return {
@@ -1334,8 +1346,8 @@ class FsspecWriteTools:
                 encoding=encoding,
                 errors="strict",
             )
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -1351,11 +1363,12 @@ class FsspecWriteTools:
         }
 
     def restore(self, path: str, recursive: bool = True) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
+        if not isinstance(self.fs, MemoryOverlayFileSystem):
+            return {"error": "restore is only available with overlay filesystem"}
+
+        normalized_path, err = self._validate_path(path)
+        if err:
+            return err
 
         if not self.fs.base_fs.exists(normalized_path):
             return {
@@ -1367,8 +1380,8 @@ class FsspecWriteTools:
 
         try:
             self.fs.restore(normalized_path, recursive=recursive)
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         return {
             "result": {
@@ -1388,15 +1401,9 @@ class FsspecWriteTools:
         *,
         preserve_trailing_newline: bool = True,
     ) -> ToolResult:
-        normalized_path = self._norm(path)
-        if normalized_path is None:
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if self._is_ignored(normalized_path):
-            return {"error": f"path {normalized_path} is ignored"}
-        if not self.fs.exists(normalized_path):
-            return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
-        if not self.fs.isfile(normalized_path):
-            return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
+        normalized_path, err = self._validate_path(path, must_be_file=True)
+        if err:
+            return err
 
         try:
             start_line = int(start_line)
@@ -1413,8 +1420,8 @@ class FsspecWriteTools:
 
         try:
             text = self.fs.read_text(normalized_path, encoding="utf-8")
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         lines = _split_lines_keepends(text)
         newline = _line_ending_for_text(text)
@@ -1470,8 +1477,8 @@ class FsspecWriteTools:
                 encoding="utf-8",
                 errors="strict",
             )
-        except Exception as err:
-            return {"error": str(err)}
+        except Exception as exc:
+            return {"error": str(exc)}
 
         inserted_line_count = len(replacement_lines)
         new_end_line = (
@@ -1502,7 +1509,7 @@ def rw_file_tools(
     ignored_patterns: Optional[list[str]] = None,
     wrap_overlay: bool = True,
     fmt: Optional[FileFormat] = None,
-    max_output: int = 8 * 10**4,
+    max_output: int = 80_000,
     max_items: int = 300,
     with_types: bool = True,
     with_file_info: bool = True,
@@ -1615,29 +1622,29 @@ def rw_file_tools(
     ) -> dict[str, Any]:
         return tools.mkdir(
             path=path,
-            create_parents=tools._parse_bool(create_parents, True),
-            exist_ok=tools._parse_bool(exist_ok, True),
+            create_parents=_parse_bool(create_parents, True),
+            exist_ok=_parse_bool(exist_ok, True),
         )
 
     def rm(
         path: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.rm(path=path, recursive=tools._parse_bool(recursive, False))
+        return tools.rm(path=path, recursive=_parse_bool(recursive, False))
 
     def cp(
         src: str,
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.cp(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
+        return tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
 
     def mv(
         src: str,
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.mv(src=src, dst=dst, recursive=tools._parse_bool(recursive, False))
+        return tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
 
     def insert_line(
         path: str,
@@ -1677,11 +1684,12 @@ def rw_file_tools(
             end_line (int):
                 The ending line number (1-based, inclusive).
 
-            new_content (str):
+            content (str):
                 The content that will replace the specified line range.
 
-            encoding (str, optional):
-                File encoding (default: "utf-8").
+            preserve_trailing_newline (bool, optional):
+                If True (default), ensures the last replacement line
+                ends with a newline.
 
         Behavior:
             - Replaces all lines from start_line to end_line (inclusive)
@@ -1719,7 +1727,7 @@ def rw_file_tools(
             start_line=int(start_line),
             end_line=int(end_line),
             content=content,
-            preserve_trailing_newline=tools._parse_bool(
+            preserve_trailing_newline=_parse_bool(
                 preserve_trailing_newline, True
             ),
         )
@@ -1802,7 +1810,7 @@ def rw_file_tools(
             path=path,
             old_string=old_string,
             new_string=new_string,
-            replace_all=tools._parse_bool(replace_all, False),
+            replace_all=_parse_bool(replace_all, False),
             encoding=encoding,
         )
 
@@ -1856,10 +1864,9 @@ def rw_file_tools(
         recursive: bool = True,
     ) -> dict[str, Any]:
         """
-        Revert all changes and resore original file
+        Revert all changes and restore original file.
         """
-
-        return tools.restore(path=path, recursive=tools._parse_bool(recursive, True))
+        return tools.restore(path=path, recursive=_parse_bool(recursive, True))
 
     def list_match_only_files(
         path: str = "/",
