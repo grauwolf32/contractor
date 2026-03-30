@@ -357,6 +357,7 @@ class TaskRunner(BaseModel):
         ns = item.effective_namespace(self.name)
         worker = item.worker_builder(namespace=ns, _format=task.format)
         return build_planning_agent(
+            _format="xml",
             name=item.ref,
             namespace=ns,
             worker=worker,
