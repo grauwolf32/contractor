@@ -29,7 +29,6 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
 langfuse = get_client()
 
 
-# Navigaton:  search_def, search_refs, list_symbols
 TRACE_AGENT_PROMPT: Final[str] = """\
 You are a request-trace annotation agent. For a given OpenAPI operation, trace
 the full execution path from the HTTP entrypoint to all sinks, annotating every
@@ -40,7 +39,7 @@ TOOLS
 ═══════════════════════════════════════════════════════════════
 
 Navigation & search:
-  ls, glob, grep, read_file
+  ls, glob, grep, read_file, search_def, search_refs, list_symbols
 
 Annotation (insert above `def` only — never modify logic):
   insert_line      — preferred for single-block insertion
@@ -206,7 +205,7 @@ def build_trace_agent(
     )
 
     ctools = code_tools(fs)
-    tools = [default_tool, *fs_tools, *mem_tools]  # , *ctools]
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
 
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
