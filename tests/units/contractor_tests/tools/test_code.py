@@ -10,7 +10,7 @@ from typing import Optional
 import pytest
 from fsspec.implementations.memory import MemoryFileSystem
 
-from contractor.tools.code import (
+from contractor.tools.code.tools import (
     Language,
     DefinitionSearcher,
     SearchResult,
@@ -285,7 +285,9 @@ class TestDetectLanguage:
     def test_known_extensions(self, path: str, expected: Language) -> None:
         assert detect_language(path) == expected
 
-    @pytest.mark.parametrize("path", ["file.txt", "file.md", "file.json", "file.xml", "Makefile", "file"])
+    @pytest.mark.parametrize(
+        "path", ["file.txt", "file.md", "file.json", "file.xml", "Makefile", "file"]
+    )
     def test_unknown_extensions(self, path: str) -> None:
         assert detect_language(path) is None
 
@@ -424,9 +426,7 @@ class TestSearcherPython:
 
 
 class TestSearcherJavaScript:
-    def test_find_function_declaration(
-        self, js_project: MemoryFileSystem
-    ) -> None:
+    def test_find_function_declaration(self, js_project: MemoryFileSystem) -> None:
         searcher = DefinitionSearcher(fs=js_project, root="/project")
         result = searcher.search("handleRequest")
         assert len(result.definitions) >= 1
@@ -442,9 +442,7 @@ class TestSearcherJavaScript:
 
     def test_language_filter(self, js_project: MemoryFileSystem) -> None:
         searcher = DefinitionSearcher(fs=js_project, root="/project")
-        result = searcher.search(
-            "handleRequest", language_filter=Language.PYTHON
-        )
+        result = searcher.search("handleRequest", language_filter=Language.PYTHON)
         # No Python files in js_project
         assert len(result.definitions) == 0
 
@@ -500,9 +498,7 @@ class TestSearcherRust:
 
 
 class TestMultiLanguage:
-    def test_finds_across_languages(
-        self, multi_lang_project: MemoryFileSystem
-    ) -> None:
+    def test_finds_across_languages(self, multi_lang_project: MemoryFileSystem) -> None:
         searcher = DefinitionSearcher(fs=multi_lang_project, root="/project")
         result = searcher.search("process")
         assert len(result.definitions) >= 3  # py, js, go, rs
@@ -596,9 +592,7 @@ class TestCaching:
             d.symbol != "handle_request" for d in result2.definitions
         )
 
-    def test_cache_hit_returns_same_objects(
-        self, searcher: DefinitionSearcher
-    ) -> None:
+    def test_cache_hit_returns_same_objects(self, searcher: DefinitionSearcher) -> None:
         result1 = searcher.search("create_user")
         result2 = searcher.search("create_user")
         # Cache should return the same list object
@@ -631,9 +625,7 @@ class TestSearchResultToDict:
         result = SearchResult(
             symbol="test",
             definitions=[],
-            grep_matches=[
-                GrepMatch(file="a.py", line=10, text=">>>    10 | test()")
-            ],
+            grep_matches=[GrepMatch(file="a.py", line=10, text=">>>    10 | test()")],
             is_fallback=True,
         )
         d = result.to_dict()
@@ -721,9 +713,7 @@ class TestGrepFallback:
         assert len(result.grep_matches) >= 1
         assert any("caller.py" in m.file for m in result.grep_matches)
 
-    def test_grep_shows_context_lines(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_grep_shows_context_lines(self, python_project: MemoryFileSystem) -> None:
         _write(
             python_project,
             "/project/src/usage.py",
@@ -762,9 +752,7 @@ class TestCodeTools:
         assert callable(tools[0])
         assert tools[0].__name__ == "search_def"
 
-    def test_search_def_has_docstring(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_search_def_has_docstring(self, python_project: MemoryFileSystem) -> None:
         tools = code_tools(fs=python_project, root="/project")
         search_def = tools[0]
         assert search_def.__doc__ is not None
@@ -783,9 +771,7 @@ class TestCodeTools:
         assert result["count"] >= 1
         assert result["results"][0]["symbol"] == "handle_request"
 
-    def test_search_def_with_path(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_search_def_with_path(self, python_project: MemoryFileSystem) -> None:
         tools = code_tools(fs=python_project, root="/project")
         search_def = tools[0]
         result = search_def(symbol="insert_user", path="src")
@@ -810,18 +796,14 @@ class TestCodeTools:
         assert result["kind"] == "error"
         assert "Unknown language" in result["note"]
 
-    def test_search_def_not_found(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_search_def_not_found(self, python_project: MemoryFileSystem) -> None:
         tools = code_tools(fs=python_project, root="/project")
         search_def = tools[0]
         result = search_def(symbol="absolutely_nonexistent_xyz")
         assert result["found"] is False
         assert result["count"] == 0
 
-    def test_search_def_grep_fallback(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_search_def_grep_fallback(self, python_project: MemoryFileSystem) -> None:
         _write(
             python_project,
             "/project/src/refs.py",
@@ -837,9 +819,7 @@ class TestCodeTools:
             pytest.skip("Unexpectedly parsed as definition")
         assert result["kind"] in ("grep_fallback", "none")
 
-    def test_search_def_default_args(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_search_def_default_args(self, python_project: MemoryFileSystem) -> None:
         """Verify defaults work when path and language are omitted."""
         tools = code_tools(fs=python_project, root="/project")
         search_def = tools[0]
@@ -940,9 +920,7 @@ class TestEdgeCases:
         result = searcher.search("broken")
         assert isinstance(result, SearchResult)
 
-    def test_max_results_respected(
-        self, memfs: MemoryFileSystem
-    ) -> None:
+    def test_max_results_respected(self, memfs: MemoryFileSystem) -> None:
         for i in range(10):
             _write(
                 memfs,
@@ -956,17 +934,13 @@ class TestEdgeCases:
         result = searcher.search("target", max_results=3)
         assert len(result.definitions) <= 3
 
-    def test_qualified_symbol_search(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_qualified_symbol_search(self, python_project: MemoryFileSystem) -> None:
         searcher = DefinitionSearcher(fs=python_project, root="/project")
         result = searcher.search("User.full_name")
         assert len(result.definitions) >= 1
         assert any(d.symbol == "full_name" for d in result.definitions)
 
-    def test_decorated_python_function(
-        self, memfs: MemoryFileSystem
-    ) -> None:
+    def test_decorated_python_function(self, memfs: MemoryFileSystem) -> None:
         _write(
             memfs,
             "/project/decorated.py",
@@ -983,9 +957,7 @@ class TestEdgeCases:
         result = searcher.search("decorated_handler")
         assert len(result.definitions) >= 1
 
-    def test_root_with_trailing_slash(
-        self, python_project: MemoryFileSystem
-    ) -> None:
+    def test_root_with_trailing_slash(self, python_project: MemoryFileSystem) -> None:
         searcher = DefinitionSearcher(fs=python_project, root="/project/")
         result = searcher.search("handle_request")
         assert len(result.definitions) >= 1

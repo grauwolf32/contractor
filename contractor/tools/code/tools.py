@@ -372,7 +372,14 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
         keyword = source[keyword_node.start_byte : keyword_node.end_byte].decode(
             "utf-8", errors="replace"
         )
-        if keyword in ("def", "defp", "defmodule", "defmacro", "defimpl", "defprotocol"):
+        if keyword in (
+            "def",
+            "defp",
+            "defmodule",
+            "defmacro",
+            "defimpl",
+            "defprotocol",
+        ):
             args_node = node.children[1]
             if args_node.child_count > 0:
                 first = args_node.children[0]
@@ -635,7 +642,11 @@ class DefinitionSearcher:
 
     def _grep_files(self, pattern: str, path: str = "") -> list[str]:
         """Find all source files under `path` whose content contains `pattern`."""
-        search_root = f"{self.root.rstrip('/')}/{path}".rstrip("/") if path else self.root.rstrip("/")
+        search_root = (
+            f"{self.root.rstrip('/')}/{path}".rstrip("/")
+            if path
+            else self.root.rstrip("/")
+        )
         try:
             all_files = self.fs.find(search_root, detail=False)
         except FileNotFoundError:
@@ -648,7 +659,11 @@ class DefinitionSearcher:
                 continue
             try:
                 raw = self.fs.cat_file(fpath)
-                text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+                text = (
+                    raw.decode("utf-8", errors="replace")
+                    if isinstance(raw, bytes)
+                    else raw
+                )
                 if pattern in text:
                     matching.append(fpath)
             except Exception:
@@ -679,9 +694,7 @@ class DefinitionSearcher:
             parser = tree_sitter_languages.get_parser(lang.value)
             tree = parser.parse(content)
         except Exception:
-            logger.debug(
-                "Failed to parse %s as %s", path, lang.value, exc_info=True
-            )
+            logger.debug("Failed to parse %s as %s", path, lang.value, exc_info=True)
             return None
 
         parsed = _ParsedFile(

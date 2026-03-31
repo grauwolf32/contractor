@@ -181,83 +181,83 @@ Come back if new information surfaces.
 
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
-  return (
-      "You have reached the context limit. Summarize your progress:\n"
-      "1. Entrypoint identified (file, function)\n"
-      "2. Functions traced and annotated so far (list with depths)\n"
-      "3. Sinks and validations discovered\n"
-      "4. Files modified\n"
-      "5. Branches not yet traced or partially traced\n"
-      "6. Suggested next steps to complete the trace\n"
-      + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
-  )
+    return (
+        "You have reached the context limit. Summarize your progress:\n"
+        "1. Entrypoint identified (file, function)\n"
+        "2. Functions traced and annotated so far (list with depths)\n"
+        "3. Sinks and validations discovered\n"
+        "4. Files modified\n"
+        "5. Branches not yet traced or partially traced\n"
+        "6. Suggested next steps to complete the trace\n"
+        + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
+    )
 
 
 TRACE_MODEL = LiteLlm(
-  model="lm-studio-qwen3.5",
-  timeout=300,
+    model="lm-studio-qwen3.5",
+    timeout=300,
 )
 
 
 def build_trace_agent(
-  name: str,
-  fs: RootedLocalFileSystem,
-  *,
-  namespace: str,
-  _format: Literal["json", "xml", "yaml", "markdown"] = "json",
-  max_tokens: int = 80000,
-  model: Optional[LiteLlm] = None,
-  enable_vuln_reporting: bool = False,
+    name: str,
+    fs: RootedLocalFileSystem,
+    *,
+    namespace: str,
+    _format: Literal["json", "xml", "yaml", "markdown"] = "json",
+    max_tokens: int = 80000,
+    model: Optional[LiteLlm] = None,
+    enable_vuln_reporting: bool = False,
 ) -> LlmAgent:
-  mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-  fs_tools = rw_file_tools(
-      fs,
-      fmt=FileFormat(_format=_format),
-      with_interaction_tools=True,
-  )
+    mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
+    fs_tools = rw_file_tools(
+        fs,
+        fmt=FileFormat(_format=_format),
+        with_interaction_tools=True,
+    )
 
-  tools = [default_tool, *fs_tools, *mem_tools]
+    tools = [default_tool, *fs_tools, *mem_tools]
 
-  if enable_vuln_reporting:
-      vuln_tools = vulnerability_report_tools(
-          name=namespace,
-          fmt=VulnerabilityReportFormat(_format=_format),
-      )
-      tools.extend(vuln_tools)
+    if enable_vuln_reporting:
+        vuln_tools = vulnerability_report_tools(
+            name=namespace,
+            fmt=VulnerabilityReportFormat(_format=_format),
+        )
+        tools.extend(vuln_tools)
 
-  callback_adapter = CallbackAdapter(agent_name=name)
-  callback_adapter.register(TokenUsageCallback())
-  callback_adapter.register(
-      SummarizationLimitCallback(
-          max_tokens=max_tokens,
-          message=summarization_message(_format=_format),
-      )
-  )
-  callback_adapter.register(
-      InvalidToolCallGuardrailCallback(
-          tools=tools,
-          default_tool_name="default_tool",
-          default_tool_arg="meta",
-      )
-  )
+    callback_adapter = CallbackAdapter(agent_name=name)
+    callback_adapter.register(TokenUsageCallback())
+    callback_adapter.register(
+        SummarizationLimitCallback(
+            max_tokens=max_tokens,
+            message=summarization_message(_format=_format),
+        )
+    )
+    callback_adapter.register(
+        InvalidToolCallGuardrailCallback(
+            tools=tools,
+            default_tool_name="default_tool",
+            default_tool_arg="meta",
+        )
+    )
 
-  trace_agent = LlmAgent(
-      name=name,
-      description="request trace annotation agent",
-      instruction=TRACE_AGENT_PROMPT,
-      model=model if model is not None else TRACE_MODEL,
-      tools=tools,
-      **callback_adapter(),
-  )
+    trace_agent = LlmAgent(
+        name=name,
+        description="request trace annotation agent",
+        instruction=TRACE_AGENT_PROMPT,
+        model=model if model is not None else TRACE_MODEL,
+        tools=tools,
+        **callback_adapter(),
+    )
 
-  return trace_agent
+    return trace_agent
 
 
 playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 fs = RootedLocalFileSystem(root_path=playground_path)
 
 root_agent = build_trace_agent(
-  name="trace_agent",
-  namespace="code_review",
-  fs=fs,
+    name="trace_agent",
+    namespace="code_review",
+    fs=fs,
 )

@@ -18,7 +18,6 @@ from contractor.tools.fs import (
 )
 
 
-
 @pytest.fixture()
 def tmpdir_path(tmp_path: Path) -> Path:
     # Create a small directory tree
@@ -798,6 +797,7 @@ def write_tool_map(write_fs: fsspec.AbstractFileSystem):
         wrap_overlay=True,
     )
     return {fn.__name__: fn for fn in tools}
+
 
 def test_write_file_creates_new_file(write_tool_map, write_tmpdir: Path):
     target = abs_path(write_tmpdir / "new.txt")

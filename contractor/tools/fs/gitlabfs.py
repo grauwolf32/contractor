@@ -748,11 +748,13 @@ class _GitlabApiFallback:
         results: List[Dict[str, Any]] = []
 
         if fixed_string:
+
             def matcher(line):
                 return pattern in line
         else:
             try:
                 compiled = re.compile(pattern)
+
                 def matcher(line):
                     return compiled.search(line) is not None
             except re.error:
@@ -1361,14 +1363,17 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         results: List[Dict[str, Any]] = []
 
         if fixed_string:
+
             def matcher(line):
                 return pattern in line
         else:
             try:
                 compiled = re.compile(pattern)
+
                 def matcher(line):
                     return compiled.search(line) is not None
             except re.error:
+
                 def matcher(line):
                     return pattern in line
 

@@ -422,6 +422,7 @@ class TaskRunner(BaseModel):
     ) -> dict[str, Any]:
         def key(k):
             return _global_state_key(task_id, k)
+
         state = copy.deepcopy(carry_state)
 
         # Task-scoped keys
@@ -453,6 +454,7 @@ class TaskRunner(BaseModel):
         state: dict[str, Any], finished_task_id: int
     ) -> dict[str, Any]:
         carry = copy.deepcopy(state)
+
         def key(k):
             return _global_state_key(finished_task_id, k)
 
@@ -566,6 +568,7 @@ class TaskRunner(BaseModel):
     ) -> TaskResult:
         def key(k):
             return _global_state_key(task_id, k)
+
         carry_state = self._extract_carry_state(final_state, task_id)
 
         return TaskResult(
@@ -686,6 +689,7 @@ class TaskRunner(BaseModel):
     ) -> list:
         def emit_fn(**kw):
             return self._emit(on_event, **kw)
+
         common = dict(
             task_name=item.ref,
             task_id=task_id,
