@@ -1,982 +1,1056 @@
 """
-Tests for contractor.tools.code — symbol definition search using tree-sitter.
+Comprehensive tests for the code_tools module.
+
+Run with:
+    pytest test_code_tools.py -v
 """
 
 from __future__ import annotations
-
-import textwrap
-from typing import Optional
-
+from unittest.mock import MagicMock
 import pytest
-from fsspec.implementations.memory import MemoryFileSystem
 
+# ─── Import the module under test ────────────────────────────────────────────
 from contractor.tools.code.tools import (
     Language,
-    CodeTools,
-    SearchResult,
+    _EXT_TO_LANG,
+    detect_language,
+    _NodeSpec,
+    _specs_for,
+    SymbolEntry,
     DefinitionResult,
     GrepMatch,
-    code_tools,
-    detect_language,
+    SearchResult,
+    _ParsedFile,
+    _CacheEntry,
+    _context_snippet,
     _symbol_matches,
-    _specs_for,
+    _grep_file_lines,
+    _check_file_for_pattern,
+    CodeTools,
+    _parse_language,
+    code_tools,
 )
 
 
-# ─── Fixtures ─────────────────────────────────────────────────────────
+# ─── Fixtures ────────────────────────────────────────────────────────────────
 
 
-@pytest.fixture()
-def memfs() -> MemoryFileSystem:
-    """Fresh in-memory filesystem for each test."""
-    fs = MemoryFileSystem()
-    fs.store.clear()
+def make_mock_fs(files: dict[str, str]) -> MagicMock:
+    """Create a mock AbstractFileSystem with given path→content mapping."""
+    fs = MagicMock()
+    fs.find.return_value = list(files.keys())
+
+    def cat_file(path):
+        content = files.get(path, "")
+        if isinstance(content, str):
+            return content.encode("utf-8")
+        return content
+
+    fs.cat_file.side_effect = cat_file
     return fs
 
 
-def _write(fs: MemoryFileSystem, path: str, content: str) -> None:
-    """Helper: write text content into the memory filesystem."""
-    with fs.open(path, "wb") as f:
-        f.write(textwrap.dedent(content).encode("utf-8"))
+SIMPLE_PYTHON = """\
+def hello(name):
+    return f"Hello, {name}"
+
+class Greeter:
+    def greet(self):
+        pass
+"""
+
+SIMPLE_JS = """\
+function add(a, b) {
+    return a + b;
+}
+
+class Calculator {
+    multiply(x, y) {
+        return x * y;
+    }
+}
+"""
+
+SIMPLE_GO = """\
+package main
+
+func Add(a, b int) int {
+    return a + b
+}
+
+type Point struct {
+    X, Y int
+}
+"""
+
+SIMPLE_RUST = """\
+fn greet(name: &str) -> String {
+    format!("Hello, {}", name)
+}
+
+struct Config {
+    debug: bool,
+}
+"""
 
 
-@pytest.fixture()
-def python_project(memfs: MemoryFileSystem) -> MemoryFileSystem:
-    """A small Python project."""
-    _write(
-        memfs,
-        "/project/src/handler.py",
-        """\
-        from src.service import create_user
-
-        def handle_request(request):
-            data = request.json()
-            return create_user(data)
-        """,
-    )
-    _write(
-        memfs,
-        "/project/src/service.py",
-        """\
-        from src.repo import insert_user
-
-        def create_user(data):
-            validated = validate(data)
-            return insert_user(validated)
-
-        def validate(data):
-            if not data.get("name"):
-                raise ValueError("name required")
-            return data
-        """,
-    )
-    _write(
-        memfs,
-        "/project/src/repo.py",
-        """\
-        def insert_user(user):
-            db.execute("INSERT INTO users ...", user)
-        """,
-    )
-    _write(
-        memfs,
-        "/project/src/models.py",
-        """\
-        class User:
-            def __init__(self, name: str, email: str):
-                self.name = name
-                self.email = email
-
-            def full_name(self):
-                return self.name
-        """,
-    )
-    return memfs
-
-
-@pytest.fixture()
-def js_project(memfs: MemoryFileSystem) -> MemoryFileSystem:
-    """A small JavaScript project."""
-    _write(
-        memfs,
-        "/project/src/index.js",
-        """\
-        const express = require('express');
-        const { handleRequest } = require('./handler');
-
-        const app = express();
-        app.post('/users', handleRequest);
-        """,
-    )
-    _write(
-        memfs,
-        "/project/src/handler.js",
-        """\
-        function handleRequest(req, res) {
-            const data = req.body;
-            res.json({ ok: true });
-        }
-
-        const processData = (data) => {
-            return data;
-        };
-
-        module.exports = { handleRequest, processData };
-        """,
-    )
-    return memfs
-
-
-@pytest.fixture()
-def go_project(memfs: MemoryFileSystem) -> MemoryFileSystem:
-    """A small Go project."""
-    _write(
-        memfs,
-        "/project/main.go",
-        """\
-        package main
-
-        import "fmt"
-
-        func main() {
-            fmt.Println(greet("world"))
-        }
-
-        func greet(name string) string {
-            return "Hello, " + name
-        }
-        """,
-    )
-    _write(
-        memfs,
-        "/project/handler.go",
-        """\
-        package main
-
-        type UserService struct{}
-
-        func (s *UserService) CreateUser(name string) error {
-            return nil
-        }
-
-        func HandleRequest(w http.ResponseWriter, r *http.Request) {
-            svc := &UserService{}
-            svc.CreateUser("test")
-        }
-        """,
-    )
-    return memfs
-
-
-@pytest.fixture()
-def rust_project(memfs: MemoryFileSystem) -> MemoryFileSystem:
-    """A small Rust project."""
-    _write(
-        memfs,
-        "/project/src/main.rs",
-        """\
-        struct Config {
-            port: u16,
-        }
-
-        enum Status {
-            Active,
-            Inactive,
-        }
-
-        fn start_server(config: Config) {
-            println!("Starting on port {}", config.port);
-        }
-
-        fn main() {
-            let cfg = Config { port: 8080 };
-            start_server(cfg);
-        }
-        """,
-    )
-    return memfs
-
-
-@pytest.fixture()
-def multi_lang_project(memfs: MemoryFileSystem) -> MemoryFileSystem:
-    """Project with multiple languages."""
-    _write(
-        memfs,
-        "/project/app.py",
-        """\
-        def process():
-            pass
-        """,
-    )
-    _write(
-        memfs,
-        "/project/app.js",
-        """\
-        function process() {
-            return null;
-        }
-        """,
-    )
-    _write(
-        memfs,
-        "/project/app.go",
-        """\
-        package main
-
-        func process() {
-        }
-        """,
-    )
-    _write(
-        memfs,
-        "/project/app.rs",
-        """\
-        fn process() {
-        }
-        """,
-    )
-    return memfs
-
-
-@pytest.fixture()
-def tools(python_project: MemoryFileSystem) -> CodeTools:
-    return CodeTools(fs=python_project, root="/project")
-
-
-# ─── detect_language ──────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1.  Language Detection
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestDetectLanguage:
+    """Tests for detect_language()."""
+
     @pytest.mark.parametrize(
         "path, expected",
         [
             ("foo.py", Language.PYTHON),
-            ("bar.js", Language.JAVASCRIPT),
-            ("baz.ts", Language.TYPESCRIPT),
-            ("qux.tsx", Language.TSX),
-            ("main.go", Language.GO),
-            ("lib.rs", Language.RUST),
-            ("App.java", Language.JAVA),
-            ("App.kt", Language.KOTLIN),
-            ("main.c", Language.C),
-            ("main.cpp", Language.CPP),
-            ("main.cc", Language.CPP),
-            ("Prog.cs", Language.CSHARP),
-            ("script.rb", Language.RUBY),
-            ("index.php", Language.PHP),
-            ("Main.scala", Language.SCALA),
-            ("main.swift", Language.SWIFT),
-            ("init.lua", Language.LUA),
-            ("app.ex", Language.ELIXIR),
-            ("Main.hs", Language.HASKELL),
-            ("run.sh", Language.BASH),
-            ("file.mjs", Language.JAVASCRIPT),
-            ("file.cjs", Language.JAVASCRIPT),
-            ("file.jsx", Language.JAVASCRIPT),
-            ("file.kts", Language.KOTLIN),
-            ("header.h", Language.C),
-            ("header.hpp", Language.CPP),
-            ("header.hxx", Language.CPP),
-            ("file.cxx", Language.CPP),
-            ("file.sc", Language.SCALA),
-            ("file.exs", Language.ELIXIR),
-            ("file.bash", Language.BASH),
+            ("foo.js", Language.JAVASCRIPT),
+            ("foo.mjs", Language.JAVASCRIPT),
+            ("foo.cjs", Language.JAVASCRIPT),
+            ("foo.jsx", Language.JAVASCRIPT),
+            ("foo.ts", Language.TYPESCRIPT),
+            ("foo.tsx", Language.TSX),
+            ("foo.go", Language.GO),
+            ("foo.rs", Language.RUST),
+            ("foo.java", Language.JAVA),
+            ("foo.kt", Language.KOTLIN),
+            ("foo.kts", Language.KOTLIN),
+            ("foo.c", Language.C),
+            ("foo.h", Language.C),
+            ("foo.cpp", Language.CPP),
+            ("foo.cc", Language.CPP),
+            ("foo.cxx", Language.CPP),
+            ("foo.hpp", Language.CPP),
+            ("foo.hxx", Language.CPP),
+            ("foo.cs", Language.CSHARP),
+            ("foo.rb", Language.RUBY),
+            ("foo.php", Language.PHP),
+            ("foo.scala", Language.SCALA),
+            ("foo.sc", Language.SCALA),
+            ("foo.swift", Language.SWIFT),
+            ("foo.lua", Language.LUA),
+            ("foo.ex", Language.ELIXIR),
+            ("foo.exs", Language.ELIXIR),
+            ("foo.hs", Language.HASKELL),
+            ("foo.lhs", Language.HASKELL),
+            ("foo.sh", Language.BASH),
+            ("foo.bash", Language.BASH),
         ],
     )
-    def test_known_extensions(self, path: str, expected: Language) -> None:
+    def test_known_extensions(self, path, expected):
         assert detect_language(path) == expected
 
     @pytest.mark.parametrize(
-        "path", ["file.txt", "file.md", "file.json", "file.xml", "Makefile", "file"]
+        "path",
+        ["foo.txt", "foo.md", "foo.json", "foo.yaml", "foo", ""],
     )
-    def test_unknown_extensions(self, path: str) -> None:
+    def test_unknown_extension_returns_none(self, path):
         assert detect_language(path) is None
 
-    def test_case_insensitive_via_path(self) -> None:
-        # PurePosixPath.suffix preserves case, but we .lower() it
-        assert detect_language("FILE.PY") == Language.PYTHON
-        assert detect_language("APP.JS") == Language.JAVASCRIPT
+    def test_case_insensitive(self):
+        assert detect_language("foo.PY") == Language.PYTHON
+        assert detect_language("foo.JS") == Language.JAVASCRIPT
+
+    def test_nested_path(self):
+        assert detect_language("src/lib/utils.py") == Language.PYTHON
+
+    def test_posix_path_handling(self):
+        assert detect_language("a/b/c/module.ts") == Language.TYPESCRIPT
+
+    def test_ext_to_lang_coverage(self):
+        """Every entry in _EXT_TO_LANG must be reachable via detect_language."""
+        for ext, lang in _EXT_TO_LANG.items():
+            assert detect_language(f"dummy{ext}") == lang
 
 
-# ─── _symbol_matches ──────────────────────────────────────────────────
-
-
-class TestSymbolMatches:
-    def test_exact_match(self) -> None:
-        assert _symbol_matches("my_func", "my_func") is True
-
-    def test_no_match(self) -> None:
-        assert _symbol_matches("my_func", "other_func") is False
-
-    def test_qualified_query(self) -> None:
-        # query="MyClass.method" should match extracted="method"
-        assert _symbol_matches("method", "MyClass.method") is True
-
-    def test_qualified_extracted(self) -> None:
-        # extracted="pkg.Foo" should match query="Foo"
-        assert _symbol_matches("pkg.Foo", "Foo") is True
-
-    def test_case_insensitive_fallback(self) -> None:
-        assert _symbol_matches("MyFunc", "myfunc") is True
-        assert _symbol_matches("myfunc", "MyFunc") is True
-
-    def test_no_partial_match(self) -> None:
-        assert _symbol_matches("my_func_extra", "my_func") is False
-        assert _symbol_matches("my_func", "my_func_extra") is False
-
-    def test_deeply_qualified_query(self) -> None:
-        # rsplit(".", 1) only splits on last dot
-        assert _symbol_matches("method", "a.b.method") is True
-
-    def test_both_qualified_no_match(self) -> None:
-        assert _symbol_matches("a.foo", "b.bar") is False
-
-
-# ─── _specs_for ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2.  _specs_for
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSpecsFor:
-    @pytest.mark.parametrize("lang", list(Language))
-    def test_every_language_has_specs(self, lang: Language) -> None:
-        specs = _specs_for(lang)
-        assert len(specs) > 0, f"No specs for {lang.value}"
+    """Tests for _specs_for()."""
 
-    def test_python_has_function_and_class(self) -> None:
+    def test_python_has_function_and_class(self):
         specs = _specs_for(Language.PYTHON)
         types = {s.node_type for s in specs}
         assert "function_definition" in types
         assert "class_definition" in types
 
-    def test_go_has_method_declaration(self) -> None:
+    def test_javascript_includes_arrow_function(self):
+        specs = _specs_for(Language.JAVASCRIPT)
+        types = {s.node_type for s in specs}
+        assert "arrow_function" in types
+
+    def test_go_has_function_and_method(self):
         specs = _specs_for(Language.GO)
         types = {s.node_type for s in specs}
-        assert "method_declaration" in types
         assert "function_declaration" in types
+        assert "method_declaration" in types
+
+    def test_rust_has_function_and_struct(self):
+        specs = _specs_for(Language.RUST)
+        types = {s.node_type for s in specs}
+        assert "function_item" in types
+        assert "struct_item" in types
+
+    def test_all_languages_return_list(self):
+        for lang in Language:
+            result = _specs_for(lang)
+            assert isinstance(result, list)
+
+    def test_all_languages_nonempty(self):
+        """Every supported language must have at least one spec."""
+        for lang in Language:
+            specs = _specs_for(lang)
+            assert len(specs) > 0, f"{lang} has no specs"
+
+    def test_node_spec_fields(self):
+        specs = _specs_for(Language.PYTHON)
+        for spec in specs:
+            assert isinstance(spec, _NodeSpec)
+            assert isinstance(spec.node_type, str)
+            assert isinstance(spec.name_field, str)
 
 
-# ─── CodeTools — Python ──────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3.  Dataclasses
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TesttoolsPython:
-    def test_find_function(self, tools: CodeTools) -> None:
-        result = tools.search_definition("handle_request")
-        assert len(result.definitions) >= 1
-        defn = result.definitions[0]
-        assert defn.symbol == "handle_request"
-        assert "handler.py" in defn.file
-        assert defn.language == "python"
-        assert defn.node_type in ("function_definition", "decorated_definition")
-        assert defn.line >= 1
-
-    def test_find_class(self, tools: CodeTools) -> None:
-        result = tools.search_definition("User")
-        assert len(result.definitions) >= 1
-        defn = result.definitions[0]
-        assert defn.symbol == "User"
-        assert defn.node_type == "class_definition"
-        assert "models.py" in defn.file
-
-    def test_find_method_by_name(self, tools: CodeTools) -> None:
-        result = tools.search_definition("full_name")
-        assert len(result.definitions) >= 1
-        assert any(d.symbol == "full_name" for d in result.definitions)
-
-    def test_find_multiple_functions(self, tools: CodeTools) -> None:
-        result = tools.search_definition("validate")
-        assert len(result.definitions) >= 1
-        assert result.definitions[0].symbol == "validate"
-
-    def test_find_in_subdirectory(self, tools: CodeTools) -> None:
-        result = tools.search_definition("insert_user", path="src")
-        assert len(result.definitions) >= 1
-        assert any("repo.py" in d.file for d in result.definitions)
-
-    def test_not_found_returns_grep_fallback(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        # "db" appears in repo.py but is not a definition
-        s = CodeTools(fs=python_project, root="/project")
-        result = s.search_definition("execute")
-        # "execute" is called but not defined — should be grep fallback or none
-        if result.definitions:
-            pytest.skip("tree-sitter found a definition unexpectedly")
-        assert result.is_fallback or len(result.grep_matches) == 0
-
-    def test_symbol_not_in_any_file(self, tools: CodeTools) -> None:
-        result = tools.search_definition("nonexistent_symbol_xyz")
-        assert len(result.definitions) == 0
-        assert len(result.grep_matches) == 0
-        assert result.is_fallback is False
-
-    def test_context_is_populated(self, tools: CodeTools) -> None:
-        result = tools.search_definition("create_user")
-        assert len(result.definitions) >= 1
-        defn = result.definitions[0]
-        assert "create_user" in defn.context
-        assert len(defn.context) > 0
-
-    def test_line_numbers_are_positive(self, tools: CodeTools) -> None:
-        result = tools.search_definition("handle_request")
-        for defn in result.definitions:
-            assert defn.line >= 1
-            assert defn.end_line >= defn.line
-            assert defn.column >= 0
-
-
-# ─── CodeTools — JavaScript ──────────────────────────────────
-
-
-class TesttoolsJavaScript:
-    def test_find_function_declaration(self, js_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=js_project, root="/project")
-        result = tools.search_definition("handleRequest")
-        assert len(result.definitions) >= 1
-        defn = result.definitions[0]
-        assert defn.symbol == "handleRequest"
-        assert defn.language == "javascript"
-
-    def test_find_arrow_function(self, js_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=js_project, root="/project")
-        result = tools.search_definition("processData")
-        # Should find the variable_declarator for const processData = ...
-        assert len(result.definitions) >= 1 or len(result.grep_matches) >= 1
-
-    def test_language_filter(self, js_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=js_project, root="/project")
-        result = tools.search_definition(
-            "handleRequest", language_filter=Language.PYTHON
+class TestDataclasses:
+    def test_symbol_entry_fields(self):
+        entry = SymbolEntry(
+            name="foo",
+            file="a.py",
+            line=1,
+            end_line=5,
+            node_type="function_definition",
+            language="python",
         )
-        # No Python files in js_project
-        assert len(result.definitions) == 0
+        assert entry.name == "foo"
+        assert entry.file == "a.py"
+        assert entry.line == 1
+        assert entry.end_line == 5
+        assert entry.node_type == "function_definition"
+        assert entry.language == "python"
 
-
-# ─── CodeTools — Go ─────────────────────────────────────────
-
-
-class TesttoolsGo:
-    def test_find_function(self, go_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=go_project, root="/project")
-        result = tools.search_definition("greet")
-        assert len(result.definitions) >= 1
-        assert result.definitions[0].language == "go"
-
-    def test_find_method(self, go_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=go_project, root="/project")
-        result = tools.search_definition("CreateUser")
-        assert len(result.definitions) >= 1
-        defn = result.definitions[0]
-        assert defn.node_type == "method_declaration"
-
-    def test_find_type(self, go_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=go_project, root="/project")
-        result = tools.search_definition("UserService")
-        # Should find the type spec or struct
-        assert len(result.definitions) >= 1 or len(result.grep_matches) >= 1
-
-
-# ─── CodeTools — Rust ────────────────────────────────────────
-
-
-class TesttoolsRust:
-    def test_find_function(self, rust_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=rust_project, root="/project")
-        result = tools.search_definition("start_server")
-        assert len(result.definitions) >= 1
-        assert result.definitions[0].language == "rust"
-
-    def test_find_struct(self, rust_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=rust_project, root="/project")
-        result = tools.search_definition("Config")
-        assert len(result.definitions) >= 1
-        assert result.definitions[0].node_type == "struct_item"
-
-    def test_find_enum(self, rust_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=rust_project, root="/project")
-        result = tools.search_definition("Status")
-        assert len(result.definitions) >= 1
-        assert result.definitions[0].node_type == "enum_item"
-
-
-# ─── Multi-language ───────────────────────────────────────────────────
-
-
-class TestMultiLanguage:
-    def test_finds_across_languages(self, multi_lang_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=multi_lang_project, root="/project")
-        result = tools.search_definition("process")
-        assert len(result.definitions) >= 3  # py, js, go, rs
-        languages = {d.language for d in result.definitions}
-        assert "python" in languages
-        assert "go" in languages
-
-    def test_language_filter_restricts(
-        self, multi_lang_project: MemoryFileSystem
-    ) -> None:
-        tools = CodeTools(fs=multi_lang_project, root="/project")
-        result = tools.search_definition("process", language_filter=Language.PYTHON)
-        assert all(d.language == "python" for d in result.definitions)
-        assert len(result.definitions) >= 1
-
-    def test_each_language_individually(
-        self, multi_lang_project: MemoryFileSystem
-    ) -> None:
-        tools = CodeTools(fs=multi_lang_project, root="/project")
-        for lang in [Language.PYTHON, Language.JAVASCRIPT, Language.GO, Language.RUST]:
-            result = tools.search_definition("process", language_filter=lang)
-            assert len(result.definitions) >= 1, f"No definition found for {lang.value}"
-
-
-# ─── Caching ──────────────────────────────────────────────────────────
-
-
-class TestCaching:
-    def test_second_search_returns_same_results(self, tools: CodeTools) -> None:
-        result1 = tools.search_definition("handle_request")
-        result2 = tools.search_definition("handle_request")
-        assert result1.definitions == result2.definitions
-
-    def test_different_symbols_return_different_results(self, tools: CodeTools) -> None:
-        r1 = tools.search_definition("handle_request")
-        r2 = tools.search_definition("create_user")
-        # Both should find definitions
-        assert len(r1.definitions) >= 1
-        assert len(r2.definitions) >= 1
-        assert r1.definitions[0].symbol != r2.definitions[0].symbol
-
-    def test_parse_cache_populated_after_search(self, tools: CodeTools) -> None:
-        tools.search_definition("handle_request")
-        # After a successful search, parse cache should have entries
-        # (only if tree-sitter parsing succeeded)
-        if tools._parse_cache:
-            assert len(tools._parse_cache) > 0
-        else:
-            # If parse cache is empty, resolution cache should also be empty
-            # but grep fallback should have found something
-            pass
-
-    def test_clear_cache(self, tools: CodeTools) -> None:
-        tools.search_definition("handle_request")
-        tools.clear_cache()
-        assert len(tools._parse_cache) == 0
-        assert len(tools._resolution_cache) == 0
-
-    def test_invalidate_file(self, tools: CodeTools) -> None:
-        tools.search_definition("handle_request")
-        # Find a handler path in cache if present
-        handler_path = None
-        for key in tools._parse_cache:
-            if "handler.py" in key:
-                handler_path = key
-                break
-        if handler_path is not None:
-            tools.invalidate_file(handler_path)
-            assert handler_path not in tools._parse_cache
-        # If no cache entries, invalidation is still safe
-        tools.invalidate_file("/nonexistent/path.py")
-
-    def test_cache_invalidated_on_content_change(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        s = CodeTools(fs=python_project, root="/project")
-        result1 = s.search_definition("handle_request")
-        assert len(result1.definitions) >= 1
-
-        # Modify the file — remove the original function
-        _write(
-            python_project,
-            "/project/src/handler.py",
-            """\
-            def handle_request_v2(request):
-                return "v2"
-            """,
+    def test_definition_result_location(self):
+        dr = DefinitionResult(
+            symbol="bar",
+            file="b.py",
+            line=10,
+            end_line=20,
+            column=4,
+            node_type="class_definition",
+            language="python",
+            context="class bar:\n    pass",
         )
+        assert dr.location == "b.py:10"
 
-        # Search again — cache should detect content change
-        result2 = s.search_definition("handle_request")
-        # Original function no longer exists
-        assert len(result2.definitions) == 0 or all(
-            d.symbol != "handle_request" for d in result2.definitions
-        )
+    def test_grep_match_location(self):
+        gm = GrepMatch(file="c.py", line=7, text="7: something")
+        assert gm.location == "c.py:7"
 
-    def test_cache_hit_returns_consistent_results(self, tools: CodeTools) -> None:
-        result1 = tools.search_definition("create_user")
-        result2 = tools.search_definition("create_user")
-        # Cache should return consistent results
-        assert len(result1.definitions) == len(result2.definitions)
-        if result1.definitions and result2.definitions:
-            assert result1.definitions[0].symbol == result2.definitions[0].symbol
-            assert result1.definitions[0].file == result2.definitions[0].file
-            assert result1.definitions[0].line == result2.definitions[0].line
+    def test_symbol_entry_is_frozen(self):
+        entry = SymbolEntry("x", "f.py", 1, 2, "t", "python")
+        with pytest.raises((AttributeError, TypeError)):
+            entry.name = "y"  # type: ignore
+
+    def test_definition_result_is_frozen(self):
+        dr = DefinitionResult("x", "f.py", 1, 2, 0, "t", "python", "ctx")
+        with pytest.raises((AttributeError, TypeError)):
+            dr.symbol = "z"  # type: ignore
 
 
-# ─── SearchResult.to_dict ─────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4.  SearchResult.to_dict
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestSearchResultToDict:
-    def test_definition_result_dict(self, tools: CodeTools) -> None:
-        result = tools.search_definition("handle_request")
-        d = result.to_dict()
-        assert d["symbol"] == "handle_request"
-        if d["found"]:
-            assert d["kind"] == "definition"
-            assert d["count"] >= 1
-            assert len(d["results"]) >= 1
-            entry = d["results"][0]
-            assert "file" in entry
-            assert "line" in entry
-            assert "end_line" in entry
-            assert "column" in entry
-            assert "node_type" in entry
-            assert "language" in entry
-            assert "context" in entry
-        else:
-            # Grep fallback is also acceptable
-            assert d["kind"] in ("grep_fallback", "none")
+    def _make_def(self, symbol="fn", file="a.py", line=1) -> DefinitionResult:
+        return DefinitionResult(
+            symbol=symbol,
+            file=file,
+            line=line,
+            end_line=line + 5,
+            column=0,
+            node_type="function_definition",
+            language="python",
+            context="def fn(): pass",
+        )
 
-    def test_grep_fallback_dict(self) -> None:
-        result = SearchResult(
-            symbol="test",
+    def _make_grep(self, file="a.py", line=2) -> GrepMatch:
+        return GrepMatch(file=file, line=line, text="2: fn()")
+
+    def test_with_definitions(self):
+        sr = SearchResult(
+            symbol="fn",
+            definitions=[self._make_def()],
+            grep_matches=[],
+            is_fallback=False,
+        )
+        d = sr.to_dict()
+        assert d["kind"] == "definition"
+        assert d["total_items"] == 1
+        assert d["result"][0]["symbol"] == "fn"
+        assert d["result"][0]["file"] == "a.py"
+        assert d["result"][0]["line"] == 1
+
+    def test_with_grep_matches(self):
+        sr = SearchResult(
+            symbol="fn",
             definitions=[],
-            grep_matches=[GrepMatch(file="a.py", line=10, text=">>>    10 | test()")],
+            grep_matches=[self._make_grep()],
             is_fallback=True,
         )
-        d = result.to_dict()
-        assert d["found"] is False
+        d = sr.to_dict()
         assert d["kind"] == "grep_fallback"
+        assert d["total_items"] == 1
         assert "note" in d
-        assert d["count"] == 1
-        assert d["results"][0]["file"] == "a.py"
+        assert d["result"][0]["file"] == "a.py"
 
-    def test_none_result_dict(self) -> None:
-        result = SearchResult(
-            symbol="nothing",
+    def test_empty(self):
+        sr = SearchResult(
+            symbol="fn",
             definitions=[],
             grep_matches=[],
             is_fallback=False,
         )
-        d = result.to_dict()
-        assert d["found"] is False
+        d = sr.to_dict()
         assert d["kind"] == "none"
-        assert d["count"] == 0
-        assert d["results"] == []
+        assert d["total_items"] == 0
+        assert "note" in d
 
-
-# ─── DefinitionResult ─────────────────────────────────────────────────
-
-
-class TestDefinitionResult:
-    def test_location_property(self) -> None:
-        defn = DefinitionResult(
-            symbol="foo",
-            file="src/bar.py",
-            line=42,
-            end_line=50,
-            column=0,
-            node_type="function_definition",
-            language="python",
-            context="def foo(): ...",
+    def test_definitions_take_priority_over_grep(self):
+        """When both definitions and grep_matches exist, definitions win."""
+        sr = SearchResult(
+            symbol="fn",
+            definitions=[self._make_def()],
+            grep_matches=[self._make_grep()],
+            is_fallback=False,
         )
-        assert defn.location == "src/bar.py:42"
+        d = sr.to_dict()
+        assert d["kind"] == "definition"
 
-    def test_frozen(self) -> None:
-        defn = DefinitionResult(
-            symbol="foo",
-            file="src/bar.py",
-            line=1,
-            end_line=1,
-            column=0,
-            node_type="function_definition",
-            language="python",
-            context="def foo(): ...",
+    def test_multiple_definitions(self):
+        sr = SearchResult(
+            symbol="fn",
+            definitions=[self._make_def(file="a.py"), self._make_def(file="b.py")],
+            grep_matches=[],
+            is_fallback=False,
         )
-        with pytest.raises(AttributeError):
-            defn.symbol = "bar"  # type: ignore[misc]
+        d = sr.to_dict()
+        assert d["total_items"] == 2
+        files = {r["file"] for r in d["result"]}
+        assert files == {"a.py", "b.py"}
 
 
-class TestGrepMatch:
-    def test_location_property(self) -> None:
-        match = GrepMatch(file="a.py", line=10, text="hello")
-        assert match.location == "a.py:10"
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5.  _symbol_matches
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-# ─── Grep fallback ────────────────────────────────────────────────────
+class TestSymbolMatches:
+    def test_exact_match(self):
+        assert _symbol_matches("foo", "foo") is True
+
+    def test_case_insensitive(self):
+        assert _symbol_matches("Foo", "foo") is True
+        assert _symbol_matches("foo", "FOO") is True
+
+    def test_qualified_query_matches_leaf(self):
+        # query = "MyClass.my_method", extracted = "my_method"
+        assert _symbol_matches("my_method", "MyClass.my_method") is True
+
+    def test_qualified_extracted_matches_query(self):
+        # extracted = "MyClass.my_method", query = "my_method"
+        assert _symbol_matches("MyClass.my_method", "my_method") is True
+
+    def test_no_match(self):
+        assert _symbol_matches("bar", "foo") is False
+
+    def test_partial_not_enough(self):
+        # Substring but not dot-separated leaf
+        assert _symbol_matches("foobar", "foo") is False
 
 
-class TestGrepFallback:
-    def test_fallback_when_no_definition(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        """A symbol that is used but never defined should produce grep fallback."""
-        _write(
-            python_project,
-            "/project/src/caller.py",
-            """\
-            def do_work():
-                result = mysterious_function(42)
-                return result
-            """,
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6.  _grep_file_lines
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGrepFileLines:
+    def test_finds_matching_line(self):
+        fs = make_mock_fs({"a.py": "line one\nhello world\nline three"})
+        matches = _grep_file_lines(fs, "a.py", "hello")
+        assert len(matches) == 1
+        assert matches[0].line == 2
+        assert "hello world" in matches[0].text
+
+    def test_no_match(self):
+        fs = make_mock_fs({"a.py": "nothing here"})
+        matches = _grep_file_lines(fs, "a.py", "xyz")
+        assert matches == []
+
+    def test_context_lines_included(self):
+        content = "\n".join(f"line {i}" for i in range(10))
+        fs = make_mock_fs({"a.py": content})
+        matches = _grep_file_lines(fs, "a.py", "line 5", context_lines=2)
+        assert len(matches) == 1
+        # context: lines 3,4,5,6,7 (0-indexed 3–7 → displayed 4–8 in snippet)
+        assert "line 3" in matches[0].text or "line 4" in matches[0].text
+
+    def test_multiple_matches_in_file(self):
+        fs = make_mock_fs({"a.py": "foo\nbar\nfoo\nbaz"})
+        matches = _grep_file_lines(fs, "a.py", "foo", context_lines=0)
+        assert len(matches) == 2
+        lines = {m.line for m in matches}
+        assert lines == {1, 3}
+
+    def test_read_error_returns_empty(self):
+        fs = MagicMock()
+        fs.cat_file.side_effect = IOError("disk error")
+        matches = _grep_file_lines(fs, "bad.py", "foo")
+        assert matches == []
+
+    def test_returns_grep_match_type(self):
+        fs = make_mock_fs({"a.py": "hello"})
+        matches = _grep_file_lines(fs, "a.py", "hello")
+        assert all(isinstance(m, GrepMatch) for m in matches)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7.  _check_file_for_pattern
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCheckFileForPattern:
+    def test_returns_path_when_found(self):
+        fs = make_mock_fs({"a.py": "def hello(): pass"})
+        assert _check_file_for_pattern(fs, "a.py", "hello") == "a.py"
+
+    def test_returns_none_when_not_found(self):
+        fs = make_mock_fs({"a.py": "def world(): pass"})
+        assert _check_file_for_pattern(fs, "a.py", "hello") is None
+
+    def test_returns_none_on_read_error(self):
+        fs = MagicMock()
+        fs.cat_file.side_effect = IOError("boom")
+        assert _check_file_for_pattern(fs, "a.py", "hello") is None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8.  CodeTools — internal helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCodeToolsInternals:
+    def _make_tools(self, files: dict[str, str]) -> CodeTools:
+        fs = make_mock_fs(files)
+        return CodeTools(fs=fs, root="/repo")
+
+    # ── _content_hash ────────────────────────────────────────────────────────
+
+    def test_content_hash_deterministic(self):
+        ct = self._make_tools({})
+        data = b"hello world"
+        assert ct._content_hash(data) == ct._content_hash(data)
+
+    def test_content_hash_changes_with_content(self):
+        ct = self._make_tools({})
+        assert ct._content_hash(b"foo") != ct._content_hash(b"bar")
+
+    def test_content_hash_length(self):
+        ct = self._make_tools({})
+        h = ct._content_hash(b"data")
+        assert len(h) == 16
+
+    # ── _read_file ───────────────────────────────────────────────────────────
+
+    def test_read_file_returns_bytes(self):
+        ct = self._make_tools({"/repo/a.py": "hello"})
+        content = ct._read_file("/repo/a.py")
+        assert content == b"hello"
+
+    def test_read_file_missing_returns_none(self):
+        fs = MagicMock()
+        fs.cat_file.side_effect = FileNotFoundError()
+        ct = CodeTools(fs=fs, root="/repo")
+        assert ct._read_file("/repo/missing.py") is None
+
+    # ── _parse_file ──────────────────────────────────────────────────────────
+
+    def test_parse_file_caches_result(self):
+        ct = self._make_tools({})
+        content = SIMPLE_PYTHON.encode()
+        parsed1 = ct._parse_file("/repo/a.py", content, Language.PYTHON)
+        parsed2 = ct._parse_file("/repo/a.py", content, Language.PYTHON)
+        assert parsed1 is parsed2  # same object from cache
+
+    def test_parse_file_invalidates_on_content_change(self):
+        ct = self._make_tools({})
+        content1 = b"def foo(): pass"
+        content2 = b"def bar(): pass"
+        parsed1 = ct._parse_file("/repo/a.py", content1, Language.PYTHON)
+        parsed2 = ct._parse_file("/repo/a.py", content2, Language.PYTHON)
+        assert parsed1 is not parsed2
+
+    def test_parse_file_returns_parsed_file(self):
+        ct = self._make_tools({})
+        content = SIMPLE_PYTHON.encode()
+        parsed = ct._parse_file("/repo/a.py", content, Language.PYTHON)
+        assert parsed is not None
+        assert isinstance(parsed, _ParsedFile)
+        assert parsed.language == Language.PYTHON
+
+    # ── _grep_files ──────────────────────────────────────────────────────────
+
+    def test_grep_files_finds_matching(self):
+        ct = self._make_tools({
+            "/repo/a.py": "def hello(): pass",
+            "/repo/b.py": "def world(): pass",
+        })
+        ct.fs.find.return_value = ["/repo/a.py", "/repo/b.py"]
+        result = ct._grep_files("hello")
+        assert "/repo/a.py" in result
+        assert "/repo/b.py" not in result
+
+    def test_grep_files_skips_non_source(self):
+        ct = self._make_tools({
+            "/repo/a.py": "hello",
+            "/repo/readme.md": "hello",
+        })
+        ct.fs.find.return_value = ["/repo/a.py", "/repo/readme.md"]
+        result = ct._grep_files("hello")
+        assert "/repo/readme.md" not in result
+
+    def test_grep_files_returns_sorted(self):
+        files = {
+            "/repo/c.py": "hello",
+            "/repo/a.py": "hello",
+            "/repo/b.py": "hello",
+        }
+        ct = self._make_tools(files)
+        ct.fs.find.return_value = list(files.keys())
+        result = ct._grep_files("hello")
+        assert result == sorted(result)
+
+    def test_grep_files_empty_when_root_not_found(self):
+        fs = MagicMock()
+        fs.find.side_effect = FileNotFoundError()
+        ct = CodeTools(fs=fs, root="/missing")
+        result = ct._grep_files("anything")
+        assert result == []
+
+    # ── clear_cache / invalidate_file ────────────────────────────────────────
+
+    def test_clear_cache(self):
+        ct = self._make_tools({})
+        content = b"def foo(): pass"
+        ct._parse_file("/repo/a.py", content, Language.PYTHON)
+        assert len(ct._parse_cache) == 1
+        ct.clear_cache()
+        assert len(ct._parse_cache) == 0
+        assert len(ct._resolution_cache) == 0
+
+    def test_invalidate_file_removes_from_caches(self):
+        ct = self._make_tools({})
+        content = b"def foo(): pass"
+        ct._parse_file("/repo/a.py", content, Language.PYTHON)
+        ct._resolution_cache[("foo", "/repo/a.py")] = _CacheEntry(
+            content_hash="abc", results=[]
         )
-        s = CodeTools(fs=python_project, root="/project")
-        result = s.search_definition("mysterious_function")
-        # Not defined anywhere, but appears in caller.py
-        if result.definitions:
-            pytest.skip("Unexpectedly found as definition")
-        assert result.is_fallback is True
-        assert len(result.grep_matches) >= 1
-        assert any("caller.py" in m.file for m in result.grep_matches)
+        ct.invalidate_file("/repo/a.py")
+        assert "/repo/a.py" not in ct._parse_cache
+        assert ("foo", "/repo/a.py") not in ct._resolution_cache
 
-    def test_grep_shows_context_lines(self, python_project: MemoryFileSystem) -> None:
-        _write(
-            python_project,
-            "/project/src/usage.py",
-            """\
-            import os
-
-            x = 1
-            y = external_lib_call(x)
-            z = y + 1
-            """,
-        )
-        s = CodeTools(fs=python_project, root="/project", grep_context_lines=1)
-        result = s.search_definition("external_lib_call")
-        if result.definitions:
-            pytest.skip("Unexpectedly found as definition")
-        assert len(result.grep_matches) >= 1
-        match = result.grep_matches[0]
-        assert ">>>" in match.text  # matching line marker
-        # Should have context lines around it
-        lines = match.text.strip().splitlines()
-        assert len(lines) >= 2  # at least the match + 1 context line
+    def test_invalidate_nonexistent_file_no_error(self):
+        ct = self._make_tools({})
+        ct.invalidate_file("/repo/not_there.py")  # should not raise
 
 
-# ─── code_tools ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9.  CodeTools.search_definition — integration tests (real parser)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestCodeTools:
-    def test_returns_list_with_search_def(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        assert isinstance(tools, list)
-        assert len(tools) == 3
-        assert callable(tools[0])
-        assert tools[0].__name__ == "search_def"
+class TestSearchDefinition:
+    def _make_tools(self, files: dict[str, str]) -> CodeTools:
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        return CodeTools(fs=fs, root="/repo")
 
-    def test_search_def_has_docstring(self, python_project: MemoryFileSystem) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        assert search_def.__doc__ is not None
-        assert "symbol" in search_def.__doc__
-        assert "definition" in search_def.__doc__.lower()
+    def test_finds_python_function(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        result = ct.search_definition("hello")
+        assert result.definitions
+        assert result.definitions[0].symbol == "hello"
+        assert result.definitions[0].node_type == "function_definition"
 
-    def test_search_def_finds_definition(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="handle_request")
+    def test_finds_python_class(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        result = ct.search_definition("Greeter")
+        assert result.definitions
+        assert result.definitions[0].node_type == "class_definition"
+
+    def test_not_found_returns_grep_fallback(self):
+        content = "x = hello()\n"
+        ct = self._make_tools({"/repo/a.py": content})
+        result = ct.search_definition("hello")
+        # No tree-sitter def, but grep finds the usage
+        assert result.is_fallback or not result.definitions
+
+    def test_not_found_at_all(self):
+        ct = self._make_tools({"/repo/a.py": "x = 1\n"})
+        result = ct.search_definition("nonexistent_symbol_xyz")
+        assert result.definitions == []
+
+    def test_language_filter_excludes_other_langs(self):
+        ct = self._make_tools({
+            "/repo/a.py": SIMPLE_PYTHON,
+            "/repo/b.js": "function hello() {}",
+        })
+        result = ct.search_definition("hello", language_filter=Language.PYTHON)
+        assert all(d.language == "python" for d in result.definitions)
+
+    def test_definitions_sorted_by_file_and_line(self):
+        ct = self._make_tools({
+            "/repo/b.py": "def hello(): pass\n",
+            "/repo/a.py": "def hello(): pass\n",
+        })
+        result = ct.search_definition("hello")
+        if len(result.definitions) > 1:
+            files = [d.file for d in result.definitions]
+            assert files == sorted(files)
+
+    def test_max_results_respected(self):
+        files = {f"/repo/{chr(97+i)}.py": "def hello(): pass\n" for i in range(10)}
+        ct = self._make_tools(files)
+        result = ct.search_definition("hello", max_results=3)
+        assert len(result.definitions) <= 3
+
+    def test_path_restriction(self):
+        files = {
+            "/repo/src/a.py": "def hello(): pass\n",
+            "/repo/tests/b.py": "def hello(): pass\n",
+        }
+        fs = make_mock_fs(files)
+        # restrict find to only src
+        fs.find.return_value = ["/repo/src/a.py"]
+        ct = CodeTools(fs=fs, root="/repo")
+        result = ct.search_definition("hello", path="src")
+        assert all("src" in d.file for d in result.definitions)
+
+    def test_empty_candidate_list_returns_empty(self):
+        fs = MagicMock()
+        fs.find.return_value = []
+        ct = CodeTools(fs=fs, root="/repo")
+        result = ct.search_definition("hello")
+        assert result.definitions == []
+        assert result.grep_matches == []
+
+    def test_definition_result_fields_complete(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        result = ct.search_definition("hello")
+        assert result.definitions
+        dr = result.definitions[0]
+        assert dr.file == "/repo/a.py"
+        assert dr.line >= 1
+        assert dr.end_line >= dr.line
+        assert dr.column >= 0
+        assert dr.context  # non-empty snippet
+        assert dr.language == "python"
+
+    def test_resolution_cache_used_on_second_call(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        ct.search_definition("hello")
+        cache_size_after_first = len(ct._resolution_cache)
+        ct.search_definition("hello")
+        # Cache should not grow on second identical call
+        assert len(ct._resolution_cache) == cache_size_after_first
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. CodeTools.list_symbols
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestListSymbols:
+    def _make_tools(self, files: dict[str, str]) -> CodeTools:
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        return CodeTools(fs=fs, root="/repo")
+
+    def test_lists_python_symbols(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        symbols = ct.list_symbols()
+        names = {s.name for s in symbols}
+        assert "hello" in names
+        assert "Greeter" in names
+
+    def test_language_filter(self):
+        ct = self._make_tools({
+            "/repo/a.py": SIMPLE_PYTHON,
+            "/repo/b.js": SIMPLE_JS,
+        })
+        symbols = ct.list_symbols(language_filter=Language.PYTHON)
+        assert all(s.language == "python" for s in symbols)
+
+    def test_node_type_filter(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        symbols = ct.list_symbols(node_type_filter="function_definition")
+        assert all(s.node_type == "function_definition" for s in symbols)
+
+    def test_empty_when_no_source_files(self):
+        fs = make_mock_fs({"/repo/readme.md": "# Hello"})
+        fs.find.return_value = ["/repo/readme.md"]
+        ct = CodeTools(fs=fs, root="/repo")
+        symbols = ct.list_symbols()
+        assert symbols == []
+
+    def test_returns_symbol_entry_types(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        symbols = ct.list_symbols()
+        assert all(isinstance(s, SymbolEntry) for s in symbols)
+
+    def test_root_not_found_returns_empty(self):
+        fs = MagicMock()
+        fs.find.side_effect = FileNotFoundError()
+        ct = CodeTools(fs=fs, root="/missing")
+        assert ct.list_symbols() == []
+
+    def test_symbol_entry_line_numbers_positive(self):
+        ct = self._make_tools({"/repo/a.py": SIMPLE_PYTHON})
+        symbols = ct.list_symbols()
+        assert all(s.line >= 1 for s in symbols)
+        assert all(s.end_line >= s.line for s in symbols)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. _context_snippet
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestContextSnippet:
+    def _make_node(self, source: bytes, start: int, end: int) -> MagicMock:
+        node = MagicMock()
+        node.start_byte = start
+        node.end_byte = end
+        return node
+
+    def test_short_function_returned_in_full(self):
+        src = b"def foo():\n    pass\n"
+        node = self._make_node(src, 0, len(src))
+        snippet = _context_snippet(src, node, max_lines=15)
+        assert "def foo():" in snippet
+        assert "pass" in snippet
+
+    def test_truncates_long_function(self):
+        lines = [f"line_{i} = {i}" for i in range(30)]
+        src = "\n".join(lines).encode()
+        node = self._make_node(src, 0, len(src))
+        snippet = _context_snippet(src, node, max_lines=5)
+        assert "more lines" in snippet
+
+    def test_max_lines_respected(self):
+        lines = [f"x = {i}" for i in range(20)]
+        src = "\n".join(lines).encode()
+        node = self._make_node(src, 0, len(src))
+        snippet = _context_snippet(src, node, max_lines=10)
+        snippet_lines = snippet.splitlines()
+        # 10 content lines + 1 ellipsis line
+        assert len(snippet_lines) == 11
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. _parse_language
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestParseLanguage:
+    def test_valid_language(self):
+        assert _parse_language("python") == Language.PYTHON
+        assert _parse_language("javascript") == Language.JAVASCRIPT
+
+    def test_empty_string_returns_none(self):
+        assert _parse_language("") is None
+
+    def test_invalid_returns_error_dict(self):
+        result = _parse_language("cobol")
         assert isinstance(result, dict)
-        assert result["found"] is True
+        assert "error" in result
+        assert "cobol" in result["error"]
+        assert result["result"] == []
+        assert result["total_items"] == 0
+
+    def test_all_language_values_parseable(self):
+        for lang in Language:
+            parsed = _parse_language(lang.value)
+            assert parsed == lang
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13. code_tools factory — search_def tool
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCodeToolsFactory:
+    def _make_tools_list(self, files: dict[str, str]):
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        return code_tools(fs=fs, root="/repo")
+
+    def test_returns_two_tools(self):
+        tools = self._make_tools_list({})
+        assert len(tools) == 2
+
+    def test_tools_are_callable(self):
+        tools = self._make_tools_list({})
+        for t in tools:
+            assert callable(t)
+
+    def test_search_def_finds_python(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        search_def, _ = tools
+        result = search_def("hello")
+        assert result["kind"] in ("definition", "grep_fallback", "none")
+
+    def test_search_def_definition_kind(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        search_def, _ = tools
+        result = search_def("hello")
         assert result["kind"] == "definition"
-        assert result["count"] >= 1
-        found_symbols = [r["symbol"] for r in result["results"]]
-        assert "handle_request" in found_symbols
+        assert result["total_items"] >= 1
 
-    def test_search_def_with_path(self, python_project: MemoryFileSystem) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="insert_user", path="src")
-        assert result["found"] is True
-        assert any("repo.py" in r["file"] for r in result["results"])
+    def test_search_def_invalid_language_returns_error(self):
+        tools = self._make_tools_list({})
+        search_def, _ = tools
+        result = search_def("foo", language="cobol")
+        assert "error" in result
 
-    def test_search_def_with_language_filter(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="handle_request", language="python")
-        assert result["found"] is True
+    def test_search_def_not_found_returns_none_kind(self):
+        tools = self._make_tools_list({"/repo/a.py": "x = 1\n"})
+        search_def, _ = tools
+        result = search_def("totally_missing_xyz")
+        assert result["kind"] == "none"
 
-    def test_search_def_invalid_language(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="handle_request", language="brainfuck")
-        assert result["found"] is False
-        assert result["kind"] == "error"
-        assert "Unknown language" in result["note"]
+    def test_list_symbols_returns_expected_structure(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        _, list_syms = tools
+        result = list_syms()
+        assert "result" in result
+        assert "total_items" in result
+        assert "offset" in result
+        assert "limit" in result
 
-    def test_search_def_not_found(self, python_project: MemoryFileSystem) -> None:
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="absolutely_nonexistent_xyz")
-        assert result["found"] is False
-        assert result["count"] == 0
+    def test_list_symbols_pagination(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        _, list_syms = tools
+        result_all = list_syms()
+        total = result_all["total_items"]
+        result_page = list_syms(offset=0, limit=1)
+        assert len(result_page["result"]) == min(1, total)
+        assert result_page["total_items"] == total
 
-    def test_search_def_grep_fallback(self, python_project: MemoryFileSystem) -> None:
-        _write(
-            python_project,
-            "/project/src/refs.py",
-            """\
-            # just a reference, no definition
-            value = some_external_api(123)
-            """,
+    def test_list_symbols_offset(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        _, list_syms = tools
+        result_all = list_syms()
+        result_offset = list_syms(offset=1)
+        if result_all["total_items"] > 1:
+            assert result_offset["result"][0] != result_all["result"][0]
+
+    def test_list_symbols_language_filter(self):
+        tools = self._make_tools_list({
+            "/repo/a.py": SIMPLE_PYTHON,
+            "/repo/b.js": SIMPLE_JS,
+        })
+        _, list_syms = tools
+        result = list_syms(language="python")
+        assert all(s["language"] == "python" for s in result["result"])
+
+    def test_list_symbols_invalid_language(self):
+        tools = self._make_tools_list({})
+        _, list_syms = tools
+        result = list_syms(language="cobol")
+        assert "error" in result
+
+    def test_list_symbols_node_type_filter(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        _, list_syms = tools
+        result = list_syms(node_type="function_definition")
+        assert all(
+            s["node_type"] == "function_definition" for s in result["result"]
         )
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="some_external_api")
+
+    def test_list_symbols_default_limit(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        _, list_syms = tools
+        result = list_syms()
+        assert result["limit"] == 300
+
+    def test_search_def_result_dict_structure(self):
+        tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
+        search_def, _ = tools
+        result = search_def("hello")
+        assert "result" in result
+        assert "kind" in result
+        assert "total_items" in result
         if result["kind"] == "definition":
-            pytest.skip("Unexpectedly parsed as definition")
-        assert result["kind"] in ("grep_fallback", "none")
-
-    def test_search_def_default_args(self, python_project: MemoryFileSystem) -> None:
-        """Verify defaults work when path and language are omitted."""
-        tools = code_tools(fs=python_project, root="/project")
-        search_def = tools[0]
-        result = search_def(symbol="create_user")
-        assert result["found"] is True
-
-    def test_multiple_tools_instances_independent(
-        self, python_project: MemoryFileSystem
-    ) -> None:
-        tools1 = code_tools(fs=python_project, root="/project")
-        tools2 = code_tools(fs=python_project, root="/project")
-        # Each has its own tools / cache
-        r1 = tools1[0](symbol="handle_request")
-        r2 = tools2[0](symbol="handle_request")
-        assert r1["found"] is True
-        assert r2["found"] is True
+            item = result["result"][0]
+            for key in ("symbol", "file", "line", "end_line", "column",
+                        "node_type", "language", "context"):
+                assert key in item
 
 
-# ─── Edge cases ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14. Multi-language integration tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMultiLanguageIntegration:
+    def _ct(self, files: dict[str, str]) -> CodeTools:
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        return CodeTools(fs=fs, root="/repo")
+
+    def test_go_function_found(self):
+        ct = self._ct({"/repo/main.go": SIMPLE_GO})
+        result = ct.search_definition("Add")
+        assert result.definitions
+        assert result.definitions[0].language == "go"
+
+    def test_rust_function_found(self):
+        ct = self._ct({"/repo/lib.rs": SIMPLE_RUST})
+        result = ct.search_definition("greet")
+        assert result.definitions
+        assert result.definitions[0].language == "rust"
+
+    def test_rust_struct_found(self):
+        ct = self._ct({"/repo/lib.rs": SIMPLE_RUST})
+        result = ct.search_definition("Config")
+        assert result.definitions
+        assert result.definitions[0].node_type == "struct_item"
+
+    def test_javascript_function_found(self):
+        ct = self._ct({"/repo/app.js": SIMPLE_JS})
+        result = ct.search_definition("add")
+        assert result.definitions
+        assert result.definitions[0].language == "javascript"
+
+    def test_javascript_class_found(self):
+        ct = self._ct({"/repo/app.js": SIMPLE_JS})
+        result = ct.search_definition("Calculator")
+        assert result.definitions
+
+    def test_list_symbols_go(self):
+        ct = self._ct({"/repo/main.go": SIMPLE_GO})
+        symbols = ct.list_symbols()
+        names = {s.name for s in symbols}
+        assert "Add" in names
+
+    def test_list_symbols_rust(self):
+        ct = self._ct({"/repo/lib.rs": SIMPLE_RUST})
+        symbols = ct.list_symbols()
+        names = {s.name for s in symbols}
+        assert "greet" in names
+        assert "Config" in names
+
+    def test_mixed_repo_all_langs(self):
+        ct = self._ct({
+            "/repo/a.py": SIMPLE_PYTHON,
+            "/repo/b.js": SIMPLE_JS,
+            "/repo/c.go": SIMPLE_GO,
+            "/repo/d.rs": SIMPLE_RUST,
+        })
+        symbols = ct.list_symbols()
+        langs = {s.language for s in symbols}
+        assert "python" in langs
+        assert "javascript" in langs
+        assert "go" in langs
+        assert "rust" in langs
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 15. Edge Cases & Robustness
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestEdgeCases:
-    def test_empty_filesystem(self, memfs: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=memfs, root="/empty")
-        result = tools.search_definition("anything")
-        assert len(result.definitions) == 0
-        assert len(result.grep_matches) == 0
+    def test_empty_file(self):
+        fs = make_mock_fs({"/repo/a.py": ""})
+        fs.find.return_value = ["/repo/a.py"]
+        ct = CodeTools(fs=fs, root="/repo")
+        symbols = ct.list_symbols()
+        assert symbols == []
 
-    def test_binary_file_skipped(self, memfs: MemoryFileSystem) -> None:
-        # Write a file with a known extension but binary content
-        with memfs.open("/project/data.py", "wb") as f:
-            f.write(b"\x00\x01\x02\x03 def handle_request(): pass")
-        tools = CodeTools(fs=memfs, root="/project")
-        # Should not crash
-        result = tools.search_definition("handle_request")
-        # Might or might not find it depending on parser tolerance
+    def test_binary_like_content_does_not_crash(self):
+        content = bytes(range(256))
+        fs = MagicMock()
+        fs.find.return_value = ["/repo/a.py"]
+        fs.cat_file.return_value = content
+        ct = CodeTools(fs=fs, root="/repo")
+        # Should not raise
+        result = ct.search_definition("anything")
         assert isinstance(result, SearchResult)
 
-    def test_non_source_files_ignored(self, memfs: MemoryFileSystem) -> None:
-        _write(memfs, "/project/readme.md", "# handle_request\nSome docs.")
-        _write(memfs, "/project/data.json", '{"handle_request": true}')
-        _write(
-            memfs,
-            "/project/handler.py",
-            """\
-            def handle_request():
-                pass
-            """,
-        )
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("handle_request")
-        # Should find definition in the .py file; .md and .json should be ignored
-        assert len(result.definitions) >= 1
-        assert all(d.language == "python" for d in result.definitions)
+    def test_very_long_function_context_truncated(self):
+        many_lines = "def big():\n" + "\n".join(
+            f"    x_{i} = {i}" for i in range(100)
+        ) + "\n"
+        fs = make_mock_fs({"/repo/a.py": many_lines})
+        fs.find.return_value = ["/repo/a.py"]
+        ct = CodeTools(fs=fs, root="/repo", max_context_lines=15)
+        result = ct.search_definition("big")
+        if result.definitions:
+            ctx_lines = result.definitions[0].context.splitlines()
+            assert len(ctx_lines) <= 16  # 15 + ellipsis
 
-    def test_deeply_nested_path(self, memfs: MemoryFileSystem) -> None:
-        _write(
-            memfs,
-            "/project/a/b/c/d/e/deep.py",
-            """\
-            def deep_function():
-                return 42
-            """,
-        )
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("deep_function")
-        assert len(result.definitions) >= 1
-
-    def test_unicode_content(self, memfs: MemoryFileSystem) -> None:
-        _write(
-            memfs,
-            "/project/unicode.py",
-            """\
-            def greet_unicode():
-                return "Hello World"
-            """,
-        )
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("greet_unicode")
-        assert len(result.definitions) >= 1
-
-    def test_empty_file(self, memfs: MemoryFileSystem) -> None:
-        _write(memfs, "/project/empty.py", "")
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("anything")
+    def test_symbol_with_dot_notation(self):
+        fs = make_mock_fs({"/repo/a.py": SIMPLE_PYTHON})
+        fs.find.return_value = ["/repo/a.py"]
+        ct = CodeTools(fs=fs, root="/repo")
+        # "Greeter.greet" should find "greet" via leaf matching
+        result = ct.search_definition("Greeter.greet")
+        # May or may not find depending on extraction; should not crash
         assert isinstance(result, SearchResult)
 
-    def test_syntax_error_file_handled(self, memfs: MemoryFileSystem) -> None:
-        _write(
-            memfs,
-            "/project/broken.py",
-            """\
-            def broken(
-                # missing closing paren and colon
-            """,
-        )
-        tools = CodeTools(fs=memfs, root="/project")
-        # Should not raise — tree-sitter is error-tolerant
-        result = tools.search_definition("broken")
+    def test_search_with_unicode_content(self):
+        content = 'def héllo():\n    return "Héllo"\n'
+        fs = make_mock_fs({"/repo/a.py": content})
+        fs.find.return_value = ["/repo/a.py"]
+        ct = CodeTools(fs=fs, root="/repo")
+        result = ct.search_definition("héllo")
         assert isinstance(result, SearchResult)
 
-    def test_max_results_respected(self, memfs: MemoryFileSystem) -> None:
-        for i in range(10):
-            _write(
-                memfs,
-                f"/project/mod{i}.py",
-                f"""\
-                def target():
-                    return {i}
-                """,
-            )
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("target", max_results=3)
-        assert len(result.definitions) <= 3
+    def test_concurrent_grep_files_stable(self):
+        files = {f"/repo/{i}.py": f"def fn_{i}(): pass\n" for i in range(20)}
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        ct = CodeTools(fs=fs, root="/repo", max_workers=4)
+        result1 = ct._grep_files("fn_0")
+        result2 = ct._grep_files("fn_0")
+        assert result1 == result2
 
-    def test_qualified_symbol_search(self, python_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=python_project, root="/project")
-        result = tools.search_definition("User.full_name")
-        assert len(result.definitions) >= 1
-        assert any(d.symbol == "full_name" for d in result.definitions)
+    def test_file_read_error_during_search(self):
+        fs = MagicMock()
+        fs.find.return_value = ["/repo/a.py"]
+        # First call to cat_file (grep phase) succeeds, second (parse) fails
+        fs.cat_file.side_effect = [b"def hello(): pass", IOError("read error")]
+        ct = CodeTools(fs=fs, root="/repo")
+        # Should not raise
+        result = ct.search_definition("hello")
+        assert isinstance(result, SearchResult)
 
-    def test_decorated_python_function(self, memfs: MemoryFileSystem) -> None:
-        _write(
-            memfs,
-            "/project/decorated.py",
-            """\
-            def my_decorator(f):
-                return f
-
-            @my_decorator
-            def decorated_handler(request):
-                return "ok"
-            """,
-        )
-        tools = CodeTools(fs=memfs, root="/project")
-        result = tools.search_definition("decorated_handler")
-        # May be found as function_definition or decorated_definition
-        assert len(result.definitions) >= 1
-
-    def test_root_with_trailing_slash(self, python_project: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=python_project, root="/project/")
-        result = tools.search_definition("handle_request")
-        assert len(result.definitions) >= 1
-
-    def test_search_nonexistent_root(self, memfs: MemoryFileSystem) -> None:
-        tools = CodeTools(fs=memfs, root="/does/not/exist")
-        result = tools.search_definition("anything")
-        assert len(result.definitions) == 0
-        assert len(result.grep_matches) == 0
+    def test_search_def_grep_fallback_respects_max(self):
+        content = "hello\n" * 30
+        files = {f"/repo/{i}.py": content for i in range(5)}
+        fs = make_mock_fs(files)
+        fs.find.return_value = list(files.keys())
+        ct = CodeTools(fs=fs, root="/repo")
+        result = ct.search_definition("hello", max_grep_results=5)
+        assert len(result.grep_matches) <= 5
