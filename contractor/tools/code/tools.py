@@ -13,10 +13,10 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Optional, Sequence
+from typing import Optional
 
-import tree_sitter_languages
 from tree_sitter import Node, Tree
+from tree_sitter_language_pack import get_parser
 
 from fsspec import AbstractFileSystem
 
@@ -231,6 +231,16 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
 
 
 @dataclass(frozen=True)
+class SymbolEntry:
+    name: str
+    file: str
+    line: int
+    end_line: int
+    node_type: str
+    language: str
+
+
+@dataclass(frozen=True)
 class DefinitionResult:
     """A precise definition found via tree-sitter."""
 
@@ -246,6 +256,39 @@ class DefinitionResult:
     @property
     def location(self) -> str:
         return f"{self.file}:{self.line}"
+
+
+@dataclass(frozen=True)
+class ReferenceResult:
+    """Найденное использование символа (не определение)."""
+
+    symbol: str
+    file: str
+    line: int
+    column: int
+    context: str
+    ref_kind: str  # "call", "import", "type_annotation", "assignment", …
+
+    @property
+    def location(self) -> str:
+        return f"{self.file}:{self.line}"
+
+
+# Типы узлов, которые считаются «использованием», по языку
+_REF_NODE_TYPES: dict[Language, set[str]] = {
+    Language.PYTHON: {
+        "call",
+        "attribute",
+        "import_from_statement",
+        "import_statement",
+        "type_annotation",
+    },
+    Language.JAVASCRIPT: {"call_expression", "import_statement", "member_expression"},
+    Language.TYPESCRIPT: {"call_expression", "import_statement", "type_reference"},
+    Language.GO: {"call_expression", "selector_expression", "import_spec"},
+    Language.RUST: {"call_expression", "macro_invocation", "use_declaration"},
+    # … остальные языки аналогично
+}
 
 
 @dataclass(frozen=True)
@@ -340,6 +383,39 @@ class _CacheEntry:
 
 
 # ─── Core helpers ─────────────────────────────────────────────────────
+
+
+def _extract_all_definitions(
+    node: Node,
+    source: bytes,
+    specs: list[_NodeSpec],
+    file_path: str,
+    language: Language,
+) -> list[SymbolEntry]:
+    """Извлечь все определения из файла без фильтрации по имени."""
+    results: list[SymbolEntry] = []
+    spec_types = {s.node_type for s in specs}
+    stack: list[Node] = [node]
+
+    while stack:
+        current = stack.pop()
+        if current.type in spec_types:
+            name = _extract_name_from_node(current, source)
+            if name:
+                results.append(
+                    SymbolEntry(
+                        name=name,
+                        file=file_path,
+                        line=current.start_point[0] + 1,
+                        end_line=current.end_point[0] + 1,
+                        node_type=current.type,
+                        language=language.value,
+                    )
+                )
+        for i in range(current.child_count - 1, -1, -1):
+            stack.append(current.children[i])
+
+    return results
 
 
 def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
@@ -486,6 +562,46 @@ def _walk_for_definitions(
     return results
 
 
+def _walk_for_references(
+    node: Node,
+    source: bytes,
+    symbol: str,
+    file_path: str,
+    language: Language,
+    ref_node_types: set[str],
+) -> list[ReferenceResult]:
+    results: list[ReferenceResult] = []
+    stack: list[Node] = [node]
+
+    while stack:
+        current = stack.pop()
+
+        if current.type == "identifier":
+            text = source[current.start_byte : current.end_byte].decode(
+                "utf-8", errors="replace"
+            )
+            if text == symbol:
+                parent = current.parent
+                ref_kind = parent.type if parent else "unknown"
+                results.append(
+                    ReferenceResult(
+                        symbol=symbol,
+                        file=file_path,
+                        line=current.start_point[0] + 1,
+                        column=current.start_point[1],
+                        context=_context_snippet(
+                            source, parent or current, max_lines=5
+                        ),
+                        ref_kind=ref_kind,
+                    )
+                )
+
+        for i in range(current.child_count - 1, -1, -1):
+            stack.append(current.children[i])
+
+    return results
+
+
 # ─── Grep with line-level results ─────────────────────────────────────
 
 
@@ -527,11 +643,11 @@ def _grep_file_lines(
     return matches
 
 
-# ─── Searcher ─────────────────────────────────────────────────────────
+# ─── CodeTools ─────────────────────────────────────────────────────────
 
 
 @dataclass
-class DefinitionSearcher:
+class CodeTools:
     """
     Searches for symbol definitions using tree-sitter with grep fallback.
 
@@ -554,7 +670,7 @@ class DefinitionSearcher:
 
     # ── Public ────────────────────────────────────────────────────────
 
-    def search(
+    def search_definition(
         self,
         symbol: str,
         *,
@@ -628,6 +744,103 @@ class DefinitionSearcher:
             is_fallback=True,
         )
 
+    def search_references(
+        self,
+        symbol: str,
+        *,
+        path: str = "",
+        language_filter: Optional[Language] = None,
+        max_results: int = 100,
+    ) -> list[ReferenceResult]:
+        """Найти все использования символа (вызовы, импорты, аннотации)."""
+        search_symbol = symbol.rsplit(".", 1)[-1]
+        candidate_files = self._grep_files(search_symbol, path=path)
+
+        all_refs: list[ReferenceResult] = []
+        for fpath in candidate_files:
+            lang = detect_language(fpath)
+            if lang is None:
+                continue
+            if language_filter is not None and lang != language_filter:
+                continue
+
+            content = self._read_file(fpath)
+            if content is None:
+                continue
+
+            parsed = self._parse_file(fpath, content, lang)
+            if parsed is None:
+                continue
+
+            ref_types = _REF_NODE_TYPES.get(lang, set())
+            refs = _walk_for_references(
+                parsed.tree.root_node,
+                parsed.source,
+                search_symbol,
+                fpath,
+                lang,
+                ref_types,
+            )
+            all_refs.extend(refs)
+
+            if len(all_refs) >= max_results:
+                all_refs = all_refs[:max_results]
+                break
+
+        return all_refs
+
+    def list_symbols(
+        self,
+        path: str = "",
+        *,
+        language_filter: Optional[Language] = None,
+        node_type_filter: Optional[
+            str
+        ] = None,  # "function_definition", "class_definition", …
+    ) -> list[SymbolEntry]:
+        """
+        Вернуть все определения символов в указанном пути.
+        Полезно для построения карты кодовой базы.
+        """
+        search_root = (
+            f"{self.root.rstrip('/')}/{path}".rstrip("/")
+            if path
+            else self.root.rstrip("/")
+        )
+        try:
+            all_files = self.fs.find(search_root, detail=False)
+        except FileNotFoundError:
+            return []
+
+        all_symbols: list[SymbolEntry] = []
+
+        for fpath in all_files:
+            lang = detect_language(fpath)
+            if lang is None:
+                continue
+            if language_filter is not None and lang != language_filter:
+                continue
+
+            content = self._read_file(fpath)
+            if content is None:
+                continue
+
+            parsed = self._parse_file(fpath, content, lang)
+            if parsed is None:
+                continue
+
+            specs = _specs_for(lang)
+            entries = _extract_all_definitions(
+                parsed.tree.root_node, parsed.source, specs, fpath, lang
+            )
+
+            if node_type_filter:
+                entries = [e for e in entries if e.node_type == node_type_filter]
+
+            all_symbols.extend(entries)
+
+        return all_symbols
+
     def clear_cache(self) -> None:
         self._parse_cache.clear()
         self._resolution_cache.clear()
@@ -691,7 +904,7 @@ class DefinitionSearcher:
             return cached
 
         try:
-            parser = tree_sitter_languages.get_parser(lang.value)
+            parser = get_parser(lang.value)
             tree = parser.parse(content)
         except Exception:
             logger.debug("Failed to parse %s as %s", path, lang.value, exc_info=True)
@@ -764,7 +977,7 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
     Returns:
         List of tool functions: [search_def]
     """
-    searcher = DefinitionSearcher(fs=fs, root=root)
+    tools = CodeTools(fs=fs, root=root)
 
     def search_def(
         symbol: str,
@@ -850,13 +1063,13 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
                     "kind": "error",
                     "note": (
                         f"Unknown language '{language}'. Supported: "
-                        + ", ".join(l.value for l in Language)
+                        + ", ".join(lang.value for lang in Language)
                     ),
                     "count": 0,
                     "results": [],
                 }
 
-        result = searcher.search(
+        result = tools.search_definition(
             symbol=symbol,
             path=path,
             language_filter=lang_filter,
@@ -864,4 +1077,70 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
 
         return result.to_dict()
 
-    return [search_def]
+    def search_refs(symbol: str, path: str = "", language: str = "") -> dict:
+        """Найти все использования символа (вызовы, импорты, аннотации типов)."""
+        lang_filter = _parse_language(language, symbol)
+        if isinstance(lang_filter, dict):  # ошибка
+            return lang_filter
+
+        refs = tools.search_references(symbol, path=path, language_filter=lang_filter)
+        return {
+            "symbol": symbol,
+            "found": bool(refs),
+            "count": len(refs),
+            "results": [
+                {
+                    "file": r.file,
+                    "line": r.line,
+                    "column": r.column,
+                    "ref_kind": r.ref_kind,
+                    "context": r.context,
+                }
+                for r in refs
+            ],
+        }
+
+    def list_symbols(path: str = "", language: str = "", node_type: str = "") -> dict:
+        """Перечислить все определения символов в указанном пути."""
+        lang_filter = _parse_language(language)
+        if isinstance(lang_filter, dict):
+            return lang_filter
+
+        symbols = tools.list_symbols(
+            path, language_filter=lang_filter, node_type_filter=node_type or None
+        )
+        return {
+            "path": path,
+            "count": len(symbols),
+            "results": [
+                {
+                    "name": s.name,
+                    "file": s.file,
+                    "line": s.line,
+                    "end_line": s.end_line,
+                    "node_type": s.node_type,
+                    "language": s.language,
+                }
+                for s in symbols
+            ],
+        }
+
+    return [search_def, search_refs, list_symbols]
+
+
+def _parse_language(language: str, symbol: str = "") -> Optional[Language] | dict:
+    """Вспомогательная функция разбора языка с возвратом ошибки в dict."""
+    if not language:
+        return None
+    try:
+        return Language(language)
+    except ValueError:
+        return {
+            "symbol": symbol,
+            "found": False,
+            "kind": "error",
+            "note": f"Unknown language '{language}'. Supported: "
+            + ", ".join(lang.value for lang in Language),
+            "count": 0,
+            "results": [],
+        }

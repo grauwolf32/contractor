@@ -1,10 +1,13 @@
+import yaml
 import json
-import fsspec
+import logging
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any
 from functools import partial
+from google.genai import types
 from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
+from contractor.tools.openapi import resolve_refs
 from google.adk.artifacts import BaseArtifactService
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import (
@@ -13,73 +16,158 @@ from contractor.runners.task_runner import (
 )
 from google.adk.models import LiteLlm
 
-
-async def trace_annotation_runner(
-    *,
-    folder_name: str,
-    llm: LiteLlm,
-    fs: fsspec.AbstractFileSystem,
-    operation_id: str,
-    operation_schema: str,
-    artifact_service: BaseArtifactService,
-    **kwargs,
-) -> TaskRunner:
-    runner = TaskRunner(
-        name="contractor",
-        artifact_service=artifact_service,
-    )
-
-    trace_builder = partial(
-        build_trace_agent,
-        name="trace_agent",
-        fs=fs,
-        model=llm,
-        max_tokens=120000,
-        enable_vuln_reporting=True,
-    )
-
-    runner.add_variable(name="project_path", value=folder_name)
-    runner.add_variable(name="operation_id", value=operation_id)
-    if operation_schema:
-        runner.add_variable(name="operation_schema", value=operation_schema)
-
-    runner.add_task(
-        name="trace_annotation",
-        worker_builder=trace_builder,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
-        artifacts=["oas-openapi-building"],
-        namespace="trace-annotation",
-        model=llm,
-    )
-
-    return runner
-
-
-TEST_DATA_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "data" / "fakeproj" / "2"
-)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @dataclass
-class MockRunner:
+class OpenApiOperation:
+    operation_id: str
+    method: str
+    path: str
+    schema: dict[str, Any]
+
+
+def extract_openapi_operations(
+    openapi: dict[str, Any],
+) -> list[OpenApiOperation]:
+    """Extract all operations from an OpenAPI schema."""
+    operations = []
+    for path, path_item in openapi["paths"].items():
+        path_files: list[str] | None = path_item.pop("x-path-files", None)
+
+        for method, operation in path_item.items():
+            if method in {"get", "post", "put", "delete", "patch"}:
+                try:
+                    operation_schema = resolve_refs(
+                        operation,
+                        openapi,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        f"Error resolving refs for operation {operation.get('operationId', '')}: {exc}"
+                    )
+                    continue
+
+                if path_files:
+                    operation_schema["x-path-files"] = path_files
+
+                operations.append(
+                    OpenApiOperation(
+                        operation_id=operation.get("operationId", ""),
+                        method=method,
+                        path=path,
+                        schema=operation_schema,
+                    )
+                )
+    logger.info(f"Found {len(operations)} operations")
+    return operations
+
+
+@dataclass
+class AnnotationRunner:
+    app_name: str
+    llm: LiteLlm
     fs: MemoryOverlayFileSystem
-    task_runner: TaskRunner
+    artifact_service: BaseArtifactService
+    operations: dict[str, OpenApiOperation] = field(default_factory=dict)
+    namespace: str = "openapi"
+    folder: str = "/"
+    overlayfs: MemoryOverlayFileSystem = field(init=False)
+
+    def __post_init__(self):
+        self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
 
     async def run(
         self,
         *,
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
-    ) -> list[dict[str, Any]]:
-        await self.task_runner.run(user_id=user_id, on_event=on_event)
-        patch = self.fs.save()
-        with open(str(TEST_DATA_PATH / "patch.json"), "w") as f:
-            f.write(json.dumps(patch))
+    ):
+        raw = await self.artifact_service.load_artifact(
+            app_name=self.app_name,
+            user_id=user_id,
+            filename=f"oas-{self.namespace}-building",
+        )
+        if not raw:
+            raise ValueError("No OpenAPI artifact found")
+
+        openapi = yaml.safe_load(raw.text)
+        self.operations = {
+            op.operation_id: op for op in extract_openapi_operations(openapi=openapi)
+        }
+
+        for operation in self.operations.values():
+            await self.run_operation(
+                operation,
+                user_id=user_id,
+                on_event=on_event,
+            )
+
+            artifact_text = types.Part.from_text(text=json.dumps(self.overlayfs.save()))
+            await self.artifact_service.save_artifact(
+                app_name=self.app_name,
+                user_id=user_id,
+                filename=f"trace-{self.namespace}-fs",
+                artifact=artifact_text,
+            )
+
+            artifact_text = types.Part.from_text(
+                text=self.overlayfs.diff(context_lines=4)
+            )
+            await self.artifact_service.save_artifact(
+                app_name=self.app_name,
+                user_id=user_id,
+                filename=f"trace-{self.namespace}-diff",
+                artifact=artifact_text,
+            )
+
+    async def run_operation(
+        self,
+        operation: OpenApiOperation,
+        *,
+        user_id: str = "cli-user",
+        on_event: Optional[TaskRunnerEventHandler] = None,
+    ):
+        trace_builder = partial(
+            build_trace_agent,
+            name="trace_agent",
+            fs=self.overlayfs,
+            model=self.llm,
+            max_tokens=120000,
+            enable_vuln_reporting=True,
+        )
+
+        runner = TaskRunner(
+            name="contractor",
+            artifact_service=self.artifact_service,
+        )
+
+        oas_artifact_name = f"oas-{self.namespace}-building"
+        operation_id = operation.operation_id
+        operation_schema = yaml.safe_dump(
+            {operation.path: {operation.method: operation.schema}}, sort_keys=False
+        )
+
+        runner.add_variable(name="project_path", value=self.folder)
+        runner.add_variable(name="operation_id", value=operation_id)
+        runner.add_variable(name="operation_schema", value=operation_schema)
+
+        runner.add_task(
+            name=f"trace_experimental",
+            ref=f"trace_annotation:{self.namespace}:{operation_id}",
+            worker_builder=trace_builder,
+            iterations=1,
+            max_attempts=3,
+            max_steps=20,
+            artifacts=[oas_artifact_name],
+            namespace=f"trace-annotation:{self.namespace}:{operation_id}",
+            model=self.llm,
+        )
+
+        await runner.run(user_id=user_id, on_event=on_event)
 
 
-# Mock pipeline for tests
 async def trace_annotation_pipeline(
     project_path: Path,
     folder_name: str,
@@ -90,9 +178,8 @@ async def trace_annotation_pipeline(
     artifact: Optional[str] = None,
     **kwargs,
 ) -> TaskRunner:
-    llm = LiteLlm(model=model)
     base_fs = RootedLocalFileSystem(root_path=project_path)
-    overlay_fs = MemoryOverlayFileSystem(fs=base_fs)
+    llm = LiteLlm(model=model)
 
     if artifact:
         artifact_text = types.Part.from_text(text=artifact)
@@ -103,20 +190,10 @@ async def trace_annotation_pipeline(
             artifact=artifact_text,
         )
 
-    operation_id = "lostPasswordResetForm"
-    spec_path = TEST_DATA_PATH / "spec.yml"
-
-    raw: str = ""
-    with open(spec_path) as f:
-        raw = f.read()
-
-    task_runner = await trace_annotation_runner(
-        folder_name=folder_name,
+    return AnnotationRunner(
+        app_name=app_name,
         llm=llm,
-        fs=overlay_fs,
-        operation_id=operation_id,
-        operation_schema=raw,
+        fs=base_fs,
         artifact_service=artifact_service,
+        folder=folder_name,
     )
-
-    return MockRunner(fs=overlay_fs, task_runner=task_runner)

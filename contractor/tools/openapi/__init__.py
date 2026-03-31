@@ -5,6 +5,7 @@ from .models import (
     RequestBody,
     Response,
 )
+from .ref_resolver import resolve_refs, resolve_local_refs
 
 __all__ = [
     "OpenApiArtifact",
@@ -15,4 +16,6 @@ __all__ = [
     "SecurityScheme",
     "RequestBody",
     "Response",
+    "resolve_refs",
+    "resolve_local_refs",
 ]
