@@ -4,20 +4,16 @@ Symbol definition search using tree-sitter.
 Searches for function/class/method definitions across multiple languages
 using grep for candidate file discovery and tree-sitter for precise parsing.
 Falls back to grep results when no exact definition is found.
-
-Parallelized version using concurrent.futures.
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Optional
+from typing import Optional, Sequence
 
 from tree_sitter import Node, Tree
 from tree_sitter_language_pack import get_parser
@@ -25,8 +21,6 @@ from tree_sitter_language_pack import get_parser
 from fsspec import AbstractFileSystem
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MAX_WORKERS = 8
 
 
 # ─── Language Detection ───────────────────────────────────────────────
@@ -235,7 +229,6 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
 
 # ─── Result dataclasses ───────────────────────────────────────────────
 
-
 @dataclass(frozen=True)
 class SymbolEntry:
     name: str
@@ -263,24 +256,21 @@ class DefinitionResult:
     def location(self) -> str:
         return f"{self.file}:{self.line}"
 
-
 @dataclass(frozen=True)
 class ReferenceResult:
-    """A symbol usage found in source (not a definition)."""
-
+    """Найденное использование символа (не определение)."""
     symbol: str
     file: str
     line: int
     column: int
     context: str
-    ref_kind: str  # "call", "import", "type_annotation", "assignment", etc.
+    ref_kind: str  # "call", "import", "type_annotation", "assignment", …
 
     @property
     def location(self) -> str:
         return f"{self.file}:{self.line}"
 
-
-# Node types considered as "usage" per language
+# Типы узлов, которые считаются «использованием», по языку
 _REF_NODE_TYPES: dict[Language, set[str]] = {
     Language.PYTHON: {
         "call",
@@ -293,8 +283,8 @@ _REF_NODE_TYPES: dict[Language, set[str]] = {
     Language.TYPESCRIPT: {"call_expression", "import_statement", "type_reference"},
     Language.GO: {"call_expression", "selector_expression", "import_spec"},
     Language.RUST: {"call_expression", "macro_invocation", "use_declaration"},
+    # … остальные языки аналогично
 }
-
 
 @dataclass(frozen=True)
 class GrepMatch:
@@ -386,52 +376,7 @@ class _CacheEntry:
     content_hash: str
     results: list[DefinitionResult]
 
-
-# ─── Thread-safe cache wrapper ────────────────────────────────────────
-
-
-class _ThreadSafeCache:
-    """Simple thread-safe dict wrapper with per-cache locking."""
-
-    def __init__(self) -> None:
-        self._parse_cache: dict[str, _ParsedFile] = {}
-        self._resolution_cache: dict[tuple[str, str], _CacheEntry] = {}
-        self._parse_lock = threading.Lock()
-        self._resolution_lock = threading.Lock()
-
-    def get_parsed(self, path: str) -> Optional[_ParsedFile]:
-        with self._parse_lock:
-            return self._parse_cache.get(path)
-
-    def set_parsed(self, path: str, entry: _ParsedFile) -> None:
-        with self._parse_lock:
-            self._parse_cache[path] = entry
-
-    def get_resolution(self, key: tuple[str, str]) -> Optional[_CacheEntry]:
-        with self._resolution_lock:
-            return self._resolution_cache.get(key)
-
-    def set_resolution(self, key: tuple[str, str], entry: _CacheEntry) -> None:
-        with self._resolution_lock:
-            self._resolution_cache[key] = entry
-
-    def clear(self) -> None:
-        with self._parse_lock:
-            self._parse_cache.clear()
-        with self._resolution_lock:
-            self._resolution_cache.clear()
-
-    def invalidate_file(self, path: str) -> None:
-        with self._parse_lock:
-            self._parse_cache.pop(path, None)
-        with self._resolution_lock:
-            keys_to_remove = [k for k in self._resolution_cache if k[1] == path]
-            for k in keys_to_remove:
-                self._resolution_cache.pop(k, None)
-
-
 # ─── Core helpers ─────────────────────────────────────────────────────
-
 
 def _extract_all_definitions(
     node: Node,
@@ -440,7 +385,7 @@ def _extract_all_definitions(
     file_path: str,
     language: Language,
 ) -> list[SymbolEntry]:
-    """Extract all definitions from a file without filtering by name."""
+    """Извлечь все определения из файла без фильтрации по имени."""
     results: list[SymbolEntry] = []
     spec_types = {s.node_type for s in specs}
     stack: list[Node] = [node]
@@ -464,7 +409,6 @@ def _extract_all_definitions(
             stack.append(current.children[i])
 
     return results
-
 
 def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     """Best-effort extraction of the defined symbol name from a node."""
@@ -609,7 +553,6 @@ def _walk_for_definitions(
 
     return results
 
-
 def _walk_for_references(
     node: Node,
     source: bytes,
@@ -637,9 +580,7 @@ def _walk_for_references(
                         file=file_path,
                         line=current.start_point[0] + 1,
                         column=current.start_point[1],
-                        context=_context_snippet(
-                            source, parent or current, max_lines=5
-                        ),
+                        context=_context_snippet(source, parent or current, max_lines=5),
                         ref_kind=ref_kind,
                     )
                 )
@@ -648,7 +589,6 @@ def _walk_for_references(
             stack.append(current.children[i])
 
     return results
-
 
 # ─── Grep with line-level results ─────────────────────────────────────
 
@@ -691,27 +631,7 @@ def _grep_file_lines(
     return matches
 
 
-# ─── Parallel helpers ─────────────────────────────────────────────────
-
-
-def _check_file_contains(
-    fs: AbstractFileSystem, fpath: str, pattern: str
-) -> Optional[str]:
-    """
-    Check if a single file contains `pattern`.
-    Returns the file path if found, else None.
-    """
-    try:
-        raw = fs.cat_file(fpath)
-        text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
-        if pattern in text:
-            return fpath
-    except Exception:
-        logger.debug("Could not read %s, skipping", fpath, exc_info=True)
-    return None
-
-
-# ─── Searcher (Parallelized) ─────────────────────────────────────────
+# ─── Searcher ─────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -722,44 +642,19 @@ class CodeTools:
     Uses fsspec to find candidate files containing the symbol, then parses
     them with tree-sitter to locate precise definitions. When no tree-sitter
     definition is found, returns the raw grep matches instead.
-
-    All I/O-bound and CPU-bound file scanning is parallelized using
-    ThreadPoolExecutor.
     """
 
     fs: AbstractFileSystem
     root: str = "/"
     max_context_lines: int = 15
     grep_context_lines: int = 2
-    max_workers: int = _DEFAULT_MAX_WORKERS
 
-    _cache: _ThreadSafeCache = field(
-        default_factory=_ThreadSafeCache, init=False, repr=False
+    _parse_cache: dict[str, _ParsedFile] = field(
+        default_factory=dict, init=False, repr=False
     )
-    _executor: Optional[ThreadPoolExecutor] = field(
-        default=None, init=False, repr=False
+    _resolution_cache: dict[tuple[str, str], _CacheEntry] = field(
+        default_factory=dict, init=False, repr=False
     )
-
-    def __post_init__(self) -> None:
-        self._executor = ThreadPoolExecutor(
-            max_workers=self.max_workers,
-            thread_name_prefix="code-tools",
-        )
-
-    def shutdown(self) -> None:
-        """Shutdown the internal thread pool."""
-        if self._executor is not None:
-            self._executor.shutdown(wait=False)
-            self._executor = None
-
-    @property
-    def _pool(self) -> ThreadPoolExecutor:
-        if self._executor is None:
-            self._executor = ThreadPoolExecutor(
-                max_workers=self.max_workers,
-                thread_name_prefix="code-tools",
-            )
-        return self._executor
 
     # ── Public ────────────────────────────────────────────────────────
 
@@ -777,11 +672,11 @@ class CodeTools:
 
         Returns tree-sitter definitions when found. Falls back to grep
         matches (file, line, surrounding context) when no definition is
-        resolved. File discovery and analysis run in parallel.
+        resolved.
         """
         search_symbol = symbol.rsplit(".", 1)[-1]
 
-        candidate_files = self._grep_files_parallel(search_symbol, path=path)
+        candidate_files = self._grep_files(search_symbol, path=path)
         if not candidate_files:
             return SearchResult(
                 symbol=symbol,
@@ -790,10 +685,21 @@ class CodeTools:
                 is_fallback=False,
             )
 
-        # Phase 1: tree-sitter definitions (parallel)
-        all_defs = self._search_definitions_parallel(
-            candidate_files, symbol, language_filter, max_results
-        )
+        # Phase 1: tree-sitter definitions
+        all_defs: list[DefinitionResult] = []
+        for fpath in candidate_files:
+            lang = detect_language(fpath)
+            if lang is None:
+                continue
+            if language_filter is not None and lang != language_filter:
+                continue
+
+            defs = self._search_file(fpath, symbol, lang)
+            all_defs.extend(defs)
+            if len(all_defs) >= max_results:
+                all_defs = all_defs[:max_results]
+                break
+
         all_defs.sort(key=lambda r: (r.file, r.line))
 
         if all_defs:
@@ -804,13 +710,20 @@ class CodeTools:
                 is_fallback=False,
             )
 
-        # Phase 2: fallback to grep matches (parallel)
-        all_grep = self._grep_matches_parallel(
-            candidate_files,
-            search_symbol,
-            language_filter,
-            max_grep_results,
-        )
+        # Phase 2: fallback to grep matches
+        all_grep: list[GrepMatch] = []
+        for fpath in candidate_files:
+            if language_filter is not None:
+                lang = detect_language(fpath)
+                if lang is None or lang != language_filter:
+                    continue
+            matches = _grep_file_lines(
+                self.fs, fpath, search_symbol, context_lines=self.grep_context_lines
+            )
+            all_grep.extend(matches)
+            if len(all_grep) >= max_grep_results:
+                all_grep = all_grep[:max_grep_results]
+                break
 
         return SearchResult(
             symbol=symbol,
@@ -827,37 +740,28 @@ class CodeTools:
         language_filter: Optional[Language] = None,
         max_results: int = 100,
     ) -> list[ReferenceResult]:
-        """Find all usages of a symbol (calls, imports, type annotations). Parallelized."""
+        """Найти все использования символа (вызовы, импорты, аннотации)."""
         search_symbol = symbol.rsplit(".", 1)[-1]
-        candidate_files = self._grep_files_parallel(search_symbol, path=path)
+        candidate_files = self._grep_files(search_symbol, path=path)
 
-        filtered: list[tuple[str, Language]] = []
+        all_refs: list[ReferenceResult] = []
         for fpath in candidate_files:
             lang = detect_language(fpath)
             if lang is None:
                 continue
             if language_filter is not None and lang != language_filter:
                 continue
-            filtered.append((fpath, lang))
-
-        all_refs: list[ReferenceResult] = []
-        lock = threading.Lock()
-        enough = threading.Event()
-
-        def _process_refs(fpath: str, lang: Language) -> list[ReferenceResult]:
-            if enough.is_set():
-                return []
 
             content = self._read_file(fpath)
             if content is None:
-                return []
+                continue
 
             parsed = self._parse_file(fpath, content, lang)
             if parsed is None:
-                return []
+                continue
 
             ref_types = _REF_NODE_TYPES.get(lang, set())
-            return _walk_for_references(
+            refs = _walk_for_references(
                 parsed.tree.root_node,
                 parsed.source,
                 search_symbol,
@@ -865,76 +769,49 @@ class CodeTools:
                 lang,
                 ref_types,
             )
+            all_refs.extend(refs)
 
-        futures = {
-            self._pool.submit(_process_refs, fpath, lang): fpath
-            for fpath, lang in filtered
-        }
-
-        for future in as_completed(futures):
-            try:
-                refs = future.result()
-            except Exception:
-                logger.debug(
-                    "Error processing refs for %s",
-                    futures[future],
-                    exc_info=True,
-                )
-                continue
-
-            with lock:
-                all_refs.extend(refs)
-                if len(all_refs) >= max_results:
-                    all_refs = all_refs[:max_results]
-                    enough.set()
-
-        if enough.is_set():
-            for f in futures:
-                f.cancel()
+            if len(all_refs) >= max_results:
+                all_refs = all_refs[:max_results]
+                break
 
         return all_refs
-
+    
     def list_symbols(
         self,
         path: str = "",
         *,
         language_filter: Optional[Language] = None,
-        node_type_filter: Optional[str] = None,
+        node_type_filter: Optional[str] = None,  # "function_definition", "class_definition", …
     ) -> list[SymbolEntry]:
         """
-        Return all symbol definitions found under the given path.
-        Useful for building a codebase map. Parallelized.
+        Вернуть все определения символов в указанном пути.
+        Полезно для построения карты кодовой базы.
         """
         search_root = (
-            f"{self.root.rstrip('/')}/{path}".rstrip("/")
-            if path
-            else self.root.rstrip("/")
+            f"{self.root.rstrip('/')}/{path}".rstrip("/") if path else self.root.rstrip("/")
         )
         try:
             all_files = self.fs.find(search_root, detail=False)
         except FileNotFoundError:
             return []
 
-        filtered: list[tuple[str, Language]] = []
+        all_symbols: list[SymbolEntry] = []
+
         for fpath in all_files:
             lang = detect_language(fpath)
             if lang is None:
                 continue
             if language_filter is not None and lang != language_filter:
                 continue
-            filtered.append((fpath, lang))
 
-        all_symbols: list[SymbolEntry] = []
-        lock = threading.Lock()
-
-        def _process_symbols(fpath: str, lang: Language) -> list[SymbolEntry]:
             content = self._read_file(fpath)
             if content is None:
-                return []
+                continue
 
             parsed = self._parse_file(fpath, content, lang)
             if parsed is None:
-                return []
+                continue
 
             specs = _specs_for(lang)
             entries = _extract_all_definitions(
@@ -944,41 +821,24 @@ class CodeTools:
             if node_type_filter:
                 entries = [e for e in entries if e.node_type == node_type_filter]
 
-            return entries
-
-        futures = {
-            self._pool.submit(_process_symbols, fpath, lang): fpath
-            for fpath, lang in filtered
-        }
-
-        for future in as_completed(futures):
-            try:
-                entries = future.result()
-            except Exception:
-                logger.debug(
-                    "Error listing symbols for %s",
-                    futures[future],
-                    exc_info=True,
-                )
-                continue
-            with lock:
-                all_symbols.extend(entries)
+            all_symbols.extend(entries)
 
         return all_symbols
 
     def clear_cache(self) -> None:
-        self._cache.clear()
+        self._parse_cache.clear()
+        self._resolution_cache.clear()
 
     def invalidate_file(self, path: str) -> None:
-        self._cache.invalidate_file(path)
+        self._parse_cache.pop(path, None)
+        keys_to_remove = [k for k in self._resolution_cache if k[1] == path]
+        for k in keys_to_remove:
+            self._resolution_cache.pop(k, None)
 
-    # ── Internal (parallel) ───────────────────────────────────────────
+    # ── Internal ──────────────────────────────────────────────────────
 
-    def _grep_files_parallel(self, pattern: str, path: str = "") -> list[str]:
-        """
-        Find all source files under `path` whose content contains `pattern`.
-        Reads files in parallel using the thread pool.
-        """
+    def _grep_files(self, pattern: str, path: str = "") -> list[str]:
+        """Find all source files under `path` whose content contains `pattern`."""
         search_root = (
             f"{self.root.rstrip('/')}/{path}".rstrip("/")
             if path
@@ -990,129 +850,23 @@ class CodeTools:
             logger.warning("Search root not found: %s", search_root)
             return []
 
-        source_files = [f for f in all_files if detect_language(f) is not None]
-
         matching: list[str] = []
-        futures = {
-            self._pool.submit(_check_file_contains, self.fs, fpath, pattern): fpath
-            for fpath in source_files
-        }
-
-        for future in as_completed(futures):
+        for fpath in all_files:
+            if detect_language(fpath) is None:
+                continue
             try:
-                result = future.result()
-                if result is not None:
-                    matching.append(result)
+                raw = self.fs.cat_file(fpath)
+                text = (
+                    raw.decode("utf-8", errors="replace")
+                    if isinstance(raw, bytes)
+                    else raw
+                )
+                if pattern in text:
+                    matching.append(fpath)
             except Exception:
-                logger.debug("Error checking %s", futures[future], exc_info=True)
+                logger.debug("Could not read %s, skipping", fpath, exc_info=True)
 
         return matching
-
-    def _search_definitions_parallel(
-        self,
-        candidate_files: list[str],
-        symbol: str,
-        language_filter: Optional[Language],
-        max_results: int,
-    ) -> list[DefinitionResult]:
-        """Search for definitions across candidate files in parallel."""
-        filtered: list[tuple[str, Language]] = []
-        for fpath in candidate_files:
-            lang = detect_language(fpath)
-            if lang is None:
-                continue
-            if language_filter is not None and lang != language_filter:
-                continue
-            filtered.append((fpath, lang))
-
-        all_defs: list[DefinitionResult] = []
-        lock = threading.Lock()
-        enough = threading.Event()
-
-        def _process_def(fpath: str, lang: Language) -> list[DefinitionResult]:
-            if enough.is_set():
-                return []
-            return self._search_file(fpath, symbol, lang)
-
-        futures = {
-            self._pool.submit(_process_def, fpath, lang): fpath
-            for fpath, lang in filtered
-        }
-
-        for future in as_completed(futures):
-            try:
-                defs = future.result()
-            except Exception:
-                logger.debug(
-                    "Error searching defs in %s",
-                    futures[future],
-                    exc_info=True,
-                )
-                continue
-
-            if defs:
-                with lock:
-                    all_defs.extend(defs)
-                    if len(all_defs) >= max_results:
-                        all_defs = all_defs[:max_results]
-                        enough.set()
-
-        if enough.is_set():
-            for f in futures:
-                f.cancel()
-
-        return all_defs
-
-    def _grep_matches_parallel(
-        self,
-        candidate_files: list[str],
-        pattern: str,
-        language_filter: Optional[Language],
-        max_grep_results: int,
-    ) -> list[GrepMatch]:
-        """Collect grep matches across files in parallel."""
-        filtered: list[str] = []
-        for fpath in candidate_files:
-            if language_filter is not None:
-                lang = detect_language(fpath)
-                if lang is None or lang != language_filter:
-                    continue
-            filtered.append(fpath)
-
-        all_grep: list[GrepMatch] = []
-        lock = threading.Lock()
-        enough = threading.Event()
-
-        def _process_grep(fpath: str) -> list[GrepMatch]:
-            if enough.is_set():
-                return []
-            return _grep_file_lines(
-                self.fs, fpath, pattern, context_lines=self.grep_context_lines
-            )
-
-        futures = {self._pool.submit(_process_grep, fpath): fpath for fpath in filtered}
-
-        for future in as_completed(futures):
-            try:
-                matches = future.result()
-            except Exception:
-                logger.debug("Error grepping %s", futures[future], exc_info=True)
-                continue
-
-            if matches:
-                with lock:
-                    all_grep.extend(matches)
-                    if len(all_grep) >= max_grep_results:
-                        all_grep = all_grep[:max_grep_results]
-                        enough.set()
-
-        if enough.is_set():
-            for f in futures:
-                f.cancel()
-
-        return all_grep
-
-    # ── Internal (single-file) ────────────────────────────────────────
 
     def _read_file(self, path: str) -> Optional[bytes]:
         try:
@@ -1129,7 +883,7 @@ class CodeTools:
         self, path: str, content: bytes, lang: Language
     ) -> Optional[_ParsedFile]:
         chash = self._content_hash(content)
-        cached = self._cache.get_parsed(path)
+        cached = self._parse_cache.get(path)
         if cached is not None and cached.content_hash == chash:
             return cached
 
@@ -1146,7 +900,7 @@ class CodeTools:
             source=content,
             language=lang,
         )
-        self._cache.set_parsed(path, parsed)
+        self._parse_cache[path] = parsed
         return parsed
 
     def _search_file(
@@ -1161,7 +915,7 @@ class CodeTools:
 
         chash = self._content_hash(content)
         cache_key = (symbol, path)
-        cached_resolution = self._cache.get_resolution(cache_key)
+        cached_resolution = self._resolution_cache.get(cache_key)
         if cached_resolution is not None and cached_resolution.content_hash == chash:
             return cached_resolution.results
 
@@ -1182,9 +936,9 @@ class CodeTools:
             language=lang,
         )
 
-        self._cache.set_resolution(
-            cache_key,
-            _CacheEntry(content_hash=chash, results=results),
+        self._resolution_cache[cache_key] = _CacheEntry(
+            content_hash=chash,
+            results=results,
         )
 
         return results
@@ -1193,45 +947,21 @@ class CodeTools:
 # ─── Agent tool factory ──────────────────────────────────────────────
 
 
-def _parse_language(language: str, symbol: str = "") -> Optional[Language] | dict:
-    """Parse language string, returning Language enum or error dict."""
-    if not language:
-        return None
-    try:
-        return Language(language)
-    except ValueError:
-        return {
-            "symbol": symbol,
-            "found": False,
-            "kind": "error",
-            "note": f"Unknown language '{language}'. Supported: "
-            + ", ".join(lang.value for lang in Language),
-            "count": 0,
-            "results": [],
-        }
-
-
-def code_tools(
-    fs: AbstractFileSystem,
-    root: str = "/",
-    max_workers: int = _DEFAULT_MAX_WORKERS,
-) -> list:
+def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
     """
     Create code search tools for an LLM agent.
 
-    Returns a list of tool functions that search for symbol definitions,
-    references, and list all symbols using tree-sitter parsing with grep
-    fallback. All heavy operations are parallelized.
+    Returns a list containing the `search_def` function which searches for
+    symbol definitions using tree-sitter parsing with grep fallback.
 
     Args:
         fs: An fsspec AbstractFileSystem instance pointing to the codebase.
         root: Root path within the filesystem to search from.
-        max_workers: Number of parallel workers for file I/O and parsing.
 
     Returns:
-        List of tool functions: [search_def, search_refs, list_symbols]
+        List of tool functions: [search_def]
     """
-    tools = CodeTools(fs=fs, root=root, max_workers=max_workers)
+    tools = CodeTools(fs=fs, root=root)
 
     def search_def(
         symbol: str,
@@ -1306,9 +1036,22 @@ def code_tools(
                     "results": []
                 }
         """
-        lang_filter = _parse_language(language, symbol)
-        if isinstance(lang_filter, dict):
-            return lang_filter
+        lang_filter: Optional[Language] = None
+        if language:
+            try:
+                lang_filter = Language(language)
+            except ValueError:
+                return {
+                    "symbol": symbol,
+                    "found": False,
+                    "kind": "error",
+                    "note": (
+                        f"Unknown language '{language}'. Supported: "
+                        + ", ".join(l.value for l in Language)
+                    ),
+                    "count": 0,
+                    "results": [],
+                }
 
         result = tools.search_definition(
             symbol=symbol,
@@ -1317,75 +1060,14 @@ def code_tools(
         )
 
         return result.to_dict()
-
-    def search_refs(
-        symbol: str,
-        path: str = "",
-        language: str = "",
-    ) -> dict:
-        """Search for all usages (references) of a symbol in the codebase.
-
-        Finds every place where the symbol is used — function calls, imports,
-        type annotations, attribute access, macro invocations, etc. Uses
-        tree-sitter parsing for precise AST-level identification of references
-        rather than simple text matching.
-
-        This is the complement of search_def: while search_def finds where a
-        symbol is *defined*, search_refs finds where it is *used*.
-
-        Args:
-            symbol: The symbol name to search for. Use the simple identifier
-                name (e.g. "process_request", "UserModel"). For qualified
-                names like "module.func", the leaf name "func" is matched.
-            path: Optional subdirectory to restrict the search to, relative to
-                the project root. Use "" or omit to search the entire project.
-                Example: "src/handlers" to search only in that subtree.
-            language: Optional language filter. When set, only files of this
-                language are searched. Use the tree-sitter language name:
-                "python", "javascript", "typescript", "tsx", "go", "rust",
-                "java", "kotlin", "c", "cpp", "c_sharp", "ruby", "php",
-                "scala", "swift", "lua", "elixir", "haskell", "bash".
-                Use "" or omit to search all languages.
-
-        Returns:
-            A dictionary with all found references:
-            {
-                "symbol": "process_request",
-                "found": true,
-                "count": 5,
-                "results": [
-                    {
-                        "file": "src/server.py",
-                        "line": 87,
-                        "column": 12,
-                        "ref_kind": "call",
-                        "context": "result = process_request(data)"
-                    },
-                    {
-                        "file": "src/main.py",
-                        "line": 3,
-                        "column": 25,
-                        "ref_kind": "import_from_statement",
-                        "context": "from handlers import process_request"
-                    }
-                ]
-            }
-
-            Each result includes:
-            - file: Path to the source file containing the reference.
-            - line: 1-based line number of the reference.
-            - column: 0-based column offset within the line.
-            - ref_kind: The AST node type of the parent context, indicating
-              how the symbol is used (e.g. "call", "import_from_statement",
-              "type_annotation", "attribute", "member_expression").
-            - context: A short code snippet (up to 5 lines) showing the
-              reference in its surrounding code.
-        """
+    
+    def search_refs(symbol: str, path: str = "", language: str = "") -> dict:
+        """Найти все использования символа (вызовы, импорты, аннотации типов)."""
         lang_filter = _parse_language(language, symbol)
-        if isinstance(lang_filter, dict):
+        if isinstance(lang_filter, dict):  # ошибка
             return lang_filter
 
-        refs = tools.search_references(symbol, path=path, language_filter=lang_filter)
+        refs = searcher.search_references(symbol, path=path, language_filter=lang_filter)
         return {
             "symbol": symbol,
             "found": bool(refs),
@@ -1402,84 +1084,14 @@ def code_tools(
             ],
         }
 
-    def list_symbols(
-        path: str = "",
-        language: str = "",
-        node_type: str = "",
-    ) -> dict:
-        """List all symbol definitions found under a given path.
-
-        Enumerates every function, class, method, struct, trait, module, and
-        other named definitions in the specified directory tree. Useful for
-        building a codebase map, understanding project structure, or finding
-        all available symbols before searching for a specific one.
-
-        Unlike search_def (which searches for a specific symbol by name),
-        this tool returns *all* defined symbols without filtering by name.
-
-        Args:
-            path: Directory path to scan, relative to the project root.
-                Use "" or omit to scan the entire project.
-                Example: "src/models" to list symbols only in that subtree.
-            language: Optional language filter. When set, only files of this
-                language are scanned. Use the tree-sitter language name:
-                "python", "javascript", "typescript", "tsx", "go", "rust",
-                "java", "kotlin", "c", "cpp", "c_sharp", "ruby", "php",
-                "scala", "swift", "lua", "elixir", "haskell", "bash".
-                Use "" or omit to scan all languages.
-            node_type: Optional filter by AST node type. When set, only
-                symbols of this specific type are returned. Common values:
-                - "function_definition" (Python functions)
-                - "class_definition" (Python classes)
-                - "function_declaration" (JS/TS/Go/Java functions)
-                - "class_declaration" (JS/TS/Java classes)
-                - "method_definition" (JS/TS methods)
-                - "method_declaration" (Java/C# methods)
-                - "struct_item" (Rust structs)
-                - "trait_item" (Rust traits)
-                Use "" or omit to return all symbol types.
-
-        Returns:
-            A dictionary listing all discovered symbols:
-            {
-                "path": "src/models",
-                "count": 12,
-                "results": [
-                    {
-                        "name": "UserModel",
-                        "file": "src/models/user.py",
-                        "line": 15,
-                        "end_line": 42,
-                        "node_type": "class_definition",
-                        "language": "python"
-                    },
-                    {
-                        "name": "create_user",
-                        "file": "src/models/user.py",
-                        "line": 45,
-                        "end_line": 58,
-                        "node_type": "function_definition",
-                        "language": "python"
-                    }
-                ]
-            }
-
-            Each result includes:
-            - name: The symbol's identifier name.
-            - file: Path to the source file where the symbol is defined.
-            - line: 1-based start line of the definition.
-            - end_line: 1-based end line of the definition.
-            - node_type: The tree-sitter AST node type of the definition.
-            - language: The detected programming language.
-        """
+    def list_symbols(path: str = "", language: str = "", node_type: str = "") -> dict:
+        """Перечислить все определения символов в указанном пути."""
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
             return lang_filter
 
         symbols = tools.list_symbols(
-            path,
-            language_filter=lang_filter,
-            node_type_filter=node_type or None,
+            path, language_filter=lang_filter, node_type_filter=node_type or None
         )
         return {
             "path": path,
@@ -1498,3 +1110,20 @@ def code_tools(
         }
 
     return [search_def, search_refs, list_symbols]
+
+def _parse_language(language: str, symbol: str = "") -> Optional[Language] | dict:
+    """Вспомогательная функция разбора языка с возвратом ошибки в dict."""
+    if not language:
+        return None
+    try:
+        return Language(language)
+    except ValueError:
+        return {
+            "symbol": symbol,
+            "found": False,
+            "kind": "error",
+            "note": f"Unknown language '{language}'. Supported: "
+            + ", ".join(l.value for l in Language),
+            "count": 0,
+            "results": [],
+        }

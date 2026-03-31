@@ -547,8 +547,8 @@ class TestCaching:
         tools.search_definition("handle_request")
         # After a successful search, parse cache should have entries
         # (only if tree-sitter parsing succeeded)
-        if tools._cache._parse_cache:
-            assert len(tools._cache._parse_cache) > 0
+        if tools._parse_cache:
+            assert len(tools._parse_cache) > 0
         else:
             # If parse cache is empty, resolution cache should also be empty
             # but grep fallback should have found something
@@ -557,20 +557,20 @@ class TestCaching:
     def test_clear_cache(self, tools: CodeTools) -> None:
         tools.search_definition("handle_request")
         tools.clear_cache()
-        assert len(tools._cache._parse_cache) == 0
-        assert len(tools._cache._resolution_cache) == 0
+        assert len(tools._parse_cache) == 0
+        assert len(tools._resolution_cache) == 0
 
     def test_invalidate_file(self, tools: CodeTools) -> None:
         tools.search_definition("handle_request")
         # Find a handler path in cache if present
         handler_path = None
-        for key in tools._cache._parse_cache:
+        for key in tools._parse_cache:
             if "handler.py" in key:
                 handler_path = key
                 break
         if handler_path is not None:
             tools.invalidate_file(handler_path)
-            assert handler_path not in tools._cache._parse_cache
+            assert handler_path not in tools._parse_cache
         # If no cache entries, invalidation is still safe
         tools.invalidate_file("/nonexistent/path.py")
 
