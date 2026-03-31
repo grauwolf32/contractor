@@ -1,7 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from google.adk.artifacts import BaseArtifactService
-from datetime import datetime, timezone
+from datetime import timezone
+
 
 async def save_artifact(
     app_name: str,
@@ -27,6 +28,7 @@ async def save_artifact(
         with open(upload_path, "w", encoding="utf-8") as f:
             f.write(text)
 
+
 async def remove_artifacts(
     app_name: str,
     user_id: str,
@@ -43,12 +45,14 @@ async def remove_artifacts(
             filename=filename,
         )
 
+
 def normalize_folder_name(folder_name: str) -> str:
     if folder_name in ("", "/"):
         return "/"
 
     normalized = Path(folder_name.lstrip("/")).as_posix().strip("/")
     return f"/{normalized}" if normalized else "/"
+
 
 def validate_folder_name(project_path: Path, folder_name: str) -> str:
     normalized_folder = normalize_folder_name(folder_name)
@@ -63,7 +67,7 @@ def validate_folder_name(project_path: Path, folder_name: str) -> str:
     except ValueError as exc:
         raise ValueError(
             "--folder-name must point to a directory inside --project-path"
-            ) from exc
+        ) from exc
 
     if not target_dir.exists():
         raise ValueError(
@@ -76,6 +80,7 @@ def validate_folder_name(project_path: Path, folder_name: str) -> str:
         )
 
     return normalized_folder
+
 
 def validate_project_path(project_path: Path) -> Path:
     project_path = project_path.resolve()
@@ -91,6 +96,7 @@ def validate_project_path(project_path: Path) -> Path:
         )
 
     return project_path
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

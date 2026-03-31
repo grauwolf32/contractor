@@ -3,25 +3,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from functools import partial
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
-from google.adk.models import LiteLlm
-from google.genai import types
 
-from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
-from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
-from contractor.tools.fs import RootedLocalFileSystem
+from contractor.runners.task_runner import TaskRunnerEvent
 
 from cli.render import render_event
-from cli.pipelines import get_pipelines, PipelineSpec
+from cli.pipelines import get_pipelines
 from cli.utils import (
     utc_now_iso,
     save_artifact,
@@ -43,6 +35,7 @@ def turn_off_logger() -> None:
         "litellm",
         "LiteLLM",
         "asyncio",
+        "contractor",
     ]
     for name in names:
         logging.getLogger(name).setLevel(logging.CRITICAL)
@@ -61,6 +54,7 @@ _METRICS_LOCK = asyncio.Lock()
 
 def _ensure_artifacts_dir() -> None:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
     if artifact_path is None:
@@ -134,7 +128,9 @@ def _event_to_metrics_record(event: TaskRunnerEvent) -> dict[str, Any]:
         "payload": payload,
         "iteration": payload.get("iteration") if isinstance(payload, dict) else None,
         "session_id": payload.get("session_id") if isinstance(payload, dict) else None,
-        "invocation_id": payload.get("invocation_id") if isinstance(payload, dict) else None,
+        "invocation_id": payload.get("invocation_id")
+        if isinstance(payload, dict)
+        else None,
         "agent_name": payload.get("agent_name") if isinstance(payload, dict) else None,
         "tool_name": payload.get("tool_name") if isinstance(payload, dict) else None,
     }
@@ -156,7 +152,9 @@ def _is_metrics_event(event: TaskRunnerEvent) -> bool:
     return event_type.startswith("metrics_")
 
 
-def build_handle_event(output_dir: Path) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
+def build_handle_event(
+    output_dir: Path,
+) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
     metrics_path = _metrics_file(output_dir)
 
     async def handle_event(event: TaskRunnerEvent) -> None:
@@ -173,9 +171,9 @@ def build_handle_event(output_dir: Path) -> Callable[[TaskRunnerEvent], Awaitabl
     return handle_event
 
 
-
 def get_pipeline_names() -> list[str]:
     return sorted(get_pipelines().keys())
+
 
 async def async_main(
     project_path: Path,
@@ -233,7 +231,6 @@ async def async_main(
         output_dir=output_dir,
         artifact_service=artifact_service,
     )
-
 
 
 @click.command(name="contractor")
@@ -308,7 +305,7 @@ def main(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pipelines = get_pipelines()
-    spec = pipelines[pipeline]
+    pipelines[pipeline]
 
     asyncio.run(
         async_main(

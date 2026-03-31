@@ -370,7 +370,9 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         if args.get("version"):
             lines.append(f"    {C.wrap('version:', C.DIM)} {args['version']}")
         if args.get("description"):
-            lines.append(f"    {C.wrap('description:', C.DIM)} {_short(args['description'])}")
+            lines.append(
+                f"    {C.wrap('description:', C.DIM)} {_short(args['description'])}"
+            )
         if args.get("code_language"):
             lines.append(f"    {C.wrap('language:', C.DIM)} {args['code_language']}")
         return "\n".join(lines)
@@ -415,7 +417,9 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         )
 
     if tool_name == "get_full_openapi_schema":
-        return f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
+        return (
+            f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
+        )
 
     if tool_name in {"execute_current_subtask"}:
         return ""
@@ -440,7 +444,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         lines: list[str] = []
         if result.get("record"):
             lines.append(f"    {C.wrap('record:', C.DIM)}")
-            lines.append(indent(str(result['record']), "      "))
+            lines.append(indent(str(result["record"]), "      "))
         if result.get("action"):
             lines.append(f"    {C.wrap('action:', C.DIM)} {result['action']}")
         return "\n".join(lines) if lines else None
@@ -553,9 +557,8 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         if payload is None:
             return None
         if isinstance(payload, list):
-            return (
-                f"    {C.wrap('items:', C.DIM)} {len(payload)}\n"
-                + indent(_j(payload), "    ")
+            return f"    {C.wrap('items:', C.DIM)} {len(payload)}\n" + indent(
+                _j(payload), "    "
             )
         if isinstance(payload, dict):
             return indent(_j(payload), "    ")
@@ -574,10 +577,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         if payload is None:
             return f"    {C.wrap('status:', C.DIM)} ok"
         if isinstance(payload, dict):
-            return (
-                f"    {C.wrap('diff:', C.DIM)}\n"
-                + indent(_j(payload), "      ")
-            )
+            return f"    {C.wrap('diff:', C.DIM)}\n" + indent(_j(payload), "      ")
         return indent(_short_block(payload, 1200), "    ")
 
     if "result" in result:
@@ -649,8 +649,7 @@ def _render_event(event) -> str | None:
         if not text:
             return None
         return (
-            f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n"
-            f"{indent(text, '     ')}"
+            f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n{indent(text, '     ')}"
         )
 
     if event.type == "iteration_result":
@@ -678,7 +677,7 @@ def _render_event(event) -> str | None:
         ]
         if last_result:
             lines.append(C.wrap(indent(_j(last_result), "  "), C.DIM))
-        lines.append(C.wrap(_hr('!'), C.RED))
+        lines.append(C.wrap(_hr("!"), C.RED))
         return "\n".join(lines)
 
     return None

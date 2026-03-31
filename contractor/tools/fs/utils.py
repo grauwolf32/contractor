@@ -56,3 +56,20 @@ def _format_comment_line(
     if prefix in {"<!--", "<!-- -->"}:
         return f"{indent}<!-- {stripped} -->{newline}"
     return f"{indent}{prefix} {stripped}{newline}"
+
+
+def _parse_bool(value: Any, default: bool = False) -> bool:
+    """Parse a value into a boolean, with a fallback default."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    return default

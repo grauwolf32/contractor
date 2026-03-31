@@ -4,8 +4,9 @@ from contractor.tools.fs import RootedLocalFileSystem
 from google.adk.artifacts import BaseArtifactService
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.runners.task_runner import TaskRunner, TaskRunnerEvent
+from contractor.runners.task_runner import TaskRunner
 from google.adk.models import LiteLlm
+
 
 async def oas_building_pipeline(
     *,

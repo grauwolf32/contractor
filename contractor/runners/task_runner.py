@@ -4,7 +4,8 @@ import copy
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Literal, Optional
+from enum import StrEnum, unique
+from typing import Any, Awaitable, Callable, Literal, Optional, TypedDict
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -18,57 +19,190 @@ from google.adk.tools import AgentTool
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from contractor.models.task import RenderedTask, TaskTemplate
-from contractor.runners.trace_plugin import AdkTracePlugin
-from contractor.runners.metrics_plugin import AdkMetricsPlugin
-from contractor.tools.memory import MemoryTools, MemoryNote
-
 from contractor.agents.planning_agent.agent import build_planning_agent
+from contractor.models.task import RenderedTask, TaskTemplate
+from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
+from contractor.runners.plugins.trace_plugin import AdkTracePlugin
+from contractor.tools.memory import MemoryNote, MemoryTools
 
 load_dotenv()
 
-_GLOBAL_TASK_ID_KEY = "_global_task_id"
-ArtifactKind = Literal["result", "summary", "records"]
-WorkerBuilder = Callable[..., LlmAgent | AgentTool]
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
-DEFAULT_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+_GLOBAL_TASK_ID_KEY = "_global_task_id"
+
+ArtifactKind = Literal["result", "summary", "records"]
+_ARTIFACT_KINDS: tuple[ArtifactKind, ...] = ("result", "summary", "records")
+
+WorkerBuilder = Callable[..., LlmAgent | AgentTool]
+TaskRunnerEventHandler = Callable[["TaskRunnerEvent"], Awaitable[None]]
+
+DEFAULT_MODEL = LiteLlm(model="lm-studio-qwen3.5", timeout=300)
 
 
-@dataclass(slots=True)
+# ─── Enums ────────────────────────────────────────────────────────────────────
+
+
+@unique
+class EventType(StrEnum):
+    """All event types emitted by TaskRunner, in one discoverable place."""
+
+    RUN_STARTED = "run_started"
+    RUN_FINISHED = "run_finished"
+    TASK_STARTED = "task_started"
+    TASK_FINISHED = "task_finished"
+    TASK_FAILED = "task_failed"
+    GLOBAL_TASK_FINISHED = "global_task_finished"
+    ITERATION_STARTED = "iteration_started"
+    ITERATION_FINISHED = "iteration_finished"
+    ITERATION_RESULT = "iteration_result"
+    FINAL_TEXT = "final_text"
+
+
+@unique
+class TaskStatus(StrEnum):
+    RUNNING = "running"
+    DONE = "done"
+
+
+# ─── Custom Exceptions ───────────────────────────────────────────────────────
+
+
+class TaskNotCompletedError(Exception):
+    """Raised when a task exhausts all retry attempts without completing."""
+
+    def __init__(self, ref: str, iterations: int, max_attempts: int) -> None:
+        self.ref = ref
+        self.iterations = iterations
+        self.max_attempts = max_attempts
+        super().__init__(
+            f"Task '{ref}' was not completed "
+            f"{iterations} time(s) after {max_attempts} attempt(s)."
+        )
+
+
+class InvalidTemplateKeyError(ValueError):
+    """Raised when an artifact template key is invalid."""
+
+
+# ─── Data Structures ─────────────────────────────────────────────────────────
+
+
+class TaskResult(TypedDict):
+    """Strongly-typed dict returned from each iteration / task."""
+
+    invocation_id: str
+    task_ref: str
+    task_key: str
+    task_title: str
+    template_key: str
+    task_id: int
+    session_id: str
+    final_response: str
+    state: dict[str, Any]
+    carry_state: dict[str, Any]
+    status: str | None
+    result: Any
+    summary: str | None
+    records: list[Any]
+    params: dict[str, Any]
+    input_artifacts: dict[str, str]
+    published_artifacts: dict[ArtifactKind, str]
+
+
+@dataclass(slots=True, frozen=True)
 class TaskRunnerEvent:
-    type: str
+    type: EventType
     task_name: str
     task_id: int
     payload: dict[str, Any] = field(default_factory=dict)
-
-
-TaskRunnerEventHandler = Callable[[TaskRunnerEvent], Awaitable[None]]
 
 
 @dataclass(slots=True)
 class TaskInvocation:
     id: str
     ref: str
-
     template_key: str
-
     worker_builder: WorkerBuilder
+
     params: dict[str, Any] = field(default_factory=dict)
     artifacts: list[str] = field(default_factory=list)
 
     iterations: int = 1
-
     max_attempts: int = 1
     max_steps: int = 15
 
     namespace: str | None = None
     model: LiteLlm | None = None
+
+    def effective_namespace(self, fallback: str) -> str:
+        return self.namespace or fallback
+
+    def effective_model(self, fallback: LiteLlm) -> LiteLlm:
+        return self.model or fallback
+
+
+# ─── Helpers (module-level, stateless) ────────────────────────────────────────
+
+
+def _validate_template_key(template_key: str) -> str:
+    """Return a cleaned template key or raise."""
+    cleaned = (template_key or "").strip().strip("/")
+    if not cleaned:
+        raise InvalidTemplateKeyError("template_key must not be empty")
+    if ".." in cleaned.split("/"):
+        raise InvalidTemplateKeyError(
+            "template_key must not contain path traversal segments"
+        )
+    return cleaned
+
+
+def _artifact_filename(template_key: str, kind: ArtifactKind) -> str:
+    return f"{_validate_template_key(template_key)}/{kind}"
+
+
+def _artifact_names_for_task(template_key: str) -> dict[ArtifactKind, str]:
+    return {kind: _artifact_filename(template_key, kind) for kind in _ARTIFACT_KINDS}
+
+
+def _global_state_key(task_id: int, key: str) -> str:
+    return f"task::{task_id}::{key}"
+
+
+def _extract_final_text(event: Event) -> str:
+    """Pull the concatenated text from a final-response event."""
+    if not event.is_final_response():
+        return ""
+
+    parts = getattr(getattr(event, "content", None), "parts", None) or []
+    return "\n".join(
+        text for part in parts if (text := getattr(part, "text", None))
+    ).strip()
+
+
+def _decode_part_text(part: types.Part | None) -> str:
+    """Best-effort text extraction from an artifact Part."""
+    if part is None:
+        return ""
+
+    text = getattr(part, "text", None)
+    if text is not None:
+        return text
+
+    inline_data = getattr(part, "inline_data", None)
+    data = getattr(inline_data, "data", None) if inline_data else None
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    if isinstance(data, (bytes, bytearray)):
+        return data.decode("utf-8")
+    return ""
+
+
+# ─── Main Runner ──────────────────────────────────────────────────────────────
 
 
 class TaskRunner(BaseModel):
@@ -77,15 +211,16 @@ class TaskRunner(BaseModel):
     name: str = Field(description="Runner name")
     artifact_service: BaseArtifactService
 
-    output_format: Literal["json", "markdown", "yaml", "xml"] = Field(default="json")
+    output_format: Literal["json", "markdown", "yaml", "xml"] = "json"
     templates: dict[str, TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
     variables: dict[str, str] = Field(default_factory=dict)
     default_model: LiteLlm = Field(default=DEFAULT_MODEL)
-
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
+
+    # ── Public API ────────────────────────────────────────────────────────
 
     def add_variable(self, name: str, value: str) -> None:
         self.variables[name] = value
@@ -104,27 +239,13 @@ class TaskRunner(BaseModel):
         namespace: Optional[str] = None,
         model: Optional[LiteLlm] = None,
     ) -> str:
-        template_key = name
-        template = self.templates.get(template_key)
-        if template is None:
-            template = TaskTemplate.load(template_key)
-            self.templates[template_key] = template
+        template = self._ensure_template(name)
+        task_ref = ref or f"{name}:{len(self.queue)}"
+        self._assert_unique_ref(task_ref)
 
-        task_ref = ref or f"{template_key}:{len(self.queue)}"
-        if any(item.ref == task_ref for item in self.queue):
-            raise ValueError(f"Queued task ref '{task_ref}' already exists")
-
-        effective_iterations = (
-            iterations if iterations is not None else template.default_iterations
+        eff_iterations, eff_max_attempts = self._resolve_retry_params(
+            template, iterations, max_attempts
         )
-        effective_max_attempts = (
-            max_attempts if max_attempts is not None else max(1, effective_iterations)
-        )
-
-        if effective_iterations < 1:
-            raise ValueError("iterations must be >= 1")
-        if effective_max_attempts < effective_iterations:
-            raise ValueError("max_attempts must be >= iterations")
 
         item = TaskInvocation(
             id=uuid4().hex,
@@ -133,36 +254,92 @@ class TaskRunner(BaseModel):
             worker_builder=worker_builder,
             params=params or {},
             artifacts=list(artifacts or template.default_artifacts),
-            iterations=effective_iterations,
-            max_attempts=effective_max_attempts,
+            iterations=eff_iterations,
+            max_attempts=eff_max_attempts,
             max_steps=max_steps,
             namespace=namespace,
             model=model,
         )
-
         self.queue.append(item)
-        return item.ref
+        return item.id
+
+    async def run(
+        self,
+        *,
+        user_id: str = "cli-user",
+        on_event: Optional[TaskRunnerEventHandler] = None,
+    ) -> list[TaskResult]:
+        results: list[TaskResult] = []
+
+        await self._emit(
+            on_event,
+            type=EventType.RUN_STARTED,
+            task_name="__runner__",
+            task_id=-1,
+            total_tasks=len(self.queue),
+            user_id=user_id,
+        )
+
+        for task_id, item in enumerate(self.queue):
+            result = await self._run_task_with_retries(
+                item=item, task_id=task_id, user_id=user_id, on_event=on_event
+            )
+            results.append(result)
+
+            await self._emit(
+                on_event,
+                type=EventType.GLOBAL_TASK_FINISHED,
+                task_name=item.ref,
+                task_id=task_id,
+                session_id=result["session_id"],
+                status=result["status"],
+                result=result["result"],
+                summary=result["summary"],
+                published_artifacts=result["published_artifacts"],
+            )
+
+        await self._emit(
+            on_event,
+            type=EventType.RUN_FINISHED,
+            task_name="__runner__",
+            task_id=-1,
+            results=results,
+        )
+        return results
+
+    # ── Template & validation helpers ─────────────────────────────────────
+
+    def _ensure_template(self, key: str) -> TaskTemplate:
+        if key not in self.templates:
+            self.templates[key] = TaskTemplate.load(key)
+        return self.templates[key]
+
+    def _assert_unique_ref(self, ref: str) -> None:
+        if any(item.ref == ref for item in self.queue):
+            raise ValueError(f"Queued task ref '{ref}' already exists")
 
     @staticmethod
-    def _artifact_filename(template_key: str, kind: ArtifactKind) -> str:
-        clean_template_key = (template_key or "").strip().strip("/")
-        if not clean_template_key:
-            raise ValueError("template_key must not be empty")
-        if ".." in clean_template_key.split("/"):
-            raise ValueError("template_key must not contain path traversal segments")
-        return f"{clean_template_key}/{kind}"
+    def _resolve_retry_params(
+        template: TaskTemplate,
+        iterations: int | None,
+        max_attempts: int | None,
+    ) -> tuple[int, int]:
+        eff_iterations = (
+            iterations if iterations is not None else template.default_iterations
+        )
+        eff_max_attempts = (
+            max_attempts if max_attempts is not None else max(1, eff_iterations)
+        )
+        if eff_iterations < 1:
+            raise ValueError("iterations must be >= 1")
+        if eff_max_attempts < eff_iterations:
+            raise ValueError("max_attempts must be >= iterations")
+        return eff_iterations, eff_max_attempts
 
-    @classmethod
-    def _artifact_names_for_task(cls, template_key: str) -> dict[ArtifactKind, str]:
-        return {
-            "result": cls._artifact_filename(template_key, "result"),
-            "summary": cls._artifact_filename(template_key, "summary"),
-            "records": cls._artifact_filename(template_key, "records"),
-        }
+    # ── Rendering & agent creation ────────────────────────────────────────
 
     def _render_task(
         self,
-        *,
         template: TaskTemplate,
         params: dict[str, Any],
         artifacts: dict[str, dict[str, str]],
@@ -175,219 +352,157 @@ class TaskRunner(BaseModel):
         )
 
     def _spawn_planning_agent(
-        self,
-        *,
-        item: TaskInvocation,
-        task: RenderedTask,
+        self, item: TaskInvocation, task: RenderedTask
     ) -> LlmAgent:
-        worker = item.worker_builder(
-            namespace=item.namespace or self.name,
-            _format=task.format,
-        )
-        planner = build_planning_agent(
+        ns = item.effective_namespace(self.name)
+        worker = item.worker_builder(namespace=ns, _format=task.format)
+        return build_planning_agent(
+            _format="xml",
             name=item.ref,
-            namespace=item.namespace or self.name,
+            namespace=ns,
             worker=worker,
-            model=item.model or self.default_model,
+            model=item.effective_model(self.default_model),
         )
-        return planner
 
+    # ── Event emission ────────────────────────────────────────────────────
+
+    @staticmethod
     async def _emit(
-        self,
         handler: Optional[TaskRunnerEventHandler],
         *,
-        type: str,
+        type: EventType,
         task_name: str,
         task_id: int,
         **payload: Any,
     ) -> None:
         if handler is None:
             return
-
         await handler(
             TaskRunnerEvent(
-                type=type,
-                task_name=task_name,
-                task_id=task_id,
-                payload=payload,
+                type=type, task_name=task_name, task_id=task_id, payload=payload
             )
         )
+
+    # ── Session management ────────────────────────────────────────────────
 
     async def _ensure_session(
         self,
-        *,
         user_id: str,
         session_id: str,
-        initial_state: Optional[dict[str, Any]] = None,
+        initial_state: dict[str, Any] | None = None,
     ):
-        session = await self.session_service.get_session(
-            app_name=self.name,
-            user_id=user_id,
-            session_id=session_id,
+        existing = await self.session_service.get_session(
+            app_name=self.name, user_id=user_id, session_id=session_id
         )
-        if session is None:
-            session = await self.session_service.create_session(
-                app_name=self.name,
-                user_id=user_id,
-                session_id=session_id,
-                state=initial_state or {},
-            )
-        return session
-
-    async def _get_session_state(
-        self,
-        *,
-        user_id: str,
-        session_id: str,
-    ) -> dict[str, Any]:
-        session = await self.session_service.get_session(
+        if existing is not None:
+            return existing
+        return await self.session_service.create_session(
             app_name=self.name,
             user_id=user_id,
             session_id=session_id,
+            state=initial_state or {},
+        )
+
+    async def _get_session_state(self, user_id: str, session_id: str) -> dict[str, Any]:
+        session = await self.session_service.get_session(
+            app_name=self.name, user_id=user_id, session_id=session_id
         )
         return dict(session.state) if session else {}
 
-    @staticmethod
-    def _global_state_key(task_id: int, key: str) -> str:
-        return f"task::{task_id}::{key}"
+    # ── State building ────────────────────────────────────────────────────
 
     def _build_task_initial_state(
         self,
-        *,
         task_id: int,
         task: RenderedTask,
         item: TaskInvocation,
         carry_state: dict[str, Any],
         iteration: int,
-        input_artifacts: dict[str, dict[str, str]],
+        input_artifacts: dict[str, str],
     ) -> dict[str, Any]:
+        def key(k):
+            return _global_state_key(task_id, k)
+
         state = copy.deepcopy(carry_state)
 
+        # Task-scoped keys
         state[_GLOBAL_TASK_ID_KEY] = task_id
-        state[self._global_state_key(task_id, "objective")] = task.objective
-        state[self._global_state_key(task_id, "status")] = "running"
-        state[self._global_state_key(task_id, "current")] = None
-        state[self._global_state_key(task_id, "result")] = ""
-        state[self._global_state_key(task_id, "summary")] = ""
-        state[self._global_state_key(task_id, "pool")] = []
+        state[key("objective")] = task.objective
+        state[key("status")] = TaskStatus.RUNNING
+        state[key("current")] = None
+        state[key("result")] = ""
+        state[key("summary")] = ""
+        state[key("pool")] = []
 
-        state["runner:last_task_id"] = task_id
-        state["runner:last_task_key"] = task.key
-        state["runner:last_task_title"] = task.title
-        state["runner:active_task_ref"] = item.ref
-        state["runner:active_template_key"] = item.template_key
-        state["runner:iteration"] = iteration
-        state["runner:params"] = copy.deepcopy(item.params)
-        state["runner:input_artifacts"] = copy.deepcopy(input_artifacts)
-
+        # Runner-scoped keys
+        state.update(
+            {
+                "runner:last_task_id": task_id,
+                "runner:last_task_key": task.key,
+                "runner:last_task_title": task.title,
+                "runner:active_task_ref": item.ref,
+                "runner:active_template_key": item.template_key,
+                "runner:iteration": iteration,
+                "runner:params": copy.deepcopy(item.params),
+                "runner:input_artifacts": copy.deepcopy(input_artifacts),
+            }
+        )
         return state
 
+    @staticmethod
     def _extract_carry_state(
-        self,
-        *,
-        state: dict[str, Any],
-        finished_task_id: int,
+        state: dict[str, Any], finished_task_id: int
     ) -> dict[str, Any]:
         carry = copy.deepcopy(state)
 
-        result_key = self._global_state_key(finished_task_id, "result")
-        summary_key = self._global_state_key(finished_task_id, "summary")
-        status_key = self._global_state_key(finished_task_id, "status")
-        objective_key = self._global_state_key(finished_task_id, "objective")
+        def key(k):
+            return _global_state_key(finished_task_id, k)
 
-        carry["runner:previous_task_id"] = finished_task_id
-        carry["runner:previous_task_status"] = state.get(status_key)
-        carry["runner:previous_task_result"] = state.get(result_key)
-        carry["runner:previous_task_summary"] = state.get(summary_key)
-        carry["runner:previous_task_objective"] = state.get(objective_key)
-
+        carry.update(
+            {
+                "runner:previous_task_id": finished_task_id,
+                "runner:previous_task_status": state.get(key("status")),
+                "runner:previous_task_result": state.get(key("result")),
+                "runner:previous_task_summary": state.get(key("summary")),
+                "runner:previous_task_objective": state.get(key("objective")),
+            }
+        )
         return carry
 
-    @staticmethod
-    def _extract_final_text(event: Event) -> str:
-        if not event.is_final_response():
-            return ""
+    def _is_task_completed(self, task_id: int, state: dict[str, Any]) -> bool:
+        return state.get(_global_state_key(task_id, "status")) == TaskStatus.DONE
 
-        content = getattr(event, "content", None)
-        if not content:
-            return ""
+    # ── Artifact I/O ──────────────────────────────────────────────────────
 
-        parts = getattr(content, "parts", None) or []
-        chunks: list[str] = []
-
-        for part in parts:
-            text = getattr(part, "text", None)
-            if text:
-                chunks.append(text)
-
-        return "\n".join(chunks).strip()
-
-    def _is_task_completed(
-        self,
-        *,
-        task_id: int,
-        state: dict[str, Any],
-    ) -> bool:
-        return state.get(self._global_state_key(task_id, "status")) == "done"
-
-    async def _load_artifact_text(
-        self,
-        *,
-        user_id: str,
-        artifact_ref: str,
-    ) -> str:
+    async def _load_artifact_text(self, user_id: str, artifact_ref: str) -> str:
         part = await self.artifact_service.load_artifact(
             app_name=self.name,
             user_id=user_id,
             session_id=None,
             filename=artifact_ref,
         )
-        if part is None:
-            return ""
-
-        text = getattr(part, "text", None)
-        if text is not None:
-            return text
-
-        inline_data = getattr(part, "inline_data", None)
-        if inline_data is not None and getattr(inline_data, "data", None) is not None:
-            data = inline_data.data
-            if isinstance(data, str):
-                return data
-            if isinstance(data, (bytes, bytearray)):
-                return data.decode("utf-8")
-
-        return ""
+        return _decode_part_text(part)
 
     async def _load_artifacts(
-        self,
-        *,
-        user_id: str,
-        artifact_refs: list[str],
+        self, user_id: str, artifact_refs: list[str]
     ) -> dict[str, str]:
-        loaded: dict[str, str] = {}
-
-        for artifact_ref in artifact_refs:
-            text: Optional[str] = await self._load_artifact_text(
-                user_id=user_id,
-                artifact_ref=artifact_ref,
-            )
-            loaded[artifact_ref] = text or ""
-
-        return loaded
+        return {
+            ref: await self._load_artifact_text(user_id=user_id, artifact_ref=ref)
+            for ref in artifact_refs
+        }
 
     async def _publish_task_artifacts(
         self,
-        *,
         user_id: str,
         template_key: str,
-        result: dict[str, Any],
+        result: TaskResult,
     ) -> None:
-        records = result.get("records", [])
-        if isinstance(records, str):
-            records_text = records
-        else:
-            records_text = json.dumps(records, ensure_ascii=False)
+        records_raw = result.get("records", [])
+        records_text = (
+            records_raw
+            if isinstance(records_raw, str)
+            else json.dumps(records_raw, ensure_ascii=False)
+        )
 
         payloads: dict[ArtifactKind, str] = {
             "result": result.get("result", "") or "",
@@ -400,23 +515,16 @@ class TaskRunner(BaseModel):
                 app_name=self.name,
                 user_id=user_id,
                 session_id=None,
-                filename=self._artifact_filename(template_key, kind),
+                filename=_artifact_filename(template_key, kind),
                 artifact=types.Part.from_text(text=text),
             )
 
     async def _inject_artifacts(
         self, user_id: str, namespace: str, input_artifacts: dict[str, str]
-    ):
-        mem_tools = MemoryTools(name=namespace)
+    ) -> None:
         memories: list[MemoryNote] = []
         for name, text in input_artifacts.items():
-            description: str = f"result from previous task {name}"
-            if "/" in name:
-                template_key = name.split("/")[0]
-                if template_key in self.templates:
-                    task_template = self.templates.get(template_key)
-                    description = task_template.title
-
+            description = self._describe_artifact(name)
             memories.append(
                 MemoryNote(
                     name=name,
@@ -425,11 +533,62 @@ class TaskRunner(BaseModel):
                     tags=[name, "inbox", "previous-task-result"],
                 )
             )
+
+        if not memories:
+            return
+
+        mem_tools = MemoryTools(name=namespace)
         await mem_tools.inject(
             memories=memories,
             artifact_service=self.artifact_service,
             app_name=self.name,
             user_id=user_id,
+        )
+
+    def _describe_artifact(self, name: str) -> str:
+        """Derive a human-readable description for a loaded artifact."""
+        if "/" in name:
+            template_key = name.split("/", 1)[0]
+            template = self.templates.get(template_key)
+            if template is not None:
+                return template.title
+        return f"result from previous task {name}"
+
+    # ── Iteration execution ───────────────────────────────────────────────
+
+    def _build_iteration_result(
+        self,
+        item: TaskInvocation,
+        rendered_task: RenderedTask,
+        task_id: int,
+        session_id: str,
+        final_text: str,
+        final_state: dict[str, Any],
+        input_artifacts: dict[str, str],
+    ) -> TaskResult:
+        def key(k):
+            return _global_state_key(task_id, k)
+
+        carry_state = self._extract_carry_state(final_state, task_id)
+
+        return TaskResult(
+            invocation_id=item.id,
+            task_ref=item.ref,
+            task_key=rendered_task.key,
+            task_title=rendered_task.title,
+            template_key=item.template_key,
+            task_id=task_id,
+            session_id=session_id,
+            final_response=final_text,
+            state=final_state,
+            carry_state=carry_state,
+            status=final_state.get(key("status")),
+            result=final_state.get(key("result")),
+            summary=final_state.get(key("summary")),
+            records=final_state.get(key("pool"), []),
+            params=copy.deepcopy(item.params),
+            input_artifacts=copy.deepcopy(input_artifacts),
+            published_artifacts=_artifact_names_for_task(rendered_task.key),
         )
 
     async def _run_single_iteration(
@@ -443,13 +602,15 @@ class TaskRunner(BaseModel):
         carry_state: dict[str, Any],
         iteration: int,
         on_event: Optional[TaskRunnerEventHandler] = None,
-    ) -> dict[str, Any]:
-        agent = self._spawn_planning_agent(item=item, task=rendered_task)
+    ) -> TaskResult:
+        agent = self._spawn_planning_agent(item, rendered_task)
         await self._inject_artifacts(
-            user_id=user_id, namespace=item.namespace, input_artifacts=input_artifacts
+            user_id=user_id,
+            namespace=item.effective_namespace(self.name),
+            input_artifacts=input_artifacts,
         )
 
-        session_id = str(uuid4())
+        session_id = uuid4().hex
         initial_state = self._build_task_initial_state(
             task_id=task_id,
             task=rendered_task,
@@ -459,15 +620,11 @@ class TaskRunner(BaseModel):
             input_artifacts=input_artifacts,
         )
 
-        await self._ensure_session(
-            user_id=user_id,
-            session_id=session_id,
-            initial_state=initial_state,
-        )
+        await self._ensure_session(user_id, session_id, initial_state)
 
         await self._emit(
             on_event,
-            type="iteration_started",
+            type=EventType.ITERATION_STARTED,
             task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
@@ -476,28 +633,12 @@ class TaskRunner(BaseModel):
             initial_state=initial_state,
         )
 
-        trace_plugin = AdkTracePlugin(
-            task_name=item.ref,
-            task_id=task_id,
-            iteration=iteration,
-            session_id=session_id,
-            emit=lambda **kw: self._emit(on_event, **kw),
-        )
-
-        metrics_plugin = AdkMetricsPlugin(
-            task_name=item.ref,
-            task_id=task_id,
-            iteration=iteration,
-            session_id=session_id,
-            emit=lambda **kw: self._emit(on_event, **kw),
-        )
-
         runner = Runner(
             agent=agent,
             app_name=self.name,
             session_service=self.session_service,
             artifact_service=self.artifact_service,
-            plugins=[trace_plugin, metrics_plugin],
+            plugins=self._build_plugins(item, task_id, iteration, session_id, on_event),
         )
 
         message = types.Content(
@@ -505,6 +646,71 @@ class TaskRunner(BaseModel):
             parts=[types.Part(text=rendered_task.objective)],
         )
 
+        final_text = await self._consume_events(
+            runner=runner,
+            user_id=user_id,
+            session_id=session_id,
+            message=message,
+            item=item,
+            task_id=task_id,
+            iteration=iteration,
+            on_event=on_event,
+        )
+
+        final_state = await self._get_session_state(user_id, session_id)
+        result = self._build_iteration_result(
+            item,
+            rendered_task,
+            task_id,
+            session_id,
+            final_text,
+            final_state,
+            input_artifacts,
+        )
+
+        await self._emit(
+            on_event,
+            type=EventType.ITERATION_FINISHED,
+            task_name=item.ref,
+            task_id=task_id,
+            iteration=iteration,
+            session_id=session_id,
+            result=result,
+        )
+        return result
+
+    def _build_plugins(
+        self,
+        item: TaskInvocation,
+        task_id: int,
+        iteration: int,
+        session_id: str,
+        on_event: Optional[TaskRunnerEventHandler],
+    ) -> list:
+        def emit_fn(**kw):
+            return self._emit(on_event, **kw)
+
+        common = dict(
+            task_name=item.ref,
+            task_id=task_id,
+            iteration=iteration,
+            session_id=session_id,
+            emit=emit_fn,
+        )
+        return [AdkTracePlugin(**common), AdkMetricsPlugin(**common)]
+
+    async def _consume_events(
+        self,
+        *,
+        runner: Runner,
+        user_id: str,
+        session_id: str,
+        message: types.Content,
+        item: TaskInvocation,
+        task_id: int,
+        iteration: int,
+        on_event: Optional[TaskRunnerEventHandler],
+    ) -> str:
         final_text = ""
 
         async for event in runner.run_async(
@@ -512,66 +718,25 @@ class TaskRunner(BaseModel):
             session_id=session_id,
             new_message=message,
         ):
-            state = await self._get_session_state(
-                user_id=user_id,
+            event_final = _extract_final_text(event)
+            if not event_final:
+                continue
+
+            final_text = event_final
+            state = await self._get_session_state(user_id, session_id)
+            await self._emit(
+                on_event,
+                type=EventType.FINAL_TEXT,
+                task_name=item.ref,
+                task_id=task_id,
+                iteration=iteration,
                 session_id=session_id,
+                text=event_final,
+                state=state,
             )
+        return final_text
 
-            event_final = self._extract_final_text(event)
-            if event_final:
-                final_text = event_final
-                await self._emit(
-                    on_event,
-                    type="final_text",
-                    task_name=item.ref,
-                    task_id=task_id,
-                    iteration=iteration,
-                    session_id=session_id,
-                    text=event_final,
-                    state=state,
-                )
-
-        final_state = await self._get_session_state(
-            user_id=user_id,
-            session_id=session_id,
-        )
-
-        next_carry_state = self._extract_carry_state(
-            state=final_state,
-            finished_task_id=task_id,
-        )
-
-        result = {
-            "invocation_id": item.id,
-            "task_ref": item.ref,
-            "task_key": rendered_task.key,
-            "task_title": rendered_task.title,
-            "template_key": item.template_key,
-            "task_id": task_id,
-            "session_id": session_id,
-            "final_response": final_text,
-            "state": final_state,
-            "carry_state": next_carry_state,
-            "status": final_state.get(self._global_state_key(task_id, "status")),
-            "result": final_state.get(self._global_state_key(task_id, "result")),
-            "summary": final_state.get(self._global_state_key(task_id, "summary")),
-            "records": final_state.get(self._global_state_key(task_id, "pool"), []),
-            "params": copy.deepcopy(item.params),
-            "input_artifacts": copy.deepcopy(input_artifacts),
-            "published_artifacts": self._artifact_names_for_task(rendered_task.key),
-        }
-
-        await self._emit(
-            on_event,
-            type="iteration_finished",
-            task_name=item.ref,
-            task_id=task_id,
-            iteration=iteration,
-            session_id=session_id,
-            result=result,
-        )
-
-        return result
+    # ── Retry orchestration ───────────────────────────────────────────────
 
     async def _run_task_with_retries(
         self,
@@ -580,26 +745,19 @@ class TaskRunner(BaseModel):
         task_id: int,
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler] = None,
-    ) -> dict[str, Any]:
+    ) -> TaskResult:
         template = self.templates[item.template_key]
-        input_artifacts = await self._load_artifacts(
-            user_id=user_id,
-            artifact_refs=item.artifacts,
-        )
+        input_artifacts = await self._load_artifacts(user_id, item.artifacts)
 
         rendered_task = self._render_task(
-            template=template,
-            params=item.params,
-            artifacts=input_artifacts,
+            template,
+            item.params,
+            input_artifacts,  # type: ignore[arg-type]
         )
-
-        current_carry_state: dict[str, Any] = {}
-        last_result: Optional[dict[str, Any]] = None
-        successful_runs = 0
 
         await self._emit(
             on_event,
-            type="task_started",
+            type=EventType.TASK_STARTED,
             task_name=item.ref,
             task_id=task_id,
             template_key=item.template_key,
@@ -608,8 +766,12 @@ class TaskRunner(BaseModel):
             max_attempts=item.max_attempts,
             params=item.params,
             artifacts=item.artifacts,
-            published_artifacts=self._artifact_names_for_task(template.key),
+            published_artifacts=_artifact_names_for_task(template.key),
         )
+
+        carry_state: dict[str, Any] = {}
+        last_result: TaskResult | None = None
+        successful_runs = 0
 
         for iteration in range(1, item.max_attempts + 1):
             result = await self._run_single_iteration(
@@ -618,20 +780,16 @@ class TaskRunner(BaseModel):
                 input_artifacts=input_artifacts,
                 task_id=task_id,
                 user_id=user_id,
-                carry_state=current_carry_state,
+                carry_state=carry_state,
                 iteration=iteration,
                 on_event=on_event,
             )
             last_result = result
-
-            completed = self._is_task_completed(
-                task_id=task_id,
-                state=result["state"],
-            )
+            completed = self._is_task_completed(task_id, result["state"])
 
             await self._emit(
                 on_event,
-                type="iteration_result",
+                type=EventType.ITERATION_RESULT,
                 task_name=item.ref,
                 task_id=task_id,
                 iteration=iteration,
@@ -644,87 +802,31 @@ class TaskRunner(BaseModel):
 
             if completed:
                 successful_runs += 1
-                await self._publish_task_artifacts(
-                    user_id=user_id,
-                    template_key=template.key,
-                    result=result,
-                )
+                await self._publish_task_artifacts(user_id, template.key, result)
 
-            if completed and successful_runs >= item.iterations:
-                await self._emit(
-                    on_event,
-                    type="task_finished",
-                    task_name=item.ref,
-                    task_id=task_id,
-                    session_id=result["session_id"],
-                    status=result["status"],
-                    result=result["result"],
-                    summary=result["summary"],
-                    records=result["records"],
-                    published_artifacts=result["published_artifacts"],
-                )
-                return result
+                if successful_runs >= item.iterations:
+                    await self._emit(
+                        on_event,
+                        type=EventType.TASK_FINISHED,
+                        task_name=item.ref,
+                        task_id=task_id,
+                        session_id=result["session_id"],
+                        status=result["status"],
+                        result=result["result"],
+                        summary=result["summary"],
+                        records=result["records"],
+                        published_artifacts=result["published_artifacts"],
+                    )
+                    return result
 
-            current_carry_state = result["carry_state"]
+            carry_state = result["carry_state"]
 
         await self._emit(
             on_event,
-            type="task_failed",
+            type=EventType.TASK_FAILED,
             task_name=item.ref,
             task_id=task_id,
             max_attempts=item.max_attempts,
             last_result=last_result,
         )
-
-        raise RuntimeError(
-            f"Task '{item.ref}' was not completed "
-            f"{item.iterations} time(s) after {item.max_attempts} attempt(s)."
-        )
-
-    async def run(
-        self,
-        *,
-        user_id: str = "cli-user",
-        on_event: Optional[TaskRunnerEventHandler] = None,
-    ) -> list[dict[str, Any]]:
-        results: list[dict[str, Any]] = []
-
-        await self._emit(
-            on_event,
-            type="run_started",
-            task_name="__runner__",
-            task_id=-1,
-            total_tasks=len(self.queue),
-            user_id=user_id,
-        )
-
-        for task_id, item in enumerate(self.queue):
-            result = await self._run_task_with_retries(
-                item=item,
-                task_id=task_id,
-                user_id=user_id,
-                on_event=on_event,
-            )
-            results.append(result)
-
-            await self._emit(
-                on_event,
-                type="global_task_finished",
-                task_name=item.ref,
-                task_id=task_id,
-                session_id=result["session_id"],
-                status=result["status"],
-                result=result["result"],
-                summary=result["summary"],
-                published_artifacts=result["published_artifacts"],
-            )
-
-        await self._emit(
-            on_event,
-            type="run_finished",
-            task_name="__runner__",
-            task_id=-1,
-            results=results,
-        )
-
-        return results
+        raise TaskNotCompletedError(item.ref, item.iterations, item.max_attempts)

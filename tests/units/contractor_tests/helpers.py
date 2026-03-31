@@ -50,10 +50,10 @@ class MockAgentTool:
     """
 
     def __init__(self, agent):
-        self._agent = agent
+        self.agent = agent
 
     async def run_async(self, args, tool_context):
-        return await self._agent.run_async(args=args, tool_context=tool_context)
+        return await self.agent.run_async(args=args, tool_context=tool_context)
 
 
 def mk_llm_response(total, prompt, candidates) -> MockRespose:

@@ -214,6 +214,8 @@ async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
@@ -269,6 +271,8 @@ async def test_add_new_task_after_decompose(monkeypatch):
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
     # Side-effect: always return a "done" result for the current task_id passed in args
@@ -322,6 +326,8 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
     # ---- Create async-mocked worker ----
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
     # Side-effect: always return a "done" result for the current task_id passed in args
@@ -397,6 +403,8 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
 ):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     async def _bad(*, args, tool_context):
         return "this is not a valid SubtaskExecutionResult"
@@ -425,6 +433,8 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
 async def test_decompose_requires_current_task_id(monkeypatch):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     async def _incomplete(*, args, tool_context):
         return {
@@ -472,6 +482,8 @@ async def test_decompose_requires_current_task_id(monkeypatch):
 async def test_skip_validations_and_state_transition(monkeypatch):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
     ctx = mk_tool_context()
@@ -507,6 +519,8 @@ async def test_skip_validations_and_state_transition(monkeypatch):
 async def test_records_accumulate_for_multiple_executes(monkeypatch):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     async def _done(*, args, tool_context):
         return {
@@ -536,6 +550,8 @@ async def test_records_accumulate_for_multiple_executes(monkeypatch):
 async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     worker = type("Worker", (), {})()
     worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
 
     async def _done_or_incomplete(*, args, tool_context):
         # Make task 1 incomplete; everything else done

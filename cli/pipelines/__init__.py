@@ -11,24 +11,20 @@ from .trace_annotation import trace_annotation_pipeline
 class PipelineSpec:
     builder: Callable[..., Awaitable[TaskRunner]]
     required: list[str] = field(default_factory=list)
-    
+
+
 def get_pipelines() -> dict[str, PipelineSpec]:
     return {
         "build": PipelineSpec(
-            builder=oas_building_pipeline,
-            required=["project_path", "folder_name"]
+            builder=oas_building_pipeline, required=["project_path", "folder_name"]
         ),
         "enrich": PipelineSpec(
-            builder=oas_enrichment_pipeline,
-            required=["project_path", "folder_name"]
+            builder=oas_enrichment_pipeline, required=["project_path", "folder_name"]
         ),
         "trace": PipelineSpec(
-            builder=trace_annotation_pipeline,
-            required=["project_path", "folder_name"]
+            builder=trace_annotation_pipeline, required=["project_path", "folder_name"]
         ),
     }
 
-__all__ = [
-    "get_pipelines",
-    "PipelineSpec"
-]
+
+__all__ = ["get_pipelines", "PipelineSpec"]

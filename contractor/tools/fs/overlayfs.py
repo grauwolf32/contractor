@@ -4,6 +4,7 @@ import base64
 import hashlib
 import io
 import posixpath
+import threading
 from copy import deepcopy
 from datetime import datetime
 from pathlib import PurePosixPath
@@ -14,6 +15,82 @@ from fsspec.spec import AbstractFileSystem
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
+
+
+def _immediate_child(parent: str, candidate: str, norm_fn) -> str | None:
+    """Return the immediate child path of parent that contains candidate, or None."""
+    if candidate in {parent, "/"}:
+        return None
+
+    rel = posixpath.relpath(candidate, parent)
+
+    if rel in {".", ".."} or rel.startswith("../"):
+        return None
+
+    first = rel.split("/", 1)[0]
+    if not first or first == ".":
+        return None
+
+    if parent == "/":
+        return norm_fn("/" + first)
+
+    return norm_fn(posixpath.join(parent, first))
+
+
+def _safe_base_find(base_fs: AbstractFileSystem, path: str) -> list[str]:
+    """
+    Best-effort recursive listing of all paths at/under *path* in base_fs.
+
+    Some filesystem implementations have incompatible ``find`` / ``walk``
+    signatures so we try several strategies and return whatever we can
+    collect.  An empty list is returned when nothing works.
+    """
+    # Strategy 1: find(withdirs=True, detail=False) — the most common API
+    try:
+        result = base_fs.find(path, withdirs=True, detail=False)
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return list(result.keys())
+    except Exception:
+        pass
+
+    # Strategy 2: find(detail=False) without withdirs
+    try:
+        result = base_fs.find(path, detail=False)
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return list(result.keys())
+    except Exception:
+        pass
+
+    # Strategy 3: iterative walk using ls
+    try:
+        collected: list[str] = []
+        stack = [path]
+        visited: set[str] = set()
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            collected.append(current)
+            try:
+                entries = base_fs.ls(current, detail=True)
+                for entry in entries:
+                    name = entry.get("name", "")
+                    if name and name not in visited:
+                        if entry.get("type") == "directory":
+                            stack.append(name)
+                        collected.append(name)
+            except Exception:
+                pass
+        return collected
+    except Exception:
+        pass
+
+    return []
 
 
 class MemoryOverlayFileSystem(AbstractFileSystem):
@@ -36,6 +113,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def __init__(self, fs: AbstractFileSystem, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.base_fs = fs
+        self._lock = threading.RLock()
 
         # Overlay state
         self._files: dict[str, bytes] = {}
@@ -75,14 +153,18 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         return parent or self.root_marker
 
     def _ensure_parent_dirs(self, path: str) -> None:
+        parts_to_create: list[str] = []
         current = self._parent(path)
-        missing: list[str] = []
 
-        while current not in self._dirs and current != self.root_marker:
-            missing.append(current)
+        while current != self.root_marker:
+            parts_to_create.append(current)
             current = self._parent(current)
 
-        self._dirs.update(missing)
+        for dir_path in reversed(parts_to_create):
+            self._dirs.add(dir_path)
+            # Ensure tombstones don't hide newly created parents
+            self._deleted.discard(dir_path)
+
         self._dirs.add(self.root_marker)
 
     # -------------------------------------------------------------------------
@@ -91,10 +173,15 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
     def _is_deleted(self, path: str) -> bool:
         path = self._norm(path)
-        return any(
-            path == deleted or path.startswith(deleted.rstrip("/") + "/")
-            for deleted in self._deleted
-        )
+        if path in self._deleted:
+            return True
+        # Walk up ancestors to check for recursive deletes
+        current = path
+        while current != self.root_marker:
+            current = self._parent(current)
+            if current in self._deleted:
+                return True
+        return False
 
     def _unhide_path(self, path: str) -> None:
         path = self._norm(path)
@@ -109,17 +196,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         return self._norm(path) in self._files
 
     def _overlay_isdir(self, path: str) -> bool:
-        path = self._norm(path)
-
-        if path in self._dirs:
-            return True
-
-        prefix = path.rstrip("/") + "/"
-        has_file_child = any(file_path.startswith(prefix) for file_path in self._files)
-        has_dir_child = any(
-            dir_path.startswith(prefix) for dir_path in self._dirs if dir_path != path
-        )
-        return has_file_child or has_dir_child
+        return self._norm(path) in self._dirs
 
     # -------------------------------------------------------------------------
     # Base FS helpers
@@ -128,25 +205,29 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def _base_exists(self, path: str) -> bool:
         try:
             return bool(self.base_fs.exists(path))
-        except Exception:
+        except FileNotFoundError:
             return False
 
     def _base_isfile(self, path: str) -> bool:
         try:
             return bool(self.base_fs.isfile(path))
+        except FileNotFoundError:
+            return False
         except Exception:
             try:
                 return self.base_fs.info(path).get("type") == "file"
-            except Exception:
+            except FileNotFoundError:
                 return False
 
     def _base_isdir(self, path: str) -> bool:
         try:
             return bool(self.base_fs.isdir(path))
+        except FileNotFoundError:
+            return False
         except Exception:
             try:
                 return self.base_fs.info(path).get("type") == "directory"
-            except Exception:
+            except FileNotFoundError:
                 return False
 
     def _base_read_bytes(self, path: str) -> bytes:
@@ -162,7 +243,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         try:
             return len(self.base_fs.ls(path, detail=False)) == 0
-        except Exception:
+        except FileNotFoundError:
             return False
 
     # -------------------------------------------------------------------------
@@ -196,7 +277,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         try:
             return len(self.ls(path, detail=False)) == 0
-        except Exception:
+        except FileNotFoundError:
             return False
 
     def _directory_info(self, path: str) -> FileInfo:
@@ -242,62 +323,62 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                     try:
                         result[root] = dict(self.base_fs.info(root))
                         result[root]["name"] = root
-                    except Exception:
+                    except FileNotFoundError:
                         pass
 
                 return result
+        except FileNotFoundError:
+            return {}
         except Exception:
             pass
 
-        result: dict[str, FileInfo] = {}
+        # Fallback: iterative walk using ls
+        result = {}
 
         try:
             if self._base_exists(root):
                 info = dict(self.base_fs.info(root))
                 info["name"] = root
                 result[root] = info
-        except Exception:
+        except FileNotFoundError:
             return result
 
-        try:
-            for current, dirs, files in self.base_fs.walk(root):
-                current = self._norm(current)
+        stack = [root]
+        visited: set[str] = set()
 
-                if current not in result:
-                    try:
-                        info = dict(self.base_fs.info(current))
-                    except Exception:
-                        info = {"name": current, "type": "directory", "size": 0}
-                    info["name"] = current
-                    result[current] = info
+        while stack:
+            current = stack.pop()
+            current = self._norm(current)
 
-                for dirname in dirs:
-                    path = self._norm(
-                        posixpath.join(current, dirname)
-                        if current != "/"
-                        else "/" + dirname
-                    )
-                    try:
-                        info = dict(self.base_fs.info(path))
-                    except Exception:
-                        info = {"name": path, "type": "directory", "size": 0}
-                    info["name"] = path
-                    result[path] = info
+            if current in visited:
+                continue
+            visited.add(current)
 
-                for filename in files:
-                    path = self._norm(
-                        posixpath.join(current, filename)
-                        if current != "/"
-                        else "/" + filename
-                    )
-                    try:
-                        info = dict(self.base_fs.info(path))
-                    except Exception:
-                        info = {"name": path, "type": "file", "size": 0}
-                    info["name"] = path
-                    result[path] = info
-        except Exception:
-            pass
+            if current not in result:
+                try:
+                    info = dict(self.base_fs.info(current))
+                except FileNotFoundError:
+                    info = {"name": current, "type": "directory", "size": 0}
+                info["name"] = current
+                result[current] = info
+
+            try:
+                entries = self.base_fs.ls(current, detail=True)
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+
+            for entry in entries:
+                entry = dict(entry)
+                name = self._norm(entry.get("name", ""))
+                if not name or name in visited:
+                    continue
+                entry["name"] = name
+                result[name] = entry
+
+                if entry.get("type") == "directory":
+                    stack.append(name)
 
         return result
 
@@ -337,43 +418,47 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         """
         Reset all overlay changes and return to the pure base_fs view.
         """
-        self._files.clear()
-        self._dirs = {self.root_marker}
-        self._deleted.clear()
+        with self._lock:
+            self._files.clear()
+            self._dirs = {self.root_marker}
+            self._deleted.clear()
 
     def snapshot(self) -> dict[str, Any]:
         """
         Save the current overlay state in memory.
         """
-        self._snapshot_state = self._current_overlay_state()
-        return deepcopy(self._snapshot_state)
+        with self._lock:
+            self._snapshot_state = self._current_overlay_state()
+            return deepcopy(self._snapshot_state)
 
     def restore_snapshot(self, snapshot: dict[str, Any] | None = None) -> None:
         """
         Restore overlay state from snapshot().
         """
-        state = snapshot if snapshot is not None else self._snapshot_state
-        if state is None:
-            raise ValueError("No snapshot to restore")
+        with self._lock:
+            state = snapshot if snapshot is not None else self._snapshot_state
+            if state is None:
+                raise ValueError("No snapshot to restore")
 
-        self.reset_overlay()
-        self._dirs.update(self._norm(path) for path in state.get("dirs", []))
-        self._deleted.update(self._norm(path) for path in state.get("deleted", []))
-        self._files = {
-            self._norm(path): self._b64decode(content)
-            for path, content in state.get("files", {}).items()
-        }
+            self.reset_overlay()
+            self._dirs.update(self._norm(path) for path in state.get("dirs", []))
+            self._deleted.update(self._norm(path) for path in state.get("deleted", []))
+            self._files = {
+                self._norm(path): self._b64decode(content)
+                for path, content in state.get("files", {}).items()
+            }
 
     def export_overlay_state(self) -> dict[str, Any]:
         """
         Serialize the internal overlay state.
         This is not a diff, but a full snapshot of internal state.
         """
-        return {
-            "version": self.PATCH_VERSION,
-            "kind": "overlay_state",
-            "state": self._current_overlay_state(),
-        }
+        with self._lock:
+            return {
+                "version": self.PATCH_VERSION,
+                "kind": "overlay_state",
+                "state": self._current_overlay_state(),
+            }
 
     def import_overlay_state(self, payload: dict[str, Any]) -> None:
         """
@@ -389,39 +474,42 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         Restore a path back to the original base_fs view.
 
         This removes any overlay-only files/directories for ``path`` and clears
-        tombstones so the underlay version becomes visible again. The target
+        tombstones so the underlay version becomes visible again.  The target
         path must exist in ``base_fs``.
         """
-        path = self._norm(path)
+        with self._lock:
+            path = self._norm(path)
 
-        if not self._base_exists(path):
-            raise FileNotFoundError(f"No base filesystem entry exists for {path}")
+            if not self._base_exists(path):
+                raise FileNotFoundError(f"No base filesystem entry exists for {path}")
 
-        if path == self.root_marker:
-            self.reset_overlay()
-            return
+            if path == self.root_marker:
+                self.reset_overlay()
+                return
 
-        prefix = path.rstrip("/") + "/"
+            prefix = path.rstrip("/") + "/"
 
-        # Drop any overlay materialized files at/under the path.
-        for file_path in list(self._files):
-            if file_path == path or (recursive and file_path.startswith(prefix)):
-                del self._files[file_path]
+            # Drop any overlay materialized files at/under the path.
+            for file_path in list(self._files):
+                if file_path == path or (recursive and file_path.startswith(prefix)):
+                    del self._files[file_path]
 
-        # Drop overlay-created directories at/under the path.
-        for dir_path in sorted(
-            self._dirs, key=lambda item: (item.count("/"), item), reverse=True
-        ):
-            if dir_path == self.root_marker:
-                continue
-            if dir_path == path or (recursive and dir_path.startswith(prefix)):
-                self._dirs.discard(dir_path)
+            # Drop overlay-created directories at/under the path.
+            for dir_path in sorted(
+                self._dirs,
+                key=lambda item: (item.count("/"), item),
+                reverse=True,
+            ):
+                if dir_path == self.root_marker:
+                    continue
+                if dir_path == path or (recursive and dir_path.startswith(prefix)):
+                    self._dirs.discard(dir_path)
 
-        # Remove tombstones so the base view becomes visible again.
-        self._unhide_path(path)
+            # Remove tombstones so the base view becomes visible again.
+            self._unhide_path(path)
 
-        # Ensure ancestors created in the overlay remain valid for any sibling paths.
-        self._dirs.add(self.root_marker)
+            # Ensure ancestors created in the overlay remain valid.
+            self._dirs.add(self.root_marker)
 
     # -------------------------------------------------------------------------
     # Patch save / load
@@ -436,84 +524,93 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         - write_file
         - delete_path
         """
-        root = self._norm(root)
+        with self._lock:
+            root = self._norm(root)
 
-        base_entries = self._base_find_detail(root)
-        visible_entries = self._visible_find_detail(root)
+            base_entries = self._base_find_detail(root)
+            visible_entries = self._visible_find_detail(root)
 
-        base_paths = set(base_entries)
-        visible_paths = set(visible_entries)
+            base_paths = set(base_entries)
+            visible_paths = set(visible_entries)
 
-        patches: list[Patch] = []
+            patches: list[Patch] = []
 
-        # Deletions: the path exists in base, but is hidden from the overlay-visible tree
-        for path in sorted(base_paths - visible_paths):
-            if path == self.root_marker:
-                continue
+            # Cache for base file reads to avoid redundant I/O
+            _base_cache: dict[str, bytes] = {}
 
-            base_info = base_entries[path]
-            entry_type = base_info.get("type", "file")
+            def _read_base_cached(p: str) -> bytes:
+                if p not in _base_cache:
+                    _base_cache[p] = self._base_read_bytes(p)
+                return _base_cache[p]
 
-            patch: Patch = {
-                "op": "delete_path",
-                "path": path,
-                "type": entry_type,
+            # Deletions
+            for path in sorted(base_paths - visible_paths):
+                if path == self.root_marker:
+                    continue
+
+                base_info = base_entries[path]
+                entry_type = base_info.get("type", "file")
+
+                patch: Patch = {
+                    "op": "delete_path",
+                    "path": path,
+                    "type": entry_type,
+                }
+
+                if entry_type == "file":
+                    try:
+                        patch["base_hash"] = self._sha256_bytes(_read_base_cached(path))
+                    except FileNotFoundError:
+                        pass
+
+                patches.append(patch)
+
+            # Creates / modifies
+            for path in sorted(visible_paths):
+                if path == self.root_marker:
+                    continue
+
+                visible_info = visible_entries[path]
+                visible_type = visible_info.get("type", "file")
+
+                if visible_type == "directory":
+                    if path not in base_paths and self._effective_empty_dir(path):
+                        patches.append({"op": "create_dir", "path": path})
+                    continue
+
+                current_bytes = self._effective_read_bytes(path)
+
+                if path not in base_paths:
+                    patches.append(
+                        {
+                            "op": "write_file",
+                            "path": path,
+                            "content_b64": self._b64encode(current_bytes),
+                        }
+                    )
+                    continue
+
+                base_info = base_entries[path]
+                if base_info.get("type") != "file":
+                    raise RuntimeError(f"Type mismatch for {path}: base is not a file")
+
+                base_bytes = _read_base_cached(path)
+                if base_bytes != current_bytes:
+                    patches.append(
+                        {
+                            "op": "write_file",
+                            "path": path,
+                            "base_hash": self._sha256_bytes(base_bytes),
+                            "content_b64": self._b64encode(current_bytes),
+                        }
+                    )
+
+            return {
+                "version": self.PATCH_VERSION,
+                "kind": "overlay_patch",
+                "root": root,
+                "patches": patches,
             }
-
-            if entry_type == "file":
-                try:
-                    patch["base_hash"] = self._sha256_bytes(self._base_read_bytes(path))
-                except Exception:
-                    pass
-
-            patches.append(patch)
-
-        # Creates / modifies
-        for path in sorted(visible_paths):
-            if path == self.root_marker:
-                continue
-
-            visible_info = visible_entries[path]
-            visible_type = visible_info.get("type", "file")
-
-            if visible_type == "directory":
-                if path not in base_paths and self._effective_empty_dir(path):
-                    patches.append({"op": "create_dir", "path": path})
-                continue
-
-            current_bytes = self._effective_read_bytes(path)
-
-            if path not in base_paths:
-                patches.append(
-                    {
-                        "op": "write_file",
-                        "path": path,
-                        "content_b64": self._b64encode(current_bytes),
-                    }
-                )
-                continue
-
-            base_info = base_entries[path]
-            if base_info.get("type") != "file":
-                raise RuntimeError(f"Type mismatch for {path}: base is not a file")
-
-            base_bytes = self._base_read_bytes(path)
-            if base_bytes != current_bytes:
-                patches.append(
-                    {
-                        "op": "write_file",
-                        "path": path,
-                        "base_hash": self._sha256_bytes(base_bytes),
-                        "content_b64": self._b64encode(current_bytes),
-                    }
-                )
-
-        return {
-            "version": self.PATCH_VERSION,
-            "kind": "overlay_patch",
-            "root": root,
-            "patches": patches,
-        }
 
     def load(self, patch: Patch, *, reset: bool = True) -> None:
         """
@@ -524,49 +621,50 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if patch.get("kind") != "overlay_patch":
             raise ValueError("Unsupported patch payload")
 
-        if reset:
-            self.reset_overlay()
+        with self._lock:
+            if reset:
+                self.reset_overlay()
 
-        for item in patch.get("patches", []):
-            op = item["op"]
-            path = self._norm(item["path"])
+            for item in patch.get("patches", []):
+                op = item["op"]
+                path = self._norm(item["path"])
 
-            if op == "create_dir":
-                self.makedirs(path, exist_ok=True)
-                continue
+                if op == "create_dir":
+                    self.makedirs(path, exist_ok=True)
+                    continue
 
-            if op == "delete_path":
-                expected_type = item.get("type")
+                if op == "delete_path":
+                    expected_type = item.get("type")
 
-                if self.exists(path):
-                    if expected_type == "directory":
-                        self.rm(path, recursive=True)
-                    else:
-                        self.rm(path)
-                elif self._base_exists(path):
-                    self._deleted.add(path)
+                    if self.exists(path):
+                        if expected_type == "directory":
+                            self.rm(path, recursive=True)
+                        else:
+                            self.rm(path)
+                    elif self._base_exists(path):
+                        self._deleted.add(path)
 
-                continue
+                    continue
 
-            if op == "write_file":
-                base_hash = item.get("base_hash")
-                if (
-                    base_hash is not None
-                    and self._base_exists(path)
-                    and self._base_isfile(path)
-                ):
-                    actual_hash = self._sha256_bytes(self._base_read_bytes(path))
-                    if actual_hash != base_hash:
-                        raise RuntimeError(
-                            f"Base hash mismatch for {path}: "
-                            f"expected={base_hash} actual={actual_hash}"
-                        )
+                if op == "write_file":
+                    base_hash = item.get("base_hash")
+                    if (
+                        base_hash is not None
+                        and self._base_exists(path)
+                        and self._base_isfile(path)
+                    ):
+                        actual_hash = self._sha256_bytes(self._base_read_bytes(path))
+                        if actual_hash != base_hash:
+                            raise RuntimeError(
+                                f"Base hash mismatch for {path}: "
+                                f"expected={base_hash} actual={actual_hash}"
+                            )
 
-                content = self._b64decode(item["content_b64"])
-                self.pipe_file(path, content)
-                continue
+                    content = self._b64decode(item["content_b64"])
+                    self.pipe_file(path, content)
+                    continue
 
-            raise ValueError(f"Unknown patch op: {op}")
+                raise ValueError(f"Unknown patch op: {op}")
 
     # -------------------------------------------------------------------------
     # File API
@@ -594,14 +692,15 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if "r" not in mode:
             raise NotImplementedError(f"Unsupported mode: {mode}")
 
-        if self._is_deleted(path):
-            raise FileNotFoundError(path)
+        with self._lock:
+            if self._is_deleted(path):
+                raise FileNotFoundError(path)
 
-        if path in self._files:
-            data = self._files[path]
-            if "b" in mode:
-                return io.BytesIO(data)
-            return io.StringIO(data.decode(self._text_encoding(kwargs)))
+            if path in self._files:
+                data = self._files[path]
+                if "b" in mode:
+                    return io.BytesIO(data)
+                return io.StringIO(data.decode(self._text_encoding(kwargs)))
 
         return self.base_fs.open(
             path,
@@ -615,11 +714,12 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def exists(self, path: str, **kwargs: Any) -> bool:
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            return False
+        with self._lock:
+            if self._is_deleted(path):
+                return False
 
-        if path in self._files or path in self._dirs:
-            return True
+            if path in self._files or path in self._dirs:
+                return True
 
         return self._base_exists(path)
 
@@ -629,40 +729,43 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def isfile(self, path: str) -> bool:
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            return False
-        if path in self._files:
-            return True
-        if path in self._dirs:
-            return False
+        with self._lock:
+            if self._is_deleted(path):
+                return False
+            if path in self._files:
+                return True
+            if path in self._dirs:
+                return False
 
         return self._base_isfile(path)
 
     def isdir(self, path: str) -> bool:
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            return False
-        if path in self._dirs:
-            return True
-        if path in self._files:
-            return False
-        if self._overlay_isdir(path):
-            return True
+        with self._lock:
+            if self._is_deleted(path):
+                return False
+            if path in self._dirs:
+                return True
+            if path in self._files:
+                return False
+            if self._overlay_isdir(path):
+                return True
 
         return self._base_isdir(path)
 
     def info(self, path: str, **kwargs: Any) -> FileInfo:
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            raise FileNotFoundError(path)
+        with self._lock:
+            if self._is_deleted(path):
+                raise FileNotFoundError(path)
 
-        if path in self._files:
-            return self._file_info(path, self._files[path])
+            if path in self._files:
+                return self._file_info(path, self._files[path])
 
-        if path in self._dirs or self._overlay_isdir(path):
-            return self._directory_info(path)
+            if path in self._dirs or self._overlay_isdir(path):
+                return self._directory_info(path)
 
         return self.base_fs.info(path, **kwargs)
 
@@ -672,14 +775,14 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def created(self, path: str) -> datetime | None:
         try:
             return self.info(path).get("created")
-        except Exception:
+        except FileNotFoundError:
             return None
 
     def modified(self, path: str) -> datetime | None:
         try:
             info = self.info(path)
             return info.get("mtime") or info.get("modified")
-        except Exception:
+        except FileNotFoundError:
             return None
 
     # -------------------------------------------------------------------------
@@ -689,18 +792,19 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def mkdir(self, path: str, create_parents: bool = True, **kwargs: Any) -> None:
         path = self._norm(path)
 
-        if path == self.root_marker:
+        with self._lock:
+            if path == self.root_marker:
+                self._dirs.add(path)
+                return
+
+            if not create_parents:
+                parent = self._parent(path)
+                if not self.exists(parent):
+                    raise FileNotFoundError(parent)
+
+            self._ensure_parent_dirs(path)
             self._dirs.add(path)
-            return
-
-        if not create_parents:
-            parent = self._parent(path)
-            if not self.exists(parent):
-                raise FileNotFoundError(parent)
-
-        self._ensure_parent_dirs(path)
-        self._dirs.add(path)
-        self._unhide_path(path)
+            self._unhide_path(path)
 
     def makedirs(self, path: str, exist_ok: bool = False) -> None:
         path = self._norm(path)
@@ -715,29 +819,30 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def touch(self, path: str, truncate: bool = True, **kwargs: Any) -> None:
         path = self._norm(path)
 
-        self._ensure_parent_dirs(path)
-        self._unhide_path(path)
+        with self._lock:
+            self._ensure_parent_dirs(path)
+            self._unhide_path(path)
 
-        if not truncate and path in self._files:
-            return
+            if not truncate and path in self._files:
+                return
 
-        if not truncate and path not in self._files and self._base_exists(path):
-            with self.base_fs.open(path, "rb") as f:
-                self._files[path] = f.read()
-            return
+            if not truncate and path not in self._files and self._base_exists(path):
+                self._files[path] = self._base_read_bytes(path)
+                return
 
-        self._files[path] = b""
+            self._files[path] = b""
 
     def pipe_file(self, path: str, value: bytes | str, **kwargs: Any) -> None:
         path = self._norm(path)
 
-        self._ensure_parent_dirs(path)
-        self._unhide_path(path)
+        with self._lock:
+            self._ensure_parent_dirs(path)
+            self._unhide_path(path)
 
-        if isinstance(value, str):
-            value = value.encode(kwargs.get("encoding") or "utf-8")
+            if isinstance(value, str):
+                value = value.encode(kwargs.get("encoding") or "utf-8")
 
-        self._files[path] = value
+            self._files[path] = value
 
     def write_text(
         self,
@@ -765,13 +870,17 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     ) -> bytes:
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            raise FileNotFoundError(path)
+        with self._lock:
+            if self._is_deleted(path):
+                raise FileNotFoundError(path)
 
-        if path in self._files:
-            data = self._files[path]
-        else:
-            data = self.base_fs.cat_file(path, **kwargs)
+            if path in self._files:
+                data = self._files[path]
+                if start is not None or end is not None:
+                    return data[start:end]
+                return data
+
+        data = self.base_fs.cat_file(path, **kwargs)
 
         if start is not None or end is not None:
             return data[start:end]
@@ -818,22 +927,24 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
     def rm_file(self, path: str) -> None:
         path = self._norm(path)
-        removed = False
 
-        if path in self._files:
-            del self._files[path]
-            removed = True
+        with self._lock:
+            removed = False
 
-        if path in self._dirs:
-            self._dirs.remove(path)
-            removed = True
+            if path in self._files:
+                del self._files[path]
+                removed = True
 
-        if self._base_exists(path):
-            self._deleted.add(path)
-            removed = True
+            if path in self._dirs:
+                self._dirs.remove(path)
+                removed = True
 
-        if not removed:
-            raise FileNotFoundError(path)
+            if self._base_exists(path):
+                self._deleted.add(path)
+                removed = True
+
+            if not removed:
+                raise FileNotFoundError(path)
 
     def rmdir(self, path: str) -> None:
         path = self._norm(path)
@@ -841,31 +952,36 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if path == self.root_marker:
             raise ValueError("Cannot remove root directory")
 
-        prefix = path.rstrip("/") + "/"
+        with self._lock:
+            prefix = path.rstrip("/") + "/"
 
-        if any(file_path.startswith(prefix) for file_path in self._files):
-            raise OSError(f"Directory not empty: {path}")
-
-        if any(
-            dir_path.startswith(prefix) for dir_path in self._dirs if dir_path != path
-        ):
-            raise OSError(f"Directory not empty: {path}")
-
-        if self._base_exists(path):
-            try:
-                base_entries = self.base_fs.ls(path, detail=False)
-            except Exception:
-                base_entries = []
-
-            visible_entries = [
-                entry for entry in base_entries if not self._is_deleted(entry)
-            ]
-            if visible_entries:
+            if any(file_path.startswith(prefix) for file_path in self._files):
                 raise OSError(f"Directory not empty: {path}")
 
-            self._deleted.add(path)
+            if any(
+                dir_path.startswith(prefix)
+                for dir_path in self._dirs
+                if dir_path != path
+            ):
+                raise OSError(f"Directory not empty: {path}")
 
-        self._dirs.discard(path)
+            if self._base_exists(path):
+                try:
+                    base_entries = self.base_fs.ls(path, detail=False)
+                except FileNotFoundError:
+                    base_entries = []
+
+                visible_entries = [
+                    entry
+                    for entry in base_entries
+                    if not self._is_deleted(self._norm(entry))
+                ]
+                if visible_entries:
+                    raise OSError(f"Directory not empty: {path}")
+
+                self._deleted.add(path)
+
+            self._dirs.discard(path)
 
     def rm(
         self,
@@ -889,27 +1005,31 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             return
 
         if recursive:
-            prefix = path.rstrip("/") + "/"
+            with self._lock:
+                prefix = path.rstrip("/") + "/"
 
-            for file_path in list(self._files):
-                if file_path == path or file_path.startswith(prefix):
-                    del self._files[file_path]
+                for file_path in list(self._files):
+                    if file_path == path or file_path.startswith(prefix):
+                        del self._files[file_path]
 
-            for dir_path in list(self._dirs):
-                if dir_path != self.root_marker and (
-                    dir_path == path or dir_path.startswith(prefix)
-                ):
-                    self._dirs.discard(dir_path)
+                for dir_path in list(self._dirs):
+                    if dir_path != self.root_marker and (
+                        dir_path == path or dir_path.startswith(prefix)
+                    ):
+                        self._dirs.discard(dir_path)
 
-            if self._base_exists(path):
-                self._deleted.add(path)
+                if self._base_exists(path):
+                    # Adding a tombstone on the path itself is sufficient:
+                    # _is_deleted walks up ancestors, so any child of this
+                    # path will find this tombstone and be treated as hidden.
+                    self._deleted.add(path)
 
-            # Hide everything under the prefix from the base filesystem
-            try:
-                for base_path in self.base_fs.find(path, withdirs=True, detail=False):
-                    self._deleted.add(self._norm(base_path))
-            except Exception:
-                pass
+                    # Best-effort: also tombstone individual children so that
+                    # _is_deleted can short-circuit via direct set lookup
+                    # instead of always walking up.  This is purely an
+                    # optimisation; correctness does not depend on it.
+                    for base_path in _safe_base_find(self.base_fs, path):
+                        self._deleted.add(self._norm(base_path))
 
             return
 
@@ -965,30 +1085,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         path = self._norm(path)
         seen: set[str] = set()
 
-        def _immediate_child(parent: str, candidate: str) -> str | None:
-            parent = self._norm(parent)
-            candidate = self._norm(candidate)
-
-            if candidate in {parent, self.root_marker}:
-                return None
-
-            rel = posixpath.relpath(candidate, parent)
-
-            # Not below parent, or same path
-            if rel in {".", ".."} or rel.startswith("../"):
-                return None
-
-            first = rel.split("/", 1)[0]
-            if not first or first == ".":
-                return None
-
-            if parent == self.root_marker:
-                return self._norm("/" + first)
-
-            return self._norm(posixpath.join(parent, first))
-
         for dir_path in sorted(self._dirs):
-            child = _immediate_child(path, dir_path)
+            child = _immediate_child(path, dir_path, self._norm)
             if child is None:
                 continue
             if self._is_deleted(child) or child in seen:
@@ -998,7 +1096,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             yield {"name": child, "size": 0, "type": "directory"}
 
         for file_path, content in sorted(self._files.items()):
-            child = _immediate_child(path, file_path)
+            child = _immediate_child(path, file_path, self._norm)
             if child is None:
                 continue
             if self._is_deleted(child) or child in seen:
@@ -1014,33 +1112,35 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def ls(self, path: str = "", detail: bool = True, **kwargs: Any):
         path = self._norm(path)
 
-        if self._is_deleted(path):
-            raise FileNotFoundError(path)
+        with self._lock:
+            if self._is_deleted(path):
+                raise FileNotFoundError(path)
 
-        merged: dict[str, FileInfo] = {}
+            merged: dict[str, FileInfo] = {}
 
-        try:
-            base_entries = self.base_fs.ls(path, detail=True, **kwargs)
-            for entry in base_entries:
+            try:
+                base_entries = self.base_fs.ls(path, detail=True, **kwargs)
+                for entry in base_entries:
+                    name = self._norm(entry["name"])
+                    if self._is_deleted(name):
+                        continue
+
+                    normalized = dict(entry)
+                    normalized["name"] = name
+                    merged[name] = normalized
+            except FileNotFoundError:
+                pass
+
+            for entry in self._iter_overlay_children(path):
                 name = self._norm(entry["name"])
-                if self._is_deleted(name):
+                if name == path:
                     continue
+                merged[name] = entry
 
-                normalized = dict(entry)
-                normalized["name"] = name
-                merged[name] = normalized
-        except Exception:
-            pass
-
-        for entry in self._iter_overlay_children(path):
-            if self._norm(entry["name"]) == path:
-                continue
-            merged[entry["name"]] = entry
-
-        items = sorted(merged.values(), key=lambda item: item["name"])
-        if detail:
-            return items
-        return [item["name"] for item in items]
+            items = sorted(merged.values(), key=lambda item: item["name"])
+            if detail:
+                return items
+            return [item["name"] for item in items]
 
     def walk(
         self,
@@ -1054,16 +1154,22 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if not self.exists(path):
             return
 
+        stack: list[tuple[str, int]] = [(path, 0)]
         visited: set[str] = set()
+        deferred: list[tuple[str, list[str], list[str]]] = []
 
-        def _walk(current: str, depth: int):
+        while stack:
+            current, depth = stack.pop()
             current = self._norm(current)
 
             if current in visited:
-                return
+                continue
             visited.add(current)
 
-            entries = self.ls(current, detail=True)
+            try:
+                entries = self.ls(current, detail=True)
+            except FileNotFoundError:
+                continue
 
             dirs: list[str] = []
             files: list[str] = []
@@ -1072,9 +1178,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 name = self._norm(entry["name"])
                 base = posixpath.basename(name)
 
-                if not base:
-                    continue
-                if name == current:
+                if not base or name == current:
                     continue
 
                 if entry["type"] == "directory":
@@ -1087,9 +1191,12 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
             if topdown:
                 yield current, dirs, files
+            else:
+                deferred.append((current, dirs, files))
 
             if maxdepth is None or depth < maxdepth:
-                for dirname in dirs:
+                # Reverse so that left-most dirs are processed first (LIFO stack)
+                for dirname in reversed(dirs):
                     child = (
                         posixpath.join(current, dirname)
                         if current != self.root_marker
@@ -1097,15 +1204,12 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                     )
                     child = self._norm(child)
 
-                    if child == current or child in visited:
-                        continue
+                    if child not in visited:
+                        stack.append((child, depth + 1))
 
-                    yield from _walk(child, depth + 1)
-
-            if not topdown:
-                yield current, dirs, files
-
-        yield from _walk(path, 0)
+        if not topdown:
+            for item in reversed(deferred):
+                yield item
 
     def find(
         self,
@@ -1174,9 +1278,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         pattern_no_root = pattern.lstrip("/")
         return sorted(
-            path
-            for path in candidates
-            if PurePosixPath(path.lstrip("/")).match(pattern_no_root)
+            p for p in candidates if PurePosixPath(p.lstrip("/")).match(pattern_no_root)
         )
 
     def du(
@@ -1188,7 +1290,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         **kwargs: Any,
     ):
         entries = self.find(path, maxdepth=maxdepth, withdirs=withdirs, detail=True)
-        sizes = {path: int(info.get("size", 0)) for path, info in entries.items()}
+        sizes = {p: int(info.get("size", 0)) for p, info in entries.items()}
 
         if total:
             return sum(sizes.values())
@@ -1230,12 +1332,6 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except Exception:
             pass
 
-    def __getattr__(self, name: str):
-        """
-        Passthrough for methods/properties that are not overridden here.
-        """
-        return getattr(self.base_fs, name)
-
 
 class _OverlayWriteFile:
     def __init__(
@@ -1266,15 +1362,17 @@ class _OverlayWriteFile:
             if "w" in mode:
                 self._buf.truncate(0)
 
-        fs._ensure_parent_dirs(self.path)
-        fs._unhide_path(self.path)
+        with fs._lock:
+            fs._ensure_parent_dirs(self.path)
+            fs._unhide_path(self.path)
 
     def _load_initial_bytes(self) -> bytes:
         if "a" not in self.mode and "+" not in self.mode:
             return b""
 
-        if self.path in self.fs._files:
-            return self.fs._files[self.path]
+        with self.fs._lock:
+            if self.path in self.fs._files:
+                return self.fs._files[self.path]
 
         if not self.fs._is_deleted(self.path) and self.fs._base_exists(self.path):
             with self.fs.base_fs.open(self.path, "rb") as f:
@@ -1297,6 +1395,36 @@ class _OverlayWriteFile:
             return data
         return data.decode(self.encoding)
 
+    def readline(self, size: int = -1):
+        data = self._buf.readline(size)
+        if self.binary:
+            return data
+        return data.decode(self.encoding)
+
+    def readlines(self, hint: int = -1):
+        lines: list[bytes | str] = []
+        while True:
+            line = self.readline()
+            if not line:
+                break
+            lines.append(line)
+            if (
+                0
+                <= hint
+                <= sum(
+                    len(ln) if isinstance(ln, bytes) else len(ln.encode(self.encoding))
+                    for ln in lines
+                )
+            ):
+                break
+        return lines
+
+    def truncate(self, size: int | None = None) -> int:
+        if size is None:
+            size = self._buf.tell()
+        self._buf.truncate(size)
+        return size
+
     def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
         return self._buf.seek(offset, whence)
 
@@ -1304,7 +1432,8 @@ class _OverlayWriteFile:
         return self._buf.tell()
 
     def flush(self) -> None:
-        self.fs._files[self.path] = self._buf.getvalue()
+        with self.fs._lock:
+            self.fs._files[self.path] = self._buf.getvalue()
 
     def close(self) -> None:
         if self.closed:
@@ -1322,8 +1451,24 @@ class _OverlayWriteFile:
     def seekable(self) -> bool:
         return True
 
+    def isatty(self) -> bool:
+        return False
+
+    @property
+    def name(self) -> str:
+        return self.path
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc, tb):
         self.close()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        line = self.readline()
+        if not line:
+            raise StopIteration
+        return line
