@@ -12,6 +12,11 @@ files = [
     {file = "aiohappyeyeballs-2.6.1.tar.gz", hash = "sha256:c3f9d0113123803ccadfdf3f0faa505bc78e6a72d1cc4806cbd719826e943558"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "aiohttp"
 version = "3.13.3"
@@ -154,6 +159,11 @@ yarl = ">=1.17.0,<2.0"
 [package.extras]
 speedups = ["Brotli (>=1.2) ; platform_python_implementation == \"CPython\"", "aiodns (>=3.3.0)", "backports.zstd ; platform_python_implementation == \"CPython\" and python_version < \"3.14\"", "brotlicffi (>=1.2) ; platform_python_implementation != \"CPython\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "aiosignal"
 version = "1.4.0"
@@ -170,6 +180,11 @@ files = [
 frozenlist = ">=1.1.0"
 typing-extensions = {version = ">=4.2", markers = "python_version < \"3.13\""}
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "aiosqlite"
 version = "0.22.1"
@@ -185,6 +200,11 @@ files = [
 [package.extras]
 dev = ["attribution (==1.8.0)", "black (==25.11.0)", "build (>=1.2)", "coverage[toml] (==7.10.7)", "flake8 (==7.3.0)", "flake8-bugbear (==24.12.12)", "flit (==3.12.0)", "mypy (==1.19.0)", "ufmt (==2.8.0)", "usort (==1.0.8.post1)"]
 docs = ["sphinx (==8.1.3)", "sphinx-mdinclude (==0.6.2)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "alembic"
@@ -206,6 +226,11 @@ typing-extensions = ">=4.12"
 [package.extras]
 tz = ["tzdata"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.4"
@@ -218,6 +243,11 @@ files = [
     {file = "annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -229,6 +259,11 @@ files = [
     {file = "annotated_types-0.7.0-py3-none-any.whl", hash = "sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53"},
     {file = "annotated_types-0.7.0.tar.gz", hash = "sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "anyio"
@@ -249,6 +284,11 @@ typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 [package.extras]
 trio = ["trio (>=0.31.0) ; python_version < \"3.10\"", "trio (>=0.32.0) ; python_version >= \"3.10\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "attrs"
 version = "25.4.0"
@@ -260,6 +300,11 @@ files = [
     {file = "attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373"},
     {file = "attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "authlib"
@@ -276,6 +321,11 @@ files = [
 [package.dependencies]
 cryptography = "*"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "backoff"
 version = "2.2.1"
@@ -287,6 +337,11 @@ files = [
     {file = "backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8"},
     {file = "backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "beautifulsoup4"
@@ -311,6 +366,11 @@ charset-normalizer = ["charset-normalizer"]
 html5lib = ["html5lib"]
 lxml = ["lxml"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "bs4"
 version = "0.0.2"
@@ -326,6 +386,11 @@ files = [
 [package.dependencies]
 beautifulsoup4 = "*"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "certifi"
 version = "2026.2.25"
@@ -337,6 +402,11 @@ files = [
     {file = "certifi-2026.2.25-py3-none-any.whl", hash = "sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa"},
     {file = "certifi-2026.2.25.tar.gz", hash = "sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "cffi"
@@ -435,6 +505,11 @@ files = [
 
 [package.dependencies]
 pycparser = {version = "*", markers = "implementation_name != \"PyPy\""}
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "charset-normalizer"
@@ -575,6 +650,11 @@ files = [
     {file = "charset_normalizer-3.4.6.tar.gz", hash = "sha256:1ae6b62897110aa7c79ea2f5dd38d1abca6db663687c0b1ad9aed6f6bae3d9d6"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "click"
 version = "8.3.1"
@@ -590,6 +670,11 @@ files = [
 [package.dependencies]
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "cloudpickle"
 version = "3.1.2"
@@ -601,6 +686,11 @@ files = [
     {file = "cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a"},
     {file = "cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "colorama"
@@ -614,6 +704,11 @@ files = [
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
 markers = {main = "platform_system == \"Windows\" or sys_platform == \"win32\"", dev = "sys_platform == \"win32\""}
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "contourpy"
@@ -706,6 +801,11 @@ docs = ["furo", "sphinx (>=7.2)", "sphinx-copybutton"]
 mypy = ["bokeh", "contourpy[bokeh,docs]", "docutils-stubs", "mypy (==1.17.0)", "types-Pillow"]
 test = ["Pillow", "contourpy[test-no-images]", "matplotlib"]
 test-no-images = ["pytest", "pytest-cov", "pytest-rerunfailures", "pytest-xdist", "wurlitzer"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "coverage"
@@ -826,12 +926,17 @@ files = [
 [package.extras]
 toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "cryptography"
 version = "46.0.5"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
 optional = false
-python-versions = "!=3.9.0,!=3.9.1,>=3.8"
+python-versions = ">=3.8, !=3.9.0, !=3.9.1"
 groups = ["main"]
 files = [
     {file = "cryptography-46.0.5-cp311-abi3-macosx_10_9_universal2.whl", hash = "sha256:351695ada9ea9618b3500b490ad54c739860883df6c1f555e088eaf25b1bbaad"},
@@ -898,6 +1003,11 @@ ssh = ["bcrypt (>=3.1.5)"]
 test = ["certifi (>=2024)", "cryptography-vectors (==46.0.5)", "pretend (>=0.7)", "pytest (>=7.4.0)", "pytest-benchmark (>=4.0)", "pytest-cov (>=2.10.1)", "pytest-xdist (>=3.5.0)"]
 test-randomorder = ["pytest-randomly"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "cycler"
 version = "0.12.1"
@@ -914,6 +1024,11 @@ files = [
 docs = ["ipython", "matplotlib", "numpydoc", "sphinx"]
 tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "distro"
 version = "1.9.0"
@@ -925,6 +1040,11 @@ files = [
     {file = "distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"},
     {file = "distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "docstring-parser"
@@ -942,6 +1062,11 @@ files = [
 dev = ["pre-commit (>=2.16.0) ; python_version >= \"3.9\"", "pydoctor (>=25.4.0)", "pytest"]
 docs = ["pydoctor (>=25.4.0)"]
 test = ["pytest"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "fastapi"
@@ -966,6 +1091,11 @@ typing-inspection = ">=0.4.2"
 all = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "itsdangerous (>=1.1.0)", "jinja2 (>=3.1.5)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.18)", "pyyaml (>=5.3.1)", "uvicorn[standard] (>=0.12.0)"]
 standard = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
 standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[standard-no-fastapi-cloud-cli] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "fastuuid"
@@ -1055,6 +1185,11 @@ files = [
     {file = "fastuuid-0.14.0.tar.gz", hash = "sha256:178947fc2f995b38497a74172adee64fdeb8b7ec18f2a5934d037641ba265d26"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "filelock"
 version = "3.25.2"
@@ -1067,6 +1202,11 @@ files = [
     {file = "filelock-3.25.2.tar.gz", hash = "sha256:b64ece2b38f4ca29dd3e810287aa8c48182bbecd1ae6e9ae126c9b35f1382694"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "flatbuffers"
 version = "25.12.19"
@@ -1077,6 +1217,11 @@ groups = ["main"]
 files = [
     {file = "flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "fonttools"
@@ -1150,6 +1295,11 @@ symfont = ["sympy"]
 type1 = ["xattr ; sys_platform == \"darwin\""]
 unicode = ["unicodedata2 (>=17.0.0) ; python_version <= \"3.14\""]
 woff = ["brotli (>=1.0.1) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=0.8.0) ; platform_python_implementation != \"CPython\"", "zopfli (>=0.1.4)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "frozenlist"
@@ -1291,6 +1441,11 @@ files = [
     {file = "frozenlist-1.8.0.tar.gz", hash = "sha256:3ede829ed8d842f6cd48fc7081d7a41001a56f1f38603f9d49bf3020d59a31ad"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "fsspec"
 version = "2026.2.0"
@@ -1330,6 +1485,11 @@ test = ["aiohttp (!=4.0.0a0,!=4.0.0a1)", "numpy", "pytest", "pytest-asyncio (!=0
 test-downstream = ["aiobotocore (>=2.5.4,<3.0.0)", "dask[dataframe,test]", "moto[server] (>4,<5)", "pytest-timeout", "xarray"]
 test-full = ["adlfs", "aiohttp (!=4.0.0a0,!=4.0.0a1)", "backports-zstd ; python_version < \"3.14\"", "cloudpickle", "dask", "distributed", "dropbox", "dropboxdrivefs", "fastparquet", "fusepy", "gcsfs", "jinja2", "kerchunk", "libarchive-c", "lz4", "notebook", "numpy", "ocifs", "pandas (<3.0.0)", "panel", "paramiko", "pyarrow", "pyarrow (>=1)", "pyftpdlib", "pygit2", "pytest", "pytest-asyncio (!=0.22.0)", "pytest-benchmark", "pytest-cov", "pytest-mock", "pytest-recording", "pytest-rerunfailures", "python-snappy", "requests", "smbprotocol", "tqdm", "urllib3", "zarr", "zstandard ; python_version < \"3.14\""]
 tqdm = ["tqdm"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-adk"
@@ -1401,6 +1561,11 @@ otel-gcp = ["opentelemetry-instrumentation-google-genai (>=0.6b0,<1.0.0)"]
 test = ["a2a-sdk (>=0.3.0,<0.4.0)", "anthropic (>=0.43.0)", "crewai[tools] ; python_version == \"3.11\"", "kubernetes (>=29.0.0)", "langchain-community (>=0.3.17)", "langgraph (>=0.2.60,<0.4.8)", "litellm (>=1.75.5,<2.0.0)", "llama-index-readers-file (>=0.4.0)", "openai (>=1.100.2)", "opentelemetry-instrumentation-google-genai (>=0.3b0,<1.0.0)", "pypika (>=0.50.0)", "pytest (>=9.0.0,<10.0.0)", "pytest-asyncio (>=0.25.0)", "pytest-mock (>=3.14.0)", "pytest-xdist (>=3.6.1)", "python-multipart (>=0.0.9)", "rouge-score (>=0.1.2)", "tabulate (>=0.9.0)"]
 toolbox = ["toolbox-adk (>=0.7.0,<0.8.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-api-core"
 version = "2.30.0"
@@ -1435,6 +1600,11 @@ requests = ">=2.20.0,<3.0.0"
 async-rest = ["google-auth[aiohttp] (>=2.35.0,<3.0.0)"]
 grpc = ["grpcio (>=1.33.2,<2.0.0)", "grpcio (>=1.49.1,<2.0.0) ; python_version >= \"3.11\"", "grpcio (>=1.75.1,<2.0.0) ; python_version >= \"3.14\"", "grpcio-status (>=1.33.2,<2.0.0)", "grpcio-status (>=1.49.1,<2.0.0) ; python_version >= \"3.11\"", "grpcio-status (>=1.75.1,<2.0.0) ; python_version >= \"3.14\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-api-python-client"
 version = "2.192.0"
@@ -1453,6 +1623,11 @@ google-auth = ">=1.32.0,<2.24.0 || >2.24.0,<2.25.0 || >2.25.0,<3.0.0"
 google-auth-httplib2 = ">=0.2.0,<1.0.0"
 httplib2 = ">=0.19.0,<1.0.0"
 uritemplate = ">=3.0.1,<5"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-auth"
@@ -1484,6 +1659,11 @@ rsa = ["rsa (>=3.1.4,<5)"]
 testing = ["aiohttp (<3.10.0)", "aiohttp (>=3.6.2,<4.0.0)", "aioresponses", "flask", "freezegun", "grpcio", "packaging", "pyjwt (>=2.0)", "pyopenssl (<24.3.0)", "pyopenssl (>=20.0.0)", "pytest", "pytest-asyncio", "pytest-cov", "pytest-localserver", "pyu2f (>=0.1.5)", "requests (>=2.20.0,<3.0.0)", "responses", "urllib3"]
 urllib3 = ["packaging", "urllib3"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-auth-httplib2"
 version = "0.3.0"
@@ -1499,6 +1679,11 @@ files = [
 [package.dependencies]
 google-auth = ">=1.32.0,<3.0.0"
 httplib2 = ">=0.19.0,<1.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-aiplatform"
@@ -1572,6 +1757,11 @@ tokenization = ["sentencepiece (>=0.2.0)"]
 vizier = ["google-vizier (>=0.1.6)"]
 xai = ["tensorflow (>=2.3.0,<3.0.0) ; python_version < \"3.13\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-appengine-logging"
 version = "1.8.0"
@@ -1597,6 +1787,11 @@ proto-plus = [
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-audit-log"
 version = "0.4.0"
@@ -1612,6 +1807,11 @@ files = [
 [package.dependencies]
 googleapis-common-protos = ">=1.56.2,<2.0.0"
 protobuf = ">=3.20.2,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-bigquery"
@@ -1646,6 +1846,11 @@ opentelemetry = ["opentelemetry-api (>=1.1.0)", "opentelemetry-instrumentation (
 pandas = ["db-dtypes (>=1.0.4,<2.0.0)", "grpcio (>=1.47.0,<2.0.0)", "grpcio (>=1.49.1,<2.0.0) ; python_version >= \"3.11\"", "grpcio (>=1.75.1,<2.0.0) ; python_version >= \"3.14\"", "pandas (>=1.3.0)", "pandas-gbq (>=0.26.1)", "pyarrow (>=3.0.0)"]
 tqdm = ["tqdm (>=4.23.4,<5.0.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-bigquery-storage"
 version = "2.36.2"
@@ -1676,6 +1881,11 @@ fastavro = ["fastavro (>=0.21.2)"]
 pandas = ["importlib-metadata (>=1.0.0) ; python_version < \"3.8\"", "pandas (>=0.21.1)"]
 pyarrow = ["pyarrow (>=0.15.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-bigtable"
 version = "2.35.0"
@@ -1703,6 +1913,11 @@ protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4
 [package.extras]
 libcst = ["libcst (>=0.2.5)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-core"
 version = "2.5.0"
@@ -1721,6 +1936,11 @@ google-auth = ">=1.25.0,<3.0.0"
 
 [package.extras]
 grpc = ["grpcio (>=1.38.0,<2.0.0) ; python_version < \"3.14\"", "grpcio (>=1.75.1,<2.0.0) ; python_version >= \"3.14\"", "grpcio-status (>=1.38.0,<2.0.0)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-dataplex"
@@ -1748,6 +1968,11 @@ proto-plus = [
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-discoveryengine"
 version = "0.13.12"
@@ -1768,6 +1993,11 @@ proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-iam"
@@ -1794,6 +2024,11 @@ proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-logging"
@@ -1825,6 +2060,11 @@ proto-plus = [
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-monitoring"
 version = "2.29.1"
@@ -1852,6 +2092,11 @@ protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4
 
 [package.extras]
 pandas = ["pandas (>=0.23.2)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-pubsub"
@@ -1882,6 +2127,11 @@ protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4
 [package.extras]
 libcst = ["libcst (>=0.3.10)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-resource-manager"
 version = "1.16.0"
@@ -1908,6 +2158,11 @@ proto-plus = [
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-secret-manager"
 version = "2.26.0"
@@ -1933,6 +2188,11 @@ proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-spanner"
@@ -1964,6 +2224,11 @@ sqlparse = ">=0.4.4"
 [package.extras]
 libcst = ["libcst (>=0.2.5)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-speech"
 version = "2.37.0"
@@ -1988,6 +2253,11 @@ proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-cloud-storage"
@@ -2015,6 +2285,11 @@ protobuf = ["protobuf (>=3.20.2,<7.0.0)"]
 testing = ["PyYAML", "black", "brotli", "coverage", "flake8", "google-cloud-iam", "google-cloud-kms", "google-cloud-pubsub", "google-cloud-testutils", "google-cloud-testutils", "mock", "numpy", "opentelemetry-sdk", "psutil", "py-cpuinfo", "pyopenssl", "pytest", "pytest-asyncio", "pytest-benchmark", "pytest-cov", "pytest-rerunfailures", "pytest-xdist"]
 tracing = ["opentelemetry-api (>=1.1.0,<2.0.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-cloud-trace"
 version = "1.18.0"
@@ -2039,6 +2314,11 @@ proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "google-crc32c"
@@ -2083,6 +2363,11 @@ files = [
     {file = "google_crc32c-1.8.0.tar.gz", hash = "sha256:a428e25fb7691024de47fecfbff7ff957214da51eddded0da0ae0e0f03a2cf79"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-genai"
 version = "1.67.0"
@@ -2111,12 +2396,17 @@ websockets = ">=13.0.0,<17.0"
 aiohttp = ["aiohttp (>=3.10.11,<4.0.0)"]
 local-tokenizer = ["protobuf", "sentencepiece (>=0.2.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "google-resumable-media"
 version = "2.8.0"
 description = "Utilities for Google Media Downloads and Resumable Uploads"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">= 3.7"
 groups = ["main"]
 files = [
     {file = "google_resumable_media-2.8.0-py3-none-any.whl", hash = "sha256:dd14a116af303845a8d932ddae161a26e86cc229645bc98b39f026f9b1717582"},
@@ -2129,6 +2419,11 @@ google-crc32c = ">=1.0.0,<2.0.0"
 [package.extras]
 aiohttp = ["aiohttp (>=3.6.2,<4.0.0)", "google-auth (>=1.22.0,<2.0.0)"]
 requests = ["requests (>=2.18.0,<3.0.0)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "googleapis-common-protos"
@@ -2149,6 +2444,11 @@ protobuf = ">=3.20.2,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4
 [package.extras]
 grpc = ["grpcio (>=1.44.0,<2.0.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "graphviz"
 version = "0.21"
@@ -2165,6 +2465,11 @@ files = [
 dev = ["Flake8-pyproject", "build", "flake8", "pep8-naming", "tox (>=3)", "twine", "wheel"]
 docs = ["sphinx (>=5,<7)", "sphinx-autodoc-typehints", "sphinx-rtd-theme (>=0.2.5)"]
 test = ["coverage", "pytest (>=7,<8.1)", "pytest-cov", "pytest-mock (>=3)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "greenlet"
@@ -2234,6 +2539,11 @@ files = [
 docs = ["Sphinx", "furo"]
 test = ["objgraph", "psutil", "setuptools"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "grpc-google-iam-v1"
 version = "0.14.3"
@@ -2250,6 +2560,11 @@ files = [
 googleapis-common-protos = {version = ">=1.56.0,<2.0.0", extras = ["grpc"]}
 grpcio = ">=1.44.0,<2.0.0"
 protobuf = ">=3.20.2,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "grpc-interceptor"
@@ -2268,6 +2583,11 @@ grpcio = ">=1.49.1,<2.0.0"
 
 [package.extras]
 testing = ["protobuf (>=4.21.9)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "grpcio"
@@ -2346,6 +2666,11 @@ typing-extensions = ">=4.12,<5.0"
 [package.extras]
 protobuf = ["grpcio-tools (>=1.78.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "grpcio-status"
 version = "1.78.0"
@@ -2363,6 +2688,11 @@ googleapis-common-protos = ">=1.5.5"
 grpcio = ">=1.78.0"
 protobuf = ">=6.31.1,<7.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "h11"
 version = "0.16.0"
@@ -2374,6 +2704,11 @@ files = [
     {file = "h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"},
     {file = "h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "hf-xet"
@@ -2414,6 +2749,11 @@ files = [
 [package.extras]
 tests = ["pytest"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "httpcore"
 version = "1.0.9"
@@ -2436,6 +2776,11 @@ http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
 trio = ["trio (>=0.22.0,<1.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "httplib2"
 version = "0.31.2"
@@ -2450,6 +2795,11 @@ files = [
 
 [package.dependencies]
 pyparsing = ">=3.1,<4"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "httpx"
@@ -2476,6 +2826,11 @@ http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "httpx-sse"
 version = "0.4.3"
@@ -2487,6 +2842,11 @@ files = [
     {file = "httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"},
     {file = "httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "huggingface-hub"
@@ -2523,6 +2883,11 @@ testing = ["Jinja2", "Pillow", "authlib (>=1.3.2)", "duckdb", "fastapi", "fastap
 torch = ["safetensors[torch]", "torch"]
 typing = ["types-PyYAML", "types-simplejson", "types-toml", "types-tqdm", "types-urllib3", "typing-extensions (>=4.8.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "idna"
 version = "3.11"
@@ -2537,6 +2902,11 @@ files = [
 
 [package.extras]
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "importlib-metadata"
@@ -2562,6 +2932,11 @@ perf = ["ipython"]
 test = ["flufl.flake8", "jaraco.test (>=5.4)", "packaging", "pyfakefs", "pytest (>=6,!=8.1.*)", "pytest-perf (>=0.9.2)"]
 type = ["mypy (<1.19) ; platform_python_implementation == \"PyPy\"", "pytest-mypy (>=1.0.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "iniconfig"
 version = "2.3.0"
@@ -2573,6 +2948,11 @@ files = [
     {file = "iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"},
     {file = "iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "isort"
@@ -2588,6 +2968,11 @@ files = [
 
 [package.extras]
 colors = ["colorama"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "jinja2"
@@ -2606,6 +2991,11 @@ MarkupSafe = ">=2.0"
 
 [package.extras]
 i18n = ["Babel (>=2.7)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "jiter"
@@ -2719,6 +3109,11 @@ files = [
     {file = "jiter-0.13.0.tar.gz", hash = "sha256:f2839f9c2c7e2dffc1bc5929a510e14ce0a946be9365fd1219e7ef342dae14f4"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "jsonschema"
 version = "4.26.0"
@@ -2741,6 +3136,11 @@ rpds-py = ">=0.25.0"
 format = ["fqdn", "idna", "isoduration", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3987", "uri-template", "webcolors (>=1.11)"]
 format-nongpl = ["fqdn", "idna", "isoduration", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3986-validator (>0.1.0)", "rfc3987-syntax (>=1.1.0)", "uri-template", "webcolors (>=24.6.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "jsonschema-specifications"
 version = "2025.9.1"
@@ -2755,6 +3155,11 @@ files = [
 
 [package.dependencies]
 referencing = ">=0.31.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "kiwisolver"
@@ -2883,12 +3288,17 @@ files = [
     {file = "kiwisolver-1.5.0.tar.gz", hash = "sha256:d4193f3d9dc3f6f79aaed0e5637f45d98850ebf01f7ca20e69457f3e8946b66a"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "langfuse"
 version = "3.14.5"
 description = "A client library for accessing langfuse"
 optional = false
-python-versions = "<4.0,>=3.10"
+python-versions = ">=3.10,<4.0"
 groups = ["main"]
 files = [
     {file = "langfuse-3.14.5-py3-none-any.whl", hash = "sha256:5054b1c705ec69bce2d7077ce7419727ac629159428da013790979ca9cae77d5"},
@@ -2906,6 +3316,11 @@ packaging = ">=23.2,<26.0"
 pydantic = ">=1.10.7,<3.0"
 requests = ">=2,<3"
 wrapt = ">=1.14,<2.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "librt"
@@ -3008,12 +3423,17 @@ files = [
     {file = "librt-0.8.1.tar.gz", hash = "sha256:be46a14693955b3bd96014ccbdb8339ee8c9346fbe11c1b78901b55125f14c73"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "litellm"
 version = "1.82.2"
 description = "Library to easily interface with LLM API providers"
 optional = false
-python-versions = "<4.0,>=3.9"
+python-versions = ">=3.9,<4.0"
 groups = ["main"]
 files = [
     {file = "litellm-1.82.2-py3-none-any.whl", hash = "sha256:641ed024774fa3d5b4dd9347f0efb1e31fa422fba2a6500aabedee085d1194cb"},
@@ -3044,6 +3464,11 @@ proxy = ["PyJWT (>=2.10.1,<3.0.0) ; python_version >= \"3.9\"", "apscheduler (>=
 semantic-router = ["semantic-router (>=0.1.12) ; python_version >= \"3.9\" and python_version < \"3.14\""]
 utils = ["numpydoc"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "magika"
 version = "1.0.2"
@@ -3067,6 +3492,11 @@ onnxruntime = [
     {version = ">=1.21.0", markers = "python_version == \"3.13\""},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mako"
 version = "1.3.10"
@@ -3086,6 +3516,11 @@ MarkupSafe = ">=0.9.2"
 babel = ["Babel"]
 lingua = ["lingua"]
 testing = ["pytest"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "markdown-it-py"
@@ -3110,6 +3545,11 @@ plugins = ["mdit-py-plugins (>=0.5.0)"]
 profiling = ["gprof2dot"]
 rtd = ["ipykernel", "jupyter_sphinx", "mdit-py-plugins (>=0.5.0)", "myst-parser", "pyyaml", "sphinx", "sphinx-book-theme (>=1.0,<2.0)", "sphinx-copybutton", "sphinx-design"]
 testing = ["coverage", "pytest", "pytest-cov", "pytest-regressions", "requests"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "markupsafe"
@@ -3210,6 +3650,11 @@ files = [
     {file = "markupsafe-3.0.3.tar.gz", hash = "sha256:722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "matplotlib"
 version = "3.10.8"
@@ -3289,6 +3734,11 @@ python-dateutil = ">=2.7"
 [package.extras]
 dev = ["meson-python (>=0.13.1,<0.17.0)", "pybind11 (>=2.13.2,!=2.13.3)", "setuptools (>=64)", "setuptools_scm (>=7)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mcp"
 version = "1.26.0"
@@ -3322,6 +3772,11 @@ cli = ["python-dotenv (>=1.0.0)", "typer (>=0.16.0)"]
 rich = ["rich (>=13.9.4)"]
 ws = ["websockets (>=15.0.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mdurl"
 version = "0.1.2"
@@ -3333,6 +3788,11 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "mmh3"
@@ -3459,6 +3919,11 @@ plot = ["matplotlib (==3.10.8)", "pandas (==3.0.1)"]
 test = ["pytest (==9.0.2)", "pytest-sugar (==1.1.1)"]
 type = ["mypy (==1.19.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mpmath"
 version = "1.3.0"
@@ -3476,6 +3941,11 @@ develop = ["codecov", "pycodestyle", "pytest (>=4.6)", "pytest-cov", "wheel"]
 docs = ["sphinx"]
 gmpy = ["gmpy2 (>=2.1.0a4) ; platform_python_implementation != \"PyPy\""]
 tests = ["pytest (>=4.6)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "multidict"
@@ -3633,6 +4103,11 @@ files = [
     {file = "multidict-6.7.1.tar.gz", hash = "sha256:ec6652a1bee61c53a3e5776b6049172c53b6aaba34f18c9ad04f82712bac623d"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mypy"
 version = "1.19.1"
@@ -3694,6 +4169,11 @@ install-types = ["pip"]
 mypyc = ["setuptools (>=50)"]
 reports = ["lxml"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "mypy-extensions"
 version = "1.1.0"
@@ -3705,6 +4185,11 @@ files = [
     {file = "mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505"},
     {file = "mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "numpy"
@@ -3788,6 +4273,11 @@ files = [
     {file = "numpy-2.4.3.tar.gz", hash = "sha256:483a201202b73495f00dbc83796c6ae63137a9bdade074f7648b3e32613412dd"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "onnxruntime"
 version = "1.24.3"
@@ -3829,6 +4319,11 @@ packaging = "*"
 protobuf = "*"
 sympy = "*"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "openai"
 version = "2.28.0"
@@ -3857,6 +4352,11 @@ datalib = ["numpy (>=1)", "pandas (>=1.2.3)", "pandas-stubs (>=1.1.0.11)"]
 realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "openinference-instrumentation"
 version = "0.1.46"
@@ -3877,6 +4377,11 @@ wrapt = ">=1.14.0,<2"
 
 [package.extras]
 test = ["jsonschema", "openai", "pydantic (>=2.0.0)", "pytest-asyncio", "pytest-recording", "types-jsonschema"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "openinference-instrumentation-google-adk"
@@ -3902,6 +4407,11 @@ wrapt = "*"
 [package.extras]
 instruments = ["google-adk (>=1.2.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "openinference-semantic-conventions"
 version = "0.1.28"
@@ -3913,6 +4423,11 @@ files = [
     {file = "openinference_semantic_conventions-0.1.28-py3-none-any.whl", hash = "sha256:a2fed5bb167aa56c1c7448cdb7a8d775f989339ba1f8b04a7b45d4f8388cccfb"},
     {file = "openinference_semantic_conventions-0.1.28.tar.gz", hash = "sha256:6388465174e8ab3f27ebc6a9e9bb2e1b804d30caefb57234e16db874da1c6a7b"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "opentelemetry-api"
@@ -3929,6 +4444,11 @@ files = [
 [package.dependencies]
 importlib-metadata = ">=6.0,<8.8.0"
 typing-extensions = ">=4.5.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "opentelemetry-exporter-gcp-logging"
@@ -3948,6 +4468,11 @@ opentelemetry-api = ">=1.35.0"
 opentelemetry-resourcedetector-gcp = ">=1.5.0dev0,<2.dev0"
 opentelemetry-sdk = ">=1.35.0,<1.39.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-exporter-gcp-monitoring"
 version = "1.11.0a0"
@@ -3965,6 +4490,11 @@ google-cloud-monitoring = ">=2.0,<3.0"
 opentelemetry-api = ">=1.30,<2.0"
 opentelemetry-resourcedetector-gcp = ">=1.5.0dev0,<2.dev0"
 opentelemetry-sdk = ">=1.30,<2.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "opentelemetry-exporter-gcp-trace"
@@ -3984,6 +4514,11 @@ opentelemetry-api = ">=1.30,<2.0"
 opentelemetry-resourcedetector-gcp = ">=1.5.0dev0,<2.dev0"
 opentelemetry-sdk = ">=1.30,<2.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-exporter-otlp-proto-common"
 version = "1.38.0"
@@ -3998,6 +4533,11 @@ files = [
 
 [package.dependencies]
 opentelemetry-proto = "1.38.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "opentelemetry-exporter-otlp-proto-http"
@@ -4020,6 +4560,11 @@ opentelemetry-sdk = ">=1.38.0,<1.39.0"
 requests = ">=2.7,<3.0"
 typing-extensions = ">=4.5.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-instrumentation"
 version = "0.59b0"
@@ -4038,6 +4583,11 @@ opentelemetry-semantic-conventions = "0.59b0"
 packaging = ">=18.0"
 wrapt = ">=1.0.0,<2.0.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-proto"
 version = "1.38.0"
@@ -4052,6 +4602,11 @@ files = [
 
 [package.dependencies]
 protobuf = ">=5.0,<7.0"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "opentelemetry-resourcedetector-gcp"
@@ -4071,6 +4626,11 @@ opentelemetry-sdk = ">=1.30,<2.0"
 requests = ">=2.24,<3.0"
 typing_extensions = ">=4.0,<5.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-sdk"
 version = "1.38.0"
@@ -4088,6 +4648,11 @@ opentelemetry-api = "1.38.0"
 opentelemetry-semantic-conventions = "0.59b0"
 typing-extensions = ">=4.5.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "opentelemetry-semantic-conventions"
 version = "0.59b0"
@@ -4104,6 +4669,11 @@ files = [
 opentelemetry-api = "1.38.0"
 typing-extensions = ">=4.5.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "packaging"
 version = "25.0"
@@ -4115,6 +4685,11 @@ files = [
     {file = "packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484"},
     {file = "packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pandas"
@@ -4208,6 +4783,11 @@ test = ["hypothesis (>=6.116.0)", "pytest (>=8.3.4)", "pytest-xdist (>=3.6.1)"]
 timezone = ["pytz (>=2024.2)"]
 xml = ["lxml (>=5.3.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pathspec"
 version = "1.0.4"
@@ -4225,6 +4805,11 @@ hyperscan = ["hyperscan (>=0.7)"]
 optional = ["typing-extensions (>=4)"]
 re2 = ["google-re2 (>=1.1)"]
 tests = ["pytest (>=9)", "typing-extensions (>=4.15)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pillow"
@@ -4335,6 +4920,11 @@ test-arrow = ["arro3-compute", "arro3-core", "nanoarrow", "pyarrow"]
 tests = ["check-manifest", "coverage (>=7.4.2)", "defusedxml", "markdown2", "olefile", "packaging", "pyroma (>=5)", "pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "trove-classifiers (>=2024.10.12)"]
 xmp = ["defusedxml"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pluggy"
 version = "1.6.0"
@@ -4350,6 +4940,11 @@ files = [
 [package.extras]
 dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "propcache"
@@ -4483,6 +5078,11 @@ files = [
     {file = "propcache-0.4.1.tar.gz", hash = "sha256:f48107a8c637e80362555f37ecf49abe20370e557cc4ab374f04ec4423c97c3d"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "proto-plus"
 version = "1.27.1"
@@ -4500,6 +5100,11 @@ protobuf = ">=3.19.0,<7.0.0"
 
 [package.extras]
 testing = ["google-api-core (>=1.31.5)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "protobuf"
@@ -4520,6 +5125,11 @@ files = [
     {file = "protobuf-6.33.5-py3-none-any.whl", hash = "sha256:69915a973dd0f60f31a08b8318b73eab2bd6a392c79184b3612226b0a3f8ec02"},
     {file = "protobuf-6.33.5.tar.gz", hash = "sha256:6ddcac2a081f8b7b9642c09406bc6a4290128fce5f471cddd165960bb9119e5c"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pyarrow"
@@ -4581,6 +5191,11 @@ files = [
     {file = "pyarrow-23.0.1.tar.gz", hash = "sha256:b8c5873e33440b2bc2f4a79d2b47017a89c5a24116c055625e6f2ee50523f019"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pyasn1"
 version = "0.6.2"
@@ -4592,6 +5207,11 @@ files = [
     {file = "pyasn1-0.6.2-py3-none-any.whl", hash = "sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf"},
     {file = "pyasn1-0.6.2.tar.gz", hash = "sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pyasn1-modules"
@@ -4608,6 +5228,11 @@ files = [
 [package.dependencies]
 pyasn1 = ">=0.6.1,<0.7.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pycparser"
 version = "3.0"
@@ -4620,6 +5245,11 @@ files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pydantic"
@@ -4642,6 +5272,11 @@ typing-inspection = ">=0.4.2"
 [package.extras]
 email = ["email-validator (>=2.0.0)"]
 timezone = ["tzdata ; python_version >= \"3.9\" and platform_system == \"Windows\""]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pydantic-core"
@@ -4777,6 +5412,11 @@ files = [
 [package.dependencies]
 typing-extensions = ">=4.14.1"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pydantic-settings"
 version = "2.13.1"
@@ -4801,6 +5441,11 @@ gcp-secret-manager = ["google-cloud-secret-manager (>=2.23.1)"]
 toml = ["tomli (>=2.0.1)"]
 yaml = ["pyyaml (>=6.0.1)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pygments"
 version = "2.19.2"
@@ -4815,6 +5460,11 @@ files = [
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pyjwt"
@@ -4837,6 +5487,11 @@ dev = ["coverage[toml] (==7.10.7)", "cryptography (>=3.4.0)", "pre-commit", "pyt
 docs = ["sphinx", "sphinx-rtd-theme", "zope.interface"]
 tests = ["coverage[toml] (==7.10.7)", "pytest (>=8.4.2,<9.0.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pyopenssl"
 version = "26.0.0"
@@ -4857,6 +5512,11 @@ typing-extensions = {version = ">=4.9", markers = "python_version < \"3.13\" and
 docs = ["sphinx (!=5.2.0,!=5.2.0.post0,!=7.2.5)", "sphinx_rtd_theme"]
 test = ["pretend", "pytest (>=3.0.1)", "pytest-rerunfailures"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pyparsing"
 version = "3.3.2"
@@ -4871,6 +5531,11 @@ files = [
 
 [package.extras]
 diagrams = ["jinja2", "railroad-diagrams"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pytest"
@@ -4894,6 +5559,11 @@ pygments = ">=2.7.2"
 [package.extras]
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "pytest-asyncio"
 version = "1.3.0"
@@ -4913,6 +5583,11 @@ typing-extensions = {version = ">=4.12", markers = "python_version < \"3.13\""}
 [package.extras]
 docs = ["sphinx (>=5.3)", "sphinx-rtd-theme (>=1)"]
 testing = ["coverage (>=6.2)", "hypothesis (>=5.7.1)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pytest-cov"
@@ -4934,6 +5609,11 @@ pytest = ">=7"
 [package.extras]
 testing = ["process-tests", "pytest-xdist", "virtualenv"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
@@ -4948,6 +5628,11 @@ files = [
 
 [package.dependencies]
 six = ">=1.5"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "python-dotenv"
@@ -4964,6 +5649,11 @@ files = [
 [package.extras]
 cli = ["click (>=5.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "python-multipart"
 version = "0.0.22"
@@ -4975,6 +5665,11 @@ files = [
     {file = "python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:2b2cd894c83d21bf49d702499531c7bafd057d730c201782048f7945d82de155"},
     {file = "python_multipart-0.0.22.tar.gz", hash = "sha256:7340bef99a7e0032613f56dc36027b959fd3b30a787ed62d310e951f7c3a3a58"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pywin32"
@@ -5006,6 +5701,11 @@ files = [
     {file = "pywin32-311-cp39-cp39-win_amd64.whl", hash = "sha256:e0c4cfb0621281fe40387df582097fd796e80430597cb9944f0ae70447bacd91"},
     {file = "pywin32-311-cp39-cp39-win_arm64.whl", hash = "sha256:62ea666235135fee79bb154e695f3ff67370afefd71bd7fea7512fc70ef31e3d"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "pyyaml"
@@ -5090,6 +5790,11 @@ files = [
     {file = "pyyaml-6.0.3.tar.gz", hash = "sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "referencing"
 version = "0.37.0"
@@ -5106,6 +5811,11 @@ files = [
 attrs = ">=22.2.0"
 rpds-py = ">=0.7.0"
 typing-extensions = {version = ">=4.4.0", markers = "python_version < \"3.13\""}
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "regex"
@@ -5231,6 +5941,11 @@ files = [
     {file = "regex-2026.2.28.tar.gz", hash = "sha256:a729e47d418ea11d03469f321aaf67cdee8954cde3ff2cf8403ab87951ad10f2"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "requests"
 version = "2.32.5"
@@ -5253,6 +5968,11 @@ urllib3 = ">=1.21.1,<3"
 socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "rich"
 version = "14.3.3"
@@ -5271,6 +5991,11 @@ pygments = ">=2.13.0,<3.0.0"
 
 [package.extras]
 jupyter = ["ipywidgets (>=7.5.1,<9)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "rpds-py"
@@ -5397,6 +6122,11 @@ files = [
     {file = "rpds_py-0.30.0.tar.gz", hash = "sha256:dd8ff7cf90014af0c0f787eea34794ebf6415242ee1d6fa91eaba725cc441e84"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "ruff"
 version = "0.14.14"
@@ -5426,6 +6156,11 @@ files = [
     {file = "ruff-0.14.14.tar.gz", hash = "sha256:2d0f819c9a90205f3a867dbbd0be083bee9912e170fd7d9704cc8ae45824896b"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "shellingham"
 version = "1.5.4"
@@ -5438,17 +6173,27 @@ files = [
     {file = "shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "six"
 version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
 optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 groups = ["main", "dev"]
 files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
     {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "sniffio"
@@ -5462,6 +6207,11 @@ files = [
     {file = "sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc"},
 ]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "soupsieve"
 version = "2.8.3"
@@ -5473,6 +6223,11 @@ files = [
     {file = "soupsieve-2.8.3-py3-none-any.whl", hash = "sha256:ed64f2ba4eebeab06cc4962affce381647455978ffc1e36bb79a545b91f45a95"},
     {file = "soupsieve-2.8.3.tar.gz", hash = "sha256:3267f1eeea4251fb42728b6dfb746edc9acaffc4a45b27e19450b676586e8349"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "sqlalchemy"
@@ -5576,6 +6331,11 @@ postgresql-psycopgbinary = ["psycopg[binary] (>=3.0.7)"]
 pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "sqlalchemy-spanner"
 version = "1.17.2"
@@ -5596,6 +6356,11 @@ sqlalchemy = ">=1.1.13"
 [package.extras]
 tracing = ["opentelemetry-api (>=1.1.0)", "opentelemetry-instrumentation (>=0.20b0)", "opentelemetry-sdk (>=1.1.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "sqlparse"
 version = "0.5.5"
@@ -5611,6 +6376,11 @@ files = [
 [package.extras]
 dev = ["build"]
 doc = ["sphinx"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "sse-starlette"
@@ -5634,6 +6404,11 @@ examples = ["aiosqlite (>=0.21.0)", "fastapi (>=0.115.12)", "sqlalchemy[asyncio]
 granian = ["granian (>=2.3.1)"]
 uvicorn = ["uvicorn (>=0.34.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "starlette"
 version = "0.52.1"
@@ -5653,6 +6428,11 @@ typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "sympy"
 version = "1.14.0"
@@ -5671,6 +6451,11 @@ mpmath = ">=1.1.0,<1.4"
 [package.extras]
 dev = ["hypothesis (>=6.70.0)", "pytest (>=7.1.0)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "tenacity"
 version = "9.1.4"
@@ -5686,6 +6471,11 @@ files = [
 [package.extras]
 doc = ["reno", "sphinx"]
 test = ["pytest", "tornado (>=4.5)", "typeguard"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "tiktoken"
@@ -5761,6 +6551,11 @@ requests = ">=2.26.0"
 [package.extras]
 blobfile = ["blobfile (>=2)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "tokenizers"
 version = "0.22.2"
@@ -5803,6 +6598,11 @@ dev = ["tokenizers[testing]"]
 docs = ["setuptools-rust", "sphinx", "sphinx-rtd-theme"]
 testing = ["datasets", "numpy", "pytest", "pytest-asyncio", "requests", "ruff", "ty"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "tqdm"
 version = "4.67.3"
@@ -5824,6 +6624,11 @@ discord = ["requests"]
 notebook = ["ipywidgets (>=6)"]
 slack = ["slack-sdk"]
 telegram = ["requests"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "tree-sitter"
@@ -5875,77 +6680,32 @@ files = [
 docs = ["sphinx (>=8.1,<9.0)", "sphinx-book-theme"]
 tests = ["tree-sitter-html (>=0.23.2)", "tree-sitter-javascript (>=0.23.1)", "tree-sitter-json (>=0.24.8)", "tree-sitter-python (>=0.23.6)", "tree-sitter-rust (>=0.23.2)"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
-name = "tree-sitter-languages"
-version = "1.10.2"
-description = "Binary Python wheels for all tree sitter languages."
+name = "tree-sitter-language-pack"
+version = "1.4.0"
+description = "Pre-compiled tree-sitter parsers for 248 programming languages with a unified process() API for parsing, analysis, and intelligent code chunking."
 optional = false
-python-versions = "*"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:5580348f0b20233b1d5431fa178ccd3d07423ca4a3275df02a44608fd72344b9"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:103c7466644486b1e9e03850df46fc6aa12f13ca636c74f173270276220ac80b"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d13db84511c6f1a7dc40383b66deafa74dabd8b877e3d65ab253f3719eccafd6"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:57adfa32be7e465b54aa72f915f6c78a2b66b227df4f656b5d4fbd1ca7a92b3f"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1c6385e033e460ceb8f33f3f940335f422ef2b763700a04f0089391a68b56153"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:dfa3f38cc5381c5aba01dd7494f59b8a9050e82ff6e06e1233e3a0cbae297e3c"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:9f195155acf47f8bc5de7cee46ecd07b2f5697f007ba89435b51ef4c0b953ea5"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:2de330e2ac6d7426ca025a3ec0f10d5640c3682c1d0c7702e812dcfb44b58120"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-win32.whl", hash = "sha256:c9731cf745f135d9770eeba9bb4e2ff4dabc107b5ae9b8211e919f6b9100ea6d"},
-    {file = "tree_sitter_languages-1.10.2-cp310-cp310-win_amd64.whl", hash = "sha256:6dd75851c41d0c3c4987a9b7692d90fa8848706c23115669d8224ffd6571e357"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:7eb7d7542b2091c875fe52719209631fca36f8c10fa66970d2c576ae6a1b8289"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:6b41bcb00974b1c8a1800c7f1bb476a1d15a0463e760ee24872f2d53b08ee424"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6f370cd7845c6c81df05680d5bd96db8a99d32b56f4728c5d05978911130a853"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:a1dc195c88ef4c72607e112a809a69190e096a2e5ebc6201548b3e05fdd169ad"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9ae34ac314a7170be24998a0f994c1ac80761d8d4bd126af27ee53a023d3b849"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:01b5742d5f5bd675489486b582bd482215880b26dde042c067f8265a6e925d9c"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:ab1cbc46244d34fd16f21edaa20231b2a57f09f092a06ee3d469f3117e6eb954"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:0b1149e7467a4e92b8a70e6005fe762f880f493cf811fc003554b29f04f5e7c8"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-win32.whl", hash = "sha256:049276343962f4696390ee555acc2c1a65873270c66a6cbe5cb0bca83bcdf3c6"},
-    {file = "tree_sitter_languages-1.10.2-cp311-cp311-win_amd64.whl", hash = "sha256:7f3fdd468a577f04db3b63454d939e26e360229b53c80361920aa1ebf2cd7491"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:c0f4c8b2734c45859edc7fcaaeaab97a074114111b5ba51ab4ec7ed52104763c"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:eecd3c1244ac3425b7a82ba9125b4ddb45d953bbe61de114c0334fd89b7fe782"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:15db3c8510bc39a80147ee7421bf4782c15c09581c1dc2237ea89cefbd95b846"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:92c6487a6feea683154d3e06e6db68c30e0ae749a7ce4ce90b9e4e46b78c85c7"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6d2f1cd1d1bdd65332f9c2b67d49dcf148cf1ded752851d159ac3e5ee4f4d260"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:976c8039165b8e12f17a01ddee9f4e23ec6e352b165ad29b44d2bf04e2fbe77e"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:dafbbdf16bf668a580902e1620f4baa1913e79438abcce721a50647564c687b9"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:1aeabd3d60d6d276b73cd8f3739d595b1299d123cc079a317f1a5b3c5461e2ca"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-win32.whl", hash = "sha256:fab8ee641914098e8933b87ea3d657bea4dd00723c1ee7038b847b12eeeef4f5"},
-    {file = "tree_sitter_languages-1.10.2-cp312-cp312-win_amd64.whl", hash = "sha256:5e606430d736367e5787fa5a7a0c5a1ec9b85eded0b3596bbc0d83532a40810b"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:838d5b48a7ed7a17658721952c77fda4570d2a069f933502653b17e15a9c39c9"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:987b3c71b1d278c2889e018ee77b8ee05c384e2e3334dec798f8b611c4ab2d1e"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:faa00abcb2c819027df58472da055d22fa7dfcb77c77413d8500c32ebe24d38b"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0e102fbbf02322d9201a86a814e79a9734ac80679fdb9682144479044f401a73"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-musllinux_1_1_aarch64.whl", hash = "sha256:8f0b87cf1a7b03174ba18dfd81582be82bfed26803aebfe222bd20e444aba003"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-musllinux_1_1_i686.whl", hash = "sha256:c0f1b9af9cb67f0b942b020da9fdd000aad5e92f2383ae0ba7a330b318d31912"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-musllinux_1_1_x86_64.whl", hash = "sha256:5a4076c921f7a4d31e643843de7dfe040b65b63a238a5aa8d31d93aabe6572aa"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-win32.whl", hash = "sha256:fa6391a3a5d83d32db80815161237b67d70576f090ce5f38339206e917a6f8bd"},
-    {file = "tree_sitter_languages-1.10.2-cp37-cp37m-win_amd64.whl", hash = "sha256:55649d3f254585a064121513627cf9788c1cfdadbc5f097f33d5ba750685a4c0"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:6f85d1edaa2d22d80d4ea5b6d12b95cf3644017b6c227d0d42854439e02e8893"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:d78feed4a764ef3141cb54bf00fe94d514d8b6e26e09423e23b4c616fcb7938c"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:da1aca27531f9dd5308637d76643372856f0f65d0d28677d1bcf4211e8ed1ad0"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1031ea440dafb72237437d754eff8940153a3b051e3d18932ac25e75ce060a15"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:99d3249beaef2c9fe558ecc9a97853c260433a849dcc68266d9770d196c2e102"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:59a4450f262a55148fb7e68681522f0c2a2f6b7d89666312a2b32708d8f416e1"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-musllinux_1_1_i686.whl", hash = "sha256:ce74eab0e430370d5e15a96b6c6205f93405c177a8b2e71e1526643b2fb9bab1"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:9b4dd2b6b3d24c85dffe33d6c343448869eaf4f41c19ddba662eb5d65d8808f4"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-win32.whl", hash = "sha256:92d734fb968fe3927a7596d9f0459f81a8fa7b07e16569476b28e27d0d753348"},
-    {file = "tree_sitter_languages-1.10.2-cp38-cp38-win_amd64.whl", hash = "sha256:46a13f7d38f2eeb75f7cf127d1201346093748c270d686131f0cbc50e42870a1"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:f8c6a936ae99fdd8857e91f86c11c2f5e507ff30631d141d98132bb7ab2c8638"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:c283a61423f49cdfa7b5a5dfbb39221e3bd126fca33479cd80749d4d7a6b7349"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:76e60be6bdcff923386a54a5edcb6ff33fc38ab0118636a762024fa2bc98de55"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c00069f9575bd831eabcce2cdfab158dde1ed151e7e5614c2d985ff7d78a7de1"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:475ff53203d8a43ccb19bb322fa2fb200d764001cc037793f1fadd714bb343da"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:26fe7c9c412e4141dea87ea4b3592fd12e385465b5bdab106b0d5125754d4f60"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:8fed27319957458340f24fe14daad467cd45021da034eef583519f83113a8c5e"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:3657a491a7f96cc75a3568ddd062d25f3be82b6a942c68801a7b226ff7130181"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-win32.whl", hash = "sha256:33f7d584d01a7a3c893072f34cfc64ec031f3cfe57eebc32da2f8ac046e101a7"},
-    {file = "tree_sitter_languages-1.10.2-cp39-cp39-win_amd64.whl", hash = "sha256:1b944af3ee729fa70fc8ae82224a9ff597cdb63addea084e0ea2fa2b0ec39bb7"},
+    {file = "tree_sitter_language_pack-1.4.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:cd526b5d72e6c50949524fb2759cf91fbb8bc383317e0fd99a1cedc499f9bca4"},
+    {file = "tree_sitter_language_pack-1.4.0-cp310-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:d1ae7022fb4ca88396930f76e1baaa4d8f65cecb158f10447d279283fbc1e2a9"},
+    {file = "tree_sitter_language_pack-1.4.0-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:1d4b108783815fb1b6296eeb573a7fe823eeaa2ddac91f5fe9a2d56ac46b9979"},
+    {file = "tree_sitter_language_pack-1.4.0-cp310-abi3-win_amd64.whl", hash = "sha256:158dbc2350ed4de3e6990944647a94b7089f556bcab84dd95ea1cb1c37f7b27f"},
 ]
 
 [package.dependencies]
-tree-sitter = "*"
+tree-sitter = ">=0.24"
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "typer"
@@ -5965,6 +6725,11 @@ click = ">=8.2.1"
 rich = ">=12.3.0"
 shellingham = ">=1.3.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "typing-extensions"
 version = "4.15.0"
@@ -5976,6 +6741,11 @@ files = [
     {file = "typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548"},
     {file = "typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "typing-inspection"
@@ -5992,6 +6762,11 @@ files = [
 [package.dependencies]
 typing-extensions = ">=4.12.0"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "tzdata"
 version = "2025.3"
@@ -6004,6 +6779,11 @@ files = [
     {file = "tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7"},
 ]
 markers = {main = "platform_system == \"Windows\"", dev = "sys_platform == \"win32\" or sys_platform == \"emscripten\""}
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "tzlocal"
@@ -6023,6 +6803,11 @@ tzdata = {version = "*", markers = "platform_system == \"Windows\""}
 [package.extras]
 devenv = ["check-manifest", "pytest (>=4.3)", "pytest-cov", "pytest-mock (>=3.3)", "zest.releaser"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "uritemplate"
 version = "4.2.0"
@@ -6034,6 +6819,11 @@ files = [
     {file = "uritemplate-4.2.0-py3-none-any.whl", hash = "sha256:962201ba1c4edcab02e60f9a0d3821e82dfc5d2d6662a21abd533879bdb8a686"},
     {file = "uritemplate-4.2.0.tar.gz", hash = "sha256:480c2ed180878955863323eea31b0ede668795de182617fef9c6ca09e6ec9d0e"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "urllib3"
@@ -6053,6 +6843,11 @@ h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "uvicorn"
 version = "0.42.0"
@@ -6071,6 +6866,11 @@ h11 = ">=0.8"
 
 [package.extras]
 standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.15.1) ; sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\"", "watchfiles (>=0.20)", "websockets (>=10.4)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "watchdog"
@@ -6114,6 +6914,11 @@ files = [
 
 [package.extras]
 watchmedo = ["PyYAML (>=3.10)"]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "websockets"
@@ -6193,6 +6998,11 @@ files = [
     {file = "websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f"},
     {file = "websockets-15.0.1.tar.gz", hash = "sha256:82544de02076bafba038ce055ee6412d68da13ab47f0c60cab827346de828dee"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "wrapt"
@@ -6284,6 +7094,11 @@ files = [
     {file = "wrapt-1.17.3-py3-none-any.whl", hash = "sha256:7171ae35d2c33d326ac19dd8facb1e82e5fd04ef8c6c0e394d7af55a55051c22"},
     {file = "wrapt-1.17.3.tar.gz", hash = "sha256:f66eb08feaa410fe4eebd17f2a2c8e2e46d3476e9f8c783daa8e09e0faa666d0"},
 ]
+
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
 
 [[package]]
 name = "yarl"
@@ -6428,6 +7243,11 @@ idna = ">=2.0"
 multidict = ">=4.0"
 propcache = ">=0.2.1"
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [[package]]
 name = "zipp"
 version = "3.23.0"
@@ -6448,7 +7268,12 @@ enabler = ["pytest-enabler (>=2.2)"]
 test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_itertools", "pytest (>=6,!=8.1.*)", "pytest-ignore-flaky"]
 type = ["pytest-mypy"]
 
+[package.source]
+type = "legacy"
+url = "https://nexus.tcsbank.ru/repository/pypi.python.org/simple"
+reference = "registry.tcsbank.ru"
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.15"
-content-hash = "90c6ebb090ab75bdbbe3714159edabe7584ff412c29ae913942484a6c3487f42"
+content-hash = "b6bddd7670d9bc506e02004df9d560ce6690d922dcc222f98f91f64d5f66e25d"

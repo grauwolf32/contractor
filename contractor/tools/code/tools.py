@@ -15,8 +15,8 @@ from enum import Enum
 from pathlib import PurePosixPath
 from typing import Optional, Sequence
 
-import tree_sitter_languages
 from tree_sitter import Node, Tree
+from tree_sitter_language_pack import get_parser
 
 from fsspec import AbstractFileSystem
 
@@ -691,7 +691,7 @@ class DefinitionSearcher:
             return cached
 
         try:
-            parser = tree_sitter_languages.get_parser(lang.value)
+            parser = get_parser(lang.value)
             tree = parser.parse(content)
         except Exception:
             logger.debug("Failed to parse %s as %s", path, lang.value, exc_info=True)

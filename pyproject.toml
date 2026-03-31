@@ -19,8 +19,8 @@ dependencies = [
     "magika>=1.0.1,<2.0.0",
     "python-dotenv>=1.0.1,<2.0.0",
     "bs4 (>=0.0.2,<0.0.3)",
-    "tree-sitter-languages (>=1.10.2,<2.0.0)",
     "tree-sitter (>=0.25.2,<0.26.0)",
+    "tree-sitter-language-pack[bundled] (>=1.4.0,<2.0.0)",
 ]
 
 [[tool.poetry.source]]
