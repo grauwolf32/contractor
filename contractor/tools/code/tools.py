@@ -1,31 +1,18 @@
-"""
-Symbol definition search using tree-sitter.
-
-Searches for function/class/method definitions across multiple languages
-using grep for candidate file discovery and tree-sitter for precise parsing.
-Falls back to grep results when no exact definition is found.
-"""
-
 from __future__ import annotations
-
 import hashlib
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Optional, Sequence
-
-import tree_sitter_languages
+from typing import Optional
 from tree_sitter import Node, Tree
-
+from tree_sitter_language_pack import get_parser
 from fsspec import AbstractFileSystem
 
 logger = logging.getLogger(__name__)
 
-
 # ─── Language Detection ───────────────────────────────────────────────
-
-
 class Language(Enum):
     PYTHON = "python"
     JAVASCRIPT = "javascript"
@@ -46,7 +33,6 @@ class Language(Enum):
     ELIXIR = "elixir"
     HASKELL = "haskell"
     BASH = "bash"
-
 
 _EXT_TO_LANG: dict[str, Language] = {
     ".py": Language.PYTHON,
@@ -78,45 +64,47 @@ _EXT_TO_LANG: dict[str, Language] = {
     ".ex": Language.ELIXIR,
     ".exs": Language.ELIXIR,
     ".hs": Language.HASKELL,
+    ".lhs": Language.HASKELL,
     ".sh": Language.BASH,
     ".bash": Language.BASH,
 }
-
 
 def detect_language(path: str) -> Optional[Language]:
     """Detect language from file extension."""
     suffix = PurePosixPath(path).suffix.lower()
     return _EXT_TO_LANG.get(suffix)
 
-
 # ─── Node type tables per language ────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class _NodeSpec:
-    """Which node types count as definitions and how to extract the name."""
-
     node_type: str
     name_field: str
 
-
 def _specs_for(lang: Language) -> list[_NodeSpec]:
-    """Return definition node specs for a language."""
     match lang:
         case Language.PYTHON:
             return [
                 _NodeSpec("function_definition", "name"),
+                _NodeSpec("async_function_definition", "name"),
                 _NodeSpec("class_definition", "name"),
                 _NodeSpec("decorated_definition", "definition"),
             ]
         case Language.JAVASCRIPT | Language.TYPESCRIPT | Language.TSX:
             return [
                 _NodeSpec("function_declaration", "name"),
+                _NodeSpec("function_expression", "name"),
                 _NodeSpec("class_declaration", "name"),
+                _NodeSpec("class_expression", "name"),
                 _NodeSpec("method_definition", "name"),
                 _NodeSpec("arrow_function", ""),
                 _NodeSpec("variable_declarator", "name"),
                 _NodeSpec("export_statement", ""),
+                _NodeSpec("lexical_declaration", ""),
+                _NodeSpec("variable_declaration", ""),
+                _NodeSpec("interface_declaration", "name"),
+                _NodeSpec("type_alias_declaration", "name"),
+                _NodeSpec("enum_declaration", "name"),
+                _NodeSpec("abstract_class_declaration", "name"),
             ]
         case Language.GO:
             return [
@@ -124,6 +112,10 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("method_declaration", "name"),
                 _NodeSpec("type_declaration", ""),
                 _NodeSpec("type_spec", "name"),
+                _NodeSpec("var_declaration", ""),
+                _NodeSpec("const_declaration", ""),
+                _NodeSpec("var_spec", "name"),
+                _NodeSpec("const_spec", "name"),
             ]
         case Language.RUST:
             return [
@@ -135,21 +127,35 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("type_item", "name"),
                 _NodeSpec("const_item", "name"),
                 _NodeSpec("static_item", "name"),
+                _NodeSpec("macro_definition", "name"),
+                _NodeSpec("mod_item", "name"),
             ]
-        case Language.JAVA | Language.KOTLIN:
+        case Language.JAVA:
             return [
                 _NodeSpec("method_declaration", "name"),
                 _NodeSpec("class_declaration", "name"),
                 _NodeSpec("interface_declaration", "name"),
                 _NodeSpec("constructor_declaration", "name"),
                 _NodeSpec("enum_declaration", "name"),
+                _NodeSpec("annotation_type_declaration", "name"),
+                _NodeSpec("record_declaration", "name"),
+            ]
+        case Language.KOTLIN:
+            return [
                 _NodeSpec("function_declaration", "name"),
+                _NodeSpec("class_declaration", "name"),
+                _NodeSpec("object_declaration", "name"),
+                _NodeSpec("interface_declaration", "name"),
+                _NodeSpec("secondary_constructor", ""),
+                _NodeSpec("companion_object", "name"),
+                _NodeSpec("property_declaration", ""),
             ]
         case Language.C:
             return [
                 _NodeSpec("function_definition", "declarator"),
                 _NodeSpec("declaration", "declarator"),
                 _NodeSpec("struct_specifier", "name"),
+                _NodeSpec("union_specifier", "name"),
                 _NodeSpec("enum_specifier", "name"),
                 _NodeSpec("type_definition", "declarator"),
             ]
@@ -159,9 +165,12 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("declaration", "declarator"),
                 _NodeSpec("class_specifier", "name"),
                 _NodeSpec("struct_specifier", "name"),
+                _NodeSpec("union_specifier", "name"),
                 _NodeSpec("enum_specifier", "name"),
                 _NodeSpec("template_declaration", ""),
                 _NodeSpec("namespace_definition", "name"),
+                _NodeSpec("type_definition", "declarator"),
+                _NodeSpec("alias_declaration", "name"),
             ]
         case Language.CSHARP:
             return [
@@ -172,6 +181,10 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("enum_declaration", "name"),
                 _NodeSpec("constructor_declaration", "name"),
                 _NodeSpec("property_declaration", "name"),
+                _NodeSpec("delegate_declaration", "name"),
+                _NodeSpec("record_declaration", "name"),
+                _NodeSpec("namespace_declaration", "name"),
+                _NodeSpec("local_function_statement", "name"),
             ]
         case Language.RUBY:
             return [
@@ -179,6 +192,7 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("singleton_method", "name"),
                 _NodeSpec("class", "name"),
                 _NodeSpec("module", "name"),
+                _NodeSpec("do_block", ""),
             ]
         case Language.PHP:
             return [
@@ -187,6 +201,8 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("class_declaration", "name"),
                 _NodeSpec("interface_declaration", "name"),
                 _NodeSpec("trait_declaration", "name"),
+                _NodeSpec("enum_declaration", "name"),
+                _NodeSpec("arrow_function", ""),
             ]
         case Language.SCALA:
             return [
@@ -195,6 +211,8 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("object_definition", "name"),
                 _NodeSpec("trait_definition", "name"),
                 _NodeSpec("val_definition", "pattern"),
+                _NodeSpec("var_definition", "pattern"),
+                _NodeSpec("type_definition", "name"),
             ]
         case Language.SWIFT:
             return [
@@ -203,12 +221,19 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
                 _NodeSpec("struct_declaration", "name"),
                 _NodeSpec("enum_declaration", "name"),
                 _NodeSpec("protocol_declaration", "name"),
+                _NodeSpec("extension_declaration", ""),
+                _NodeSpec("typealias_declaration", "name"),
+                _NodeSpec("init_declaration", ""),
+                _NodeSpec("subscript_declaration", ""),
+                _NodeSpec("computed_property", ""),
             ]
         case Language.LUA:
             return [
                 _NodeSpec("function_declaration", "name"),
                 _NodeSpec("local_function_declaration", "name"),
                 _NodeSpec("function_definition", ""),
+                _NodeSpec("assignment_statement", ""),
+                _NodeSpec("local_variable_declaration", ""),
             ]
         case Language.ELIXIR:
             return [
@@ -218,22 +243,32 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
             return [
                 _NodeSpec("function", ""),
                 _NodeSpec("signature", ""),
+                _NodeSpec("data_declaration", ""),
+                _NodeSpec("newtype_declaration", ""),
+                _NodeSpec("type_synonym_declaration", ""),
+                _NodeSpec("class_declaration", ""),
+                _NodeSpec("instance_declaration", ""),
             ]
         case Language.BASH:
             return [
                 _NodeSpec("function_definition", "name"),
             ]
         case _:
+            logger.warning("No node specs defined for language: %s", lang)
             return []
 
-
 # ─── Result dataclasses ───────────────────────────────────────────────
-
+@dataclass(frozen=True)
+class SymbolEntry:
+    name: str
+    file: str
+    line: int
+    end_line: int
+    node_type: str
+    language: str
 
 @dataclass(frozen=True)
 class DefinitionResult:
-    """A precise definition found via tree-sitter."""
-
     symbol: str
     file: str
     line: int
@@ -247,11 +282,8 @@ class DefinitionResult:
     def location(self) -> str:
         return f"{self.file}:{self.line}"
 
-
 @dataclass(frozen=True)
 class GrepMatch:
-    """A grep-level match: file path, line number, and the matching line text."""
-
     file: str
     line: int
     text: str
@@ -260,25 +292,18 @@ class GrepMatch:
     def location(self) -> str:
         return f"{self.file}:{self.line}"
 
-
 @dataclass(frozen=True)
 class SearchResult:
     """Combined search result with definitions and optional grep fallback."""
-
     symbol: str
     definitions: list[DefinitionResult]
     grep_matches: list[GrepMatch]
     is_fallback: bool
 
     def to_dict(self) -> dict:
-        """Serialize for agent tool output."""
         if self.definitions:
             return {
-                "symbol": self.symbol,
-                "found": True,
-                "kind": "definition",
-                "count": len(self.definitions),
-                "results": [
+                "result": [
                     {
                         "symbol": d.symbol,
                         "file": d.file,
@@ -291,18 +316,12 @@ class SearchResult:
                     }
                     for d in self.definitions
                 ],
+                "kind": "definition",
+                "total_items": len(self.definitions),
             }
-        elif self.grep_matches:
+        if self.grep_matches:
             return {
-                "symbol": self.symbol,
-                "found": False,
-                "kind": "grep_fallback",
-                "note": (
-                    "No tree-sitter definition found. "
-                    "Showing grep matches where the symbol appears."
-                ),
-                "count": len(self.grep_matches),
-                "results": [
+                "result": [
                     {
                         "file": g.file,
                         "line": g.line,
@@ -310,21 +329,21 @@ class SearchResult:
                     }
                     for g in self.grep_matches
                 ],
+                "kind": "grep_fallback",
+                "total_items": len(self.grep_matches),
+                "note": (
+                    "No tree-sitter definition found. "
+                    "Showing grep matches where the symbol appears."
+                ),
             }
-        else:
-            return {
-                "symbol": self.symbol,
-                "found": False,
-                "kind": "none",
-                "note": "Symbol not found in any source file.",
-                "count": 0,
-                "results": [],
-            }
-
+        return {
+            "result": [],
+            "kind": "none",
+            "total_items": 0,
+            "note": "Symbol not found in any source file.",
+        }
 
 # ─── Caching ──────────────────────────────────────────────────────────
-
-
 @dataclass
 class _ParsedFile:
     content_hash: str
@@ -332,81 +351,82 @@ class _ParsedFile:
     source: bytes
     language: Language
 
-
 @dataclass
 class _CacheEntry:
     content_hash: str
     results: list[DefinitionResult]
 
-
 # ─── Core helpers ─────────────────────────────────────────────────────
-
+def _extract_all_definitions(
+    node: Node,
+    source: bytes,
+    specs: list[_NodeSpec],
+    file_path: str,
+    language: Language,
+) -> list[SymbolEntry]:
+    results: list[SymbolEntry] = []
+    spec_types = {s.node_type for s in specs}
+    stack: list[Node] = [node]
+    while stack:
+        current = stack.pop()
+        if current.type in spec_types:
+            name = _extract_name_from_node(current, source)
+            if name:
+                results.append(
+                    SymbolEntry(
+                        name=name,
+                        file=file_path,
+                        line=current.start_point[0] + 1,
+                        end_line=current.end_point[0] + 1,
+                        node_type=current.type,
+                        language=language.value,
+                    )
+                )
+        for i in range(current.child_count - 1, -1, -1):
+            stack.append(current.children[i])
+    return results
 
 def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     """Best-effort extraction of the defined symbol name from a node."""
-
-    for field_name in ("name", "declarator", "pattern", "definition"):
-        child = node.child_by_field_name(field_name)
-        if child is not None:
-            if child.type in (
-                "function_declarator",
-                "pointer_declarator",
-                "parenthesized_declarator",
-                "reference_declarator",
-            ):
-                inner = _extract_name_from_node(child, source)
-                if inner:
-                    return inner
-            if child.type in ("function_definition", "class_definition"):
-                return _extract_name_from_node(child, source)
-            text = source[child.start_byte : child.end_byte].decode(
-                "utf-8", errors="replace"
-            )
-            ident = text.split("(")[0].split("<")[0].split("[")[0].strip()
-            if ident:
-                return ident
-
-    # Elixir: def/defp/defmodule are `call` nodes
     if node.type == "call" and node.child_count >= 2:
         keyword_node = node.children[0]
-        keyword = source[keyword_node.start_byte : keyword_node.end_byte].decode(
+        keyword = source[keyword_node.start_byte:keyword_node.end_byte].decode(
             "utf-8", errors="replace"
         )
-        if keyword in (
-            "def",
-            "defp",
-            "defmodule",
-            "defmacro",
-            "defimpl",
-            "defprotocol",
-        ):
+        if keyword in ("def", "defp", "defmodule", "defmacro", "defimpl", "defprotocol"):
             args_node = node.children[1]
             if args_node.child_count > 0:
                 first = args_node.children[0]
-                name_text = source[first.start_byte : first.end_byte].decode(
+                name_text = source[first.start_byte:first.end_byte].decode(
                     "utf-8", errors="replace"
                 )
                 return name_text.split("(")[0].strip()
+        return None
 
-    # Haskell
     if node.type in ("function", "signature") and node.child_count > 0:
         first = node.children[0]
-        text = source[first.start_byte : first.end_byte].decode(
+        return source[first.start_byte:first.end_byte].decode(
             "utf-8", errors="replace"
-        )
-        return text.strip()
+        ).strip()
 
-    # JS/TS variable_declarator
-    if node.type == "variable_declarator":
-        name_child = node.child_by_field_name("name")
-        if name_child:
-            return (
-                source[name_child.start_byte : name_child.end_byte]
-                .decode("utf-8", errors="replace")
-                .strip()
-            )
+    if node.type in (
+        "data_declaration",
+        "newtype_declaration",
+        "type_synonym_declaration",
+        "class_declaration",
+        "instance_declaration",
+    ):
+        for child in node.children:
+            if child.type == "name" or child.is_named:
+                text = source[child.start_byte:child.end_byte].decode(
+                    "utf-8", errors="replace"
+                ).strip()
+                if text and text not in (
+                    "data", "newtype", "type", "class", "instance", "where"
+                ):
+                    return text
+        return None
 
-    # export_statement
     if node.type == "export_statement":
         for child in node.children:
             if child.type in (
@@ -414,26 +434,113 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
                 "class_declaration",
                 "lexical_declaration",
                 "variable_declaration",
+                "interface_declaration",
+                "type_alias_declaration",
+                "enum_declaration",
+                "abstract_class_declaration",
             ):
                 return _extract_name_from_node(child, source)
         return None
 
-    # lexical_declaration / variable_declaration
     if node.type in ("lexical_declaration", "variable_declaration"):
         for child in node.children:
             if child.type == "variable_declarator":
                 return _extract_name_from_node(child, source)
+        return None
+
+    if node.type == "variable_declarator":
+        name_child = node.child_by_field_name("name")
+        if name_child:
+            return (
+                source[name_child.start_byte:name_child.end_byte]
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+        return None
+
+    if node.type == "property_declaration":
+        for child in node.children:
+            if child.type in ("simple_identifier", "identifier"):
+                return source[child.start_byte:child.end_byte].decode(
+                    "utf-8", errors="replace"
+                ).strip()
+        return None
+
+    if node.type == "secondary_constructor":
+        return "constructor"
+
+    if node.type == "extension_declaration":
+        for child in node.children:
+            if child.type in ("user_type", "type_identifier"):
+                return source[child.start_byte:child.end_byte].decode(
+                    "utf-8", errors="replace"
+                ).strip()
+        return None
+
+    if node.type == "init_declaration":
+        return "init"
+
+    if node.type == "subscript_declaration":
+        return "subscript"
+
+    if node.type == "computed_property":
+        return None
+
+    if node.type == "assignment_statement":
+        var_list = node.child_by_field_name("variable")
+        if var_list is not None:
+            return source[var_list.start_byte:var_list.end_byte].decode(
+                "utf-8", errors="replace"
+            ).strip()
+        return None
+
+    if node.type == "local_variable_declaration":
+        name_list = node.child_by_field_name("name")
+        if name_list is not None:
+            return source[name_list.start_byte:name_list.end_byte].decode(
+                "utf-8", errors="replace"
+            ).strip()
+        return None
+
+    if node.type in ("impl_item", "template_declaration"):
+        text = source[node.start_byte:node.end_byte].decode(
+            "utf-8", errors="replace"
+        )
+        first_line = text.splitlines()[0].strip()
+        return first_line[:80] or None
+
+    for fname in ("name", "declarator", "pattern", "definition"):
+        child = node.child_by_field_name(fname)
+        if child is None:
+            continue
+        if child.type in (
+            "function_declarator",
+            "pointer_declarator",
+            "parenthesized_declarator",
+            "reference_declarator",
+            "abstract_declarator",
+        ):
+            inner = _extract_name_from_node(child, source)
+            if inner:
+                return inner
+        if child.type in ("function_definition", "class_definition",
+                          "async_function_definition"):
+            return _extract_name_from_node(child, source)
+        text = source[child.start_byte:child.end_byte].decode(
+            "utf-8", errors="replace"
+        )
+        ident = text.split("(")[0].split("<")[0].split("[")[0].strip()
+        if ident:
+            return ident
 
     return None
 
-
 def _context_snippet(source: bytes, node: Node, max_lines: int = 15) -> str:
-    text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
+    text = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
     lines = text.splitlines()
     if len(lines) > max_lines:
         lines = lines[:max_lines] + [f"    ... ({len(lines) - max_lines} more lines)"]
     return "\n".join(lines)
-
 
 def _symbol_matches(extracted: str, query: str) -> bool:
     if extracted == query:
@@ -448,7 +555,6 @@ def _symbol_matches(extracted: str, query: str) -> bool:
         return True
     return False
 
-
 def _walk_for_definitions(
     node: Node,
     source: bytes,
@@ -459,11 +565,9 @@ def _walk_for_definitions(
 ) -> list[DefinitionResult]:
     results: list[DefinitionResult] = []
     spec_types = {s.node_type for s in specs}
-
     stack: list[Node] = [node]
     while stack:
         current = stack.pop()
-
         if current.type in spec_types:
             name = _extract_name_from_node(current, source)
             if name is not None and _symbol_matches(name, symbol):
@@ -479,72 +583,74 @@ def _walk_for_definitions(
                         context=_context_snippet(source, current),
                     )
                 )
-
         for i in range(current.child_count - 1, -1, -1):
             stack.append(current.children[i])
-
     return results
 
-
 # ─── Grep with line-level results ─────────────────────────────────────
-
-
 def _grep_file_lines(
     fs: AbstractFileSystem,
     path: str,
     pattern: str,
     context_lines: int = 2,
 ) -> list[GrepMatch]:
-    """Read a file and return all lines containing `pattern` with surrounding context."""
+    """Return lines containing `pattern` with surrounding context as plain text."""
     try:
         raw = fs.cat_file(path)
         text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
     except Exception:
         return []
-
     lines = text.splitlines()
     matches: list[GrepMatch] = []
     seen_lines: set[int] = set()
-
     for i, line in enumerate(lines):
-        if pattern in line:
-            start = max(0, i - context_lines)
-            end = min(len(lines), i + context_lines + 1)
-            snippet_lines = []
-            for j in range(start, end):
-                prefix = ">>>" if j == i else "   "
-                snippet_lines.append(f"{prefix} {j + 1:>5} | {lines[j]}")
-            if i not in seen_lines:
-                matches.append(
-                    GrepMatch(
-                        file=path,
-                        line=i + 1,
-                        text="\n".join(snippet_lines),
-                    )
-                )
-                seen_lines.add(i)
-
+        if pattern not in line:
+            continue
+        if i in seen_lines:
+            continue
+        start = max(0, i - context_lines)
+        end = min(len(lines), i + context_lines + 1)
+        snippet = "\n".join(f"{j + 1}: {lines[j]}" for j in range(start, end))
+        matches.append(GrepMatch(file=path, line=i + 1, text=snippet))
+        seen_lines.add(i)
     return matches
 
+def _check_file_for_pattern(
+    fs: AbstractFileSystem,
+    fpath: str,
+    pattern: str,
+) -> Optional[str]:
+    """
+    Read `fpath` and return its path if it contains `pattern`, else None.
+    Designed to be called from a thread pool worker.
+    """
+    try:
+        raw = fs.cat_file(fpath)
+        text = (
+            raw.decode("utf-8", errors="replace")
+            if isinstance(raw, bytes)
+            else raw
+        )
+        if pattern in text:
+            return fpath
+    except Exception:
+        logger.debug("Could not read %s, skipping", fpath, exc_info=True)
+    return None
 
-# ─── Searcher ─────────────────────────────────────────────────────────
-
-
+# ─── CodeTools ─────────────────────────────────────────────────────────
 @dataclass
-class DefinitionSearcher:
+class CodeTools:
     """
     Searches for symbol definitions using tree-sitter with grep fallback.
-
     Uses fsspec to find candidate files containing the symbol, then parses
     them with tree-sitter to locate precise definitions. When no tree-sitter
     definition is found, returns the raw grep matches instead.
     """
-
     fs: AbstractFileSystem
     root: str = "/"
+    max_workers: int = 8
     max_context_lines: int = 15
     grep_context_lines: int = 2
-
     _parse_cache: dict[str, _ParsedFile] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -553,8 +659,7 @@ class DefinitionSearcher:
     )
 
     # ── Public ────────────────────────────────────────────────────────
-
-    def search(
+    def search_definition(
         self,
         symbol: str,
         *,
@@ -565,13 +670,11 @@ class DefinitionSearcher:
     ) -> SearchResult:
         """
         Search for the definition of `symbol`.
-
         Returns tree-sitter definitions when found. Falls back to grep
         matches (file, line, surrounding context) when no definition is
         resolved.
         """
         search_symbol = symbol.rsplit(".", 1)[-1]
-
         candidate_files = self._grep_files(search_symbol, path=path)
         if not candidate_files:
             return SearchResult(
@@ -589,7 +692,6 @@ class DefinitionSearcher:
                 continue
             if language_filter is not None and lang != language_filter:
                 continue
-
             defs = self._search_file(fpath, symbol, lang)
             all_defs.extend(defs)
             if len(all_defs) >= max_results:
@@ -597,7 +699,6 @@ class DefinitionSearcher:
                 break
 
         all_defs.sort(key=lambda r: (r.file, r.line))
-
         if all_defs:
             return SearchResult(
                 symbol=symbol,
@@ -628,20 +729,61 @@ class DefinitionSearcher:
             is_fallback=True,
         )
 
+    def list_symbols(
+        self,
+        path: str = "",
+        *,
+        language_filter: Optional[Language] = None,
+        node_type_filter: Optional[str] = None,
+    ) -> list[SymbolEntry]:
+        """Return all symbol definitions under `path`."""
+        search_root = (
+            f"{self.root.rstrip('/')}/{path}".rstrip("/")
+            if path
+            else self.root.rstrip("/")
+        )
+        try:
+            all_files = self.fs.find(search_root, detail=False)
+        except FileNotFoundError:
+            return []
+
+        all_symbols: list[SymbolEntry] = []
+        for fpath in all_files:
+            lang = detect_language(fpath)
+            if lang is None:
+                continue
+            if language_filter is not None and lang != language_filter:
+                continue
+            content = self._read_file(fpath)
+            if content is None:
+                continue
+            parsed = self._parse_file(fpath, content, lang)
+            if parsed is None:
+                continue
+            specs = _specs_for(lang)
+            entries = _extract_all_definitions(
+                parsed.tree.root_node, parsed.source, specs, fpath, lang
+            )
+            if node_type_filter:
+                entries = [e for e in entries if e.node_type == node_type_filter]
+            all_symbols.extend(entries)
+        return all_symbols
+
     def clear_cache(self) -> None:
         self._parse_cache.clear()
         self._resolution_cache.clear()
 
     def invalidate_file(self, path: str) -> None:
         self._parse_cache.pop(path, None)
-        keys_to_remove = [k for k in self._resolution_cache if k[1] == path]
-        for k in keys_to_remove:
+        for k in [k for k in self._resolution_cache if k[1] == path]:
             self._resolution_cache.pop(k, None)
 
     # ── Internal ──────────────────────────────────────────────────────
-
     def _grep_files(self, pattern: str, path: str = "") -> list[str]:
-        """Find all source files under `path` whose content contains `pattern`."""
+        """
+        Find all source files under `path` whose content contains `pattern`.
+        File reads are dispatched to a thread pool for parallel I/O.
+        """
         search_root = (
             f"{self.root.rstrip('/')}/{path}".rstrip("/")
             if path
@@ -653,22 +795,22 @@ class DefinitionSearcher:
             logger.warning("Search root not found: %s", search_root)
             return []
 
-        matching: list[str] = []
-        for fpath in all_files:
-            if detect_language(fpath) is None:
-                continue
-            try:
-                raw = self.fs.cat_file(fpath)
-                text = (
-                    raw.decode("utf-8", errors="replace")
-                    if isinstance(raw, bytes)
-                    else raw
-                )
-                if pattern in text:
-                    matching.append(fpath)
-            except Exception:
-                logger.debug("Could not read %s, skipping", fpath, exc_info=True)
+        # Only submit source files that tree-sitter can handle.
+        candidate_paths = [f for f in all_files if detect_language(f) is not None]
 
+        matching: list[str] = []
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(_check_file_for_pattern, self.fs, fpath, pattern): fpath
+                for fpath in candidate_paths
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    matching.append(result)
+
+        # Sort to give deterministic, stable ordering across runs.
+        matching.sort()
         return matching
 
     def _read_file(self, path: str) -> Optional[bytes]:
@@ -689,14 +831,14 @@ class DefinitionSearcher:
         cached = self._parse_cache.get(path)
         if cached is not None and cached.content_hash == chash:
             return cached
-
         try:
-            parser = tree_sitter_languages.get_parser(lang.value)
+            parser = get_parser(lang.value)
             tree = parser.parse(content)
         except Exception:
-            logger.debug("Failed to parse %s as %s", path, lang.value, exc_info=True)
+            logger.debug(
+                "Failed to parse %s as %s", path, lang.value, exc_info=True
+            )
             return None
-
         parsed = _ParsedFile(
             content_hash=chash,
             tree=tree,
@@ -715,21 +857,17 @@ class DefinitionSearcher:
         content = self._read_file(path)
         if content is None:
             return []
-
         chash = self._content_hash(content)
         cache_key = (symbol, path)
         cached_resolution = self._resolution_cache.get(cache_key)
         if cached_resolution is not None and cached_resolution.content_hash == chash:
             return cached_resolution.results
-
         parsed = self._parse_file(path, content, lang)
         if parsed is None:
             return []
-
         specs = _specs_for(lang)
         if not specs:
             return []
-
         results = _walk_for_definitions(
             node=parsed.tree.root_node,
             source=parsed.source,
@@ -738,33 +876,48 @@ class DefinitionSearcher:
             file_path=path,
             language=lang,
         )
-
         self._resolution_cache[cache_key] = _CacheEntry(
             content_hash=chash,
             results=results,
         )
-
         return results
 
-
 # ─── Agent tool factory ──────────────────────────────────────────────
+def _parse_language(language: str) -> Optional[Language] | dict:
+    """Parse language string, returning an error dict on failure."""
+    if not language:
+        return None
+    try:
+        return Language(language)
+    except ValueError:
+        return {
+            "error": (
+                f"Unknown language '{language}'. Supported: "
+                + ", ".join(lang.value for lang in Language)
+            ),
+            "result": [],
+            "total_items": 0,
+        }
 
-
-def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
+def code_tools(
+    fs: AbstractFileSystem,
+    root: str = "/",
+    max_workers: int = 8,
+) -> list:
     """
     Create code search tools for an LLM agent.
-
-    Returns a list containing the `search_def` function which searches for
-    symbol definitions using tree-sitter parsing with grep fallback.
 
     Args:
         fs: An fsspec AbstractFileSystem instance pointing to the codebase.
         root: Root path within the filesystem to search from.
+        max_workers: Number of parallel threads used when scanning files for
+            a pattern. Higher values speed up grep on large repos at the cost
+            of more concurrent I/O. Defaults to 8.
 
     Returns:
-        List of tool functions: [search_def]
+        List of tool functions: [search_def, list_symbols]
     """
-    searcher = DefinitionSearcher(fs=fs, root=root)
+    tools = CodeTools(fs=fs, root=root, max_workers=max_workers)
 
     def search_def(
         symbol: str,
@@ -785,23 +938,16 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
                 the qualifier for disambiguation.
             path: Optional subdirectory to restrict the search to, relative to
                 the project root. Use "" or omit to search the entire project.
-                Example: "src/services" to search only in that subtree.
             language: Optional language filter. When set, only files of this
-                language are searched. Use the tree-sitter language name:
-                "python", "javascript", "typescript", "tsx", "go", "rust",
-                "java", "kotlin", "c", "cpp", "c_sharp", "ruby", "php",
-                "scala", "swift", "lua", "elixir", "haskell", "bash".
-                Use "" or omit to search all languages.
+                language are searched. Accepted values: "python", "javascript",
+                "typescript", "tsx", "go", "rust", "java", "kotlin", "c",
+                "cpp", "c_sharp", "ruby", "php", "scala", "swift", "lua",
+                "elixir", "haskell", "bash". Use "" to search all languages.
 
         Returns:
-            A dictionary with the search results:
-            - If definitions are found (kind="definition"):
+            When definitions are found (kind="definition"):
                 {
-                    "symbol": "my_func",
-                    "found": true,
-                    "kind": "definition",
-                    "count": 1,
-                    "results": [
+                    "result": [
                         {
                             "symbol": "my_func",
                             "file": "src/handler.py",
@@ -812,56 +958,102 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
                             "language": "python",
                             "context": "def my_func(request):\\n    ..."
                         }
-                    ]
+                    ],
+                    "kind": "definition",
+                    "total_items": 1
                 }
-            - If no definition found but grep matches exist (kind="grep_fallback"):
+            When no definition found but grep matches exist (kind="grep_fallback"):
                 {
-                    "symbol": "my_func",
-                    "found": false,
+                    "result": [
+                        {"file": "src/handler.py", "line": 10,
+                         "text": "10: result = my_func(data)"}
+                    ],
                     "kind": "grep_fallback",
-                    "note": "No tree-sitter definition found. ...",
-                    "count": 3,
-                    "results": [
-                        {
-                            "file": "src/handler.py",
-                            "line": 10,
-                            "text": ">>>    10 | result = my_func(data)"
-                        }
-                    ]
+                    "total_items": 3,
+                    "note": "No tree-sitter definition found. ..."
                 }
-            - If not found anywhere (kind="none"):
+            When not found anywhere (kind="none"):
                 {
-                    "symbol": "my_func",
-                    "found": false,
+                    "result": [],
                     "kind": "none",
-                    "note": "Symbol not found in any source file.",
-                    "count": 0,
-                    "results": []
+                    "total_items": 0,
+                    "note": "Symbol not found in any source file."
                 }
+            On invalid language:
+                {"error": "Unknown language '...'. Supported: ...",
+                 "result": [], "total_items": 0}
         """
-        lang_filter: Optional[Language] = None
-        if language:
-            try:
-                lang_filter = Language(language)
-            except ValueError:
-                return {
-                    "symbol": symbol,
-                    "found": False,
-                    "kind": "error",
-                    "note": (
-                        f"Unknown language '{language}'. Supported: "
-                        + ", ".join(l.value for l in Language)
-                    ),
-                    "count": 0,
-                    "results": [],
-                }
-
-        result = searcher.search(
+        lang_filter = _parse_language(language)
+        if isinstance(lang_filter, dict):
+            return lang_filter
+        return tools.search_definition(
             symbol=symbol,
             path=path,
             language_filter=lang_filter,
+        ).to_dict()
+
+    def list_symbols(
+        path: str = "",
+        language: str = "",
+        node_type: str = "",
+        offset: int = 0,
+        limit: Optional[int] = None,
+    ) -> dict:
+        """List all symbol definitions found under a path.
+
+        Args:
+            path: Directory to search, relative to the project root.
+                  Use "" to search the entire project.
+            language: Optional language filter (same values as search_def).
+            node_type: Optional node type filter, e.g. "function_definition"
+                       or "class_definition". Use "" to return all types.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of items to return.
+
+        Returns:
+            {
+                "result": [
+                    {
+                        "name": "my_func",
+                        "file": "src/handler.py",
+                        "line": 42,
+                        "end_line": 58,
+                        "node_type": "function_definition",
+                        "language": "python"
+                    },
+                    ...
+                ],
+                "offset": 0,
+                "total_items": 10,
+                "limit": 300
+            }
+            On invalid language:
+                {"error": "...", "result": [], "total_items": 0}
+        """
+        lang_filter = _parse_language(language)
+        if isinstance(lang_filter, dict):
+            return lang_filter
+        symbols = tools.list_symbols(
+            path, language_filter=lang_filter, node_type_filter=node_type or None
         )
+        total = len(symbols)
+        resolved_limit = limit if limit is not None else 300
+        page = symbols[offset:offset + resolved_limit]
+        return {
+            "result": [
+                {
+                    "name": s.name,
+                    "file": s.file,
+                    "line": s.line,
+                    "end_line": s.end_line,
+                    "node_type": s.node_type,
+                    "language": s.language,
+                }
+                for s in page
+            ],
+            "offset": offset,
+            "total_items": total,
+            "limit": resolved_limit,
+        }
 
-        return result.to_dict()
-
-    return [search_def]
+    return [search_def, list_symbols]

@@ -14,6 +14,7 @@ task:
     - Modify only by inserting comments.
     - Do not modify logic, formatting, or unrelated code.
     - If unsure about a function’s role, do not annotate it.
+    - You can trust already annotated functions
 
     Target operation (operation_id):
     {operation_id}
@@ -88,7 +89,11 @@ task:
     - Do not invent calls, validation, or sinks
     - If uncertain, skip annotation
     - Prefer missing annotations over incorrect ones
-    
+
+    Step 7 - Review and vulnerability analysis:
+    - Summarize execution of the {operation_id}
+    - Identify potential vulnerabilities
+    - Report vulnerabilities using tools: write_vulnerability_report
 
     Pre-write requirement:
     Before writing any changes:
@@ -125,3 +130,13 @@ task:
     - unclear routing
     - ambiguous function calls
     - missing validation evidence
+
+    Operation summary:
+    - business value of the operation
+    - potential impact on security
+    - key data flows and transformations
+
+    Vulnerability analysis:
+    - identified vulnerabilities
+    - potential impact
+    - recommended mitigations
