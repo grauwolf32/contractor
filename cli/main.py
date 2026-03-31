@@ -36,6 +36,7 @@ def turn_off_logger() -> None:
         "LiteLLM",
         "asyncio",
         "contractor",
+        "urllib3",
     ]
     for name in names:
         logging.getLogger(name).setLevel(logging.CRITICAL)

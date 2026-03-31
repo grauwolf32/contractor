@@ -1,0 +1,250 @@
+task:
+  name: "annotate_request_trace_for_vulnerability_analysis"
+
+  objective: >
+    Given a single OpenAPI operation, locate the request entrypoint, trace the
+    execution path, and insert structured trace annotations above relevant function
+    definitions. Capture how request data flows toward sensitive operations (sinks),
+    identify validation checkpoints, and produce a vulnerability report.
+
+    Scope:
+    - Work only on the code path relevant to the target operation.
+    - Insert comments only — no logic, formatting, or unrelated changes.
+    - If unsure about a function's role, skip it.
+    - Trust already-annotated functions; do not re-annotate them.
+
+    Target operation: {operation_id}
+    Schema: {operation_schema}
+
+  instructions: >
+
+    # ── ANNOTATION FORMAT ────────────────────────────────────────────────────
+    #
+    # Insert directly above `def` (or equivalent). Never mid-function or after.
+    #
+    #   # @trace op=<operation_id> args=<arg:state,...> calls=<symbol,...>
+    #   # @validate arg=<arg> kind=<validation_kind>
+    #   # @sink kind=<sink_kind> arg=<arg_or_unknown>
+    #
+    # Rules:
+    # - All three are optional per function; use only what applies.
+    # - @trace  — required on every annotated function; list arg states and
+    #             direct in-scope callees only (no transitive calls).
+    # - @validate — only when explicit validation is visible in THIS function
+    #               (type check, regex, allowlist, schema, escaping call).
+    # - @sink   — only when a sensitive call site is visible in THIS function.
+    #
+    # Argument states:
+    #   tainted   — directly from request (path/query/body/header/cookie)
+    #   validated — tainted + explicit validation passed before this point
+    #   clean     — trusted constant or internally generated
+    #   derived   — computed from other args; inherits worst state of inputs
+    #               (tainted + clean without validation = derived, never clean)
+
+    # ── SINK CATALOGUE ───────────────────────────────────────────────────────
+    #
+    # DATABASE
+    #   db.query            db.exec           db.query.raw (SQLi risk)
+    #   db.exec.raw         db.orm.bulk       (mass-assignment risk)
+    #
+    # FILESYSTEM
+    #   filesystem.read     filesystem.write    filesystem.delete
+    #   filesystem.path.join  (path-traversal risk before read/write)
+    #
+    # PROCESS
+    #   shell.exec (shell=True)   shell.exec.args   process.env.write
+    #
+    # NETWORK
+    #   http.request (SSRF)   http.redirect   dns.lookup
+    #   socket.connect        smtp.send
+    #
+    # RENDERING
+    #   template.render       template.render.raw (critical SSTI)
+    #   html.render (XSS)     pdf.render
+    #
+    # SERIALIZATION
+    #   parser.process        parser.yaml.unsafe (RCE)   parser.pickle (RCE)
+    #   serializer.encode     serializer.decode
+    #
+    # CACHE / QUEUE
+    #   cache.read    cache.write    queue.publish    queue.consume
+    #
+    # CRYPTO / SECRETS
+    #   crypto.key.derive   crypto.random.seed   crypto.sign   secret.log
+    #
+    # AUTH / AUTHZ
+    #   auth.token.verify   auth.token.create   authz.policy.eval
+    #   auth.password.check auth.password.hash
+    #
+    # REFLECTION
+    #   reflect.eval (RCE)   reflect.import   reflect.attr
+    #
+    # OBSERVABILITY
+    #   log.write    metric.record    audit.write
+    #
+    # IPC / INTER-SERVICE
+    #   grpc.call   ipc.pipe   ldap.query   xpath.query   nosql.query
+
+    # ── SINK → VULNERABILITY CLASS (guidance) ───────────────────────────────
+    #
+    # db.query.raw / db.exec.raw  → SQL Injection
+    # shell.exec                  → OS Command Injection / RCE
+    # reflect.eval                → RCE
+    # parser.pickle               → Insecure Deserialization / RCE
+    # parser.yaml.unsafe          → Arbitrary Code Execution
+    # template.render.raw         → SSTI
+    # http.request                → SSRF
+    # http.redirect               → Open Redirect
+    # filesystem.path.join / read / write → Path Traversal
+    # ldap.query                  → LDAP Injection
+    # nosql.query                 → NoSQL Injection
+    # xpath.query                 → XPath Injection
+    # smtp.send                   → Email Header Injection
+    # html.render                 → XSS
+    # auth.token.create           → Privilege Escalation / Token Forgery
+    # secret.log / log.write      → Sensitive Data Exposure
+    # crypto.random.seed          → Weak Randomness
+    # reflect.attr / db.orm.bulk  → Mass Assignment
+
+    # ── EXECUTION PHASES ─────────────────────────────────────────────────────
+
+    ## Phase 1 — Plan (complete before any file changes)
+
+    1a. Candidate entrypoint
+        - Use operation method + path + schema to locate the handler.
+        - Use x-path-file / x-component-file as strong hints.
+        - Follow framework routing conventions (decorators, route maps).
+        - If multiple candidates, rank and select most plausible.
+        - If NO plausible entrypoint found → stop, report in Uncertainties.
+
+    1b. Bounded execution trace
+        - Follow the call graph along paths carrying request-derived data.
+        - Stop a branch when: request data no longer propagates, OR a sink
+          is reached (record it, stop that branch).
+        - Ignore generic utilities unless they contain a sink or validation.
+
+    1c. Function selection list
+        For each function to annotate, state:
+        - name and file location
+        - why it is on the request path
+        - which annotation types apply
+        - sink kind (if @sink)
+        - any uncertainty
+
+    ## Phase 2 — Infer annotation content
+
+    2a. Arg states: request params → tainted; computed from tainted without
+        validation → derived; passes explicit validation → validated.
+    2b. @validate: only if validation code is visible in THIS function's body.
+        Do NOT infer from function names alone.
+    2c. @sink: only if call site is visible in THIS function's body.
+        Use most specific catalogue kind. Arg unknown if not determinable.
+
+    ## Phase 3 — Apply annotations
+
+    - Insert immediately above the `def` line.
+    - Do not duplicate existing annotations.
+    - Do not remove or overwrite any existing comments.
+    - Minimum required insertions only — do not rewrite files.
+
+    ## Phase 4 — Vulnerability report
+
+    4a. Any tainted/derived arg reaching a sink WITHOUT @validate on the path
+        is a vulnerability candidate. Also consider: broken access control,
+        missing auth check, insecure defaults, sensitive data exposure.
+
+    4b. For each vulnerability, call write_vulnerability_report once:
+
+          write_vulnerability_report(
+            name       = "<kebab-case-slug>",          # stable, deterministic
+            place_type = "<file|url>",
+            place      = "<file-path-or-api-path>",
+            title      = "<short human-readable title>",
+            summary    = "<what is vulnerable; what attacker can do>",
+            severity   = "<critical|high|medium|low|info>",
+            # critical: RCE, full breach, auth bypass
+            # high:     significant exposure, privilege escalation
+            # medium:   limited impact, requires chaining
+            # low:      defence-in-depth, minor leak
+            # info:     observation, not directly exploitable
+            confidence = "<high|medium|low>",
+            # high:   sink + tainted arg both clearly visible
+            # medium: sink visible, data-flow requires assumptions
+            # low:    circumstantial, needs further review
+            details    = "<affected function/file, sink kind, arg name, "
+                        "tainted arg trace, PoC notes, recommended mitigation>",
+          )
+
+    4c. If no vulnerabilities found, call once with:
+          name="no-vulnerabilities-{operation_id}", severity="info",
+          confidence="high", summary="No exploitable data flows identified.",
+          details="<what was checked and why it is safe>"
+
+    4d. One call per vulnerability — do not batch.
+
+    # ── CONSERVATIVE POLICY ──────────────────────────────────────────────────
+    # - Prefer missing annotations over incorrect ones.
+    # - Never invent calls, sinks, or validation not visible in the code.
+    # - When uncertain, skip and record in Uncertainties.
+    # - Use only catalogue sink kinds; pick closest match or omit @sink.
+
+  output_format: >
+
+    ## Phase 1 — Annotation Plan
+
+    ### Entrypoint
+    - File: <path>  Function: <name>  Confidence: <high|medium|low>
+    - Reasoning: <why this is the handler>
+
+    ### Function Selection
+    | # | Function | File | Annotations | Sink kind | Reasoning |
+    |---|----------|------|-------------|-----------|-----------|
+
+    ---
+
+    ## Phase 2 & 3 — Changes Applied
+
+    ### Files modified
+    - <file>: <N> annotation block(s) inserted
+
+    ### Annotation blocks inserted
+    file: <path>  function: <name>
+    @trace op=... args=... calls=...
+    @validate arg=... kind=...   ← if applicable
+    @sink kind=... arg=...       ← if applicable
+    _(repeat per function)_
+
+    ---
+
+    ## Trace Summary
+
+    - **Entrypoint:** `<function>` in `<file>`
+    - **Data flow:**
+      `<param>` → `<fn A>` (tainted) → `<fn B>` (derived) → `<fn C>` (@sink db.query.raw) ⚠ SQL Injection
+
+    ---
+
+    ## Operation Summary
+
+    - **Business purpose:** <what the operation does>
+    - **Data handled:** <input/output types, sensitivity>
+    - **Key transformations:** <DB queries, external calls, serialization, etc.>
+
+    ---
+
+    ## Vulnerability Report Summary
+
+    | Slug | Title | Severity | Confidence | Place |
+    |------|-------|----------|------------|-------|
+
+    _(One row per write_vulnerability_report call. If none: single info row.)_
+    
+    ---
+
+    ## Uncertainties
+
+    - **Routing:** <unclear handler resolution>
+    - **Call targets:** <dynamic dispatch, unresolved decorators>
+    - **Validation gaps:** <possible but not visible validation>
+    - **Sink confidence:** <probable but unconfirmed sinks>
+    - **Missed branches:** <paths not followed and why>

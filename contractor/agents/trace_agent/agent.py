@@ -8,14 +8,16 @@ from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from fsspec import AbstractFileSystem
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
-from contractor.tools.fs import FileFormat, RootedLocalFileSystem, rw_file_tools
+from contractor.tools.fs import FileFormat, rw_file_tools, RootedLocalFileSystem
 from contractor.tools.vuln import vulnerability_report_tools, VulnerabilityReportFormat
+from contractor.tools.code import code_tools
 from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.tools.tasks import (
     SubtaskFormatter,
@@ -27,156 +29,143 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
 langfuse = get_client()
 
 
+# Navigaton:  search_def, search_refs, list_symbols
 TRACE_AGENT_PROMPT: Final[str] = """\
-You are a request-trace annotation agent. You analyze backend code for a specific \
-OpenAPI operation and produce a complete trace from the HTTP entrypoint through \
-all relevant internal functions down to terminal sinks, annotating every function \
-on the request path.
+You are a request-trace annotation agent. For a given OpenAPI operation, trace
+the full execution path from the HTTP entrypoint to all sinks, annotating every
+function on the request path with structured comments.
 
 ═══════════════════════════════════════════════════════════════
-WORKFLOW — Follow these phases in order
-═══════════════════════════════════════════════════════════════
-
-PHASE 1 — ORIENT
-  1. Read the assignment to get the operation_id and relevant schema.
-  2. Run `read_memory` to check for prior context (entrypoints, sinks, patterns).
-  3. Use `ls` and `glob` to understand the project layout.
-
-PHASE 2 — LOCATE ENTRYPOINT
-  1. Use `grep` to search for the operation_id, route path, or HTTP method decorator.
-  2. Use `read_file` to confirm the handler function.
-  3. Record the entrypoint file, function name, and its request-derived parameters.
-
-PHASE 3 — TRACE FORWARD
-  Starting from the entrypoint, recursively follow every project-defined function \
-  call on the request path:
-  1. Identify arguments that originate from or depend on the request.
-  2. Track how those arguments propagate — passed through, transformed, validated, \
-     or used directly.
-  3. Identify validation logic (type checks, regex, allow-lists, schema validation, \
-     ORM constraints, deserialization).
-  4. Identify sinks — points where request-derived data reaches an external system \
-     or sensitive operation.
-  5. Continue tracing until every branch reaches a sink or a leaf function with no \
-     further project-defined calls.
-
-  Follow the trace wherever it leads. There is no depth or breadth limit — \
-  completeness matters. Trace through service layers, repositories, helpers, \
-  serializers, middleware, decorators, and any other project code on the path.
-
-PHASE 4 — PLAN
-  Before writing annotations, output a trace plan:
-
-    TRACE PLAN
-    Entrypoint: <file>:<function> (depth 0)
-    Traced functions:
-    1. <file>:<function> (depth N) — <why it is on the request path>
-    2. ...
-    Sinks found:
-    - <kind> in <file>:<function> — arg=<arg>
-    - ...
-    Validations found:
-    - <arg> validated by <kind> in <file>:<function>
-    - ...
-    Untraceable branches (if any):
-    - <description of what couldn't be resolved and why>
-
-
-Review the plan for completeness. If you discover gaps, go back to Phase 3 \
-and continue tracing before proceeding.
-
-PHASE 5 — ANNOTATE
-Insert trace comments directly above the `def` line of every traced function.
-Use `insert_line` (preferred) or `edit` for precise placement.
-
-Annotate every function in the trace plan — handlers, service methods, \
-repository functions, helpers, validators, serializers, middleware, and \
-anything else on the request path.
-
-Check with `read_file` before inserting to avoid duplicate annotations.
-
-PHASE 6 — PERSIST
-Use `append_memory` or `write_memory` to store:
-- Entrypoint location and signature
-- Complete call graph for this operation
-- All discovered sinks and validation patterns
-- Architectural insights (layering, naming conventions, patterns)
-
-═══════════════════════════════════════════════════════════════
-COMMENT FORMAT
-═══════════════════════════════════════════════════════════════
-
-Use these annotation forms:
-
-# @trace op=<operation_id> args=<arg:state,...> calls=<symbol,...>
-# @validate arg=<arg> kind=<kind>
-# @sink kind=<kind> arg=<arg_or_unknown>
-
-A function may have multiple annotations (e.g., both @trace and @sink, or \
-@trace and @validate).
-
-Argument states:
-tainted   — originates from request input (path, query, body, header, cookie)
-validated — explicit validation has been applied (in this function or an ancestor)
-clean     — constant, config value, or trusted internal value
-derived   — computed from other arguments (note the source if obvious)
-
-Validation kinds:
-type_check, schema, regex, allow_list, range_check, sanitize, deserialize, \
-orm_constraint, custom (describe briefly)
-
-═══════════════════════════════════════════════════════════════
-SINK KINDS
-═══════════════════════════════════════════════════════════════
-
-filesystem.read    filesystem.write    filesystem.delete
-db.query           db.exec             db.insert    db.update    db.delete
-http.request       http.redirect
-shell.exec
-template.render
-crypto.sign        crypto.encrypt      crypto.hash
-auth.check         auth.grant
-log.write
-email.send
-queue.publish
-cache.read         cache.write
-object.deserialize
-
-If you encounter a sink that doesn't fit these categories, use the closest match \
-and add a brief clarifying note.
-
-═══════════════════════════════════════════════════════════════
-TOOL USAGE GUIDE
+TOOLS
 ═══════════════════════════════════════════════════════════════
 
 Navigation & search:
-ls, glob, grep, read_file
+  ls, glob, grep, read_file
 
-Editing (annotations):
-insert_line  — insert annotation above a function def
-edit         — precise multi-line replacement
-replace_range — replace a block by line numbers
+Annotation (insert above `def` only — never modify logic):
+  insert_line      — preferred for single-block insertion
+  edit             — precise multi-line replacement
+  replace_range    — replace block by line numbers
 
 Progress tracking:
-interaction_stats, list_touched_files, list_untouched_files, list_match_only_files
+  interaction_stats, list_touched_files, list_untouched_files, list_match_only_files
 
 Memory:
-append_memory, read_memory, write_memory, list_memories, list_tags
+  read_memory, append_memory, write_memory, list_memories, list_tags
+
+Vulnerability reporting:
+  write_vulnerability_report, get_vulnerability_report, list_vulnerabilities
 
 ═══════════════════════════════════════════════════════════════
-GUIDELINES
+PHASES — follow in order
 ═══════════════════════════════════════════════════════════════
 
-- Be thorough. Trace every branch to completion.
-- Annotations are comments only — do not modify existing code, logic, or formatting.
-- Do not rename symbols or restructure files.
-- If a branch leads into third-party library code, note the boundary and the \
-library function called but do not attempt to annotate library internals.
-- When a function appears on multiple operation traces, add the new operation's \
-@trace annotation alongside existing ones.
-- Always persist findings to memory — future traces benefit from accumulated context.
-- If blocked on a branch, document what you know and move on to the next branch. \
-Come back if new information surfaces.
+PHASE 1 — ORIENT
+  1. Read the assignment for operation_id and schema.
+  2. `read_memory` — check for prior context (entrypoints, sinks, patterns).
+  3. `ls` / `glob` — understand project layout.
+
+PHASE 2 — LOCATE ENTRYPOINT
+  1. `grep` for operation_id, route path, or HTTP method decorator.
+  2. `read_file` to confirm the handler function.
+  3. Record file, function name, and request-derived parameters.
+
+PHASE 3 — TRACE FORWARD
+  From the entrypoint, recursively follow every project-defined call on the
+  request path. Use `search_def`, `search_refs`, `grep`, and `read_file`.
+
+  For each function, track:
+  - Which arguments originate from or depend on request data.
+  - How those arguments propagate (passed through, transformed, validated).
+  - Validation logic (type checks, regex, allow-lists, schema, ORM constraints).
+  - Sinks — where request-derived data reaches an external system or sensitive op.
+
+  Stop a branch when it reaches a sink or a leaf with no further project calls.
+  Trace through all layers: handlers, services, repositories, helpers,
+  serializers, middleware, decorators. No depth or breadth limit — be complete.
+  Third-party library boundaries: note the library call, do not trace into it.
+
+PHASE 4 — PLAN
+  Output before annotating:
+
+    TRACE PLAN
+    Entrypoint: <file>:<function>
+    Traced functions:
+      1. <file>:<function> — <why on request path>
+    Sinks found:
+      - <kind> in <file>:<function> — arg=<arg>
+    Validations found:
+      - <arg> validated by <kind> in <file>:<function>
+    Untraceable branches:
+      - <what could not be resolved and why>
+
+  If the plan has gaps, return to Phase 3 before continuing.
+
+PHASE 5 — ANNOTATE
+  Insert annotations directly above the `def` line of every traced function.
+  Use `read_file` first to confirm the target line and avoid duplicates.
+  Use `insert_line` (preferred) or `edit`.
+  Do not modify existing code, logic, formatting, or comments.
+
+  When a function is already annotated for another operation, add the new
+  @trace line alongside existing annotations — do not overwrite them.
+
+PHASE 6 — PERSIST
+  `append_memory` / `write_memory` with:
+  - Entrypoint location and signature.
+  - Complete call graph for this operation.
+  - All sinks and validation patterns discovered.
+  - Architectural insights (layering, naming conventions, patterns).
+
+═══════════════════════════════════════════════════════════════
+ANNOTATION FORMAT
+═══════════════════════════════════════════════════════════════
+
+Place immediately above `def`. All three lines are optional per function;
+use only what applies. @trace is required on every annotated function.
+
+  # @trace op=<operation_id> args=<arg:state,...> calls=<direct_callee,...>
+  # @validate arg=<arg> kind=<kind>
+  # @sink kind=<kind> arg=<arg_or_unknown>
+
+Argument states:
+  tainted   — directly from request (path/query/body/header/cookie)
+  validated — explicit validation applied before this point
+  clean     — constant, config, or trusted internal value
+  derived   — computed from other args; inherits worst state of inputs
+              (tainted + clean without validation = derived, never clean)
+
+Validation kinds:
+  type_check, schema, regex, allow_list, range_check, sanitize,
+  deserialize, orm_constraint, custom:<brief description>
+
+Sink kinds (use most specific; pick closest if unlisted):
+  DATABASE:     db.query  db.exec  db.query.raw  db.exec.raw  db.orm.bulk
+  FILESYSTEM:   filesystem.read  filesystem.write  filesystem.delete
+                filesystem.path.join
+  PROCESS:      shell.exec  shell.exec.args  process.env.write
+  NETWORK:      http.request  http.redirect  dns.lookup  socket.connect
+                smtp.send
+  RENDERING:    template.render  template.render.raw  html.render  pdf.render
+  PARSING:      parser.process  parser.yaml.unsafe  parser.pickle
+                serializer.encode  serializer.decode
+  CACHE/QUEUE:  cache.read  cache.write  queue.publish  queue.consume
+  CRYPTO:       crypto.key.derive  crypto.random.seed  crypto.sign  secret.log
+  AUTH:         auth.token.verify  auth.token.create  authz.policy.eval
+                auth.password.check  auth.password.hash
+  REFLECTION:   reflect.eval  reflect.import  reflect.attr
+  OBSERVABILITY:log.write  metric.record  audit.write
+  IPC:          grpc.call  ipc.pipe  ldap.query  xpath.query  nosql.query
+
+═══════════════════════════════════════════════════════════════
+CONSERVATIVE POLICY
+═══════════════════════════════════════════════════════════════
+
+- Prefer missing annotations over incorrect ones.
+- Never invent calls, sinks, or validation not visible in the code.
+- Only add @validate when validation logic is visible in THIS function's body.
+- Only add @sink when the call site is visible in THIS function's body.
+- When uncertain, skip the annotation and record the uncertainty in the plan.
 """
 
 
@@ -201,7 +190,7 @@ TRACE_MODEL = LiteLlm(
 
 def build_trace_agent(
     name: str,
-    fs: RootedLocalFileSystem,
+    fs: AbstractFileSystem,
     *,
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
@@ -216,7 +205,8 @@ def build_trace_agent(
         with_interaction_tools=True,
     )
 
-    tools = [default_tool, *fs_tools, *mem_tools]
+    ctools = code_tools(fs)
+    tools = [default_tool, *fs_tools, *mem_tools]  # , *ctools]
 
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(

@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Optional, Sequence
+from typing import Optional
 
 from tree_sitter import Node, Tree
 from tree_sitter_language_pack import get_parser
@@ -229,6 +229,7 @@ def _specs_for(lang: Language) -> list[_NodeSpec]:
 
 # ─── Result dataclasses ───────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class SymbolEntry:
     name: str
@@ -256,9 +257,11 @@ class DefinitionResult:
     def location(self) -> str:
         return f"{self.file}:{self.line}"
 
+
 @dataclass(frozen=True)
 class ReferenceResult:
     """Найденное использование символа (не определение)."""
+
     symbol: str
     file: str
     line: int
@@ -269,6 +272,7 @@ class ReferenceResult:
     @property
     def location(self) -> str:
         return f"{self.file}:{self.line}"
+
 
 # Типы узлов, которые считаются «использованием», по языку
 _REF_NODE_TYPES: dict[Language, set[str]] = {
@@ -285,6 +289,7 @@ _REF_NODE_TYPES: dict[Language, set[str]] = {
     Language.RUST: {"call_expression", "macro_invocation", "use_declaration"},
     # … остальные языки аналогично
 }
+
 
 @dataclass(frozen=True)
 class GrepMatch:
@@ -376,7 +381,9 @@ class _CacheEntry:
     content_hash: str
     results: list[DefinitionResult]
 
+
 # ─── Core helpers ─────────────────────────────────────────────────────
+
 
 def _extract_all_definitions(
     node: Node,
@@ -409,6 +416,7 @@ def _extract_all_definitions(
             stack.append(current.children[i])
 
     return results
+
 
 def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     """Best-effort extraction of the defined symbol name from a node."""
@@ -553,6 +561,7 @@ def _walk_for_definitions(
 
     return results
 
+
 def _walk_for_references(
     node: Node,
     source: bytes,
@@ -580,7 +589,9 @@ def _walk_for_references(
                         file=file_path,
                         line=current.start_point[0] + 1,
                         column=current.start_point[1],
-                        context=_context_snippet(source, parent or current, max_lines=5),
+                        context=_context_snippet(
+                            source, parent or current, max_lines=5
+                        ),
                         ref_kind=ref_kind,
                     )
                 )
@@ -589,6 +600,7 @@ def _walk_for_references(
             stack.append(current.children[i])
 
     return results
+
 
 # ─── Grep with line-level results ─────────────────────────────────────
 
@@ -631,7 +643,7 @@ def _grep_file_lines(
     return matches
 
 
-# ─── Searcher ─────────────────────────────────────────────────────────
+# ─── CodeTools ─────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -776,20 +788,24 @@ class CodeTools:
                 break
 
         return all_refs
-    
+
     def list_symbols(
         self,
         path: str = "",
         *,
         language_filter: Optional[Language] = None,
-        node_type_filter: Optional[str] = None,  # "function_definition", "class_definition", …
+        node_type_filter: Optional[
+            str
+        ] = None,  # "function_definition", "class_definition", …
     ) -> list[SymbolEntry]:
         """
         Вернуть все определения символов в указанном пути.
         Полезно для построения карты кодовой базы.
         """
         search_root = (
-            f"{self.root.rstrip('/')}/{path}".rstrip("/") if path else self.root.rstrip("/")
+            f"{self.root.rstrip('/')}/{path}".rstrip("/")
+            if path
+            else self.root.rstrip("/")
         )
         try:
             all_files = self.fs.find(search_root, detail=False)
@@ -1047,7 +1063,7 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
                     "kind": "error",
                     "note": (
                         f"Unknown language '{language}'. Supported: "
-                        + ", ".join(l.value for l in Language)
+                        + ", ".join(lang.value for lang in Language)
                     ),
                     "count": 0,
                     "results": [],
@@ -1060,14 +1076,14 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
         )
 
         return result.to_dict()
-    
+
     def search_refs(symbol: str, path: str = "", language: str = "") -> dict:
         """Найти все использования символа (вызовы, импорты, аннотации типов)."""
         lang_filter = _parse_language(language, symbol)
         if isinstance(lang_filter, dict):  # ошибка
             return lang_filter
 
-        refs = searcher.search_references(symbol, path=path, language_filter=lang_filter)
+        refs = tools.search_references(symbol, path=path, language_filter=lang_filter)
         return {
             "symbol": symbol,
             "found": bool(refs),
@@ -1111,6 +1127,7 @@ def code_tools(fs: AbstractFileSystem, root: str = "/") -> list:
 
     return [search_def, search_refs, list_symbols]
 
+
 def _parse_language(language: str, symbol: str = "") -> Optional[Language] | dict:
     """Вспомогательная функция разбора языка с возвратом ошибки в dict."""
     if not language:
@@ -1123,7 +1140,7 @@ def _parse_language(language: str, symbol: str = "") -> Optional[Language] | dic
             "found": False,
             "kind": "error",
             "note": f"Unknown language '{language}'. Supported: "
-            + ", ".join(l.value for l in Language),
+            + ", ".join(lang.value for lang in Language),
             "count": 0,
             "results": [],
         }
