@@ -14,5 +14,7 @@
 * Add skills for memory tools [done]
 * Add skills for tasks
 * Add tools to report vulnerabilities [done]
-* Add tools for code analysis
+* Add tools for code analysis [in progress|unstable]
+* Add router agent to fulfill user requests
+* Improve cost efficiency of trace agent
 
