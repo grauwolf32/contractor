@@ -42,7 +42,7 @@ def turn_off_logger() -> None:
         logging.getLogger(name).setLevel(logging.CRITICAL)
 
 
-#turn_off_logger()
+turn_off_logger()
 
 logging.basicConfig(
     level=logging.INFO,

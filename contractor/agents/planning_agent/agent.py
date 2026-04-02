@@ -169,7 +169,7 @@ Rule 5: Completion Rules
 """.strip()
 
 PLANNING_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
+    model="tgpt-qwen-3.5",
     timeout=300,
 )
 

@@ -62,11 +62,11 @@ DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
 )
 
 DUMMY_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
+    model="tgpt-qwen-3.5",
     timeout=300,
 )
 
-playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
+playground_path = "/Users/r.bomin-kulakov/src/vmp"
 
 sandbox = PodmanContainer(
     name="contractor_planner_sandbox",
@@ -83,7 +83,7 @@ fs = RootedLocalFileSystem(root_path=playground_path)
 mem_tools = memory_tools(name="swe", fmt=MemoryFormat("json"))
 fs_tools = ro_file_tools(fs, fmt=FileFormat("json"))
 
-tools = [default_tool, *fs_tools, *sandbox.tools(), *mem_tools]
+tools = [default_tool, *fs_tools, *mem_tools]
 
 callback_adapter = CallbackAdapter(agent_name="dummy_fs_swe")
 callback_adapter.register(TokenUsageCallback())
