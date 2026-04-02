@@ -349,13 +349,13 @@ class TestResolveLocalRefs:
         resolve_local_refs(petstore_schema)
         assert petstore_schema == original
 
-def test_circular_whole_schema(self, circular_schema):
-    result = resolve_local_refs(circular_schema)
-    node = result["components"]["schemas"]["Node"]
-    assert node == {
-        "type": "object",
-        "properties": {
-            "value": {"type": "string"},
-            "child": {"$circular_ref": "#/components/schemas/Node"},
-        },
-    }
+    def test_circular_whole_schema(self, circular_schema):
+        result = resolve_local_refs(circular_schema)
+        node = result["components"]["schemas"]["Node"]
+        assert node == {
+            "type": "object",
+            "properties": {
+                "value": {"type": "string"},
+                "child": {"$circular_ref": "#/components/schemas/Node"},
+            },
+        }

@@ -147,7 +147,7 @@ TOOLS
 ═══════════════════════════════════════════════════════════════
 
 Navigation & search:
-  ls, glob, grep, read_file, search_def, search_refs, list_symbols
+  ls, glob, grep, read_file
 
 Annotation (insert above `def` only — never modify logic):
   insert_line      — preferred for single-block insertion
@@ -313,8 +313,7 @@ def build_trace_agent(
     )
 
     ctools = code_tools(fs)
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
-
+    tools = [default_tool, *fs_tools, *mem_tools]
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
             name=namespace,
