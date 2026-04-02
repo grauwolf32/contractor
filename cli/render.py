@@ -4,6 +4,21 @@ from textwrap import indent
 from typing import Any
 
 
+from cli.helpers import (
+    _normalize_event,
+    _fmt_tool_call_event,
+    _fmt_tool_result_event,
+    _fmt_tool_error_event,
+    _fmt_tool_data,
+    _try_parse_json_like,
+    _fmt_dict,
+    _fmt_list,
+    _fmt_value,
+    _fmt_blob,
+    _clamp_lines,
+    _wrap_text
+)
+
 IGNORED_TOOL_RESULTS = {
     "add_subtask",
     "decompose_subtask",
@@ -63,7 +78,7 @@ TASK_TOOLS = {
 }
 
 
-def make_jsonable(value):
+def make_jsonable(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: make_jsonable(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -129,6 +144,7 @@ def _first_nonempty_line(text: Any) -> str:
 
 def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
     lines: list[str] = []
+
     for idx, subtask in enumerate(subtasks, start=1):
         title = subtask.get("title", "Untitled")
         description = subtask.get("description", "")
@@ -136,7 +152,8 @@ def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
         status = subtask.get("status")
 
         head = f"      {C.wrap(f'{idx}.', C.MAGENTA)} {C.wrap(title, C.BOLD)}"
-        meta = []
+
+        meta: list[str] = []
         if task_id is not None:
             meta.append(f"id={task_id}")
         if status:
@@ -145,17 +162,21 @@ def _render_subtasks(subtasks: list[dict[str, Any]]) -> str:
             head += f" {C.wrap('(' + ', '.join(meta) + ')', C.DIM)}"
 
         lines.append(head)
+
         if description:
             lines.append(C.wrap(indent(description, "         "), C.DIM))
+
     return "\n".join(lines)
 
 
 def _render_kv_lines(items: list[tuple[str, Any]]) -> str:
     lines: list[str] = []
+
     for key, value in items:
         if value in (None, "", [], {}, ()):
             continue
         lines.append(f"    {C.wrap(f'{key}:', C.DIM)} {value}")
+
     return "\n".join(lines)
 
 
@@ -177,6 +198,7 @@ def _fmt_fs_paging(result: dict[str, Any]) -> str | None:
 
     if not parts:
         return None
+
     return f"    {C.wrap('meta:', C.DIM)} " + ", ".join(parts)
 
 
@@ -417,11 +439,9 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         )
 
     if tool_name == "get_full_openapi_schema":
-        return (
-            f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
-        )
+        return f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
 
-    if tool_name in {"execute_current_subtask"}:
+    if tool_name == "execute_current_subtask":
         return ""
 
     return indent(_j(args), "    ")
@@ -462,7 +482,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         payload = result.get("result")
         if payload is None:
             return None
-        lines = []
+        lines: list[str] = []
         meta = _fmt_fs_paging(result)
         if meta:
             lines.append(meta)
@@ -589,101 +609,156 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
     return indent(_j(result), "    ")
 
 
-def _render_event(event) -> str | None:
+def _render_run_started(event: Any) -> str:
+    total_tasks = event.payload.get("total_tasks")
+    extra = f"\n{C.wrap(f'total tasks: {total_tasks}', C.DIM)}" if total_tasks else ""
+
+    return (
+        f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
+        f"{C.wrap('▶ Runner launch', C.BOLD, C.BLUE)}"
+        f"{extra}\n"
+        f"{C.wrap(_hr('═'), C.BLUE)}"
+    )
+
+
+def _render_task_started(event: Any) -> str:
+    iterations = event.payload.get("iterations")
+    max_attempts = event.payload.get("max_attempts")
+
+    meta: list[str] = []
+    if iterations is not None:
+        meta.append(f"runs: {iterations}")
+    if max_attempts is not None:
+        meta.append(f"attempts: {max_attempts}")
+
+    extra = f" {C.wrap('(' + ', '.join(meta) + ')', C.DIM)}" if meta else ""
+
+    return (
+        f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
+        f"{C.wrap(f'▶ Task #{event.task_id}: {event.task_name}', C.BOLD, C.BLUE)}{extra}\n"
+        f"{C.wrap(_hr('═'), C.BLUE)}"
+    )
+
+
+def _render_iteration_started(event: Any) -> str:
+    iteration = event.payload.get("iteration")
+    objective = event.payload.get("objective", "")
+
+    return (
+        f"\n  {C.wrap(f'🔁 Iteration {iteration}', C.BOLD, C.YELLOW)}\n"
+        f"    {C.wrap('objective:', C.DIM)} {_short(objective, 200)}"
+    )
+
+
+def _render_tool_call(event: Any) -> str:
+    tool_name = event.payload["tool_name"]
+    title = f"  {C.wrap('🛠', C.CYAN)} {C.wrap(tool_name, C.CYAN)}"
+    body = _fmt_tool_args(tool_name, event.payload.get("tool_args"))
+    return f"{title}\n{body}" if body else title
+
+
+def _render_tool_result(event: Any) -> str | None:
+    tool_name = event.payload["tool_name"]
+
+    if tool_name in IGNORED_TOOL_RESULTS:
+        return None
+
+    if tool_name in LOW_SIGNAL_TOOL_RESULTS:
+        return f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} ok', C.GREEN)}"
+
+    title = f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} result', C.GREEN)}"
+    body = _fmt_tool_result(tool_name, event.payload.get("result"))
+    return f"{title}\n{body}" if body else title
+
+
+def _render_tool_error(event: Any) -> str:
+    return (
+        f"\n  {C.wrap('✖ Tool error', C.BOLD, C.RED)}\n"
+        f"    {C.wrap('tool:', C.DIM)} {event.payload.get('tool_name')}\n"
+        f"    {C.wrap('error:', C.DIM)} {event.payload.get('error')}"
+    )
+
+
+def _render_final_text(event: Any) -> str | None:
+    text = (event.payload.get("text") or "").strip()
+    if not text:
+        return None
+
+    return (
+        f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n"
+        f"{indent(text, '     ')}"
+    )
+
+
+def _render_iteration_result(event: Any) -> str:
+    iteration = event.payload.get("iteration")
+
+    return (
+        f"\n  {C.wrap(f'📌 Iteration result: {iteration}', C.BOLD, C.YELLOW)}\n"
+        f"    {C.wrap('status:', C.DIM)} {event.payload.get('status')}\n"
+        f"    {C.wrap('completed:', C.DIM)} {'yes' if event.payload.get('completed') else 'no'}\n"
+        f"    {C.wrap('summary:', C.DIM)} {event.payload.get('summary') or '—'}"
+    )
+
+
+def _render_global_task_finished(event: Any) -> str:
+    return (
+        f"\n{C.wrap(_hr(), C.GREEN)}\n"
+        f"{C.wrap(f'✓ Task finished: {event.task_name}', C.BOLD, C.GREEN)}\n"
+        f"{C.wrap('  ' + (event.payload.get('summary') or '—'), C.DIM)}\n"
+        f"{C.wrap(_hr(), C.GREEN)}"
+    )
+
+
+def _render_task_failed(event: Any) -> str:
+    last_result = event.payload.get("last_result")
+    lines = [
+        f"\n{C.wrap(_hr('!'), C.RED)}",
+        f"{C.wrap(f'✖ Task error #{event.task_id}: {event.task_name}', C.BOLD, C.RED)}",
+    ]
+
+    if last_result:
+        lines.append(C.wrap(indent(_j(last_result), "  "), C.DIM))
+
+    lines.append(C.wrap(_hr("!"), C.RED))
+    return "\n".join(lines)
+
+
+def _render_event(event: Any) -> str | None:
     if event.type == "run_started":
-        return (
-            f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
-            f"{C.wrap('▶ Runner launch', C.BOLD, C.BLUE)}\n"
-            f"{C.wrap(_hr('═'), C.BLUE)}"
-        )
+        return _render_run_started(event)
 
     if event.type == "task_started":
-        max_iterations = event.payload.get("max_iterations")
-        extra = (
-            f" {C.wrap(f'(iterations: {max_iterations})', C.DIM)}"
-            if max_iterations
-            else ""
-        )
-        return (
-            f"\n{C.wrap(_hr('═'), C.BLUE)}\n"
-            f"{C.wrap(f'▶ Task #{event.task_id}: {event.task_name}', C.BOLD, C.BLUE)}{extra}\n"
-            f"{C.wrap(_hr('═'), C.BLUE)}"
-        )
+        return _render_task_started(event)
 
     if event.type == "iteration_started":
-        iteration = event.payload.get("iteration")
-        objective = event.payload.get("objective", "")
-        return (
-            f"\n  {C.wrap(f'🔁 Iteration {iteration}', C.BOLD, C.YELLOW)}\n"
-            f"    {C.wrap('objective:', C.DIM)} {_short(objective, 200)}"
-        )
+        return _render_iteration_started(event)
 
     if event.type == "tool_call":
-        tool_name = event.payload["tool_name"]
-        title = f"  {C.wrap('🛠', C.CYAN)} {C.wrap(tool_name, C.CYAN)}"
-        body = _fmt_tool_args(tool_name, event.payload.get("tool_args"))
-        return f"{title}\n{body}" if body else title
+        return _render_tool_call(event)
 
     if event.type == "tool_result":
-        tool_name = event.payload["tool_name"]
-        if tool_name in IGNORED_TOOL_RESULTS:
-            return None
-
-        # низкосигнальные tool results не шумим полностью, но даем короткую метку
-        if tool_name in LOW_SIGNAL_TOOL_RESULTS:
-            return f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} ok', C.GREEN)}"
-
-        title = f"  {C.wrap('↩', C.GREEN)} {C.wrap(f'{tool_name} result', C.GREEN)}"
-        body = _fmt_tool_result(tool_name, event.payload.get("result"))
-        return f"{title}\n{body}" if body else title
+        return _render_tool_result(event)
 
     if event.type == "tool_error":
-        return (
-            f"\n  {C.wrap('✖ Tool error', C.BOLD, C.RED)}\n"
-            f"    {C.wrap('tool:', C.DIM)} {event.payload.get('tool_name')}\n"
-            f"    {C.wrap('error:', C.DIM)} {event.payload.get('error')}"
-        )
+        return _render_tool_error(event)
 
     if event.type == "final_text":
-        text = (event.payload.get("text") or "").strip()
-        if not text:
-            return None
-        return (
-            f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n{indent(text, '     ')}"
-        )
+        return _render_final_text(event)
 
     if event.type == "iteration_result":
-        it = event.payload.get("iteration")
-        return (
-            f"\n  {C.wrap(f'📌 Iteration result: {it}', C.BOLD, C.YELLOW)}\n"
-            f"    {C.wrap('status:', C.DIM)} {event.payload.get('status')}\n"
-            f"    {C.wrap('completed:', C.DIM)} {'yes' if event.payload.get('completed') else 'no'}\n"
-            f"    {C.wrap('summary:', C.DIM)} {event.payload.get('summary') or '—'}"
-        )
+        return _render_iteration_result(event)
 
     if event.type == "global_task_finished":
-        return (
-            f"\n{C.wrap(_hr(), C.GREEN)}\n"
-            f"{C.wrap(f'✓ Task finished: {event.task_name}', C.BOLD, C.GREEN)}\n"
-            f"{C.wrap('  ' + (event.payload.get('summary') or '—'), C.DIM)}\n"
-            f"{C.wrap(_hr(), C.GREEN)}"
-        )
+        return _render_global_task_finished(event)
 
     if event.type == "task_failed":
-        last_result = event.payload.get("last_result")
-        lines = [
-            f"\n{C.wrap(_hr('!'), C.RED)}",
-            f"{C.wrap(f'✖ Task error #{event.task_id}: {event.task_name}', C.BOLD, C.RED)}",
-        ]
-        if last_result:
-            lines.append(C.wrap(indent(_j(last_result), "  "), C.DIM))
-        lines.append(C.wrap(_hr("!"), C.RED))
-        return "\n".join(lines)
+        return _render_task_failed(event)
 
     return None
 
 
-async def render_event(event) -> None:
+async def render_event(event: Any) -> None:
     rendered = _render_event(event)
     if rendered:
         print(rendered)

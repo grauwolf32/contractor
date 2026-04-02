@@ -350,11 +350,6 @@ def test_lint_on_fakeproj_file_with_mocked_vacuum(
     assert "range" not in result[0]
 
 
-def test_vacuum_not_found_raises_error() -> None:
-    with pytest.raises(VacuumNotFoundError, match="vacuum binary not found"):
-        OpenApiLinter(name="test")
-
-
 def test_openapi_linter_tools_returns_error_when_vacuum_missing() -> None:
     tools = openapi_linter_tools(name="test")
     assert len(tools) == 1

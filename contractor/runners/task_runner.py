@@ -263,6 +263,7 @@ class TaskRunner(BaseModel):
         self.queue.append(item)
         return item.id
 
+
     async def run(
         self,
         *,
@@ -270,20 +271,27 @@ class TaskRunner(BaseModel):
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[TaskResult]:
         results: list[TaskResult] = []
+        total_tasks = len(self.queue)
 
         await self._emit(
             on_event,
             type=EventType.RUN_STARTED,
             task_name="__runner__",
             task_id=-1,
-            total_tasks=len(self.queue),
+            total_tasks=total_tasks,
+            completed_tasks=0,
             user_id=user_id,
         )
 
         for task_id, item in enumerate(self.queue):
             result = await self._run_task_with_retries(
-                item=item, task_id=task_id, user_id=user_id, on_event=on_event
+                item=item,
+                task_id=task_id,
+                user_id=user_id,
+                on_event=on_event,
+                total_tasks=total_tasks,
             )
+
             results.append(result)
 
             await self._emit(
@@ -295,16 +303,10 @@ class TaskRunner(BaseModel):
                 status=result["status"],
                 result=result["result"],
                 summary=result["summary"],
-                published_artifacts=result["published_artifacts"],
+                total_tasks=total_tasks,
+                completed_tasks=task_id + 1,
             )
 
-        await self._emit(
-            on_event,
-            type=EventType.RUN_FINISHED,
-            task_name="__runner__",
-            task_id=-1,
-            results=results,
-        )
         return results
 
     # ── Template & validation helpers ─────────────────────────────────────
@@ -745,14 +747,14 @@ class TaskRunner(BaseModel):
         task_id: int,
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler] = None,
+        total_tasks: int,
     ) -> TaskResult:
         template = self.templates[item.template_key]
         input_artifacts = await self._load_artifacts(user_id, item.artifacts)
-
         rendered_task = self._render_task(
             template,
             item.params,
-            input_artifacts,  # type: ignore[arg-type]
+            input_artifacts,
         )
 
         await self._emit(
@@ -767,6 +769,8 @@ class TaskRunner(BaseModel):
             params=item.params,
             artifacts=item.artifacts,
             published_artifacts=_artifact_names_for_task(template.key),
+            total_tasks=total_tasks,
+            completed_tasks=task_id,
         )
 
         carry_state: dict[str, Any] = {}
@@ -784,8 +788,11 @@ class TaskRunner(BaseModel):
                 iteration=iteration,
                 on_event=on_event,
             )
+
             last_result = result
             completed = self._is_task_completed(task_id, result["state"])
+
+            next_successful_runs = successful_runs + (1 if completed else 0)
 
             await self._emit(
                 on_event,
@@ -798,10 +805,15 @@ class TaskRunner(BaseModel):
                 result=result["result"],
                 summary=result["summary"],
                 completed=completed,
+                iterations_required=item.iterations,
+                max_attempts=item.max_attempts,
+                successful_runs=next_successful_runs,
+                total_tasks=total_tasks,
+                completed_tasks=task_id,
             )
 
             if completed:
-                successful_runs += 1
+                successful_runs = next_successful_runs
                 await self._publish_task_artifacts(user_id, template.key, result)
 
                 if successful_runs >= item.iterations:
@@ -816,6 +828,8 @@ class TaskRunner(BaseModel):
                         summary=result["summary"],
                         records=result["records"],
                         published_artifacts=result["published_artifacts"],
+                        total_tasks=total_tasks,
+                        completed_tasks=task_id,
                     )
                     return result
 
@@ -828,5 +842,12 @@ class TaskRunner(BaseModel):
             task_id=task_id,
             max_attempts=item.max_attempts,
             last_result=last_result,
+            total_tasks=total_tasks,
+            completed_tasks=task_id,
         )
-        raise TaskNotCompletedError(item.ref, item.iterations, item.max_attempts)
+
+        raise TaskNotCompletedError(
+            ref=item.ref,
+            iterations=item.iterations,
+            max_attempts=item.max_attempts,
+        )

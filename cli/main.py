@@ -12,7 +12,8 @@ from google.adk.artifacts import FileArtifactService
 
 from contractor.runners.task_runner import TaskRunnerEvent
 
-from cli.render import render_event
+from cli.render import _render_event
+from cli.tui import LiveRenderer
 from cli.pipelines import get_pipelines
 from cli.utils import (
     utc_now_iso,
@@ -37,6 +38,7 @@ def turn_off_logger() -> None:
         "asyncio",
         "contractor",
         "urllib3",
+        "opentelemetry"
     ]
     for name in names:
         logging.getLogger(name).setLevel(logging.CRITICAL)
@@ -155,19 +157,24 @@ def _is_metrics_event(event: TaskRunnerEvent) -> bool:
 
 def build_handle_event(
     output_dir: Path,
+    pipeline: str,
 ) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
     metrics_path = _metrics_file(output_dir)
+    ui = LiveRenderer(pipeline_name=pipeline)
+    ui.start()
 
     async def handle_event(event: TaskRunnerEvent) -> None:
         if _is_metrics_event(event):
             record = _event_to_metrics_record(event)
-
             async with _METRICS_LOCK:
                 await _append_jsonl(metrics_path, record)
-
             return
 
-        await render_event(event=event)
+        ui.on_event(event)
+
+        event_type = getattr(event, "type", "") or ""
+        if event_type in {"run_finished", "task_failed"}:
+            ui.stop()
 
     return handle_event
 
@@ -212,7 +219,7 @@ async def async_main(
         builder_kwargs["artifact"] = artifact
 
     runner = await spec.builder(**builder_kwargs)
-    event_handler = build_handle_event(output_dir)
+    event_handler = build_handle_event(output_dir, pipeline)
 
     if rm_artifacts:
         await remove_artifacts(

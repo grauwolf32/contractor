@@ -66,7 +66,7 @@ class FsspecInteractionFileTools:
         fmt: FileFormat,
         *,
         max_output: int = 80_000,
-        max_items: int = 300,
+        max_items: int = 100,
         ignored_patterns: Optional[list[str]] = None,
         with_types: bool = True,
         with_file_info: bool = True,
@@ -557,7 +557,7 @@ def ro_file_tools(
     fmt: FileFormat,
     *,
     max_output: int = 80_000,
-    max_items: int = 300,
+    max_items: int = 100,
     ignored_patterns: Optional[list[str]] = None,
     with_types: bool = True,
     with_file_info: bool = True,
@@ -743,7 +743,7 @@ class FsspecWriteTools:
         wrap_overlay: bool = True,
         fmt: Optional[FileFormat] = None,
         max_output: int = 80_000,
-        max_items: int = 300,
+        max_items: int = 100,
         with_types: bool = True,
         with_file_info: bool = True,
         with_interaction_tools: bool = False,
@@ -850,19 +850,6 @@ class FsspecWriteTools:
                 )
             }
         return None
-
-    # ---- read-like tools delegated to _reader ----
-
-    def __getattr__(self, name: str) -> Any:
-        if name in (
-            "ls",
-            "glob",
-            "grep",
-        ):
-            return getattr(self._reader, name)
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
 
     def read_file(
         self,

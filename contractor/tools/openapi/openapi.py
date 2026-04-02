@@ -103,7 +103,9 @@ class OpenApiArtifact:
         async with self._lock:
             artifact = await ctx.load_artifact(filename=self.openapi_key())
             if artifact is None:
-                return openapi_base_schema
+                self.schema = openapi_base_schema
+                return self.schema
+                
             self.schema = yaml.safe_load(artifact.text)
 
         return self.schema
