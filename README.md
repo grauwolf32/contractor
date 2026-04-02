@@ -112,6 +112,7 @@ deploy/litellm/run.sh
 
 ```bash
 poetry install
+python -c "from tree_sitter_language_pack import download_all;download_all();"
 ```
 
 After installation, the CLI is available as:

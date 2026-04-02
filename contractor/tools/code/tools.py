@@ -780,10 +780,6 @@ class CodeTools:
 
     # ── Internal ──────────────────────────────────────────────────────
     def _grep_files(self, pattern: str, path: str = "") -> list[str]:
-        """
-        Find all source files under `path` whose content contains `pattern`.
-        File reads are dispatched to a thread pool for parallel I/O.
-        """
         search_root = (
             f"{self.root.rstrip('/')}/{path}".rstrip("/")
             if path
@@ -795,21 +791,16 @@ class CodeTools:
             logger.warning("Search root not found: %s", search_root)
             return []
 
-        # Only submit source files that tree-sitter can handle.
         candidate_paths = [f for f in all_files if detect_language(f) is not None]
 
         matching: list[str] = []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(_check_file_for_pattern, self.fs, fpath, pattern): fpath
-                for fpath in candidate_paths
-            }
-            for future in as_completed(futures):
-                result = future.result()
-                if result is not None:
-                    matching.append(result)
 
-        # Sort to give deterministic, stable ordering across runs.
+        # ─── Вариант 1: Последовательный (гарантированно работает) ───
+        for fpath in candidate_paths:
+            result = _check_file_for_pattern(self.fs, fpath, pattern)
+            if result is not None:
+                matching.append(result)
+
         matching.sort()
         return matching
 

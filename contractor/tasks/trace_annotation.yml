@@ -93,7 +93,7 @@ task:
     Step 7 - Review and vulnerability analysis:
     - Summarize execution of the {operation_id}
     - Identify potential vulnerabilities
-    - Report vulnerabilities using tools: write_vulnerability_report
+    - Report vulnerabilities using tools: report_vulnerablity
 
     Pre-write requirement:
     Before writing any changes:

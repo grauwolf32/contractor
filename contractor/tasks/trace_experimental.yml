@@ -153,9 +153,9 @@ task:
         is a vulnerability candidate. Also consider: broken access control,
         missing auth check, insecure defaults, sensitive data exposure.
 
-    4b. For each vulnerability, call write_vulnerability_report once:
+    4b. For each vulnerability, call report_vulnerablity once:
 
-          write_vulnerability_report(
+          report_vulnerablity(
             name       = "<kebab-case-slug>",          # stable, deterministic
             place_type = "<file|url>",
             place      = "<file-path-or-api-path>",
@@ -237,7 +237,7 @@ task:
     | Slug | Title | Severity | Confidence | Place |
     |------|-------|----------|------------|-------|
 
-    _(One row per write_vulnerability_report call. If none: single info row.)_
+    _(One row per report_vulnerablity call. If none: single info row.)_
     
     ---
 

@@ -420,7 +420,7 @@ def vulnerability_report_tools(
         fmt=fmt if fmt is not None else VulnerabilityReportFormat("json"),
     )
 
-    async def write_vulnerability_report(
+    async def report_vulnerablity(
         name: str,
         place_type: PlaceType,
         place: str,
@@ -457,7 +457,7 @@ def vulnerability_report_tools(
         )
         return {"result": vr.fmt.format_report(report)}
 
-    async def get_vulnerability_report(
+    async def get_vulnerability(
         name: str,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
@@ -485,7 +485,7 @@ def vulnerability_report_tools(
         return {"result": vr.fmt.format_reports(reports, preview=True)}
 
     return [
-        write_vulnerability_report,
-        get_vulnerability_report,
+        report_vulnerablity,
+        get_vulnerability,
         list_vulnerabilities,
     ]

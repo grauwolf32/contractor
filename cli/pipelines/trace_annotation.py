@@ -33,6 +33,8 @@ def extract_openapi_operations(
 ) -> list[OpenApiOperation]:
     """Extract all operations from an OpenAPI schema."""
     operations = []
+    securitySchemes = openapi.get("components", {}).get("securitySchemes", {})
+
     for path, path_item in openapi["paths"].items():
         path_files: list[str] | None = path_item.pop("x-path-files", None)
 
@@ -51,6 +53,11 @@ def extract_openapi_operations(
 
                 if path_files:
                     operation_schema["x-path-files"] = path_files
+                
+                if securitySchemes:
+                    operation_schema.setdefault("components", {})
+                    operation_schema["components"].setdefault("securitySchemes", {})
+                    operation_schema["components"]["securitySchemes"].update(securitySchemes)
 
                 operations.append(
                     OpenApiOperation(
@@ -98,6 +105,14 @@ class AnnotationRunner:
         }
 
         for operation in self.operations.values():
+            fs_state_artifact = await self.artifact_service.load_artifact(
+                app_name=self.app_name,
+                user_id=user_id,
+                filename=f"trace-{self.namespace}-fs",
+            )
+            if fs_state_artifact:
+                self.overlayfs.load(json.loads(fs_state_artifact.text))
+
             await self.run_operation(
                 operation,
                 user_id=user_id,
@@ -134,7 +149,7 @@ class AnnotationRunner:
             name="trace_agent",
             fs=self.overlayfs,
             model=self.llm,
-            max_tokens=120000,
+            max_tokens=160000,
             enable_vuln_reporting=True,
         )
 
@@ -143,7 +158,6 @@ class AnnotationRunner:
             artifact_service=self.artifact_service,
         )
 
-        oas_artifact_name = f"oas-{self.namespace}-building"
         operation_id = operation.operation_id
         operation_schema = yaml.safe_dump(
             {operation.path: {operation.method: operation.schema}}, sort_keys=False
@@ -160,7 +174,7 @@ class AnnotationRunner:
             iterations=1,
             max_attempts=3,
             max_steps=20,
-            artifacts=[oas_artifact_name],
+            artifacts=[],
             namespace=f"trace-annotation:{self.namespace}:{operation_id}",
             model=self.llm,
         )
