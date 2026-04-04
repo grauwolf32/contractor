@@ -34,7 +34,6 @@ DUMMY_SWE_PROMPT: Final[str] = (
     "Operating rules:\n"
     "- First, read the assignment\n"
     "- Use grep, ls, glob and read_file to inspect the file content."
-    "- Use code_exexution to run custom commands, implement changes, and run checks/tests.\n"
     "- Prefer small, safe, verifiable steps. If something is unclear, infer reasonable defaults and proceed.\n"
     "- Do not stop early: keep working until the subtask is completed or you are blocked by missing inputs.\n"
     "- When blocked, report what you tried, what failed, and the smallest concrete next step.\n"
@@ -85,7 +84,7 @@ DUMMY_MODEL = LiteLlm(
 )
 
 playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" / "java"
+    Path(__file__).parent.parent.parent.parent / "tests" / "playground" 
 )
 
 sandbox = PodmanContainer(
@@ -101,7 +100,7 @@ fs = RootedLocalFileSystem(root_path=playground_path)
 
 mem_tools = memory_tools("swe")
 fs_tools = ro_file_tools(fs=fs, fmt=FileFormat(_format="xml"))
-oas_tools = openapi_tools("playground")
+oas_tools = openapi_tools("playground", fs)
 
 tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
 

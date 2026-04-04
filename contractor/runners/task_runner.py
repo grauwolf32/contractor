@@ -364,6 +364,7 @@ class TaskRunner(BaseModel):
             namespace=ns,
             worker=worker,
             model=item.effective_model(self.default_model),
+            max_steps=item.max_steps,
         )
 
     # ── Event emission ────────────────────────────────────────────────────

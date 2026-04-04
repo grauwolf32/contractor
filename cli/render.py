@@ -3,22 +3,6 @@ import sys
 from textwrap import indent
 from typing import Any
 
-
-from cli.helpers import (
-    _normalize_event,
-    _fmt_tool_call_event,
-    _fmt_tool_result_event,
-    _fmt_tool_error_event,
-    _fmt_tool_data,
-    _try_parse_json_like,
-    _fmt_dict,
-    _fmt_list,
-    _fmt_value,
-    _fmt_blob,
-    _clamp_lines,
-    _wrap_text
-)
-
 IGNORED_TOOL_RESULTS = {
     "add_subtask",
     "decompose_subtask",

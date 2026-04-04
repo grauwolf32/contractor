@@ -13,7 +13,7 @@ from google.adk.artifacts import FileArtifactService
 from contractor.runners.task_runner import TaskRunnerEvent
 
 from cli.render import _render_event
-from cli.tui import LiveRenderer
+from cli.ui import LiveRenderer
 from cli.pipelines import get_pipelines
 from cli.utils import (
     utc_now_iso,
@@ -158,10 +158,13 @@ def _is_metrics_event(event: TaskRunnerEvent) -> bool:
 def build_handle_event(
     output_dir: Path,
     pipeline: str,
+    enable_ui: bool = True,
 ) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
     metrics_path = _metrics_file(output_dir)
-    ui = LiveRenderer(pipeline_name=pipeline)
-    ui.start()
+
+    if enable_ui:
+        ui = LiveRenderer(pipeline_name=pipeline)
+        ui.start()
 
     async def handle_event(event: TaskRunnerEvent) -> None:
         if _is_metrics_event(event):
@@ -170,11 +173,13 @@ def build_handle_event(
                 await _append_jsonl(metrics_path, record)
             return
 
-        ui.on_event(event)
-
-        event_type = getattr(event, "type", "") or ""
-        if event_type in {"run_finished", "task_failed"}:
-            ui.stop()
+        if enable_ui:
+            ui.on_event(event)
+            event_type = getattr(event, "type", "") or ""
+            if event_type in {"run_finished", "task_failed"}:
+                ui.stop()
+        elif output := _render_event(event):
+            print(output)
 
     return handle_event
 
@@ -192,6 +197,7 @@ async def async_main(
     artifact: Optional[str],
     output_dir: Path,
     rm_artifacts: bool,
+    enable_ui: bool=True,
 ) -> None:
     pipeline = pipeline.lower()
     pipelines = get_pipelines()
@@ -219,7 +225,7 @@ async def async_main(
         builder_kwargs["artifact"] = artifact
 
     runner = await spec.builder(**builder_kwargs)
-    event_handler = build_handle_event(output_dir, pipeline)
+    event_handler = build_handle_event(output_dir, pipeline, enable_ui=enable_ui)
 
     if rm_artifacts:
         await remove_artifacts(
@@ -294,6 +300,11 @@ async def async_main(
     default=None,
     help="Path to save the artifacts",
 )
+@click.option(
+    "--no-ui",
+     is_flag=True,
+     help="disable ui"
+)
 def main(
     pipeline: str,
     project_path: Path,
@@ -303,6 +314,7 @@ def main(
     user_id: str,
     model: str,
     rm: bool,
+    no_ui:bool=False,
 ) -> None:
     """Run contractor task pipeline for a project."""
     pipeline = pipeline.lower()
@@ -311,6 +323,7 @@ def main(
     artifact_text = _read_artifact_file(artifact)
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
+    enable_ui = not no_ui
 
     pipelines = get_pipelines()
     pipelines[pipeline]
@@ -325,6 +338,7 @@ def main(
             artifact=artifact_text,
             rm_artifacts=rm,
             output_dir=output_dir,
+            enable_ui=enable_ui,
         )
     )
 

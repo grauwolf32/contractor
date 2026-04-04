@@ -1,3 +1,6 @@
+import json
+
+import fsspec
 import pytest
 from google.genai import types
 
@@ -29,18 +32,29 @@ def tool_context():
     return MockToolContext()
 
 
-def test_validate_files_banned_extensions():
-    err = validate_files(["README.md", "main.py"])
+@pytest.fixture
+def fs():
+    fs = fsspec.filesystem("memory")
+    fs.pipe("main.py", b"print('ok')")
+    fs.pipe("service.go", b"package main")
+    fs.pipe("pets.py", b"def pets(): pass")
+    fs.pipe("responses.py", b"RESPONSES = {}")
+    fs.pipe("README.md", b"# readme")
+    return fs
+
+
+def test_validate_files_banned_extensions(fs):
+    err = validate_files(["README.md", "main.py"], fs)
     assert "PROHIBITED" in err
 
 
-def test_validate_files_no_files():
-    err = validate_files([])
+def test_validate_files_no_files(fs):
+    err = validate_files([], fs)
     assert "No files provided" in err
 
 
-def test_validate_files_ok():
-    err = validate_files(["main.py", "service.go"])
+def test_validate_files_ok(fs):
+    err = validate_files(["main.py", "service.go"], fs)
     assert err is None
 
 
@@ -56,12 +70,16 @@ def test_validate_model_valid_security_scheme():
 def test_validate_model_invalid_security_scheme():
     ok, err = validate_model(SecurityScheme, {"scheme": "basic"})
     assert ok is False
-    assert "should be formatted as" in err
+
+    payload = json.loads(err)
+    assert payload["component"] == "SecurityScheme"
+    assert payload["input"] == {"scheme": "basic"}
+    assert any(e["field"] == "type" for e in payload["errors"])
 
 
 @pytest.mark.asyncio
-async def test_upsert_and_get_path(tool_context):
-    tools = openapi_tools("openapi")
+async def test_upsert_and_get_path(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
     upsert_path = next(t for t in tools if t.__name__ == "upsert_path")
     get_path = next(t for t in tools if t.__name__ == "get_path")
 
@@ -85,8 +103,8 @@ async def test_upsert_and_get_path(tool_context):
 
 
 @pytest.mark.asyncio
-async def test_remove_path(tool_context):
-    tools = openapi_tools("openapi")
+async def test_remove_path(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
     upsert_path = next(t for t in tools if t.__name__ == "upsert_path")
     remove_path = next(t for t in tools if t.__name__ == "remove_path")
 
@@ -104,8 +122,8 @@ async def test_remove_path(tool_context):
 
 
 @pytest.mark.asyncio
-async def test_upsert_and_list_components(tool_context):
-    tools = openapi_tools("openapi")
+async def test_upsert_and_list_components(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
     upsert_component = next(t for t in tools if t.__name__ == "upsert_component")
     list_components = next(t for t in tools if t.__name__ == "list_components")
 
@@ -125,8 +143,8 @@ async def test_upsert_and_list_components(tool_context):
 
 
 @pytest.mark.asyncio
-async def test_set_and_get_info(tool_context):
-    tools = openapi_tools("openapi")
+async def test_set_and_get_info(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
     set_info = next(t for t in tools if t.__name__ == "set_info")
     get_info = next(t for t in tools if t.__name__ == "get_info")
 
@@ -143,8 +161,8 @@ async def test_set_and_get_info(tool_context):
 
 
 @pytest.mark.asyncio
-async def test_add_and_remove_server(tool_context):
-    tools = openapi_tools("openapi")
+async def test_add_and_remove_server(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
     add_server = next(t for t in tools if t.__name__ == "add_server")
     remove_server = next(t for t in tools if t.__name__ == "remove_server")
     list_servers = next(t for t in tools if t.__name__ == "list_servers")

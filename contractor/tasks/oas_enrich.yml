@@ -1,70 +1,76 @@
----
 task:
   name: "Incremental OpenAPI Enrichment with Source Provenance"
+
   objective: >
-    You are working on project {project_path}
-    Incrementally discover, model, and maintain the OpenAPI specification based on the
-    project’s source code, evolving the tool-managed schema in small, verifiable steps.
+    Working in project {project_path}, incrementally update, model, and maintain
+    the OpenAPI spec from source code in small, verifiable steps. Continuously track
+    exploration coverage so the codebase is analyzed systematically and relevant areas
+    are not missed.
 
   instructions: >
-    Act as a senior backend engineer responsible for evolving an existing OpenAPI document.
-    You must not edit OpenAPI files directly and must not output YAML during the build phase.
-    All schema mutations must be performed via OpenAPI write tools only.
+    Act as a senior backend engineer maintaining an existing OpenAPI document.
 
-    Work incrementally:
-    - Discover endpoints, parameters, request bodies, responses, and security behavior from code.
-    - Add or update one path or a small group of closely related paths at a time.
-    - Prefer reusable components (schemas, requestBodies, responses, headers, securitySchemes)
-      over inline definitions to minimize duplication and drift.
-    - Enrich both paths and reusable components with evidence from the codebase.
-    - Ensure provenance metadata is present:
-      - Path items and operations should include x-file-path when the source location is known.
-      - Reusable components should include x-file-path and x-component-path when the source
-        location or code symbol can be identified.
-      - If an existing path or component is missing x-file-path or x-component-path, update it
-        using write tools as part of the incremental change.
-      - Do not invent exact source locations when unavailable; use the best supported location,
-        note uncertainty in the summary, and keep the metadata as specific as the evidence allows.
+    Constraints:
+    - Never output YAML during the build phase.
+    - Apply all schema changes through OpenAPI write tools only.
 
-    Follow this operating procedure strictly:
-    1. Understand the assigned subtask and review prior task context. Read existing memories and records.
-    2. Inspect the current OpenAPI state using the smallest necessary read calls.
-       - Use tools: get_full_openapi_schema, list_paths, list_components, list_servers,
-        get_info, get_path, get_component.
-    3. Plan minimal, additive updates; preserve backward compatibility whenever possible.
-    4. For every change, cite evidence from the codebase:
-       - for paths/operations: include file paths or directories and best-guess code locations;
-       - for components: include the defining file path and code symbol / structural location;
-       - when possible, mirror this evidence into x-file-path and x-component-path.
-    5. Before writing, check whether the affected paths/components already contain x-file-path
-       and x-component-path; if not, include those metadata updates in the same change set.
-    6. Apply changes using write tools only:
-      - Use tools: set_info, add_server, upsert_path, upsert_component, remove_server,
-        remove_path, remove_component.
-    7. Re-check only the modified sections using targeted reads.
-    8. Use the coverage-related tools to monitor exploration progress and find gaps:
-      - Coverage tools: interaction_stats, list_touched_files, list_untouched_files, list_match_only_files.
+    Core approach:
+    - Work incrementally: update one path or a small related group at a time.
+    - Discover endpoints, parameters, request bodies, responses, and security from code.
+    - When new endpoints and components are discovered, add them to the schema immediately.
+    - Prefer reusable components over inline schemas when possible.
+    - Enrich both paths and components with source provenance.
 
-    Never assume schema state—verify with read tools before writing. Deletions (remove_path,
-    remove_server, remove_component) are allowed only when the element is provably incorrect;
-    when uncertain, prefer deprecation or documentation notes.
+    Provenance requirements:
+    - Paths and operations: include x-file-path when supported by evidence.
+    - Reusable components: include x-file-path and x-component-path when supported by evidence.
+    - If existing paths/components lack provenance, add it during the same incremental update.
+    - Do not invent exact locations; use the strongest supported evidence.
 
-    Ensure:
-    - All $ref targets resolve.
-    - JSON Schema is valid (types, required fields, enums, formats).
-    - HTTP semantics are correct (methods, status codes, content types).
-    - operationIds are stable and unique.
-    - The schema always contains at least one path.
-    - Updated or newly touched paths include x-file-path whenever supported by evidence.
-    - Updated or newly touched reusable components include x-file-path and x-component-path
-      whenever supported by evidence.
+    Operating procedure:
+    1. Review prior records, and existing memories.
 
-    Use tools economically. Avoid get_full_openapi_schema unless a global consistency review
-    is unavoidable. Batch related updates. Never output YAML during intermediate steps.
+    2. Inspect current OpenAPI state using the smallest necessary reads:
+       - list_paths, list_components, list_servers
+       - get_info, get_path, get_component
+
+    3. Check exploration coverage before planning:
+       - interaction_stats
+       - list_touched_files
+       - list_untouched_files
+       - list_match_only_files
+       Prioritize untouched, matched or weakly explored areas. Do not keep revisiting the same files
+       while relevant gaps remain.
+
+    4. Plan minimal, additive, evidence-based updates:
+       - Prefer strongly supported endpoints and components
+       - Improve both schema quality and coverage
+
+    5. Apply changes using write tools only:
+       - set_info, add_server, upsert_path, upsert_component
+       - remove_server, remove_path, remove_component
+       Remove only when provably incorrect; otherwise prefer deprecation or notes.
+
+    Validation rules:
+    - Coverage tools are mandatory throughout the workflow.
+    - operationIds must be stable and unique.
+    - All discovered supported paths/components must be added.
+    - New or updated paths/components must carry provenance metadata when evidence supports it.
+
+    Efficiency:
+    - Immediately add all discovered paths and components.
+    - Avoid get_full_openapi_schema except for broad consistency review or final validation.
+    - Batch closely related updates when safe.
+    - Never output YAML during intermediate steps.
 
   output_format: >
-    Produce Markdown summarizing what was added or updated, why the change was made, and
-    where the supporting evidence exists in the codebase. For every touched path and component,
-    explicitly note whether x-file-path and x-component-path were added, preserved, or updated.
-    Do not paste the schema. Check get_full_openapi_schema output to be sure that you have
-    produced complete schema.
+    Produce Markdown that summarizes:
+    - What was added or updated
+    - Why it was changed
+    - What evidence supports it, with file references
+    - Coverage impact, including newly touched files and reduced untouched areas
+    - What paths or components have not been added and why
+
+    Do not paste the schema.
+    Before finishing, validate completeness with list_paths, list_components tools.
+    Ensure that you have added all discovered paths and components.

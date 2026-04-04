@@ -28,8 +28,8 @@ async def oas_enrichment_pipeline(
 
     llm = LiteLlm(model=model)
     fs = RootedLocalFileSystem(root_path=project_path)
-    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm)
-    oas_linter = partial(build_oas_linter_agent, name="oas_validator", fs=fs, model=llm)
+    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm, max_tokens=120_000)
+    oas_linter = partial(build_oas_linter_agent, name="oas_validator", fs=fs, model=llm, max_tokens=120_000)
 
     if artifact:
         artifact_text = types.Part.from_text(text=artifact)
@@ -47,7 +47,7 @@ async def oas_enrichment_pipeline(
         worker_builder=oas_builder,
         iterations=3,
         max_attempts=9,
-        max_steps=20,
+        max_steps=30,
         artifacts=[
             "dependency_information/result",
             "project_information/result",
@@ -59,14 +59,13 @@ async def oas_enrichment_pipeline(
     runner.add_task(
         name="oas_validate",
         worker_builder=oas_linter,
-        iterations=1,
-        max_attempts=3,
-        max_steps=20,
+        iterations=2,
+        max_attempts=6,
+        max_steps=30,
         artifacts=[
             "dependency_information/result",
             "project_information/result",
-            "oas_update/result",
-            "oas_update/summary"
+            "oas_enrich/result",
         ],
         namespace="openapi-building",
         model=llm

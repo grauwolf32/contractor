@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import fsspec
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Final, Literal, Optional
 
@@ -37,6 +38,10 @@ FILE_VALIDATION_BANNED_EXTENSIONS: Final[str] = (
 )
 FILE_VALIDATION_NO_FILES_PROVIDED: Final[str] = (
     "No files provided! You MUST provide at least one file as the evidence.\n"
+)
+
+FILE_NOT_EXISTS: Final[str] = (
+    "File {file} not exists! Check provided path."
 )
 
 SERVER_ALREADY_EXISTS: Final[str] = "Server with url {url} already exists."
@@ -127,19 +132,36 @@ class OpenApiArtifact:
 def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
     try:
         model.model_validate(item)
+
     except ValidationError as exc:
-        schema = json.dumps(model.model_json_schema())
-        err = COMPONENT_VALIDATION_ERROR.format(
-            exception=str(exc),
-            component=model.__name__,
-            schema=schema,
-        )
-        return False, err
+        formatted_errors = []
+
+        for err in exc.errors():
+            loc = ".".join(str(x) for x in err["loc"])
+            msg = err["msg"]
+            typ = err["type"]
+
+            formatted_errors.append({
+                "field": loc,
+                "error": msg,
+                "type": typ,
+            })
+
+        error_payload = {
+            "component": model.__name__,
+            "errors": formatted_errors,
+            "input": item,  # optional but very useful for LLMs
+        }
+
+        return False, json.dumps(error_payload, indent=2)
+
     return True, None
 
 
 def validate_files(
-    files: list[str], ext: list[str] = [".json", ".md", ".yaml", ".yml"]
+    files: list[str],
+    fs: fsspec.AbstractFileSystem,
+    ext: list[str] = [".json", ".md", ".yaml", ".yml"],
 ) -> Optional[str]:
     if not files:
         return FILE_VALIDATION_NO_FILES_PROVIDED
@@ -152,11 +174,14 @@ def validate_files(
             extensions=",".join(ext),
             banned="\n".join(banned),
         )
+    for file in files:
+        if not fs.exists(file):
+            return FILE_NOT_EXISTS.format(file=file)
 
     return None
 
 
-def openapi_tools(name: str) -> list[Callable]:
+def openapi_tools(name: str, fs: fsspec.AbstractFileSystem) -> list[Callable]:
     oas = OpenApiArtifact(name=name)
 
     async def upsert_path(
@@ -176,7 +201,7 @@ def openapi_tools(name: str) -> list[Callable]:
                 REQUIRED: The list of files in the project where the path is defined
         """
 
-        if err := validate_files(path_files):
+        if err := validate_files(path_files, fs):
             return {"error": err}
 
         ok, err = validate_model(PathItem, path_def)
@@ -264,7 +289,7 @@ def openapi_tools(name: str) -> list[Callable]:
             keys: str = ",".join(allowed_keys)
             return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
 
-        if err := validate_files(component_files):
+        if err := validate_files(component_files, fs):
             return {"error": err}
 
         match key:

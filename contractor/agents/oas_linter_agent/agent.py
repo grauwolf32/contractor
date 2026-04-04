@@ -95,7 +95,7 @@ def build_oas_linter_agent(
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format), with_interaction_tools=False)
-    oas_tools = openapi_tools(name=namespace)
+    oas_tools = openapi_tools(name=namespace, fs=fs)
     linter_tools = openapi_linter_tools(name=namespace)
 
     tools = [default_tool, *fs_tools, *mem_tools, *oas_tools, *linter_tools]
