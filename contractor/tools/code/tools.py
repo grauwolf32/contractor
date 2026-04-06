@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
@@ -20,6 +21,35 @@ DEFAULT_MAX_FILES_SCAN = 10_000
 DEFAULT_MAX_GREP_MATCHES = 200
 DEFAULT_MAX_FIND_FILES = 50_000
 DEFAULT_READ_TIMEOUT = 30.0  # seconds
+DEFAULT_SEARCH_TIMEOUT = 120.0  # seconds – overall budget for search_definition
+
+
+# ─── Timeout helper ───────────────────────────────────────────────────
+class _SearchTimeout(Exception):
+    """Raised internally when the search budget is exhausted."""
+
+
+class _Deadline:
+    """Lightweight wall-clock deadline tracker."""
+
+    def __init__(self, timeout: float) -> None:
+        self._deadline = time.monotonic() + timeout
+        self._timeout = timeout
+
+    @property
+    def timeout(self) -> float:
+        return self._timeout
+
+    def remaining(self) -> float:
+        return max(0.0, self._deadline - time.monotonic())
+
+    def expired(self) -> bool:
+        return time.monotonic() >= self._deadline
+
+    def check(self) -> None:
+        """Raise ``_SearchTimeout`` if the deadline has passed."""
+        if self.expired():
+            raise _SearchTimeout
 
 
 # ─── Language Detection ───────────────────────────────────────────────
@@ -318,10 +348,12 @@ class SearchResult:
     definitions: list[DefinitionResult]
     grep_matches: list[GrepMatch]
     is_fallback: bool
+    timed_out: bool = False
 
     def to_dict(self) -> dict:
+        base: dict
         if self.definitions:
-            return {
+            base = {
                 "result": [
                     {
                         "symbol": d.symbol,
@@ -338,8 +370,8 @@ class SearchResult:
                 "kind": "definition",
                 "total_items": len(self.definitions),
             }
-        if self.grep_matches:
-            return {
+        elif self.grep_matches:
+            base = {
                 "result": [
                     {
                         "file": g.file,
@@ -355,12 +387,23 @@ class SearchResult:
                     "Showing grep matches where the symbol appears."
                 ),
             }
-        return {
-            "result": [],
-            "kind": "none",
-            "total_items": 0,
-            "note": "Symbol not found in any source file.",
-        }
+        else:
+            base = {
+                "result": [],
+                "kind": "none",
+                "total_items": 0,
+                "note": "Symbol not found in any source file.",
+            }
+
+        if self.timed_out:
+            base["timed_out"] = True
+            existing_note = base.get("note", "")
+            timeout_note = "Search timed out; results may be incomplete."
+            base["note"] = (
+                f"{existing_note} {timeout_note}" if existing_note else timeout_note
+            )
+
+        return base
 
 
 # ─── Caching ──────────────────────────────────────────────────────────
@@ -550,9 +593,7 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
         return None
 
     if node.type in ("impl_item", "template_declaration"):
-        text = source[node.start_byte : node.end_byte].decode(
-            "utf-8", errors="replace"
-        )
+        text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
         first_line = text.splitlines()[0].strip()
         return first_line[:80] or None
 
@@ -590,9 +631,7 @@ def _context_snippet(source: bytes, node: Node, max_lines: int = 15) -> str:
     text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
     lines = text.splitlines()
     if len(lines) > max_lines:
-        lines = lines[:max_lines] + [
-            f"    ... ({len(lines) - max_lines} more lines)"
-        ]
+        lines = lines[:max_lines] + [f"    ... ({len(lines) - max_lines} more lines)"]
     return "\n".join(lines)
 
 
@@ -673,7 +712,7 @@ def _grep_file_lines(
 
 
 def _check_content_for_pattern(content: bytes, pattern: str) -> bool:
-    """Return *True* if decoded ``content`` contains ``pattern``."""
+    """Return _True_ if decoded ``content`` contains ``pattern``."""
     text = content.decode("utf-8", errors="replace")
     return pattern in text
 
@@ -684,7 +723,7 @@ def _read_with_timeout(
     path: str,
     timeout: float = DEFAULT_READ_TIMEOUT,
 ) -> Optional[bytes]:
-    """Read a file via *fs*, aborting if it takes longer than *timeout* seconds."""
+    """Read a file via _fs_, aborting if it takes longer than _timeout_ seconds."""
     result_box: list[Optional[bytes]] = [None]
     error_box: list[Optional[Exception]] = [None]
 
@@ -726,6 +765,7 @@ class CodeTools:
     max_context_lines: int = 15
     grep_context_lines: int = 2
     read_timeout: float = DEFAULT_READ_TIMEOUT
+    search_timeout: float = DEFAULT_SEARCH_TIMEOUT
     max_find_files: int = DEFAULT_MAX_FIND_FILES
     max_files_scan: int = DEFAULT_MAX_FILES_SCAN
     max_grep_file_matches: int = DEFAULT_MAX_GREP_MATCHES
@@ -746,15 +786,45 @@ class CodeTools:
         language_filter: Optional[Language] = None,
         max_results: int = 50,
         max_grep_results: int = 20,
+        timeout: Optional[float] = None,
     ) -> SearchResult:
         """
         Search for the definition of ``symbol``.
         Returns tree-sitter definitions when found.  Falls back to grep
         matches (file, line, surrounding context) when no definition is
         resolved.
+
+        ``timeout`` overrides the instance-level ``search_timeout`` for this
+        single invocation.  When the deadline is reached the method returns
+        whatever partial results it has collected so far, with ``timed_out``
+        set to *True*.
         """
+        effective_timeout = timeout if timeout is not None else self.search_timeout
+        deadline = _Deadline(effective_timeout)
+
         search_symbol = symbol.rsplit(".", 1)[-1]
-        candidate_files = self._grep_files(search_symbol, path=path)
+
+        # --- Find candidate files (respects deadline) ---
+        try:
+            deadline.check()
+            candidate_files = self._grep_files(
+                search_symbol, path=path, deadline=deadline
+            )
+        except _SearchTimeout:
+            logger.warning(
+                "search_definition timed out during file discovery for '%s' "
+                "after %.1fs",
+                symbol,
+                effective_timeout,
+            )
+            return SearchResult(
+                symbol=symbol,
+                definitions=[],
+                grep_matches=[],
+                is_fallback=False,
+                timed_out=True,
+            )
+
         if not candidate_files:
             return SearchResult(
                 symbol=symbol,
@@ -765,17 +835,29 @@ class CodeTools:
 
         # Phase 1: tree-sitter definitions
         all_defs: list[DefinitionResult] = []
-        for fpath in candidate_files:
-            lang = detect_language(fpath)
-            if lang is None:
-                continue
-            if language_filter is not None and lang != language_filter:
-                continue
-            defs = self._search_file(fpath, symbol, lang)
-            all_defs.extend(defs)
-            if len(all_defs) >= max_results:
-                all_defs = all_defs[:max_results]
-                break
+        phase1_timed_out = False
+        try:
+            for fpath in candidate_files:
+                deadline.check()
+                lang = detect_language(fpath)
+                if lang is None:
+                    continue
+                if language_filter is not None and lang != language_filter:
+                    continue
+                defs = self._search_file(fpath, symbol, lang, deadline=deadline)
+                all_defs.extend(defs)
+                if len(all_defs) >= max_results:
+                    all_defs = all_defs[:max_results]
+                    break
+        except _SearchTimeout:
+            phase1_timed_out = True
+            logger.warning(
+                "search_definition timed out during tree-sitter phase for '%s' "
+                "after %.1fs (collected %d definitions so far)",
+                symbol,
+                effective_timeout,
+                len(all_defs),
+            )
 
         all_defs.sort(key=lambda r: (r.file, r.line))
         if all_defs:
@@ -784,31 +866,58 @@ class CodeTools:
                 definitions=all_defs,
                 grep_matches=[],
                 is_fallback=False,
+                timed_out=phase1_timed_out,
+            )
+
+        # If phase 1 already timed out, don't attempt phase 2
+        if phase1_timed_out:
+            return SearchResult(
+                symbol=symbol,
+                definitions=[],
+                grep_matches=[],
+                is_fallback=False,
+                timed_out=True,
             )
 
         # Phase 2: fallback to grep matches
         all_grep: list[GrepMatch] = []
-        for fpath in candidate_files:
-            if language_filter is not None:
-                lang = detect_language(fpath)
-                if lang is None or lang != language_filter:
+        phase2_timed_out = False
+        try:
+            for fpath in candidate_files:
+                deadline.check()
+                if language_filter is not None:
+                    lang = detect_language(fpath)
+                    if lang is None or lang != language_filter:
+                        continue
+                content = self._read_file(fpath, deadline=deadline)
+                if content is None:
                     continue
-            content = self._read_file(fpath)
-            if content is None:
-                continue
-            matches = _grep_file_lines(
-                content, fpath, search_symbol, context_lines=self.grep_context_lines
+                matches = _grep_file_lines(
+                    content,
+                    fpath,
+                    search_symbol,
+                    context_lines=self.grep_context_lines,
+                )
+                all_grep.extend(matches)
+                if len(all_grep) >= max_grep_results:
+                    all_grep = all_grep[:max_grep_results]
+                    break
+        except _SearchTimeout:
+            phase2_timed_out = True
+            logger.warning(
+                "search_definition timed out during grep phase for '%s' "
+                "after %.1fs (collected %d grep matches so far)",
+                symbol,
+                effective_timeout,
+                len(all_grep),
             )
-            all_grep.extend(matches)
-            if len(all_grep) >= max_grep_results:
-                all_grep = all_grep[:max_grep_results]
-                break
 
         return SearchResult(
             symbol=symbol,
             definitions=[],
             grep_matches=all_grep,
             is_fallback=True,
+            timed_out=phase2_timed_out,
         )
 
     def list_symbols(
@@ -859,7 +968,7 @@ class CodeTools:
 
     # ── Internal ──────────────────────────────────────────────────────
     def _find_files(self, search_root: str) -> list[str]:
-        """Enumerate files under *search_root* with a safety cap."""
+        """Enumerate files under _search_root_ with a safety cap."""
         try:
             all_files = self.fs.find(search_root, detail=False)
         except FileNotFoundError:
@@ -875,7 +984,12 @@ class CodeTools:
             all_files = all_files[: self.max_find_files]
         return all_files
 
-    def _grep_files(self, pattern: str, path: str = "") -> list[str]:
+    def _grep_files(
+        self,
+        pattern: str,
+        path: str = "",
+        deadline: Optional[_Deadline] = None,
+    ) -> list[str]:
         search_root = (
             f"{self.root.rstrip('/')}/{path}".rstrip("/")
             if path
@@ -887,6 +1001,10 @@ class CodeTools:
         matching: list[str] = []
         scanned = 0
         for fpath in candidate_paths:
+            # Check deadline every iteration
+            if deadline is not None:
+                deadline.check()
+
             scanned += 1
             if scanned > self.max_files_scan:
                 logger.warning(
@@ -895,7 +1013,7 @@ class CodeTools:
                 )
                 break
 
-            content = self._read_file(fpath)
+            content = self._read_file(fpath, deadline=deadline)
             if content is None:
                 continue
             if _check_content_for_pattern(content, pattern):
@@ -910,8 +1028,20 @@ class CodeTools:
         matching.sort()
         return matching
 
-    def _read_file(self, path: str) -> Optional[bytes]:
-        return _read_with_timeout(self.fs, path, timeout=self.read_timeout)
+    def _read_file(
+        self,
+        path: str,
+        deadline: Optional[_Deadline] = None,
+    ) -> Optional[bytes]:
+        """Read a file, capping the per-file timeout at the smaller of
+        ``self.read_timeout`` and the remaining search deadline."""
+        effective_timeout = self.read_timeout
+        if deadline is not None:
+            remaining = deadline.remaining()
+            if remaining <= 0:
+                raise _SearchTimeout
+            effective_timeout = min(effective_timeout, remaining)
+        return _read_with_timeout(self.fs, path, timeout=effective_timeout)
 
     def _content_hash(self, content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()[:16]
@@ -936,9 +1066,7 @@ class CodeTools:
             parser = get_parser(lang.value)
             tree = parser.parse(content)
         except Exception:
-            logger.debug(
-                "Failed to parse %s as %s", path, lang.value, exc_info=True
-            )
+            logger.debug("Failed to parse %s as %s", path, lang.value, exc_info=True)
             return None
         parsed = _ParsedFile(
             content_hash=chash,
@@ -954,8 +1082,9 @@ class CodeTools:
         path: str,
         symbol: str,
         lang: Language,
+        deadline: Optional[_Deadline] = None,
     ) -> list[DefinitionResult]:
-        content = self._read_file(path)
+        content = self._read_file(path, deadline=deadline)
         if content is None:
             return []
         chash = self._content_hash(content)
