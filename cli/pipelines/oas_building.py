@@ -24,9 +24,23 @@ async def oas_building_pipeline(
 
     llm = LiteLlm(model=model)
     fs = RootedLocalFileSystem(root_path=project_path)
-    swe_builder = partial(build_swe_agent, name="swe_agent", fs=fs, model=llm, max_tokens=100_000)
-    oas_builder = partial(build_oas_builder_agent, name="oas_builder", fs=fs, model=llm, max_tokens=100_000)
-    oas_linter = partial(build_oas_linter_agent, name="oas_validator", fs=fs, model=llm, max_tokens=100_000)
+    swe_builder = partial(
+        build_swe_agent, name="swe_agent", fs=fs, model=llm, max_tokens=100_000
+    )
+    oas_builder = partial(
+        build_oas_builder_agent,
+        name="oas_builder",
+        fs=fs,
+        model=llm,
+        max_tokens=100_000,
+    )
+    oas_linter = partial(
+        build_oas_linter_agent,
+        name="oas_validator",
+        fs=fs,
+        model=llm,
+        max_tokens=100_000,
+    )
 
     runner.add_variable(name="project_path", value=folder_name)
 
@@ -77,10 +91,10 @@ async def oas_building_pipeline(
             "dependency_information/result",
             "project_information/result",
             "oas_update/result",
-            "oas_update/summary"
+            "oas_update/summary",
         ],
         namespace="openapi-building",
-        model=llm
+        model=llm,
     )
 
     return runner

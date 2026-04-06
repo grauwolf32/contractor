@@ -40,9 +40,7 @@ FILE_VALIDATION_NO_FILES_PROVIDED: Final[str] = (
     "No files provided! You MUST provide at least one file as the evidence.\n"
 )
 
-FILE_NOT_EXISTS: Final[str] = (
-    "File {file} not exists! Check provided path."
-)
+FILE_NOT_EXISTS: Final[str] = "File {file} not exists! Check provided path."
 
 SERVER_ALREADY_EXISTS: Final[str] = "Server with url {url} already exists."
 
@@ -110,7 +108,7 @@ class OpenApiArtifact:
             if artifact is None:
                 self.schema = openapi_base_schema
                 return self.schema
-                
+
             self.schema = yaml.safe_load(artifact.text)
 
         return self.schema
@@ -141,11 +139,13 @@ def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
             msg = err["msg"]
             typ = err["type"]
 
-            formatted_errors.append({
-                "field": loc,
-                "error": msg,
-                "type": typ,
-            })
+            formatted_errors.append(
+                {
+                    "field": loc,
+                    "error": msg,
+                    "type": typ,
+                }
+            )
 
         error_payload = {
             "component": model.__name__,

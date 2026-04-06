@@ -83,9 +83,7 @@ DUMMY_MODEL = LiteLlm(
     timeout=300,
 )
 
-playground_path = (
-    Path(__file__).parent.parent.parent.parent / "tests" / "playground" 
-)
+playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 
 sandbox = PodmanContainer(
     name="contractor_oas_sandbox",

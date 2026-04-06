@@ -303,7 +303,6 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
 
     async def lint_openapi(
         ctx: ToolContext,
-        include_severities: Iterable[int] = (1, 2),
         limit: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -314,8 +313,6 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
 
         Args:
             ctx: The tool context for loading artifacts.
-            include_severities: Severity levels to include in output.
-                Defaults to (1, 2), excluding severity 0.
             limit: Maximum number of issues to return.
 
         Returns:
@@ -329,7 +326,6 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
         try:
             result = linter.lint(
                 openapi_str=openapi_str,
-                include_severities=include_severities,
                 limit=limit,
             )
             return {"result": result}

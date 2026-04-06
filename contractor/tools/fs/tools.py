@@ -851,6 +851,30 @@ class FsspecWriteTools:
             }
         return None
 
+    # ---- read-through delegates ----
+
+    def ls(self, path: str) -> ToolResult:
+        """Delegate to the underlying reader's ls."""
+        return self._reader.ls(path=path)
+
+    def glob(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> ToolResult:
+        """Delegate to the underlying reader's glob."""
+        return self._reader.glob(pattern=pattern, path=path, offset=offset)
+
+    def grep(
+        self,
+        pattern: str,
+        path: Optional[str] = None,
+        offset: int = 0,
+    ) -> ToolResult:
+        """Delegate to the underlying reader's grep."""
+        return self._reader.grep(pattern=pattern, path=path, offset=offset)
+
     def read_file(
         self,
         file_path: str,

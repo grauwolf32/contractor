@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+
 def resolve_refs(
     component: dict[str, Any],
     schema: dict[str, Any],
@@ -104,9 +105,7 @@ def resolve_local_refs(
 
     # Pre-resolve each named schema with its own self-ref already in `seen`,
     # so that self-referential schemas are detected as circular immediately.
-    components_schemas = (
-        schema.get("components", {}).get("schemas", {})
-    )
+    components_schemas = schema.get("components", {}).get("schemas", {})
     for name in list(components_schemas.keys()):
         self_ref = f"#/components/schemas/{name}"
         components_schemas[name] = resolve_refs(

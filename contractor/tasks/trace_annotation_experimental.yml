@@ -117,7 +117,7 @@ task:
         - If multiple candidates, rank and select most plausible.
         - If NO plausible entrypoint found → stop, report in Uncertainties.
 
-    1b. Bounded execution trace
+    1b. Trace execution graph
         - Follow the call graph along paths carrying request-derived data.
         - Stop a branch when: request data no longer propagates, OR a sink
           is reached (record it, stop that branch).
@@ -153,7 +153,7 @@ task:
         is a vulnerability candidate. Also consider: broken access control,
         missing auth check, insecure defaults, sensitive data exposure.
 
-    4b. For each vulnerability, call report_vulnerablity once:
+    4b For each vulnerability, call report_vulnerablity once:
 
           report_vulnerablity(
             name       = "<kebab-case-slug>",          # stable, deterministic
@@ -175,11 +175,7 @@ task:
                         "tainted arg trace, PoC notes, recommended mitigation>",
           )
 
-    4c. If no vulnerabilities found, call once with:
-          name="no-vulnerabilities-{operation_id}", severity="info",
-          confidence="high", summary="No exploitable data flows identified.",
-          details="<what was checked and why it is safe>"
-
+    4c. If no vulnerabilities found, do not call report_vulnerability.
     4d. One call per vulnerability — do not batch.
 
     # ── CONSERVATIVE POLICY ──────────────────────────────────────────────────

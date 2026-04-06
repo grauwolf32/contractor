@@ -1,6 +1,7 @@
 from typing import Any, Optional
 from cli import EventView
 
+
 def _normalize_event(event: Any) -> Optional[EventView]:
     event_type = getattr(event, "type", "") or ""
     payload = getattr(event, "payload", {}) or {}
@@ -41,7 +42,9 @@ def _normalize_event(event: Any) -> Optional[EventView]:
         return EventView(
             event_type=event_type,
             title=f"Iteration {iteration}",
-            body=_fmt_blob(objective, max_lines=4, max_width=100) if objective else None,
+            body=_fmt_blob(objective, max_lines=4, max_width=100)
+            if objective
+            else None,
             tone="warning",
         )
 

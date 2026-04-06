@@ -25,7 +25,6 @@ from contractor.tools.code.tools import (
     _context_snippet,
     _symbol_matches,
     _grep_file_lines,
-    _check_file_for_pattern,
     CodeTools,
     _parse_language,
     code_tools,
@@ -385,63 +384,45 @@ class TestSymbolMatches:
 
 class TestGrepFileLines:
     def test_finds_matching_line(self):
-        fs = make_mock_fs({"a.py": "line one\nhello world\nline three"})
-        matches = _grep_file_lines(fs, "a.py", "hello")
+        source = b"line one\nhello world\nline three"
+        matches = _grep_file_lines(source, "a.py", "hello")
         assert len(matches) == 1
+        assert matches[0].file == "a.py"
         assert matches[0].line == 2
         assert "hello world" in matches[0].text
 
-    def test_no_match(self):
-        fs = make_mock_fs({"a.py": "nothing here"})
-        matches = _grep_file_lines(fs, "a.py", "xyz")
-        assert matches == []
-
     def test_context_lines_included(self):
         content = "\n".join(f"line {i}" for i in range(10))
-        fs = make_mock_fs({"a.py": content})
-        matches = _grep_file_lines(fs, "a.py", "line 5", context_lines=2)
+        source = content.encode("utf-8")
+        matches = _grep_file_lines(source, "a.py", "line 5", context_lines=2)
         assert len(matches) == 1
-        # context: lines 3,4,5,6,7 (0-indexed 3–7 → displayed 4–8 in snippet)
-        assert "line 3" in matches[0].text or "line 4" in matches[0].text
+        assert matches[0].line == 6  # 0-indexed line 5 → 1-indexed line 6
+        # Context should include 2 lines before and after
+        assert "line 3" in matches[0].text
+        assert "line 7" in matches[0].text
 
     def test_multiple_matches_in_file(self):
-        fs = make_mock_fs({"a.py": "foo\nbar\nfoo\nbaz"})
-        matches = _grep_file_lines(fs, "a.py", "foo", context_lines=0)
+        source = b"foo\nbar\nfoo\nbaz"
+        matches = _grep_file_lines(source, "a.py", "foo", context_lines=0)
         assert len(matches) == 2
-        lines = {m.line for m in matches}
-        assert lines == {1, 3}
+        assert matches[0].line == 1
+        assert matches[1].line == 3
 
-    def test_read_error_returns_empty(self):
-        fs = MagicMock()
-        fs.cat_file.side_effect = IOError("disk error")
-        matches = _grep_file_lines(fs, "bad.py", "foo")
-        assert matches == []
+    def test_no_matches(self):
+        source = b"line one\nline two\nline three"
+        matches = _grep_file_lines(source, "a.py", "hello")
+        assert len(matches) == 0
 
-    def test_returns_grep_match_type(self):
-        fs = make_mock_fs({"a.py": "hello"})
-        matches = _grep_file_lines(fs, "a.py", "hello")
-        assert all(isinstance(m, GrepMatch) for m in matches)
+    def test_empty_content(self):
+        source = b""
+        matches = _grep_file_lines(source, "a.py", "hello")
+        assert len(matches) == 0
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 7.  _check_file_for_pattern
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestCheckFileForPattern:
-    def test_returns_path_when_found(self):
-        fs = make_mock_fs({"a.py": "def hello(): pass"})
-        assert _check_file_for_pattern(fs, "a.py", "hello") == "a.py"
-
-    def test_returns_none_when_not_found(self):
-        fs = make_mock_fs({"a.py": "def world(): pass"})
-        assert _check_file_for_pattern(fs, "a.py", "hello") is None
-
-    def test_returns_none_on_read_error(self):
-        fs = MagicMock()
-        fs.cat_file.side_effect = IOError("boom")
-        assert _check_file_for_pattern(fs, "a.py", "hello") is None
-
+    def test_non_utf8_content(self):
+        source = b"hello \xff\xfe world\nanother line"
+        matches = _grep_file_lines(source, "a.py", "hello")
+        assert len(matches) == 1
+        assert matches[0].line == 1
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8.  CodeTools — internal helpers
@@ -510,20 +491,24 @@ class TestCodeToolsInternals:
     # ── _grep_files ──────────────────────────────────────────────────────────
 
     def test_grep_files_finds_matching(self):
-        ct = self._make_tools({
-            "/repo/a.py": "def hello(): pass",
-            "/repo/b.py": "def world(): pass",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": "def hello(): pass",
+                "/repo/b.py": "def world(): pass",
+            }
+        )
         ct.fs.find.return_value = ["/repo/a.py", "/repo/b.py"]
         result = ct._grep_files("hello")
         assert "/repo/a.py" in result
         assert "/repo/b.py" not in result
 
     def test_grep_files_skips_non_source(self):
-        ct = self._make_tools({
-            "/repo/a.py": "hello",
-            "/repo/readme.md": "hello",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": "hello",
+                "/repo/readme.md": "hello",
+            }
+        )
         ct.fs.find.return_value = ["/repo/a.py", "/repo/readme.md"]
         result = ct._grep_files("hello")
         assert "/repo/readme.md" not in result
@@ -610,25 +595,29 @@ class TestSearchDefinition:
         assert result.definitions == []
 
     def test_language_filter_excludes_other_langs(self):
-        ct = self._make_tools({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": "function hello() {}",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": "function hello() {}",
+            }
+        )
         result = ct.search_definition("hello", language_filter=Language.PYTHON)
         assert all(d.language == "python" for d in result.definitions)
 
     def test_definitions_sorted_by_file_and_line(self):
-        ct = self._make_tools({
-            "/repo/b.py": "def hello(): pass\n",
-            "/repo/a.py": "def hello(): pass\n",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/b.py": "def hello(): pass\n",
+                "/repo/a.py": "def hello(): pass\n",
+            }
+        )
         result = ct.search_definition("hello")
         if len(result.definitions) > 1:
             files = [d.file for d in result.definitions]
             assert files == sorted(files)
 
     def test_max_results_respected(self):
-        files = {f"/repo/{chr(97+i)}.py": "def hello(): pass\n" for i in range(10)}
+        files = {f"/repo/{chr(97 + i)}.py": "def hello(): pass\n" for i in range(10)}
         ct = self._make_tools(files)
         result = ct.search_definition("hello", max_results=3)
         assert len(result.definitions) <= 3
@@ -693,10 +682,12 @@ class TestListSymbols:
         assert "Greeter" in names
 
     def test_language_filter(self):
-        ct = self._make_tools({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+            }
+        )
         symbols = ct.list_symbols(language_filter=Language.PYTHON)
         assert all(s.language == "python" for s in symbols)
 
@@ -865,10 +856,12 @@ class TestCodeToolsFactory:
             assert result_offset["result"][0] != result_all["result"][0]
 
     def test_list_symbols_language_filter(self):
-        tools = self._make_tools_list({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-        })
+        tools = self._make_tools_list(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+            }
+        )
         _, list_syms = tools
         result = list_syms(language="python")
         assert all(s["language"] == "python" for s in result["result"])
@@ -883,9 +876,7 @@ class TestCodeToolsFactory:
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
         _, list_syms = tools
         result = list_syms(node_type="function_definition")
-        assert all(
-            s["node_type"] == "function_definition" for s in result["result"]
-        )
+        assert all(s["node_type"] == "function_definition" for s in result["result"])
 
     def test_list_symbols_default_limit(self):
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
@@ -902,8 +893,16 @@ class TestCodeToolsFactory:
         assert "total_items" in result
         if result["kind"] == "definition":
             item = result["result"][0]
-            for key in ("symbol", "file", "line", "end_line", "column",
-                        "node_type", "language", "context"):
+            for key in (
+                "symbol",
+                "file",
+                "line",
+                "end_line",
+                "column",
+                "node_type",
+                "language",
+                "context",
+            ):
                 assert key in item
 
 
@@ -961,12 +960,14 @@ class TestMultiLanguageIntegration:
         assert "Config" in names
 
     def test_mixed_repo_all_langs(self):
-        ct = self._ct({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-            "/repo/c.go": SIMPLE_GO,
-            "/repo/d.rs": SIMPLE_RUST,
-        })
+        ct = self._ct(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+                "/repo/c.go": SIMPLE_GO,
+                "/repo/d.rs": SIMPLE_RUST,
+            }
+        )
         symbols = ct.list_symbols()
         langs = {s.language for s in symbols}
         assert "python" in langs
@@ -999,9 +1000,9 @@ class TestEdgeCases:
         assert isinstance(result, SearchResult)
 
     def test_very_long_function_context_truncated(self):
-        many_lines = "def big():\n" + "\n".join(
-            f"    x_{i} = {i}" for i in range(100)
-        ) + "\n"
+        many_lines = (
+            "def big():\n" + "\n".join(f"    x_{i} = {i}" for i in range(100)) + "\n"
+        )
         fs = make_mock_fs({"/repo/a.py": many_lines})
         fs.find.return_value = ["/repo/a.py"]
         ct = CodeTools(fs=fs, root="/repo", max_context_lines=15)

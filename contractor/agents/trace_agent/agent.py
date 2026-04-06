@@ -136,6 +136,7 @@ TRACE_AGENT_PROMPT: Final[str] = (
 )
 """
 
+
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
         "You have reached the context limit. Summarize your progress:\n"

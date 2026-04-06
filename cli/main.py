@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable, Optional
 import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
+import tree_sitter_language_pack as ts_pack;
 
 from contractor.runners.task_runner import TaskRunnerEvent
 
@@ -38,7 +39,7 @@ def turn_off_logger() -> None:
         "asyncio",
         "contractor",
         "urllib3",
-        "opentelemetry"
+        "opentelemetry",
     ]
     for name in names:
         logging.getLogger(name).setLevel(logging.CRITICAL)
@@ -197,8 +198,14 @@ async def async_main(
     artifact: Optional[str],
     output_dir: Path,
     rm_artifacts: bool,
-    enable_ui: bool=True,
+    enable_ui: bool = True,
 ) -> None:
+    ts_pack.init({
+        "cache_dir": ts_pack.cache_dir(),
+    })
+    print(ts_pack.language_count())
+    print(ts_pack.available_languages())
+
     pipeline = pipeline.lower()
     pipelines = get_pipelines()
     spec = pipelines.get(pipeline)
@@ -300,11 +307,7 @@ async def async_main(
     default=None,
     help="Path to save the artifacts",
 )
-@click.option(
-    "--no-ui",
-     is_flag=True,
-     help="disable ui"
-)
+@click.option("--no-ui", is_flag=True, help="disable ui")
 def main(
     pipeline: str,
     project_path: Path,
@@ -314,7 +317,7 @@ def main(
     user_id: str,
     model: str,
     rm: bool,
-    no_ui:bool=False,
+    no_ui: bool = False,
 ) -> None:
     """Run contractor task pipeline for a project."""
     pipeline = pipeline.lower()

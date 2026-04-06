@@ -423,7 +423,9 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
         )
 
     if tool_name == "get_full_openapi_schema":
-        return f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
+        return (
+            f"    {C.wrap('📚', C.CYAN)} {C.wrap('Read full OpenAPI schema', C.BOLD)}"
+        )
 
     if tool_name == "execute_current_subtask":
         return ""
@@ -668,10 +670,7 @@ def _render_final_text(event: Any) -> str | None:
     if not text:
         return None
 
-    return (
-        f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n"
-        f"{indent(text, '     ')}"
-    )
+    return f"\n  {C.wrap('✅ Final answer', C.BOLD, C.GREEN)}\n{indent(text, '     ')}"
 
 
 def _render_iteration_result(event: Any) -> str:

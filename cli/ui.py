@@ -29,13 +29,12 @@ from cli.helpers import (
     _fmt_value,
     _fmt_blob,
     _clamp_lines,
-    _wrap_text
+    _wrap_text,
 )
 
 
 TOP_PANEL_HEIGHT = 6
 EVENT_HISTORY_LIMIT = 200
-
 
 
 @dataclass
@@ -164,7 +163,9 @@ class LiveRenderer:
             self.state.current_iteration is not None
             and self.state.current_max_attempts is not None
         ):
-            attempts = f"{self.state.current_iteration}/{self.state.current_max_attempts}"
+            attempts = (
+                f"{self.state.current_iteration}/{self.state.current_max_attempts}"
+            )
         elif self.state.current_iteration is not None:
             attempts = str(self.state.current_iteration)
 
