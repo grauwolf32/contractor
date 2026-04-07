@@ -1,0 +1,346 @@
+info:
+  title: Message API
+  x-framework: Spring Boot
+  x-code-language: Java
+servers:
+- url: http://localhost:8080
+  description: Local development server
+components:
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 256
+        userId:
+          type: integer
+          format: int32
+        expiredAt:
+          type: integer
+          format: int64
+      required:
+      - id
+      - userId
+      - expiredAt
+      description: JWT Session entity
+    SendMessageRequest:
+      type: object
+      properties:
+        toUserId:
+          type: integer
+          format: int32
+        message:
+          type: string
+      required:
+      - toUserId
+      - message
+      description: Send message request DTO
+    LoginRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Username or email
+        password:
+          type: string
+          format: password
+          description: User password
+      required:
+      - name
+      - password
+      description: Login request credentials
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for authentication
+      required:
+      - token
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: Error code
+        message:
+          type: string
+          description: Error message
+      required:
+      - code
+      - message
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User name (max 256 characters)
+          maxLength: 256
+        password:
+          type: string
+          description: User password (min 1 character)
+          minLength: 1
+      required:
+      - name
+      - password
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        toUserId:
+          type: integer
+          format: int32
+        message:
+          type: string
+        createdAt:
+          type: integer
+          format: int64
+      required:
+      - id
+      - toUserId
+      - message
+      description: Message entity representing a sent message
+  requestBodies:
+    SendMessageRequestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SendMessageRequest'
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    MessageResponse:
+      description: Successful message send response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              status:
+                type: integer
+    BadRequestResponse:
+      description: Bad request - validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnauthorizedResponse:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+            properties:
+              code:
+                type: integer
+                example: 401
+              message:
+                type: string
+                example: Unauthorized
+            required:
+            - code
+            - message
+            type: object
+paths:
+  /api/messages/outbox:
+    get:
+      operationId: getOutbox
+      summary: Get sent messages
+      tags:
+      - Messages
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: List of sent messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+      description: Retrieves all sent messages for the authenticated user. Returns
+        a list of messages that have been sent by the current user, ordered by ID
+        in descending order (most recent first). Each message includes details such
+        as sender, receiver, and content. Requires valid Bearer token authentication.
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      description: Creates a new user account in the system. The user will be able
+        to log in after successful registration.
+      operationId: registerUser
+      tags:
+      - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: john_doe
+              password: securePassword123
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User registered successfully
+                  status:
+                    type: integer
+                    example: 200
+        '400':
+          description: Invalid request body - validation failed (e.g., empty name
+            or password, password too long)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/login:
+    post:
+      operationId: loginUser
+      summary: User login and token retrieval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              example1:
+                summary: Login example
+                value:
+                  name: user@example.com
+                  password: pass123
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                example1:
+                  summary: Success example
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example1:
+                  summary: Invalid input example
+                  value:
+                    code: 400
+                    message: Invalid request format
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example1:
+                  summary: Authentication failed example
+                  value:
+                    code: 401
+                    message: Invalid credentials
+      description: Endpoint for user authentication. Accepts username/email and password,
+        validates credentials, and returns JWT token upon successful login.
+      security:
+      - BearerAuth: []
+  /api/messages/send:
+    post:
+      operationId: sendMessage
+      summary: Send a message to another user
+      tags:
+      - Messages
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+        $ref: '#/components/requestBodies/SendMessageRequestBody'
+      responses:
+        '200':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          $ref: '#/components/responses/MessageResponse'
+          examples:
+            success:
+              summary: Message sent successfully
+              value:
+                message: Hello world!
+                status: 200
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+  /api/messages/inbox:
+    get:
+      operationId: getInbox
+      summary: Get inbox messages
+      description: Retrieves all messages received by the authenticated user from
+        their inbox. Returns a list of Message objects sorted by creation date.
+      tags:
+      - Messages
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: List of received messages in inbox
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '400':
+          description: Bad request - invalid parameters or malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid or missing authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

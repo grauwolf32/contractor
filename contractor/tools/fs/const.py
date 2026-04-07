@@ -1,0 +1,45 @@
+from typing import Final
+
+_IGNORE_DEFAULTS: Final[list[str]] = [
+    "*.pyc",
+    "*/__pycache__/*",
+    "__pycache__/*",
+    "target/*",
+    "build/*",
+    "dist/*",
+    "out/*",
+    "bin/*",
+    "obj/*",
+    "Debug/*",
+    "Release/*",
+    "cmake-build-*/*",
+    "DerivedData/*",
+    ".contractor/*",
+    "*/.git/*",
+    ".git/*",
+    "*/.contractor/*",
+    "*.so",
+    "*.dll",
+    "*.bin",
+    "*.o",
+    "*.dylib",
+    "*.jpg",
+    "*.jpeg",
+    "*.webp",
+    "*.png",
+    "*.svg",
+    "*.heic",
+    "*.mov",
+    "*.mp4",
+    "*.avi",
+    "*.zip",
+    "*.rar",
+    "*.tar",
+    "*.tar.gz",
+    "*.DS_Store",
+    ".git/*",
+]
+
+INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
+PATH_NOT_FOUND_ERROR: Final[str] = "path {path} does not exist"
+PATH_IS_NOT_A_FILE_ERROR: Final[str] = "{path} is not a file"

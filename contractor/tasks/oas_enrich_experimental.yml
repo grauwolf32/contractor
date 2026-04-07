@@ -1,0 +1,98 @@
+task:
+  name: "Incremental OpenAPI Enrichment with Source Provenance"
+
+objective: >
+  Working in project {project_path}, incrementally update, model, and maintain
+  the OpenAPI spec from source code in small, verifiable steps. Continuously track
+  exploration coverage so the codebase is analyzed systematically and relevant areas
+  are not missed.
+
+instructions: >
+  Act as a senior backend engineer maintaining an existing OpenAPI document.
+
+  Constraints:
+  - Never output YAML during the build phase.
+  - Apply all schema changes through OpenAPI write tools only.
+  - Every write operation (upsert_path, upsert_component) MUST be immediately
+    verified by reading back the result (get_path, get_component) in the same
+    step. If the read-back fails, retry the write once before reporting failure.
+  - Do not decompose work beyond two levels of subtasks. If a subtask is simple
+    enough to execute directly (e.g., one upsert_component call), execute it
+    inline rather than creating a child task.
+
+  Core approach:
+  - Work incrementally: update one path or a small related group at a time.
+  - Discover endpoints, parameters, request bodies, responses, and security from code.
+  - When new endpoints and components are discovered, add them to the schema immediately.
+  - Prefer reusable components over inline schemas when possible.
+  - Enrich both paths and components with source provenance.
+  - When a group of related schemas is needed (e.g., request + response for one
+    endpoint), create ALL schemas in a single step before adding the path that
+    references them. Never add a path that references a schema that does not yet exist.
+
+  Provenance requirements:
+  - Paths and operations: include x-file-path when supported by evidence.
+  - Reusable components: include x-file-path and x-component-path when supported by evidence.
+  - If existing paths/components lack provenance, add it during the same incremental update.
+  - Do not invent exact locations; use the strongest supported evidence.
+
+  Operating procedure:
+  1. Review prior records, and existing memories.
+
+  2. Inspect current OpenAPI state using the smallest necessary reads:
+     - list_paths, list_components, list_servers
+     - get_info, get_path, get_component
+
+  3. Check exploration coverage before planning:
+     - interaction_stats
+     - list_touched_files
+     - list_untouched_files
+     - list_match_only_files
+     Prioritize untouched, matched or weakly explored areas. Do not keep revisiting the same files
+     while relevant gaps remain.
+
+  4. Plan minimal, additive, evidence-based updates:
+     - Prefer strongly supported endpoints and components.
+     - Improve both schema quality and coverage.
+     - Before adding any path, confirm every $ref it uses already exists in
+       components. If not, create the missing component first.
+
+  5. Apply changes using write tools only:
+     - set_info, add_server, upsert_path, upsert_component
+     - remove_server, remove_path, remove_component
+     Remove only when provably incorrect; otherwise prefer deprecation or notes.
+
+  6. Verify after each write:
+     - Immediately call the corresponding read tool (get_path, get_component)
+       to confirm persistence.
+     - If verification fails, retry the write once. If it fails again, record
+       the failure and move on.
+
+  Validation rules:
+  - Coverage tools are mandatory throughout the workflow.
+  - operationIds must be stable and unique.
+  - All discovered supported paths/components must be added.
+  - New or updated paths/components must carry provenance metadata when evidence supports it.
+
+  Efficiency:
+  - Immediately add all discovered paths and components.
+  - Avoid get_full_openapi_schema except for broad consistency review or final validation.
+  - Batch closely related updates when safe (e.g., create 3 schemas in sequence,
+    then add the path that references all of them).
+  - Never output YAML during intermediate steps.
+  - Do not create separate subtasks for verification; verify inline after each write.
+  - Prefer doing work over planning work. If a step requires only one or two tool
+    calls, execute it directly instead of creating a subtask.
+
+output_format: >
+  Produce Markdown that summarizes:
+  - What was added or updated (with write-then-verify confirmation for each item)
+  - Why it was changed
+  - What evidence supports it, with file references
+  - Coverage impact, including newly touched files and reduced untouched areas
+  - What paths or components have not been added and why
+  - Any write operations that failed verification after retry
+
+  Do not paste the schema.
+  Before finishing, validate completeness with list_paths, list_components tools.
+  Ensure that you have added all discovered paths and components.

@@ -1,0 +1,89 @@
+task:
+  name: "OpenAPI Consistency Review & Repair"
+
+  objective: >
+    Review the tool-managed OpenAPI schema, verify lint findings against targeted
+    schema reads and project code, and apply the smallest evidence-based fixes
+    using OpenAPI write tools only.
+
+  instructions: >
+    Workflow: lint -> inspect -> verify -> fix -> verify -> relint.
+    Never skip verification. Never batch speculative fixes.
+    Never reconstruct or paste the full OpenAPI document.
+    Never access OpenAPI files directly; the schema is tool-managed.
+
+    Start:
+    - Always call lint_openapi first.
+    - Treat lint results as hypotheses, not facts.
+
+    Read minimally:
+    - Prefer targeted reads: get_path, get_component, get_info,
+      list_paths, list_components, list_servers.
+    - Use get_full_openapi_schema only for issues that cannot be verified otherwise.
+
+    Use code inspection only when needed:
+    - grep, ls, glob, read_file
+
+    Use memory carefully:
+    - Read memory only when it may help verify a decision.
+    - Persist only verified findings or constraints.
+
+    For each issue:
+    1. Inspect
+       - Parse the lint finding precisely.
+       - Identify the smallest affected unit: info, server, path, component, or ref.
+
+    2. Verify before fixing
+       - Confirm with targeted schema reads.
+       - Cross-check project code when relevant.
+       - If not provable, do not fix.
+
+    3. Fix only verified issues
+       - Use OpenAPI write tools only:
+         set_info, add_server, upsert_path, upsert_component,
+         remove_server, remove_path, remove_component
+       - Apply the smallest localized change.
+       - Prefer upsert over remove.
+       - Use remove_* only when clearly invalid or unsupported.
+       - Do not introduce new structures unless required to resolve the verified issue.
+
+    Continue until:
+    - all verifiable issues are fixed, or
+    - remaining issues cannot be proven with available tools.
+
+    Focus on verifiable issues such as:
+    - weak or missing info metadata
+    - missing or clearly incorrect paths
+    - missing reusable components
+    - unresolved refs
+    - invalid or duplicate servers
+    - inconsistent visible security usage
+    - missing provenance on touched entries: x-path-files, x-component-files
+
+    Constraints:
+    - Use OpenAPI write tools only for schema changes.
+    - Do not make broad or speculative edits.
+    - Do not fix anything without verification.
+    - If evidence is insufficient, report a warning/blocker instead of guessing.
+
+  output_format: >
+    Produce Markdown with:
+
+    ## Issues found
+    - issue -> fixed | warning | blocked
+
+    ## Fixes applied
+    - change
+    - tool used
+    - evidence
+
+    ## Verification reads performed
+    - read
+    - confirmation
+
+    ## Remaining warnings / blockers
+    - issue
+    - why not fixed
+    - next step
+
+    Do not paste the schema.
