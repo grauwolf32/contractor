@@ -1,6 +1,5 @@
 """
 Comprehensive tests for the code_tools module.
-
 Run with:
     pytest test_code_tools.py -v
 """
@@ -25,7 +24,6 @@ from contractor.tools.code.tools import (
     _context_snippet,
     _symbol_matches,
     _grep_file_lines,
-    _check_file_for_pattern,
     CodeTools,
     _parse_language,
     code_tools,
@@ -36,17 +34,105 @@ from contractor.tools.code.tools import (
 
 
 def make_mock_fs(files: dict[str, str]) -> MagicMock:
-    """Create a mock AbstractFileSystem with given path→content mapping."""
-    fs = MagicMock()
-    fs.find.return_value = list(files.keys())
+    """Create a mock AbstractFileSystem with given path→content mapping.
 
+    Wires up both legacy (``cat_file`` / ``find``) and modern
+    (``read_text`` / ``walk``) interfaces so tests work with
+    production code that uses either path.
+    """
+    fs = MagicMock()
+
+    # ── derive directory structure for walk() ──
+    from pathlib import PurePosixPath
+
+    dir_contents: dict[str, tuple[list[str], list[str]]] = {}
+    all_dirs: set[str] = set()
+
+    for fpath in files:
+        parent = str(PurePosixPath(fpath).parent)
+        fname = PurePosixPath(fpath).name
+        # register every ancestor as a directory
+        p = PurePosixPath(fpath).parent
+        while str(p) != p.root and str(p) != ".":
+            all_dirs.add(str(p))
+            p = p.parent
+        if str(PurePosixPath(fpath).parent.parent) != str(
+            PurePosixPath(fpath).parent
+        ):
+            all_dirs.add(str(PurePosixPath(fpath).parent.parent))
+
+        if parent not in dir_contents:
+            dir_contents[parent] = ([], [])
+        dir_contents[parent][1].append(fname)
+
+    # fill in sub-directory lists
+    for d in list(dir_contents.keys()):
+        for d2 in list(dir_contents.keys()):
+            parent_of_d2 = str(PurePosixPath(d2).parent)
+            if parent_of_d2 == d and d2 != d:
+                dirname = PurePosixPath(d2).name
+                if dirname not in dir_contents[d][0]:
+                    dir_contents[d][0].append(dirname)
+
+    # also register dirs that have no files directly
+    for d in all_dirs:
+        if d not in dir_contents:
+            dir_contents[d] = ([], [])
+            # check if any existing dir is a child
+            for d2 in list(dir_contents.keys()):
+                if str(PurePosixPath(d2).parent) == d and d2 != d:
+                    dirname = PurePosixPath(d2).name
+                    if dirname not in dir_contents[d][0]:
+                        dir_contents[d][0].append(dirname)
+
+    def walk(root, *args, **kwargs):
+        """Mock fs.walk that ignores maxdepth (not needed for shallow test trees)."""
+        root = root.rstrip("/")
+        results = []
+        for dirpath in sorted(dir_contents.keys()):
+            if dirpath == root or dirpath.startswith(root + "/"):
+                subdirs, filenames = dir_contents[dirpath]
+                results.append((dirpath, subdirs, filenames))
+        return iter(results)
+
+    fs.walk.side_effect = walk
+
+    # ── read_text: returns str ──
+    def read_text(path, encoding="utf-8", errors="strict"):
+        if path in files:
+            content = files[path]
+            if isinstance(content, bytes):
+                return content.decode(encoding, errors=errors)
+            return content
+        raise FileNotFoundError(f"No such file: {path}")
+
+    fs.read_text.side_effect = read_text
+
+    # ── cat_file: returns bytes (legacy, some tests use directly) ──
     def cat_file(path):
-        content = files.get(path, "")
-        if isinstance(content, str):
-            return content.encode("utf-8")
-        return content
+        if path in files:
+            content = files[path]
+            if isinstance(content, str):
+                return content.encode("utf-8")
+            return content
+        raise FileNotFoundError(f"No such file: {path}")
 
     fs.cat_file.side_effect = cat_file
+
+    # ── find: returns list of paths (legacy, some tests use directly) ──
+    fs.find.return_value = list(files.keys())
+
+    # ── exists / isfile ──
+    def exists(path):
+        path = path.rstrip("/")
+        return path in files or path in all_dirs
+
+    def isfile(path):
+        return path in files
+
+    fs.exists.side_effect = exists
+    fs.isfile.side_effect = isfile
+
     return fs
 
 
@@ -379,68 +465,45 @@ class TestSymbolMatches:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 6.  _grep_file_lines
+# 6.  _grep_file_lines  (now takes content: str, not fs)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestGrepFileLines:
     def test_finds_matching_line(self):
-        fs = make_mock_fs({"a.py": "line one\nhello world\nline three"})
-        matches = _grep_file_lines(fs, "a.py", "hello")
+        content = "line one\nhello world\nline three"
+        matches = _grep_file_lines(content, "a.py", "hello")
         assert len(matches) == 1
         assert matches[0].line == 2
         assert "hello world" in matches[0].text
 
     def test_no_match(self):
-        fs = make_mock_fs({"a.py": "nothing here"})
-        matches = _grep_file_lines(fs, "a.py", "xyz")
+        content = "nothing here"
+        matches = _grep_file_lines(content, "a.py", "xyz")
         assert matches == []
 
     def test_context_lines_included(self):
         content = "\n".join(f"line {i}" for i in range(10))
-        fs = make_mock_fs({"a.py": content})
-        matches = _grep_file_lines(fs, "a.py", "line 5", context_lines=2)
+        matches = _grep_file_lines(content, "a.py", "line 5", context_lines=2)
         assert len(matches) == 1
         # context: lines 3,4,5,6,7 (0-indexed 3–7 → displayed 4–8 in snippet)
         assert "line 3" in matches[0].text or "line 4" in matches[0].text
 
     def test_multiple_matches_in_file(self):
-        fs = make_mock_fs({"a.py": "foo\nbar\nfoo\nbaz"})
-        matches = _grep_file_lines(fs, "a.py", "foo", context_lines=0)
+        content = "foo\nbar\nfoo\nbaz"
+        matches = _grep_file_lines(content, "a.py", "foo", context_lines=0)
         assert len(matches) == 2
         lines = {m.line for m in matches}
         assert lines == {1, 3}
 
-    def test_read_error_returns_empty(self):
-        fs = MagicMock()
-        fs.cat_file.side_effect = IOError("disk error")
-        matches = _grep_file_lines(fs, "bad.py", "foo")
+    def test_empty_content_returns_empty(self):
+        matches = _grep_file_lines("", "a.py", "foo")
         assert matches == []
 
     def test_returns_grep_match_type(self):
-        fs = make_mock_fs({"a.py": "hello"})
-        matches = _grep_file_lines(fs, "a.py", "hello")
+        content = "hello"
+        matches = _grep_file_lines(content, "a.py", "hello")
         assert all(isinstance(m, GrepMatch) for m in matches)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 7.  _check_file_for_pattern
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestCheckFileForPattern:
-    def test_returns_path_when_found(self):
-        fs = make_mock_fs({"a.py": "def hello(): pass"})
-        assert _check_file_for_pattern(fs, "a.py", "hello") == "a.py"
-
-    def test_returns_none_when_not_found(self):
-        fs = make_mock_fs({"a.py": "def world(): pass"})
-        assert _check_file_for_pattern(fs, "a.py", "hello") is None
-
-    def test_returns_none_on_read_error(self):
-        fs = MagicMock()
-        fs.cat_file.side_effect = IOError("boom")
-        assert _check_file_for_pattern(fs, "a.py", "hello") is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -478,6 +541,7 @@ class TestCodeToolsInternals:
 
     def test_read_file_missing_returns_none(self):
         fs = MagicMock()
+        fs.read_text.side_effect = FileNotFoundError()
         fs.cat_file.side_effect = FileNotFoundError()
         ct = CodeTools(fs=fs, root="/repo")
         assert ct._read_file("/repo/missing.py") is None
@@ -509,42 +573,58 @@ class TestCodeToolsInternals:
 
     # ── _grep_files ──────────────────────────────────────────────────────────
 
-    def test_grep_files_finds_matching(self):
-        ct = self._make_tools({
-            "/repo/a.py": "def hello(): pass",
-            "/repo/b.py": "def world(): pass",
-        })
-        ct.fs.find.return_value = ["/repo/a.py", "/repo/b.py"]
-        result = ct._grep_files("hello")
-        assert "/repo/a.py" in result
-        assert "/repo/b.py" not in result
+    # ── grep pre-filter (was _grep_files, now inlined in search_definition) ──
 
-    def test_grep_files_skips_non_source(self):
-        ct = self._make_tools({
-            "/repo/a.py": "hello",
-            "/repo/readme.md": "hello",
-        })
-        ct.fs.find.return_value = ["/repo/a.py", "/repo/readme.md"]
-        result = ct._grep_files("hello")
-        assert "/repo/readme.md" not in result
+    def test_grep_prefilter_finds_matching(self):
+        """search_definition only considers files containing the symbol."""
+        ct = self._make_tools(
+            {
+                "/repo/a.py": "def hello(): pass",
+                "/repo/b.py": "def world(): pass",
+            }
+        )
+        result = ct.search_definition("hello")
+        # "hello" is defined in a.py only
+        found_files = {d.file for d in result.definitions}
+        assert "/repo/a.py" in found_files
+        assert "/repo/b.py" not in found_files
 
-    def test_grep_files_returns_sorted(self):
+    def test_grep_prefilter_skips_non_source(self):
+        """Non-source files (no known extension) are never searched."""
+        ct = self._make_tools(
+            {
+                "/repo/a.py": "def hello(): pass",
+                "/repo/readme.md": "hello is great",
+            }
+        )
+        result = ct.search_definition("hello")
+        found_files = {d.file for d in result.definitions}
+        assert "/repo/readme.md" not in found_files
+
+    def test_grep_prefilter_finds_across_multiple_files(self):
+        """When multiple files contain the symbol, all are considered."""
         files = {
-            "/repo/c.py": "hello",
-            "/repo/a.py": "hello",
-            "/repo/b.py": "hello",
+            "/repo/c.py": "def hello(): pass",
+            "/repo/a.py": "def hello(): pass",
+            "/repo/b.py": "def hello(): pass",
         }
         ct = self._make_tools(files)
-        ct.fs.find.return_value = list(files.keys())
-        result = ct._grep_files("hello")
-        assert result == sorted(result)
+        result = ct.search_definition("hello")
+        found_files = sorted(d.file for d in result.definitions)
+        assert len(found_files) == 3
+        # Results should be sorted by file
+        assert found_files == sorted(found_files)
 
-    def test_grep_files_empty_when_root_not_found(self):
+    def test_grep_prefilter_empty_when_root_not_found(self):
+        """When root doesn't exist, no files are found."""
         fs = MagicMock()
-        fs.find.side_effect = FileNotFoundError()
+        fs.exists.return_value = False
+        fs.isfile.return_value = False
+        fs.walk.return_value = iter([])
         ct = CodeTools(fs=fs, root="/missing")
-        result = ct._grep_files("anything")
-        assert result == []
+        result = ct.search_definition("anything")
+        assert result.definitions == []
+        assert result.grep_matches == []
 
     # ── clear_cache / invalidate_file ────────────────────────────────────────
 
@@ -581,7 +661,6 @@ class TestCodeToolsInternals:
 class TestSearchDefinition:
     def _make_tools(self, files: dict[str, str]) -> CodeTools:
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         return CodeTools(fs=fs, root="/repo")
 
     def test_finds_python_function(self):
@@ -610,18 +689,22 @@ class TestSearchDefinition:
         assert result.definitions == []
 
     def test_language_filter_excludes_other_langs(self):
-        ct = self._make_tools({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": "function hello() {}",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": "function hello() {}",
+            }
+        )
         result = ct.search_definition("hello", language_filter=Language.PYTHON)
         assert all(d.language == "python" for d in result.definitions)
 
     def test_definitions_sorted_by_file_and_line(self):
-        ct = self._make_tools({
-            "/repo/b.py": "def hello(): pass\n",
-            "/repo/a.py": "def hello(): pass\n",
-        })
+        ct = self._make_tools(
+            {
+                "/repo/b.py": "def hello(): pass\n",
+                "/repo/a.py": "def hello(): pass\n",
+            }
+        )
         result = ct.search_definition("hello")
         if len(result.definitions) > 1:
             files = [d.file for d in result.definitions]
@@ -639,15 +722,15 @@ class TestSearchDefinition:
             "/repo/tests/b.py": "def hello(): pass\n",
         }
         fs = make_mock_fs(files)
-        # restrict find to only src
-        fs.find.return_value = ["/repo/src/a.py"]
         ct = CodeTools(fs=fs, root="/repo")
         result = ct.search_definition("hello", path="src")
         assert all("src" in d.file for d in result.definitions)
 
     def test_empty_candidate_list_returns_empty(self):
         fs = MagicMock()
-        fs.find.return_value = []
+        fs.exists.return_value = False
+        fs.isfile.return_value = False
+        fs.walk.return_value = iter([])
         ct = CodeTools(fs=fs, root="/repo")
         result = ct.search_definition("hello")
         assert result.definitions == []
@@ -682,7 +765,6 @@ class TestSearchDefinition:
 class TestListSymbols:
     def _make_tools(self, files: dict[str, str]) -> CodeTools:
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         return CodeTools(fs=fs, root="/repo")
 
     def test_lists_python_symbols(self):
@@ -693,10 +775,12 @@ class TestListSymbols:
         assert "Greeter" in names
 
     def test_language_filter(self):
-        ct = self._make_tools({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-        })
+        ct = self._make_tools(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+            }
+        )
         symbols = ct.list_symbols(language_filter=Language.PYTHON)
         assert all(s.language == "python" for s in symbols)
 
@@ -707,7 +791,6 @@ class TestListSymbols:
 
     def test_empty_when_no_source_files(self):
         fs = make_mock_fs({"/repo/readme.md": "# Hello"})
-        fs.find.return_value = ["/repo/readme.md"]
         ct = CodeTools(fs=fs, root="/repo")
         symbols = ct.list_symbols()
         assert symbols == []
@@ -719,7 +802,9 @@ class TestListSymbols:
 
     def test_root_not_found_returns_empty(self):
         fs = MagicMock()
-        fs.find.side_effect = FileNotFoundError()
+        fs.exists.return_value = False
+        fs.isfile.return_value = False
+        fs.walk.return_value = iter([])
         ct = CodeTools(fs=fs, root="/missing")
         assert ct.list_symbols() == []
 
@@ -801,7 +886,6 @@ class TestParseLanguage:
 class TestCodeToolsFactory:
     def _make_tools_list(self, files: dict[str, str]):
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         return code_tools(fs=fs, root="/repo")
 
     def test_returns_two_tools(self):
@@ -865,10 +949,12 @@ class TestCodeToolsFactory:
             assert result_offset["result"][0] != result_all["result"][0]
 
     def test_list_symbols_language_filter(self):
-        tools = self._make_tools_list({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-        })
+        tools = self._make_tools_list(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+            }
+        )
         _, list_syms = tools
         result = list_syms(language="python")
         assert all(s["language"] == "python" for s in result["result"])
@@ -902,8 +988,16 @@ class TestCodeToolsFactory:
         assert "total_items" in result
         if result["kind"] == "definition":
             item = result["result"][0]
-            for key in ("symbol", "file", "line", "end_line", "column",
-                        "node_type", "language", "context"):
+            for key in (
+                "symbol",
+                "file",
+                "line",
+                "end_line",
+                "column",
+                "node_type",
+                "language",
+                "context",
+            ):
                 assert key in item
 
 
@@ -915,7 +1009,6 @@ class TestCodeToolsFactory:
 class TestMultiLanguageIntegration:
     def _ct(self, files: dict[str, str]) -> CodeTools:
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         return CodeTools(fs=fs, root="/repo")
 
     def test_go_function_found(self):
@@ -961,12 +1054,14 @@ class TestMultiLanguageIntegration:
         assert "Config" in names
 
     def test_mixed_repo_all_langs(self):
-        ct = self._ct({
-            "/repo/a.py": SIMPLE_PYTHON,
-            "/repo/b.js": SIMPLE_JS,
-            "/repo/c.go": SIMPLE_GO,
-            "/repo/d.rs": SIMPLE_RUST,
-        })
+        ct = self._ct(
+            {
+                "/repo/a.py": SIMPLE_PYTHON,
+                "/repo/b.js": SIMPLE_JS,
+                "/repo/c.go": SIMPLE_GO,
+                "/repo/d.rs": SIMPLE_RUST,
+            }
+        )
         symbols = ct.list_symbols()
         langs = {s.language for s in symbols}
         assert "python" in langs
@@ -983,27 +1078,26 @@ class TestMultiLanguageIntegration:
 class TestEdgeCases:
     def test_empty_file(self):
         fs = make_mock_fs({"/repo/a.py": ""})
-        fs.find.return_value = ["/repo/a.py"]
         ct = CodeTools(fs=fs, root="/repo")
         symbols = ct.list_symbols()
         assert symbols == []
 
     def test_binary_like_content_does_not_crash(self):
+        # Create a mock that returns binary content via read_text (decoded)
         content = bytes(range(256))
-        fs = MagicMock()
-        fs.find.return_value = ["/repo/a.py"]
-        fs.cat_file.return_value = content
+        fs = make_mock_fs({"/repo/a.py": content.decode("utf-8", errors="ignore")})
         ct = CodeTools(fs=fs, root="/repo")
         # Should not raise
         result = ct.search_definition("anything")
         assert isinstance(result, SearchResult)
 
     def test_very_long_function_context_truncated(self):
-        many_lines = "def big():\n" + "\n".join(
-            f"    x_{i} = {i}" for i in range(100)
-        ) + "\n"
+        many_lines = (
+            "def big():\n"
+            + "\n".join(f"    x_{i} = {i}" for i in range(100))
+            + "\n"
+        )
         fs = make_mock_fs({"/repo/a.py": many_lines})
-        fs.find.return_value = ["/repo/a.py"]
         ct = CodeTools(fs=fs, root="/repo", max_context_lines=15)
         result = ct.search_definition("big")
         if result.definitions:
@@ -1012,7 +1106,6 @@ class TestEdgeCases:
 
     def test_symbol_with_dot_notation(self):
         fs = make_mock_fs({"/repo/a.py": SIMPLE_PYTHON})
-        fs.find.return_value = ["/repo/a.py"]
         ct = CodeTools(fs=fs, root="/repo")
         # "Greeter.greet" should find "greet" via leaf matching
         result = ct.search_definition("Greeter.greet")
@@ -1022,35 +1115,95 @@ class TestEdgeCases:
     def test_search_with_unicode_content(self):
         content = 'def héllo():\n    return "Héllo"\n'
         fs = make_mock_fs({"/repo/a.py": content})
-        fs.find.return_value = ["/repo/a.py"]
         ct = CodeTools(fs=fs, root="/repo")
         result = ct.search_definition("héllo")
         assert isinstance(result, SearchResult)
 
-    def test_concurrent_grep_files_stable(self):
+    def test_repeated_search_stable(self):
+        """Searching the same symbol twice returns identical results."""
         files = {f"/repo/{i}.py": f"def fn_{i}(): pass\n" for i in range(20)}
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         ct = CodeTools(fs=fs, root="/repo", max_workers=4)
-        result1 = ct._grep_files("fn_0")
-        result2 = ct._grep_files("fn_0")
-        assert result1 == result2
+        result1 = ct.search_definition("fn_0")
+        result2 = ct.search_definition("fn_0")
+        assert len(result1.definitions) == len(result2.definitions)
+        assert [d.file for d in result1.definitions] == [
+            d.file for d in result2.definitions
+        ]
 
     def test_file_read_error_during_search(self):
+        """When read_text fails for a file, search should skip it gracefully."""
         fs = MagicMock()
-        fs.find.return_value = ["/repo/a.py"]
-        # First call to cat_file (grep phase) succeeds, second (parse) fails
-        fs.cat_file.side_effect = [b"def hello(): pass", IOError("read error")]
+        fs.exists.return_value = True
+        fs.isfile.return_value = False
+        # walk returns one file
+        fs.walk.return_value = iter([("/repo", [], ["a.py"])])
+        # read_text always fails — the file can't be read at all
+        fs.read_text.side_effect = IOError("read error")
         ct = CodeTools(fs=fs, root="/repo")
-        # Should not raise
+        # Should not raise; file is simply skipped
         result = ct.search_definition("hello")
         assert isinstance(result, SearchResult)
+        assert result.definitions == []
+        assert result.grep_matches == []
 
     def test_search_def_grep_fallback_respects_max(self):
         content = "hello\n" * 30
         files = {f"/repo/{i}.py": content for i in range(5)}
         fs = make_mock_fs(files)
-        fs.find.return_value = list(files.keys())
         ct = CodeTools(fs=fs, root="/repo")
         result = ct.search_definition("hello", max_grep_results=5)
         assert len(result.grep_matches) <= 5
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. _resolve_root path handling
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestResolveRoot:
+    """Tests for CodeTools._resolve_root to prevent the double-slash hang."""
+
+    def _ct(self, root: str = "/repo") -> CodeTools:
+        fs = MagicMock()
+        return CodeTools(fs=fs, root=root)
+
+    def test_empty_path_returns_root(self):
+        ct = self._ct("/repo")
+        assert ct._resolve_root("") == "/repo"
+
+    def test_relative_path_joined(self):
+        ct = self._ct("/repo")
+        resolved = ct._resolve_root("src")
+        assert resolved == "/repo/src"
+
+    def test_absolute_path_used_directly(self):
+        ct = self._ct("/repo")
+        resolved = ct._resolve_root("/online/wsd")
+        assert resolved == "/online/wsd"
+
+    def test_no_double_slashes(self):
+        ct = self._ct("/")
+        resolved = ct._resolve_root("/online/wsd")
+        assert "//" not in resolved
+
+    def test_no_double_slashes_with_trailing_root(self):
+        ct = self._ct("/repo/")
+        resolved = ct._resolve_root("src/")
+        assert "//" not in resolved
+
+    def test_bare_slash_root_empty_path(self):
+        ct = self._ct("/")
+        resolved = ct._resolve_root("")
+        assert resolved == "/"
+
+    def test_bare_slash_root_relative_path(self):
+        ct = self._ct("/")
+        resolved = ct._resolve_root("src")
+        assert resolved == "/src"
+
+    def test_relative_path_with_leading_slash_stripped(self):
+        """Even if path looks absolute, no double slashes appear."""
+        ct = self._ct("/repo")
+        resolved = ct._resolve_root("/sub/dir")
+        assert "//" not in resolved
