@@ -18,7 +18,7 @@ task:
 
   instructions: >
 
-    # ── ANNOTATION FORMAT ────────────────────────────────────────────────────
+    # ── ANNOTATION FORMAT ──────────────────────────────────────────────────
     #
     # Insert directly above `def` (or equivalent). Never mid-function or after.
     #
@@ -41,7 +41,7 @@ task:
     #   derived   — computed from other args; inherits worst state of inputs
     #               (tainted + clean without validation = derived, never clean)
 
-    # ── SINK CATALOGUE ───────────────────────────────────────────────────────
+    # ── SINK CATALOGUE ─────────────────────────────────────────────────────
     #
     # DATABASE
     #   db.query            db.exec           db.query.raw (SQLi risk)
@@ -85,7 +85,7 @@ task:
     # IPC / INTER-SERVICE
     #   grpc.call   ipc.pipe   ldap.query   xpath.query   nosql.query
 
-    # ── SINK → VULNERABILITY CLASS (guidance) ───────────────────────────────
+    # ── SINK → VULNERABILITY CLASS (guidance) ──────────────────────────────
     #
     # db.query.raw / db.exec.raw  → SQL Injection
     # shell.exec                  → OS Command Injection / RCE
@@ -105,8 +105,21 @@ task:
     # secret.log / log.write      → Sensitive Data Exposure
     # crypto.random.seed          → Weak Randomness
     # reflect.attr / db.orm.bulk  → Mass Assignment
+    #
+    # IMPORTANT — sink kind governs injection class:
+    # - db.exec and db.query (ORM/parameterized) do NOT map to SQL Injection.
+    #   Only db.query.raw / db.exec.raw (string concatenation or text() with
+    #   f-string/%-format) constitute SQLi candidates. Tainted data stored via
+    #   ORM is expected behaviour, not a vulnerability.
+    # - html.render (XSS) applies only when the rendering call is visible in
+    #   THIS service's code path. Data persisted to DB and later rendered by
+    #   a separate frontend service is out of scope unless that render path
+    #   is also traced.
+    # - "data reaches a sink" ≠ vulnerability. The structural question is
+    #   whether tainted data controls the QUERY STRUCTURE / COMMAND, not
+    #   merely its parameter values.
 
-    # ── EXECUTION PHASES ─────────────────────────────────────────────────────
+    # ── EXECUTION PHASES ───────────────────────────────────────────────────
 
     ## Phase 1 — Plan (complete before any file changes)
 
@@ -131,12 +144,23 @@ task:
         - sink kind (if @sink)
         - any uncertainty
 
+    1d. Root-cause deduplication
+        - Before adding a finding, check whether the same root cause (same
+          vulnerable code location, same mechanism) was already reported for
+          another operation in this session.
+        - If yes: note the duplicate in Uncertainties and do NOT call
+          report_vulnerability again. Reference the prior slug instead.
+        - A shared bypass function (e.g. _is_dwh_integration) triggered on
+          multiple endpoints is ONE root-cause finding, not N findings.
+
     ## Phase 2 — Infer annotation content
 
     2a. Arg states: request params → tainted; computed from tainted without
         validation → derived; passes explicit validation → validated.
+
     2b. @validate: only if validation code is visible in THIS function's body.
         Do NOT infer from function names alone.
+
     2c. @sink: only if call site is visible in THIS function's body.
         Use most specific catalogue kind. Arg unknown if not determinable.
 
@@ -149,40 +173,91 @@ task:
 
     ## Phase 4 — Vulnerability report
 
-    4a. Any tainted/derived arg reaching a sink WITHOUT @validate on the path
-        is a vulnerability candidate. Also consider: broken access control,
-        missing auth check, insecure defaults, sensitive data exposure.
+    4a. Vulnerability candidate criteria — ALL must hold:
+        (i)   A tainted/derived arg reaches a sink visible in the traced code,
+              AND the arg controls query/command STRUCTURE (not just value); OR
+              an authorization check is provably absent/bypassable on the traced
+              path.
+        (ii)  The vulnerability is exploitable given realistic prerequisites
+              (see §4e). Hypothetical prerequisites lower confidence, not
+              severity on their own.
+        (iii) The finding has not already been reported this session (§1d).
 
-    4b For each vulnerability, call report_vulnerablity once:
+        Also consider: broken access control, missing auth check, insecure
+        defaults, sensitive data exposure — subject to the same criteria.
 
-          report_vulnerablity(
+    4b. For each vulnerability, call report_vulnerability once:
+
+          report_vulnerability(
             name       = "<kebab-case-slug>",          # stable, deterministic
             place_type = "<file|url>",
             place      = "<file-path-or-api-path>",
             title      = "<short human-readable title>",
             summary    = "<what is vulnerable; what attacker can do>",
             severity   = "<critical|high|medium|low|info>",
-            # critical: RCE, full breach, auth bypass
-            # high:     significant exposure, privilege escalation
-            # medium:   limited impact, requires chaining
-            # low:      defence-in-depth, minor leak
-            # info:     observation, not directly exploitable
+            # critical: RCE, full auth bypass, full data breach
+            # high:     significant exposure, privilege escalation,
+            #           cross-tenant data access with realistic prerequisites
+            # medium:   limited impact, requires chaining or non-default config
+            # low:      defence-in-depth gap, minor information leak
+            # info:     observation only, not directly exploitable
             confidence = "<high|medium|low>",
-            # high:   sink + tainted arg both clearly visible
-            # medium: sink visible, data-flow requires assumptions
-            # low:    circumstantial, needs further review
-            details    = "<affected function/file, sink kind, arg name, "
-                        "tainted arg trace, PoC notes, recommended mitigation>",
+            # high:   sink + tainted arg + exploitability all clearly visible
+            # medium: sink visible, data-flow or exploitability requires
+            #         assumptions about code not directly read
+            # low:    circumstantial, incomplete trace, needs further review
+            details    = "<affected function/file, sink kind, arg name,
+                          tainted arg trace, verified prerequisites,
+                          PoC notes, recommended mitigation>",
           )
 
     4c. If no vulnerabilities found, do not call report_vulnerability.
     4d. One call per vulnerability — do not batch.
 
-    # ── CONSERVATIVE POLICY ──────────────────────────────────────────────────
+    4e. Prerequisite verification (mandatory before assigning severity)
+        For every candidate finding, explicitly state and verify:
+
+        AUTH LAYER
+        - Is there authentication middleware upstream of this handler?
+          If yes: unauthenticated exploitation is not a valid PoC.
+          Reduce scope to authenticated-attacker model.
+
+        HEADER TRUST BOUNDARY
+        - Are the relevant headers (e.g. X-Subject, X-Subject-Kind) set by a
+          trusted proxy/gateway that strips client-supplied values?
+          If the infrastructure config (Oathkeeper, Nginx, Envoy rules) shows
+          headers are injected by the proxy, NOT forwarded from clients:
+          the bypass is not externally exploitable → lower confidence to medium
+          or low, note the infrastructure dependency explicitly.
+        - If the config is NOT available for review: state this as an
+          uncertainty; do not assume exploitability.
+
+        INJECTION MECHANICS
+        - For SQL/command injection: confirm the sink uses string concatenation
+          or equivalent (text() + f-string, % formatting, raw execute with
+          user input). ORM parameterized calls (session.add, .filter(col==val))
+          are NOT injection sinks regardless of input taint.
+        - For XSS: confirm a render call in THIS service's traced path outputs
+          tainted data to HTML without escaping. Data stored to DB is not XSS
+          unless the render path is also traced.
+
+        CONFIGURATION-DEPENDENT RISKS
+        - Feature flags / toggles that disable security checks: report as
+          medium/low with confidence low unless you can confirm the toggle
+          is exposed to untrusted actors or is off by default in production.
+          Do not report as high/critical based solely on the toggle existing.
+
+    # ── CONSERVATIVE POLICY ────────────────────────────────────────────────
     # - Prefer missing annotations over incorrect ones.
     # - Never invent calls, sinks, or validation not visible in the code.
     # - When uncertain, skip and record in Uncertainties.
-    # - Use only catalogue sink kinds; pick closest match or omit @sink.
+    # - Use only catalogue sink kinds; pick closest match or omit.
+    # - "tainted data flows to db.exec" is NOT sufficient for a finding.
+    #   The structural control condition (§4e, Injection Mechanics) must hold.
+    # - Do not split one root cause across multiple report_vulnerability calls
+    #   to inflate the finding count.
+    # - Severity reflects exploitability in realistic deployment context,
+    #   not worst-case theoretical impact.
 
   output_format: >
 
@@ -195,6 +270,10 @@ task:
     ### Function Selection
     | # | Function | File | Annotations | Sink kind | Reasoning |
     |---|----------|------|-------------|-----------|-----------|
+
+    ### Duplicate / Root-Cause Check
+    - <list any root causes already reported this session, with prior slug>
+    - <or "None — first occurrence of all candidates">
 
     ---
 
@@ -216,7 +295,18 @@ task:
 
     - **Entrypoint:** `<function>` in `<file>`
     - **Data flow:**
-      `<param>` → `<fn A>` (tainted) → `<fn B>` (derived) → `<fn C>` (@sink db.query.raw) ⚠ SQL Injection
+      `<param>` → `<fn A>` (tainted) → `<fn B>` (derived) → `<fn C>`
+      (@sink db.query.raw) ⚠ SQL Injection
+
+    ---
+
+    ## Prerequisite Verification
+
+    | Finding candidate | Auth layer present? | Headers client-controllable? | Injection structural? | Config-dependent? |
+    |---|---|---|---|---|
+    | <slug> | <yes/no/unknown> | <yes/no/unknown> | <yes/no/n-a> | <yes/no> |
+
+    _(Complete this table before assigning severity. Unknown = lower confidence.)_
 
     ---
 
@@ -230,11 +320,11 @@ task:
 
     ## Vulnerability Report Summary
 
-    | Slug | Title | Severity | Confidence | Place |
-    |------|-------|----------|------------|-------|
+    | Slug | Title | Severity | Confidence | Place | Prerequisites verified |
+    |------|-------|----------|------------|-------|----------------------|
 
-    _(One row per report_vulnerablity call. If none: single info row.)_
-    
+    _(One row per report_vulnerability call. If none: single info row.)_
+
     ---
 
     ## Uncertainties
@@ -244,3 +334,6 @@ task:
     - **Validation gaps:** <possible but not visible validation>
     - **Sink confidence:** <probable but unconfirmed sinks>
     - **Missed branches:** <paths not followed and why>
+    - **Infrastructure unknowns:** <gateway config not reviewed, header
+      stripping unconfirmed, auth middleware not traced>
+    - **Duplicate root causes deferred:** <slug → prior report reference>

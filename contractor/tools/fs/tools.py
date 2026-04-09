@@ -229,6 +229,16 @@ class FsspecInteractionFileTools:
             "operations": dict(entry.operations),
         }
 
+    def _resolve_root(self, path: str | None = None) -> str:
+        raw = self.root if not path else path
+        raw = normalize_slashes(raw)
+
+        if not raw.startswith("/"):
+            raw = f"{self.root.rstrip('/')}/{raw.lstrip('/')}"
+
+        cleaned = "/" + "/".join(part for part in raw.split("/") if part)
+        return cleaned or "/"
+
     def record_interaction(
         self,
         path: str,
@@ -287,6 +297,8 @@ class FsspecInteractionFileTools:
         offset: int = 0,
     ) -> ToolResult:
         normalized_path = self._norm_optional(path) or "/"
+        normalized_path = self._resolve_root(normalized_path)
+        
         normalized_pattern = self._norm_optional(pattern)
 
         if normalized_pattern is None:

@@ -1123,7 +1123,7 @@ class TestEdgeCases:
         """Searching the same symbol twice returns identical results."""
         files = {f"/repo/{i}.py": f"def fn_{i}(): pass\n" for i in range(20)}
         fs = make_mock_fs(files)
-        ct = CodeTools(fs=fs, root="/repo", max_workers=4)
+        ct = CodeTools(fs=fs, root="/repo")
         result1 = ct.search_definition("fn_0")
         result2 = ct.search_definition("fn_0")
         assert len(result1.definitions) == len(result2.definitions)

@@ -5,16 +5,19 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
-from tree_sitter import Node, Tree
+from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_parser
 from fsspec import AbstractFileSystem
 
+from contractor.utils.formatting import (
+    norm_unicode,
+    normalize_slashes,
+)
+
 logger = logging.getLogger(__name__)
 
-# Maximum time (seconds) to wait for a single filesystem operation.
-_FS_TIMEOUT_SECONDS = 30
 # Guard against infinite directory traversal.
 _MAX_WALK_DEPTH = 50
 # Maximum number of files to visit in a single traversal to prevent runaway scans.
@@ -318,7 +321,7 @@ class SearchResult:
     grep_matches: list[GrepMatch]
     is_fallback: bool
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         if self.definitions:
             return {
                 "result": [
@@ -378,8 +381,6 @@ class _CacheEntry:
 
 
 # ─── Filesystem helpers ───────────────────────────────────────────────
-
-
 def _join_path(directory: str, filename: str) -> str:
     """Join directory and filename with forward slashes."""
     return f"{str(directory).rstrip('/')}/{filename}".replace("\\", "/")
@@ -397,8 +398,12 @@ def _iter_all_files(
     Protections against hangs:
     - *max_depth* caps how many directory levels we descend.
     - *max_files* caps the total number of file paths yielded.
-    - Tracks visited **directory** real-paths (not just file paths) to break
-      symlink cycles.
+    - Tracks visited directory path strings to reduce repeated traversal.
+
+    Note:
+    This is not the same as resolving real paths, so it is only a best-effort
+    guard against cycles on filesystems that expose symlinked directories
+    through multiple path aliases.
     """
     try:
         if not fs.exists(root):
@@ -414,18 +419,14 @@ def _iter_all_files(
     seen_files: set[str] = set()
     file_count = 0
 
-    # fs.walk yields (dirpath, dirnames, filenames).  We track depth by
-    # counting separators relative to the root.
     root_depth = root.rstrip("/").count("/")
 
     try:
         for current_path, _dirs, filenames in fs.walk(root, maxdepth=max_depth):
-            # ── depth guard (in case backend ignores maxdepth) ──
             current_depth = current_path.rstrip("/").count("/") - root_depth
             if current_depth > max_depth:
                 continue
 
-            # ── cycle guard on directories ──
             normalized_dir = current_path.rstrip("/")
             if normalized_dir in seen_dirs:
                 continue
@@ -463,6 +464,49 @@ def _read_text_safe(fs: AbstractFileSystem, path: str) -> Optional[str]:
 
 
 # ─── Core helpers ─────────────────────────────────────────────────────
+def _extract_text(node: Node, source: bytes) -> str:
+    return (
+        source[node.start_byte : node.end_byte]
+        .decode("utf-8", errors="replace")
+        .strip()
+    )
+
+
+def _extract_name_from_field(
+    node: Node,
+    source: bytes,
+    field_name: str,
+) -> Optional[str]:
+    if not field_name:
+        return None
+
+    child = node.child_by_field_name(field_name)
+    if child is None:
+        return None
+
+    if child.type in {
+        "function_declarator",
+        "pointer_declarator",
+        "parenthesized_declarator",
+        "reference_declarator",
+        "abstract_declarator",
+    }:
+        inner = _extract_name_from_node(child, source)
+        if inner:
+            return inner
+
+    if child.type in {
+        "function_definition",
+        "class_definition",
+        "async_function_definition",
+    }:
+        return _extract_name_from_node(child, source)
+
+    text = _extract_text(child, source)
+    ident = text.split("(")[0].split("<")[0].split("[")[0].strip()
+    return ident or None
+
+
 def _extract_all_definitions(
     node: Node,
     source: bytes,
@@ -471,12 +515,17 @@ def _extract_all_definitions(
     language: Language,
 ) -> list[SymbolEntry]:
     results: list[SymbolEntry] = []
-    spec_types = {s.node_type for s in specs}
+    spec_map = {s.node_type: s for s in specs}
+    spec_types = set(spec_map)
     stack: list[Node] = [node]
+
     while stack:
         current = stack.pop()
         if current.type in spec_types:
-            name = _extract_name_from_node(current, source)
+            spec = spec_map[current.type]
+            name = _extract_name_from_node(
+                current, source, preferred_field=spec.name_field
+            )
             if name:
                 results.append(
                     SymbolEntry(
@@ -493,13 +542,19 @@ def _extract_all_definitions(
     return results
 
 
-def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
+def _extract_name_from_node(
+    node: Node,
+    source: bytes,
+    preferred_field: str = "",
+) -> Optional[str]:
     """Best-effort extraction of the defined symbol name from a node."""
+    preferred = _extract_name_from_field(node, source, preferred_field)
+    if preferred:
+        return preferred
+
     if node.type == "call" and node.child_count >= 2:
         keyword_node = node.children[0]
-        keyword = source[keyword_node.start_byte : keyword_node.end_byte].decode(
-            "utf-8", errors="replace"
-        )
+        keyword = _extract_text(keyword_node, source)
         if keyword in (
             "def",
             "defp",
@@ -511,17 +566,12 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
             args_node = node.children[1]
             if args_node.child_count > 0:
                 first = args_node.children[0]
-                name_text = source[first.start_byte : first.end_byte].decode(
-                    "utf-8", errors="replace"
-                )
+                name_text = _extract_text(first, source)
                 return name_text.split("(")[0].strip()
         return None
 
     if node.type in ("function", "signature") and node.child_count > 0:
-        first = node.children[0]
-        return source[first.start_byte : first.end_byte].decode(
-            "utf-8", errors="replace"
-        ).strip()
+        return _extract_text(node.children[0], source) or None
 
     if node.type in (
         "data_declaration",
@@ -532,9 +582,7 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     ):
         for child in node.children:
             if child.type == "name" or child.is_named:
-                text = source[child.start_byte : child.end_byte].decode(
-                    "utf-8", errors="replace"
-                ).strip()
+                text = _extract_text(child, source)
                 if text and text not in (
                     "data",
                     "newtype",
@@ -568,21 +616,12 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
         return None
 
     if node.type == "variable_declarator":
-        name_child = node.child_by_field_name("name")
-        if name_child:
-            return (
-                source[name_child.start_byte : name_child.end_byte]
-                .decode("utf-8", errors="replace")
-                .strip()
-            )
-        return None
+        return _extract_name_from_field(node, source, "name")
 
     if node.type == "property_declaration":
         for child in node.children:
             if child.type in ("simple_identifier", "identifier"):
-                return source[child.start_byte : child.end_byte].decode(
-                    "utf-8", errors="replace"
-                ).strip()
+                return _extract_text(child, source) or None
         return None
 
     if node.type == "secondary_constructor":
@@ -591,9 +630,7 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     if node.type == "extension_declaration":
         for child in node.children:
             if child.type in ("user_type", "type_identifier"):
-                return source[child.start_byte : child.end_byte].decode(
-                    "utf-8", errors="replace"
-                ).strip()
+                return _extract_text(child, source) or None
         return None
 
     if node.type == "init_declaration":
@@ -608,24 +645,18 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
     if node.type == "assignment_statement":
         var_list = node.child_by_field_name("variable")
         if var_list is not None:
-            return source[var_list.start_byte : var_list.end_byte].decode(
-                "utf-8", errors="replace"
-            ).strip()
+            return _extract_text(var_list, source) or None
         return None
 
     if node.type == "local_variable_declaration":
         name_list = node.child_by_field_name("name")
         if name_list is not None:
-            return source[name_list.start_byte : name_list.end_byte].decode(
-                "utf-8", errors="replace"
-            ).strip()
+            return _extract_text(name_list, source) or None
         return None
 
     if node.type in ("impl_item", "template_declaration"):
-        text = source[node.start_byte : node.end_byte].decode(
-            "utf-8", errors="replace"
-        )
-        first_line = text.splitlines()[0].strip()
+        text = _extract_text(node, source)
+        first_line = text.splitlines()[0].strip() if text else ""
         return first_line[:80] or None
 
     for fname in ("name", "declarator", "pattern", "definition"):
@@ -648,9 +679,7 @@ def _extract_name_from_node(node: Node, source: bytes) -> Optional[str]:
             "async_function_definition",
         ):
             return _extract_name_from_node(child, source)
-        text = source[child.start_byte : child.end_byte].decode(
-            "utf-8", errors="replace"
-        )
+        text = _extract_text(child, source)
         ident = text.split("(")[0].split("<")[0].split("[")[0].strip()
         if ident:
             return ident
@@ -662,9 +691,7 @@ def _context_snippet(source: bytes, node: Node, max_lines: int = 15) -> str:
     text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
     lines = text.splitlines()
     if len(lines) > max_lines:
-        lines = lines[:max_lines] + [
-            f"    ... ({len(lines) - max_lines} more lines)"
-        ]
+        lines = lines[:max_lines] + [f"    ... ({len(lines) - max_lines} more lines)"]
     return "\n".join(lines)
 
 
@@ -691,12 +718,17 @@ def _walk_for_definitions(
     language: Language,
 ) -> list[DefinitionResult]:
     results: list[DefinitionResult] = []
-    spec_types = {s.node_type for s in specs}
+    spec_map = {s.node_type: s for s in specs}
+    spec_types = set(spec_map)
     stack: list[Node] = [node]
+
     while stack:
         current = stack.pop()
         if current.type in spec_types:
-            name = _extract_name_from_node(current, source)
+            spec = spec_map[current.type]
+            name = _extract_name_from_node(
+                current, source, preferred_field=spec.name_field
+            )
             if name is not None and _symbol_matches(name, symbol):
                 results.append(
                     DefinitionResult(
@@ -725,20 +757,19 @@ def _grep_file_lines(
     """Return lines containing *pattern* with surrounding context.
 
     Accepts already-read *content* so the caller controls I/O.
+    Matching is case-insensitive to mirror symbol resolution behavior.
     """
     lines = content.splitlines()
     matches: list[GrepMatch] = []
-    seen_lines: set[int] = set()
+    needle = pattern.casefold()
+
     for i, line in enumerate(lines):
-        if pattern not in line:
-            continue
-        if i in seen_lines:
+        if needle not in line.casefold():
             continue
         start = max(0, i - context_lines)
         end = min(len(lines), i + context_lines + 1)
         snippet = "\n".join(f"{j + 1}: {lines[j]}" for j in range(start, end))
         matches.append(GrepMatch(file=path, line=i + 1, text=snippet))
-        seen_lines.add(i)
     return matches
 
 
@@ -749,18 +780,16 @@ class CodeTools:
     Searches for symbol definitions using tree-sitter with grep fallback.
 
     Uses fsspec to find candidate files containing the symbol, then parses
-    them with tree-sitter to locate precise definitions.  When no tree-sitter
+    them with tree-sitter to locate precise definitions. When no tree-sitter
     definition is found, returns the raw grep matches instead.
 
     File contents are read **once** per search and reused across the grep
     pre-filter, tree-sitter parsing, and fallback grep phases to minimise
-    I/O and avoid repeated calls into the filesystem backend (which is the
-    most common source of hangs).
+    I/O and avoid repeated calls into the filesystem backend.
     """
 
     fs: AbstractFileSystem
     root: str = "/"
-    max_workers: int = 8
     max_context_lines: int = 15
     grep_context_lines: int = 2
     max_walk_depth: int = _MAX_WALK_DEPTH
@@ -771,6 +800,15 @@ class CodeTools:
     _resolution_cache: dict[tuple[str, str], _CacheEntry] = field(
         default_factory=dict, init=False, repr=False
     )
+    _parser_cache: dict[Language, Parser] = field(
+        default_factory=dict, init=False, repr=False
+    )
+
+    def _norm(self, path: str) -> str:
+        result = norm_unicode(path)
+        if result is None:
+            raise ValueError(f"Cannot normalize path: {path!r}")
+        return result
 
     def _resolve_root(self, path: str = "") -> str:
         """Turn *path* into an absolute search root.
@@ -783,18 +821,25 @@ class CodeTools:
         Always normalises away double slashes and trailing slashes
         (except for bare "/").
         """
-        if not path:
-            raw = self.root
-        elif path.startswith("/"):
-            raw = path
-        else:
-            raw = f"{self.root.rstrip('/')}/{path.lstrip('/')}"
+        raw = self.root if not path else path
+        raw = normalize_slashes(raw)
 
-        # Collapse repeated slashes and strip trailing slash
-        # but keep at least "/"
-        cleaned = "/".join(part for part in raw.split("/") if part)
-        return f"/{cleaned}" if raw.startswith("/") else cleaned or "/"
-    
+        if not raw.startswith("/"):
+            raw = f"{self.root.rstrip('/')}/{raw.lstrip('/')}"
+
+        cleaned = "/" + "/".join(part for part in raw.split("/") if part)
+        return self._norm(cleaned or "/")
+
+    def _normalize_cache_path(self, path: str) -> str:
+        return self._norm(normalize_slashes(path))
+
+    def _get_parser(self, lang: Language) -> Parser:
+        parser = self._parser_cache.get(lang)
+        if parser is None:
+            parser = get_parser(lang.value)
+            self._parser_cache[lang] = parser
+        return parser
+
     # ── Public ────────────────────────────────────────────────────────
     def search_definition(
         self,
@@ -811,20 +856,25 @@ class CodeTools:
         content for tree-sitter parsing and grep fallback.
         """
         search_symbol = symbol.rsplit(".", 1)[-1]
-        search_root = self._resolve_root(path)          # ← fixed
+        search_root = self._resolve_root(path)
+        needle = search_symbol.casefold()
 
-        candidate_contents: list[tuple[str, str]] = []
+        candidate_contents: list[tuple[str, Language, str]] = []
         for fpath in _iter_all_files(
             self.fs,
-            search_root,                                 # ← uses resolved root
+            search_root,
             max_depth=self.max_walk_depth,
             max_files=self.max_files,
         ):
-            if detect_language(fpath) is None:
+            lang = detect_language(fpath)
+            if lang is None:
                 continue
+            if language_filter is not None and lang != language_filter:
+                continue
+
             text = _read_text_safe(self.fs, fpath)
-            if text is not None and search_symbol in text:
-                candidate_contents.append((fpath, text))
+            if text is not None and needle in text.casefold():
+                candidate_contents.append((fpath, lang, text))
 
         if not candidate_contents:
             return SearchResult(
@@ -836,12 +886,7 @@ class CodeTools:
 
         # ── Phase 1: tree-sitter definitions ──
         all_defs: list[DefinitionResult] = []
-        for fpath, text in candidate_contents:
-            lang = detect_language(fpath)
-            if lang is None:
-                continue
-            if language_filter is not None and lang != language_filter:
-                continue
+        for fpath, lang, text in candidate_contents:
             content_bytes = text.encode("utf-8")
             defs = self._search_file_from_content(fpath, symbol, lang, content_bytes)
             all_defs.extend(defs)
@@ -849,7 +894,7 @@ class CodeTools:
                 all_defs = all_defs[:max_results]
                 break
 
-        all_defs.sort(key=lambda r: (r.file, r.line))
+        all_defs.sort(key=lambda r: (r.file, r.line, r.column))
         if all_defs:
             return SearchResult(
                 symbol=symbol,
@@ -860,11 +905,9 @@ class CodeTools:
 
         # ── Phase 2: fallback to grep matches (no extra I/O) ──
         all_grep: list[GrepMatch] = []
-        for fpath, text in candidate_contents:
-            if language_filter is not None:
-                lang = detect_language(fpath)
-                if lang is None or lang != language_filter:
-                    continue
+        for fpath, lang, text in candidate_contents:
+            if language_filter is not None and lang != language_filter:
+                continue
             matches = _grep_file_lines(
                 text, fpath, search_symbol, context_lines=self.grep_context_lines
             )
@@ -888,12 +931,12 @@ class CodeTools:
         node_type_filter: Optional[str] = None,
     ) -> list[SymbolEntry]:
         """Return all symbol definitions under *path*."""
-        search_root = self._resolve_root(path)           # ← fixed
+        search_root = self._resolve_root(path)
 
         all_symbols: list[SymbolEntry] = []
         for fpath in _iter_all_files(
             self.fs,
-            search_root,                                 # ← uses resolved root
+            search_root,
             max_depth=self.max_walk_depth,
             max_files=self.max_files,
         ):
@@ -915,15 +958,19 @@ class CodeTools:
             if node_type_filter:
                 entries = [e for e in entries if e.node_type == node_type_filter]
             all_symbols.extend(entries)
+
+        all_symbols.sort(key=lambda s: (s.file, s.line, s.name))
         return all_symbols
 
     def clear_cache(self) -> None:
         self._parse_cache.clear()
         self._resolution_cache.clear()
+        self._parser_cache.clear()
 
     def invalidate_file(self, path: str) -> None:
-        self._parse_cache.pop(path, None)
-        for k in [k for k in self._resolution_cache if k[1] == path]:
+        normalized = self._normalize_cache_path(path)
+        self._parse_cache.pop(normalized, None)
+        for k in [k for k in self._resolution_cache if k[1] == normalized]:
             self._resolution_cache.pop(k, None)
 
     # ── Internal ──────────────────────────────────────────────────────
@@ -940,16 +987,17 @@ class CodeTools:
     def _parse_file(
         self, path: str, content: bytes, lang: Language
     ) -> Optional[_ParsedFile]:
+        normalized_path = self._normalize_cache_path(path)
         chash = self._content_hash(content)
-        cached = self._parse_cache.get(path)
+        cached = self._parse_cache.get(normalized_path)
         if cached is not None and cached.content_hash == chash:
             return cached
         try:
-            parser = get_parser(lang.value)
+            parser = self._get_parser(lang)
             tree = parser.parse(content)
         except Exception:
             logger.debug(
-                "Failed to parse %s as %s", path, lang.value, exc_info=True
+                "Failed to parse %s as %s", normalized_path, lang.value, exc_info=True
             )
             return None
         parsed = _ParsedFile(
@@ -958,7 +1006,7 @@ class CodeTools:
             source=content,
             language=lang,
         )
-        self._parse_cache[path] = parsed
+        self._parse_cache[normalized_path] = parsed
         return parsed
 
     def _search_file_from_content(
@@ -969,23 +1017,26 @@ class CodeTools:
         content: bytes,
     ) -> list[DefinitionResult]:
         """Search *content* (already read) for definitions of *symbol*."""
+        normalized_path = self._normalize_cache_path(path)
         chash = self._content_hash(content)
-        cache_key = (symbol, path)
+        cache_key = (symbol, normalized_path)
         cached_resolution = self._resolution_cache.get(cache_key)
         if cached_resolution is not None and cached_resolution.content_hash == chash:
             return cached_resolution.results
-        parsed = self._parse_file(path, content, lang)
+
+        parsed = self._parse_file(normalized_path, content, lang)
         if parsed is None:
             return []
         specs = _specs_for(lang)
         if not specs:
             return []
+
         results = _walk_for_definitions(
             node=parsed.tree.root_node,
             source=parsed.source,
             specs=specs,
             symbol=symbol,
-            file_path=path,
+            file_path=normalized_path,
             language=lang,
         )
         self._resolution_cache[cache_key] = _CacheEntry(
@@ -996,7 +1047,7 @@ class CodeTools:
 
 
 # ─── Agent tool factory ──────────────────────────────────────────────
-def _parse_language(language: str) -> Optional[Language] | dict:
+def _parse_language(language: str) -> Optional[Language] | dict[str, Any]:
     """Parse language string, returning an error dict on failure."""
     if not language:
         return None
@@ -1016,16 +1067,17 @@ def _parse_language(language: str) -> Optional[Language] | dict:
 def code_tools(
     fs: AbstractFileSystem,
     root: str = "/",
-    max_workers: int = 8,
 ) -> list:
     """Create code search tools for an LLM agent."""
-    tools = CodeTools(fs=fs, root=root, max_workers=max_workers)
+
+
+    tools = CodeTools(fs=fs, root=root)
 
     def search_def(
         symbol: str,
         path: str = "",
         language: str = "",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Search for the definition of a symbol in the codebase."""
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
@@ -1042,13 +1094,15 @@ def code_tools(
         node_type: str = "",
         offset: int = 0,
         limit: Optional[int] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """List all symbol definitions found under a path."""
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
             return lang_filter
         symbols = tools.list_symbols(
-            path, language_filter=lang_filter, node_type_filter=node_type or None
+            path,
+            language_filter=lang_filter,
+            node_type_filter=node_type or None,
         )
         total = len(symbols)
         resolved_limit = limit if limit is not None else 300

@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable, Optional
 import click
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
-import tree_sitter_language_pack as ts_pack;
+import tree_sitter_language_pack as ts_pack
 
 from contractor.runners.task_runner import TaskRunnerEvent
 
@@ -203,8 +203,6 @@ async def async_main(
     ts_pack.init({
         "cache_dir": ts_pack.cache_dir(),
     })
-    print(ts_pack.language_count())
-    print(ts_pack.available_languages())
 
     pipeline = pipeline.lower()
     pipelines = get_pipelines()

@@ -37,7 +37,8 @@ _IGNORE_DEFAULTS: Final[list[str]] = [
     "*.tar",
     "*.tar.gz",
     "*.DS_Store",
-    ".git/*",
+    "*/.git/*",
+    "*/.venv/*",
 ]
 
 INCORRECT_REGEXP_ERROR: Final[str] = "regex {regex} is incorrect:\n{err}"
