@@ -55,7 +55,7 @@ async def oas_enrichment_pipeline(
     runner.add_variable(name="project_path", value=folder_name)
 
     runner.add_task(
-        name="oas_enrich",
+        name="oas_enrich_experimental",
         worker_builder=oas_builder,
         iterations=3,
         max_attempts=9,

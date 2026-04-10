@@ -55,7 +55,7 @@ async def oas_building_pipeline(
     )
 
     runner.add_task(
-        name="project_information",
+        name="project_information_experimental",
         worker_builder=swe_builder,
         iterations=1,
         max_attempts=3,
@@ -66,7 +66,7 @@ async def oas_building_pipeline(
     )
 
     runner.add_task(
-        name="oas_update",
+        name="oas_update_experimental",
         worker_builder=oas_builder,
         iterations=3,
         max_attempts=9,
@@ -91,7 +91,6 @@ async def oas_building_pipeline(
             "dependency_information/result",
             "project_information/result",
             "oas_update/result",
-            "oas_update/summary",
         ],
         namespace="openapi-building",
         model=llm,

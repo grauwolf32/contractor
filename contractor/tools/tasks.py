@@ -1688,6 +1688,9 @@ def task_tools(
             summary=summary,
             ctx=tool_context,
         )
+        
+        # Force quit
+        tool_context.actions.end_of_agent = True
         return {"result": "ok", "instructions": "stop the execution now"}
 
     # ── Assemble tool list ──────────────────────────────────────────

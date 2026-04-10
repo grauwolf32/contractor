@@ -5,7 +5,6 @@ artifacts/*
 contractor/artifacts/*
 metrics/*
 .artifacts
-
 old/*
 .venv/*
 */session.db
