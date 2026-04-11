@@ -1083,8 +1083,8 @@ def code_tools(
         if isinstance(lang_filter, dict):
             return lang_filter
         return tools.search_definition(
-            symbol=symbol,
-            path=path,
+            symbol=str(symbol),
+            path=(path),
             language_filter=lang_filter,
         ).to_dict()
 
@@ -1099,8 +1099,12 @@ def code_tools(
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
             return lang_filter
+
+        offset = int(offset)
+        limit = int(limit) if limit else None
+
         symbols = tools.list_symbols(
-            path,
+            str(path),
             language_filter=lang_filter,
             node_type_filter=node_type or None,
         )

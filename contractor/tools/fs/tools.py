@@ -65,6 +65,7 @@ class FsspecInteractionFileTools:
         fs: fsspec.AbstractFileSystem,
         fmt: FileFormat,
         *,
+        root:str="/",
         max_output: int = 80_000,
         max_items: int = 100,
         ignored_patterns: Optional[list[str]] = None,
@@ -73,6 +74,7 @@ class FsspecInteractionFileTools:
     ) -> None:
         self.fs = fs
         self.fmt = fmt
+        self.root = root
         self.max_output = max_output
         self.max_items = max_items
         self.with_types = with_types
