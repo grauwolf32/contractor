@@ -89,8 +89,6 @@ task:
     - If existing paths/components lack provenance, add it during the same incremental update.
     - Do not invent exact locations; use the strongest supported evidence.
 
-
-
   output_format: >
     Produce Markdown that summarizes:
     - What was added or updated (with write-then-verify confirmation for each item)

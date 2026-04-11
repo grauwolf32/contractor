@@ -435,13 +435,13 @@ def vulnerability_report_tools(
         Write or update a vulnerability report.
 
         Args:
-            name:        Stable unique key, e.g. ``"sqli-login"`` or ``"xss-profile"``.
-            place_type:  Location kind — ``"file"`` or ``"url"``.
+            name:        Stable unique key, e.g. "sqli-login" or "xss-profile".
+            place_type:  Location kind — "file" or "url".
             place:       File path or URL where the issue was found.
             title:       Human-readable vulnerability title.
             summary:     One-sentence description.
-            severity:    ``"info"``, ``"low"``, ``"medium"``, ``"high"``, or ``"critical"``.
-            confidence:  ``"low"``, ``"medium"``, or ``"high"``.
+            severity:    "info", "low", "medium", "high", or "critical".
+            confidence:  `low", "medium", or "high".
             details:     Technical details, reproduction steps, impact, and remediation hints.
         """
         report = await vr.write_report(
