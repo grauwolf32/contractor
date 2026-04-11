@@ -1070,7 +1070,6 @@ def code_tools(
 ) -> list:
     """Create code search tools for an LLM agent."""
 
-
     tools = CodeTools(fs=fs, root=root)
 
     def search_def(

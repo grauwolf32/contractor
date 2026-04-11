@@ -68,10 +68,19 @@ openapi_base_schema: Final[dict[str, Any]] = {
     },
 }
 
-
 @dataclass
-class OpenAPIFormat: ...
+class OpenAPIFormat:
+    _format: Literal["json", "yaml"] = "json"
 
+    def format_result(self, value: Any) -> Any:
+        if self._format == "yaml":
+            return yaml.safe_dump(
+                value,
+                sort_keys=False,
+                allow_unicode=True,
+                default_flow_style=False,
+            )
+        return value
 
 @dataclass
 class OpenApiArtifact:
@@ -181,7 +190,11 @@ def validate_files(
     return None
 
 
-def openapi_tools(name: str, fs: fsspec.AbstractFileSystem) -> list[Callable]:
+def openapi_tools(
+    name: str,
+    fs: fsspec.AbstractFileSystem,
+    fmt: OpenAPIFormat = OpenAPIFormat("json"),
+) -> list[Callable]:
     oas = OpenApiArtifact(name=name)
 
     async def upsert_path(
@@ -258,7 +271,7 @@ def openapi_tools(name: str, fs: fsspec.AbstractFileSystem) -> list[Callable]:
                 "error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path.strip())
             }
 
-        return {"result": schema["paths"][path.strip()]}
+        return {"result": fmt.format_result(schema["paths"][path.strip()])}
 
     async def upsert_component(
         key: Literal[
@@ -403,7 +416,7 @@ def openapi_tools(name: str, fs: fsspec.AbstractFileSystem) -> list[Callable]:
                 )
             }
 
-        return {"result": oas.schema["components"][key][component_name]}
+        return {"result": fmt.format_result(oas.schema["components"][key][component_name])}
 
     async def set_info(
         title: str,
@@ -443,7 +456,7 @@ def openapi_tools(name: str, fs: fsspec.AbstractFileSystem) -> list[Callable]:
 
         schema = await oas.load_schema(tool_context)
         schema.setdefault("info", {})
-        return {"result": schema["info"]}
+        return {"result": fmt.format_result(schema["info"])}
 
     async def add_server(
         url: str, description: Optional[str], tool_context: ToolContext

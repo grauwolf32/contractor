@@ -189,7 +189,7 @@ class AnnotationRunner:
             runner.add_variable(name="operation_schema", value=operation_schema)
 
             runner.add_task(
-                name=f"trace_annotation_experimental",
+                name=f"trace_annotation",
                 ref=f"trace_annotation:{self.namespace}:{operation_id}",
                 worker_builder=trace_builder,
                 iterations=1,

@@ -441,7 +441,7 @@ def vulnerability_report_tools(
             title:       Human-readable vulnerability title.
             summary:     One-sentence description.
             severity:    "info", "low", "medium", "high", or "critical".
-            confidence:  `low", "medium", or "high".
+            confidence:  "low", "medium", or "high".
             details:     Technical details, reproduction steps, impact, and remediation hints.
         """
         report = await vr.write_report(

@@ -56,9 +56,7 @@ def make_mock_fs(files: dict[str, str]) -> MagicMock:
         while str(p) != p.root and str(p) != ".":
             all_dirs.add(str(p))
             p = p.parent
-        if str(PurePosixPath(fpath).parent.parent) != str(
-            PurePosixPath(fpath).parent
-        ):
+        if str(PurePosixPath(fpath).parent.parent) != str(PurePosixPath(fpath).parent):
             all_dirs.add(str(PurePosixPath(fpath).parent.parent))
 
         if parent not in dir_contents:
@@ -711,7 +709,7 @@ class TestSearchDefinition:
             assert files == sorted(files)
 
     def test_max_results_respected(self):
-        files = {f"/repo/{chr(97+i)}.py": "def hello(): pass\n" for i in range(10)}
+        files = {f"/repo/{chr(97 + i)}.py": "def hello(): pass\n" for i in range(10)}
         ct = self._make_tools(files)
         result = ct.search_definition("hello", max_results=3)
         assert len(result.definitions) <= 3
@@ -969,9 +967,7 @@ class TestCodeToolsFactory:
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
         _, list_syms = tools
         result = list_syms(node_type="function_definition")
-        assert all(
-            s["node_type"] == "function_definition" for s in result["result"]
-        )
+        assert all(s["node_type"] == "function_definition" for s in result["result"])
 
     def test_list_symbols_default_limit(self):
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})
@@ -1093,9 +1089,7 @@ class TestEdgeCases:
 
     def test_very_long_function_context_truncated(self):
         many_lines = (
-            "def big():\n"
-            + "\n".join(f"    x_{i} = {i}" for i in range(100))
-            + "\n"
+            "def big():\n" + "\n".join(f"    x_{i} = {i}" for i in range(100)) + "\n"
         )
         fs = make_mock_fs({"/repo/a.py": many_lines})
         ct = CodeTools(fs=fs, root="/repo", max_context_lines=15)

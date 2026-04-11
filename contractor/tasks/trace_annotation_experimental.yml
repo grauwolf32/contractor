@@ -18,9 +18,9 @@ task:
 
   instructions: >
 
-    # ── ANNOTATION FORMAT ──────────────────────────────────────────────────
-    #
-    # Insert directly above `def` (or equivalent). Never mid-function or after.
+    # ANNOTATION FORMAT
+    
+    Insert directly above `def` (or equivalent). Never mid-function or after.
     #
     #   # @trace op=<operation_id> args=<arg:state,...> calls=<symbol,...>
     #   # @validate arg=<arg> kind=<validation_kind>
@@ -247,37 +247,8 @@ task:
           is exposed to untrusted actors or is off by default in production.
           Do not report as high/critical based solely on the toggle existing.
 
-    # ── CONSERVATIVE POLICY ────────────────────────────────────────────────
-    # - Prefer missing annotations over incorrect ones.
-    # - Never invent calls, sinks, or validation not visible in the code.
-    # - When uncertain, skip and record in Uncertainties.
-    # - Use only catalogue sink kinds; pick closest match or omit.
-    # - "tainted data flows to db.exec" is NOT sufficient for a finding.
-    #   The structural control condition (§4e, Injection Mechanics) must hold.
-    # - Do not split one root cause across multiple report_vulnerability calls
-    #   to inflate the finding count.
-    # - Severity reflects exploitability in realistic deployment context,
-    #   not worst-case theoretical impact.
-
   output_format: >
-
-    ## Phase 1 — Annotation Plan
-
-    ### Entrypoint
-    - File: <path>  Function: <name>  Confidence: <high|medium|low>
-    - Reasoning: <why this is the handler>
-
-    ### Function Selection
-    | # | Function | File | Annotations | Sink kind | Reasoning |
-    |---|----------|------|-------------|-----------|-----------|
-
-    ### Duplicate / Root-Cause Check
-    - <list any root causes already reported this session, with prior slug>
-    - <or "None — first occurrence of all candidates">
-
-    ---
-
-    ## Phase 2 & 3 — Changes Applied
+    ## Changes Applied
 
     ### Files modified
     - <file>: <N> annotation block(s) inserted
@@ -300,16 +271,6 @@ task:
 
     ---
 
-    ## Prerequisite Verification
-
-    | Finding candidate | Auth layer present? | Headers client-controllable? | Injection structural? | Config-dependent? |
-    |---|---|---|---|---|
-    | <slug> | <yes/no/unknown> | <yes/no/unknown> | <yes/no/n-a> | <yes/no> |
-
-    _(Complete this table before assigning severity. Unknown = lower confidence.)_
-
-    ---
-
     ## Operation Summary
 
     - **Business purpose:** <what the operation does>
@@ -318,12 +279,9 @@ task:
 
     ---
 
-    ## Vulnerability Report Summary
+    ## Security Summary
 
-    | Slug | Title | Severity | Confidence | Place | Prerequisites verified |
-    |------|-------|----------|------------|-------|----------------------|
-
-    _(One row per report_vulnerability call. If none: single info row.)_
+    - **Identified problems**
 
     ---
 

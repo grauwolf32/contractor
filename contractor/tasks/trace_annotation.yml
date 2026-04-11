@@ -2,141 +2,191 @@ task:
   name: "annotate_request_trace_for_vulnerability_analysis"
 
   objective: >
-    Given a single OpenAPI operation, identify the most likely request entrypoint
-    in the codebase, trace the execution path,
-    and insert structured trace annotations above the relevant function definitions.
+    Given a single OpenAPI operation, locate the request entrypoint, trace the
+    relevant execution path, insert structured trace annotations, and produce
+    a structured analysis of data flow and security-relevant behavior.
 
-    The goal is to capture how request data flows through the system toward
-    potentially sensitive operations (sinks), while identifying validation steps.
+    Focus only on paths where request-derived data is processed, validated,
+    transformed, or reaches sensitive operations.
 
-    Scope:
-    - Work only on the code path relevant to the target operation.
-    - Modify only by inserting comments.
-    - Do not modify logic, formatting, or unrelated code.
-    - If unsure about a function’s role, do not annotate it.
-    - You can trust already annotated functions
-
-    Target operation (operation_id):
-    {operation_id}
-
-    Schema definition:
-    {operation_schema}
-
-    Comment format:
-    Use one or more single-line comments directly above function definitions.
-
-      # @trace op=<operation_id> args=<arg_name:state,...> calls=<symbol,...>
-      # @validate arg=<arg_name> kind=<validation_kind>
-      # @sink kind=<sink_kind> arg=<arg_name_or_unknown>
-
-    Argument states:
-    - tainted      (directly from request or untrusted input)
-    - validated    (explicit validation observed)
-    - clean        (trusted or constant)
-    - derived      (computed from other values)
-
-    Allowed sink kinds:
-    - filesystem.read
-    - filesystem.write
-    - db.query
-    - db.exec
-    - http.request
-    - shell.exec
-    - template.render
-    - parser.process
-    - serializer.encode
-    - serializer.decode
-    - cache.read
-    - cache.write
-
+    Target operation: {operation_id}
+    Schema: {operation_schema}
 
   instructions: >
-    Step 1 — Identify entrypoint:
-    - Use the OpenAPI operation (method + path + schema) to find the most likely handler.
-    - Treat x-path-file and x-component-file as strong hints when present; they may point to the relevant route, controller, serializer, or supporting component.
-    - Prefer framework routing patterns (e.g., decorators, route maps).
-    - If multiple candidates exist, pick the most plausible one.
 
-    Step 2 — Build bounded trace:
-    - Follow the execution path from the entrypoint.
-    - Trace only directly relevant calls.
-    - Ignore generic utilities unless they contain sinks or validation.
+    ## Core Principles
 
-    Step 3 — Select functions to annotate:
-    - Include:
-      - the entrypoint
-      - functions that propagate request data
-      - functions that perform validation
-      - functions that contain sinks
-    - Prefer fewer, higher-confidence annotations.
+    - Focus only on code relevant to the target operation
+    - Follow request-derived data through the system
+    - Prefer concrete, code-backed paths over speculation
+    - Do not assume behavior not visible in code
+    - Annotate only where it adds clear trace value
 
-    Step 4 — Infer annotations:
-    For each selected function:
-    - Identify arguments originating from request input → mark as tainted
-    - Track propagation → mark derived where appropriate
-    - Mark validated only if explicit validation is present in code
-    - Identify sinks only if clearly observable
-    - Add calls= only for direct, relevant downstream calls
+    ## Annotation Format
 
-    Step 5 — Write annotations:
-    - Use insert_line or edit to insert comments
-    - Insert directly above function definitions
-    - Do not duplicate existing annotations
-    - Do not overwrite or remove existing comments
-    - Do not rewrite entire files for small changes
+      # @trace target=<operation_id_or_unknown> args=<arg:state,...> calls=<symbol,...>
+      # @validate arg=<arg> kind=<kind>
+      # @sink kind=<kind> arg=<arg_or_unknown>
 
-    Step 6 — Be conservative:
-    - Do not invent calls, validation, or sinks
-    - If uncertain, skip annotation
-    - Prefer missing annotations over incorrect ones
+    Argument states:
+      tainted   — request-derived input
+      validated — explicit validation present
+      clean     — trusted/internal
+      derived   — computed from other values
 
-    Step 7 - Review and vulnerability analysis:
-    - Summarize execution of the {operation_id}
-    - Identify potential vulnerabilities
-    - Report vulnerabilities using tools: report_vulnerablity
+    Only annotate based on visible code evidence.
 
-    Pre-write requirement:
-    Before writing any changes:
-    - List candidate functions you plan to annotate
-    - Explain briefly why each is on the request path
-    - Proceed to writing only after this reasoning
+    ## Sink Catalogue
+
+    DATABASE:
+      db.query, db.exec, db.query.raw, db.exec.raw, db.orm.bulk
+
+    FILESYSTEM:
+      filesystem.read, filesystem.write, filesystem.delete, filesystem.path.join
+
+    PROCESS:
+      shell.exec, shell.exec.args, process.env.write
+
+    NETWORK:
+      http.request, http.redirect, dns.lookup, socket.connect, smtp.send
+
+    RENDERING:
+      template.render, template.render.raw, html.render, pdf.render
+
+    SERIALIZATION:
+      parser.process, parser.yaml.unsafe, parser.pickle,
+      serializer.encode, serializer.decode
+
+    CACHE / QUEUE:
+      cache.read, cache.write, queue.publish, queue.consume
+
+    CRYPTO / SECRETS:
+      crypto.key.derive, crypto.random.seed, crypto.sign, secret.log
+
+    AUTH / AUTHZ:
+      auth.token.verify, auth.token.create, authz.policy.eval,
+      auth.password.check, auth.password.hash
+
+    REFLECTION:
+      reflect.eval, reflect.import, reflect.attr
+
+    OBSERVABILITY:
+      log.write, metric.record, audit.write
+
+    IPC / INTER-SERVICE:
+      grpc.call, ipc.pipe, ldap.query, xpath.query, nosql.query
+
+    Sink → vulnerability guidance:
+
+      db.query.raw / db.exec.raw → SQL Injection
+      shell.exec → OS Command Injection / RCE
+      reflect.eval → RCE
+      parser.pickle → Insecure Deserialization / RCE
+      parser.yaml.unsafe → Code Execution
+      template.render.raw → SSTI
+      http.request → SSRF
+      http.redirect → Open Redirect
+      filesystem.* → Path Traversal
+      ldap.query → LDAP Injection
+      nosql.query → NoSQL Injection
+      xpath.query → XPath Injection
+      smtp.send → Email Header Injection
+      html.render → XSS
+      auth.token.create → Privilege Escalation
+      secret.log / log.write → Sensitive Data Exposure
+      crypto.random.seed → Weak Randomness
+      reflect.attr / db.orm.bulk → Mass Assignment
+
+    Important:
+    - db.query/db.exec (ORM/parameterized) are not SQL injection by default
+    - rendering must be visible in this code path to count as XSS
+    - reaching a sink alone is not a vulnerability; structure/control matters
+
+    ## Execution Steps (MANDATORY)
+
+    1. Identify the entrypoint:
+       - Match HTTP method and path
+       - Use routing decorators and framework conventions
+       - Use x-path-file / x-component-file as strong hints
+       - Confirm with schema structure
+
+    2. Trace execution:
+       - Start from request inputs (path, query, body, headers)
+       - Follow how data propagates through function calls
+       - Track transformations, validation, and sinks
+       - Ignore unrelated or generic helpers
+       - Stop tracing when flow becomes unclear or irrelevant
+
+    3. Select functions to annotate:
+       - entrypoint
+       - functions handling request-derived data
+       - validation points (explicit only)
+       - sink functions or wrappers
+       - key transformations needed to explain flow
+
+    4. Insert annotations:
+       - place comments directly above function definitions
+       - do not duplicate or overwrite existing annotations
+       - annotate only high-confidence, relevant functions
+
+    5. Verify annotations are present
+
+    6. Analyze business value of the operation 
+
+    7. Security analysis:
+       - identify where tainted or derived data reaches sinks
+       - verify presence or absence of validation
+       - only report vulnerabilities if clearly supported by code
+       - avoid speculation
+       - also consider: broken access control, missing auth check, insecure
+        defaults, sensitive data exposure.
 
 
-    Success criteria:
-    - Comments follow exact format
-    - Placement is correct (above function definitions)
-    - Only relevant functions are modified
-    - No code changes beyond comments
-    - Trace is coherent and bounded
-    - No hallucinated behavior
 
+  output_format: |
+    ## Changes Applied
 
-  output_format: >
-    Return:
+    ### Files modified
+    - <file>: <N> annotation block(s) inserted
 
-    Planned annotations:
-    - list of functions selected for annotation with reasoning
+    ### Annotation blocks inserted
+    file: <path>  function: <name>
+    @trace target=... args=... calls=...
+    @validate arg=... kind=...   (if applicable)
+    @sink kind=... arg=...       (if applicable)
+    (repeat per function)
 
-    Changes applied:
-    - files modified
-    - functions annotated
-    - exact comment blocks inserted
+    ---
 
-    Trace summary:
-    - entrypoint function
-    - key data flow (source → propagation → sink)
+    ## Trace Summary
 
-    Uncertainties:
-    - unclear routing
-    - ambiguous function calls
-    - missing validation evidence
+    - Entrypoint: <function> in <file>
+    - Data flow:
+      <param> → <fn A> → <fn B> → <fn C>
+      (include arg states and sink if present)
 
-    Operation summary:
-    - business value of the operation
-    - potential impact on security
-    - key data flows and transformations
+    ---
 
-    Vulnerability analysis:
-    - identified vulnerabilities
-    - potential impact
-    - recommended mitigations
+    ## Operation Summary
+
+    - Business purpose: <what the operation does>
+    - Data handled: <input/output types, sensitivity>
+    - Key transformations: <DB, external calls, serialization, etc.>
+
+    ---
+
+    ## Security Summary
+
+    - Identified problems (only if supported by code)
+
+    ---
+
+    ## Uncertainties
+
+    - Routing: <unclear handler resolution>
+    - Call targets: <dynamic or unresolved calls>
+    - Validation gaps: <possible but not visible validation>
+    - Sink confidence: <uncertain sink classification>
+    - Missed branches: <paths not followed>
+    - Infrastructure unknowns: <auth, proxies, headers not verified>
+    - Duplicate root causes deferred: <if applicable>

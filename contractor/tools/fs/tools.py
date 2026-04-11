@@ -65,7 +65,7 @@ class FsspecInteractionFileTools:
         fs: fsspec.AbstractFileSystem,
         fmt: FileFormat,
         *,
-        root:str="/",
+        root: str = "/",
         max_output: int = 80_000,
         max_items: int = 100,
         ignored_patterns: Optional[list[str]] = None,
@@ -300,7 +300,7 @@ class FsspecInteractionFileTools:
     ) -> ToolResult:
         normalized_path = self._norm_optional(path) or "/"
         normalized_path = self._resolve_root(normalized_path)
-        
+
         normalized_pattern = self._norm_optional(pattern)
 
         if normalized_pattern is None:
@@ -623,6 +623,9 @@ def ro_file_tools(
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression.
+        
+        Usage:
+         - be more specific, avoid too general patterns like .*
         """
         offset = _ensure_int_or_none(offset) or 0
         return tools.grep(pattern=pattern, path=path, offset=offset)
@@ -1629,6 +1632,9 @@ def rw_file_tools(
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression in the overlay-visible tree.
+
+        Usage:
+         - be more specific, avoid too general patterns like .*
         """
         offset = _ensure_int_or_none(offset) or 0
         return tools.grep(pattern=pattern, path=path, offset=offset)
