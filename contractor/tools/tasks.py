@@ -1115,16 +1115,15 @@ You will receive a JSON object with:
 OUTPUT REQUIREMENTS:
 Write a single, structured summary that covers ALL of the following:
 
-1. **Objective**: What was the task trying to achieve? (1 sentence)
-2. **Approach**: What major steps were taken? (bullet list, 2-5 items)
-3. **Outcome**: What was the final result? Was the objective met? (1-2 sentences)
-4. **Status**: Final status and justification (1 sentence)
+1. **Objective**: What was the task trying to achieve? 
+2. **Approach**: What major steps were taken? (bullet list)
+3. **Outcome**: What was the final result? Was the objective met? 
+4. **Status**: Final status and justification 
 5. **Notable issues** (only if applicable): Blockers, warnings, partial \
 failures, or important caveats
 
 RULES:
 - Be factual. Do NOT speculate or add information not present in the input.
-- Be concise. Total length should be 100-300 words.
 - Use past tense for completed actions.
 - If status is "failed", clearly explain WHAT failed and WHY.
 """.strip()
@@ -1310,10 +1309,6 @@ def task_tools(
         Returns:
             The created subtask on success, or an error if the task limit
             has been reached.
-
-        When to use:
-            - At the beginning, to plan the execution into ordered subtasks
-            - During execution, if additional work is identified
         """
         subtask: Optional[Subtask] = mgr.add_subtask(
             SubtaskSpec(title=title, description=description), tool_context
@@ -1408,7 +1403,6 @@ def task_tools(
             - Child subtasks get IDs like '{parent_id}.1', '{parent_id}.2'.
             - The first child becomes the new current subtask.
             - Prefer fewer subtasks (1-3) over many small ones.
-            - Each child must be independently executable.
             - Together, children MUST cover ALL remaining work.
         """
         if isinstance(decomposition, str):
@@ -1497,7 +1491,6 @@ def task_tools(
 
         Prerequisites:
             - At least one subtask must exist (call `add_subtask` first)
-            - The current subtask must have status 'new'
             - If the current subtask has status 'incomplete', you MUST call
               `decompose_subtask` first — do NOT call this tool again directly
 
@@ -1513,11 +1506,16 @@ def task_tools(
               automatically. Call `get_current_subtask` to see it.
             - If status is 'incomplete': You MUST call `decompose_subtask`
               to break it down before proceeding.
-            - If no more subtasks remain: Call `finish` to complete the task.
         """
         current = mgr.get_current_subtask(tool_context)
         if current is None:
             return {"error": NO_ACTIVE_TASKS_MSG}
+
+        match current.status:
+            case "incomplete":
+                return {"error" : SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)}
+            case "done":
+                return {"error": NO_ACTIVE_TASKS_MSG}
 
         logger.info(
             "Executing subtask",
@@ -1547,7 +1545,6 @@ def task_tools(
 
         validated = isinstance(subtask_result, SubtaskExecutionResult)
 
-        # Fix mismatched task_id
         if validated and subtask_result.task_id != current.task_id:
             logger.warning(
                 "Worker returned mismatched task_id",
@@ -1647,9 +1644,6 @@ def task_tools(
                 This result must be understandable WITHOUT access to
                 intermediate notes or execution records.
 
-        Returns:
-            Confirmation with instruction to stop execution.
-
         When to use:
             - All subtasks are done/skipped and the goal is achieved → "done"
             - A critical blocker prevents completion → "failed"
@@ -1688,7 +1682,7 @@ def task_tools(
             summary=summary,
             ctx=tool_context,
         )
-
+        
         # Force quit
         tool_context._invocation_context.end_invocation = True
         return {"result": "ok", "instructions": "stop the execution now"}
