@@ -1493,6 +1493,7 @@ def task_tools(
             - At least one subtask must exist (call `add_subtask` first)
             - If the current subtask has status 'incomplete', you MUST call
               `decompose_subtask` first — do NOT call this tool again directly
+            - The current subtask must have status 'new'
 
         Returns:
             A dict containing:
