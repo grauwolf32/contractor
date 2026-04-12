@@ -4,9 +4,8 @@ import ast
 import json
 import logging
 import re
-import xml.etree.ElementTree as ET
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
@@ -28,57 +27,71 @@ from pydantic import BaseModel, Field, ValidationError
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════
-# Constants – User-facing messages
+# Constants
 # ═══════════════════════════════════════════════════════════════════
-
-NO_ACTIVE_TASKS_MSG: Final[str] = (
-    "No active subtasks exist. "
-    "You MUST call `add_subtask` to create one before proceeding."
+NO_SUBTASKS_EXIST_MSG: Final[str] = (
+    "No subtasks exist yet. You MUST call `add_subtask` first."
 )
-
+NO_ACTIVE_SUBTASKS_MSG: Final[str] = (
+    "There is no current active subtask. "
+    "Review existing records first. "
+    "If the objective is already complete, call `finish`. "
+    "Otherwise, call `add_subtask` only if genuinely new work remains."
+)
 TASK_LIMIT_REACHED_MSG: Final[str] = (
     "The maximum number of subtasks ({max_tasks}) has been reached. "
     "You MUST NOT create new subtasks. "
     "Summarize the records collected so far and call `finish` immediately."
 )
-
 SUBTASK_NOT_CURRENT_MSG: Final[str] = (
     "Subtask `{task_id}` is NOT the current subtask. "
     "You may only operate on the subtask returned by `get_current_subtask`. "
     "Call `get_current_subtask` first, then retry with the correct task_id."
 )
-
-SUBTASK_REQUIRES_DECOMPOSITION_MSG: Final[str] = (
-    "Subtask `{task_id}` has status 'incomplete' — it was NOT fully resolved. "
-    "You MUST decompose it into smaller subtasks by calling `decompose_subtask` "
-    "before calling `execute_current_subtask` again."
-)
-
-SUBTASK_DECOMPOSE_NOT_INCOMPLETE: Final[str] = (
-    "Subtask `{task_id}` has status '{status}'. "
-    "Only subtasks with status 'incomplete' can be decomposed. "
-    "If the subtask is 'new', execute it first. "
-    "If it is 'done' or 'skipped', move on to the next subtask."
-)
-
 SKIP_REASON_MUST_NOT_BE_EMPTY: Final[str] = (
     "The skip reason MUST NOT be empty. "
     "Provide a clear, specific explanation of why you are skipping "
     "this subtask (e.g. dependency unavailable, out of scope, duplicate)."
 )
-
-SUBTASK_RESULT_MALFORMED: Final[str] = (
-    "The worker returned a result that could not be parsed into the "
-    "expected format. The raw output has been stored. "
-    "The subtask is marked 'incomplete' — decompose or retry."
+SUBTASK_REQUIRES_RESOLUTION_MSG: Final[str] = (
+    "Subtask `{task_id}` has status '{status}' — it cannot be executed again "
+    "directly. You MUST either decompose it by calling `decompose_subtask`, "
+    "or skip it by calling `skip`."
 )
-
+SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE: Final[str] = (
+    "Subtask `{task_id}` has status '{status}'. "
+    "Only subtasks with status 'incomplete' or 'malformed' can be decomposed. "
+    "If the subtask is 'new', execute it first. "
+    "If it is 'done' or 'skipped', move on to the next subtask."
+)
+SUBTASK_RESULT_MALFORMED: Final[str] = (
+    "The worker returned a result that could not be completely parsed into the "
+    "expected format. The raw output has been stored for reference. "
+    "The subtask is marked 'malformed' — its raw results may still contain "
+    "useful information. You MUST either decompose or skip it."
+)
 SUBTASK_STATUS_TRANSITIONS: Final[dict[str, list[str]]] = {
-    "new": ["done", "incomplete", "skipped"],
-    "incomplete": ["done", "skipped"],
+    "new": ["done", "incomplete", "malformed", "skipped"],
+    "malformed": ["skipped"],
+    "incomplete": ["skipped"],
     "done": [],
     "skipped": [],
 }
+DO_NOT_FINISH_WITH_NO_TASKS_DONE: Final[str] = (
+    "Cannot finish with status='done' when no subtasks have been completed "
+    "or there are still 'new' (unexecuted) subtasks remaining. "
+    "Execute or skip all 'new' subtasks first, then call `finish`."
+)
+SUBTASK_DECOMPOSE_EMPTY_LIST: Final[str] = (
+    "Subtask decomposition is empty. You need to provide 1-3 subtasks as decomposition."
+)
+
+NO_REMAINING_SUBTASKS_MSG: Final[str] = (
+    "No remaining subtasks exist. There is no actionable subtask in the plan. "
+    "Do NOT infer new work from memories, records, or prior subtasks. "
+    "If the objective is complete, call `finish`. Otherwise, add a new subtask "
+    "only if genuinely new required work remains."
+)
 
 _GLOBAL_TASK_ID_KEY: Final[str] = "_global_task_id"
 _MAX_LITERAL_EVAL_LEN: Final[int] = 50_000
@@ -87,13 +100,8 @@ _MAX_LITERAL_EVAL_LEN: Final[int] = 50_000
 # ═══════════════════════════════════════════════════════════════════
 # Exceptions
 # ═══════════════════════════════════════════════════════════════════
-
-
 class TaskManagerExecutionError(Exception):
     """Raised when task manager encounters an unrecoverable error."""
-
-    def __init__(self, message: str = ""):
-        super().__init__(message)
 
 
 class InvalidStatusTransitionError(TaskManagerExecutionError):
@@ -110,20 +118,15 @@ class InvalidStatusTransitionError(TaskManagerExecutionError):
 # ═══════════════════════════════════════════════════════════════════
 # Pydantic models
 # ═══════════════════════════════════════════════════════════════════
-
-
 class SubtaskSpec(BaseModel):
-    """
-    Specification for creating a new subtask.
-    Used when decomposing a task into executable subtasks.
-    """
+    """Specification for creating a new subtask."""
 
     title: str = Field(
         ...,
         description=(
             "Concise, action-oriented subtask title. "
-            "Use imperative mood (e.g. 'Extract API endpoints', "
-            "'Validate input schema'). Keep under 80 characters."
+            "Use imperative mood (e.g. 'Extract API endpoints'). "
+            "Keep under 80 characters."
         ),
     )
     description: str = Field(
@@ -139,13 +142,7 @@ class SubtaskSpec(BaseModel):
 
 
 class SubtaskDecomposition(BaseModel):
-    """
-    Result of decomposing an incomplete task into executable subtasks.
-
-    This structure defines the ordered subtasks that collectively
-    replace the parent task. Each subtask must be independently
-    executable and together they must cover all remaining work.
-    """
+    """Result of decomposing an incomplete task into executable subtasks."""
 
     subtasks: list[SubtaskSpec] = Field(
         ...,
@@ -161,12 +158,7 @@ class SubtaskDecomposition(BaseModel):
 
 
 class Subtask(BaseModel):
-    """
-    A single executable unit of work.
-
-    Subtasks may be created as root tasks (e.g. '3') or as children
-    of an incomplete task (e.g. '2.1', '2.2').
-    """
+    """A single executable unit of work."""
 
     task_id: str = Field(
         ...,
@@ -193,72 +185,52 @@ class Subtask(BaseModel):
         ),
         min_length=1,
     )
-    status: Literal["new", "done", "incomplete", "skipped"] = Field(
+    status: Literal["new", "done", "incomplete", "malformed", "skipped"] = Field(
         default="new",
         description=(
             "Lifecycle status of the subtask:\n"
             "- 'new': Not yet executed\n"
             "- 'done': Successfully completed\n"
             "- 'incomplete': Attempted but needs decomposition\n"
+            "- 'malformed': Worker output could not be parsed\n"
             "- 'skipped': Deliberately skipped with reason\n"
-            "Valid transitions: new->{done,incomplete,skipped}, "
-            "incomplete->{done,skipped}"
+            "Valid transitions: "
+            "new->[done,incomplete,malformed,skipped], "
+            "malformed->[skipped]"
         ),
     )
 
 
 class SubtaskExecutionResult(BaseModel):
-    """
-    Structured result produced after executing a subtask.
-    The worker MUST return this exact structure after every execution.
-    """
+    """Structured result produced by the worker after executing a subtask."""
 
     task_id: str = Field(
         ...,
         description=(
             "Identifier of the subtask that was executed. "
-            "MUST exactly match the task_id that was provided as input."
+            "MUST exactly match the task_id provided as input."
         ),
     )
-
-    status: Literal["done", "incomplete", "skipped"] = Field(
+    status: Literal["done", "incomplete"] = Field(
         ...,
         description=(
-            "Execution outcome. Choose exactly one:\n"
-            "- 'done': The subtask was fully completed. All deliverables "
-            "are present in the output.\n"
-            "- 'incomplete': The subtask was partially completed. Further "
-            "decomposition or work is required. Explain what remains "
-            "in the summary.\n"
-            "- 'skipped': The subtask was skipped. Explain why in the output."
+            "Execution outcome:\n"
+            "- 'done': Fully completed\n"
+            "- 'incomplete': Partially completed, needs decomposition\n"
         ),
     )
-
     output: str = Field(
         ...,
         description=(
-            "Factual, detailed execution output. Include ALL of the following "
-            "that apply:\n"
-            "- Concrete results, data, or artifacts produced\n"
-            "- Files read, created, or modified (with paths)\n"
-            "- Commands executed and their results\n"
-            "- Errors encountered and how they were handled\n"
-            "- Key observations or findings\n"
-            "Do NOT include opinions, plans, or next steps here — "
-            "those belong in the summary."
+            "Factual, detailed execution output. Include all concrete "
+            "results, data, artifacts, errors, and observations."
         ),
     )
-
     summary: str = Field(
         ...,
         description=(
-            "Brief execution summary (2-5 sentences). MUST include:\n"
-            "- What was the goal of this subtask\n"
-            "- What was accomplished\n"
-            "- If status is 'incomplete': what specifically remains to be done "
-            "and why it could not be completed\n"
-            "- If status is 'done': confirmation that all deliverables are "
-            "present in the output"
+            "Brief execution summary (2-5 sentences). Goal, what was "
+            "accomplished, and if incomplete what remains."
         ),
     )
 
@@ -266,14 +238,7 @@ class SubtaskExecutionResult(BaseModel):
 # ═══════════════════════════════════════════════════════════════════
 # Status transition validation
 # ═══════════════════════════════════════════════════════════════════
-
-
 def validate_status_transition(current_status: str, new_status: str) -> bool:
-    """
-    Validate that a status transition is allowed.
-
-    Returns True if valid, raises InvalidStatusTransitionError otherwise.
-    """
     allowed = SUBTASK_STATUS_TRANSITIONS.get(current_status, [])
     if new_status not in allowed:
         raise InvalidStatusTransitionError(current_status, new_status)
@@ -283,19 +248,20 @@ def validate_status_transition(current_status: str, new_status: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════
 # SubtaskFormatter
 # ═══════════════════════════════════════════════════════════════════
-
-
 @dataclass
 class SubtaskFormatter:
     _format: Literal["json", "markdown", "yaml", "xml"] = "json"
 
-    _CODE_BLOCK_RE = re.compile(
-        r"```(?P<lang>[a-zA-Z0-9_+-]+)?\s*\n(?P<body>.*?)\n```",
-        re.DOTALL,
+    _CODE_BLOCK_RE: re.Pattern[str] = field(
+        default_factory=lambda: re.compile(
+            r"```(?P<lang>[a-zA-Z0-9_+-]+)?\s*\n(?P<body>.*?)\n```",
+            re.DOTALL,
+        ),
+        init=False,
+        repr=False,
     )
 
     # ── Internal dispatcher ─────────────────────────────────────────
-
     def _dispatch(
         self,
         formatters: dict[str, Callable[..., Any]],
@@ -308,7 +274,6 @@ class SubtaskFormatter:
         return self._type_hint(output, type_hint)
 
     # ── Subtask formatters ──────────────────────────────────────────
-
     @staticmethod
     def _subtask_to_json(subtask: Subtask, **kwargs: Any) -> dict[str, Any]:
         return subtask.model_dump()
@@ -337,12 +302,10 @@ class SubtaskFormatter:
     def _subtask_to_xml(subtask: Subtask, indent: int = 0, **kwargs: Any) -> str:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
-
         task_id = xml_escape(subtask.task_id)
         title = xml_escape(subtask.title)
         description = xml_escape(subtask.description)
         status = xml_escape(subtask.status)
-
         return (
             f'{pad}<task id="{task_id}">\n'
             f"{pad2}<title>{title}</title>\n"
@@ -352,7 +315,6 @@ class SubtaskFormatter:
         )
 
     # ── Subtask-result formatters ───────────────────────────────────
-
     @staticmethod
     def _subtask_result_to_json(
         subtask_result: SubtaskExecutionResult, **kwargs: Any
@@ -391,12 +353,10 @@ class SubtaskFormatter:
     ) -> str:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
-
         task_id = xml_escape(subtask_result.task_id)
         task_status = xml_escape(subtask_result.status)
         output = xml_escape(subtask_result.output)
         summary = xml_escape(subtask_result.summary)
-
         return (
             f'{pad}<result task_id="{task_id}">\n'
             f"{pad2}<status>{task_status}</status>\n"
@@ -406,7 +366,6 @@ class SubtaskFormatter:
         )
 
     # ── Helpers ─────────────────────────────────────────────────────
-
     def _type_hint(
         self,
         output: Union[str, dict[str, Any], list[dict[str, Any]]],
@@ -417,7 +376,6 @@ class SubtaskFormatter:
         return f"```{self._format}\n{output}\n```"
 
     # ── Public formatting API ───────────────────────────────────────
-
     def format_subtask(
         self, subtask: Subtask, type_hint: bool = False, **kwargs: Any
     ) -> Union[str, dict[str, Any]]:
@@ -433,17 +391,16 @@ class SubtaskFormatter:
         self, subtasks: list[Subtask], type_hint: bool = False
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
-            output = "\n".join(self.format_subtask(subtask) for subtask in subtasks)
+            output = "\n".join(
+                str(self.format_subtask(subtask)) for subtask in subtasks
+            )
             return self._type_hint(output, type_hint)
-
         if self._format == "xml":
             inner = "\n".join(
-                self.format_subtask(subtask, indent=1) for subtask in subtasks
+                str(self.format_subtask(subtask, indent=1)) for subtask in subtasks
             )
             output = f"<subtasks>\n{inner}\n</subtasks>"
             return self._type_hint(output, type_hint)
-
-        # json (default)
         return [self._subtask_to_json(subtask) for subtask in subtasks]
 
     def format_subtask_result(
@@ -466,18 +423,17 @@ class SubtaskFormatter:
         type_hint: bool = False,
     ) -> Union[str, list[dict[str, Any]]]:
         if self._format in {"markdown", "yaml"}:
-            output = "\n".join(self.format_subtask_result(r) for r in subtask_results)
+            output = "\n".join(
+                str(self.format_subtask_result(r)) for r in subtask_results
+            )
             return self._type_hint(output, type_hint)
-
         if self._format == "xml":
             parts: list[str] = []
             for subtask_result in subtask_results:
-                inner = self.format_subtask_result(subtask_result, indent=1)
+                inner = str(self.format_subtask_result(subtask_result, indent=1))
                 parts.append(f"<results>\n{inner}\n</results>")
             output = "\n".join(parts)
             return self._type_hint(output, type_hint)
-
-        # json
         return [self._subtask_result_to_json(r) for r in subtask_results]
 
     def format_task_record(
@@ -489,14 +445,11 @@ class SubtaskFormatter:
             tr.pop("task_id", None)
             record_dict.update(tr)
             return record_dict
-
-        # String-based formats
-        task_str: str = self.format_subtask(subtask)  # type: ignore[assignment]
-        result_str: str = self.format_subtask_result(subtask_result)  # type: ignore[assignment]
+        task_str = str(self.format_subtask(subtask))
+        result_str = str(self.format_subtask_result(subtask_result))
         return task_str + result_str
 
     # ── Result parsing ──────────────────────────────────────────────
-
     @staticmethod
     def _validate_result_payload(
         payload: Any,
@@ -521,13 +474,11 @@ class SubtaskFormatter:
         output = output.strip()
         if not output:
             return None
-
         with suppress(json.JSONDecodeError, TypeError):
             parsed = json.loads(output)
             result = SubtaskFormatter._validate_result_payload(parsed)
             if result:
                 return result
-
         if len(output) <= _MAX_LITERAL_EVAL_LEN and (
             output.startswith("{") or output.startswith("[")
         ):
@@ -536,7 +487,6 @@ class SubtaskFormatter:
                 result = SubtaskFormatter._validate_result_payload(parsed)
                 if result:
                     return result
-
         return None
 
     @staticmethod
@@ -546,20 +496,16 @@ class SubtaskFormatter:
         output = output.strip()
         if not output:
             return None
-
         with suppress(yaml.YAMLError, TypeError):
             parsed = yaml.safe_load(output)
-
             result = SubtaskFormatter._validate_result_payload(parsed)
             if result:
                 return result
-
             if isinstance(parsed, dict) and len(parsed) == 1:
                 inner = next(iter(parsed.values()))
                 result = SubtaskFormatter._validate_result_payload(inner)
                 if result:
                     return result
-
         return None
 
     @staticmethod
@@ -597,35 +543,27 @@ class SubtaskFormatter:
             "output": None,
             "summary": None,
         }
-
         for i, match in enumerate(matches):
             key = match.group(1).lower()
             first_line = match.group(2).rstrip()
-
             section_start = match.end()
             section_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
             section_tail = body[section_start:section_end]
-
             tail_lines = section_tail.splitlines()
-
             while tail_lines and not tail_lines[0].strip():
                 tail_lines.pop(0)
             while tail_lines and not tail_lines[-1].strip():
                 tail_lines.pop()
-
             if tail_lines:
                 value = "\n".join([first_line, *tail_lines]).strip()
             else:
                 value = first_line.strip()
-
             if key == "status":
                 value = value.splitlines()[0].strip()
-
             data[key] = value
 
         with suppress(ValidationError, TypeError):
             return SubtaskExecutionResult.model_validate(data)
-
         return None
 
     @staticmethod
@@ -635,9 +573,7 @@ class SubtaskFormatter:
             text,
             flags=re.IGNORECASE | re.DOTALL,
         )
-        if m:
-            return m.group(1).strip()
-        return None
+        return m.group(1).strip() if m else None
 
     @staticmethod
     def _parse_subtask_result_xml(
@@ -651,29 +587,37 @@ class SubtaskFormatter:
         if not extracted:
             return None
 
-        with suppress(ET.ParseError, AttributeError, TypeError):
-            root = ET.fromstring(extracted)
+        task_id_match = re.search(
+            r'<result\b[^>]*\btask_id="([^"]+)"[^>]*>',
+            extracted,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        status_match = re.search(
+            r"<status>(.*?)</status>",
+            extracted,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        output_match = re.search(
+            r"<output>(.*?)</output>",
+            extracted,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        summary_match = re.search(
+            r"<summary>(.*?)</summary>",
+            extracted,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
 
-            if root.tag.lower() == "results":
-                result_el = root.find("./result")
-            elif root.tag.lower() == "result":
-                result_el = root
-            else:
-                return None
+        if not (task_id_match and status_match and output_match and summary_match):
+            return None
 
-            if result_el is None:
-                return None
-
-            payload = {
-                "task_id": (result_el.attrib.get("task_id") or "").strip(),
-                "status": (result_el.findtext("status") or "").strip(),
-                "output": (result_el.findtext("output") or "").strip(),
-                "summary": (result_el.findtext("summary") or "").strip(),
-            }
-
-            return SubtaskFormatter._validate_result_payload(payload)
-
-        return None
+        payload = {
+            "task_id": task_id_match.group(1).strip(),
+            "status": status_match.group(1).strip(),
+            "output": output_match.group(1).strip(),
+            "summary": summary_match.group(1).strip(),
+        }
+        return SubtaskFormatter._validate_result_payload(payload)
 
     @staticmethod
     def _sanitize_llm_output(text: str) -> str:
@@ -707,7 +651,6 @@ class SubtaskFormatter:
             "yaml": self._parse_subtask_result_yaml,
             "xml": self._parse_subtask_result_xml,
         }
-
         parse_order = [self._format] + [fmt for fmt in parsers if fmt != self._format]
 
         # 1. Try fenced code blocks first
@@ -724,7 +667,7 @@ class SubtaskFormatter:
             if result:
                 return self._apply_fallback_task_id(result, fallback_task_id)
 
-        # 3. Try full text: expected format first, then fallback
+        # 3. Try full text in priority order
         for fmt_name in parse_order:
             result = parsers[fmt_name](output)
             if result:
@@ -739,7 +682,6 @@ class SubtaskFormatter:
         for name, finfo in Subtask.model_fields.items():
             desc = (finfo.description or "").strip()
             out[name] = desc
-
         stub = Subtask.model_construct(**out)
         return self.format_subtask(stub, type_hint=type_hint)
 
@@ -750,7 +692,6 @@ class SubtaskFormatter:
         for name, finfo in SubtaskExecutionResult.model_fields.items():
             desc = (finfo.description or "").strip()
             out[name] = desc
-
         stub = SubtaskExecutionResult.model_construct(**out)
         return self.format_subtask_result(stub, type_hint=type_hint)
 
@@ -758,8 +699,6 @@ class SubtaskFormatter:
 # ═══════════════════════════════════════════════════════════════════
 # StreamlineManager
 # ═══════════════════════════════════════════════════════════════════
-
-
 @dataclass
 class StreamlineManager:
     name: str
@@ -767,7 +706,6 @@ class StreamlineManager:
     fmt: SubtaskFormatter
 
     # ── State key helpers ───────────────────────────────────────────
-
     def _state_key(self, ctx: Union[ToolContext, CallbackContext]) -> str:
         global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY, 0)
         invocation_id = ctx.invocation_id
@@ -790,7 +728,6 @@ class StreamlineManager:
         return f"task::{global_task_id}::{key}"
 
     # ── ID generation ───────────────────────────────────────────────
-
     @staticmethod
     def _next_task_id(subtasks: list[Subtask]) -> str:
         """Return the next root-level task ID (0-based)."""
@@ -800,7 +737,6 @@ class StreamlineManager:
         return str(max_root + 1)
 
     # ── Subtask persistence ─────────────────────────────────────────
-
     def get_subtasks(self, ctx: Union[ToolContext, CallbackContext]) -> list[Subtask]:
         key = self._subtasks_key(ctx)
         ctx.state.setdefault(key, [])
@@ -823,7 +759,6 @@ class StreamlineManager:
         self._save_subtasks(subtasks, ctx)
 
     # ── Index helpers ───────────────────────────────────────────────
-
     def _get_idx(self, ctx: Union[ToolContext, CallbackContext]) -> Optional[int]:
         return ctx.state.get(self._current_idx_key(ctx))
 
@@ -831,18 +766,12 @@ class StreamlineManager:
         ctx.state[self._current_idx_key(ctx)] = idx
 
     # ── Status transition ───────────────────────────────────────────
-
     @staticmethod
     def _apply_status_transition(subtask: Subtask, new_status: str) -> None:
-        """
-        Validate and apply a status transition on the given subtask.
-        Raises InvalidStatusTransitionError if the transition is not allowed.
-        """
         validate_status_transition(subtask.status, new_status)
         subtask.status = new_status
 
     # ── Core operations ─────────────────────────────────────────────
-
     def add_subtask(
         self,
         subtask_spec: SubtaskSpec,
@@ -863,10 +792,7 @@ class StreamlineManager:
                 status="new",
             )
 
-            idx_key = self._current_idx_key(ctx)
-            ctx.state.setdefault(idx_key, -1)
-            idx = ctx.state[idx_key]
-
+            idx = self._get_idx(ctx)
             should_advance = (
                 idx is None
                 or idx < 0
@@ -877,12 +803,10 @@ class StreamlineManager:
                 self._set_idx(ctx, len(subtasks))
 
             subtasks.append(new)
-
             logger.info(
                 "Subtask added",
                 extra={"task_id": new.task_id, "title": new.title},
             )
-
         return new
 
     def get_current_subtask(
@@ -890,7 +814,6 @@ class StreamlineManager:
     ) -> Optional[Subtask]:
         subtasks = self.get_subtasks(ctx)
         idx = self._get_idx(ctx)
-
         if idx is None or idx < 0 or idx >= len(subtasks):
             return None
         return subtasks[idx]
@@ -918,6 +841,7 @@ class StreamlineManager:
         reason: str,
         ctx: Union[ToolContext, CallbackContext],
     ) -> Optional[Subtask]:
+        """Skip the current subtask. Returns the next subtask or None."""
         idx = self._get_idx(ctx)
         if idx is None:
             return None
@@ -926,11 +850,7 @@ class StreamlineManager:
             if idx < 0 or idx >= len(subtasks):
                 return None
 
-            if idx + 1 >= len(subtasks):
-                return None
-
             current = subtasks[idx]
-
             try:
                 self._apply_status_transition(current, "skipped")
             except InvalidStatusTransitionError as exc:
@@ -944,36 +864,44 @@ class StreamlineManager:
                 )
                 return None
 
-        subtask_result = SubtaskExecutionResult(
-            task_id=current.task_id,
-            status="skipped",
-            output=reason,
-            summary="",
-        )
-        record = self.fmt.format_task_record(current, subtask_result)
+            # Determine the next subtask, if any
+            next_subtask: Optional[Subtask] = None
+            if idx + 1 < len(subtasks):
+                self._set_idx(ctx, idx + 1)
+                next_subtask = subtasks[idx + 1]
+
+        # Build record directly — SubtaskExecutionResult doesn't allow "skipped"
+        record: dict[str, Any] = {
+            **current.model_dump(),
+            "status": "skipped",
+            "output": reason,
+            "summary": f"Skipped: {reason}",
+        }
         self.save_record(record, ctx)
-        self._set_idx(ctx, idx + 1)
 
         logger.info(
             "Subtask skipped",
             extra={"task_id": current.task_id, "reason": reason},
         )
-
-        return self.get_subtasks(ctx)[idx + 1]
+        return next_subtask
 
     def decompose_current_subtask(
         self,
         new_subtasks: list[SubtaskSpec],
         ctx: Union[ToolContext, CallbackContext],
     ) -> Optional[list[Subtask]]:
+        """
+        Returns:
+            list[Subtask] on success,
+            None if preconditions not met or task limit would be exceeded.
+        """
         idx = self._get_idx(ctx)
-
         if idx is None:
-            return []
+            return None
 
         with self._locked_subtasks(ctx) as subtasks:
             if idx < 0 or idx >= len(subtasks):
-                return []
+                return None
 
             if len(subtasks) + len(new_subtasks) > self.max_tasks:
                 logger.warning(
@@ -987,10 +915,9 @@ class StreamlineManager:
                 return None
 
             current = subtasks[idx]
-
-            if current.status != "incomplete":
+            if current.status not in ("incomplete", "malformed"):
                 logger.warning(
-                    "Cannot decompose non-incomplete subtask",
+                    "Cannot decompose non-decomposable subtask",
                     extra={
                         "task_id": current.task_id,
                         "status": current.status,
@@ -999,7 +926,6 @@ class StreamlineManager:
                 return None
 
             current_id: str = current.task_id
-
             insertion: list[Subtask] = []
             for ind, spec in enumerate(new_subtasks, start=1):
                 insertion.append(
@@ -1015,7 +941,6 @@ class StreamlineManager:
                 subtasks.insert(idx + 1 + i, sub)
 
         self._set_idx(ctx, idx + 1)
-
         logger.info(
             "Subtask decomposed",
             extra={
@@ -1024,7 +949,6 @@ class StreamlineManager:
                 "child_ids": [s.task_id for s in insertion],
             },
         )
-
         return insertion
 
     def complete_current_subtask(
@@ -1032,21 +956,18 @@ class StreamlineManager:
         subtask_result: SubtaskExecutionResult,
         ctx: Union[ToolContext, CallbackContext],
     ) -> tuple[bool, Optional[str]]:
-        """
-        Apply the execution result to the current subtask.
-
-        Returns (success, error_message).
-        """
+        """Apply execution result. Returns (success, error_message)."""
         idx = self._get_idx(ctx)
         if idx is None:
-            return False, NO_ACTIVE_TASKS_MSG
+            return False, NO_SUBTASKS_EXIST_MSG
 
         with self._locked_subtasks(ctx) as subtasks:
-            if idx < 0 or idx >= len(subtasks):
-                return False, NO_ACTIVE_TASKS_MSG
+            if idx < 0:
+                return False, NO_SUBTASKS_EXIST_MSG
+            if idx >= len(subtasks):
+                return False, NO_ACTIVE_SUBTASKS_MSG
 
             current = subtasks[idx]
-
             try:
                 self._apply_status_transition(current, subtask_result.status)
             except InvalidStatusTransitionError as exc:
@@ -1061,13 +982,13 @@ class StreamlineManager:
                 )
                 return False, str(exc)
 
+            # Advance inside the lock for consistency
+            can_advance = idx + 1 < len(subtasks)
+            if can_advance and subtask_result.status not in ("incomplete",):
+                self._set_idx(ctx, idx + 1)
+
         record = self.fmt.format_task_record(current, subtask_result)
         self.save_record(record, ctx)
-
-        subtasks = self.get_subtasks(ctx)
-        can_advance = idx + 1 < len(subtasks)
-        if can_advance and subtask_result.status not in ("incomplete",):
-            self._set_idx(ctx, idx + 1)
 
         logger.info(
             "Subtask completed",
@@ -1077,7 +998,62 @@ class StreamlineManager:
                 "advanced": can_advance and subtask_result.status != "incomplete",
             },
         )
+        return True, None
 
+    def complete_current_subtask_from_runtime_result(
+        self,
+        runtime_result: dict[str, Any],
+        ctx: Union[ToolContext, CallbackContext],
+    ) -> tuple[bool, Optional[str]]:
+        """Apply a runtime-generated result (e.g. malformed)."""
+        idx = self._get_idx(ctx)
+        if idx is None:
+            return False, NO_SUBTASKS_EXIST_MSG
+
+        with self._locked_subtasks(ctx) as subtasks:
+            if idx < 0:
+                return False, NO_SUBTASKS_EXIST_MSG
+            if idx >= len(subtasks):
+                return False, NO_ACTIVE_SUBTASKS_MSG
+
+            current = subtasks[idx]
+            new_status = runtime_result["status"]
+            try:
+                self._apply_status_transition(current, new_status)
+            except InvalidStatusTransitionError as exc:
+                logger.warning(
+                    "Invalid status transition during runtime completion",
+                    extra={
+                        "task_id": current.task_id,
+                        "from_status": current.status,
+                        "to_status": new_status,
+                        "error": str(exc),
+                    },
+                )
+                return False, str(exc)
+
+            # Advance inside the lock for consistency
+            can_advance = idx + 1 < len(subtasks)
+            if can_advance and new_status not in ("incomplete", "malformed"):
+                self._set_idx(ctx, idx + 1)
+
+        record: dict[str, Any] = {
+            **current.model_dump(),
+            "status": runtime_result["status"],
+            "output": runtime_result["output"],
+            "summary": runtime_result["summary"],
+        }
+        self.save_record(record, ctx)
+
+        logger.info(
+            "Subtask completed from runtime result",
+            extra={
+                "task_id": current.task_id,
+                "status": new_status,
+                "advanced": can_advance
+                and new_status not in ("incomplete", "malformed"),
+            },
+        )
         return True, None
 
     def finish(
@@ -1093,14 +1069,12 @@ class StreamlineManager:
         ctx.state[result_key] = result
         ctx.state[summary_key] = summary
         ctx.state[status_key] = status
-
         logger.info("Task finished", extra={"status": status})
 
 
 # ═══════════════════════════════════════════════════════════════════
 # Instructions & instrumentation
 # ═══════════════════════════════════════════════════════════════════
-
 TASK_RESULT_SUMMARIZATION_INSTRUCTIONS: Final[str] = """\
 You are a precise technical summarizer. Your job is to produce a clear, \
 factual summary of a completed task.
@@ -1108,17 +1082,16 @@ factual summary of a completed task.
 INPUT:
 You will receive a JSON object with:
 - "objective": The original goal of the task
-- "records": A list of subtask execution records (each with task details and results)
+- "records": A list of subtask execution records
 - "result": The final reported result
 - "status": The final task status ("done" or "failed")
 
 OUTPUT REQUIREMENTS:
-Write a single, structured summary that covers ALL of the following:
-
-1. **Objective**: What was the task trying to achieve? 
+Write a single, structured summary covering:
+1. **Objective**: What was the task trying to achieve?
 2. **Approach**: What major steps were taken? (bullet list)
-3. **Outcome**: What was the final result? Was the objective met? 
-4. **Status**: Final status and justification 
+3. **Outcome**: What was the final result? Was the objective met?
+4. **Status**: Final status and justification
 5. **Notable issues** (only if applicable): Blockers, warnings, partial \
 failures, or important caveats
 
@@ -1137,7 +1110,7 @@ def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False)
             "- Reviewed source files for HTTP endpoint definitions:\n"
             "  - src/main/java/com/example/ExampleController.java\n"
             "  - src/main/java/com/example/AdminController.java\n"
-            "- Identified the following endpoints:\n"
+            "- Identified endpoints:\n"
             "  - GET /example\n"
             "  - POST /example\n"
             "  - PUT /example/id\n"
@@ -1146,31 +1119,22 @@ def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False)
         ),
         summary=(
             "Goal: Identify all HTTP endpoints in the project. "
-            "Result: Found 5 endpoints across 2 controller classes. "
-            "All endpoint definitions have been captured — no additional "
-            "controllers exist in the codebase."
+            "Result: Found 5 endpoints across 2 controller classes."
         ),
     )
-
     example_incomplete = SubtaskExecutionResult(
         task_id="2",
         status="incomplete",
         output=(
-            "- Searched for HTTP endpoint annotations in the main source "
-            "directory.\n"
-            "- Found 2 endpoints in "
-            "src/main/java/com/example/ExampleController.java:\n"
+            "- Found 2 endpoints in ExampleController.java:\n"
             "  - GET /example\n"
             "  - POST /example\n"
             "- Did not yet examine: AdminController.java, "
             "HealthController.java, and 3 other controller files."
         ),
         summary=(
-            "Goal: Identify all HTTP endpoints in the project. "
-            "Status: Incomplete — only 1 of 5 controller files examined. "
-            "Remaining work: Inspect AdminController.java, "
-            "HealthController.java, and the 3 remaining controller files "
-            "for endpoint definitions."
+            "Goal: Identify all HTTP endpoints. "
+            "Status: Incomplete — only 1 of 5 controller files examined."
         ),
     )
 
@@ -1193,7 +1157,6 @@ def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False)
         ex_incomplete_fmt = json.dumps(ex_incomplete_fmt, indent=2)
 
     return f"""\
-
 RESPONSE FORMAT (MANDATORY):
 After completing the subtask, you MUST return your result using EXACTLY \
 the following structure. Do NOT add any text before or after.
@@ -1202,13 +1165,11 @@ FIELD DESCRIPTIONS:
 {format_description}
 
 GUIDELINES:
-- task_id: Copy the exact task_id from the input. Do NOT invent a new one.
-- status: Use 'done' ONLY if the subtask is 100% complete. If you could not \
-finish everything, use 'incomplete'.
-- output: Include concrete, factual results. List files, data, artifacts, or \
-errors. No opinions or plans.
-- summary: Keep it to 2-5 sentences. State the goal, what was done, and \
-(if incomplete) what remains.
+- task_id: Copy the exact task_id from the input.
+- status: Use 'done' if the deliverable has been produced.
+- Use 'incomplete' only when a required deliverable is still missing.
+- output: Include concrete, factual results only.
+- summary: State the goal, what was done, and (if incomplete) what remains.
 
 EXAMPLE — Completed subtask:
 {ex_done_fmt}
@@ -1234,20 +1195,15 @@ def instrument_worker(
 ) -> AgentTool:
     if use_input_schema or fmt._format == "json":
         worker.input_schema = Subtask
-
     if use_output_schema:
         worker.output_schema = SubtaskExecutionResult
-
     worker.instruction += _prepare_worker_instructions(fmt, type_hint=type_hint)
-
     return AgentTool(worker) if not isinstance(worker, AgentTool) else worker
 
 
 # ═══════════════════════════════════════════════════════════════════
 # Tool factory
 # ═══════════════════════════════════════════════════════════════════
-
-
 def task_tools(
     name: str,
     max_tasks: int,
@@ -1255,12 +1211,13 @@ def task_tools(
     fmt: SubtaskFormatter,
     *,
     use_skip: bool = True,
-    use_summarization: bool = True,
     use_type_hint: bool = False,
     use_input_schema: bool = True,
     use_output_schema: bool = True,
+    use_summarization: bool = True,
     worker_instrumentation: bool = True,
     max_records: int = 20,
+    n_retries: int = 3
 ) -> list[Callable[..., Any]]:
     if worker_instrumentation:
         agent_ref = _get_agent_ref(worker)
@@ -1273,7 +1230,7 @@ def task_tools(
 
     mgr = StreamlineManager(name, max_tasks, fmt)
 
-    # Pre-create summarizer tool if summarization is enabled
+    # Pre-create summarizer if needed
     summarizer_tool: Optional[AgentTool] = None
     if use_summarization:
         agent_ref = _get_agent_ref(worker)
@@ -1293,87 +1250,96 @@ def task_tools(
     ) -> dict[str, Any]:
         """Add a new subtask to the execution plan.
 
-        Creates a subtask with the given title and description and appends it
-        to the ordered task list. The subtask will be executed when it becomes
-        the current subtask (i.e. all preceding subtasks are done or skipped).
+        Creates a subtask with the given title and description. The subtask
+        will be executed when it becomes current (all preceding subtasks
+        are done or skipped).
 
         Args:
             title: Concise, action-oriented title in imperative mood.
-                   Example: "Extract API endpoint definitions from source code"
-            description: Detailed description including:
-                - What specific work needs to be done
-                - What inputs or context are available
-                - What the expected output is
-                - Any constraints or edge cases
+            description: Detailed description including what work to do,
+                available inputs, expected output, and constraints.
 
         Returns:
             The created subtask on success, or an error if the task limit
             has been reached.
+
+        Before calling:
+        - Review `get_records` to confirm work is not already done
+        - Confirm the subtask produces NEW information
         """
         subtask: Optional[Subtask] = mgr.add_subtask(
             SubtaskSpec(title=title, description=description), tool_context
         )
         if subtask is None:
             return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
-
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
     def get_current_subtask(tool_context: ToolContext) -> dict[str, Any]:
-        """Get the single current subtask that should be executed next.
-
-        Returns the one subtask that the worker should focus on right now.
-        There is always exactly zero or one current subtask.
+        """Get the current subtask to execute next.
 
         Returns:
-            The current subtask, or an error if no subtasks exist.
+            The current subtask, or an error if none exist.
 
-        Important:
-            - You MUST call this before `execute_current_subtask` to know
-              which task to execute.
-            - You MUST pass the returned task_id and description to the
-              worker verbatim.
-            - Do NOT skip ahead or execute a different subtask.
+        You MUST call this before `execute_current_subtask`.
         """
         subtask: Optional[Subtask] = mgr.get_current_subtask(tool_context)
         if subtask is None:
-            return {"error": NO_ACTIVE_TASKS_MSG}
-
+            return {"error": NO_SUBTASKS_EXIST_MSG}
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
 
-    def list_subtasks(tool_context: ToolContext) -> dict[str, Any]:
-        """List all subtasks in the execution plan with their current status.
+    def list_subtasks(
+        tool_context: ToolContext,
+        view: Literal["remaining", "all"] = "remaining",
+    ) -> dict[str, Any]:
+        """Inspect the execution plan without taking action.
 
-        Use this to understand the full scope, ordering, and progress of
-        the execution plan.
+        DEFAULT:
+        - `view="remaining"` returns only the remaining planned subtasks:
+        the current subtask and any later subtasks.
+
+        OPTIONAL:
+        - `view="all"` returns the full subtask history, including resolved and
+        historical subtasks.
+
+        Args:
+            view:
+                - "remaining": current and future subtasks only
+                - "all": full ordered history
 
         Returns:
-            Ordered list of all subtasks with their status.
-            Status values: 'new' (pending), 'done', 'incomplete', 'skipped'.
-
-        When to use:
-            - Before adding subtasks, to see what already exists
-            - To check overall progress
-            - To understand context before executing the current subtask
+            Ordered list of visible subtasks, or an explicit no-remaining-work
+            message when the remaining plan is empty.
         """
         subtasks = mgr.get_subtasks(tool_context)
-        return {"result": fmt.format_subtasks(subtasks, type_hint=use_type_hint)}
+
+        if view == "all":
+            visible_subtasks = subtasks
+        else:
+            idx = mgr._get_idx(tool_context)
+            if idx is None or idx < 0 or idx >= len(subtasks):
+                visible_subtasks = []
+            elif idx == len(subtasks)-1 and subtasks[idx].status != "new":
+                visible_subtasks = []
+            else:
+                visible_subtasks = subtasks[idx:]
+
+        if view == "remaining" and not visible_subtasks:
+            return {"result": NO_REMAINING_SUBTASKS_MSG}
+
+        return {
+            "result": fmt.format_subtasks(
+                visible_subtasks,
+                type_hint=use_type_hint,
+            )
+        }
 
     def get_records(tool_context: ToolContext) -> dict[str, Any]:
-        """Retrieve execution records from previously completed subtasks.
-
-        Each record contains the subtask definition and its execution result
-        (output, summary, status). Use this to review what has already been
-        done and what information has been gathered.
+        """Retrieve execution records from completed subtasks.
 
         Returns:
-            List of task records (most recent last), capped at {max_records}.
-
-        When to use:
-            - Before executing a subtask that depends on prior results
-            - When preparing the final result for `finish`
-            - To avoid re-doing work that was already completed
+            List of task records (most recent last), capped at max_records.
         """
-        records = mgr.get_records(tool_context)[:max_records]
+        records = mgr.get_records(tool_context)[-max_records:]
         return {"result": records}
 
     def decompose_subtask(
@@ -1381,29 +1347,15 @@ def task_tools(
         decomposition: SubtaskDecomposition,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """Break an incomplete subtask into smaller, executable subtasks.
+        """Break the current subtask into 1-3 smaller executable subtasks.
 
-        When a subtask execution returns status 'incomplete', it means the
-        work was too large or complex for a single execution. Use this tool
-        to decompose it into 1-3 smaller subtasks that collectively cover
-        all remaining work.
+        Use only when the current subtask has status 'incomplete' or 'malformed'
+        and multiple distinct steps remain.
 
         Args:
-            task_id: The task_id of the incomplete subtask. MUST match the
-                     current subtask's task_id exactly.
-            decomposition: A SubtaskDecomposition containing 1-3 ordered
-                          subtask specifications.
-
-        Returns:
-            The list of newly created child subtasks, or an error.
-
-        Rules:
-            - Only the CURRENT subtask with status 'incomplete' can be
-              decomposed.
-            - Child subtasks get IDs like '{parent_id}.1', '{parent_id}.2'.
-            - The first child becomes the new current subtask.
-            - Prefer fewer subtasks (1-3) over many small ones.
-            - Together, children MUST cover ALL remaining work.
+            task_id: MUST match the current subtask exactly.
+            decomposition: Ordered list of 1-3 subtasks covering all
+                remaining work.
         """
         if isinstance(decomposition, str):
             schema = json.dumps(SubtaskDecomposition.model_json_schema(), indent=2)
@@ -1421,12 +1373,12 @@ def task_tools(
 
         current = mgr.get_current_subtask(tool_context)
         if current is None:
-            return {"error": NO_ACTIVE_TASKS_MSG}
+            return {"error": NO_SUBTASKS_EXIST_MSG}
         if str(task_id) != current.task_id:
             return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
-        if current.status != "incomplete":
+        if current.status not in ("incomplete", "malformed"):
             return {
-                "error": SUBTASK_DECOMPOSE_NOT_INCOMPLETE.format(
+                "error": SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE.format(
                     task_id=task_id, status=current.status
                 )
             }
@@ -1434,89 +1386,117 @@ def task_tools(
         insertion: Optional[list[Subtask]] = mgr.decompose_current_subtask(
             decomposition.subtasks, tool_context
         )
-
         if insertion is None:
             return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
-
         if len(insertion) == 0:
-            return {"error": NO_ACTIVE_TASKS_MSG}
-
+            return {"error": SUBTASK_DECOMPOSE_EMPTY_LIST}
         return {"result": fmt.format_subtasks(insertion)}
 
     def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
         """Skip execution of the current subtask.
 
         Marks the current subtask as 'skipped' and advances to the next one.
-        The skip reason is recorded for posterity.
+        If all objectives are achived, use `finish` tool instead.
 
         Args:
-            task_id: The task_id of the subtask to skip. MUST match the
-                     current subtask's task_id exactly.
-            reason: Clear explanation of why this subtask is being skipped.
-                    Examples: "Duplicate of subtask 0", "Dependency X is
-                    unavailable", "Out of scope for the current objective".
+            task_id: Must match the current subtask's task_id exactly.
+            reason: Clear, specific explanation of why this subtask is being
+                    skipped. Generic reasons like "not needed" or "too hard"
+                    are NOT acceptable.
 
         Returns:
-            The next subtask (which becomes the new current subtask),
-            or a message if no more subtasks remain.
+            The next subtask, or a message if no more remain.
 
-        Rules:
-            - Use this ONLY when you have a strong, justifiable reason.
-            - Do NOT skip subtasks simply because they are difficult.
-            - The reason MUST be specific and non-empty.
-            - You cannot skip the last remaining subtask.
+        IMPORTANT CONSTRAINTS:
+            - You MUST have attempted execution first or have clear evidence
+              the subtask cannot produce useful results.
+            - Valid reasons: duplicate of another subtask, dependency
+              unavailable, provably out of scope, already covered by
+              another subtask's output.
+            - INVALID reasons: "difficult", "not sure", "might not work",
+              "seems unnecessary".
+            - For 'malformed' subtasks: prefer `decompose_subtask` over skip,
+              since malformed output may contain useful partial information.
+            - For 'incomplete' subtasks: you MUST decompose unless this is the
+              last remaining subtask, in which case skip is allowed.
         """
         if not reason.strip():
             return {"error": SKIP_REASON_MUST_NOT_BE_EMPTY}
 
         current = mgr.get_current_subtask(tool_context)
         if current is None:
-            return {"error": NO_ACTIVE_TASKS_MSG}
+            return {"result": NO_ACTIVE_SUBTASKS_MSG}
         if str(task_id) != current.task_id:
             return {"error": SUBTASK_NOT_CURRENT_MSG.format(task_id=task_id)}
 
+        subtasks = mgr.get_subtasks(tool_context)
+        is_last_subtask = len(subtasks) > 0 and subtasks[-1].task_id == current.task_id
+        limit_reached = len(subtasks) >= mgr.max_tasks
+
+        if current.status == "incomplete" and not is_last_subtask and not limit_reached:
+            return {
+                "error": (
+                    f"Subtask `{task_id}` has status 'incomplete' and cannot be "
+                    "skipped unless it is the last remaining subtask. "
+                    "Non-final incomplete subtasks MUST be decomposed using "
+                    "`decompose_subtask`."
+                )
+            }
+
         next_subtask = mgr.skip(reason, tool_context)
         if next_subtask is None:
-            return {"result": NO_ACTIVE_TASKS_MSG}
-
-        return {"result": fmt.format_subtask(next_subtask)}
+            return {"result": NO_ACTIVE_SUBTASKS_MSG}
+        return {"result": "ok", "next-subtask": fmt.format_subtask(next_subtask)}
 
     async def execute_current_subtask(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """Execute the current subtask using the worker agent.
 
-        Sends the current subtask to the worker for execution, parses the
-        result, records it, and advances the task pointer if appropriate.
-
         Prerequisites:
-            - At least one subtask must exist (call `add_subtask` first)
-            - If the current subtask has status 'incomplete', you MUST call
-              `decompose_subtask` first — do NOT call this tool again directly
-            - The current subtask must have status 'new'
+            - At least one subtask must exist
+            - Current subtask must have status 'new'
+            - If 'incomplete'/'malformed', decompose or skip first
 
         Returns:
-            A dict containing:
-            - 'record': The execution record (subtask + result)
-            - 'action' (optional): Required next step if the subtask is
-              incomplete or no more subtasks remain
-            - 'error' (optional): If the worker output could not be parsed
+            Record of execution with optional action guidance.
 
         After this tool returns:
-            - If status is 'done': The next subtask becomes current
-              automatically. Call `get_current_subtask` to see it.
-            - If status is 'incomplete': You MUST call `decompose_subtask`
-              to break it down before proceeding.
+            - If status is 'done': The next subtask becomes current automatically when one exists.
+            - If status is 'incomplete': You MUST call `decompose_subtask` or `skip` before proceeding.
+            - If status is 'malformed': The raw output has been stored, but the
+              result could not be fully parsed. You MUST call `decompose_subtask`or `skip` before proceeding.
         """
         current = mgr.get_current_subtask(tool_context)
         if current is None:
-            return {"error": NO_ACTIVE_TASKS_MSG}
+            return {"error": NO_ACTIVE_SUBTASKS_MSG}
 
         match current.status:
-            case "incomplete":
-                return {"error" : SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)}
-            case "done":
-                return {"error": NO_ACTIVE_TASKS_MSG}
+            case "incomplete" | "malformed":
+                return {
+                    "error": SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+                        task_id=current.task_id,
+                        status=current.status,
+                    )
+                }
+            case "done" | "skipped":
+                return {"error": NO_ACTIVE_SUBTASKS_MSG}
+            case "new":
+                pass
+            case _:
+                logger.warning(
+                    "Unknown subtask status",
+                    extra={
+                        "task_id": current.task_id,
+                        "status": current.status,
+                    },
+                )
+                return {
+                    "error": (
+                        f"Subtask `{current.task_id}` has unsupported "
+                        f"status '{current.status}'."
+                    )
+                }
 
         logger.info(
             "Executing subtask",
@@ -1529,11 +1509,15 @@ def task_tools(
         else:
             args = {"request": fmt.format_subtask(current)}
 
-        raw = await worker.run_async(args=args, tool_context=tool_context)
+        # Run worker with retries
+        retries: int = 0
+        raw: str = ""
+        while retries < n_retries and raw.strip() == "":
+            raw = await worker.run_async(args=args, tool_context=tool_context)
+            retries += 1
 
-        # ── Parse worker output ─────────────────────────────────────
+        # ── Parse worker output ──────────────────────────────────────
         subtask_result: Optional[SubtaskExecutionResult] = None
-
         if isinstance(raw, SubtaskExecutionResult):
             subtask_result = raw
         elif isinstance(raw, dict):
@@ -1546,6 +1530,9 @@ def task_tools(
 
         validated = isinstance(subtask_result, SubtaskExecutionResult)
 
+        # Check for task_id mismatch
+        raw_dump: Any = raw
+        malformed_reason: Optional[str] = None
         if validated and subtask_result.task_id != current.task_id:
             logger.warning(
                 "Worker returned mismatched task_id",
@@ -1554,27 +1541,20 @@ def task_tools(
                     "got": subtask_result.task_id,
                 },
             )
-            subtask_result = SubtaskExecutionResult(
-                task_id=current.task_id,
-                status="incomplete",
-                output=(
-                    f"Worker returned result for task_id="
-                    f"'{subtask_result.task_id}' but expected "
-                    f"'{current.task_id}'.\n\n"
-                    f"Original output:\n{subtask_result.output}"
-                ),
-                summary=(
-                    "Worker returned a result for the wrong subtask. "
-                    "Marking as incomplete for retry or decomposition."
-                ),
+            malformed_reason = (
+                f"Worker returned result for task_id='{subtask_result.task_id}' "
+                f"but expected '{current.task_id}'.\n\n"
+                f"Original parsed output:\n{subtask_result.output}"
             )
             validated = False
+            subtask_result = None
 
-        # Fallback for unparseable output
+        # ── Apply malformed fallback ─────────────────────────────────
         if not validated:
-            raw_dump = raw
+            if malformed_reason is not None:
+                raw_dump = malformed_reason
             with suppress(ValueError, TypeError):
-                raw_dump = json.dumps(raw, ensure_ascii=False)
+                raw_dump = json.dumps(raw_dump, ensure_ascii=False)
 
             logger.warning(
                 "Failed to parse worker output",
@@ -1583,20 +1563,37 @@ def task_tools(
                     "raw_type": type(raw).__name__,
                 },
             )
-
-            subtask_result = SubtaskExecutionResult(
-                task_id=current.task_id,
-                status="incomplete",
-                output=str(raw_dump),
-                summary=SUBTASK_RESULT_MALFORMED,
+            runtime_result = {
+                "task_id": current.task_id,
+                "status": "malformed",
+                "output": str(raw_dump),
+                "summary": SUBTASK_RESULT_MALFORMED,
+            }
+            success, error_msg = mgr.complete_current_subtask_from_runtime_result(
+                runtime_result, tool_context
             )
+            record: dict[str, Any] = {
+                **current.model_dump(),
+                **runtime_result,
+            }
+            response: dict[str, Any] = {
+                "record": record,
+                "error": SUBTASK_RESULT_MALFORMED,
+                "action": SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+                    task_id=current.task_id,
+                    status="malformed",
+                ),
+            }
+            if not success and error_msg:
+                response["error"] = error_msg
+            return response
 
-        # ── Apply result via manager ────────────────────────────────
+        # ── Apply validated result ───────────────────────────────────
+        assert subtask_result is not None
         success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
-        # ── Build response ──────────────────────────────────────────
         record = fmt.format_task_record(current, subtask_result)
-        response: dict[str, Any] = {"record": record}
+        response = {"record": record}
 
         if not success and error_msg:
             response["error"] = error_msg
@@ -1605,16 +1602,19 @@ def task_tools(
         subtasks = mgr.get_subtasks(tool_context)
         can_advance = idx is not None and idx + 1 < len(subtasks)
 
-        action: str = ""
-        if not can_advance and subtask_result.status != "incomplete":
-            action += NO_ACTIVE_TASKS_MSG
+        action_parts: list[str] = []
         if subtask_result.status == "incomplete":
-            action += SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id=current.task_id)
+            action_parts.append(
+                SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+                    task_id=current.task_id,
+                    status="incomplete",
+                )
+            )
+        elif not can_advance:
+            action_parts.append(NO_ACTIVE_SUBTASKS_MSG)
 
-        if action:
-            response["action"] = action
-        if not validated:
-            response["error"] = SUBTASK_RESULT_MALFORMED
+        if action_parts:
+            response["action"] = " ".join(action_parts)
 
         return response
 
@@ -1625,54 +1625,43 @@ def task_tools(
     ) -> dict[str, Any]:
         """Finalize the overall task and report the final outcome.
 
-        Call this when all subtasks are complete (or when you determine
-        the task cannot be completed). This records the final status and
-        result, optionally generates a summary, and signals the end of
-        execution.
-
         Args:
-            status: Final task status. Exactly one of:
-                - "done": The global objective has been FULLY achieved.
-                  All required deliverables are present in 'result'.
-                - "failed": The global objective CANNOT be achieved.
-                  Explain what went wrong and what was attempted in 'result'.
-            result: Comprehensive, self-contained description of the outcome.
-                MUST include:
-                - What was accomplished (specific deliverables, data, changes)
-                - What was NOT accomplished (if status is "failed")
-                - All information required by the original task description
-                - Follows the OUTPUT FORMAT specified in the task, if any
-                This result must be understandable WITHOUT access to
-                intermediate notes or execution records.
+            status: "done" if objective fully achieved, "failed" otherwise.
+            result: Comprehensive, self-contained description of outcome.
+                    MUST include:
+                    - What was accomplished (specific deliverables, data, changes)
+                    - What was NOT accomplished (if status is "failed")
+                    - All information required by the original task description
+                    - Follows the OUTPUT FORMAT specified in the task, if any
+                    This result must be understandable WITHOUT access to
+                    intermediate notes or execution records.
 
         When to use:
-            - All subtasks are done/skipped and the goal is achieved → "done"
-            - A critical blocker prevents completion → "failed"
-            - You have exhausted all approaches → "failed"
-
-        When NOT to use:
-            - There are still pending subtasks to execute
-            - The current subtask is 'incomplete' (decompose it first)
+            - All subtasks done/skipped and goal achieved → "done"
+            - Critical blocker prevents completion → "failed"
         """
-        summary = ""
 
+        subtasks = mgr.get_subtasks(tool_context)
+        if status == "done" and not len(subtasks) >= mgr.max_tasks:
+            has_new = any(t.status == "new" for t in subtasks)
+            has_any = len(subtasks) > 0
+            if has_new or not has_any:
+                return {"error": DO_NOT_FINISH_WITH_NO_TASKS_DONE}
+
+        summary = ""
         if use_summarization and summarizer_tool is not None:
             objective_key = StreamlineManager._global_keys(tool_context, "objective")
             objective = tool_context.state.get(objective_key, "")
-
             payload = {
                 "objective": objective,
                 "records": mgr.get_records(tool_context),
                 "result": result,
                 "status": status,
             }
-
             sum_args = {"request": json.dumps(payload, ensure_ascii=False, indent=2)}
-
             raw = await summarizer_tool.run_async(
                 args=sum_args, tool_context=tool_context
             )
-
             summary = (
                 raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
             )
@@ -1683,13 +1672,12 @@ def task_tools(
             summary=summary,
             ctx=tool_context,
         )
-        
+
         # Force quit
         tool_context._invocation_context.end_invocation = True
         return {"result": "ok", "instructions": "stop the execution now"}
 
     # ── Assemble tool list ──────────────────────────────────────────
-
     tools: list[Callable[..., Any]] = [
         add_subtask,
         get_current_subtask,

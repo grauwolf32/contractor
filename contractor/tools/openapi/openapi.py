@@ -68,6 +68,7 @@ openapi_base_schema: Final[dict[str, Any]] = {
     },
 }
 
+
 @dataclass
 class OpenAPIFormat:
     _format: Literal["json", "yaml"] = "json"
@@ -81,6 +82,7 @@ class OpenAPIFormat:
                 default_flow_style=False,
             )
         return value
+
 
 @dataclass
 class OpenApiArtifact:
@@ -416,7 +418,9 @@ def openapi_tools(
                 )
             }
 
-        return {"result": fmt.format_result(oas.schema["components"][key][component_name])}
+        return {
+            "result": fmt.format_result(oas.schema["components"][key][component_name])
+        }
 
     async def set_info(
         title: str,
