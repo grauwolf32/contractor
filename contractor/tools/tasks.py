@@ -81,8 +81,8 @@ SUBTASK_RESULT_MALFORMED: Final[str] = (
 
 SUBTASK_STATUS_TRANSITIONS: Final[dict[str, list[str]]] = {
     "new": ["done", "incomplete", "malformed", "skipped"],
-    "incomplete": ["done"],
     "malformed": ["skipped"],
+    "incomplete": [],
     "done": [],
     "skipped": [],
 }
@@ -224,9 +224,8 @@ class Subtask(BaseModel):
             "task may still contain useful results\n"
             "- 'skipped': Deliberately skipped with reason\n"
             "Valid transitions: "
-            "new->{done,incomplete,malformed,skipped}, "
-            "incomplete->{done,skipped}, "
-            "malformed->{skipped}"
+            "new->[done,incomplete,malformed,skipped], "
+            "malformed->[skipped]"
         ),
     )
 
@@ -249,7 +248,7 @@ class SubtaskExecutionResult(BaseModel):
         ),
     )
 
-    status: Literal["done", "incomplete", "skipped"] = Field(
+    status: Literal["done", "incomplete"] = Field(
         ...,
         description=(
             "Execution outcome. Choose exactly one:\n"
@@ -258,7 +257,6 @@ class SubtaskExecutionResult(BaseModel):
             "- 'incomplete': The subtask was partially completed. Further "
             "decomposition or work is required. Explain what remains "
             "in the summary.\n"
-            "- 'skipped': The subtask was skipped. Explain why in the output."
         ),
     )
 
@@ -1810,12 +1808,7 @@ def task_tools(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """Finalize the overall task and report the final outcome.
-
-        Call this when all subtasks are complete (or when you determine
-        the task cannot be completed). This records the final status and
-        result, optionally generates a summary, and signals the end of
-        execution.
-
+        
         Args:
             status: Final task status. Exactly one of:
                 - "done": The global objective has been FULLY achieved.
@@ -1844,10 +1837,8 @@ def task_tools(
         subtasks = mgr.get_subtasks(tool_context)
 
         has_new = any(t.status == "new" for t in subtasks)
-        has_incomplete = any(t.status == "incomplete" for t in subtasks)
-        has_malformed = any(t.status == "malformed" for t in subtasks)
-
-        if status == "done" and (has_new or has_incomplete or has_malformed):
+        has_any = len(subtasks) > 0
+        if status == "done" and (has_new or not has_any):
             return {"error": DO_NOT_FINISH_WITH_NO_TASKS_DONE}
 
         summary = ""
