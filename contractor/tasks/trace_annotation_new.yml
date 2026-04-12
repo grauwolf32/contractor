@@ -21,45 +21,6 @@ task:
     - Prefer concrete, code-backed paths over speculation
     - Do not assume behavior not visible in code
     - Annotate only where it adds clear trace value
-    - STOP as soon as sufficient information is collected to produce final output
-
-    ## State Management (CRITICAL)
-
-    - Treat previously discovered files, functions, and flows as source of truth
-    - NEVER re-search or re-verify something that was already confirmed
-    - Reuse results from earlier steps instead of repeating file discovery
-    - If data is already in memory, use it directly
-
-    ## Scope Control (ANTI-DRIFT)
-
-    - Do NOT introduce new goals (e.g., refactoring, instrumentation design, trace system design)
-    - Do NOT switch to tasks like "add tracing framework" or "improve code"
-    - Only:
-      - locate entrypoint
-      - trace data flow
-      - annotate
-      - analyze security
-
-    ## Decomposition Rules
-
-    - Maximum depth: 3 levels
-    - If a task only checks existence or repeats previous work → SKIP it
-    - Prefer fewer, meaningful steps over many micro-steps
-    - A task must produce NEW information, not restate intent
-
-    ## Completion Criteria (MANDATORY STOP CONDITION)
-
-    STOP execution when ALL are satisfied:
-    1. Entrypoint is identified
-    2. Request parameters are mapped (body/query/path/headers)
-    3. At least one full data flow path is traced to:
-       - a sink OR
-       - a terminal business operation (e.g., DB save)
-    4. Validation (or absence) is identified
-    5. Security mechanism (auth/authz) is identified
-
-    Once these are done → IMMEDIATELY produce final output.
-    DO NOT create new subtasks after this point.
 
     ## Annotation Format
 
@@ -148,14 +109,13 @@ task:
        - Use routing decorators and framework conventions
        - Use x-path-file / x-component-file as strong hints
        - Confirm with schema structure
-       - If found → DO NOT search for it again
 
     2. Trace execution:
        - Start from request inputs (path, query, body, headers)
        - Follow how data propagates through function calls
        - Track transformations, validation, and sinks
        - Ignore unrelated or generic helpers
-       - STOP when full path is clear
+       - Stop tracing when flow becomes unclear or irrelevant
 
     3. Select functions to annotate:
        - entrypoint
@@ -168,36 +128,20 @@ task:
        - place comments directly above function definitions
        - do not duplicate or overwrite existing annotations
        - annotate only high-confidence, relevant functions
-       - DO NOT attempt annotation if file content is not available
 
     5. Verify annotations are present
-       - If verification fails due to tooling/parsing → DO NOT retry endlessly
-       - Proceed to final analysis if annotations are logically correct
 
-    6. Analyze business value of the operation
+    6. Analyze business value of the operation 
 
     7. Security analysis:
        - identify where tainted or derived data reaches sinks
        - verify presence or absence of validation
        - only report vulnerabilities if clearly supported by code
        - avoid speculation
-       - also consider:
-         - broken access control
-         - missing auth check
-         - insecure defaults
-         - sensitive data exposure
+       - also consider: broken access control, missing auth check, insecure
+        defaults, sensitive data exposure.
 
-    ## Failure Handling
 
-    - If a step result cannot be parsed:
-      → Extract useful data manually and CONTINUE
-      → DO NOT restart the same step
-
-    - If file already read but tool says "not found":
-      → TRUST MEMORY, not tool inconsistency
-
-    - If partial data is sufficient:
-      → COMPLETE task instead of retrying
 
   output_format: |
     ## Changes Applied

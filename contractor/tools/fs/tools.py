@@ -623,7 +623,7 @@ def ro_file_tools(
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression.
-        
+
         Usage:
          - be more specific, avoid too general patterns like .*
         """
