@@ -3,9 +3,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 import contractor.tools.tasks as m
-from contractor.tools.tasks import Subtask, SubtaskExecutionResult, SubtaskFormatter
+from contractor.tools.tasks import (
+    Subtask,
+    SubtaskDecomposition,
+    SubtaskExecutionResult,
+    SubtaskFormatter,
+)
 from tests.units.contractor_tests.helpers import MockAgentTool, mk_tool_context
 
 
@@ -30,6 +36,61 @@ def subtask_result() -> SubtaskExecutionResult:
 
 
 # ---------------------------
+# Helpers
+# ---------------------------
+
+
+def _result_json(task_id: str, status: str, output: str, summary: str) -> str:
+    return json.dumps(
+        {
+            "task_id": task_id,
+            "status": status,
+            "output": output,
+            "summary": summary,
+        }
+    )
+
+def _attach_invocation_context(ctx):
+    ctx._invocation_context = type("InvocationCtx", (), {"end_invocation": False})()
+    return ctx
+
+def _mk_tools(
+    monkeypatch,
+    *,
+    worker,
+    max_tasks=100,
+    use_skip=False,
+    use_summarization=False,
+):
+    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
+    monkeypatch.setattr(m, "instrument_worker", lambda w, *a, **k: w)
+
+    fmt = m.SubtaskFormatter(_format="json")
+    tools = m.task_tools(
+        name="tm",
+        max_tasks=max_tasks,
+        worker=worker,
+        fmt=fmt,
+        worker_instrumentation=False,
+        use_input_schema=True,
+        use_output_schema=False,
+        use_type_hint=False,
+        use_skip=use_skip,
+        use_summarization=use_summarization,
+    )
+    return {fn.__name__: fn for fn in tools}
+
+
+def _mk_worker():
+    worker = type("Worker", (), {})()
+    worker.run_async = AsyncMock()
+    worker.tools = []
+    worker.model = "gpt-3.5-turbo"
+    worker.instruction = ""
+    return worker
+
+
+# ---------------------------
 # FORMAT: JSON
 # ---------------------------
 
@@ -39,7 +100,6 @@ def test_parse_subtask_result_json_valid(subtask_result: SubtaskExecutionResult)
     s = json.dumps(payload)
     parsed = SubtaskFormatter._parse_subtask_result_json(s)
 
-    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_subtask_result_json
     assert parsed is not None
     assert parsed.task_id == subtask_result.task_id
     assert parsed.status == subtask_result.status
@@ -54,12 +114,17 @@ def test_parse_subtask_result_json_invalid_returns_none(bad: str):
 
 
 def test_parse_subtask_result_json_accepts_python_literal_dict():
-    # ast.literal_eval ветка
     s = "{'task_id': '9', 'status': 'incomplete', 'output': 'x', 'summary': 'y'}"
     parsed = SubtaskFormatter._parse_subtask_result_json(s)
     assert parsed is not None
     assert parsed.task_id == "9"
     assert parsed.status == "incomplete"
+
+
+def test_parse_subtask_result_json_rejects_wrong_shape():
+    s = json.dumps({"task_id": "1", "status": "done", "output": "x"})
+    parsed = SubtaskFormatter._parse_subtask_result_json(s)
+    assert parsed is None
 
 
 # ---------------------------
@@ -68,11 +133,6 @@ def test_parse_subtask_result_json_accepts_python_literal_dict():
 
 
 def test_parse_subtask_result_yaml_valid_mapping_style():
-    # ожидаемый формат в формате SubtaskFormatter._subtask_result_to_yaml:
-    # 3:
-    #   status: done
-    #   output: ...
-    #   summary: ...
     s = yaml.safe_dump(
         {"3": {"task_id": "3", "status": "done", "output": "o", "summary": "s"}},
         sort_keys=False,
@@ -80,12 +140,22 @@ def test_parse_subtask_result_yaml_valid_mapping_style():
 
     parsed = SubtaskFormatter._parse_subtask_result_yaml(s)
 
-    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок в _parse_subtask_result_yaml
     assert parsed is not None
     assert parsed.task_id == "3"
     assert parsed.status == "done"
     assert parsed.output == "o"
     assert parsed.summary == "s"
+
+
+def test_parse_subtask_result_yaml_valid_direct_payload():
+    s = yaml.safe_dump(
+        {"task_id": "8", "status": "incomplete", "output": "o", "summary": "s"},
+        sort_keys=False,
+    )
+    parsed = SubtaskFormatter._parse_subtask_result_yaml(s)
+    assert parsed is not None
+    assert parsed.task_id == "8"
+    assert parsed.status == "incomplete"
 
 
 @pytest.mark.parametrize("bad", ["", "[]", "x: [1,2", "!!!", "- a\n- b\n"])
@@ -109,7 +179,6 @@ def test_parse_subtask_result_markdown_valid_single_line_fields():
     )
     parsed = SubtaskFormatter._parse_subtask_result_markdown(text)
 
-    # Сейчас этот тест, вероятно, УПАДЕТ из-за ошибок (text vs output переменная)
     assert parsed is not None
     assert parsed.task_id == "42"
     assert parsed.status == "done"
@@ -136,6 +205,24 @@ def test_parse_subtask_result_markdown_multiline_output_and_summary():
     assert parsed.summary == "s1\ns2"
 
 
+def test_parse_subtask_result_markdown_accepts_bullet_fields():
+    text = (
+        "### RESULT [ID: 11]\n"
+        "- **Status**: done\n"
+        "- **Output**: artifact\n"
+        "- **Summary**: ready\n"
+    )
+    parsed = SubtaskFormatter._parse_subtask_result_markdown(text)
+    assert parsed is not None
+    assert parsed.task_id == "11"
+    assert parsed.status == "done"
+
+
+def test_parse_subtask_result_markdown_invalid_returns_none():
+    parsed = SubtaskFormatter._parse_subtask_result_markdown("### RESULT [ID: 1]\n")
+    assert parsed is None
+
+
 # ---------------------------
 # FORMAT: XML
 # ---------------------------
@@ -155,6 +242,21 @@ def test_parse_task_result_xml_valid():
     assert parsed.status == "done"
     assert parsed.output == "o"
     assert parsed.summary == "s"
+
+
+def test_parse_task_result_xml_nested_in_wrapper():
+    xml = (
+        "<wrapper>\n"
+        '  <result task_id="10">\n'
+        "    <status>done</status>\n"
+        "    <output>o</output>\n"
+        "    <summary>s</summary>\n"
+        "  </result>\n"
+        "</wrapper>"
+    )
+    parsed = SubtaskFormatter._parse_subtask_result_xml(xml)
+    assert parsed is not None
+    assert parsed.task_id == "10"
 
 
 @pytest.mark.parametrize("bad", ["", "<x></x>", "<result></result>"])
@@ -183,82 +285,94 @@ def test_subtask_format_description_xml():
     assert type(fmt.format_subtask_result_description()) is str
 
 
+def test_parse_subtask_result_uses_fenced_block_and_fallback_task_id():
+    fmt = SubtaskFormatter(_format="json")
+    raw = """```json
+{"task_id":"77","status":"done","output":"ok","summary":"fine"}
+```"""
+    parsed = fmt.parse_subtask_result(raw, fallback_task_id="0")
+    assert parsed is not None
+    assert parsed.task_id == "77"
+
+    raw2 = """```json
+{"task_id":"","status":"done","output":"ok","summary":"fine"}
+```"""
+    parsed2 = fmt.parse_subtask_result(raw2, fallback_task_id="0")
+    assert parsed2 is not None
+    assert parsed2.task_id == "0"
+
+
+def test_sanitize_llm_output_removes_think_tags_and_outer_quotes():
+    text = '"<think>hidden</think>{\\"task_id\\":\\"1\\"}"'
+    out = SubtaskFormatter._sanitize_llm_output(text)
+    assert "<think>" not in out
+    assert "</think>" not in out
+    assert out == 'hidden{\\"task_id\\":\\"1\\"}'
+
+
+# ---------------------------
+# Model / validation tests
+# ---------------------------
+
+
+def test_validate_status_transition_accepts_valid():
+    assert m.validate_status_transition("new", "done") is True
+    assert m.validate_status_transition("new", "malformed") is True
+
+
+def test_validate_status_transition_rejects_invalid():
+    with pytest.raises(m.InvalidStatusTransitionError):
+        m.validate_status_transition("done", "done")
+
+
+def test_subtask_decomposition_model_requires_at_least_one():
+    with pytest.raises(ValidationError):
+        SubtaskDecomposition.model_validate({"subtasks": []})
+
+
 # ---------------------------
 # Behavior tests
 # ---------------------------
-
-
-def _mk_tools(monkeypatch, *, worker, max_tasks=100, use_skip=False):
-    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
-    monkeypatch.setattr(m, "instrument_worker", lambda w, *a, **k: w)
-
-    fmt = m.SubtaskFormatter(_format="json")
-    tools = m.task_tools(
-        name="tm",
-        max_tasks=max_tasks,
-        worker=worker,
-        fmt=fmt,
-        worker_instrumentation=False,
-        use_input_schema=True,
-        use_output_schema=False,
-        use_type_hint=False,
-        use_skip=use_skip,
-    )
-    return {fn.__name__: fn for fn in tools}
 
 
 @pytest.mark.anyio
 async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(
     monkeypatch,
 ):
-    # ---- Create async-mocked worker ----
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
-
+    worker = _mk_worker()
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
-    # Side-effect: always return a "done" result for the current task_id passed in args
     async def _done_result(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "done",
-            "output": f"completed {args['task_id']}",
-            "summary": "ok",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output=f"completed {args['task_id']}",
+            summary="ok",
+        )
 
     worker.run_async.side_effect = _done_result
-
     ctx = mk_tool_context()
 
-    # ---- Add several tasks ----
     for i in range(3):
         res = tool["add_subtask"](title=f"t{i}", description=f"d{i}", tool_context=ctx)
         assert "error" not in res
 
-    # ---- Current task should be 0 ----
     cur = tool["get_current_subtask"](tool_context=ctx)["result"]
     assert cur["task_id"] == "0"
 
-    # ---- Execute all tasks in order ----
-    # After each execute (done), manager should advance except for last task
     for expected_id in ["0", "1", "2"]:
         cur = tool["get_current_subtask"](tool_context=ctx)["result"]
         assert cur["task_id"] == expected_id
 
         exec_res = await tool["execute_current_subtask"](tool_context=ctx)
-        assert "error" not in exec_res  # no malformed result
-        # record is either dict (json format) or str; in json it’s dict
+        assert "error" not in exec_res
         assert exec_res["record"]["task_id"] == expected_id
         assert exec_res["record"]["status"] == "done"
 
-    # At this point, current task index typically still points at last task ("2")
     cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
     assert cur_after["task_id"] == "2"
     assert cur_after["status"] == "done"
 
-    # ---- Add another one; expected behavior: current becomes the last (new) task ----
     tool["add_subtask"](title="t3", description="d3", tool_context=ctx)
 
     cur2 = tool["get_current_subtask"](tool_context=ctx)["result"]
@@ -268,40 +382,31 @@ async def test_current_id_starts_at_0_execute_all_then_add_new_becomes_current(
 
 @pytest.mark.anyio
 async def test_add_new_task_after_decompose(monkeypatch):
-    # ---- Create async-mocked worker ----
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
-    # Side-effect: always return a "done" result for the current task_id passed in args
     async def _incomplete_result(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "incomplete",
-            "output": f"completed {args['task_id']}",
-            "summary": "ok",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output=f"completed {args['task_id']}",
+            summary="ok",
+        )
 
     worker.run_async.side_effect = _incomplete_result
-
     ctx = mk_tool_context()
 
     res = tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     assert "error" not in res
 
-    # ---- Current task should be 0 ----
     cur = tool["get_current_subtask"](tool_context=ctx)["result"]
     assert cur["task_id"] == "0"
 
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
-    assert "error" not in exec_res  # no malformed result
-
+    assert "error" not in exec_res
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "incomplete"
 
-    # At this point, current task index typically still points at last task ("2")
     res = tool["decompose_subtask"](
         task_id="0",
         decomposition={
@@ -316,36 +421,30 @@ async def test_add_new_task_after_decompose(monkeypatch):
     assert "error" not in res
 
     cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
-
     assert cur_after["task_id"] == "0.1"
     assert cur_after["status"] == "new"
 
 
 @pytest.mark.anyio
 async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
-    # ---- Create async-mocked worker ----
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
 
-    # Side-effect: always return a "done" result for the current task_id passed in args
     async def _incomplete_result(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "incomplete",
-            "output": f"completed {args['task_id']}",
-            "summary": "ok",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output=f"completed {args['task_id']}",
+            summary="ok",
+        )
 
     async def _done_result(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "done",
-            "output": f"completed {args['task_id']}",
-            "summary": "ok",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output=f"completed {args['task_id']}",
+            summary="ok",
+        )
 
     worker.run_async.side_effect = _done_result
 
@@ -357,13 +456,11 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
     res = tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
     assert "error" not in res
 
-    # ---- Current task should be 0 ----
     cur = tool["get_current_subtask"](tool_context=ctx)["result"]
     assert cur["task_id"] == "0"
 
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
-    assert "error" not in exec_res  # no malformed result
-
+    assert "error" not in exec_res
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "done"
 
@@ -372,12 +469,10 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
 
     worker.run_async.side_effect = _incomplete_result
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
-    assert "error" not in exec_res  # no malformed result
-
+    assert "error" not in exec_res
     assert exec_res["record"]["task_id"] == "1"
     assert exec_res["record"]["status"] == "incomplete"
 
-    # At this point, current task index typically still points at last task ("2")
     res = tool["decompose_subtask"](
         task_id="1",
         decomposition={
@@ -392,19 +487,15 @@ async def test_add_new_task_after_decompose_with_multiple(monkeypatch):
     assert "error" not in res
 
     cur_after = tool["get_current_subtask"](tool_context=ctx)["result"]
-
     assert cur_after["task_id"] == "1.1"
     assert cur_after["status"] == "new"
 
 
 @pytest.mark.anyio
-async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
+async def test_execute_malformed_worker_output_marks_malformed_and_sets_error(
     monkeypatch,
 ):
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
 
     async def _bad(*, args, tool_context):
         return "this is not a valid SubtaskExecutionResult"
@@ -418,31 +509,53 @@ async def test_execute_malformed_worker_output_marks_incomplete_and_sets_error(
 
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
 
-    # Tool should flag malformed result
     assert exec_res.get("error") == m.SUBTASK_RESULT_MALFORMED
 
-    # Record is stored as dict in json mode
     rec = exec_res["record"]
     assert rec["task_id"] == "0"
-    assert rec["status"] == "incomplete"
+    assert rec["status"] == "malformed"
     assert rec["summary"] == m.SUBTASK_RESULT_MALFORMED
     assert "this is not a valid SubtaskExecutionResult" in rec["output"]
 
 
 @pytest.mark.anyio
+async def test_execute_mismatched_task_id_becomes_malformed(monkeypatch):
+    worker = _mk_worker()
+
+    async def _bad_id(*, args, tool_context):
+        return _result_json(
+            task_id="999",
+            status="done",
+            output="wrong task",
+            summary="wrong task",
+        )
+
+    worker.run_async.side_effect = _bad_id
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+
+    assert exec_res["error"] == m.SUBTASK_RESULT_MALFORMED
+    assert exec_res["record"]["task_id"] == "0"
+    assert exec_res["record"]["status"] == "malformed"
+    assert "expected '0'" in exec_res["record"]["output"]
+
+
+@pytest.mark.anyio
 async def test_decompose_requires_current_task_id(monkeypatch):
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
 
     async def _incomplete(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "incomplete",
-            "output": "blocked",
-            "summary": "need more steps",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
 
     worker.run_async.side_effect = _incomplete
 
@@ -452,15 +565,17 @@ async def test_decompose_requires_current_task_id(monkeypatch):
     tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
 
-    # Execute current (0) -> incomplete, so current remains 0
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "incomplete"
     assert (
-        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="0") in exec_res["action"]
+        m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+            task_id="0",
+            status="incomplete",
+        )
+        in exec_res["action"]
     )
 
-    # Try decomposing with wrong id
     res = tool["decompose_subtask"](
         task_id="1",
         decomposition={"subtasks": [{"title": "x", "description": "y"}]},
@@ -468,7 +583,6 @@ async def test_decompose_requires_current_task_id(monkeypatch):
     )
     assert res["error"] == m.SUBTASK_NOT_CURRENT_MSG.format(task_id="1")
 
-    # Correct id works
     res_ok = tool["decompose_subtask"](
         task_id="0",
         decomposition={"subtasks": [{"title": "x", "description": "y"}]},
@@ -480,10 +594,7 @@ async def test_decompose_requires_current_task_id(monkeypatch):
 
 @pytest.mark.anyio
 async def test_skip_validations_and_state_transition(monkeypatch):
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
 
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
     ctx = mk_tool_context()
@@ -491,23 +602,20 @@ async def test_skip_validations_and_state_transition(monkeypatch):
     tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
 
-    # Empty reason rejected
     res = tool["skip"](task_id="0", reason="   ", tool_context=ctx)
     assert res["error"] == m.SKIP_REASON_MUST_NOT_BE_EMPTY
 
-    # Wrong task_id rejected (current is 0)
     res = tool["skip"](task_id="1", reason="nope", tool_context=ctx)
     assert res["error"] == m.SUBTASK_NOT_CURRENT_MSG.format(task_id="1")
 
-    # Valid skip moves to next task and marks 0 skipped
     res = tool["skip"](task_id="0", reason="redundant", tool_context=ctx)
-    assert res["result"]["task_id"] == "1"
+    assert res["result"] == "ok"
+    assert res["next-subtask"]["task_id"] == "1"
 
-    all_tasks = tool["list_subtasks"](tool_context=ctx)["result"]
+    all_tasks = tool["list_subtasks"](tool_context=ctx, view="all")["result"]
     t0 = next(t for t in all_tasks if t["task_id"] == "0")
     assert t0["status"] == "skipped"
 
-    # Record exists
     records = tool["get_records"](tool_context=ctx)["result"]
     assert isinstance(records, list)
     assert records[-1]["task_id"] == "0"
@@ -516,19 +624,72 @@ async def test_skip_validations_and_state_transition(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_skip_incomplete_non_last_requires_decomposition(monkeypatch):
+    worker = _mk_worker()
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    res = tool["skip"](task_id="0", reason="cannot continue", tool_context=ctx)
+    assert "error" in res
+    assert "cannot be skipped unless it is the last remaining subtask" in res["error"]
+
+
+@pytest.mark.anyio
+async def test_skip_incomplete_last_is_allowed(monkeypatch):
+    worker = _mk_worker()
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    await tool["execute_current_subtask"](tool_context=ctx)
+    res = tool["skip"](task_id="0", reason="cannot continue", tool_context=ctx)
+
+    assert res["result"] == m.NO_ACTIVE_SUBTASKS_MSG
+
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert records[-1]["task_id"] == "0"
+    assert records[-1]["status"] == "skipped"
+
+
+@pytest.mark.anyio
 async def test_records_accumulate_for_multiple_executes(monkeypatch):
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
 
     async def _done(*, args, tool_context):
-        return {
-            "task_id": args["task_id"],
-            "status": "done",
-            "output": f"ok {args['task_id']}",
-            "summary": "ok",
-        }
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output=f"ok {args['task_id']}",
+            summary="ok",
+        )
 
     worker.run_async.side_effect = _done
 
@@ -538,8 +699,8 @@ async def test_records_accumulate_for_multiple_executes(monkeypatch):
     tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
 
-    await tool["execute_current_subtask"](tool_context=ctx)  # 0
-    await tool["execute_current_subtask"](tool_context=ctx)  # 1
+    await tool["execute_current_subtask"](tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
 
     records = tool["get_records"](tool_context=ctx)["result"]
     assert [r["task_id"] for r in records[-2:]] == ["0", "1"]
@@ -548,26 +709,22 @@ async def test_records_accumulate_for_multiple_executes(monkeypatch):
 
 @pytest.mark.anyio
 async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
-    worker = type("Worker", (), {})()
-    worker.run_async = AsyncMock()
-    worker.tools = []
-    worker.model = "gpt-3.5-turbo"
+    worker = _mk_worker()
 
     async def _done_or_incomplete(*, args, tool_context):
-        # Make task 1 incomplete; everything else done
         if args["task_id"] == "1":
-            return {
-                "task_id": "1",
-                "status": "incomplete",
-                "output": "blocked at 1",
-                "summary": "need decompose",
-            }
-        return {
-            "task_id": args["task_id"],
-            "status": "done",
-            "output": f"ok {args['task_id']}",
-            "summary": "ok",
-        }
+            return _result_json(
+                task_id="1",
+                status="incomplete",
+                output="blocked at 1",
+                summary="need decompose",
+            )
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output=f"ok {args['task_id']}",
+            summary="ok",
+        )
 
     worker.run_async.side_effect = _done_or_incomplete
 
@@ -578,19 +735,20 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
     tool["add_subtask"](title="t2", description="d2", tool_context=ctx)
 
-    # 0 done -> current becomes 1
     await tool["execute_current_subtask"](tool_context=ctx)
     assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1"
 
-    # 1 incomplete -> stays current and demands decomposition
     exec_res = await tool["execute_current_subtask"](tool_context=ctx)
     assert exec_res["record"]["task_id"] == "1"
     assert exec_res["record"]["status"] == "incomplete"
     assert (
-        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(task_id="1") in exec_res["action"]
+        m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+            task_id="1",
+            status="incomplete",
+        )
+        in exec_res["action"]
     )
 
-    # Decompose 1 into 1.1 and 1.2 -> current becomes 1.1
     tool["decompose_subtask"](
         task_id="1",
         decomposition={
@@ -603,9 +761,274 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     )
     assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1.1"
 
-    # Execute children done -> current becomes next root (2)
-    await tool["execute_current_subtask"](tool_context=ctx)  # 1.1
+    await tool["execute_current_subtask"](tool_context=ctx)
     assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "1.2"
 
-    await tool["execute_current_subtask"](tool_context=ctx)  # 1.2
+    await tool["execute_current_subtask"](tool_context=ctx)
     assert tool["get_current_subtask"](tool_context=ctx)["result"]["task_id"] == "2"
+
+
+@pytest.mark.anyio
+async def test_execute_current_subtask_retries_until_non_empty(monkeypatch):
+    worker = _mk_worker()
+    worker.run_async.side_effect = [
+        "",
+        "   ",
+        _result_json("0", "done", "ok", "fine"),
+    ]
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert "error" not in res
+    assert res["record"]["task_id"] == "0"
+    assert worker.run_async.await_count == 3
+
+
+@pytest.mark.anyio
+async def test_execute_current_subtask_blocks_when_current_is_incomplete(monkeypatch):
+    worker = _mk_worker()
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    first = await tool["execute_current_subtask"](tool_context=ctx)
+    assert first["record"]["status"] == "incomplete"
+
+    second = await tool["execute_current_subtask"](tool_context=ctx)
+    assert second["error"] == m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+        task_id="0",
+        status="incomplete",
+    )
+
+
+@pytest.mark.anyio
+async def test_decompose_subtask_rejects_string_input(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    res = tool["decompose_subtask"](
+        task_id="0",
+        decomposition="not-a-structured-object",
+        tool_context=ctx,
+    )
+    assert "error" in res
+    assert "TypeError" in res["error"]
+    assert "SubtaskDecomposition" in res["error"]
+
+
+@pytest.mark.anyio
+async def test_decompose_subtask_rejects_invalid_dict(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    res = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={"subtasks": []},
+        tool_context=ctx,
+    )
+    assert "error" in res
+    assert "Validation error in decomposition" in res["error"]
+
+
+@pytest.mark.anyio
+async def test_list_subtasks_remaining_and_all(monkeypatch):
+    worker = _mk_worker()
+
+    async def _done(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output="ok",
+            summary="ok",
+        )
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+    tool["add_subtask"](title="t2", description="d2", tool_context=ctx)
+
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    remaining = tool["list_subtasks"](tool_context=ctx, view="remaining")["result"]
+    assert [t["task_id"] for t in remaining] == ["1", "2"]
+
+    all_tasks = tool["list_subtasks"](tool_context=ctx, view="all")["result"]
+    assert [t["task_id"] for t in all_tasks] == ["0", "1", "2"]
+    assert all_tasks[0]["status"] == "done"
+
+
+@pytest.mark.anyio
+async def test_list_subtasks_remaining_returns_no_remaining_message_when_last_done(
+    monkeypatch,
+):
+    worker = _mk_worker()
+
+    async def _done(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output="ok",
+            summary="ok",
+        )
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    res = tool["list_subtasks"](tool_context=ctx, view="remaining")
+    assert res["result"] == m.NO_REMAINING_SUBTASKS_MSG
+
+
+@pytest.mark.anyio
+async def test_add_subtask_respects_max_tasks(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, max_tasks=1, use_skip=False)
+    ctx = mk_tool_context()
+
+    first = tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    second = tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    assert "error" not in first
+    assert second["error"] == m.TASK_LIMIT_REACHED_MSG.format(max_tasks=1)
+
+
+@pytest.mark.anyio
+async def test_execute_current_subtask_returns_no_active_when_none_exist(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    res = await tool["execute_current_subtask"](tool_context=ctx)
+    assert res["error"] == m.NO_ACTIVE_SUBTASKS_MSG
+
+
+@pytest.mark.anyio
+async def test_get_current_subtask_returns_no_subtasks_when_none_exist(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    res = tool["get_current_subtask"](tool_context=ctx)
+    assert res["error"] == m.NO_SUBTASKS_EXIST_MSG
+
+
+@pytest.mark.anyio
+async def test_finish_done_rejects_when_new_subtasks_remain(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    res = await tool["finish"](
+        status="done",
+        result="everything complete",
+        tool_context=ctx,
+    )
+    assert res["error"] == m.DO_NOT_FINISH_WITH_NO_TASKS_DONE
+
+
+@pytest.mark.anyio
+async def test_finish_failed_succeeds_without_completed_subtasks(monkeypatch):
+    worker = _mk_worker()
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    ctx = mk_tool_context()
+    ctx = _attach_invocation_context(mk_tool_context())
+
+    res = await tool["finish"](
+        status="failed",
+        result="blocked immediately",
+        tool_context=ctx,
+    )
+
+    assert res["result"] == "ok"
+    assert ctx._invocation_context.end_invocation is True
+
+    status_key = "task::0::status"
+    result_key = "task::0::result"
+    assert ctx.state[status_key] == "failed"
+    assert ctx.state[result_key] == "blocked immediately"
+
+
+@pytest.mark.anyio
+async def test_finish_done_succeeds_after_all_tasks_resolved(monkeypatch):
+    worker = _mk_worker()
+
+    async def _done(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output="ok",
+            summary="ok",
+        )
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    ctx = mk_tool_context()
+    ctx = _attach_invocation_context(mk_tool_context())
+
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    res = await tool["finish"](
+        status="done",
+        result="completed successfully",
+        tool_context=ctx,
+    )
+
+    assert res["result"] == "ok"
+    assert ctx._invocation_context.end_invocation is True
+    assert ctx.state["task::0::status"] == "done"
+    assert ctx.state["task::0::result"] == "completed successfully"

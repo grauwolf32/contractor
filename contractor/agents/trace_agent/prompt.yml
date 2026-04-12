@@ -254,9 +254,12 @@
       - Modify only relevant files
 
       WHEN BLOCKED:
-      - Explain what you tried
       - Identify missing information
+      - Use available data to produce best-effort trace
+      - Explain what you tried
       - Suggest the smallest next step
+      - Do NOT retry the same step
+      - Do NOT explore unrelated areas
 
       TOOLS:
       - grep: search for routes, handlers, and function usage

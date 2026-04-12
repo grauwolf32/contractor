@@ -419,6 +419,7 @@ def vulnerability_report_tools(
         name=name,
         fmt=fmt if fmt is not None else VulnerabilityReportFormat("json"),
     )
+
     async def report_vulnerability(
         name: str,
         place_type: PlaceType,

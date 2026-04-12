@@ -4,7 +4,6 @@ import ast
 import json
 import logging
 import re
-import xml.etree.ElementTree as ET
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from typing import (
@@ -84,8 +83,7 @@ DO_NOT_FINISH_WITH_NO_TASKS_DONE: Final[str] = (
     "Execute or skip all 'new' subtasks first, then call `finish`."
 )
 SUBTASK_DECOMPOSE_EMPTY_LIST: Final[str] = (
-    "Subtask decomposition is empty. "
-    "You need to provide 1-3 subtasks as decomposition."
+    "Subtask decomposition is empty. You need to provide 1-3 subtasks as decomposition."
 )
 
 NO_REMAINING_SUBTASKS_MSG: Final[str] = (
@@ -417,9 +415,7 @@ class SubtaskFormatter:
             "yaml": self._subtask_result_to_yaml,
             "xml": self._subtask_result_to_xml,
         }
-        return self._dispatch(
-            formatters, subtask_result, type_hint=type_hint, **kwargs
-        )
+        return self._dispatch(formatters, subtask_result, type_hint=type_hint, **kwargs)
 
     def format_subtask_results(
         self,
@@ -551,9 +547,7 @@ class SubtaskFormatter:
             key = match.group(1).lower()
             first_line = match.group(2).rstrip()
             section_start = match.end()
-            section_end = (
-                matches[i + 1].start() if i + 1 < len(matches) else len(body)
-            )
+            section_end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
             section_tail = body[section_start:section_end]
             tail_lines = section_tail.splitlines()
             while tail_lines and not tail_lines[0].strip():
@@ -580,7 +574,7 @@ class SubtaskFormatter:
             flags=re.IGNORECASE | re.DOTALL,
         )
         return m.group(1).strip() if m else None
-   
+
     @staticmethod
     def _parse_subtask_result_xml(
         output: str,
@@ -657,9 +651,7 @@ class SubtaskFormatter:
             "yaml": self._parse_subtask_result_yaml,
             "xml": self._parse_subtask_result_xml,
         }
-        parse_order = [self._format] + [
-            fmt for fmt in parsers if fmt != self._format
-        ]
+        parse_order = [self._format] + [fmt for fmt in parsers if fmt != self._format]
 
         # 1. Try fenced code blocks first
         fenced_blocks = self._extract_fenced_blocks(output)
@@ -857,8 +849,6 @@ class StreamlineManager:
         with self._locked_subtasks(ctx) as subtasks:
             if idx < 0 or idx >= len(subtasks):
                 return None
-            if idx + 1 >= len(subtasks):
-                return None
 
             current = subtasks[idx]
             try:
@@ -874,6 +864,12 @@ class StreamlineManager:
                 )
                 return None
 
+            # Determine the next subtask, if any
+            next_subtask: Optional[Subtask] = None
+            if idx + 1 < len(subtasks):
+                self._set_idx(ctx, idx + 1)
+                next_subtask = subtasks[idx + 1]
+
         # Build record directly — SubtaskExecutionResult doesn't allow "skipped"
         record: dict[str, Any] = {
             **current.model_dump(),
@@ -882,13 +878,12 @@ class StreamlineManager:
             "summary": f"Skipped: {reason}",
         }
         self.save_record(record, ctx)
-        self._set_idx(ctx, idx + 1)
 
         logger.info(
             "Subtask skipped",
             extra={"task_id": current.task_id, "reason": reason},
         )
-        return self.get_subtasks(ctx)[idx + 1]
+        return next_subtask
 
     def decompose_current_subtask(
         self,
@@ -1107,9 +1102,7 @@ RULES:
 """.strip()
 
 
-def _prepare_worker_instructions(
-    fmt: SubtaskFormatter, type_hint: bool = False
-) -> str:
+def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False) -> str:
     example_done = SubtaskExecutionResult(
         task_id="1",
         status="done",
@@ -1224,6 +1217,7 @@ def task_tools(
     use_summarization: bool = True,
     worker_instrumentation: bool = True,
     max_records: int = 20,
+    n_retries: int = 3
 ) -> list[Callable[..., Any]]:
     if worker_instrumentation:
         agent_ref = _get_agent_ref(worker)
@@ -1324,7 +1318,7 @@ def task_tools(
             idx = mgr._get_idx(tool_context)
             if idx is None or idx < 0 or idx >= len(subtasks):
                 visible_subtasks = []
-            elif idx == len(subtasks) and subtasks[idx].status != "new":
+            elif idx == len(subtasks)-1 and subtasks[idx].status != "new":
                 visible_subtasks = []
             else:
                 visible_subtasks = subtasks[idx:]
@@ -1364,9 +1358,7 @@ def task_tools(
                 remaining work.
         """
         if isinstance(decomposition, str):
-            schema = json.dumps(
-                SubtaskDecomposition.model_json_schema(), indent=2
-            )
+            schema = json.dumps(SubtaskDecomposition.model_json_schema(), indent=2)
             return {
                 "error": (
                     "TypeError: 'decomposition' must be a SubtaskDecomposition "
@@ -1400,9 +1392,7 @@ def task_tools(
             return {"error": SUBTASK_DECOMPOSE_EMPTY_LIST}
         return {"result": fmt.format_subtasks(insertion)}
 
-    def skip(
-        task_id: str, reason: str, tool_context: ToolContext
-    ) -> dict[str, Any]:
+    def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
         """Skip execution of the current subtask.
 
         Marks the current subtask as 'skipped' and advances to the next one.
@@ -1456,7 +1446,7 @@ def task_tools(
         next_subtask = mgr.skip(reason, tool_context)
         if next_subtask is None:
             return {"result": NO_ACTIVE_SUBTASKS_MSG}
-        return {"result": "ok", "next-subtask":fmt.format_subtask(next_subtask)}
+        return {"result": "ok", "next-subtask": fmt.format_subtask(next_subtask)}
 
     async def execute_current_subtask(
         tool_context: ToolContext,
@@ -1470,7 +1460,7 @@ def task_tools(
 
         Returns:
             Record of execution with optional action guidance.
-        
+
         After this tool returns:
             - If status is 'done': The next subtask becomes current automatically when one exists.
             - If status is 'incomplete': You MUST call `decompose_subtask` or `skip` before proceeding.
@@ -1519,7 +1509,12 @@ def task_tools(
         else:
             args = {"request": fmt.format_subtask(current)}
 
-        raw = await worker.run_async(args=args, tool_context=tool_context)
+        # Run worker with retries
+        retries: int = 0
+        raw: str = ""
+        while retries < n_retries and raw.strip() == "":
+            raw = await worker.run_async(args=args, tool_context=tool_context)
+            retries += 1
 
         # ── Parse worker output ──────────────────────────────────────
         subtask_result: Optional[SubtaskExecutionResult] = None
@@ -1574,10 +1569,8 @@ def task_tools(
                 "output": str(raw_dump),
                 "summary": SUBTASK_RESULT_MALFORMED,
             }
-            success, error_msg = (
-                mgr.complete_current_subtask_from_runtime_result(
-                    runtime_result, tool_context
-                )
+            success, error_msg = mgr.complete_current_subtask_from_runtime_result(
+                runtime_result, tool_context
             )
             record: dict[str, Any] = {
                 **current.model_dump(),
@@ -1597,9 +1590,7 @@ def task_tools(
 
         # ── Apply validated result ───────────────────────────────────
         assert subtask_result is not None
-        success, error_msg = mgr.complete_current_subtask(
-            subtask_result, tool_context
-        )
+        success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
         record = fmt.format_task_record(current, subtask_result)
         response = {"record": record}
@@ -1659,9 +1650,7 @@ def task_tools(
 
         summary = ""
         if use_summarization and summarizer_tool is not None:
-            objective_key = StreamlineManager._global_keys(
-                tool_context, "objective"
-            )
+            objective_key = StreamlineManager._global_keys(tool_context, "objective")
             objective = tool_context.state.get(objective_key, "")
             payload = {
                 "objective": objective,
@@ -1669,16 +1658,12 @@ def task_tools(
                 "result": result,
                 "status": status,
             }
-            sum_args = {
-                "request": json.dumps(payload, ensure_ascii=False, indent=2)
-            }
+            sum_args = {"request": json.dumps(payload, ensure_ascii=False, indent=2)}
             raw = await summarizer_tool.run_async(
                 args=sum_args, tool_context=tool_context
             )
             summary = (
-                raw
-                if isinstance(raw, str)
-                else json.dumps(raw, ensure_ascii=False)
+                raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
             )
 
         mgr.finish(

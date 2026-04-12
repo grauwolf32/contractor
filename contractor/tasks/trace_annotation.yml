@@ -63,7 +63,7 @@ task:
 
     ## Annotation Format
 
-      # @trace target=<operation_id_or_unknown> args=<arg:state,...> calls=<symbol,...>
+      # @trace target=<operation_id> args=<arg:state,...> calls=<symbol,...>
       # @validate arg=<arg> kind=<kind>
       # @sink kind=<kind> arg=<arg_or_unknown>
 
@@ -74,6 +74,7 @@ task:
       derived   — computed from other values
 
     Only annotate based on visible code evidence.
+    Do not invent target - user OperationId or function name 
 
     ## Sink Catalogue
 
