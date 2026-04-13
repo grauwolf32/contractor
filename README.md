@@ -1,328 +1,222 @@
+Here’s a cleaner, more human-friendly README — less “spec dump”, more clarity, flow, and intent.
+
+---
+
 # Contractor
 
-`contractor` is a CLI tool for generating and enriching OpenAPI specifications from source code using an LLM.
+**Contractor** is a CLI tool that uses LLM agents to **generate and improve OpenAPI specs from your codebase**.
 
-## Capabilities
-
-The following pipelines are currently available:
-
-* `build` — build or update an OpenAPI spec from the project code
-* `enrich` — enrich an existing OpenAPI artifact based on the project structure and implementation
-
-The CLI is installed as the `contractor` command.
+Instead of manually writing or updating API docs, Contractor analyzes your project and produces structured OpenAPI artifacts for you.
 
 ---
 
-## Requirements
+## ✨ What you can do with it
 
-* Python `>=3.10,<3.15`
-* Poetry
-* a running LiteLLM proxy
-* an LLM backend with an OpenAI-compatible API
-
----
-
-## Before You Start
-
-Before running `contractor`, you need to:
-
-1. Start the LiteLLM proxy
-2. Configure it
-3. Make sure the required models are available through the backend
-4. Install the project dependencies with Poetry
-
-In this repository, LiteLLM is usually started via:
-
-```bash
-deploy/litellm/run.sh
-```
-
-This is not mandatory. You can start the proxy in any convenient way, as long as:
-
-* LiteLLM is reachable by the application
-* the model names in the config match what is passed to `--model`
+* Generate an OpenAPI spec from an existing codebase
+* Improve an existing OpenAPI file using real code context
+* Trace how the system thinks and behaves (for debugging and tuning)
 
 ---
 
-## Example LiteLLM Config
-
-File `litellm_config.yaml`:
-
-```yaml
-model_list:
-  - model_name: lm-studio-nemotron
-    litellm_params:
-      model: openai/nvidia/nemotron-3-nano
-      api_key: lm-studio
-      api_base: http://localhost:1234/v1
-      tpm: 100000
-      rpm: 10
-
-  - model_name: lm-studio-openai
-    litellm_params:
-      model: openai/openai/gpt-oss-20b
-      api_key: lm-studio
-      api_base: http://localhost:1234/v1
-      tpm: 100000
-      rpm: 10
-
-  - model_name: lm-studio-qwen3.5
-    litellm_params:
-      model: openai/qwen/qwen3.5-35b-a3b
-      api_key: lm-studio
-      api_base: http://localhost:1234/v1
-      tpm: 100000
-      rpm: 10
-
-litellm_settings:
-  num_retries: 3
-  request_timeout: 300
-```
-
-### What matters here
-
-* `model_name` — the name later used in the CLI via `--model`
-* `api_base` — the OpenAI-compatible API endpoint
-* `request_timeout: 300` — useful for long-running tasks
-* `num_retries: 3` — the number of retry attempts on errors
-
----
-
-## Example of Running LiteLLM Proxy via Podman
-
-```bash
-podman run --rm -d \
-  -v $(pwd)/litellm_config.yaml:/app/config.yaml \
-  -e LITELLM_MASTER_KEY="sk-litellm-changeme" \
-  -e LITELLM_SALT_KEY="sk-random-hash-changeme" \
-  --network="host" \
-  "ghcr.io/berriai/litellm:main-stable" \
-  --config /app/config.yaml
-```
-
-If the repository already contains a ready-made script, you can use it:
-
-```bash
-deploy/litellm/run.sh
-```
-
----
-
-## Installation
+## 🚀 Quick start
 
 ```bash
 poetry install
-python -c "from tree_sitter_language_pack import download_all;download_all();"
-```
-
-After installation, the CLI is available as:
-
-```bash
 poetry run contractor --help
 ```
 
-If the Poetry environment is activated, you can simply run:
+Run your first pipeline:
 
 ```bash
-contractor --help
-```
-
----
-
-## Usage
-
-### General format
-
-```bash
-contractor \
-  --pipeline <pipeline-name> \
-  --project-path <path-to-project> \
-  --folder-name <project-relative-folder> \
-  --user-id <user-id> \
-  --model <model-name>
-```
-
-### Arguments
-
-* `--pipeline` — the pipeline name
-  Currently available: `build`, `enrich`
-
-* `--project-path` — path to the project directory
-
-* `--folder-name` — path inside the project that will be used in task templates
-  Default: `/`
-
-* `--artifact` — path to an existing OpenAPI file
-  Used by pipelines that require an input artifact, such as `enrich`
-
-* `--user-id` — user identifier for the runner
-  Default: `cli-user`
-
-* `--model` — model name from the LiteLLM config
-  Default: `lm-studio-qwen3.5`
-
----
-
-## Examples
-
-### Building OpenAPI from project code
-
-```bash
-contractor \
+poetry run contractor \
   --pipeline build \
-  --project-path /path/to/project \
-  --folder-name /src \
-  --model lm-studio-qwen3.5
+  --project-path ./your-project
+  --folder-name src-folder
 ```
 
 It is better to place the project in a separate isolated folder so the agent does not accidentally wander into neighboring projects.
 
-### Enriching an existing OpenAPI file
+---
+
+## 🧠 How it works (in plain terms)
+
+Contractor runs a **pipeline of AI agents** over your project:
+
+1. It scans your codebase
+2. Extracts structure and dependencies
+3. Uses LLMs to infer API behavior
+4. Produces or updates an OpenAPI spec
+5. Saves everything in artifact storage
+
+Each run also records metrics and intermediate results so you can inspect what happened.
+
+---
+
+## 🔌 Pipelines
+
+Think of pipelines as “modes” of operation.
+
+### `build` — generate OpenAPI from code
+
+Use this when you **don’t have an OpenAPI spec yet**.
 
 ```bash
 contractor \
-  --pipeline enrich \
-  --project-path /path/to/project \
-  --folder-name /src \
-  --artifact /path/to/openapi.yaml \
+  --pipeline build \
+  --project-path ./project \
+  --folder-name src \
   --model lm-studio-qwen3.5
 ```
 
 ---
 
-## Input Parameter Validation
+### `enrich` — improve an existing spec
 
-The CLI validates:
+Use this when you **already have an OpenAPI file** and want to refine it.
 
-* that `--project-path` exists and is a directory
-* that `--folder-name` exists inside `--project-path`
-* that `--artifact` exists and is a file
-* that `--artifact` is only provided for pipelines that require it
+```bash
+contractor \
+  --pipeline enrich \
+  --project-path ./project \
+  --artifact openapi.yaml \
+  --model lm-studio-qwen3.5
+```
 
 ---
 
-After that, the new pipeline will automatically appear in `--pipeline`.
+### `trace` — understand what’s happening internally
+
+The trace pipeline inspects how your API behaves based on the OpenAPI schema and project code, then reconstructs execution flows.
+
+```bash
+contractor \
+  --pipeline trace \
+  --project-path ./project \
+  --artifact openapi.yaml \
+  --model lm-studio-qwen3.5
+```
+
+What it’s useful for
+🔍 Tracing execution paths from OpenAPI endpoints into your code
+🧩 Understanding system behavior across layers (handlers → services → dependencies)
+⚠️ Finding potential vulnerabilities, such as:
+  - missing validation
+  - unsafe input handling
+  - unexpected code paths
+🛠 Debugging agent output when build/enrich results look incorrect
 
 ---
 
-## Main Project Parts
+## ⚙️ Configuration
 
-* `contractor/main.py` — CLI entrypoint
-* `contractor/agents/` — agents
-* `contractor/runners/` — pipeline runners
-* `contractor/tasks/` — YAML task definitions
-* `contractor/tools/` — tools for agents
-* `contractor/utils/` — utilities
+### `.env` setup
 
-It is important that the corresponding model is actually available through the backend.
+Contractor reads configuration from:
+
+```
+contractor/cli/.env
+```
+
+Start from the example:
+
+```bash
+cp contractor/cli/.env.example contractor/cli/.env
+```
 
 ---
 
-## Typical Run Scenario
+### Typical `.env` values
 
-1. Start the backend with the model
+```env
+# Enable tracing (optional)
+USE_LANGFUSE=true
 
-2. Start the LiteLLM proxy
+# Langfuse (optional)
+LANGFUSE_PUBLIC_KEY=...
+LANGFUSE_SECRET_KEY=...
+LANGFUSE_HOST=http://localhost:3000
 
-3. Install dependencies:
-
-   ```bash
-   poetry install
-   ```
-
-4. Check the CLI:
-
-   ```bash
-   poetry run contractor --help
-   ```
-
-5. Run the required pipeline:
-
-   ```bash
-   poetry run contractor \
-     --pipeline build \
-     --project-path /path/to/project \
-     --model lm-studio-qwen3.5
-   ```
+# LiteLLM
+LITELLM_API_BASE=http://localhost:4000
+LITELLM_API_KEY=sk-litellm-changeme
+```
 
 ---
 
-## Troubleshooting
+## 🤖 Model setup (LiteLLM)
 
-### `contractor: command not found`
+Contractor uses **LiteLLM** to talk to models.
 
-Use:
+Your `--model` must match a configured alias:
 
-```bash
-poetry run contractor --help
+```yaml
+model_list:
+  - model_name: lm-studio-qwen3.5
+    litellm_params:
+      model: openai/qwen/qwen3.5-35b-a3b
+      api_base: http://localhost:1234/v1
+      api_key: lm-studio
 ```
 
-or activate the Poetry virtual environment.
 
-### Model error
+## 🧾 CLI options (simple version)
 
-Check that:
-
-* the LiteLLM proxy is running
-* the name passed in `--model` matches `model_name` in `litellm_config.yaml`
-* the backend is actually reachable via `api_base`
-
-### `--artifact` error
-
-For `enrich`, you need to provide an existing file:
-
-```bash
---artifact /path/to/openapi.yaml
-```
-
-### Long responses or timeouts
-
-You can:
-
-* increase `request_timeout` in the LiteLLM config
-* choose a different model
-* limit the analysis scope via `--folder-name`
+| Option           | What it does             |
+| ---------------- | ------------------------ |
+| `--pipeline`     | build / enrich / trace   |
+| `--project-path` | your codebase            |
+| `--folder-name`  | optional subfolder scope |
+| `--artifact`     | required for enrich      |
+| `--model`        | model alias              |
+| `--output`       | where results go         |
+| `--rm`           | clean temp files         |
 
 ---
 
-## Development
+## 📁 Output
 
-Install dependencies:
+By default, everything goes to:
 
-```bash
-poetry install
+```
+<project>/.contractor
 ```
 
-Run tests:
+You’ll find:
+
+* generated OpenAPI files
+* intermediate artifacts
+* `metrics.jsonl` (run logs)
+
+---
+
+## 🧪 Example workflow
+
+Generate → improve → trace:
 
 ```bash
-poetry run pytest
+# 1. Generate spec
+contractor --pipeline build --project-path . ...
+
+# 2. Improve it
+contractor --pipeline enrich \
+  --project-path . \
+  --artifact .contractor/openapi.yaml
+  ...
+
+# 3. Trace execution
+contractor --pipeline trace --project-path . ...
 ```
 
-Checks:
+---
 
-```bash
-poetry run ruff check .
-poetry run mypy .
+## 🏗 Project structure (simplified)
+
 ```
-
-## Adding a New Pipeline
-
-The list of pipelines is centralized in the pipeline registry in `contractor/main.py`.
-
-To add a new pipeline, it is enough to:
-
-1. implement a function that returns a `TaskRunner`
-2. add it to `get_pipelines()`
-
-Example:
-
-```python
-def get_pipelines() -> dict[str, PipelineSpec]:
-    return {
-        "build": PipelineSpec(builder=oas_building_pipeline),
-        "enrich": PipelineSpec(builder=oas_enrichment_pipeline, requires_artifact=True),
-        "my-new-pipeline": PipelineSpec(builder=my_new_pipeline),
-    }
-}
+cli/                 # CLI interface
+contractor/
+  agents/            # LLM agents
+  runners/           # pipeline execution
+  tools/             # code + filesystem tools
+  utils/             # helpers
+deploy/litellm/      # model setup
 ```
