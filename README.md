@@ -1,5 +1,3 @@
-Here’s a cleaner, more human-friendly README — less “spec dump”, more clarity, flow, and intent.
-
 ---
 
 # Contractor
