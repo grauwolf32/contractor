@@ -524,23 +524,24 @@ def _stacked_bar(
     ax.legend()
     _save_fig(fig, path)
 
-
-def _line(
-    df: pd.DataFrame,
-    x: str,
-    y: str | list[str],
-    title: str,
-    xlabel: str,
-    ylabel: str,
-    path: Path,
-) -> None:
+def _line(df: pd.DataFrame, x: str, y: str | list[str], title: str, xlabel: str, ylabel: str, path: Path) -> None:
     if df.empty:
         return
+
     cols = [y] if isinstance(y, str) else y
     fig, ax = plt.subplots(figsize=(11, 5.5))
+
+    if x in df.columns:
+        xvals = df[x]
+    elif df.index.name == x:
+        xvals = df.index
+    else:
+        raise KeyError(f"{x!r} not found in columns or index")
+
     for col in cols:
         if col in df.columns:
-            ax.plot(df[x], df[col], label=col if len(cols) > 1 else None)
+            ax.plot(xvals, df[col], label=col if len(cols) > 1 else None)
+
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
