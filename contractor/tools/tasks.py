@@ -1693,7 +1693,7 @@ def task_tools(
         success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
         record = fmt.format_task_record(current, subtask_result)
-        response: dict[str, Any] = {"record": record}
+        response = {"record": record}
 
         if not success and error_msg:
             response["error"] = error_msg
