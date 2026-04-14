@@ -23,6 +23,7 @@ task:
     - STOP as soon as sufficient information is collected to produce final output
     - Clearly distinguish: observed code behavior vs inference vs uncertainty
     - If a clear vulnerability is discovered during tracing, report it immediately and continue only if needed for confirmation
+    - Do not introduce file paths, config files, or components not already observed unless the next task is explicitly to verify their existence.
 
     ## State Management (CRITICAL)
 
@@ -41,11 +42,14 @@ task:
       - annotate
       - analyze security
 
-    ## Decomposition Rules
-
-    - If a task only checks existence or repeats previous work → SKIP it
-    - Prefer fewer, meaningful steps over many micro-steps
+    ## Planning Rules
+    - Assign investigation goals, not search mechanics.
+    - Describe what must be learned, not which low-level file discovery steps to perform.
+    - Let the worker choose the concrete search/read actions.
+    - While decomposition, prefer fewer, meaningful steps over many micro-steps
     - A task must produce NEW information, not restate intent
+    - A task should resolve one meaningful uncertainty about control flow, data flow, validation, sink reachability, or vulnerability evidence.
+      Do not create tasks for directory listing, existence checks, or other low-level exploration unless they are strictly necessary.
 
     ## Completion Criteria (MANDATORY STOP CONDITION)
 

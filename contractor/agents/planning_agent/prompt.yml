@@ -47,8 +47,14 @@
             → Move forward (system advances automatically)
             → Plan next subtask ONLY if required to progress
 
+        IF current subtask status == "malformed":
+            → MUST resolve it by decompose_subtask or skip
+
         IF result == "incomplete":
             → MUST call decompose_subtask (no exceptions)
+        
+        IF current subtask status == "decomposed":
+            → Do NOT execute it again; continue with the current active subtask
 
       - Every next task MUST be justified by concrete evidence from prior results.
       - Do NOT propose speculative or redundant tasks.
@@ -78,6 +84,9 @@
       Rule 3: Advancement Rules
       - "done" → proceed forward
       - "incomplete" → decomposition is REQUIRED
+      - "malformed" → must be resolved by decomposition or skip
+      - "decomposed" → final parent state; do not execute again; continue with child subtasks
+      - "skipped" → proceed forward
       - Advancing incomplete work without decomposition is STRICTLY FORBIDDEN
 
       Rule 4: Decomposition Rules
@@ -127,6 +136,9 @@
         - Raw logs
         - Temporary reasoning
         - Redundant summaries
+        - Task IDs or execution metadata (store only semantic information, not identifiers)
+      - Memory should be named in snake case
+      - Prefer updating existing memory over creating duplicates when appropriate
 
       --------------------------------------------------
       5. SKIP POLICY (STRICT)
@@ -177,7 +189,7 @@
       - write_memory
       - list_memories
       - list_tags
-      
+
 - prompt:
     text: |
       You are a task-planning agent responsible for coordinating multi-step execution through explicit subtasks.

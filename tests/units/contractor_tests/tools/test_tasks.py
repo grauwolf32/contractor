@@ -569,7 +569,7 @@ async def test_decompose_requires_current_task_id(monkeypatch):
     assert exec_res["record"]["task_id"] == "0"
     assert exec_res["record"]["status"] == "incomplete"
     assert (
-        m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(
             task_id="0",
             status="incomplete",
         )
@@ -742,7 +742,7 @@ async def test_decompose_inserts_children_then_resumes_next_root(monkeypatch):
     assert exec_res["record"]["task_id"] == "1"
     assert exec_res["record"]["status"] == "incomplete"
     assert (
-        m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+        m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(
             task_id="1",
             status="incomplete",
         )
@@ -809,7 +809,7 @@ async def test_execute_current_subtask_blocks_when_current_is_incomplete(monkeyp
     assert first["record"]["status"] == "incomplete"
 
     second = await tool["execute_current_subtask"](tool_context=ctx)
-    assert second["error"] == m.SUBTASK_REQUIRES_RESOLUTION_MSG.format(
+    assert second["error"] == m.SUBTASK_REQUIRES_DECOMPOSITION_MSG.format(
         task_id="0",
         status="incomplete",
     )
