@@ -1,0 +1,148 @@
+task:
+  name: "Project structure & security-relevant information"
+
+  objective: >
+    Produce a single Markdown document that maps the project at {project_path}
+    to a categorized inventory of directories and files, with special attention
+    to security-relevant components. The final output is the Markdown document
+    itself — not a memory entry or intermediate summary.
+
+  context: >
+    If prior analysis results exist in memory/records for {project_path},
+    load them first and use them as a starting point. Do not repeat work
+    that has already been completed and recorded. If no prior results exist,
+    start from scratch.
+
+  instructions: |
+    Analyze the project at {project_path} and produce the Markdown report
+    described in output_format below. Follow these steps:
+
+    STEP 1 — Reconnaissance (breadth-first, bounded depth)
+      - List the top-level directory entries (depth 0).
+      - For each top-level directory, list its immediate children (depth 1).
+      - Do NOT recurse deeper unless a directory is clearly relevant to one
+        of the categories below. Use directory names, file names, and
+        extensions to decide relevance.
+      - Read README, SECURITY.md, and top-level config files (e.g.,
+        configure.ac, Makefile, package.json, pom.xml) to identify the
+        tech stack and entry points.
+
+    STEP 2 — Targeted inspection
+      For each category below, locate relevant directories and files.
+      Open files only when the filename or path is ambiguous — prefer
+      inferring purpose from names, extensions, imports, and header
+      comments over reading full implementations.
+
+      Categories:
+        1. Configuration & environment settings
+           (.env, config.yaml, application.properties, K8s/Helm manifests,
+           XML config templates)
+        2. Tests
+           Classify as unit / integration / E2E where possible.
+        3. Business / domain logic
+           Core application logic, excluding infrastructure plumbing.
+        4. Data models & schemas
+           Entities, DTOs, Protobuf, XSD, Avro, GraphQL schema files.
+        5. Cryptographic functions
+           Encryption/decryption, signing/verification, JWT handling,
+           key management. State "Not found" if absent.
+        6. Security functions
+           Authentication, authorization, role/RBAC models, security
+           middleware/interceptors, sandboxing, jail/chroot isolation,
+           CSP headers. State "Not found" if absent.
+        7. External-system integration
+           REST/gRPC/SOAP clients, DB access (repos, DAOs, migrations),
+           HTTP controllers/routers, message brokers, WebSockets,
+           GraphQL resolvers, SDK wrappers.
+        8. Documentation
+           README, docs/, ADRs, wiki, man pages, developer notes.
+        9. API specifications
+           OpenAPI/Swagger files, GraphQL schema definitions, WSDL.
+
+    STEP 3 — Risk annotation
+      For every file or directory listed under categories 1, 5, or 6,
+      add a one-line risk note explaining why it is security-sensitive
+      (e.g., "Stores plaintext secrets", "Handles JWT signature
+      verification", "Enforces seccomp sandbox").
+
+    STEP 4 — Compose the Markdown report
+      Write the report exactly following the structure in output_format.
+      This report IS the deliverable. Do not save intermediate results
+      to memory; return the report directly.
+
+  output_format: |
+    Return a single Markdown document with this exact structure:
+
+    ```
+    # Project Structure & Security-Relevant Inventory
+
+    ## Overview
+    - **Repository root:** {project_path}
+    - **Suspected tech stack:** <languages, frameworks, build tools>
+    - **Main entry points:** <file paths>
+    - **Build / runtime tooling:** <build system, CI, containers>
+
+    ## 1. Configuration & Environment Settings
+    | Path | Responsibility | Risk note |
+    |------|---------------|-----------|
+    | <path> | <responsibility> | <risk or "—"> |
+
+    **Example files:**
+    - `<path/to/file>` — <why it belongs here>
+
+    **Notes:**
+    - <any additional observations>
+
+    ## 2. Tests
+    | Path | Type (unit/integration/E2E) | Notes |
+    |------|---------------------------|-------|
+
+    ## 3. Business / Domain Logic
+    | Path | Responsibility |
+    |------|---------------|
+
+    ## 4. Data Models & Schemas
+    | Path | Format / Type | Responsibility |
+    |------|--------------|---------------|
+
+    ## 5. Cryptographic Functions
+    | Path | Function | Risk note |
+    |------|----------|-----------|
+
+    ## 6. Security Functions
+    | Path | Function | Risk note |
+    |------|----------|-----------|
+
+    ## 7. External-System Integration
+    | Path | Integration type | Target system |
+    |------|-----------------|---------------|
+
+    ## 8. Documentation
+    | Path | Content |
+    |------|---------|
+
+    ## 9. API Specifications
+    | Path | Format | Description |
+    |------|--------|-------------|
+
+    ## Security Risk Summary
+    | Risk level | Paths | Rationale |
+    |-----------|-------|-----------|
+    | CRITICAL  | ...   | ...       |
+    | HIGH      | ...   | ...       |
+    | MEDIUM    | ...   | ...       |
+    | LOW       | ...   | ...       |
+    ```
+
+    For any category with no matches, include the heading and write:
+    > Not found. Searched for: <what was looked for>.
+
+  constraints:
+    - Do NOT recurse into vendor/, node_modules/, .git/, or build
+      artifact directories.
+    - Limit file reads to headers/first 50 lines unless deeper
+      inspection is clearly needed.
+    - The final answer MUST be the Markdown report. Do not return
+      JSON, do not wrap in code fences other than the Markdown itself.
+    - Do not create subtasks for "verify memory was saved." The report
+      is the single output artifact.

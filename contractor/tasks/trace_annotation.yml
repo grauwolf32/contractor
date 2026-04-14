@@ -1,0 +1,254 @@
+task:
+  name: "annotate_request_trace_for_vulnerability_analysis"
+
+  objective: >
+    Given a single OpenAPI operation, locate the request entrypoint, trace the
+    relevant execution path, insert structured trace annotations, and produce
+    a structured analysis of data flow and security-relevant behavior.
+
+    Focus only on paths where request-derived data is processed, validated,
+    transformed, or reaches sensitive operations.
+
+    Target operation: {operation_id}
+    Schema: {operation_schema}
+
+  instructions: >
+
+    ## Core Principles
+
+    - Follow request-derived data through the system
+    - Prefer concrete, code-backed paths over speculation
+    - Do not assume behavior not visible in code
+    - Annotate only where it adds clear trace value (entry, validation, sink, or critical transformation)
+    - STOP as soon as sufficient information is collected to produce final output
+    - Clearly distinguish: observed code behavior vs inference vs uncertainty
+    - If a clear vulnerability is discovered during tracing, report it immediately and continue only if needed for confirmation
+    - Do not introduce file paths, config files, or components not already observed unless the next task is explicitly to verify their existence.
+
+    ## State Management (CRITICAL)
+
+    - Treat previously discovered files, functions, and flows as working context; do not extend them beyond shown evidence    
+    - NEVER re-search or re-verify something that was already confirmed
+    - Reuse results from earlier steps instead of repeating file discovery
+    - If data is already in memory, use it directly
+
+    ## Scope Control (ANTI-DRIFT)
+
+    - Do NOT introduce new goals (e.g., refactoring, instrumentation design, trace system design)
+    - Do NOT switch to tasks like "add tracing framework" or "improve code"
+    - Only:
+      - locate entrypoint
+      - trace data flow
+      - annotate
+      - analyze security
+
+    ## Planning Rules
+    - Assign investigation goals, not search mechanics.
+    - Describe what must be learned, not which low-level file discovery steps to perform.
+    - Let the worker choose the concrete search/read actions.
+    - While decomposition, prefer fewer, meaningful steps over many micro-steps
+    - A task must produce NEW information, not restate intent
+    - A task should resolve one meaningful uncertainty about control flow, data flow, validation, sink reachability, or vulnerability evidence.
+      Do not create tasks for directory listing, existence checks, or other low-level exploration unless they are strictly necessary.
+
+    ## Completion Criteria (MANDATORY STOP CONDITION)
+
+    STOP execution when ALL are satisfied:
+    1. Entrypoint is identified
+    2. Request parameters are mapped (body/query/path/headers)
+    3. At least one complete, non-ambiguous data flow path is traced to:
+       - a sink OR
+       - a terminal business operation (e.g., DB save) 
+    4. Validation (or absence) is identified
+    5. Security mechanism (auth/authz) is identified
+
+    Once these are done → IMMEDIATELY produce final output.
+    DO NOT create new subtasks after this point.
+
+    ## Annotation Format
+
+      # @trace target=<operation_id> args=<arg:state,...> calls=<symbol,...>
+      # @validate arg=<arg> kind=<kind>
+      # @sink kind=<kind> arg=<arg_or_unknown>
+
+    Argument states:
+      tainted   — request-derived input
+      validated — explicit validation present
+      clean     — trusted/internal
+      derived   — computed from other values
+
+    Only annotate based on visible code evidence.
+    Do not invent target - user OperationId or function name 
+
+    ## Sink Catalogue
+
+    DATABASE:
+      db.query, db.exec, db.query.raw, db.exec.raw, db.orm.bulk
+
+    FILESYSTEM:
+      filesystem.read, filesystem.write, filesystem.delete, filesystem.path.join
+
+    PROCESS:
+      shell.exec, shell.exec.args, process.env.write
+
+    NETWORK:
+      http.request, http.redirect, dns.lookup, socket.connect, smtp.send
+
+    RENDERING:
+      template.render, template.render.raw, html.render, pdf.render
+
+    SERIALIZATION:
+      parser.process, parser.yaml.unsafe, parser.pickle,
+      serializer.encode, serializer.decode
+
+    CACHE / QUEUE:
+      cache.read, cache.write, queue.publish, queue.consume
+
+    CRYPTO / SECRETS:
+      crypto.key.derive, crypto.random.seed, crypto.sign, secret.log
+
+    AUTH / AUTHZ:
+      auth.token.verify, auth.token.create, authz.policy.eval,
+      auth.password.check, auth.password.hash
+
+    REFLECTION:
+      reflect.eval, reflect.import, reflect.attr
+
+    OBSERVABILITY:
+      log.write, metric.record, audit.write
+
+    IPC / INTER-SERVICE:
+      grpc.call, ipc.pipe, ldap.query, xpath.query, nosql.query
+
+    Sink → vulnerability guidance:
+
+      db.query.raw / db.exec.raw → SQL Injection
+      shell.exec → OS Command Injection / RCE
+      reflect.eval → RCE
+      parser.pickle → Insecure Deserialization / RCE
+      parser.yaml.unsafe → Code Execution
+      template.render.raw → SSTI
+      http.request → SSRF
+      http.redirect → Open Redirect
+      filesystem.* → Path Traversal
+      ldap.query → LDAP Injection
+      nosql.query → NoSQL Injection
+      xpath.query → XPath Injection
+      smtp.send → Email Header Injection
+      html.render → XSS
+      auth.token.create → Privilege Escalation
+      secret.log / log.write → Sensitive Data Exposure
+      crypto.random.seed → Weak Randomness
+      reflect.attr / db.orm.bulk → Mass Assignment
+
+    Important:
+    - db.query/db.exec (ORM/parameterized) are not SQL injection by default
+    - rendering must be visible in this code path to count as XSS
+    - reaching a sink alone is not a vulnerability; require tainted flow + missing/weak control
+
+    ## Execution Steps (MANDATORY)
+
+    1. Identify the entrypoint:
+       - Match HTTP method and path
+       - Use routing decorators and framework conventions
+       - Use x-path-file / x-component-file as strong hints
+       - Confirm with schema structure
+       - If found → DO NOT search for it again
+
+    2. Trace execution:
+       - Start from request inputs (path, query, body, headers)
+       - Identify how control is routed to the target logic (e.g., inline branch, map lookup, router, registry, dispatcher, virtual call)
+       - Follow how data propagates through function calls
+       - Track transformations, validation, sinks, and parameter origin (query/body/path/header)
+       - Ignore unrelated or generic helpers
+       - STOP when full path is clear
+
+    3. Select functions to annotate:
+       - entrypoint
+       - functions handling request-derived data
+       - validation points (explicit only)
+       - sink functions or wrappers
+       - key transformations needed to explain flow
+
+    4. Insert annotations:
+       - place comments directly above function definitions
+       - do not duplicate or overwrite existing annotations
+       - annotate only high-confidence, relevant functions
+       - DO NOT attempt annotation if file content is not available
+
+    5. Verify annotations are present
+       - If verification fails due to tooling/parsing → DO NOT retry endlessly
+       - Proceed to final analysis if annotations are logically correct
+
+    6. Analyze business value of the operation
+
+    7. Security analysis:
+       - identify where tainted or derived data reaches sinks
+       - verify presence or absence of validation
+       - only report vulnerabilities if clearly supported by code
+       - avoid speculation
+       - also consider:
+         - broken access control
+         - missing auth check
+         - insecure defaults
+         - sensitive data exposure
+
+    ## Failure Handling
+
+    - If a step result cannot be parsed:
+      → Extract useful data manually and CONTINUE
+      → DO NOT restart the same step
+
+    - If file already read but tool says "not found":
+      → TRUST MEMORY, not tool inconsistency
+
+    - If partial data is sufficient:
+      → COMPLETE task instead of retrying
+
+  output_format: |
+    ## Changes Applied
+
+    ### Files modified
+    - <file>: <N> annotation block(s) inserted
+
+    ### Annotation blocks inserted
+    file: <path>  function: <name>
+    @trace target=... args=... calls=...
+    @validate arg=... kind=...   (if applicable)
+    @sink kind=... arg=...       (if applicable)
+    (repeat per function)
+
+    ---
+
+    ## Trace Summary
+
+    - Entrypoint: <function> in <file>
+    - Data flow:
+      <param> → <fn A> → <fn B> → <fn C>
+      (include arg states and sink if present)
+
+    ---
+
+    ## Operation Summary
+
+    - Business purpose: <what the operation does>
+    - Data handled: <input/output types, sensitivity>
+    - Key transformations: <DB, external calls, serialization, etc.>
+
+    ---
+
+    ## Security Summary
+
+    - Identified problems (only if supported by code)
+
+    ---
+
+    ## Uncertainties
+
+    - Routing: <unclear handler resolution>
+    - Call targets: <dynamic or unresolved calls>
+    - Validation gaps: <possible but not visible validation>
+    - Sink confidence: <uncertain sink classification>
+    - Missed branches: <paths not followed>
+    - Infrastructure unknowns: <auth, proxies, headers not verified>
+    - Duplicate root causes deferred: <if applicable>

@@ -1,0 +1,634 @@
+specification {
+  element person
+  element system
+  element container
+  element component
+  element storage
+}
+
+model {
+  user = person "CLI User" {
+    description "Developer/operator invoking contractor against a local codebase."
+  }
+
+  contractor = system "Contractor" {
+    description "LLM-assisted CLI for building and enriching OpenAPI specifications from source code."
+
+    cli = container "CLI" {
+      technology "Python + Click"
+      description '''
+- Entry point exposed as the `contractor` command.
+- Accepts project path, model, pipeline selection, optional artifact, and output directory.
+- Validates input paths and incompatible combinations such as `--artifact` with non-enrich pipelines.
+- Resolves the selected model/provider route through LiteLLM-compatible configuration.
+- Builds the task queue by selecting a pipeline builder.
+- Registers event handlers so emitted runner/plugin events can be normalized and exported.
+- Writes final artifacts and metrics after the run completes.
+'''
+    }
+
+    pipelineRegistry = component "Pipeline Registry" {
+      technology "Python functions"
+      description '''
+- Maps pipeline names to pipeline builders.
+- Current visible pipelines: `build` and `enrich`.
+- `build`: dependency_information -> project_information -> oas_update.
+- `enrich`: oas_enrich, optionally seeded by an existing OpenAPI artifact.
+'''
+    }
+
+    buildPipeline = component "Build Pipeline" {
+      technology "Task queue"
+      description '''
+- Adds `dependency_information` using SWE worker.
+- Adds `project_information` using SWE worker and dependency result artifact.
+- Adds `oas_update` using OAS builder worker with multiple iterations and upstream artifacts.
+'''
+    }
+
+    enrichPipeline = component "Enrich Pipeline" {
+      technology "Task queue"
+      description '''
+- Optionally pre-saves user-supplied OpenAPI text as `oas-openapi-building`.
+- Adds `oas_enrich` using OAS builder worker.
+'''
+    }
+
+    taskRunner = container "TaskRunner" {
+      technology "Google ADK Runner + custom orchestration"
+      description '''
+- Owns task queue entries with name, worker builder, params, required artifacts, iterations, attempts, steps, namespace, and model.
+- Renders task templates before execution.
+- Creates or reuses session state for each task iteration.
+- Loads artifacts needed by downstream tasks.
+- Injects upstream outputs into memory as inbox / previous-task-result notes.
+- Runs the planning agent as the root agent through ADK Runner.
+- Collects event streams from tracing and metrics plugins.
+- Persists `result`, `summary`, and `records` artifacts after each task.
+- Repeats iterations when configured, allowing long tasks such as OAS update to evolve over several passes.
+'''
+    }
+
+    planningAgent = container "Planning Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Central orchestrator for each task.
+- Treats execution as a strict subtask state machine.
+- Creates initial subtasks when work has not yet been decomposed.
+- Reads memories, prior records, and the active objective before dispatching.
+- Delegates the current subtask to a worker wrapped as a tool.
+- Interprets worker status such as done, incomplete, or skipped.
+- Decomposes unfinished work into narrower subtasks instead of silently retrying the same unit.
+- Calls finish only when task-level acceptance criteria are satisfied.
+- Uses memory and record access to preserve continuity across a multi-step task.
+'''
+    }
+
+    sweAgent = container "SWE Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Specialized code-analysis worker.
+- Reads the active subtask assignment from the planner.
+- Explores repository structure using rooted file tools and exploration helpers.
+- Identifies dependencies, frameworks, modules, routes, models, and implementation evidence.
+- Records durable findings into memory for later subtasks and later tasks.
+- Intended for dependency inventory and project understanding tasks.
+'''
+    }
+
+    oasBuilderAgent = container "OAS Builder Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Specialized OpenAPI-building worker.
+- Inspects repository implementation evidence such as routes, handlers, DTOs, request/response models, and auth patterns.
+- Reads and mutates OpenAPI state through OpenAPI tools rather than direct file editing.
+- Reconciles discovered endpoints and schemas against the evolving OAS artifact.
+- Writes rationale and evidence back to memory so later subtasks can reuse decisions.
+- Used for both update and enrich tasks.
+'''
+    }
+
+    oasAnalyzer = container "OAS Analyzer Agent" {
+      technology "Google ADK SequentialAgent"
+      description '''
+- Sequential agent composed from `analytic_agent` then `report_agent`.
+- Present in the repository but not wired into the main CLI build/enrich flow.
+'''
+    }
+
+    taskTools = component "Task Tools / StreamlineManager" {
+      technology "Custom tool layer"
+      description '''
+- Maintains subtask list and current-subtask discipline.
+- Exposes `add_subtask`, `get_current_subtask`, `list_subtasks`, `get_records`,
+  `execute_current_subtask`, `decompose_subtask`, `skip`, and `finish`.
+- If a worker returns `incomplete`, decomposition is the intended recovery path.
+- Wraps the worker as an `AgentTool` if needed.
+'''
+    }
+
+    memoryTools = component "Memory Tools" {
+      technology "Artifact-backed note store"
+      description '''
+- Exposes `append_memory`, `read_memory`, `write_memory`, `list_memories`, `list_tags`.
+- Used by planner and workers.
+- Also used by TaskRunner to inject prior task outputs into the next task's working context.
+'''
+    }
+
+    fsTools = component "Filesystem & Exploration Tools" {
+      technology "RootedLocalFileSystem + helpers"
+      description '''
+- Rooted read access to the project directory under analysis.
+- Core repo-inspection tools include `ls`, `glob`, `grep`, and `read_file`.
+- Used by worker agents to enumerate files, locate route/controller/model definitions, inspect manifests, and collect evidence snippets.
+- Also includes exploration/coverage helpers such as touched files, untouched files, and match-only filtered views.
+- This layer is effectively the worker agents' primary interface to the analyzed repository.
+'''
+    }
+
+    openapiTools = component "OpenAPI Tools" {
+      technology "Custom schema tool layer"
+      description '''
+- Provides structured schema access/mutation for the OAS builder workflow.
+- The OAS builder prompt is designed around using tools instead of ad hoc YAML edits.
+- Backs the evolving `oas-openapi-building` artifact/state.
+'''
+    }
+
+
+    taskTemplates = component "Task Templates" {
+      technology "Template files"
+      description '''
+- Named task prompt templates such as dependency discovery, project analysis, OAS update, and OAS enrich.
+- Parameterized by task params and rendered into the concrete objective consumed by the planning agent.
+'''
+    }
+
+    recordsModel = component "Records / Execution Output Model" {
+      technology "Artifact payload convention"
+      description '''
+- Each task persists a structured trio: `result`, `summary`, and `records`.
+- `result` is the main task output, `summary` is a concise downstream handoff, and `records` contains intermediate facts useful to later work.
+- Downstream tasks can load these artifacts and have them injected as memory context.
+'''
+    }
+
+    workerAdapter = component "Worker-as-Tool Adapter" {
+      technology "AgentTool wrapper"
+      description '''
+- Wraps a worker agent so the planner can invoke it through tool semantics.
+- Makes subtask execution part of the planner tool-driven control loop.
+'''
+    }
+
+    pipelineArtifacts = component "Cross-Task Artifact Handoff" {
+      technology "Memory injection convention"
+      description '''
+- Converts upstream task artifacts into tagged memory notes.
+- Typical tags include inbox and previous-task-result.
+- This is the main continuity mechanism between queue stages.
+'''
+    }
+
+    templateRenderer = component "Task Template Renderer" {
+      technology "Jinja-like templating layer"
+      description '''
+- Renders task prompt text from task names and params before each task run.
+- Produces the concrete task objective consumed by the planning agent.
+'''
+    }
+
+    runnerCore = component "ADK Runner Core" {
+      technology "google-adk Runner"
+      description '''
+- Executes root agent with session, artifact service, and plugins.
+- Produces execution events that the CLI can transform into metrics logs.
+'''
+    }
+
+    tracePlugin = component "Trace Plugin" {
+      technology "ADK plugin"
+      description "Captures execution traces and step-level events."
+    }
+
+    metricsPlugin = component "Metrics Plugin" {
+      technology "ADK plugin"
+      description "Captures metrics_* events later exported by the CLI to metrics.jsonl."
+    }
+
+    sessionStore = storage "Session Store" {
+      technology "InMemorySessionService"
+      description '''
+- Per-run / per-iteration session state.
+- Carries state forward between iterations of the same task.
+'''
+    }
+
+    artifactStore = storage "Artifact Store" {
+      technology "FileArtifactService"
+      description '''
+- Stores task artifacts such as `dependency_information/result`,
+  `project_information/result`, `oas_update/result`, and `oas-openapi-building`.
+- Also stores summaries and records payloads for downstream reuse.
+- Serves both as durable task output storage and as backing persistence for memory notes.
+- Enables cross-task continuity without requiring a long-lived in-memory context.
+'''
+    }
+
+    localProject = storage "Target Project Directory" {
+      technology "Local filesystem"
+      description "Repository/codebase being analyzed by the worker agents."
+    }
+
+    outputDir = storage "Export Output Directory" {
+      technology "Local filesystem"
+      description '''
+- Defaults to `.contractor`.
+- Receives exported artifacts and metrics after a CLI run.
+'''
+    }
+
+    litellmProxy = container "LiteLLM Proxy" {
+      technology "LiteLLM + OpenAI-compatible backend"
+      description '''
+- Required runtime dependency according to README.
+- Models are referenced by CLI-facing model names and routed through LiteLLM.
+'''
+    }
+
+    likec4Stub = component "LikeC4 Stub Tools" {
+      technology "Small dataclass placeholder"
+      description '''
+- `LikeC4Tools` only defines: `load`, `save`, `list_models`, `list_components`, `list_views`.
+- Not integrated into the active execution path.
+'''
+    }
+  }
+
+  user -> cli "runs contractor"
+  cli -> pipelineRegistry "selects builder by pipeline name"
+  pipelineRegistry -> buildPipeline "build"
+  pipelineRegistry -> enrichPipeline "enrich"
+
+  cli -> taskRunner "creates runner and enqueues tasks"
+  cli -> outputDir "exports final artifacts and metrics"
+  cli -> litellmProxy "selects model name routed via LiteLLM"
+
+  buildPipeline -> taskRunner "queue dependency_information"
+  buildPipeline -> taskRunner "queue project_information (depends on dependency artifact)"
+  buildPipeline -> taskRunner "queue oas_update (depends on previous artifacts)"
+  enrichPipeline -> artifactStore "optionally seed oas-openapi-building"
+  enrichPipeline -> taskRunner "queue oas_enrich"
+
+
+  taskTemplates -> templateRenderer "source templates"
+  templateRenderer -> planningAgent "deliver rendered task objective"
+  taskRunner -> pipelineArtifacts "convert artifacts into memory handoff"
+  pipelineArtifacts -> memoryTools "inject upstream outputs as notes"
+  taskRunner -> recordsModel "persist result/summary/records convention"
+  planningAgent -> workerAdapter "invoke worker via tool abstraction"
+  workerAdapter -> sweAgent "wrap SWE worker"
+  workerAdapter -> oasBuilderAgent "wrap OAS worker"
+
+  taskRunner -> templateRenderer "render task prompt/objective"
+  taskRunner -> artifactStore "load input artifacts"
+  taskRunner -> memoryTools "inject upstream artifacts as prior-task memories"
+  taskRunner -> sessionStore "create/reuse per-iteration session state"
+  taskRunner -> runnerCore "run root agent"
+  taskRunner -> artifactStore "save result/summary/records"
+
+  runnerCore -> planningAgent "execute root agent"
+  runnerCore -> tracePlugin "emit trace events"
+  runnerCore -> metricsPlugin "emit metrics events"
+
+  planningAgent -> taskTools "plan and control subtasks"
+  planningAgent -> memoryTools "read/write working memory"
+  planningAgent -> sweAgent "delegate repo-analysis subtask"
+  planningAgent -> oasBuilderAgent "delegate OAS subtask"
+
+  sweAgent -> fsTools "inspect repo"
+  sweAgent -> memoryTools "record findings"
+
+  oasBuilderAgent -> fsTools "inspect code evidence"
+  oasBuilderAgent -> memoryTools "record rationale/evidence"
+  oasBuilderAgent -> openapiTools "read/update schema state"
+
+  fsTools -> localProject "rooted read access"
+  openapiTools -> artifactStore "persist evolving OpenAPI artifact"
+  memoryTools -> artifactStore "persist memory notes"
+
+  likec4Stub -> artifactStore "would persist/load LikeC4 state if adopted"
+  oasAnalyzer -> artifactStore "reads inputs / emits reports"
+}
+
+views {
+  view systemLandscape of contractor {
+    title "Contractor — system landscape"
+    include *
+    autoLayout lr
+  }
+
+  view containers of contractor {
+    title "Contractor — containers"
+    include user
+    include cli
+    include pipelineRegistry
+    include buildPipeline
+    include enrichPipeline
+    include taskRunner
+    include planningAgent
+    include sweAgent
+    include oasBuilderAgent
+    include oasAnalyzer
+    include runnerCore
+    include litellmProxy
+    include tracePlugin
+    include metricsPlugin
+    include sessionStore
+    include artifactStore
+    include outputDir
+    include localProject
+    autoLayout lr
+  }
+
+
+  view agentToolingView of contractor {
+    title "Contractor — agent, tools, and storage detail"
+    include planningAgent
+    include sweAgent
+    include oasBuilderAgent
+    include workerAdapter
+    include taskTools
+    include memoryTools
+    include fsTools
+    include openapiTools
+    include recordsModel
+    include pipelineArtifacts
+    include artifactStore
+    include localProject
+    autoLayout lr
+  }
+
+  view taskLifecycleView of contractor {
+    title "Contractor — task lifecycle detail"
+    include cli
+    include buildPipeline
+    include enrichPipeline
+    include taskRunner
+    include taskTemplates
+    include templateRenderer
+    include planningAgent
+    include workerAdapter
+    include pipelineArtifacts
+    include recordsModel
+    include artifactStore
+    include sessionStore
+    autoLayout lr
+  }
+
+  view components of contractor {
+    title "Contractor — key internal components"
+    include cli
+    include pipelineRegistry
+    include buildPipeline
+    include enrichPipeline
+    include taskRunner
+    include templateRenderer
+    include planningAgent
+    include sweAgent
+    include oasBuilderAgent
+    include taskTools
+    include memoryTools
+    include fsTools
+    include openapiTools
+    include artifactStore
+    include sessionStore
+    include likec4Stub
+    autoLayout lr
+  }
+
+  view fileToolsView of contractor {
+    title "Contractor — file tools and repository access"
+    include planningAgent
+    include workerAdapter
+    include sweAgent
+    include oasBuilderAgent
+    include fsTools
+    include memoryTools
+    include openapiTools
+    include localProject
+    include artifactStore
+    autoLayout lr
+  }
+
+  view buildPipelineView of contractor {
+    title "Build pipeline artifact flow"
+    include buildPipeline
+    include taskRunner
+    include artifactStore
+    include sweAgent
+    include oasBuilderAgent
+    autoLayout lr
+  }
+
+  view enrichPipelineView of contractor {
+    title "Enrich pipeline artifact flow"
+    include enrichPipeline
+    include taskRunner
+    include artifactStore
+    include oasBuilderAgent
+    autoLayout lr
+  }
+
+  dynamic buildRun {
+    title "Dynamic — build pipeline run"
+
+    user -> cli "Invoke `contractor --pipeline build`"
+    cli -> pipelineRegistry "Resolve build pipeline"
+    pipelineRegistry -> buildPipeline "Create build task sequence"
+    buildPipeline -> taskRunner "Enqueue dependency_information"
+    buildPipeline -> taskRunner "Enqueue project_information"
+    buildPipeline -> taskRunner "Enqueue oas_update"
+
+    taskRunner -> templateRenderer "Render dependency_information task"
+    taskRunner -> runnerCore "Start iteration for dependency_information"
+    runnerCore -> planningAgent "Run planner with dependency objective"
+    planningAgent -> taskTools "Inspect/create current subtask"
+    planningAgent -> sweAgent "Execute current subtask"
+    sweAgent -> fsTools "Inspect manifests, imports, package config, code"
+    sweAgent -> memoryTools "Write findings / evidence"
+    sweAgent -> planningAgent "Return subtask result"
+    planningAgent -> taskTools "Advance / finish"
+    taskRunner -> artifactStore "Save dependency result/summary/records"
+
+    taskRunner -> artifactStore "Load dependency artifact"
+    taskRunner -> memoryTools "Inject as previous-task-result"
+    taskRunner -> templateRenderer "Render project_information task"
+    taskRunner -> runnerCore "Start iteration for project_information"
+    runnerCore -> planningAgent "Run planner with project objective"
+    planningAgent -> sweAgent "Execute current subtask"
+    sweAgent -> fsTools "Inspect modules, routes, models, structure"
+    sweAgent -> planningAgent "Return subtask result"
+    planningAgent -> taskTools "Advance / finish"
+    taskRunner -> artifactStore "Save project result/summary/records"
+
+    taskRunner -> artifactStore "Load dependency + project artifacts"
+    taskRunner -> memoryTools "Inject upstream context"
+    taskRunner -> templateRenderer "Render oas_update task"
+    taskRunner -> runnerCore "Start iteration(s) for oas_update"
+    runnerCore -> planningAgent "Run planner with OAS objective"
+    planningAgent -> oasBuilderAgent "Execute current subtask"
+    oasBuilderAgent -> fsTools "Inspect handlers/controllers/models"
+    oasBuilderAgent -> openapiTools "Read current OAS state"
+    oasBuilderAgent -> openapiTools "Update paths/components/info/etc."
+    oasBuilderAgent -> memoryTools "Write rationale/evidence"
+    oasBuilderAgent -> planningAgent "Return subtask result"
+    planningAgent -> taskTools "Advance / decompose if incomplete / finish"
+    taskRunner -> artifactStore "Save OAS result/summary/records"
+    cli -> outputDir "Export artifacts + metrics"
+  }
+
+  dynamic enrichRun {
+    title "Dynamic — enrich pipeline run"
+
+    user -> cli "Invoke `contractor --pipeline enrich --artifact ...`"
+    cli -> pipelineRegistry "Resolve enrich pipeline"
+    pipelineRegistry -> enrichPipeline "Create enrich task sequence"
+    enrichPipeline -> artifactStore "Pre-save supplied artifact as oas-openapi-building"
+    enrichPipeline -> taskRunner "Enqueue oas_enrich"
+
+    taskRunner -> artifactStore "Load existing OAS artifact"
+    taskRunner -> memoryTools "Inject previous-task-result context"
+    taskRunner -> templateRenderer "Render oas_enrich task"
+    taskRunner -> runnerCore "Start enrich iteration"
+    runnerCore -> planningAgent "Run planner with enrich objective"
+    planningAgent -> oasBuilderAgent "Execute enrich subtask"
+    oasBuilderAgent -> fsTools "Inspect source implementation"
+    oasBuilderAgent -> openapiTools "Read existing schema"
+    oasBuilderAgent -> openapiTools "Refine and enrich schema"
+    oasBuilderAgent -> planningAgent "Return subtask result"
+    planningAgent -> taskTools "Finish task"
+    taskRunner -> artifactStore "Persist updated result/summary/records"
+    cli -> outputDir "Export updated artifacts + metrics"
+  }
+
+  dynamic plannerWorkerLoop {
+    title "Dynamic — planner / worker subtask loop"
+
+    taskRunner -> runnerCore "Run root planner"
+    runnerCore -> planningAgent "Enter task session"
+    planningAgent -> taskTools "list_subtasks / get_current_subtask"
+    planningAgent -> taskTools "add_subtask if queue empty"
+    planningAgent -> memoryTools "read_memory / list_memories / get_records"
+    planningAgent -> sweAgent "or OAS builder: execute_current_subtask"
+    sweAgent -> fsTools "or OAS builder -> fsTools + openapiTools"
+    sweAgent -> memoryTools "write evidence"
+    sweAgent -> planningAgent "Return status done|incomplete|skipped"
+    planningAgent -> taskTools "If done: advance"
+    planningAgent -> taskTools "If incomplete: decompose_subtask"
+    planningAgent -> taskTools "If skipped: skip"
+    planningAgent -> taskTools "When objective satisfied: finish(result, summary)"
+    planningAgent -> runnerCore "Return final output"
+    runnerCore -> taskRunner "Iteration result"
+  }
+
+  dynamic subtaskWorkflow {
+    title "Dynamic — detailed subtask workflow"
+
+    planningAgent -> taskTools "list_subtasks"
+    planningAgent -> taskTools "get_current_subtask"
+
+    planningAgent -> taskTools "add_subtask when no current work exists"
+    taskTools -> planningAgent "Return current subtask descriptor"
+
+    planningAgent -> memoryTools "read_memory for context and prior findings"
+    planningAgent -> taskTools "get_records for prior completed subtasks"
+    planningAgent -> sweAgent "or OAS builder: execute current subtask"
+    sweAgent -> fsTools "inspect repository evidence"
+    sweAgent -> memoryTools "append notes, findings, rationale"
+    sweAgent -> planningAgent "Return SubtaskExecutionResult"
+
+    planningAgent -> taskTools "Interpret result.status"
+
+    planningAgent -> taskTools "If status=done: mark complete and move pointer"
+    taskTools -> planningAgent "Next subtask or completion state"
+
+    planningAgent -> taskTools "If status=incomplete: decompose_subtask into smaller units"
+    taskTools -> planningAgent "Create child subtasks and preserve unfinished parent intent"
+
+    planningAgent -> taskTools "If status=skipped: skip with reason"
+    taskTools -> planningAgent "Advance queue to next available subtask"
+
+    planningAgent -> memoryTools "write summary memory for important discoveries"
+    planningAgent -> taskTools "finish when objective and acceptance criteria are satisfied"
+  }
+
+
+  dynamic taskArtifactLifecycle {
+    title "Dynamic — task artifact lifecycle"
+
+    cli -> taskRunner "Queue task with params, model, namespace, and artifact requirements"
+    taskRunner -> taskTemplates "Select task template"
+    taskTemplates -> templateRenderer "Render concrete objective"
+    taskRunner -> artifactStore "Load required upstream artifacts"
+    taskRunner -> pipelineArtifacts "Transform upstream outputs into memory handoff"
+    pipelineArtifacts -> memoryTools "Persist tagged notes for current task"
+    taskRunner -> runnerCore "Run planner for task iteration"
+    runnerCore -> planningAgent "Execute task"
+    planningAgent -> workerAdapter "Invoke specialized worker"
+    planningAgent -> taskTools "Finish when acceptance criteria are met"
+    taskRunner -> recordsModel "Build result/summary/records payloads"
+    taskRunner -> artifactStore "Persist task outputs for downstream reuse"
+  }
+
+  dynamic artifactMemoryFlow {
+    title "Dynamic — cross-task artifact to memory handoff"
+
+    taskRunner -> artifactStore "Read upstream task artifact text"
+    taskRunner -> memoryTools "Wrap artifact as memory note"
+    memoryTools -> artifactStore "Persist note tagged with inbox + previous-task-result"
+    taskRunner -> runnerCore "Start next task with injected memory context"
+    runnerCore -> planningAgent "Planner reads prior-task context"
+    planningAgent -> sweAgent "or OAS builder receives richer objective context"
+  }
+
+
+  dynamic fileToolsWorkflow {
+    title "Dynamic — file tools workflow"
+
+    planningAgent -> workerAdapter "Dispatch current subtask"
+    workerAdapter -> sweAgent "or OAS builder"
+    sweAgent -> fsTools "ls to inspect top-level structure"
+    sweAgent -> fsTools "glob to find route, handler, model, schema, and config files"
+    sweAgent -> fsTools "grep to locate framework-specific signatures and endpoint definitions"
+    sweAgent -> fsTools "read_file for evidence extraction"
+    sweAgent -> memoryTools "Write discovered findings and file-based rationale"
+    sweAgent -> planningAgent "Return synthesized subtask result"
+
+    planningAgent -> workerAdapter "Dispatch OAS-oriented subtask"
+    workerAdapter -> oasBuilderAgent "wrap OAS worker"
+    oasBuilderAgent -> fsTools "Inspect route/controller/model files"
+    oasBuilderAgent -> openapiTools "Read current OpenAPI state"
+    oasBuilderAgent -> openapiTools "Apply structured updates derived from file evidence"
+    oasBuilderAgent -> memoryTools "Record why schema changes were made"
+    oasBuilderAgent -> planningAgent "Return OAS subtask result"
+  }
+
+  dynamic instrumentationFlow {
+    title "Dynamic — execution, tracing, and metrics"
+
+    cli -> taskRunner "Register on_event handler"
+    taskRunner -> runnerCore "Attach plugins"
+    runnerCore -> tracePlugin "Emit trace callbacks"
+    runnerCore -> metricsPlugin "Emit metrics_* events"
+    taskRunner -> cli "Surface normalized events"
+    cli -> outputDir "Write metrics.jsonl and exported artifacts"
+  }
+}
+
+// Notes:
+// 1. This file is a reconstruction from the repository as of analysis time, not generated by the repo's own LikeC4 tooling.
+// 2. The repository contains only a tiny LikeC4 stub, so these views are descriptive architecture documentation rather than round-tripped source.
+// 3. OAS Analyzer is modeled as present-but-out-of-band because it exists in code as a SequentialAgent but is not on the primary CLI build/enrich path.
+
