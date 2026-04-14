@@ -16,16 +16,17 @@ task:
 
     ## Core Principles
 
-    - Focus only on code relevant to the target operation
     - Follow request-derived data through the system
     - Prefer concrete, code-backed paths over speculation
     - Do not assume behavior not visible in code
-    - Annotate only where it adds clear trace value
+    - Annotate only where it adds clear trace value (entry, validation, sink, or critical transformation)
     - STOP as soon as sufficient information is collected to produce final output
+    - Clearly distinguish: observed code behavior vs inference vs uncertainty
+    - If a clear vulnerability is discovered during tracing, report it immediately and continue only if needed for confirmation
 
     ## State Management (CRITICAL)
 
-    - Treat previously discovered files, functions, and flows as source of truth
+    - Treat previously discovered files, functions, and flows as working context; do not extend them beyond shown evidence    
     - NEVER re-search or re-verify something that was already confirmed
     - Reuse results from earlier steps instead of repeating file discovery
     - If data is already in memory, use it directly
@@ -42,7 +43,6 @@ task:
 
     ## Decomposition Rules
 
-    - Maximum depth: 3 levels
     - If a task only checks existence or repeats previous work → SKIP it
     - Prefer fewer, meaningful steps over many micro-steps
     - A task must produce NEW information, not restate intent
@@ -52,9 +52,9 @@ task:
     STOP execution when ALL are satisfied:
     1. Entrypoint is identified
     2. Request parameters are mapped (body/query/path/headers)
-    3. At least one full data flow path is traced to:
+    3. At least one complete, non-ambiguous data flow path is traced to:
        - a sink OR
-       - a terminal business operation (e.g., DB save)
+       - a terminal business operation (e.g., DB save) 
     4. Validation (or absence) is identified
     5. Security mechanism (auth/authz) is identified
 
@@ -140,7 +140,7 @@ task:
     Important:
     - db.query/db.exec (ORM/parameterized) are not SQL injection by default
     - rendering must be visible in this code path to count as XSS
-    - reaching a sink alone is not a vulnerability; structure/control matters
+    - reaching a sink alone is not a vulnerability; require tainted flow + missing/weak control
 
     ## Execution Steps (MANDATORY)
 
@@ -153,8 +153,9 @@ task:
 
     2. Trace execution:
        - Start from request inputs (path, query, body, headers)
+       - Identify how control is routed to the target logic (e.g., inline branch, map lookup, router, registry, dispatcher, virtual call)
        - Follow how data propagates through function calls
-       - Track transformations, validation, and sinks
+       - Track transformations, validation, sinks, and parameter origin (query/body/path/header)
        - Ignore unrelated or generic helpers
        - STOP when full path is clear
 

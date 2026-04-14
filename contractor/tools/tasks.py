@@ -62,7 +62,8 @@ SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE: Final[str] = (
     "Subtask `{task_id}` has status '{status}'. "
     "Only subtasks with status 'incomplete' or 'malformed' can be decomposed. "
     "If the subtask is 'new', execute it first. "
-    "If it is 'done' or 'skipped', move on to the next subtask."
+    "If it is already resolved ('done', 'skipped', or 'decomposed'), move on "
+    "to the next subtask."
 )
 SUBTASK_RESULT_MALFORMED: Final[str] = (
     "The worker returned a result that could not be completely parsed into the "
@@ -72,9 +73,10 @@ SUBTASK_RESULT_MALFORMED: Final[str] = (
 )
 SUBTASK_STATUS_TRANSITIONS: Final[dict[str, list[str]]] = {
     "new": ["done", "incomplete", "malformed", "skipped"],
-    "malformed": ["skipped"],
-    "incomplete": ["skipped"],
+    "malformed": ["skipped", "decomposed"],
+    "incomplete": ["skipped", "decomposed"],
     "done": [],
+    "decomposed" : [],
     "skipped": [],
 }
 DO_NOT_FINISH_WITH_NO_TASKS_DONE: Final[str] = (
@@ -185,18 +187,20 @@ class Subtask(BaseModel):
         ),
         min_length=1,
     )
-    status: Literal["new", "done", "incomplete", "malformed", "skipped"] = Field(
+    status: Literal["new", "done", "incomplete", "malformed", "skipped", "decomposed"] = Field(
         default="new",
         description=(
             "Lifecycle status of the subtask:\n"
             "- 'new': Not yet executed\n"
             "- 'done': Successfully completed\n"
             "- 'incomplete': Attempted but needs decomposition\n"
+            "- 'decomposed': Replaced by child subtasks and no longer executable\n"
             "- 'malformed': Worker output could not be parsed\n"
             "- 'skipped': Deliberately skipped with reason\n"
             "Valid transitions: "
             "new->[done,incomplete,malformed,skipped], "
-            "malformed->[skipped]"
+            "incomplete->[decomposed,skipped], "
+            "malformed->[decomposed,skipped]"
         ),
     )
 
@@ -797,7 +801,7 @@ class StreamlineManager:
                 idx is None
                 or idx < 0
                 or idx >= len(subtasks)
-                or subtasks[idx].status in ("done", "skipped")
+                or subtasks[idx].status in ("done", "skipped", "decomposed")
             )
             if should_advance:
                 self._set_idx(ctx, len(subtasks))
@@ -925,7 +929,20 @@ class StreamlineManager:
                 )
                 return None
 
-            current_id: str = current.task_id
+            current_id = current.task_id
+            try:
+                self._apply_status_transition(current, "decomposed")
+            except InvalidStatusTransitionError as exc:
+                logger.warning(
+                    "Invalid decompose transition",
+                    extra={
+                        "task_id": current.task_id,
+                        "current_status": current.status,
+                        "error": str(exc),
+                    },
+                )
+                return None
+
             insertion: list[Subtask] = []
             for ind, spec in enumerate(new_subtasks, start=1):
                 insertion.append(
@@ -940,7 +957,22 @@ class StreamlineManager:
             for i, sub in enumerate(insertion):
                 subtasks.insert(idx + 1 + i, sub)
 
+            parent_record = {
+                **current.model_dump(),
+                "status": "decomposed",
+                "output": (
+                    f"Decomposed into {len(insertion)} child subtasks: "
+                    + ", ".join(s.task_id for s in insertion)
+                ),
+                "summary": (
+                    f"Subtask {current_id} was decomposed into "
+                    f"{len(insertion)} child subtasks."
+                ),
+            }
+
         self._set_idx(ctx, idx + 1)
+        self.save_record(parent_record, ctx)
+
         logger.info(
             "Subtask decomposed",
             extra={
@@ -1298,7 +1330,7 @@ def task_tools(
         the current subtask and any later subtasks.
 
         OPTIONAL:
-        - `view="all"` returns the full subtask history, including resolved and
+        - `view="all"` returns the full subtask history, including resolved, decomposed and
         historical subtasks.
 
         Args:
@@ -1456,7 +1488,7 @@ def task_tools(
         Prerequisites:
             - At least one subtask must exist
             - Current subtask must have status 'new'
-            - If 'incomplete'/'malformed', decompose or skip first
+            - If 'incomplete'/'malformed', resolve it by decomposing or skipping first
 
         Returns:
             Record of execution with optional action guidance.
@@ -1479,7 +1511,7 @@ def task_tools(
                         status=current.status,
                     )
                 }
-            case "done" | "skipped":
+            case "done" | "skipped" | "decomposed":
                 return {"error": NO_ACTIVE_SUBTASKS_MSG}
             case "new":
                 pass

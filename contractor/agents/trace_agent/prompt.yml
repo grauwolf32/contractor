@@ -125,7 +125,7 @@
       - it adds no meaningful trace value
       - it would duplicate an equivalent annotation already present nearby
 
-      Prefer annotating the most informative functions rather than every function in the chain.
+      Prefer annotating the most informative functions (closest to sinks or business logic) rather than every function in the chain.
 
       Before inserting comments:
       - check whether the function already has trace annotations
@@ -140,13 +140,19 @@
       8. VULNERABILITY REPORTING RULES
       ==================================================
 
-      During tracing, look for vulnerabilities supported by code evidence.
-      If a vulnerability is confidently identified:
-      - call report_vulnerability
-      - include the most specific evidence available from the traced code path
-      - prefer precise, narrow reports over broad speculative ones
+      During tracing, continuously check for vulnerabilities.
+      Start with the key finding from the latest traced code.
 
-      Do NOT report vulnerabilities based only on suspicion, naming, or incomplete evidence.
+      If a vulnerability is confidently identified, report it immediately with:
+      - source
+      - path
+      - sink or sensitive operation
+      - missing/weak control
+
+      Do not repeat the same tracing attempt unless the target, hypothesis, or evidence basis has changed.
+
+      Do NOT report vulnerabilities unless a concrete path exists:
+      - tainted input → transformation → sink with missing or insufficient control
       If no vulnerability is confidently supported by the code, do not report one.
 
       ==================================================
