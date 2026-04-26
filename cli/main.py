@@ -226,18 +226,18 @@ async def async_main(
         "artifact_service": artifact_service,
     }
 
-    if "artifact" in spec.required and artifact:
-        builder_kwargs["artifact"] = artifact
-
-    runner = await spec.builder(**builder_kwargs)
-    event_handler = build_handle_event(output_dir, pipeline, enable_ui=enable_ui)
-
     if rm_artifacts:
         await remove_artifacts(
             app_name="contractor",
             user_id=user_id,
             artifact_service=artifact_service,
         )
+
+    if artifact:
+        builder_kwargs["artifact"] = artifact
+
+    runner = await spec.builder(**builder_kwargs)
+    event_handler = build_handle_event(output_dir, pipeline, enable_ui=enable_ui)
 
     _ = await runner.run(
         user_id=user_id,
