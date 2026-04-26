@@ -17,7 +17,6 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from contractor.agents.planning_agent.agent import build_planning_agent
-from contractor.models.task import RenderedTask, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.models import (
@@ -29,6 +28,8 @@ from contractor.runners.models import (
     CarryState,
     ActiveTaskState,
     TaskScopedKeys,
+    RenderedTask,
+    TaskTemplate,
     ArtifactKind,
     TaskRunnerEventHandler,
     WorkerBuilder,
@@ -104,7 +105,7 @@ def _decode_part_text(part: types.Part | None) -> str:
     if part is None:
         return ""
 
-    text = getattr(part, "text", None)
+    text = part.text
     if text is not None:
         return text
 
@@ -115,7 +116,7 @@ def _decode_part_text(part: types.Part | None) -> str:
     if isinstance(data, str):
         return data
     if isinstance(data, (bytes, bytearray)):
-        return data.decode("utf-8")
+        return data.decode("utf-8", errors="ignore")
     return ""
 
 
