@@ -35,8 +35,10 @@ from contractor.tools.fs.utils import (
 )
 from contractor.utils.formatting import (
     norm_unicode,
+    norm_unicode_strict,
     normalize_slashes,
 )
+from contractor.utils.fs import join_path
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
 from contractor.tools.fs.format import FileFormat
 
@@ -53,11 +55,6 @@ def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list
             seen.add(pattern)
             result.append(pattern)
     return result
-
-
-def _join_path(directory: str, filename: str) -> str:
-    return f"{str(directory).rstrip('/')}/{filename}".replace("\\", "/")
-
 
 class FsspecInteractionFileTools:
     def __init__(
@@ -86,17 +83,6 @@ class FsspecInteractionFileTools:
         self._interactions: dict[str, FileInteractionEntry] = {}
         self.patterns = _build_ignore_patterns(ignored_patterns)
 
-    def _norm(self, path: str) -> str:
-        result = norm_unicode(path)
-        if result is None:
-            raise ValueError(f"Cannot normalize path: {path!r}")
-        return result
-
-    def _norm_optional(self, path: Optional[str]) -> Optional[str]:
-        if path is None:
-            return None
-        return norm_unicode(path)
-
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
 
@@ -109,7 +95,7 @@ class FsspecInteractionFileTools:
         check_ignored: bool = True,
     ) -> tuple[Optional[str], Optional[ToolResult]]:
         try:
-            normalized = self._norm(path)
+            normalized = norm_unicode_strict(path)
         except ValueError:
             return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
         if check_ignored and self._is_ignored(normalized):
@@ -157,7 +143,7 @@ class FsspecInteractionFileTools:
         seen: set[str] = set()
         for current_path, _dirs, filenames in self.fs.walk(root):
             for filename in filenames:
-                full_path = _join_path(current_path, filename)
+                full_path = join_path(current_path, filename)
                 if full_path not in seen and not self._is_ignored(full_path):
                     seen.add(full_path)
                     yield full_path
@@ -298,10 +284,10 @@ class FsspecInteractionFileTools:
         path: Optional[str] = None,
         offset: int = 0,
     ) -> ToolResult:
-        normalized_path = self._norm_optional(path) or "/"
+        normalized_path = norm_unicode(path) or "/"
         normalized_path = self._resolve_root(normalized_path)
 
-        normalized_pattern = self._norm_optional(pattern)
+        normalized_pattern = norm_unicode(pattern)
 
         if normalized_pattern is None:
             return {
@@ -385,8 +371,8 @@ class FsspecInteractionFileTools:
         path: Optional[str] = None,
         offset: int = 0,
     ) -> ToolResult:
-        normalized_path = self._norm_optional(path) or "/"
-        normalized_pattern = self._norm_optional(pattern)
+        normalized_path = norm_unicode(path) or "/"
+        normalized_pattern = norm_unicode(pattern)
 
         try:
             regex = re.compile(normalized_pattern or "")
@@ -444,7 +430,7 @@ class FsspecInteractionFileTools:
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
             for filename in filenames:
-                full_path = _join_path(current_path, filename)
+                full_path = join_path(current_path, filename)
                 results.extend(build_entries_for_file(full_path))
 
         results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
@@ -464,8 +450,8 @@ class FsspecInteractionFileTools:
         *,
         pattern: str = "**/*",
     ) -> ToolResult:
-        normalized_path = self._norm_optional(path) or "/"
-        normalized_pattern = self._norm_optional(pattern) or "**/*"
+        normalized_path = norm_unicode(path) or "/"
+        normalized_pattern = norm_unicode(pattern) or "**/*"
 
         if not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -499,8 +485,8 @@ class FsspecInteractionFileTools:
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> ToolResult:
-        normalized_path = self._norm_optional(path) or "/"
-        normalized_pattern = self._norm_optional(pattern) or "**/*"
+        normalized_path = norm_unicode(path) or "/"
+        normalized_pattern = norm_unicode(pattern) or "**/*"
 
         if isinstance(interaction, str):
             interaction = InteractionFilter(interaction)
@@ -546,8 +532,8 @@ class FsspecInteractionFileTools:
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> ToolResult:
-        normalized_path = self._norm_optional(path) or "/"
-        normalized_pattern = self._norm_optional(pattern) or "**/*"
+        normalized_path = norm_unicode(path) or "/"
+        normalized_pattern = norm_unicode(pattern) or "**/*"
 
         if not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -821,17 +807,6 @@ class FsspecWriteTools:
 
         return adapt(old_string), adapt(new_string)
 
-    def _norm(self, path: str) -> str:
-        result = norm_unicode(path)
-        if result is None:
-            raise ValueError(f"Cannot normalize path: {path!r}")
-        return result
-
-    def _norm_optional(self, path: Optional[str]) -> Optional[str]:
-        if path is None:
-            return None
-        return norm_unicode(path)
-
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
 
@@ -844,7 +819,7 @@ class FsspecWriteTools:
         check_ignored: bool = True,
     ) -> tuple[Optional[str], Optional[ToolResult]]:
         try:
-            normalized = self._norm(path)
+            normalized = norm_unicode_strict(path)
         except ValueError:
             return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
         if check_ignored and self._is_ignored(normalized):

@@ -15,6 +15,7 @@ from contractor.utils.formatting import (
     norm_unicode,
     normalize_slashes,
 )
+from contractor.utils.fs import join_path
 
 logger = logging.getLogger(__name__)
 
@@ -440,7 +441,7 @@ def _iter_all_files(
                         root,
                     )
                     return
-                full_path = _join_path(current_path, filename)
+                full_path = join_path(current_path, filename)
                 if full_path not in seen_files:
                     seen_files.add(full_path)
                     file_count += 1
