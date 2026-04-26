@@ -61,7 +61,9 @@ model {
 - Implemented as `trace_annotation_pipeline` returning an `AnnotationRunner`.
 - Loads an OpenAPI artifact and extracts all paths and operations.
 - For each API path, calls `run_path_analysis` which spawns a TaskRunner and adds a
-  `trace_annotation` task per operation using the trace agent.
+  `trace_annotation` task per operation.
+- The TaskRunner runs the planning agent as root; the planning agent delegates annotation
+  subtasks to the trace agent (wrapped as a tool via workerAdapter).
 - The trace agent annotates code with structured `@trace`, `@validate`, and `@sink`
   comments and reports vulnerabilities found during execution tracing.
 - After each path, saves the MemoryOverlayFileSystem state and a unified diff as artifacts.
@@ -78,7 +80,7 @@ model {
 - Creates or reuses session state per task iteration.
 - Loads artifacts needed by downstream tasks and injects upstream outputs as inbox /
   previous-task-result memory notes.
-- Runs the root agent (planning agent or trace agent) through ADK Runner.
+- Always runs the planning agent as the root agent through ADK Runner.
 - Collects event streams from trace and metrics plugins.
 - Persists `result`, `summary`, and `records` artifacts after each task.
 - Repeats iterations when configured, allowing long tasks (e.g. OAS update) to evolve.
@@ -89,25 +91,29 @@ model {
     planningAgent = container "Planning Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Central orchestrator for build/enrich tasks.
-- Treats execution as a strict subtask state machine (add → execute → complete/skip).
-- Uses task_tools to delegate subtasks to worker agents via the WorkerAdapter.
-- Reads and writes working memory via memory tools.
-- Produces `result`, `summary`, and `records` artifacts on completion.
+- Top-level root agent for every task across all pipelines (build, enrich, trace).
+- Treats execution as a strict subtask state machine: add → execute → done/incomplete/skip.
+- On incomplete: must decompose_subtask (no silent retries).
+- Delegates each subtask to a worker agent (SWE, OAS Builder, or Trace) via workerAdapter.
+- Workers are invoked as tools through execute_current_subtask; the planner interprets results.
+- Reads and writes shared working memory via memory tools.
+- Calls finish with result + summary only when the global task objective is satisfied.
+- Produces `result`, `summary`, and `records` artifacts persisted by the TaskRunner.
 '''
     }
 
     traceAgent = container "Trace Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Root agent for trace_annotation tasks; used directly by the TaskRunner (no planning agent layer).
-- Given an OpenAPI operation_id and operation schema, traces the execution path through the codebase.
-- Inserts structured `@trace`, `@validate`, and `@sink` annotation comments into source files.
-- Reports vulnerabilities (SQL injection, RCE, SSRF, etc.) when a concrete tainted-input-to-sink
-  path is confirmed by code evidence.
+- Worker agent specialised in execution-path tracing and security annotation.
+- Invoked by the planning agent via workerAdapter as a tool, same as SWE and OAS Builder.
+- Receives a subtask with an OpenAPI operation_id and operation schema.
+- Traces the request execution path through the codebase (max 3 calls deep).
+- Inserts structured `@trace`, `@validate`, and `@sink` annotation comments (max 4 functions).
+- Reports vulnerabilities (SQL injection, RCE, SSRF, etc.) only when a concrete
+  tainted-input → sink path is confirmed by code evidence.
 - Operates on MemoryOverlayFileSystem so all file writes are in-memory until explicitly saved.
-- Strict hard constraints: max 3 calls deep, max 4 annotated functions, no speculative annotations.
-- Tools available: grep, ls, glob, read_file, search_def, insert_line, edit, replace_range,
+- Tools: grep, ls, glob, read_file, search_def, insert_line, edit, replace_range,
   append_memory, read_memory, write_memory, list_memories, list_tags,
   interaction_stats, list_touched_files, list_untouched_files, list_match_only_files,
   report_vulnerability, list_vulnerabilities.
@@ -148,8 +154,9 @@ model {
     workerAdapter = component "Worker-as-Tool Adapter" {
       technology "AgentTool wrapper"
       description '''
-- Wraps a worker agent (SWE or OAS builder) so the planning agent can invoke it via tool semantics.
-- Makes subtask execution part of the planner's tool-driven control loop.
+- Wraps a worker agent (SWE Agent, OAS Builder Agent, or Trace Agent) so the planning agent
+  can invoke it via tool semantics (execute_current_subtask).
+- Makes subtask execution part of the planner's tool-driven control loop across all pipelines.
 '''
     }
 
@@ -299,7 +306,7 @@ model {
   pipelineRegistry -> enrichPipeline "enrich"
   pipelineRegistry -> tracePipeline "trace"
 
-  cli -> taskRunner "creates runner and enqueues tasks (build/enrich)"
+  cli -> taskRunner "creates runner and enqueues tasks"
   cli -> outputDir "exports final artifacts and metrics.jsonl"
   cli -> litellmProxy "resolves model alias"
 
@@ -320,35 +327,31 @@ model {
   taskRunner -> memoryTools "inject upstream artifacts as prior-task memories"
   taskRunner -> pipelineArtifacts "convert artifacts into memory handoff"
   taskRunner -> sessionStore "create/reuse per-iteration session state"
-  taskRunner -> runnerCore "run root agent (planning agent or trace agent)"
+  taskRunner -> runnerCore "run planning agent (root agent for all pipelines)"
   taskRunner -> artifactStore "save result/summary/records"
 
   pipelineArtifacts -> memoryTools "inject upstream outputs as tagged notes"
 
-  templateRenderer -> planningAgent "deliver rendered task objective (build/enrich)"
-  templateRenderer -> traceAgent "deliver rendered task objective (trace)"
+  templateRenderer -> planningAgent "deliver rendered task objective"
 
-  runnerCore -> planningAgent "execute root agent (build/enrich tasks)"
-  runnerCore -> traceAgent "execute root agent (trace_annotation tasks)"
+  runnerCore -> planningAgent "execute planning agent as root"
   runnerCore -> tracePlugin "emit trace callbacks"
   runnerCore -> metricsPlugin "emit metrics_* events"
 
-  planningAgent -> taskTools "plan and control subtasks"
+  planningAgent -> taskTools "manage subtask state machine (add/execute/decompose/skip/finish)"
   planningAgent -> memoryTools "read/write working memory"
-  planningAgent -> workerAdapter "delegate repo-analysis subtask"
-  planningAgent -> workerAdapter "delegate OAS subtask"
+  planningAgent -> workerAdapter "delegate current subtask to a worker agent"
 
   workerAdapter -> sweAgent "wrap SWE worker"
-  workerAdapter -> oasBuilderAgent "wrap OAS worker"
+  workerAdapter -> oasBuilderAgent "wrap OAS builder worker"
+  workerAdapter -> traceAgent "wrap trace worker"
 
   sweAgent -> fsTools "ls / glob / grep / read_file to explore codebase"
   sweAgent -> memoryTools "record findings"
-  sweAgent -> planningAgent "return subtask result"
 
   oasBuilderAgent -> fsTools "inspect route/controller/model files"
   oasBuilderAgent -> openapiTools "read/update OpenAPI schema state"
   oasBuilderAgent -> memoryTools "record rationale and evidence"
-  oasBuilderAgent -> planningAgent "return OAS subtask result"
 
   traceAgent -> fsTools "explore codebase via overlay (grep/ls/glob/read_file)"
   traceAgent -> fsTools "insert annotations (insert_line/edit/replace_range)"
@@ -410,7 +413,6 @@ views {
     include fsTools
     include openapiTools
     include overlayfs
-    include recordsModel
     include pipelineArtifacts
     include artifactStore
     include localProject
@@ -427,10 +429,11 @@ views {
     include taskTools
     include templateRenderer
     include planningAgent
-    include traceAgent
     include workerAdapter
+    include sweAgent
+    include oasBuilderAgent
+    include traceAgent
     include pipelineArtifacts
-    include recordsModel
     include artifactStore
     include sessionStore
     autoLayout lr
@@ -441,6 +444,8 @@ views {
     include cli
     include tracePipeline
     include taskRunner
+    include planningAgent
+    include workerAdapter
     include traceAgent
     include fsTools
     include memoryTools
@@ -519,12 +524,15 @@ views {
     buildPipeline -> taskRunner "Enqueue dependency_information"
     buildPipeline -> taskRunner "Enqueue project_information"
     buildPipeline -> taskRunner "Enqueue oas_update (multi-iteration)"
-    taskRunner -> runnerCore "Run planning agent"
+    taskRunner -> runnerCore "Run planning agent as root"
     runnerCore -> planningAgent "Execute subtask state machine"
-    planningAgent -> workerAdapter "Dispatch subtasks"
-    workerAdapter -> sweAgent "Analyse codebase"
-    workerAdapter -> oasBuilderAgent "Build/update OpenAPI schema"
+    planningAgent -> workerAdapter "Delegate current subtask"
+    workerAdapter -> sweAgent "Analyse codebase (dependency/project tasks)"
+    workerAdapter -> oasBuilderAgent "Build/update OpenAPI schema (oas_update task)"
+    sweAgent -> fsTools "Explore repository"
+    sweAgent -> memoryTools "Record findings"
     oasBuilderAgent -> openapiTools "Persist schema updates"
+    oasBuilderAgent -> memoryTools "Record rationale"
     taskRunner -> artifactStore "Save result/summary/records"
     cli -> outputDir "Export artifacts and metrics.jsonl"
   }
@@ -538,11 +546,14 @@ views {
     tracePipeline -> artifactStore "Load oas-openapi-building"
     tracePipeline -> overlayfs "Initialise memory overlay over project"
     tracePipeline -> taskRunner "Per-path: queue trace_annotation per operation"
-    taskRunner -> runnerCore "Run trace agent"
-    runnerCore -> traceAgent "Trace execution path for target operation"
+    taskRunner -> runnerCore "Run planning agent as root"
+    runnerCore -> planningAgent "Execute subtask state machine"
+    planningAgent -> workerAdapter "Delegate trace_annotation subtask"
+    workerAdapter -> traceAgent "Invoke trace worker for current operation"
     traceAgent -> fsTools "Explore codebase via overlay"
     traceAgent -> fsTools "Insert @trace/@validate/@sink annotations"
     traceAgent -> memoryTools "Record findings"
+    traceAgent -> overlayfs "Buffer annotation writes in-memory"
     tracePipeline -> artifactStore "Save trace-<ns>-fs overlay state"
     tracePipeline -> artifactStore "Save trace-<ns>-diff unified diff"
     cli -> outputDir "Export annotation diffs and metrics.jsonl"
@@ -554,13 +565,13 @@ views {
     taskRunner -> artifactStore "Load upstream task artifacts"
     taskRunner -> pipelineArtifacts "Convert artifacts to memory notes"
     pipelineArtifacts -> memoryTools "Inject notes tagged inbox/previous-task-result"
-    taskRunner -> runnerCore "Run task with injected memory context"
-    runnerCore -> planningAgent "Planner reads prior-task context"
-    planningAgent -> sweAgent "Worker receives richer objective context"
+    taskRunner -> runnerCore "Run planning agent with injected memory context"
+    runnerCore -> planningAgent "Planner reads prior-task context from memory"
+    planningAgent -> workerAdapter "Delegate subtask to appropriate worker"
   }
 
   dynamic fileToolsWorkflow {
-    title "Dynamic — file tools workflow (build/enrich)"
+    title "Dynamic — file tools workflow"
 
     planningAgent -> workerAdapter "Dispatch repo-analysis subtask"
     workerAdapter -> sweAgent "Invoke SWE worker"
@@ -568,8 +579,7 @@ views {
     sweAgent -> fsTools "glob to find route, handler, model, schema, and config files"
     sweAgent -> fsTools "grep to locate framework-specific signatures and endpoints"
     sweAgent -> fsTools "read_file for evidence extraction"
-    sweAgent -> memoryTools "Write discovered findings and file-based rationale"
-    sweAgent -> planningAgent "Return synthesised subtask result"
+    sweAgent -> memoryTools "Write discovered findings and rationale"
 
     planningAgent -> workerAdapter "Dispatch OAS-oriented subtask"
     workerAdapter -> oasBuilderAgent "Invoke OAS builder worker"
@@ -577,7 +587,12 @@ views {
     oasBuilderAgent -> openapiTools "Read current OpenAPI state"
     oasBuilderAgent -> openapiTools "Apply structured updates from file evidence"
     oasBuilderAgent -> memoryTools "Record why schema changes were made"
-    oasBuilderAgent -> planningAgent "Return OAS subtask result"
+
+    planningAgent -> workerAdapter "Dispatch trace annotation subtask"
+    workerAdapter -> traceAgent "Invoke trace worker"
+    traceAgent -> fsTools "Explore codebase via overlay"
+    traceAgent -> fsTools "Insert structured annotations into source files"
+    traceAgent -> memoryTools "Record entrypoints, sinks, and validation patterns"
   }
 
   dynamic instrumentationFlow {
@@ -593,10 +608,13 @@ views {
 }
 
 // Notes:
-// 1. The `trace` pipeline is now a first-class pipeline (trace_annotation_pipeline /
-//    AnnotationRunner) with a dedicated traceAgent, MemoryOverlayFileSystem, and per-operation
-//    TaskRunner instances. It was previously modelled as an out-of-band oasAnalyzer.
-// 2. oasAnalyzer (SequentialAgent) remains present in code but is not on the primary CLI path.
-// 3. LikeC4 tooling (likec4Stub) is still a placeholder dataclass with no active integration.
-// 4. This file is hand-authored architecture documentation, not generated by the repo's own
+// 1. The planning agent is the single root agent for ALL pipelines (build, enrich, trace).
+//    It always sits between the TaskRunner and the worker agents.
+// 2. SWE Agent, OAS Builder Agent, and Trace Agent are all workers: they are wrapped by
+//    workerAdapter and invoked by the planning agent via execute_current_subtask.
+// 3. The `trace` pipeline is a first-class pipeline (trace_annotation_pipeline /
+//    AnnotationRunner) with MemoryOverlayFileSystem and per-operation TaskRunner instances.
+// 4. oasAnalyzer (SequentialAgent) remains present in code but is not on the primary CLI path.
+// 5. LikeC4 tooling (likec4Stub) is still a placeholder dataclass with no active integration.
+// 6. This file is hand-authored architecture documentation, not generated by the repo's own
 //    LikeC4 tooling.

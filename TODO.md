@@ -10,7 +10,7 @@
 * Add caido tools
 * Add playwright tools 
 * Add overlay fs for writting [done]
-* Add jupyter environment in the sandbox
+* Add python REPL environment in the sandbox
 * Add inbox for memory tools [done]
 * Add skills for memory tools [done]
 * Add skills for tasks
