@@ -3,9 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
-from dataclasses import dataclass, field
-from enum import StrEnum, unique
-from typing import Any, Awaitable, Callable, Literal, Optional, TypedDict
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -15,7 +13,6 @@ from google.adk.events import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools import AgentTool
 from google.genai import types
 from pydantic import BaseModel, Field
 
@@ -23,6 +20,19 @@ from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.models.task import RenderedTask, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
+from contractor.runners.models import (
+    TaskRunnerEvent,
+    TaskInvocation,
+    TaskResult,
+    TaskStatus,
+    EventType,
+    CarryState,
+    ActiveTaskState,
+    TaskScopedKeys,
+    ArtifactKind,
+    TaskRunnerEventHandler,
+    WorkerBuilder,
+)
 from contractor.tools.memory import MemoryNote, MemoryTools
 
 load_dotenv()
@@ -31,40 +41,8 @@ logger = logging.getLogger(__name__)
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-_GLOBAL_TASK_ID_KEY = "_global_task_id"
-
-ArtifactKind = Literal["result", "summary", "records"]
 _ARTIFACT_KINDS: tuple[ArtifactKind, ...] = ("result", "summary", "records")
-
-WorkerBuilder = Callable[..., LlmAgent | AgentTool]
-TaskRunnerEventHandler = Callable[["TaskRunnerEvent"], Awaitable[None]]
-
 DEFAULT_MODEL = LiteLlm(model="lm-studio-qwen3.5", timeout=300)
-
-
-# ─── Enums ────────────────────────────────────────────────────────────────────
-
-
-@unique
-class EventType(StrEnum):
-    """All event types emitted by TaskRunner, in one discoverable place."""
-
-    RUN_STARTED = "run_started"
-    RUN_FINISHED = "run_finished"
-    TASK_STARTED = "task_started"
-    TASK_FINISHED = "task_finished"
-    TASK_FAILED = "task_failed"
-    GLOBAL_TASK_FINISHED = "global_task_finished"
-    ITERATION_STARTED = "iteration_started"
-    ITERATION_FINISHED = "iteration_finished"
-    ITERATION_RESULT = "iteration_result"
-    FINAL_TEXT = "final_text"
-
-
-@unique
-class TaskStatus(StrEnum):
-    RUNNING = "running"
-    DONE = "done"
 
 
 # ─── Custom Exceptions ───────────────────────────────────────────────────────
@@ -85,63 +63,6 @@ class TaskNotCompletedError(Exception):
 
 class InvalidTemplateKeyError(ValueError):
     """Raised when an artifact template key is invalid."""
-
-
-# ─── Data Structures ─────────────────────────────────────────────────────────
-
-
-class TaskResult(TypedDict):
-    """Strongly-typed dict returned from each iteration / task."""
-
-    invocation_id: str
-    task_ref: str
-    task_key: str
-    task_title: str
-    template_key: str
-    task_id: int
-    session_id: str
-    final_response: str
-    state: dict[str, Any]
-    carry_state: dict[str, Any]
-    status: str | None
-    result: Any
-    summary: str | None
-    records: list[Any]
-    params: dict[str, Any]
-    input_artifacts: dict[str, str]
-    published_artifacts: dict[ArtifactKind, str]
-
-
-@dataclass(slots=True, frozen=True)
-class TaskRunnerEvent:
-    type: EventType
-    task_name: str
-    task_id: int
-    payload: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class TaskInvocation:
-    id: str
-    ref: str
-    template_key: str
-    worker_builder: WorkerBuilder
-
-    params: dict[str, Any] = field(default_factory=dict)
-    artifacts: list[str] = field(default_factory=list)
-
-    iterations: int = 1
-    max_attempts: int = 1
-    max_steps: int = 15
-
-    namespace: str | None = None
-    model: LiteLlm | None = None
-
-    def effective_namespace(self, fallback: str) -> str:
-        return self.namespace or fallback
-
-    def effective_model(self, fallback: LiteLlm) -> LiteLlm:
-        return self.model or fallback
 
 
 # ─── Helpers (module-level, stateless) ────────────────────────────────────────
@@ -165,10 +86,6 @@ def _artifact_filename(template_key: str, kind: ArtifactKind) -> str:
 
 def _artifact_names_for_task(template_key: str) -> dict[ArtifactKind, str]:
     return {kind: _artifact_filename(template_key, kind) for kind in _ARTIFACT_KINDS}
-
-
-def _global_state_key(task_id: int, key: str) -> str:
-    return f"task::{task_id}::{key}"
 
 
 def _extract_final_text(event: Event) -> str:
@@ -422,57 +339,23 @@ class TaskRunner(BaseModel):
         iteration: int,
         input_artifacts: dict[str, str],
     ) -> dict[str, Any]:
-        def key(k):
-            return _global_state_key(task_id, k)
-
-        state = copy.deepcopy(carry_state)
-
-        # Task-scoped keys
-        state[_GLOBAL_TASK_ID_KEY] = task_id
-        state[key("objective")] = task.objective
-        state[key("status")] = TaskStatus.RUNNING
-        state[key("current")] = None
-        state[key("result")] = ""
-        state[key("summary")] = ""
-        state[key("pool")] = []
-
-        # Runner-scoped keys
-        state.update(
-            {
-                "runner:last_task_id": task_id,
-                "runner:last_task_key": task.key,
-                "runner:last_task_title": task.title,
-                "runner:active_task_ref": item.ref,
-                "runner:active_template_key": item.template_key,
-                "runner:iteration": iteration,
-                "runner:params": copy.deepcopy(item.params),
-                "runner:input_artifacts": copy.deepcopy(input_artifacts),
-            }
+        active = ActiveTaskState.from_invocation(
+            task_id=task_id,
+            task=task,
+            item=item,
+            iteration=iteration,
+            input_artifacts=input_artifacts,
         )
-        return state
+        return {**copy.deepcopy(carry_state), **active.to_session_dict()}
 
-    @staticmethod
     def _extract_carry_state(
         state: dict[str, Any], finished_task_id: int
     ) -> dict[str, Any]:
-        carry = copy.deepcopy(state)
-
-        def key(k):
-            return _global_state_key(finished_task_id, k)
-
-        carry.update(
-            {
-                "runner:previous_task_id": finished_task_id,
-                "runner:previous_task_status": state.get(key("status")),
-                "runner:previous_task_result": state.get(key("result")),
-                "runner:previous_task_summary": state.get(key("summary")),
-                "runner:previous_task_objective": state.get(key("objective")),
-            }
-        )
-        return carry
+        carry = CarryState.from_session_dict(state, finished_task_id)
+        return {**copy.deepcopy(state), **carry.to_session_dict()}
 
     def _is_task_completed(self, task_id: int, state: dict[str, Any]) -> bool:
-        return state.get(_global_state_key(task_id, "status")) == TaskStatus.DONE
+        return state.get(TaskScopedKeys(task_id).status) == TaskStatus.DONE
 
     # ── Artifact I/O ──────────────────────────────────────────────────────
 
@@ -568,10 +451,8 @@ class TaskRunner(BaseModel):
         final_state: dict[str, Any],
         input_artifacts: dict[str, str],
     ) -> TaskResult:
-        def key(k):
-            return _global_state_key(task_id, k)
-
         carry_state = self._extract_carry_state(final_state, task_id)
+        keys = TaskScopedKeys(task_id)
 
         return TaskResult(
             invocation_id=item.id,
@@ -584,10 +465,10 @@ class TaskRunner(BaseModel):
             final_response=final_text,
             state=final_state,
             carry_state=carry_state,
-            status=final_state.get(key("status")),
-            result=final_state.get(key("result")),
-            summary=final_state.get(key("summary")),
-            records=final_state.get(key("pool"), []),
+            result=final_state.get(keys.result, ""),
+            summary=final_state.get(keys.summary, ""),
+            records=final_state.get(keys.pool, []),
+            status=final_state.get(keys.status),
             params=copy.deepcopy(item.params),
             input_artifacts=copy.deepcopy(input_artifacts),
             published_artifacts=_artifact_names_for_task(rendered_task.key),

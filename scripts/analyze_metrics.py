@@ -524,7 +524,16 @@ def _stacked_bar(
     ax.legend()
     _save_fig(fig, path)
 
-def _line(df: pd.DataFrame, x: str, y: str | list[str], title: str, xlabel: str, ylabel: str, path: Path) -> None:
+
+def _line(
+    df: pd.DataFrame,
+    x: str,
+    y: str | list[str],
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    path: Path,
+) -> None:
     if df.empty:
         return
 

@@ -82,7 +82,7 @@ SUBTASK_STATUS_TRANSITIONS: Final[dict[str, list[str]]] = {
     "malformed": ["skipped", "decomposed"],
     "incomplete": ["skipped", "decomposed"],
     "done": [],
-    "decomposed" : [],
+    "decomposed": [],
     "skipped": [],
 }
 DO_NOT_FINISH_WITH_NO_TASKS_DONE: Final[str] = (
@@ -194,7 +194,9 @@ class Subtask(BaseModel):
         ),
         min_length=1,
     )
-    status: Literal["new", "done", "incomplete", "malformed", "skipped", "decomposed"] = Field(
+    status: Literal[
+        "new", "done", "incomplete", "malformed", "skipped", "decomposed"
+    ] = Field(
         default="new",
         description=(
             "Lifecycle status of the subtask:\n"
@@ -439,7 +441,6 @@ class SubtaskFormatter:
             )
             return self._type_hint(output, type_hint)
         if self._format == "xml":
-            parts: list[str] = []
             inner = "\n".join(
                 str(self.format_subtask_result(r, indent=1)) for r in subtask_results
             )
@@ -1237,6 +1238,7 @@ EXAMPLE — Incomplete subtask:
 {ex_incomplete_fmt}
 """
 
+
 def _get_agent_ref(worker: Union[LlmAgent, AgentTool]) -> LlmAgent:
     """Extract the underlying LlmAgent from an AgentTool or return as-is."""
     if isinstance(worker, AgentTool):
@@ -1275,7 +1277,7 @@ def task_tools(
     use_summarization: bool = True,
     worker_instrumentation: bool = True,
     max_records: int = 20,
-    n_retries: int = 3
+    n_retries: int = 3,
 ) -> list[Callable[..., Any]]:
     if worker_instrumentation:
         agent_ref = _get_agent_ref(worker)
@@ -1376,7 +1378,7 @@ def task_tools(
             idx = mgr._get_idx(tool_context)
             if idx is None or idx < 0 or idx >= len(subtasks):
                 visible_subtasks = []
-            elif idx == len(subtasks)-1 and subtasks[idx].status != "new":
+            elif idx == len(subtasks) - 1 and subtasks[idx].status != "new":
                 visible_subtasks = []
             else:
                 visible_subtasks = subtasks[idx:]
@@ -1603,7 +1605,11 @@ def task_tools(
         # Check for task_id mismatch
         raw_dump: Any = raw
         malformed_reason: Optional[str] = None
-        if validated and subtask_result is not None and subtask_result.task_id != current.task_id:
+        if (
+            validated
+            and subtask_result is not None
+            and subtask_result.task_id != current.task_id
+        ):
             logger.warning(
                 "Worker returned mismatched task_id",
                 extra={

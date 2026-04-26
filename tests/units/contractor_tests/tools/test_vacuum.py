@@ -2,12 +2,9 @@ import json
 import pytest
 
 from pathlib import Path
-from unittest.mock import patch
 
 from contractor.tools.openapi.vacuum import (
     OpenApiLinter,
-    OpenApiLinterError,
-    VacuumNotFoundError,
     VacuumExecutionError,
     VacuumOutputError,
     openapi_linter_tools,

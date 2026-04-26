@@ -36,7 +36,10 @@ class OpenApiPath:
     @property
     def path_key(self) -> str:
         """Normalized path key suitable for use in namespaces and refs."""
-        return self.path.strip("/").replace("/", "_").replace("{", "").replace("}", "") or "root"
+        return (
+            self.path.strip("/").replace("/", "_").replace("{", "").replace("}", "")
+            or "root"
+        )
 
 
 def extract_openapi_paths(
@@ -189,7 +192,7 @@ class AnnotationRunner:
             runner.add_variable(name="operation_schema", value=operation_schema)
 
             runner.add_task(
-                name=f"trace_annotation",
+                name="trace_annotation",
                 ref=f"trace_annotation:{self.namespace}:{operation_id}",
                 worker_builder=trace_builder,
                 iterations=1,

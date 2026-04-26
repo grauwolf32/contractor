@@ -4,14 +4,14 @@ from textwrap import indent
 from typing import Any
 
 IGNORED_TOOL_RESULTS = {
-    #"add_subtask",
-    #"decompose_subtask",
+    # "add_subtask",
+    # "decompose_subtask",
 }
 
 LOW_SIGNAL_TOOL_RESULTS = {
-   # "get_current_subtask",
-   # "list_subtasks",
-   # "get_records",
+    # "get_current_subtask",
+    # "list_subtasks",
+    # "get_records",
 }
 
 FS_TOOLS = {
@@ -432,23 +432,29 @@ def _fmt_tool_args(tool_name: str, args: dict[str, Any] | None) -> str:
 
     return indent(_j(args), "    ")
 
-def _fmt_error(result: dict[str, Any])->str|None:
+
+def _fmt_error(result: dict[str, Any]) -> str | None:
     lines: list[str] = []
     err_key: str = ""
 
-    for field in ("error", "error_message", "errors",):
+    for field in (
+        "error",
+        "error_message",
+        "errors",
+    ):
         if result.get("error") not in (None, "", [], {}):
-            err_key = field 
+            err_key = field
             break
-    
+
     if err_key == "":
         return
 
     lines.append(f"    {C.wrap('error:', C.DIM, C.RED)} {result[err_key]}")
     result.pop(err_key, None)
     for field, value in result.items():
-        lines.append(f"    {C.wrap(field+": ", C.DIM)} {value}")
+        lines.append(f"    {C.wrap(field + ': ', C.DIM)} {value}")
     return "\n".join(lines)
+
 
 def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | None:
     if not result:

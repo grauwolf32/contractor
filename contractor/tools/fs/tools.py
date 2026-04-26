@@ -56,6 +56,7 @@ def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list
             result.append(pattern)
     return result
 
+
 class FsspecInteractionFileTools:
     def __init__(
         self,

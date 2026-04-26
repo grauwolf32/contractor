@@ -200,9 +200,11 @@ async def async_main(
     rm_artifacts: bool,
     enable_ui: bool = True,
 ) -> None:
-    ts_pack.init({
-        "cache_dir": ts_pack.cache_dir(),
-    })
+    ts_pack.init(
+        {
+            "cache_dir": ts_pack.cache_dir(),
+        }
+    )
 
     pipeline = pipeline.lower()
     pipelines = get_pipelines()

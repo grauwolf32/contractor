@@ -50,9 +50,11 @@ def _result_json(task_id: str, status: str, output: str, summary: str) -> str:
         }
     )
 
+
 def _attach_invocation_context(ctx):
     ctx._invocation_context = type("InvocationCtx", (), {"end_invocation": False})()
     return ctx
+
 
 def _mk_tools(
     monkeypatch,
@@ -965,7 +967,9 @@ async def test_get_current_subtask_returns_no_subtasks_when_none_exist(monkeypat
 @pytest.mark.anyio
 async def test_finish_done_rejects_when_new_subtasks_remain(monkeypatch):
     worker = _mk_worker()
-    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    tool = _mk_tools(
+        monkeypatch, worker=worker, use_skip=False, use_summarization=False
+    )
     ctx = mk_tool_context()
 
     tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
@@ -981,7 +985,9 @@ async def test_finish_done_rejects_when_new_subtasks_remain(monkeypatch):
 @pytest.mark.anyio
 async def test_finish_failed_succeeds_without_completed_subtasks(monkeypatch):
     worker = _mk_worker()
-    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    tool = _mk_tools(
+        monkeypatch, worker=worker, use_skip=False, use_summarization=False
+    )
     ctx = mk_tool_context()
     ctx = _attach_invocation_context(mk_tool_context())
 
@@ -1014,10 +1020,11 @@ async def test_finish_done_succeeds_after_all_tasks_resolved(monkeypatch):
 
     worker.run_async.side_effect = _done
 
-    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False, use_summarization=False)
+    tool = _mk_tools(
+        monkeypatch, worker=worker, use_skip=False, use_summarization=False
+    )
     ctx = mk_tool_context()
     ctx = _attach_invocation_context(mk_tool_context())
-
 
     tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
     await tool["execute_current_subtask"](tool_context=ctx)

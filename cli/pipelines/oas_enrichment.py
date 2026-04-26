@@ -7,7 +7,6 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.runners.task_runner import TaskRunner
 from google.adk.models import LiteLlm
-from cli.utils import save_artifact
 
 
 async def oas_enrichment_pipeline(
