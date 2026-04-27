@@ -1,81 +1,79 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Optional
 
 import click
+import tree_sitter_language_pack as ts_pack
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
-import tree_sitter_language_pack as ts_pack
 
-from contractor.runners.task_runner import TaskRunnerEvent
+from contractor.runners.task_runner import (
+    TaskRunnerEvent,
+    TaskRunnerEventHandler,
+)
 
+from cli.metrics import MetricsSink
+from cli.pipelines import PipelineContext, get_pipelines
 from cli.render import _render_event
 from cli.ui import LiveRenderer
-from cli.pipelines import get_pipelines
 from cli.utils import (
-    utc_now_iso,
-    save_artifact,
     remove_artifacts,
+    save_artifact,
     validate_folder_name,
     validate_project_path,
 )
 
 load_dotenv()
 
+APP_NAME = "contractor"
+ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
 
-def turn_off_logger() -> None:
-    names = [
-        "httpcore",
-        "fsspec",
-        "google_adk",
-        "google_genai",
-        "openai",
-        "litellm",
-        "LiteLLM",
-        "asyncio",
-        "contractor",
-        "urllib3",
-        "opentelemetry",
-    ]
-    for name in names:
-        logging.getLogger(name).setLevel(logging.CRITICAL)
-
-
-turn_off_logger()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+_QUIET_LOGGERS = (
+    "httpcore",
+    "fsspec",
+    "google_adk",
+    "google_genai",
+    "openai",
+    "litellm",
+    "LiteLLM",
+    "asyncio",
+    "contractor",
+    "urllib3",
+    "opentelemetry",
 )
 
-ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
-_METRICS_LOCK = asyncio.Lock()
+_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed"})
 
 
-def _ensure_artifacts_dir() -> None:
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+def _setup_logging() -> None:
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.CRITICAL)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
 
 
-def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
-    if artifact_path is None:
+def _read_artifact_file(
+    _ctx: click.Context, _param: click.Parameter, value: Optional[Path]
+) -> Optional[str]:
+    """Click callback: validate --artifact path and return its UTF-8 contents."""
+    if value is None:
         return None
 
-    artifact_path = artifact_path.resolve()
+    artifact_path = value.resolve()
 
     if not artifact_path.exists():
         raise click.BadParameter(
-            f"File does not exist: {artifact_path}",
-            param_hint="--artifact",
+            f"File does not exist: {artifact_path}", param_hint="--artifact"
         )
 
     if not artifact_path.is_file():
         raise click.BadParameter(
-            f"Path is not a file: {artifact_path}",
-            param_hint="--artifact",
+            f"Path is not a file: {artifact_path}", param_hint="--artifact"
         )
 
     try:
@@ -87,109 +85,35 @@ def _read_artifact_file(artifact_path: Optional[Path]) -> Optional[str]:
         ) from exc
 
 
-def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-
-    if isinstance(value, Path):
-        return str(value)
-
-    if isinstance(value, dict):
-        return {str(k): _jsonable(v) for k, v in value.items()}
-
-    if isinstance(value, (list, tuple, set)):
-        return [_jsonable(v) for v in value]
-
-    for method_name in ("model_dump", "to_dict", "dict"):
-        method = getattr(value, method_name, None)
-        if callable(method):
-            try:
-                return _jsonable(method())
-            except Exception:
-                pass
-
-    if hasattr(value, "__dict__"):
-        try:
-            return _jsonable(vars(value))
-        except Exception:
-            pass
-
-    return repr(value)
-
-
-def _metrics_file(output_dir: Path) -> Path:
-    return output_dir / "metrics.jsonl"
-
-
-def _event_to_metrics_record(event: TaskRunnerEvent) -> dict[str, Any]:
-    payload = _jsonable(getattr(event, "payload", {}) or {})
-
-    return {
-        "ts": utc_now_iso(),
-        "type": getattr(event, "type", None),
-        "task_name": getattr(event, "task_name", None),
-        "task_id": getattr(event, "task_id", None),
-        "payload": payload,
-        "iteration": payload.get("iteration") if isinstance(payload, dict) else None,
-        "session_id": payload.get("session_id") if isinstance(payload, dict) else None,
-        "invocation_id": payload.get("invocation_id")
-        if isinstance(payload, dict)
-        else None,
-        "agent_name": payload.get("agent_name") if isinstance(payload, dict) else None,
-        "tool_name": payload.get("tool_name") if isinstance(payload, dict) else None,
-    }
-
-
-def _append_jsonl_sync(path: Path, record: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        json.dump(record, f, ensure_ascii=False)
-        f.write("\n")
-
-
-async def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
-    await asyncio.to_thread(_append_jsonl_sync, path, record)
-
-
-def _is_metrics_event(event: TaskRunnerEvent) -> bool:
-    event_type = getattr(event, "type", "") or ""
-    return event_type.startswith("metrics_")
-
-
-def build_handle_event(
+def _build_event_handler(
     output_dir: Path,
     pipeline: str,
-    enable_ui: bool = True,
-) -> Callable[[TaskRunnerEvent], Awaitable[None]]:
-    metrics_path = _metrics_file(output_dir)
-
-    if enable_ui:
-        ui = LiveRenderer(pipeline_name=pipeline)
+    enable_ui: bool,
+) -> TaskRunnerEventHandler:
+    metrics = MetricsSink(output_dir)
+    ui = LiveRenderer(pipeline_name=pipeline) if enable_ui else None
+    if ui is not None:
         ui.start()
 
-    async def handle_event(event: TaskRunnerEvent) -> None:
-        if _is_metrics_event(event):
-            record = _event_to_metrics_record(event)
-            async with _METRICS_LOCK:
-                await _append_jsonl(metrics_path, record)
+    async def handle(event: TaskRunnerEvent) -> None:
+        if metrics.matches(event):
+            await metrics.write(event)
             return
 
-        if enable_ui:
+        if ui is not None:
             ui.on_event(event)
-            event_type = getattr(event, "type", "") or ""
-            if event_type in {"run_finished", "task_failed"}:
+            if (getattr(event, "type", "") or "") in _UI_STOP_EVENTS:
                 ui.stop()
-        elif output := _render_event(event):
+            return
+
+        if output := _render_event(event):
             print(output)
 
-    return handle_event
-
-
-def get_pipeline_names() -> list[str]:
-    return sorted(get_pipelines().keys())
+    return handle
 
 
 async def async_main(
+    *,
     project_path: Path,
     folder_name: str,
     user_id: str,
@@ -198,66 +122,48 @@ async def async_main(
     artifact: Optional[str],
     output_dir: Path,
     rm_artifacts: bool,
-    enable_ui: bool = True,
+    enable_ui: bool,
 ) -> None:
-    ts_pack.init(
-        {
-            "cache_dir": ts_pack.cache_dir(),
-        }
-    )
+    ts_pack.init({"cache_dir": ts_pack.cache_dir()})
 
-    pipeline = pipeline.lower()
-    pipelines = get_pipelines()
-    spec = pipelines.get(pipeline)
-
-    if spec is None:
-        available = ", ".join(sorted(pipelines))
-        raise click.UsageError(
-            f"Unsupported pipeline: {pipeline}. Available: {available}"
-        )
-
-    _ensure_artifacts_dir()
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
-
-    builder_kwargs = {
-        "project_path": project_path,
-        "folder_name": folder_name,
-        "model": model,
-        "user_id": user_id,
-        "app_name": "contractor",
-        "artifact_service": artifact_service,
-    }
 
     if rm_artifacts:
         await remove_artifacts(
-            app_name="contractor",
+            app_name=APP_NAME,
             user_id=user_id,
             artifact_service=artifact_service,
         )
 
-    if artifact:
-        builder_kwargs["artifact"] = artifact
-
-    runner = await spec.builder(**builder_kwargs)
-    event_handler = build_handle_event(output_dir, pipeline, enable_ui=enable_ui)
-
-    _ = await runner.run(
+    spec = get_pipelines()[pipeline]
+    ctx = PipelineContext(
+        project_path=project_path,
+        folder_name=folder_name,
+        model=model,
+        app_name=APP_NAME,
         user_id=user_id,
-        on_event=event_handler,
+        artifact_service=artifact_service,
+        artifact=artifact,
     )
 
+    runner = await spec.builder(ctx)
+    handler = _build_event_handler(output_dir, pipeline, enable_ui=enable_ui)
+
+    await runner.run(user_id=user_id, on_event=handler)
+
     await save_artifact(
-        app_name="contractor",
+        app_name=APP_NAME,
         user_id=user_id,
         output_dir=output_dir,
         artifact_service=artifact_service,
     )
 
 
-@click.command(name="contractor")
+@click.command(name=APP_NAME)
 @click.option(
     "--pipeline",
-    type=click.Choice(get_pipeline_names(), case_sensitive=False),
+    type=click.Choice(sorted(get_pipelines().keys()), case_sensitive=False),
     default="build",
     show_default=True,
     help="Pipeline to run",
@@ -278,6 +184,7 @@ async def async_main(
 @click.option(
     "--artifact",
     type=click.Path(path_type=Path),
+    callback=_read_artifact_file,
     default=None,
     help="Path to existing OpenAPI artifact file for pipelines that require it",
 )
@@ -295,11 +202,7 @@ async def async_main(
     show_default=True,
     help="Model name to use for the task",
 )
-@click.option(
-    "--rm",
-    is_flag=True,
-    help="Remove previous artifacts",
-)
+@click.option("--rm", is_flag=True, help="Remove previous artifacts")
 @click.option(
     "-o",
     "--output",
@@ -312,24 +215,21 @@ def main(
     pipeline: str,
     project_path: Path,
     folder_name: str,
-    artifact: Optional[Path],
+    artifact: Optional[str],
     output: Optional[Path],
     user_id: str,
     model: str,
     rm: bool,
-    no_ui: bool = False,
+    no_ui: bool,
 ) -> None:
     """Run contractor task pipeline for a project."""
+    _setup_logging()
+
     pipeline = pipeline.lower()
     project_path = validate_project_path(project_path)
     folder_name = validate_folder_name(project_path, folder_name)
-    artifact_text = _read_artifact_file(artifact)
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
-    enable_ui = not no_ui
-
-    pipelines = get_pipelines()
-    pipelines[pipeline]
 
     asyncio.run(
         async_main(
@@ -338,10 +238,10 @@ def main(
             user_id=user_id,
             model=model,
             pipeline=pipeline,
-            artifact=artifact_text,
+            artifact=artifact,
             rm_artifacts=rm,
             output_dir=output_dir,
-            enable_ui=enable_ui,
+            enable_ui=not no_ui,
         )
     )
 

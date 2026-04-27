@@ -8,13 +8,13 @@ from .base import BaseCallback, CallbackTypes
 
 class CallbackDependencyException(Exception):
     def __init__(self, cb_name: str, cb_list: list[str]):
-        ",".join(cb_list)
-        super().__init__("Callback {cb_name} depends on {dep_list}")
+        dep_list = ",".join(cb_list)
+        super().__init__(f"Callback {cb_name} depends on {dep_list}")
 
 
 class CallbackAlreadyExistsException(Exception):
     def __init__(self, cb_name: str):
-        super().__init__("Callback {cb_name} already exists in middleware")
+        super().__init__(f"Callback {cb_name} already exists in middleware")
 
 
 @dataclass(slots=True)
@@ -50,7 +50,7 @@ class CallbackAdapter:
 
     def register(self, func: BaseCallback) -> "CallbackAdapter":
         if func.name in self.registry:
-            raise
+            raise CallbackAlreadyExistsException(func.name)
 
         missing = list(set(func.deps) - set(self.registry.keys()))
         if missing:

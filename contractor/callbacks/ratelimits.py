@@ -118,6 +118,7 @@ class RpmRatelimitCallback(BaseCallback):
                 }
             )
             self.timer_start = int(time.time())
+            self.request_count = 1
 
         self.save_to_state(callback_context)
         return

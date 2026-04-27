@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Callable, Final, Literal, Optional
 
@@ -23,6 +24,12 @@ ADK_RESERVED_TOOLS: list[str] = ["transfer_to_agent"]
 
 TOOL_MALFORMED_FORMAT: Final[str] = (
     "Tool call {name} has malformed or wrong format. Please, try again."
+)
+
+REPEATED_TOOL_CALL_DEFAULT_MESSAGE: Final[str] = (
+    "You have called {tool_name} with the same arguments {count} times in a row. "
+    "This is not making progress — try a different tool, different arguments, "
+    "or stop and reconsider your approach."
 )
 
 
@@ -73,10 +80,11 @@ class ThinkingBudgetGuardrailCallback(BaseCallback):
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
         )
-        token_count = token_usage_stat.get("counter", {}).get(self.tpm_limit_key, 0)
+        token_count = token_usage_stat.get("counter", {}).get(self.token_budget_key, 0)
         self.token_count = token_count
 
         if token_count > self.token_budget:
+            self.save_to_state(callback_context)
             return _format_llm_response(
                 "system", self.message, types.FinishReason.MAX_TOKENS
             )
@@ -149,7 +157,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
     def to_state(self):
         return {
             "default_tool_name": self.default_tool_name,
-            "tool_names": self.tool_names,
+            "tool_names": sorted(self.tool_names),
             "history": self.history,
         }
 
@@ -189,7 +197,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
                 )
 
             if not isinstance(func_args, dict):
-                metadata["error"] = TOOL_MALFORMED_FORMAT.format(func_name)
+                metadata["error"] = TOOL_MALFORMED_FORMAT.format(name=func_name)
 
             fc.name = self.default_tool_name
             fc.args = {
@@ -203,3 +211,70 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         self.save_to_state(callback_context)
 
         return llm_response
+
+
+class RepeatedToolCallCallback(BaseCallback):
+    """Detects when the agent calls the same tool with the same args repeatedly.
+
+    On the threshold-th identical consecutive call, returns an advisory dict
+    instead of executing the tool. Subsequent identical calls keep returning
+    the advisory until the agent breaks the streak with a different call.
+    """
+
+    cb_type: CallbackTypes = CallbackTypes.before_tool_callback
+    deps: list[str] = []
+
+    def __init__(self, threshold: int = 5, message: Optional[str] = None):
+        assert threshold > 1
+        self.threshold = threshold
+        self.message_template = message or REPEATED_TOOL_CALL_DEFAULT_MESSAGE
+        self.last_signature: Optional[str] = None
+        self.run_length: int = 0
+        self.history: list[dict[str, Any]] = []
+
+    @staticmethod
+    def _signature(tool_name: str, args: dict[str, Any]) -> str:
+        try:
+            payload = json.dumps(args, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            payload = repr(args)
+        return f"{tool_name}::{payload}"
+
+    def to_state(self) -> dict[str, Any]:
+        return {
+            "threshold": self.threshold,
+            "last_signature": self.last_signature,
+            "run_length": self.run_length,
+            "history": self.history,
+        }
+
+    def __call__(
+        self, tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
+    ) -> Optional[dict]:
+        sig = self._signature(tool.name, args)
+
+        if sig == self.last_signature:
+            self.run_length += 1
+        else:
+            self.last_signature = sig
+            self.run_length = 1
+
+        if self.run_length < self.threshold:
+            self.save_to_state(tool_context)
+            return None
+
+        if self.run_length == self.threshold:
+            self.history.append(
+                {
+                    "tool_name": tool.name,
+                    "args": args,
+                    "count": self.run_length,
+                }
+            )
+
+        self.save_to_state(tool_context)
+        return {
+            "warning": self.message_template.format(
+                tool_name=tool.name, count=self.run_length
+            )
+        }

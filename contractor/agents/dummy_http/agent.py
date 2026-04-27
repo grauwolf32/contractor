@@ -9,7 +9,10 @@ from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.http import http_tools
 from contractor.tools.memory import memory_tools, MemoryFormat
@@ -55,6 +58,7 @@ callback_adapter.register(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
     )
 )
+callback_adapter.register(RepeatedToolCallCallback(threshold=5))
 
 dummy_http = LlmAgent(
     name="dummy_http",

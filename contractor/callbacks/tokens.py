@@ -8,9 +8,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from .base import BaseCallback, CallbackTypes
 
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 
 class TokenUsageCallbackException(Exception):
@@ -80,7 +78,7 @@ class TokenUsageCallback(BaseCallback):
         return history
 
     def is_empty(self):
-        return self.counter.is_empty() and self.counter.is_empty()
+        return self.counter.is_empty() and self.invocation_id is None
 
     def to_state(self) -> dict[str, Any]:
         return {
@@ -91,10 +89,14 @@ class TokenUsageCallback(BaseCallback):
     def __call__(
         self, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> None:
+        usage = getattr(llm_response, "usage_metadata", None)
+        if usage is None:
+            return None
+
         token_count = TokenCounter(
-            input=llm_response.usage_metadata.prompt_token_count,
-            output=llm_response.usage_metadata.candidates_token_count,
-            total=llm_response.usage_metadata.total_token_count,
+            input=usage.prompt_token_count or 0,
+            output=usage.candidates_token_count or 0,
+            total=usage.total_token_count or 0,
         )
 
         current = self.counter

@@ -75,25 +75,23 @@ class FunctionResultsRemovalCallback(BaseCallback):
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> None:
-        if not llm_request.content or not llm_request.content.parts:
+        if not llm_request.contents:
             return
 
-        parts: list[types.Part] = []
         func_count: int = 0
-        for part in llm_request.content.parts[::-1]:
-            if part.function_response is None:
-                parts.append(part)
+        for content in reversed(llm_request.contents):
+            if not content.parts:
                 continue
-            func_count += 1
-            if func_count < self.keep_last_n:
-                continue
+            for part in reversed(content.parts):
+                if part.function_response is None:
+                    continue
+                func_count += 1
+                if func_count < self.keep_last_n:
+                    continue
 
-            self.counter += 1
-            part.function_response.parts = None
-            part.function_response.response = {}
-            parts.append(part)
+                self.counter += 1
+                part.function_response.parts = None
+                part.function_response.response = {}
 
-        parts = parts[::-1]
-        llm_request.content.parts = parts
         self.save_to_state(callback_context)
         return

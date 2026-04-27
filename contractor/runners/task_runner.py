@@ -14,7 +14,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
@@ -25,9 +25,8 @@ from contractor.runners.models import (
     TaskResult,
     TaskStatus,
     EventType,
-    CarryState,
-    ActiveTaskState,
     TaskScopedKeys,
+    build_active_state,
     RenderedTask,
     TaskTemplate,
     ArtifactKind,
@@ -137,6 +136,11 @@ class TaskRunner(BaseModel):
         default_factory=InMemorySessionService
     )
 
+    # Per-run event handler. Set at the start of run() and cleared in finally.
+    # Re-entrant run() calls on the same instance are not supported — they
+    # share self.queue and self.session_service already.
+    _on_event: Optional[TaskRunnerEventHandler] = PrivateAttr(default=None)
+
     # ── Public API ────────────────────────────────────────────────────────
 
     def add_variable(self, name: str, value: str) -> None:
@@ -186,44 +190,45 @@ class TaskRunner(BaseModel):
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[TaskResult]:
-        results: list[TaskResult] = []
-        total_tasks = len(self.queue)
-
-        await self._emit(
-            on_event,
-            type=EventType.RUN_STARTED,
-            task_name="__runner__",
-            task_id=-1,
-            total_tasks=total_tasks,
-            completed_tasks=0,
-            user_id=user_id,
-        )
-
-        for task_id, item in enumerate(self.queue):
-            result = await self._run_task_with_retries(
-                item=item,
-                task_id=task_id,
-                user_id=user_id,
-                on_event=on_event,
-                total_tasks=total_tasks,
-            )
-
-            results.append(result)
+        self._on_event = on_event
+        try:
+            results: list[TaskResult] = []
+            total_tasks = len(self.queue)
 
             await self._emit(
-                on_event,
-                type=EventType.GLOBAL_TASK_FINISHED,
-                task_name=item.ref,
-                task_id=task_id,
-                session_id=result["session_id"],
-                status=result["status"],
-                result=result["result"],
-                summary=result["summary"],
+                EventType.RUN_STARTED,
+                task_name="__runner__",
+                task_id=-1,
                 total_tasks=total_tasks,
-                completed_tasks=task_id + 1,
+                completed_tasks=0,
+                user_id=user_id,
             )
 
-        return results
+            for task_id, item in enumerate(self.queue):
+                result = await self._run_task_with_retries(
+                    item=item,
+                    task_id=task_id,
+                    user_id=user_id,
+                    total_tasks=total_tasks,
+                )
+
+                results.append(result)
+
+                await self._emit(
+                    EventType.GLOBAL_TASK_FINISHED,
+                    task_name=item.ref,
+                    task_id=task_id,
+                    session_id=result["session_id"],
+                    status=result["status"],
+                    result=result["result"],
+                    summary=result["summary"],
+                    total_tasks=total_tasks,
+                    completed_tasks=task_id + 1,
+                )
+
+            return results
+        finally:
+            self._on_event = None
 
     # ── Template & validation helpers ─────────────────────────────────────
 
@@ -285,18 +290,17 @@ class TaskRunner(BaseModel):
 
     # ── Event emission ────────────────────────────────────────────────────
 
-    @staticmethod
     async def _emit(
-        handler: Optional[TaskRunnerEventHandler],
+        self,
+        type: EventType | str,
         *,
-        type: EventType,
         task_name: str,
         task_id: int,
         **payload: Any,
     ) -> None:
-        if handler is None:
+        if self._on_event is None:
             return
-        await handler(
+        await self._on_event(
             TaskRunnerEvent(
                 type=type, task_name=task_name, task_id=task_id, payload=payload
             )
@@ -334,25 +338,12 @@ class TaskRunner(BaseModel):
         self,
         task_id: int,
         task: RenderedTask,
-        item: TaskInvocation,
         carry_state: dict[str, Any],
-        iteration: int,
-        input_artifacts: dict[str, str],
     ) -> dict[str, Any]:
-        active = ActiveTaskState.from_invocation(
-            task_id=task_id,
-            task=task,
-            item=item,
-            iteration=iteration,
-            input_artifacts=input_artifacts,
-        )
-        return {**copy.deepcopy(carry_state), **active.to_session_dict()}
-
-    def _extract_carry_state(
-        self, state: dict[str, Any], finished_task_id: int
-    ) -> dict[str, Any]:
-        carry = CarryState.from_session_dict(state, finished_task_id)
-        return {**copy.deepcopy(state), **carry.to_session_dict()}
+        return {
+            **copy.deepcopy(carry_state),
+            **build_active_state(task_id=task_id, task=task),
+        }
 
     def _is_task_completed(self, task_id: int, state: dict[str, Any]) -> bool:
         return state.get(TaskScopedKeys(task_id).status) == TaskStatus.DONE
@@ -451,7 +442,7 @@ class TaskRunner(BaseModel):
         final_state: dict[str, Any],
         input_artifacts: dict[str, str],
     ) -> TaskResult:
-        carry_state = self._extract_carry_state(final_state, task_id)
+        carry_state = copy.deepcopy(final_state)
         keys = TaskScopedKeys(task_id)
 
         return TaskResult(
@@ -484,7 +475,6 @@ class TaskRunner(BaseModel):
         user_id: str,
         carry_state: dict[str, Any],
         iteration: int,
-        on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> TaskResult:
         agent = self._spawn_planning_agent(item, rendered_task)
         await self._inject_artifacts(
@@ -497,17 +487,13 @@ class TaskRunner(BaseModel):
         initial_state = self._build_task_initial_state(
             task_id=task_id,
             task=rendered_task,
-            item=item,
             carry_state=carry_state,
-            iteration=iteration,
-            input_artifacts=input_artifacts,
         )
 
         await self._ensure_session(user_id, session_id, initial_state)
 
         await self._emit(
-            on_event,
-            type=EventType.ITERATION_STARTED,
+            EventType.ITERATION_STARTED,
             task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
@@ -521,7 +507,7 @@ class TaskRunner(BaseModel):
             app_name=self.name,
             session_service=self.session_service,
             artifact_service=self.artifact_service,
-            plugins=self._build_plugins(item, task_id, iteration, session_id, on_event),
+            plugins=self._build_plugins(item, task_id, iteration, session_id),
         )
 
         message = types.Content(
@@ -537,7 +523,6 @@ class TaskRunner(BaseModel):
             item=item,
             task_id=task_id,
             iteration=iteration,
-            on_event=on_event,
         )
 
         final_state = await self._get_session_state(user_id, session_id)
@@ -552,8 +537,7 @@ class TaskRunner(BaseModel):
         )
 
         await self._emit(
-            on_event,
-            type=EventType.ITERATION_FINISHED,
+            EventType.ITERATION_FINISHED,
             task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
@@ -568,17 +552,13 @@ class TaskRunner(BaseModel):
         task_id: int,
         iteration: int,
         session_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
     ) -> list:
-        def emit_fn(**kw):
-            return self._emit(on_event, **kw)
-
         common = dict(
             task_name=item.ref,
             task_id=task_id,
             iteration=iteration,
             session_id=session_id,
-            emit=emit_fn,
+            emit=self._emit,
         )
         return [AdkTracePlugin(**common), AdkMetricsPlugin(**common)]
 
@@ -592,7 +572,6 @@ class TaskRunner(BaseModel):
         item: TaskInvocation,
         task_id: int,
         iteration: int,
-        on_event: Optional[TaskRunnerEventHandler],
     ) -> str:
         final_text = ""
 
@@ -608,8 +587,7 @@ class TaskRunner(BaseModel):
             final_text = event_final
             state = await self._get_session_state(user_id, session_id)
             await self._emit(
-                on_event,
-                type=EventType.FINAL_TEXT,
+                EventType.FINAL_TEXT,
                 task_name=item.ref,
                 task_id=task_id,
                 iteration=iteration,
@@ -627,7 +605,6 @@ class TaskRunner(BaseModel):
         item: TaskInvocation,
         task_id: int,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler] = None,
         total_tasks: int,
     ) -> TaskResult:
         template = self.templates[item.template_key]
@@ -639,8 +616,7 @@ class TaskRunner(BaseModel):
         )
 
         await self._emit(
-            on_event,
-            type=EventType.TASK_STARTED,
+            EventType.TASK_STARTED,
             task_name=item.ref,
             task_id=task_id,
             template_key=item.template_key,
@@ -667,7 +643,6 @@ class TaskRunner(BaseModel):
                 user_id=user_id,
                 carry_state=carry_state,
                 iteration=iteration,
-                on_event=on_event,
             )
 
             last_result = result
@@ -676,8 +651,7 @@ class TaskRunner(BaseModel):
             next_successful_runs = successful_runs + (1 if completed else 0)
 
             await self._emit(
-                on_event,
-                type=EventType.ITERATION_RESULT,
+                EventType.ITERATION_RESULT,
                 task_name=item.ref,
                 task_id=task_id,
                 iteration=iteration,
@@ -699,8 +673,7 @@ class TaskRunner(BaseModel):
 
                 if successful_runs >= item.iterations:
                     await self._emit(
-                        on_event,
-                        type=EventType.TASK_FINISHED,
+                        EventType.TASK_FINISHED,
                         task_name=item.ref,
                         task_id=task_id,
                         session_id=result["session_id"],
@@ -717,8 +690,7 @@ class TaskRunner(BaseModel):
             carry_state = result["carry_state"]
 
         await self._emit(
-            on_event,
-            type=EventType.TASK_FAILED,
+            EventType.TASK_FAILED,
             task_name=item.ref,
             task_id=task_id,
             max_attempts=item.max_attempts,

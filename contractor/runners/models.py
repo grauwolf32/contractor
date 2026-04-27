@@ -2,13 +2,11 @@ from __future__ import annotations
 import os
 import re
 import yaml
-import copy
 
 from pathlib import Path
-from pydantic import BaseModel, Field
 from enum import StrEnum, unique
 from dataclasses import dataclass, field
-from typing import Any, Optional, Mapping, TypedDict, Literal, Callable, Awaitable
+from typing import Any, Mapping, TypedDict, Literal, Callable, Awaitable
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import AgentTool
 from google.adk.agents import LlmAgent
@@ -65,7 +63,7 @@ class TaskResult(TypedDict):
 
 @dataclass(slots=True, frozen=True)
 class TaskRunnerEvent:
-    type: EventType
+    type: EventType | str
     task_name: str
     task_id: int
     payload: dict[str, Any] = field(default_factory=dict)
@@ -150,269 +148,25 @@ class TaskScopedKeys:
 GLOBAL_TASK_ID_KEY = "_global_task_id"
 
 
-# ─── ActiveTaskState ─────────────────────────────────────────────────────────
+# ─── Session-state builder ───────────────────────────────────────────────────
+#
+# Per-iteration state is a flat dict keyed by:
+#   _global_task_id    — sentinel read by StreamlineManager
+#   task::{id}::*      — per-task live state, owned by planning agent
 
 
-class ActiveTaskState(BaseModel):
-    """
-    All state keys written at the START of each iteration.
-
-    Covers both the runner:-namespaced keys (runner-wide bookkeeping)
-    and the task::{id}::-namespaced keys (task-specific live state).
-    """
-
-    # ── Identity ──────────────────────────────────────────────────────────────
-
-    task_id: int = Field(
-        description="Monotonically increasing task counter for this runner run."
-    )
-
-    # ── Runner-scoped: bookkeeping visible to all tasks in the session ────────
-
-    last_task_id: int = Field(
-        description="runner:last_task_id — same as task_id at task start; "
-        "used by downstream tasks to find the predecessor."
-    )
-    last_task_key: str = Field(
-        description="runner:last_task_key — template key of the currently active task."
-    )
-    last_task_title: str = Field(
-        description="runner:last_task_title — human-readable title of the active task."
-    )
-    active_task_ref: str = Field(
-        description="runner:active_task_ref — fully-qualified task ref (e.g. 'oas_update:1')."
-    )
-    active_template_key: str = Field(
-        description="runner:active_template_key — template YAML stem (e.g. 'oas_update')."
-    )
-    iteration: int = Field(
-        description="runner:iteration — 1-based iteration counter within max_attempts."
-    )
-    params: dict[str, Any] = Field(
-        default_factory=dict,
-        description="runner:params — task parameters rendered into the objective template.",
-    )
-    input_artifacts: dict[str, str] = Field(
-        default_factory=dict,
-        description="runner:input_artifacts — {artifact_name: text_content} loaded for this task.",
-    )
-
-    # ── Task-scoped: live state written/updated by the planning agent ─────────
-
-    objective: str = Field(
-        description="task::{id}::objective — rendered objective string sent to the agent."
-    )
-    status: str = Field(
-        default=TaskStatus.RUNNING,
-        description="task::{id}::status — TaskStatus.RUNNING at start; DONE when finished.",
-    )
-    current: Optional[Any] = Field(
-        default=None,
-        description="task::{id}::current — active subtask; None until first subtask is dispatched.",
-    )
-    result: str = Field(
-        default="",
-        description="task::{id}::result — final result text; empty until StreamlineManager.finish().",
-    )
-    summary: str = Field(
-        default="",
-        description="task::{id}::summary — concise handoff text; empty until finish().",
-    )
-    pool: list[Any] = Field(
-        default_factory=list,
-        description="task::{id}::pool — record accumulator; appended by save_record().",
-    )
-
-    # ── Factory ───────────────────────────────────────────────────────────────
-
-    @classmethod
-    def from_invocation(
-        cls,
-        task_id: int,
-        task: RenderedTask,
-        item: TaskInvocation,
-        iteration: int,
-        input_artifacts: dict[str, str],
-    ) -> "ActiveTaskState":
-        """Construct from the objects already available in _build_task_initial_state."""
-        return cls(
-            task_id=task_id,
-            last_task_id=task_id,
-            last_task_key=task.key,
-            last_task_title=task.title,
-            active_task_ref=item.ref,
-            active_template_key=item.template_key,
-            iteration=iteration,
-            params=copy.deepcopy(item.params),
-            input_artifacts=copy.deepcopy(input_artifacts),
-            objective=task.objective,
-        )
-
-    # ── Serialisation ─────────────────────────────────────────────────────────
-
-    def to_session_dict(self) -> dict[str, Any]:
-        """
-        Produce the flat string-keyed dict that the ADK session service stores.
-        Call result is merged into the carry_state dict, overwriting any stale keys.
-        """
-        keys = TaskScopedKeys(self.task_id)
-        return {
-            # Global task ID sentinel (read by StreamlineManager._global_keys)
-            GLOBAL_TASK_ID_KEY: self.task_id,
-            # Runner-scoped
-            "runner:last_task_id": self.last_task_id,
-            "runner:last_task_key": self.last_task_key,
-            "runner:last_task_title": self.last_task_title,
-            "runner:active_task_ref": self.active_task_ref,
-            "runner:active_template_key": self.active_template_key,
-            "runner:iteration": self.iteration,
-            "runner:params": copy.deepcopy(self.params),
-            "runner:input_artifacts": copy.deepcopy(self.input_artifacts),
-            # Task-scoped
-            keys.objective: self.objective,
-            keys.status: self.status,
-            keys.current: self.current,
-            keys.result: self.result,
-            keys.summary: self.summary,
-            keys.pool: list(self.pool),
-        }
-
-
-# ─── CarryState ──────────────────────────────────────────────────────────────
-
-
-class CarryState(BaseModel):
-    """
-    The slice of runner:-namespaced state forwarded to the NEXT task.
-
-    Written by _extract_carry_state after a task finishes so that the
-    subsequent task can read its predecessor's outcome without knowing
-    the predecessor's task_id.
-    """
-
-    previous_task_id: int = Field(
-        description="runner:previous_task_id — task_id of the just-finished task."
-    )
-    previous_task_status: Optional[str] = Field(
-        default=None,
-        description="runner:previous_task_status — TaskStatus of the finished task.",
-    )
-    previous_task_result: Optional[str] = Field(
-        default=None,
-        description="runner:previous_task_result — result text from the finished task.",
-    )
-    previous_task_summary: Optional[str] = Field(
-        default=None,
-        description="runner:previous_task_summary — summary text from the finished task.",
-    )
-    previous_task_objective: Optional[str] = Field(
-        default=None,
-        description="runner:previous_task_objective — objective that was given to the finished task.",
-    )
-
-    # ── Factory ───────────────────────────────────────────────────────────────
-
-    @classmethod
-    def from_session_dict(
-        cls, state: dict[str, Any], finished_task_id: int
-    ) -> "CarryState":
-        """
-        Read a finished task's scoped keys from the raw session state dict.
-        Mirrors the logic in the original _extract_carry_state static method.
-        """
-        keys = TaskScopedKeys(finished_task_id)
-        return cls(
-            previous_task_id=finished_task_id,
-            previous_task_status=state.get(keys.status),
-            previous_task_result=state.get(keys.result),
-            previous_task_summary=state.get(keys.summary),
-            previous_task_objective=state.get(keys.objective),
-        )
-
-    # ── Serialisation ─────────────────────────────────────────────────────────
-
-    def to_session_dict(self) -> dict[str, Any]:
-        """
-        Produce the runner:-namespaced keys that get merged into the
-        next task's initial session state.
-        """
-        return {
-            "runner:previous_task_id": self.previous_task_id,
-            "runner:previous_task_status": self.previous_task_status,
-            "runner:previous_task_result": self.previous_task_result,
-            "runner:previous_task_summary": self.previous_task_summary,
-            "runner:previous_task_objective": self.previous_task_objective,
-        }
-
-
-# ─── SessionState (read-back helper) ─────────────────────────────────────────
-
-
-class SessionState(BaseModel):
-    """
-    Read-back model: deserialise a raw session dict back into typed fields.
-
-    Use this in _build_iteration_result and _is_task_completed instead of
-    doing raw dict.get() calls with string literals scattered around the file.
-
-    Usage:
-        s = SessionState.from_session_dict(final_state, task_id)
-        if s.task_status == TaskStatus.DONE: ...
-        result = s.task_result
-    """
-
-    # ── Runner-scoped (previous task) ──────────────────────────────────────
-    previous_task_id: Optional[int] = None
-    previous_task_status: Optional[str] = None
-    previous_task_result: Optional[str] = None
-    previous_task_summary: Optional[str] = None
-    previous_task_objective: Optional[str] = None
-
-    # ── Runner-scoped (active task) ────────────────────────────────────────
-    active_task_ref: Optional[str] = None
-    active_template_key: Optional[str] = None
-    iteration: Optional[int] = None
-    params: dict[str, Any] = Field(default_factory=dict)
-    input_artifacts: dict[str, str] = Field(default_factory=dict)
-
-    # ── Task-scoped (resolved for task_id) ────────────────────────────────
-    task_id: Optional[int] = None
-    task_objective: Optional[str] = None
-    task_status: Optional[str] = None
-    task_current: Optional[Any] = None
-    task_result: str = ""
-    task_summary: str = ""
-    task_pool: list[Any] = Field(default_factory=list)
-
-    @classmethod
-    def from_session_dict(cls, state: dict[str, Any], task_id: int) -> "SessionState":
-        keys = TaskScopedKeys(task_id)
-        return cls(
-            # Previous task
-            previous_task_id=state.get("runner:previous_task_id"),
-            previous_task_status=state.get("runner:previous_task_status"),
-            previous_task_result=state.get("runner:previous_task_result"),
-            previous_task_summary=state.get("runner:previous_task_summary"),
-            previous_task_objective=state.get("runner:previous_task_objective"),
-            # Active task
-            active_task_ref=state.get("runner:active_task_ref"),
-            active_template_key=state.get("runner:active_template_key"),
-            iteration=state.get("runner:iteration"),
-            params=state.get("runner:params") or {},
-            input_artifacts=state.get("runner:input_artifacts") or {},
-            # Task-scoped
-            task_id=task_id,
-            task_objective=state.get(keys.objective),
-            task_status=state.get(keys.status),
-            task_current=state.get(keys.current),
-            task_result=state.get(keys.result) or "",
-            task_summary=state.get(keys.summary) or "",
-            task_pool=state.get(keys.pool) or [],
-        )
-
-    def is_completed(self) -> bool:
-        """Replaces the _is_task_completed(task_id, state) helper."""
-        return self.task_status == TaskStatus.DONE
+def build_active_state(*, task_id: int, task: RenderedTask) -> dict[str, Any]:
+    """Initial flat state dict for a new task iteration."""
+    keys = TaskScopedKeys(task_id)
+    return {
+        GLOBAL_TASK_ID_KEY: task_id,
+        keys.objective: task.objective,
+        keys.status: TaskStatus.RUNNING,
+        keys.current: None,
+        keys.result: "",
+        keys.summary: "",
+        keys.pool: [],
+    }
 
 
 # ─── Constants ────────────────────────────────────────────────────────────────

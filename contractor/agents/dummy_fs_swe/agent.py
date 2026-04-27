@@ -11,7 +11,10 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
-from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, RootedLocalFileSystem, ro_file_tools
@@ -95,6 +98,7 @@ callback_adapter.register(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
     )
 )
+callback_adapter.register(RepeatedToolCallCallback(threshold=5))
 
 dummy_fs_swe = LlmAgent(
     name="dummy_fs_swe",

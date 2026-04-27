@@ -132,12 +132,7 @@ class _TrackedCall:
     tool_name: str
     args: dict[str, Any]
     exception_seen: bool = False
-    result_error_seen: bool = False
     finished: bool = False
-
-    @property
-    def has_error(self) -> bool:
-        return self.exception_seen or self.result_error_seen
 
 
 class _CallTracker:
@@ -387,12 +382,16 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         call = self._tracker.resolve(inv, agent, tool.name, actual_args)
         is_error = self._detect_result_error(actual_result)
 
-        outcome = self._determine_outcome(call, is_error)
-        bucket.record_outcome(outcome)
+        # ADK fires after_tool after on_tool_error only when a plugin returns
+        # a non-None error response. The exception was already counted in
+        # on_tool_error_callback — skip recording here to avoid double-counting.
+        if not (call and call.exception_seen):
+            outcome = (
+                _CallOutcome.RESULT_ERROR if is_error else _CallOutcome.SUCCESS
+            )
+            bucket.record_outcome(outcome)
 
         if call:
-            if is_error:
-                call.result_error_seen = True
             self._tracker.finish(call)
 
         await self._emit(
@@ -405,24 +404,6 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             result_error=is_error,
         )
         return None
-
-    @staticmethod
-    def _determine_outcome(
-        call: _TrackedCall | None, is_result_error: bool
-    ) -> _CallOutcome:
-        """Decide the single outcome to record for a completed tool call."""
-        if is_result_error:
-            if call and (call.result_error_seen or call.exception_seen):
-                # Already counted — but we still need to return *something*.
-                # The caller should check `call.result_error_seen` before
-                # recording; here we return the category for the emit payload.
-                return _CallOutcome.RESULT_ERROR
-            return _CallOutcome.RESULT_ERROR
-
-        if call and call.has_error:
-            # An exception was already counted; don't double-count as success.
-            return _CallOutcome.SUCCESS  # won't be recorded (caller checks)
-        return _CallOutcome.SUCCESS
 
     # ── LLM callback ──────────────────────────────────────────────────────
 

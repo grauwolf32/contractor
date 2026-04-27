@@ -10,7 +10,10 @@ from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import InvalidToolCallGuardrailCallback
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.podman import PodmanContainer
 
@@ -62,6 +65,7 @@ callback_adapter.register(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
     )
 )
+callback_adapter.register(RepeatedToolCallCallback(threshold=5))
 
 dummy_swe = LlmAgent(
     name="dummy_swe",
@@ -80,6 +84,7 @@ callback_adapter.register(
         tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
     )
 )
+callback_adapter.register(RepeatedToolCallCallback(threshold=5))
 
 dummy_swe_worker = LlmAgent(
     name="dummy_swe_worker",

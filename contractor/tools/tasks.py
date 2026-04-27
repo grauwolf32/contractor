@@ -24,6 +24,8 @@ from google.adk.tools import AgentTool
 from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel, Field, ValidationError
 
+from contractor.runners.models import GLOBAL_TASK_ID_KEY, TaskScopedKeys
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -102,8 +104,40 @@ NO_REMAINING_SUBTASKS_MSG: Final[str] = (
     "only if genuinely new required work remains."
 )
 
-_GLOBAL_TASK_ID_KEY: Final[str] = "_global_task_id"
 _MAX_LITERAL_EVAL_LEN: Final[int] = 50_000
+
+# Sentinel attribute used by `instrument_worker` to snapshot the original
+# instruction text and stay idempotent across repeated calls.
+_INSTRUCTION_SNAPSHOT_ATTR: Final[str] = "_streamline_original_instruction"
+
+
+def _is_empty_worker_response(raw: Any) -> bool:
+    """True when the worker returned no usable content (None or blank string)."""
+    if raw is None:
+        return True
+    return isinstance(raw, str) and not raw.strip()
+
+
+def _parse_worker_output(
+    raw: Any,
+    fmt: "SubtaskFormatter",
+    fallback_task_id: str,
+) -> Optional["SubtaskExecutionResult"]:
+    """Coerce a worker response into a SubtaskExecutionResult, or None.
+
+    Accepts an already-typed result, a dict matching the schema, or a string
+    in any of the formatter's supported output formats. Does NOT verify that
+    the parsed task_id matches the requested one — caller's responsibility.
+    """
+    if isinstance(raw, SubtaskExecutionResult):
+        return raw
+    if isinstance(raw, dict):
+        with suppress(ValidationError, TypeError):
+            return SubtaskExecutionResult.model_validate(raw)
+        return None
+    if isinstance(raw, str):
+        return fmt.parse_subtask_result(raw, fallback_task_id=fallback_task_id)
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -164,6 +198,11 @@ class SubtaskDecomposition(BaseModel):
             "- Prefer fewer, broader subtasks over many narrow ones"
         ),
     )
+
+
+_SUBTASK_DECOMPOSITION_SCHEMA_JSON: Final[str] = json.dumps(
+    SubtaskDecomposition.model_json_schema(), indent=2
+)
 
 
 class Subtask(BaseModel):
@@ -273,6 +312,11 @@ class SubtaskFormatter:
         init=False,
         repr=False,
     )
+
+    @property
+    def format(self) -> str:
+        """Public read-only accessor for the active output format."""
+        return self._format
 
     # ── Internal dispatcher ─────────────────────────────────────────
     def _dispatch(
@@ -719,7 +763,7 @@ class StreamlineManager:
 
     # ── State key helpers ───────────────────────────────────────────
     def _state_key(self, ctx: Union[ToolContext, CallbackContext]) -> str:
-        global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY, 0)
+        global_task_id = ctx.state.get(GLOBAL_TASK_ID_KEY, 0)
         invocation_id = ctx.invocation_id
         return f"task::{global_task_id}::{invocation_id}::{self.name}"
 
@@ -730,14 +774,9 @@ class StreamlineManager:
         return self._state_key(ctx) + "::idx"
 
     @staticmethod
-    def _global_keys(
-        ctx: Union[ToolContext, CallbackContext],
-        key: Literal["", "pool", "summary", "result", "status", "objective"],
-    ) -> str:
-        global_task_id = ctx.state.get(_GLOBAL_TASK_ID_KEY, 0)
-        if key == "":
-            return f"task::{global_task_id}"
-        return f"task::{global_task_id}::{key}"
+    def _task_keys(ctx: Union[ToolContext, CallbackContext]) -> TaskScopedKeys:
+        global_task_id = ctx.state.get(GLOBAL_TASK_ID_KEY, 0)
+        return TaskScopedKeys(global_task_id)
 
     # ── ID generation ───────────────────────────────────────────────
     @staticmethod
@@ -762,10 +801,15 @@ class StreamlineManager:
         ctx.state[self._subtasks_key(ctx)] = [sub.model_dump() for sub in subtasks]
 
     @contextmanager
-    def _locked_subtasks(
+    def _subtasks_session(
         self, ctx: Union[ToolContext, CallbackContext]
     ) -> Generator[list[Subtask], None, None]:
-        """Load subtasks, yield mutable list, auto-save on exit."""
+        """Load subtasks, yield the mutable list, persist on clean exit.
+
+        Note: this is *not* a lock — `ctx.state` is single-threaded by contract.
+        On exception, the persisted state is left untouched, which preserves
+        the pre-mutation snapshot when a transition fails partway through.
+        """
         subtasks = self.get_subtasks(ctx)
         yield subtasks
         self._save_subtasks(subtasks, ctx)
@@ -789,7 +833,7 @@ class StreamlineManager:
         subtask_spec: SubtaskSpec,
         ctx: Union[ToolContext, CallbackContext],
     ) -> Optional[Subtask]:
-        with self._locked_subtasks(ctx) as subtasks:
+        with self._subtasks_session(ctx) as subtasks:
             if len(subtasks) >= self.max_tasks:
                 logger.warning(
                     "Task limit reached",
@@ -830,11 +874,27 @@ class StreamlineManager:
             return None
         return subtasks[idx]
 
+    def get_remaining_subtasks(
+        self, ctx: Union[ToolContext, CallbackContext]
+    ) -> list[Subtask]:
+        """Return the current subtask and any later ones (the actionable plan).
+
+        Empty when there is no current subtask, or when only the trailing
+        subtask remains and it has already been resolved.
+        """
+        subtasks = self.get_subtasks(ctx)
+        idx = self._get_idx(ctx)
+        if idx is None or idx < 0 or idx >= len(subtasks):
+            return []
+        if idx == len(subtasks) - 1 and subtasks[idx].status != "new":
+            return []
+        return subtasks[idx:]
+
     def get_records(
         self,
         ctx: Union[ToolContext, CallbackContext],
     ) -> list[Any]:
-        pool_key = self._global_keys(ctx, "pool")
+        pool_key = self._task_keys(ctx).pool
         ctx.state.setdefault(pool_key, [])
         return ctx.state[pool_key]
 
@@ -845,8 +905,7 @@ class StreamlineManager:
     ) -> None:
         records = self.get_records(ctx)
         records.append(record)
-        pool_key = self._global_keys(ctx, "pool")
-        ctx.state[pool_key] = records
+        ctx.state[self._task_keys(ctx).pool] = records
 
     def skip(
         self,
@@ -858,7 +917,7 @@ class StreamlineManager:
         if idx is None:
             return None
 
-        with self._locked_subtasks(ctx) as subtasks:
+        with self._subtasks_session(ctx) as subtasks:
             if idx < 0 or idx >= len(subtasks):
                 return None
 
@@ -911,7 +970,7 @@ class StreamlineManager:
         if idx is None:
             return None
 
-        with self._locked_subtasks(ctx) as subtasks:
+        with self._subtasks_session(ctx) as subtasks:
             if idx < 0 or idx >= len(subtasks):
                 return None
 
@@ -1001,7 +1060,7 @@ class StreamlineManager:
         if idx is None:
             return False, NO_SUBTASKS_EXIST_MSG
 
-        with self._locked_subtasks(ctx) as subtasks:
+        with self._subtasks_session(ctx) as subtasks:
             if idx < 0:
                 return False, NO_SUBTASKS_EXIST_MSG
             if idx >= len(subtasks):
@@ -1050,7 +1109,7 @@ class StreamlineManager:
         if idx is None:
             return False, NO_SUBTASKS_EXIST_MSG
 
-        with self._locked_subtasks(ctx) as subtasks:
+        with self._subtasks_session(ctx) as subtasks:
             if idx < 0:
                 return False, NO_SUBTASKS_EXIST_MSG
             if idx >= len(subtasks):
@@ -1103,12 +1162,10 @@ class StreamlineManager:
         summary: str,
         ctx: Union[ToolContext, CallbackContext],
     ) -> None:
-        result_key = self._global_keys(ctx, "result")
-        summary_key = self._global_keys(ctx, "summary")
-        status_key = self._global_keys(ctx, "status")
-        ctx.state[result_key] = result
-        ctx.state[summary_key] = summary
-        ctx.state[status_key] = status
+        keys = self._task_keys(ctx)
+        ctx.state[keys.result] = result
+        ctx.state[keys.summary] = summary
+        ctx.state[keys.status] = status
         logger.info("Task finished", extra={"status": status})
 
 
@@ -1142,59 +1199,56 @@ RULES:
 """.strip()
 
 
+_WORKER_EXAMPLE_DONE: Final[SubtaskExecutionResult] = SubtaskExecutionResult(
+    task_id="1",
+    status="done",
+    output=(
+        "- Reviewed source files for HTTP endpoint definitions:\n"
+        "  - src/main/java/com/example/ExampleController.java\n"
+        "  - src/main/java/com/example/AdminController.java\n"
+        "- Identified endpoints:\n"
+        "  - GET /example\n"
+        "  - POST /example\n"
+        "  - PUT /example/id\n"
+        "  - DELETE /example/id\n"
+        "  - GET /admin/health"
+    ),
+    summary=(
+        "Goal: Identify all HTTP endpoints in the project. "
+        "Result: Found 5 endpoints across 2 controller classes."
+    ),
+)
+_WORKER_EXAMPLE_INCOMPLETE: Final[SubtaskExecutionResult] = SubtaskExecutionResult(
+    task_id="2",
+    status="incomplete",
+    output=(
+        "- Found 2 endpoints in ExampleController.java:\n"
+        "  - GET /example\n"
+        "  - POST /example\n"
+        "- Did not yet examine: AdminController.java, "
+        "HealthController.java, and 3 other controller files."
+    ),
+    summary=(
+        "Goal: Identify all HTTP endpoints. "
+        "Status: Incomplete — only 1 of 5 controller files examined."
+    ),
+)
+
+
+def _stringify_formatted(value: Union[str, dict[str, Any]]) -> str:
+    if isinstance(value, dict):
+        return json.dumps(value, indent=2)
+    return value
+
+
 def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False) -> str:
-    example_done = SubtaskExecutionResult(
-        task_id="1",
-        status="done",
-        output=(
-            "- Reviewed source files for HTTP endpoint definitions:\n"
-            "  - src/main/java/com/example/ExampleController.java\n"
-            "  - src/main/java/com/example/AdminController.java\n"
-            "- Identified endpoints:\n"
-            "  - GET /example\n"
-            "  - POST /example\n"
-            "  - PUT /example/id\n"
-            "  - DELETE /example/id\n"
-            "  - GET /admin/health"
-        ),
-        summary=(
-            "Goal: Identify all HTTP endpoints in the project. "
-            "Result: Found 5 endpoints across 2 controller classes."
-        ),
+    format_description = _stringify_formatted(fmt.format_subtask_result_description())
+    ex_done_fmt = _stringify_formatted(
+        fmt.format_subtask_result(_WORKER_EXAMPLE_DONE, type_hint=type_hint)
     )
-    example_incomplete = SubtaskExecutionResult(
-        task_id="2",
-        status="incomplete",
-        output=(
-            "- Found 2 endpoints in ExampleController.java:\n"
-            "  - GET /example\n"
-            "  - POST /example\n"
-            "- Did not yet examine: AdminController.java, "
-            "HealthController.java, and 3 other controller files."
-        ),
-        summary=(
-            "Goal: Identify all HTTP endpoints. "
-            "Status: Incomplete — only 1 of 5 controller files examined."
-        ),
+    ex_incomplete_fmt = _stringify_formatted(
+        fmt.format_subtask_result(_WORKER_EXAMPLE_INCOMPLETE, type_hint=type_hint)
     )
-
-    format_description: Union[str, dict[str, Any]] = (
-        fmt.format_subtask_result_description()
-    )
-    if isinstance(format_description, dict):
-        format_description = json.dumps(format_description, indent=2)
-
-    ex_done_fmt: Union[str, dict[str, Any]] = fmt.format_subtask_result(
-        example_done, type_hint=type_hint
-    )
-    if isinstance(ex_done_fmt, dict):
-        ex_done_fmt = json.dumps(ex_done_fmt, indent=2)
-
-    ex_incomplete_fmt: Union[str, dict[str, Any]] = fmt.format_subtask_result(
-        example_incomplete, type_hint=type_hint
-    )
-    if isinstance(ex_incomplete_fmt, dict):
-        ex_incomplete_fmt = json.dumps(ex_incomplete_fmt, indent=2)
 
     return f"""\
 CORE RULE:
@@ -1206,7 +1260,7 @@ STATUS RULES:
 - task_id: Copy the exact task_id from the input.
 - status:
   - Use 'done' ONLY if the requested deliverable is fully produced and no obvious requested work remains.
-  - Do NOT return 'incomplete' status, make you best effor to complete the assigned task.
+  - Make your best effort to complete the assigned task; only return 'incomplete' when work genuinely remains and decomposition is needed.
 - output: Include only concrete results from work actually performed (not plans or intentions).
 - summary: State the goal, what was completed, and, if incomplete, exactly what remains and why.
 
@@ -1252,12 +1306,24 @@ def instrument_worker(
     use_input_schema: bool = True,
     use_output_schema: bool = True,
 ) -> AgentTool:
-    if use_input_schema or fmt._format == "json":
+    """Attach Subtask schemas and worker instructions, then wrap as AgentTool.
+
+    Idempotent: the original `instruction` is snapshotted on first call so
+    repeated invocations replace (rather than concatenate) the appended
+    instructions.
+    """
+    if use_input_schema or fmt.format == "json":
         worker.input_schema = Subtask
     if use_output_schema:
         worker.output_schema = SubtaskExecutionResult
-    worker.instruction += _prepare_worker_instructions(fmt, type_hint=type_hint)
-    return AgentTool(worker) if not isinstance(worker, AgentTool) else worker
+
+    if not hasattr(worker, _INSTRUCTION_SNAPSHOT_ATTR):
+        setattr(worker, _INSTRUCTION_SNAPSHOT_ATTR, worker.instruction)
+    base_instruction = getattr(worker, _INSTRUCTION_SNAPSHOT_ATTR)
+    worker.instruction = base_instruction + _prepare_worker_instructions(
+        fmt, type_hint=type_hint
+    )
+    return AgentTool(worker)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1369,21 +1435,12 @@ def task_tools(
             Ordered list of visible subtasks, or an explicit no-remaining-work
             message when the remaining plan is empty.
         """
-        subtasks = mgr.get_subtasks(tool_context)
-
         if view == "all":
-            visible_subtasks = subtasks
+            visible_subtasks = mgr.get_subtasks(tool_context)
         else:
-            idx = mgr._get_idx(tool_context)
-            if idx is None or idx < 0 or idx >= len(subtasks):
-                visible_subtasks = []
-            elif idx == len(subtasks) - 1 and subtasks[idx].status != "new":
-                visible_subtasks = []
-            else:
-                visible_subtasks = subtasks[idx:]
-
-        if view == "remaining" and not visible_subtasks:
-            return {"result": NO_REMAINING_SUBTASKS_MSG}
+            visible_subtasks = mgr.get_remaining_subtasks(tool_context)
+            if not visible_subtasks:
+                return {"result": NO_REMAINING_SUBTASKS_MSG}
 
         return {
             "result": fmt.format_subtasks(
@@ -1417,11 +1474,11 @@ def task_tools(
                 remaining work.
         """
         if isinstance(decomposition, str):
-            schema = json.dumps(SubtaskDecomposition.model_json_schema(), indent=2)
             return {
                 "error": (
                     "TypeError: 'decomposition' must be a SubtaskDecomposition "
-                    f"object, not a string. Expected schema:\n{schema}"
+                    "object, not a string. Expected schema:\n"
+                    f"{_SUBTASK_DECOMPOSITION_SCHEMA_JSON}"
                 )
             }
         if isinstance(decomposition, dict):
@@ -1568,64 +1625,72 @@ def task_tools(
         )
 
         # Prepare worker input
-        if fmt._format == "json" or use_input_schema:
+        if fmt.format == "json" or use_input_schema:
             args: dict[str, Any] = fmt._subtask_to_json(current)
         else:
             args = {"request": fmt.format_subtask(current)}
 
-        # Run worker with retries
-        retries = 0
-        raw: Any = ""
-        while retries < n_retries:
+        # Run worker with retries on empty, unparseable, or task_id-mismatched
+        # responses. `n_retries` is the total attempt budget (not extra tries
+        # on top of the first call).
+        raw: Any = None
+        subtask_result: Optional[SubtaskExecutionResult] = None
+        malformed_reason: Optional[str] = None
+
+        for attempt in range(1, n_retries + 1):
             raw = await worker.run_async(args=args, tool_context=tool_context)
 
-            if isinstance(raw, str):
-                if raw.strip():
-                    break
-            elif raw is not None:
-                break
+            if _is_empty_worker_response(raw):
+                logger.debug(
+                    "Worker returned empty response, retrying",
+                    extra={
+                        "task_id": current.task_id,
+                        "attempt": attempt,
+                        "max": n_retries,
+                    },
+                )
+                continue
 
-            retries += 1
+            candidate = _parse_worker_output(raw, fmt, current.task_id)
+            if candidate is None:
+                logger.debug(
+                    "Worker returned unparseable response, retrying",
+                    extra={
+                        "task_id": current.task_id,
+                        "attempt": attempt,
+                        "max": n_retries,
+                    },
+                )
+                malformed_reason = None
+                continue
 
-        # ── Parse worker output ──────────────────────────────────────
-        subtask_result: Optional[SubtaskExecutionResult] = None
-        if isinstance(raw, SubtaskExecutionResult):
-            subtask_result = raw
-        elif isinstance(raw, dict):
-            with suppress(ValidationError, TypeError):
-                subtask_result = SubtaskExecutionResult.model_validate(raw)
-        elif isinstance(raw, str):
-            subtask_result = fmt.parse_subtask_result(
-                raw, fallback_task_id=current.task_id
-            )
+            if candidate.task_id != current.task_id:
+                logger.warning(
+                    "Worker returned mismatched task_id",
+                    extra={
+                        "expected": current.task_id,
+                        "got": candidate.task_id,
+                        "attempt": attempt,
+                    },
+                )
+                malformed_reason = (
+                    f"Worker returned result for task_id='{candidate.task_id}' "
+                    f"but expected '{current.task_id}'.\n\n"
+                    f"Original parsed output:\n{candidate.output}"
+                )
+                continue
 
-        validated = isinstance(subtask_result, SubtaskExecutionResult)
-
-        # Check for task_id mismatch
-        raw_dump: Any = raw
-        malformed_reason: Optional[str] = None
-        if (
-            validated
-            and subtask_result is not None
-            and subtask_result.task_id != current.task_id
-        ):
+            subtask_result = candidate
+            break
+        else:
             logger.warning(
-                "Worker returned mismatched task_id",
-                extra={
-                    "expected": current.task_id,
-                    "got": subtask_result.task_id,
-                },
+                "Worker exhausted retries without a valid result",
+                extra={"task_id": current.task_id, "attempts": n_retries},
             )
-            malformed_reason = (
-                f"Worker returned result for task_id='{subtask_result.task_id}' "
-                f"but expected '{current.task_id}'.\n\n"
-                f"Original parsed output:\n{subtask_result.output}"
-            )
-            validated = False
-            subtask_result = None
 
         # ── Apply malformed fallback ─────────────────────────────────
-        if not validated:
+        raw_dump: Any = raw
+        if subtask_result is None:
             if malformed_reason is not None:
                 raw_dump = malformed_reason
             with suppress(ValueError, TypeError):
@@ -1663,38 +1728,8 @@ def task_tools(
                 response["error"] = error_msg
             return response
 
-        # Defensive check instead of assert
-        if subtask_result is None:
-            logger.warning(
-                "Validated execution path reached with no parsed subtask result",
-                extra={"task_id": current.task_id},
-            )
-            runtime_result = {
-                "task_id": current.task_id,
-                "status": "malformed",
-                "output": str(raw),
-                "summary": SUBTASK_RESULT_MALFORMED,
-            }
-            success, error_msg = mgr.complete_current_subtask_from_runtime_result(
-                runtime_result, tool_context
-            )
-            record: dict[str, Any] = {
-                **current.model_dump(),
-                **runtime_result,
-            }
-            response: dict[str, Any] = {
-                "record": record,
-                "error": SUBTASK_RESULT_MALFORMED,
-                "action": SUBTASK_REQUIRES_RESOLUTION_MSG.format(
-                    task_id=current.task_id,
-                    status="malformed",
-                ),
-            }
-            if not success and error_msg:
-                response["error"] = error_msg
-            return response
-
         # ── Apply validated result ───────────────────────────────────
+        assert subtask_result is not None  # narrows type after the None-branch return above
         success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
         record = fmt.format_task_record(current, subtask_result)
@@ -1754,7 +1789,7 @@ def task_tools(
 
         summary = ""
         if use_summarization and summarizer_tool is not None:
-            objective_key = StreamlineManager._global_keys(tool_context, "objective")
+            objective_key = StreamlineManager._task_keys(tool_context).objective
             objective = tool_context.state.get(objective_key, "")
             payload = {
                 "objective": objective,

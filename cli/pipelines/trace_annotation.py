@@ -1,20 +1,23 @@
 import yaml
 import json
 import logging
-from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Any
 from functools import partial
-from google.genai import types
-from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
-from contractor.tools.openapi import resolve_refs
+
 from google.adk.artifacts import BaseArtifactService
+from google.adk.models import LiteLlm
+from google.genai import types
+
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import (
     TaskRunner,
     TaskRunnerEventHandler,
 )
-from google.adk.models import LiteLlm
+from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
+from contractor.tools.openapi import resolve_refs
+
+from cli.pipelines import PipelineContext, persist_seed_artifact
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -206,32 +209,13 @@ class AnnotationRunner:
         await runner.run(user_id=user_id, on_event=on_event)
 
 
-async def trace_annotation_pipeline(
-    project_path: Path,
-    folder_name: str,
-    model: str,
-    app_name: str,
-    user_id: str,
-    artifact_service: BaseArtifactService,
-    artifact: Optional[str] = None,
-    **kwargs,
-) -> AnnotationRunner:
-    base_fs = RootedLocalFileSystem(root_path=project_path)
-    llm = LiteLlm(model=model)
-
-    if artifact:
-        artifact_text = types.Part.from_text(text=artifact)
-        await artifact_service.save_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            filename="oas-openapi-building",
-            artifact=artifact_text,
-        )
+async def trace_annotation_pipeline(ctx: PipelineContext) -> AnnotationRunner:
+    await persist_seed_artifact(ctx, filename="oas-openapi-building")
 
     return AnnotationRunner(
-        app_name=app_name,
-        llm=llm,
-        fs=base_fs,
-        artifact_service=artifact_service,
-        folder=folder_name,
+        app_name=ctx.app_name,
+        llm=LiteLlm(model=ctx.model),
+        fs=RootedLocalFileSystem(root_path=ctx.project_path),
+        artifact_service=ctx.artifact_service,
+        folder=ctx.folder_name,
     )
