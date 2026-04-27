@@ -1,7 +1,7 @@
 model_list:
-  - model_name: lm-studio-nemotron
+  - model_name: lm-studio-gemma4
     litellm_params:
-      model: openai/nemotron-cascade-2-30b-a3b-i1
+      model: openai/google/gemma-4-26b-a4b
       api_key: lm-studio
       api_base: http://localhost:1234/v1
       tpm: 1000000 

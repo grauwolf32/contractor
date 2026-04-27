@@ -102,6 +102,10 @@ NO_REMAINING_SUBTASKS_MSG: Final[str] = (
     "only if genuinely new required work remains."
 )
 
+MERGED_DECOMPOSITION_TASK_TITLE: Final[str] = (
+    "Perform all of the following steps and return the final requested deliverable"
+)
+
 _GLOBAL_TASK_ID_KEY: Final[str] = "_global_task_id"
 _MAX_LITERAL_EVAL_LEN: Final[int] = 50_000
 
@@ -707,6 +711,30 @@ class SubtaskFormatter:
         return self.format_subtask_result(stub, type_hint=type_hint)
 
 
+def merge_subtask_specs(subtasks: list[SubtaskSpec]) -> list[SubtaskSpec]:
+    """Collapse a decomposition into a single executable subtask."""
+    if not subtasks:
+        return []
+
+    if len(subtasks) == 1:
+        return subtasks
+
+    merged_title = MERGED_DECOMPOSITION_TASK_TITLE
+
+    merged_description_parts = []
+
+    for i, spec in enumerate(subtasks, start=1):
+        merged_description_parts.append(f"{i}. {spec.title}")
+        merged_description_parts.append(spec.description.strip())
+        merged_description_parts.append("")
+
+    return [
+        SubtaskSpec(
+            title=merged_title,
+            description="\n".join(merged_description_parts).strip(),
+        )
+    ]
+
 # ═══════════════════════════════════════════════════════════════════
 # StreamlineManager
 # ═══════════════════════════════════════════════════════════════════
@@ -900,6 +928,8 @@ class StreamlineManager:
         self,
         new_subtasks: list[SubtaskSpec],
         ctx: Union[ToolContext, CallbackContext],
+        *,
+        merge: bool = False
     ) -> Optional[list[Subtask]]:
         """
         Returns:
@@ -909,6 +939,9 @@ class StreamlineManager:
         idx = self._get_idx(ctx)
         if idx is None:
             return None
+
+        if merge:
+            new_subtasks = merge_subtask_specs(new_subtasks)
 
         with self._locked_subtasks(ctx) as subtasks:
             if idx < 0 or idx >= len(subtasks):
@@ -1206,7 +1239,7 @@ STATUS RULES:
 - task_id: Copy the exact task_id from the input.
 - status:
   - Use 'done' ONLY if the requested deliverable is fully produced and no obvious requested work remains.
-  - Do NOT return 'incomplete' status, make you best effor to complete the assigned task.
+  - Do NOT return 'incomplete' status, make your best effort to complete the assigned task.
 - output: Include only concrete results from work actually performed (not plans or intentions).
 - summary: State the goal, what was completed, and, if incomplete, exactly what remains and why.
 
@@ -1275,7 +1308,8 @@ def task_tools(
     use_summarization: bool = True,
     worker_instrumentation: bool = True,
     max_records: int = 20,
-    n_retries: int = 3
+    n_retries: int = 3,
+    merge_subtask_decomposition: bool = True,
 ) -> list[Callable[..., Any]]:
     if worker_instrumentation:
         agent_ref = _get_agent_ref(worker)
@@ -1414,6 +1448,16 @@ def task_tools(
             task_id: MUST match the current subtask exactly.
             decomposition: Ordered list of 1-3 subtasks covering all
                 remaining work.
+        Returns:
+            list of subtask
+        
+        Important:
+        - The subtasks you provide may be automatically bundled by the runtime into a
+        single executable child task.
+        - If bundling happens, the returned child task is the current executable unit.
+        - Do NOT assume each proposed subtask will remain a separate live task.
+        - If the bundled child contains numbered items, treat them as one task's
+        internal checklist and execute the whole bundled task directly.
         """
         if isinstance(decomposition, str):
             schema = json.dumps(SubtaskDecomposition.model_json_schema(), indent=2)
@@ -1442,12 +1486,15 @@ def task_tools(
             }
 
         insertion: Optional[list[Subtask]] = mgr.decompose_current_subtask(
-            decomposition.subtasks, tool_context
+            decomposition.subtasks,
+            tool_context,
+            merge=merge_subtask_decomposition,
         )
         if insertion is None:
             return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
         if len(insertion) == 0:
             return {"error": SUBTASK_DECOMPOSE_EMPTY_LIST}
+
         return {"result": fmt.format_subtasks(insertion)}
 
     def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:

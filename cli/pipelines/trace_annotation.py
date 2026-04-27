@@ -194,7 +194,7 @@ class AnnotationRunner:
                 worker_builder=trace_builder,
                 iterations=1,
                 max_attempts=3,
-                max_steps=20,
+                max_steps=30,
                 artifacts=[],
                 namespace=path_namespace,
                 model=self.llm,
