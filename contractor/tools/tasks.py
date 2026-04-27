@@ -1198,10 +1198,9 @@ def _prepare_worker_instructions(fmt: SubtaskFormatter, type_hint: bool = False)
 
     return f"""\
 CORE RULE:
-Finish the requested subtask. Do NOT stop at partial progress.
+Finish the requested subtask. Avoid premature termination.
 If information is missing, try to obtain or infer it using available tools.
 Only stop when the final deliverable is produced or you are genuinely blocked.
-Avoid premature termination.
 
 STATUS RULES:
 - task_id: Copy the exact task_id from the input.

@@ -129,7 +129,6 @@ class TaskRunner(BaseModel):
     name: str = Field(description="Runner name")
     artifact_service: BaseArtifactService
 
-    output_format: Literal["json", "markdown", "yaml", "xml"] = "json"
     templates: dict[str, TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
     variables: dict[str, str] = Field(default_factory=dict)
@@ -527,7 +526,7 @@ class TaskRunner(BaseModel):
 
         message = types.Content(
             role="user",
-            parts=[types.Part(text=rendered_task.objective)],
+            parts=[types.Part(text=rendered_task._format_task())],
         )
 
         final_text = await self._consume_events(
