@@ -349,7 +349,7 @@ class TaskRunner(BaseModel):
         return {**copy.deepcopy(carry_state), **active.to_session_dict()}
 
     def _extract_carry_state(
-        state: dict[str, Any], finished_task_id: int
+        self, state: dict[str, Any], finished_task_id: int
     ) -> dict[str, Any]:
         carry = CarryState.from_session_dict(state, finished_task_id)
         return {**copy.deepcopy(state), **carry.to_session_dict()}
