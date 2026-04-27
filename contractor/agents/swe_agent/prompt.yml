@@ -49,16 +49,18 @@
       ====================
       - grep: Regex search across a file or directory tree.
       - search_def: Find definitions of functions, classes, or symbols in the codebase.
+      - list_symbols: Enumerate symbol definitions under a path or by node type.
       - ls: List files and directories.
       - read_file: Read the contents of a file.
       - glob: Glob search across a file or directory tree.
       - interaction_stats: Summarize repository exploration progress.
-      - list_touched_files: List files that were already read during task execution.
-      - list_untouched_files: List files that matched a search but were never read.
-      - list_match_only_files: List files that were neither read nor matched by search.
+      - list_touched_files: List files that have been read or matched during task execution.
+      - list_untouched_files: List files that have not been read and did not match grep.
+      - list_match_only_files: List files that were matched by grep but never read.
       - append_memory: Append text to existing memory.
       - read_memory: Read memory from the memory store.
       - write_memory: Write memory to the memory store.
+      - search_memory: Locate memories by content or tag.
       - list_memories: List all memories in the memory store.
       - list_tags: List all tags in the memory store.
 

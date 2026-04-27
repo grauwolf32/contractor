@@ -469,6 +469,14 @@ def test_glob_respects_path_filter(tools_json, tmpdir_path: Path):
     assert all(p.startswith(abs_path(tmpdir_path / "src")) for p in paths)
 
 
+def test_glob_relative_pattern_is_rooted_at_path(tools_json, tmpdir_path: Path):
+    res = tools_json["glob"]("*.py", path=abs_path(tmpdir_path / "src"))
+    assert "error" not in res
+    paths = [e["path"] for e in res["result"]]
+    assert abs_path(tmpdir_path / "src" / "a.py") in paths
+    assert abs_path(tmpdir_path / "src" / "b.txt") not in paths
+
+
 def test_read_file_full_and_paginated(tools_json, tmpdir_path: Path):
     f = abs_path(tmpdir_path / "src" / "a.py")
 
@@ -1187,3 +1195,44 @@ def test_edit_fails_when_old_string_not_found(write_tool_map, write_tmpdir: Path
 
     assert "error" in res
     assert "could not find the string" in res["error"]
+
+
+def test_changed_paths_tool_reports_overlay_state(
+    write_tool_map, write_tmpdir: Path
+):
+    notes = abs_path(write_tmpdir / "notes.txt")
+    new_path = abs_path(write_tmpdir / "added.txt")
+    deleted = abs_path(write_tmpdir / "src" / "main.py")
+
+    write_tool_map["edit"](path=notes, old_string="alpha", new_string="ALPHA")
+    write_tool_map["write_file"](new_path, "fresh\n")
+    write_tool_map["rm"](deleted)
+
+    res = write_tool_map["changed_paths"]()
+    assert "error" not in res
+
+    status = res["result"]
+    assert notes in status["modified"]
+    assert new_path in status["added"]
+    assert deleted in status["deleted"]
+
+
+def test_diff_tool_emits_unified_diff(write_tool_map, write_tmpdir: Path):
+    notes = abs_path(write_tmpdir / "notes.txt")
+
+    write_tool_map["edit"](path=notes, old_string="alpha", new_string="ALPHA")
+
+    res = write_tool_map["diff"](root=abs_path(write_tmpdir))
+    assert "error" not in res
+
+    output = res["result"]
+    assert isinstance(output, str)
+    assert notes in output
+    assert "-alpha" in output
+    assert "+ALPHA" in output
+
+
+def test_diff_tool_returns_empty_when_no_changes(write_tool_map, write_tmpdir: Path):
+    res = write_tool_map["diff"](root=abs_path(write_tmpdir))
+    assert "error" not in res
+    assert res["result"] == ""

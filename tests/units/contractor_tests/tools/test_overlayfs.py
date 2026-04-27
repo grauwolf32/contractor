@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from contractor.tools.fs.models import FsEntry
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
 from contractor.tools.fs.rootfs import RootedLocalFileSystem
 
@@ -389,3 +390,79 @@ def test_reset_overlay_discards_overlay_changes_and_reveals_base(
     assert overlay_fs.read_text("/src/a.py") == "print('base a')\n"
     assert overlay_fs.exists("/src/b.py")
     assert not overlay_fs.exists("/src/new.py")
+
+
+def test_writing_a_file_under_an_existing_file_raises(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.write_text("/leaf.txt", "leaf", encoding="utf-8")
+
+    with pytest.raises(NotADirectoryError):
+        overlay_fs.write_text("/leaf.txt/inner.txt", "x", encoding="utf-8")
+
+
+def test_writing_a_file_over_an_existing_directory_raises(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    with pytest.raises(IsADirectoryError):
+        overlay_fs.write_text("/src", "x", encoding="utf-8")
+
+
+def test_mkdir_over_existing_file_raises(overlay_fs: MemoryOverlayFileSystem):
+    with pytest.raises(FileExistsError):
+        overlay_fs.mkdir("/src/a.py")
+
+
+def test_writing_a_file_under_a_base_file_raises(overlay_fs: MemoryOverlayFileSystem):
+    with pytest.raises(NotADirectoryError):
+        overlay_fs.write_text("/README.md/inner", "x", encoding="utf-8")
+
+
+def test_changed_paths_classifies_overlay_state(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.write_text("/src/a.py", "print('overlay')\n", encoding="utf-8")
+    overlay_fs.write_text("/src/new.py", "print('new')\n", encoding="utf-8")
+    overlay_fs.rm("/src/b.py")
+
+    status = overlay_fs.changed_paths()
+
+    assert status["added"] == ["/src/new.py"]
+    assert status["modified"] == ["/src/a.py"]
+    assert status["deleted"] == ["/src/b.py"]
+
+
+def test_changed_paths_skips_no_op_writes(overlay_fs: MemoryOverlayFileSystem):
+    base_content = overlay_fs.read_text("/src/a.py")
+    overlay_fs.write_text("/src/a.py", base_content, encoding="utf-8")
+
+    status = overlay_fs.changed_paths()
+
+    assert status == {"added": [], "modified": [], "deleted": []}
+
+
+def test_filetype_cache_is_invalidated_on_overlay_write(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    path = "/src/typed.py"
+    python_body = (
+        "def hello():\n    return 'world'\n\n"
+        "import sys\nfor i in range(10):\n    print(i)\n"
+    ) * 10
+    overlay_fs.write_text(path, python_body, encoding="utf-8")
+
+    first = FsEntry.from_path(path, overlay_fs, with_types=True)
+    assert first is not None and first.filetype is not None
+    initial_label = first.filetype.label
+
+    html_body = (
+        "<!DOCTYPE html>\n<html><head><title>x</title></head>\n<body>\n"
+        "<h1>not python anymore</h1>\n<p>just html now</p>\n</body></html>\n"
+    ) * 10
+    overlay_fs.write_text(path, html_body, encoding="utf-8")
+
+    second = FsEntry.from_path(path, overlay_fs, with_types=True)
+    assert second is not None and second.filetype is not None
+    # If the cache survived, second would still report the original label;
+    # the invalidation hook must drop the entry on write.
+    assert second.filetype.label != initial_label

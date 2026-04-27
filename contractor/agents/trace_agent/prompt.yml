@@ -182,20 +182,29 @@
       - glob: locate relevant files
       - read_file: inspect code
       - search_def: locate symbol definitions quickly
+      - list_symbols: enumerate symbol definitions under a path or by node type
       - insert_line: insert annotation comments above functions
-      - edit: replace content
+      - edit: replace content (exact string match)
       - replace_range: replace code block by line numbers
+      - restore: revert overlay edits on a path back to the original file
+      - changed_paths: list files added, modified, or deleted in the overlay vs the project tree
+      - diff: review a unified diff of all in-progress overlay changes
       - interaction_stats: track exploration progress
       - list_touched_files: track explored files
       - list_untouched_files: find missed candidates
-      - list_match_only_files: identify unexplored areas
+      - list_match_only_files: identify files that were matched but never read
       - append_memory: store useful discoveries
       - read_memory: retrieve context
       - write_memory: persist structured insights
+      - search_memory: locate memories by content or tag
       - list_memories: inspect stored context
       - list_tags: inspect memory taxonomy
       - report_vulnerability: report discovered vulnerability
+      - get_vulnerability: retrieve a previously reported vulnerability by id
       - list_vulnerabilities: list existing vulnerabilities
+
+      Before reporting completion, call `changed_paths` (and `diff` if needed) to
+      verify that only the intended annotations were inserted.
 
 - prompt:
     text: |
@@ -367,20 +376,29 @@
       - glob: locate relevant files
       - read_file: inspect code
       - search_def: locate symbol definitions quickly
+      - list_symbols: enumerate symbol definitions under a path or by node type
       - insert_line: insert annotation comments above functions
-      - edit: replace content
+      - edit: replace content (exact string match)
       - replace_range: replace code block by line numbers
+      - restore: revert overlay edits on a path back to the original file
+      - changed_paths: list files added, modified, or deleted in the overlay vs the project tree
+      - diff: review a unified diff of all in-progress overlay changes
       - interaction_stats: track exploration progress
       - list_touched_files: track explored files
       - list_untouched_files: find missed candidates
-      - list_match_only_files: identify unexplored areas
+      - list_match_only_files: identify files that were matched but never read
       - append_memory: store useful discoveries
       - read_memory: retrieve context
       - write_memory: persist structured insights
+      - search_memory: locate memories by content or tag
       - list_memories: inspect stored context
       - list_tags: inspect memory taxonomy
       - report_vulnerability: report discovered vulnerability
+      - get_vulnerability: retrieve a previously reported vulnerability by id
       - list_vulnerabilities: list existing vulnerabilities
+
+      Before reporting completion, call `changed_paths` (and `diff` if needed) to
+      verify that only the intended annotations were inserted.
 
 
 - prompt:
@@ -473,21 +491,30 @@
       - ls: explore directory structure
       - glob: locate relevant files
       - read_file: inspect code
+      - search_def: locate symbol definitions quickly
+      - list_symbols: enumerate symbol definitions under a path or by node type
       - insert_line: insert annotation comments above functions
-      - edit: replace content
+      - edit: replace content (exact string match)
       - replace_range: replace code block by line numbers
+      - restore: revert overlay edits on a path back to the original file
+      - changed_paths: list files added, modified, or deleted in the overlay vs the project tree
+      - diff: review a unified diff of all in-progress overlay changes
       - interaction_stats: track exploration progress
       - list_touched_files: track explored files
       - list_untouched_files: find missed candidates
-      - list_match_only_files: identify unexplored areas
+      - list_match_only_files: identify files that were matched but never read
       - append_memory: store useful discoveries
       - read_memory: retrieve context
       - write_memory: persist structured insights
+      - search_memory: locate memories by content or tag
       - list_memories: inspect stored context
       - list_tags: inspect memory taxonomy
       - report_vulnerability: report discovered vulnerability
+      - get_vulnerability: retrieve a previously reported vulnerability by id
       - list_vulnerabilities: list existing vulns
-      - search_def: search definition of the symbols: functions, etc.
+
+      Before reporting completion, call `changed_paths` (and `diff` if needed)
+      to verify only the intended annotations were inserted.
 
       IMPORTANT:
       - Always write useful findings to memory (entrypoint, sinks, validation patterns)

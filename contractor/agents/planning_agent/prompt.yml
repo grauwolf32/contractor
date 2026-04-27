@@ -172,13 +172,14 @@
       8. PLANNING TOOLS
       --------------------------------------------------
 
-      - add_subtask
-      - get_current_subtask
-      - list_subtasks
-      - get_records
-      - execute_current_subtask
-      - decompose_subtask
-      - skip
+      - add_subtask: append a new subtask to the plan
+      - get_current_subtask: inspect the active subtask
+      - list_subtasks: view remaining or full subtask history
+      - get_records: review past execution records
+      - execute_current_subtask: run the worker on the current subtask
+      - decompose_subtask: split an incomplete or malformed subtask into 1-3 steps
+      - skip: drop the current subtask with a justified reason
+      - finish: finalize the global task with status "done" or "failed" (must be the last call)
 
       --------------------------------------------------
       9. MEMORY TOOLS
@@ -187,6 +188,7 @@
       - append_memory
       - read_memory
       - write_memory
+      - search_memory
       - list_memories
       - list_tags
 
@@ -341,13 +343,14 @@
       8. PLANNING TOOLS
       --------------------------------------------------
 
-      - add_subtask
-      - get_current_subtask
-      - list_subtasks
-      - get_records
-      - execute_current_subtask
-      - decompose_subtask
-      - skip
+      - add_subtask: append a new subtask to the plan
+      - get_current_subtask: inspect the active subtask
+      - list_subtasks: view remaining or full subtask history
+      - get_records: review past execution records
+      - execute_current_subtask: run the worker on the current subtask
+      - decompose_subtask: split an incomplete or malformed subtask into 1-3 steps
+      - skip: drop the current subtask with a justified reason
+      - finish: finalize the global task with status "done" or "failed" (must be the last call)
 
       --------------------------------------------------
       9. MEMORY TOOLS
@@ -356,5 +359,6 @@
       - append_memory
       - read_memory
       - write_memory
+      - search_memory
       - list_memories
       - list_tags

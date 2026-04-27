@@ -83,17 +83,20 @@
       ====================
       Exploration:
       - grep, ls, glob, read_file
+      - search_def: locate symbol definitions quickly
+      - list_symbols: enumerate symbol definitions under a path or by node type
 
       Coverage:
-      - interaction_stats
-      - list_touched_files
-      - list_untouched_files
-      - list_match_only_files
+      - interaction_stats: summarize exploration progress
+      - list_touched_files: files that have been read or matched
+      - list_untouched_files: files never read and never matched
+      - list_match_only_files: files that were matched but not read
 
       Memory:
       - append_memory
       - read_memory
       - write_memory
+      - search_memory
       - list_memories
       - list_tags
 

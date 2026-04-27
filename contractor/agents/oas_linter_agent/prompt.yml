@@ -54,6 +54,7 @@
       - append_memory
       - read_memory
       - write_memory
+      - search_memory
       - list_memories
       - list_tags
 

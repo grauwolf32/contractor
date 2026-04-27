@@ -4,8 +4,8 @@ import fsspec
 from magika import ContentTypeInfo, Magika
 from typing import Optional, ClassVar
 from enum import Enum
+from weakref import WeakKeyDictionary
 
-from functools import lru_cache
 from dataclasses import dataclass, field
 
 from contractor.utils.formatting import norm_unicode
@@ -89,21 +89,59 @@ class FsEntry:
     loc: Optional[FileLoc] = None
 
     _magika: ClassVar[Magika] = Magika()
+    # Per-fs path-keyed cache. Held weakly so fs instances can be GC'd.
+    # Each entry is the dict[path, ContentTypeInfo|None] for that fs.
+    _filetype_cache: ClassVar[
+        "WeakKeyDictionary[fsspec.AbstractFileSystem, dict[str, Optional[ContentTypeInfo]]]"
+    ] = WeakKeyDictionary()
 
     @staticmethod
-    @lru_cache(maxsize=2048)
     def identify_type(
         file_path: str,
         fs: fsspec.AbstractFileSystem,
     ) -> Optional[ContentTypeInfo]:
-        if not fs.exists(file_path) or not fs.isfile(file_path):
-            return None
-
         try:
-            with fs.open(file_path, mode="rb") as f:
-                return FsEntry._magika.identify_stream(f).output
-        except Exception:
-            return None
+            cache = FsEntry._filetype_cache.setdefault(fs, {})
+        except TypeError:
+            # fs not weakly referenceable (rare); fall through without caching.
+            cache = None
+
+        if cache is not None and file_path in cache:
+            return cache[file_path]
+
+        if not fs.exists(file_path) or not fs.isfile(file_path):
+            result: Optional[ContentTypeInfo] = None
+        else:
+            try:
+                with fs.open(file_path, mode="rb") as f:
+                    result = FsEntry._magika.identify_stream(f).output
+            except Exception:
+                result = None
+
+        if cache is not None:
+            cache[file_path] = result
+        return result
+
+    @staticmethod
+    def invalidate_filetype_cache(
+        fs: fsspec.AbstractFileSystem,
+        path: Optional[str] = None,
+    ) -> None:
+        """Invalidate cached file-type guesses for *fs*, optionally limited to *path*."""
+        try:
+            cache = FsEntry._filetype_cache.get(fs)
+        except TypeError:
+            return
+        if cache is None:
+            return
+        if path is None:
+            cache.clear()
+            return
+        cache.pop(path, None)
+        # Also drop descendants when path is a directory.
+        prefix = path.rstrip("/") + "/"
+        for key in [k for k in cache if k.startswith(prefix)]:
+            cache.pop(key, None)
 
     @classmethod
     def from_path(

@@ -14,6 +14,8 @@ from typing import Any, Iterable, Iterator
 
 from fsspec.spec import AbstractFileSystem
 
+from contractor.tools.fs.models import FsEntry
+
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
@@ -125,6 +127,10 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         # Optional in-memory snapshot
         self._snapshot_state: dict[str, Any] | None = None
 
+    def _invalidate_filetype(self, path: str | None = None) -> None:
+        """Drop any cached magika identification for *path* on this overlay."""
+        FsEntry.invalidate_filetype_cache(self, path)
+
     # -------------------------------------------------------------------------
     # Path helpers
     # -------------------------------------------------------------------------
@@ -162,12 +168,49 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             parts_to_create.append(current)
             current = self._parent(current)
 
+        # Reject writes whose parent chain crosses an existing file.
+        for ancestor in parts_to_create:
+            if ancestor in self._files:
+                raise NotADirectoryError(
+                    f"Cannot create entry at {path}: {ancestor} is a file"
+                )
+            if (
+                ancestor not in self._dirs
+                and not self._is_deleted(ancestor)
+                and self._base_isfile(ancestor)
+            ):
+                raise NotADirectoryError(
+                    f"Cannot create entry at {path}: {ancestor} is a file"
+                )
+
         for dir_path in reversed(parts_to_create):
             self._dirs.add(dir_path)
             # Ensure tombstones don't hide newly created parents
             self._deleted.discard(dir_path)
 
         self._dirs.add(self.root_marker)
+
+    def _check_not_existing_dir(self, path: str) -> None:
+        """Raise IsADirectoryError if *path* currently resolves to a directory."""
+        if path in self._dirs:
+            raise IsADirectoryError(path)
+        if (
+            path not in self._files
+            and not self._is_deleted(path)
+            and self._base_isdir(path)
+        ):
+            raise IsADirectoryError(path)
+
+    def _check_not_existing_file(self, path: str) -> None:
+        """Raise FileExistsError if *path* currently resolves to a file."""
+        if path in self._files:
+            raise FileExistsError(path)
+        if (
+            path not in self._dirs
+            and not self._is_deleted(path)
+            and self._base_isfile(path)
+        ):
+            raise FileExistsError(path)
 
     # -------------------------------------------------------------------------
     # Overlay visibility / tombstones
@@ -424,6 +467,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             self._files.clear()
             self._dirs = {self.root_marker}
             self._deleted.clear()
+            self._invalidate_filetype()
 
     def snapshot(self) -> dict[str, Any]:
         """
@@ -449,6 +493,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 self._norm(path): self._b64decode(content)
                 for path, content in state.get("files", {}).items()
             }
+            self._invalidate_filetype()
 
     def export_overlay_state(self) -> dict[str, Any]:
         """
@@ -512,6 +557,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
             # Ensure ancestors created in the overlay remain valid.
             self._dirs.add(self.root_marker)
+
+            self._invalidate_filetype(path)
 
     # -------------------------------------------------------------------------
     # Patch save / load
@@ -799,6 +846,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 self._dirs.add(path)
                 return
 
+            self._check_not_existing_file(path)
+
             if not create_parents:
                 parent = self._parent(path)
                 if not self.exists(parent):
@@ -822,6 +871,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         path = self._norm(path)
 
         with self._lock:
+            self._check_not_existing_dir(path)
             self._ensure_parent_dirs(path)
             self._unhide_path(path)
 
@@ -830,14 +880,17 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
             if not truncate and path not in self._files and self._base_exists(path):
                 self._files[path] = self._base_read_bytes(path)
+                self._invalidate_filetype(path)
                 return
 
             self._files[path] = b""
+            self._invalidate_filetype(path)
 
     def pipe_file(self, path: str, value: bytes | str, **kwargs: Any) -> None:
         path = self._norm(path)
 
         with self._lock:
+            self._check_not_existing_dir(path)
             self._ensure_parent_dirs(path)
             self._unhide_path(path)
 
@@ -845,6 +898,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 value = value.encode(kwargs.get("encoding") or "utf-8")
 
             self._files[path] = value
+            self._invalidate_filetype(path)
 
     def write_text(
         self,
@@ -948,6 +1002,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             if not removed:
                 raise FileNotFoundError(path)
 
+            self._invalidate_filetype(path)
+
     def rmdir(self, path: str) -> None:
         path = self._norm(path)
 
@@ -1032,6 +1088,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                     # optimisation; correctness does not depend on it.
                     for base_path in _safe_base_find(self.base_fs, path):
                         self._deleted.add(self._norm(base_path))
+
+                self._invalidate_filetype(path)
 
             return
 
@@ -1334,6 +1392,50 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except Exception:
             pass
 
+    def changed_paths(self) -> dict[str, list[str]]:
+        """
+        Path-only inventory of overlay changes relative to ``base_fs``.
+
+        Returns
+        -------
+        dict
+            ``{"added": [...], "modified": [...], "deleted": [...]}``.
+            Files whose overlay content equals the base content are not
+            reported as modified. Overlay-only empty directories are not
+            included; use ``save()`` for the full patch view.
+        """
+        with self._lock:
+            added: list[str] = []
+            modified: list[str] = []
+            deleted: list[str] = []
+
+            for path, content in self._files.items():
+                if not self._base_exists(path):
+                    added.append(path)
+                    continue
+
+                if self._base_isfile(path):
+                    try:
+                        base_bytes = self._base_read_bytes(path)
+                    except Exception:
+                        modified.append(path)
+                        continue
+                    if base_bytes != content:
+                        modified.append(path)
+                else:
+                    # Base is a directory; overlay file replaces it.
+                    modified.append(path)
+
+            for path in self._deleted:
+                if self._base_exists(path):
+                    deleted.append(path)
+
+            return {
+                "added": sorted(added),
+                "modified": sorted(modified),
+                "deleted": sorted(deleted),
+            }
+
     def diff(
         self,
         root: str = "/",
@@ -1568,6 +1670,9 @@ class _OverlayWriteFile:
         if "x" in mode and fs.exists(self.path):
             raise FileExistsError(self.path)
 
+        with fs._lock:
+            fs._check_not_existing_dir(self.path)
+
         initial = self._load_initial_bytes()
         self._buf = io.BytesIO()
 
@@ -1651,6 +1756,7 @@ class _OverlayWriteFile:
     def flush(self) -> None:
         with self.fs._lock:
             self.fs._files[self.path] = self._buf.getvalue()
+            self.fs._invalidate_filetype(self.path)
 
     def close(self) -> None:
         if self.closed:

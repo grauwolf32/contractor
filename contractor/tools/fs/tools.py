@@ -301,7 +301,15 @@ class FsspecInteractionFileTools:
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
 
-        matches = [str(match) for match in self.fs.glob(normalized_pattern)]
+        # Root the pattern at *path* when the pattern is relative, so that
+        # callers like `glob("*.py", path="/src")` actually search /src.
+        # Absolute patterns retain their original behaviour and the post-filter
+        # below still scopes the result.
+        pattern_for_fs = normalized_pattern.replace("\\", "/")
+        if not pattern_for_fs.startswith("/") and normalized_path != "/":
+            pattern_for_fs = f"{normalized_path.rstrip('/')}/{pattern_for_fs}"
+
+        matches = [str(match) for match in self.fs.glob(pattern_for_fs)]
 
         prefix = normalized_path.rstrip("/").replace("\\", "/") + "/"
         if normalized_path != "/":
@@ -587,6 +595,9 @@ def ro_file_tools(
     ) -> dict[str, Any]:
         """
         Find files or directories by glob pattern.
+
+        Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
+        Absolute patterns are matched as-is and post-filtered by ``path``.
         """
         offset = _ensure_int_or_none(offset) or 0
         return tools.glob(pattern=pattern, path=path, offset=offset)
@@ -1373,6 +1384,38 @@ class FsspecWriteTools:
             }
         }
 
+    def changed_paths(self) -> ToolResult:
+        if not isinstance(self.fs, MemoryOverlayFileSystem):
+            return {
+                "error": "changed_paths is only available with overlay filesystem"
+            }
+        return {"result": self.fs.changed_paths()}
+
+    def diff(self, root: str = "/", context_lines: int = 3) -> ToolResult:
+        if not isinstance(self.fs, MemoryOverlayFileSystem):
+            return {"error": "diff is only available with overlay filesystem"}
+
+        normalized_root, err = self._validate_path(
+            root, must_exist=True, check_ignored=False
+        )
+        if err:
+            return err
+
+        try:
+            context = max(0, int(context_lines))
+        except (TypeError, ValueError):
+            return {"error": "context_lines must be a non-negative integer"}
+
+        try:
+            diff_text = self.fs.diff(root=normalized_root, context_lines=context)
+        except Exception as exc:
+            return {"error": str(exc)}
+
+        if not diff_text:
+            return {"result": ""}
+
+        return {"result": FileFormat.format_output(diff_text, self.max_output)}
+
     def restore(self, path: str, recursive: bool = True) -> ToolResult:
         if not isinstance(self.fs, MemoryOverlayFileSystem):
             return {"error": "restore is only available with overlay filesystem"}
@@ -1551,6 +1594,9 @@ def rw_file_tools(
     ) -> dict[str, Any]:
         """
         Find files or directories by glob pattern in the overlay-visible tree.
+
+        Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
+        Absolute patterns are matched as-is and post-filtered by ``path``.
         """
         offset = _ensure_int_or_none(offset) or 0
         return tools.glob(pattern=pattern, path=path, offset=offset)
@@ -1880,6 +1926,37 @@ def rw_file_tools(
         """
         return tools.restore(path=path, recursive=_parse_bool(recursive, True))
 
+    def changed_paths() -> dict[str, Any]:
+        """
+        List paths added, modified, or deleted in the overlay vs the base
+        filesystem.
+
+        Returns:
+            {"result": {"added": [...], "modified": [...], "deleted": [...]}}.
+            Files whose overlay content matches the base content are not
+            reported as modified.
+        """
+        return tools.changed_paths()
+
+    def diff(
+        root: str = "/",
+        context_lines: int = 3,
+    ) -> dict[str, Any]:
+        """
+        Return a unified diff of all overlay changes vs the base filesystem.
+
+        Args:
+            root: Subtree to diff. Defaults to "/".
+            context_lines: Number of unchanged context lines around each hunk.
+
+        Output may be truncated when very large; the truncation marker
+        notes how many lines were dropped.
+        """
+        return tools.diff(
+            root=root,
+            context_lines=_ensure_int_or_none(context_lines) or 0,
+        )
+
     def list_match_only_files(
         path: str = "/",
         pattern: str = "**/*",
@@ -1916,6 +1993,8 @@ def rw_file_tools(
         replace_range,
         edit,
         restore,
+        changed_paths,
+        diff,
         mkdir,
         rm,
         cp,
