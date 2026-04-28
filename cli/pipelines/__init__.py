@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from typing import Any, Optional
 
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types
 
+from contractor.runners.models import TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunnerEventHandler
 
 
@@ -19,23 +21,69 @@ class PipelineContext:
     user_id: str
     artifact_service: BaseArtifactService
     artifact: Optional[str] = None
+    prompt: Optional[str] = None
 
 
-class Pipeline(Protocol):
+class Pipeline(ABC):
+    """Base class for all pipelines.
+
+    Subclasses receive a ``PipelineContext`` at construction time and
+    implement ``_run_impl()``. The public ``run()`` wraps it with
+    ``pipeline_started`` / ``pipeline_finished`` lifecycle events so
+    the UI shows activity immediately, even when sub-agent setup is
+    slow.
+    """
+
+    def __init__(self, ctx: PipelineContext) -> None:
+        self.ctx = ctx
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
     async def run(
         self,
         *,
-        user_id: str = ...,
-        on_event: Optional[TaskRunnerEventHandler] = ...,
+        user_id: str = "cli-user",
+        on_event: Optional[TaskRunnerEventHandler] = None,
+    ) -> Any:
+        await self._emit(on_event, "pipeline_started", phase="initializing")
+        ok = False
+        try:
+            result = await self._run_impl(user_id=user_id, on_event=on_event)
+            ok = True
+            return result
+        finally:
+            await self._emit(
+                on_event,
+                "pipeline_finished",
+                ok=ok,
+            )
+
+    @abstractmethod
+    async def _run_impl(
+        self,
+        *,
+        user_id: str,
+        on_event: Optional[TaskRunnerEventHandler],
     ) -> Any: ...
 
-
-PipelineBuilder = Callable[[PipelineContext], Awaitable[Pipeline]]
-
-
-@dataclass(frozen=True)
-class PipelineSpec:
-    builder: PipelineBuilder
+    async def _emit(
+        self,
+        on_event: Optional[TaskRunnerEventHandler],
+        event_type: str,
+        **payload: Any,
+    ) -> None:
+        if on_event is None:
+            return
+        await on_event(
+            TaskRunnerEvent(
+                type=event_type,
+                task_name=self.name,
+                task_id=-1,
+                payload={"pipeline": self.name, **payload},
+            )
+        )
 
 
 async def persist_seed_artifact(ctx: PipelineContext, filename: str) -> None:
@@ -50,23 +98,23 @@ async def persist_seed_artifact(ctx: PipelineContext, filename: str) -> None:
     )
 
 
-def get_pipelines() -> dict[str, PipelineSpec]:
-    from .oas_building import oas_building_pipeline
-    from .oas_enrichment import oas_enrichment_pipeline
-    from .trace_annotation import trace_annotation_pipeline
+def get_pipelines() -> dict[str, type[Pipeline]]:
+    from .oas_building import OasBuildingPipeline
+    from .oas_enrichment import OasEnrichmentPipeline
+    from .router import RouterPipeline
+    from .trace_annotation import TraceAnnotationPipeline
 
     return {
-        "build": PipelineSpec(builder=oas_building_pipeline),
-        "enrich": PipelineSpec(builder=oas_enrichment_pipeline),
-        "trace": PipelineSpec(builder=trace_annotation_pipeline),
+        "build": OasBuildingPipeline,
+        "enrich": OasEnrichmentPipeline,
+        "trace": TraceAnnotationPipeline,
+        "router": RouterPipeline,
     }
 
 
 __all__ = [
-    "PipelineContext",
     "Pipeline",
-    "PipelineBuilder",
-    "PipelineSpec",
+    "PipelineContext",
     "get_pipelines",
     "persist_seed_artifact",
 ]

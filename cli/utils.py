@@ -4,19 +4,36 @@ from google.adk.artifacts import BaseArtifactService
 from datetime import timezone
 
 
+# Artifact key prefixes that are internal scratch state (not user-facing
+# deliverables) and should be excluded from the post-run artifact listing.
+_INTERNAL_ARTIFACT_PREFIXES: tuple[str, ...] = ("user:memory/",)
+
+
+def _is_internal_artifact(filename: str) -> bool:
+    return any(filename.startswith(p) for p in _INTERNAL_ARTIFACT_PREFIXES)
+
+
 async def save_artifact(
     app_name: str,
     user_id: str,
     output_dir: Path,
     artifact_service: BaseArtifactService,
-) -> None:
+) -> list[Path]:
+    """Persist artifacts to ``output_dir`` and return the list of saved paths.
+
+    Skips internal-scratch artifacts (e.g. memory) that are not meant for
+    end users.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact_keys = await artifact_service.list_artifact_keys(
         app_name=app_name,
         user_id=user_id,
     )
 
+    saved: list[Path] = []
     for filename in artifact_keys:
+        if _is_internal_artifact(filename):
+            continue
         upload_path = output_dir / filename
         upload_path.parent.mkdir(parents=True, exist_ok=True)
         artifact = await artifact_service.load_artifact(
@@ -27,6 +44,9 @@ async def save_artifact(
         text = artifact.text or ""
         with open(upload_path, "w", encoding="utf-8") as f:
             f.write(text)
+        saved.append(upload_path)
+
+    return saved
 
 
 async def remove_artifacts(

@@ -18,6 +18,7 @@ from contractor.runners.plugins.base import (
     resolve_tool_response,
     snapshot_state,
 )
+from contractor.tools.fs.const import FS_COVERAGE_STATE_KEY
 
 
 # ─── Small helpers ────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ class AgentMetrics:
     total_tokens: int = 0
     thoughts_tokens: int = 0
     cached_tokens: int = 0
+    fs_coverage: dict[str, int] | None = None
     tools: dict[str, ToolMetrics] = field(
         default_factory=lambda: defaultdict(ToolMetrics)
     )
@@ -117,6 +119,7 @@ class AgentMetrics:
             "total_tokens": self.total_tokens,
             "thoughts_tokens": self.thoughts_tokens,
             "cached_tokens": self.cached_tokens,
+            "fs_coverage": dict(self.fs_coverage) if self.fs_coverage else None,
             "tools": {name: m.as_dict() for name, m in self.tools.items()},
         }
 
@@ -403,7 +406,32 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             result=actual_result,
             result_error=is_error,
         )
+
+        await self._maybe_record_fs_coverage(inv, agent, tool_context)
         return None
+
+    async def _maybe_record_fs_coverage(
+        self,
+        inv: str,
+        agent: str,
+        tool_context: ToolContext,
+    ) -> None:
+        state = snapshot_state(getattr(tool_context, "state", None))
+        snapshot = state.get(FS_COVERAGE_STATE_KEY)
+        if not isinstance(snapshot, dict):
+            return
+
+        agent_bucket = self._agent_bucket(inv, agent)
+        if agent_bucket.fs_coverage == snapshot:
+            return
+
+        agent_bucket.fs_coverage = dict(snapshot)
+        await self._emit(
+            "metrics_fs_coverage",
+            invocation_id=inv,
+            agent_name=agent,
+            fs_coverage=agent_bucket.fs_coverage,
+        )
 
     # ── LLM callback ──────────────────────────────────────────────────────
 

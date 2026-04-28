@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,9 +37,15 @@ _METRIC_EVENT_TYPES = {
     "tool_exc": "metrics_tool_exception_error",
     "llm": "metrics_llm_usage",
     "summary": "metrics_summary",
+    "fs_coverage": "metrics_fs_coverage",
     "before_run": "adk_before_run",
     "after_run": "adk_after_run",
     "adk_event": "adk_event",
+    "task_started": "task_started",
+    "task_finished": "task_finished",
+    "task_failed": "task_failed",
+    "iteration_finished": "iteration_finished",
+    "iteration_result": "iteration_result",
 }
 
 _FALLBACKS = {
@@ -117,11 +124,36 @@ def _safe_dict(mapping: Any) -> dict[str, Any]:
     return mapping if isinstance(mapping, dict) else {}
 
 
+def _result_error_message(result: Any) -> str | None:
+    """Extract a single error message from a tool_result payload, if present."""
+    if not isinstance(result, dict):
+        return None
+    err = result.get("error")
+    if isinstance(err, str) and err.strip():
+        return err.strip()
+    errs = result.get("errors")
+    if isinstance(errs, list) and errs:
+        first = errs[0]
+        if isinstance(first, str) and first.strip():
+            return first.strip()
+        if isinstance(first, dict):
+            msg = first.get("message") or first.get("error")
+            if isinstance(msg, str) and msg.strip():
+                return msg.strip()
+    return None
+
+
 def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
     norm: list[dict[str, Any]] = []
     for idx, rec in enumerate(records):
         payload = _safe_dict(rec.get("payload"))
         usage = _safe_dict(payload.get("usage"))
+        result = payload.get("result")
+        result_error_msg = (
+            _result_error_message(result)
+            if bool(payload.get("result_error", False))
+            else None
+        )
 
         norm.append(
             {
@@ -144,6 +176,10 @@ def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
                 "author": _opt_str(rec.get("author", payload.get("author"))),
                 "result_error": bool(payload.get("result_error", False)),
                 "error": _opt_str(payload.get("error") or payload.get("error_message")),
+                "result_error_message": result_error_msg,
+                "template_key": _opt_str(payload.get("template_key")),
+                "status": _opt_str(payload.get("status")),
+                "completed": payload.get("completed"),
                 "model": _opt_str(payload.get("model")),
                 **{
                     col: pd.to_numeric(
@@ -152,7 +188,7 @@ def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
                     for col in _TOKEN_COLS
                 },
                 "tool_args": _safe_dict(payload.get("tool_args")),
-                "result": payload.get("result"),
+                "result": result,
                 "payload": payload,
                 "raw": rec,
             }
@@ -220,9 +256,15 @@ class MetricSlices:
     tool_exc: pd.DataFrame
     llm: pd.DataFrame
     summaries: pd.DataFrame
+    fs_coverage_events: pd.DataFrame
     before_runs: pd.DataFrame
     after_runs: pd.DataFrame
     adk_events: pd.DataFrame
+    task_started: pd.DataFrame
+    task_finished: pd.DataFrame
+    task_failed: pd.DataFrame
+    iteration_finished: pd.DataFrame
+    iteration_result: pd.DataFrame
 
     # Aggregated tables (computed once, used by many charts)
     tools_by_calls: pd.Series = field(default_factory=lambda: pd.Series(dtype="int64"))
@@ -240,6 +282,25 @@ class MetricSlices:
 
     # Retry detection
     tool_calls_with_retries: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # FS coverage (latest snapshot per agent across all events)
+    fs_coverage_by_agent: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # Read-amplification tables: per (invocation, agent) and per file path
+    read_calls: pd.DataFrame = field(default_factory=pd.DataFrame)
+    reads_per_file: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # Result-error message extraction (from metrics_tool_result with result_error=True)
+    result_error_messages: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # Tool diversity per invocation (entropy + unique/total)
+    diversity_per_invocation: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # Stuck streaks: longest consecutive same-tool-same-args run per invocation
+    stuck_streaks: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    # Per-template summary: started, finished, failed, avg iterations, success rate
+    template_summary: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @classmethod
     def build(cls, df: pd.DataFrame) -> MetricSlices:
@@ -267,14 +328,26 @@ class MetricSlices:
             tool_exc=_where("tool_exc"),
             llm=_where("llm"),
             summaries=_where("summary"),
+            fs_coverage_events=_where("fs_coverage"),
             before_runs=_where("before_run"),
             after_runs=_where("after_run"),
             adk_events=_where("adk_event"),
+            task_started=_where("task_started"),
+            task_finished=_where("task_finished"),
+            task_failed=_where("task_failed"),
+            iteration_finished=_where("iteration_finished"),
+            iteration_result=_where("iteration_result"),
         )
         slices._compute_aggregates()
         slices._compute_durations()
         slices._compute_costs()
         slices._compute_retries()
+        slices._compute_fs_coverage()
+        slices._compute_read_amplification()
+        slices._compute_result_errors()
+        slices._compute_diversity()
+        slices._compute_stuck_streaks()
+        slices._compute_template_summary()
         return slices
 
     def _compute_aggregates(self) -> None:
@@ -395,6 +468,244 @@ class MetricSlices:
             tc["args_hash"] == tc["prev_hash"]
         )
         self.tool_calls_with_retries = tc
+
+    def _compute_fs_coverage(self) -> None:
+        # Prefer the per-call fs_coverage events (latest snapshot per agent).
+        # Fall back to metrics_summary.agents[name].fs_coverage when no per-call
+        # events were captured.
+        rows: list[dict[str, Any]] = []
+
+        if not self.fs_coverage_events.empty:
+            ev = self.fs_coverage_events.copy()
+            ev["fs_coverage"] = ev["payload"].apply(
+                lambda pl: pl.get("fs_coverage") if isinstance(pl, dict) else None
+            )
+            ev = ev[ev["fs_coverage"].apply(lambda v: isinstance(v, dict))]
+            if not ev.empty:
+                ev = ev.sort_values(["ts", "row_id"])
+                latest = ev.groupby("agent_name_f", as_index=False).tail(1)
+                for _, r in latest.iterrows():
+                    snap = r["fs_coverage"]
+                    rows.append({"agent_name_f": r["agent_name_f"], **snap})
+
+        if not rows and not self.summaries.empty:
+            for _, r in self.summaries.iterrows():
+                payload = r.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                agents = payload.get("agents")
+                if not isinstance(agents, dict):
+                    continue
+                for agent_name, agent_metrics in agents.items():
+                    if not isinstance(agent_metrics, dict):
+                        continue
+                    snap = agent_metrics.get("fs_coverage")
+                    if not isinstance(snap, dict):
+                        continue
+                    rows.append({"agent_name_f": str(agent_name), **snap})
+
+        if not rows:
+            return
+
+        df = pd.DataFrame(rows)
+        # Keep the largest snapshot per agent (cumulative — biggest wins).
+        if "files_seen" in df.columns:
+            df = df.sort_values("files_seen", ascending=False)
+        df = df.drop_duplicates(subset=["agent_name_f"], keep="first")
+        for col in (
+            "files_seen",
+            "files_read",
+            "files_matched",
+            "total_reads",
+            "total_matches",
+        ):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+        df["read_amplification"] = df["total_reads"] / df["files_read"].replace(
+            0, pd.NA
+        )
+        df["match_amplification"] = df["total_matches"] / df["files_matched"].replace(
+            0, pd.NA
+        )
+        df = df.fillna(0).set_index("agent_name_f")
+        self.fs_coverage_by_agent = df
+
+    def _compute_read_amplification(self) -> None:
+        tc = self.tool_calls
+        if tc.empty:
+            return
+        reads = tc[tc["tool_name_f"] == "read_file"].copy()
+        if reads.empty:
+            return
+        reads["file"] = reads["tool_args"].apply(
+            lambda a: a.get("file") if isinstance(a, dict) else None
+        )
+        reads = reads[reads["file"].notna() & (reads["file"].astype(str) != "")]
+        if reads.empty:
+            return
+
+        self.read_calls = reads[
+            ["invocation_id_f", "agent_name_f", "tool_name_f", "file", "ts", "row_id"]
+        ]
+
+        per_file = (
+            reads.groupby(["agent_name_f", "file"])
+            .size()
+            .rename("read_count")
+            .reset_index()
+            .sort_values("read_count", ascending=False)
+        )
+        self.reads_per_file = per_file
+
+    def _compute_result_errors(self) -> None:
+        tr = self.tool_results
+        if tr.empty:
+            return
+        msgs = tr[tr["result_error_message"].notna()].copy()
+        if msgs.empty:
+            return
+        msgs["error_message_short"] = msgs["result_error_message"].str.slice(0, 160)
+        self.result_error_messages = msgs[
+            [
+                "invocation_id_f",
+                "agent_name_f",
+                "tool_name_f",
+                "error_message_short",
+                "ts",
+                "row_id",
+            ]
+        ]
+
+    def _compute_diversity(self) -> None:
+        tc = self.tool_calls
+        if tc.empty:
+            return
+
+        def _entropy(values: pd.Series) -> float:
+            counts = values.value_counts()
+            if counts.empty:
+                return 0.0
+            total = counts.sum()
+            return float(
+                -sum((c / total) * math.log2(c / total) for c in counts if c > 0)
+            )
+
+        grouped = tc.groupby("invocation_id_f")
+        diversity = grouped["tool_name_f"].agg(
+            calls="size",
+            unique_tools="nunique",
+            entropy_bits=_entropy,
+        )
+        agent_per_inv = grouped["agent_name_f"].agg(
+            lambda s: s.dropna().iloc[0] if not s.dropna().empty else "unknown"
+        )
+        diversity["agent_name_f"] = agent_per_inv
+        diversity["diversity_ratio"] = diversity["unique_tools"] / diversity[
+            "calls"
+        ].replace(0, pd.NA)
+        diversity = diversity.fillna(0)
+        self.diversity_per_invocation = diversity
+
+    def _compute_stuck_streaks(self) -> None:
+        tc = self.tool_calls_with_retries
+        if tc.empty:
+            return
+        df = tc.copy()
+        df["key"] = df["tool_name_f"].astype(str) + "||" + df["args_hash"].astype(str)
+        df = df.sort_values(["invocation_id_f", "ts", "row_id"])
+        # New run when key changes within an invocation
+        prev_key = df.groupby("invocation_id_f")["key"].shift()
+        df["new_run"] = (prev_key != df["key"]).astype(int)
+        df["run_id"] = df.groupby("invocation_id_f")["new_run"].cumsum()
+        runs = (
+            df.groupby(["invocation_id_f", "run_id", "tool_name_f", "args_hash"])
+            .size()
+            .rename("streak_len")
+            .reset_index()
+        )
+        # Only runs of length >= 2 are interesting (length 1 == not stuck)
+        self.stuck_streaks = runs[runs["streak_len"] >= 2].sort_values(
+            "streak_len", ascending=False
+        )
+
+    def _compute_template_summary(self) -> None:
+        ts_started = self.task_started
+        ts_finished = self.task_finished
+        ts_failed = self.task_failed
+        iters = self.iteration_finished
+
+        if ts_started.empty and ts_finished.empty and ts_failed.empty:
+            return
+
+        # Map each task (task_name + task_id) to its template_key, taking from
+        # task_started when available.
+        def _key_index(df: pd.DataFrame) -> pd.DataFrame:
+            if df.empty:
+                return pd.DataFrame()
+            sub = df[["task_name_f", "task_id", "template_key"]].copy()
+            sub["template_key"] = sub["template_key"].fillna(sub["task_name_f"])
+            return sub
+
+        keyed = pd.concat(
+            [_key_index(ts_started), _key_index(ts_finished), _key_index(ts_failed)],
+            ignore_index=True,
+        ).drop_duplicates(["task_name_f", "task_id"], keep="first")
+
+        if keyed.empty:
+            return
+
+        started = ts_started.groupby("task_name_f").size().rename("started")
+        finished = (
+            ts_finished.groupby("task_name_f").size().rename("finished")
+            if not ts_finished.empty
+            else pd.Series(dtype="int64")
+        )
+        failed = (
+            ts_failed.groupby("task_name_f").size().rename("failed")
+            if not ts_failed.empty
+            else pd.Series(dtype="int64")
+        )
+
+        iters_per_task = pd.Series(dtype="float64")
+        if not iters.empty and iters["iteration"].notna().any():
+            iters_per_task = (
+                iters.groupby("task_name_f")["iteration"]
+                .max()
+                .rename("max_iteration")
+            )
+
+        per_task = (
+            pd.concat([started, finished, failed, iters_per_task], axis=1)
+            .fillna(0)
+            .reset_index()
+        )
+
+        # Attach template_key
+        keyed_first = keyed.drop_duplicates("task_name_f", keep="first")[
+            ["task_name_f", "template_key"]
+        ]
+        per_task = per_task.merge(keyed_first, on="task_name_f", how="left")
+        per_task["template_key"] = per_task["template_key"].fillna(
+            per_task["task_name_f"]
+        )
+
+        agg = (
+            per_task.groupby("template_key")
+            .agg(
+                tasks=("task_name_f", "nunique"),
+                started=("started", "sum"),
+                finished=("finished", "sum"),
+                failed=("failed", "sum"),
+                avg_iterations=("max_iteration", "mean"),
+                max_iterations=("max_iteration", "max"),
+            )
+            .reset_index()
+        )
+        # success_rate: finished / (finished + failed); guard zero
+        denom = (agg["finished"] + agg["failed"]).replace(0, pd.NA)
+        agg["success_rate"] = (agg["finished"] / denom).fillna(0)
+        agg = agg.sort_values(["success_rate", "started"], ascending=[True, False])
+        self.template_summary = agg
 
     @staticmethod
     def _build_error_table(
@@ -706,6 +1017,15 @@ def compute_summary(
         "cache_hit_rate": None,
         "thinking_overhead": None,
         "useful_work_ratio": None,
+        "fs_files_read_total": 0,
+        "fs_read_amplification_avg": None,
+        "result_error_message_count": 0,
+        "stuck_streak_max": 0,
+        "stuck_streak_count": 0,
+        "templates": 0,
+        "templates_success_rate_avg": None,
+        "templates_worst": None,
+        "tool_entropy_median_bits": None,
     }
     if df.empty:
         return out
@@ -775,6 +1095,48 @@ def compute_summary(
     if tool_total > 0:
         out["useful_work_ratio"] = round((tool_total - err_total) / tool_total, 4)
 
+    if slices is not None:
+        if not slices.fs_coverage_by_agent.empty:
+            fc = slices.fs_coverage_by_agent
+            if "files_read" in fc.columns:
+                out["fs_files_read_total"] = int(fc["files_read"].sum())
+            if "read_amplification" in fc.columns:
+                amps = fc["read_amplification"].replace(0, pd.NA).dropna()
+                if not amps.empty:
+                    out["fs_read_amplification_avg"] = round(float(amps.mean()), 3)
+
+        if not slices.result_error_messages.empty:
+            out["result_error_message_count"] = int(
+                len(slices.result_error_messages)
+            )
+
+        if not slices.stuck_streaks.empty:
+            out["stuck_streak_max"] = int(slices.stuck_streaks["streak_len"].max())
+            out["stuck_streak_count"] = int(len(slices.stuck_streaks))
+
+        if not slices.template_summary.empty:
+            ts = slices.template_summary
+            out["templates"] = int(len(ts))
+            if (ts["finished"].sum() + ts["failed"].sum()) > 0:
+                out["templates_success_rate_avg"] = round(
+                    float(ts["success_rate"].mean()), 4
+                )
+                worst = ts.sort_values("success_rate").iloc[0]
+                out["templates_worst"] = {
+                    "template_key": str(worst["template_key"]),
+                    "success_rate": round(float(worst["success_rate"]), 4),
+                    "started": int(worst["started"]),
+                    "finished": int(worst["finished"]),
+                    "failed": int(worst["failed"]),
+                }
+
+        if not slices.diversity_per_invocation.empty:
+            ent = pd.to_numeric(
+                slices.diversity_per_invocation["entropy_bits"], errors="coerce"
+            ).dropna()
+            if not ent.empty:
+                out["tool_entropy_median_bits"] = round(float(ent.median()), 3)
+
     return out
 
 
@@ -838,8 +1200,35 @@ def write_markdown_report(
         _fmt("agents", "Distinct agents"),
         _fmt("tools", "Distinct tools"),
         _fmt("tasks", "Distinct tasks"),
+        _fmt("templates", "Distinct templates"),
+        "",
+        "### FS Coverage",
+        "",
+        _fmt("fs_files_read_total", "Total files read (sum over agents)"),
+        _fmt("fs_read_amplification_avg", "Avg read amplification", "f2"),
+        "",
+        "### Agent Health Signals",
+        "",
+        _fmt("result_error_message_count", "Tool result-errors (with message)"),
+        _fmt("stuck_streak_count", "Stuck streaks (>=2 identical calls)"),
+        _fmt("stuck_streak_max", "Worst stuck streak length"),
+        _fmt("tool_entropy_median_bits", "Median tool entropy per invocation (bits)", "f2"),
+        _fmt("templates_success_rate_avg", "Avg template success rate", "%"),
         "",
     ]
+
+    worst = summary.get("templates_worst")
+    if isinstance(worst, dict):
+        lines += [
+            "### Worst Template",
+            "",
+            f"- **Template:** `{worst.get('template_key')}`",
+            f"- **Success rate:** {worst.get('success_rate', 0):.2%}",
+            f"- **Started / Finished / Failed:** "
+            f"{worst.get('started', 0)} / {worst.get('finished', 0)} / "
+            f"{worst.get('failed', 0)}",
+            "",
+        ]
 
     if not df.empty:
         tc_mask = df["type"].eq(_METRIC_EVENT_TYPES["tool_call"])
@@ -2279,6 +2668,347 @@ def _chart_events_per_session(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
+# ── NEW: FS coverage charts (67–69) ──────────────────────────────────────────
+
+
+def _chart_fs_coverage_by_agent(s: MetricSlices, p: OutputPaths) -> None:
+    fc = s.fs_coverage_by_agent
+    if fc.empty:
+        return
+    cols = [c for c in ("files_read", "files_matched") if c in fc.columns]
+    if not cols:
+        return
+    _stacked_bar(
+        fc,
+        cols,
+        "FS coverage by agent (read vs matched files)",
+        "Agent",
+        "Files",
+        p.charts / "67_fs_coverage_by_agent.png",
+        sort_by="files_seen" if "files_seen" in fc.columns else cols[0],
+    )
+
+
+def _chart_read_amplification_by_agent(s: MetricSlices, p: OutputPaths) -> None:
+    fc = s.fs_coverage_by_agent
+    if fc.empty or "read_amplification" not in fc.columns:
+        return
+    series = fc["read_amplification"].sort_values(ascending=False)
+    series = series[series > 0]
+    if series.empty:
+        return
+    _bar(
+        series,
+        "Read amplification by agent (total_reads / files_read)",
+        "Agent",
+        "Reads per unique file",
+        p.charts / "68_read_amplification_by_agent.png",
+        horizontal=True,
+    )
+
+
+def _chart_files_seen_by_agent(s: MetricSlices, p: OutputPaths) -> None:
+    fc = s.fs_coverage_by_agent
+    if fc.empty or "files_seen" not in fc.columns:
+        return
+    series = fc["files_seen"].sort_values(ascending=False)
+    if series.empty:
+        return
+    _bar(
+        series,
+        "Files seen by agent (read or matched)",
+        "Agent",
+        "Files",
+        p.charts / "69_files_seen_by_agent.png",
+        horizontal=True,
+    )
+
+
+# ── NEW: Re-read hotspots (70–71) ────────────────────────────────────────────
+
+
+def _chart_top_reread_files(s: MetricSlices, p: OutputPaths) -> None:
+    rpf = s.reads_per_file
+    if rpf.empty:
+        return
+    repeated = rpf[rpf["read_count"] >= 2].copy()
+    if repeated.empty:
+        return
+    repeated["label"] = (
+        repeated["agent_name_f"].astype(str) + " :: " + repeated["file"].astype(str)
+    )
+    series = repeated.set_index("label")["read_count"].sort_values(ascending=False)
+    _bar(
+        series,
+        "Top re-read files (>=2 reads, agent :: file)",
+        "File",
+        "Reads",
+        p.charts / "70_top_reread_files.png",
+        horizontal=True,
+        top_n=20,
+    )
+
+
+def _chart_reread_count_distribution(s: MetricSlices, p: OutputPaths) -> None:
+    rpf = s.reads_per_file
+    if rpf.empty:
+        return
+    _hist(
+        rpf["read_count"],
+        max(5, min(25, int(rpf["read_count"].max()))),
+        "Read-count distribution per (agent, file)",
+        "Reads of one file",
+        "(agent, file) pairs",
+        p.charts / "71_reread_count_distribution.png",
+    )
+
+
+# ── NEW: Result-error message clustering (72–73) ─────────────────────────────
+
+
+def _chart_top_result_error_messages(s: MetricSlices, p: OutputPaths) -> None:
+    msgs = s.result_error_messages
+    if msgs.empty:
+        return
+    counts = msgs["error_message_short"].value_counts()
+    if counts.empty:
+        return
+    _bar(
+        counts,
+        "Top tool result-error messages",
+        "Error",
+        "Count",
+        p.charts / "72_top_result_error_messages.png",
+        horizontal=True,
+        top_n=15,
+    )
+
+
+def _chart_result_errors_by_tool(s: MetricSlices, p: OutputPaths) -> None:
+    msgs = s.result_error_messages
+    if msgs.empty:
+        return
+    counts = msgs.groupby("tool_name_f").size().sort_values(ascending=False)
+    if counts.empty:
+        return
+    _bar(
+        counts,
+        "Tool result-errors by tool",
+        "Tool",
+        "Result errors",
+        p.charts / "73_result_errors_by_tool.png",
+        horizontal=True,
+        top_n=15,
+    )
+
+
+# ── NEW: Tool diversity (74–75) ──────────────────────────────────────────────
+
+
+def _chart_diversity_per_invocation_hist(s: MetricSlices, p: OutputPaths) -> None:
+    div = s.diversity_per_invocation
+    if div.empty:
+        return
+    _hist(
+        div["entropy_bits"],
+        20,
+        "Tool-call entropy per invocation (bits)",
+        "Entropy (bits)",
+        "Invocations",
+        p.charts / "74_tool_entropy_per_invocation.png",
+    )
+
+
+def _chart_diversity_by_agent_boxplot(s: MetricSlices, p: OutputPaths) -> None:
+    div = s.diversity_per_invocation
+    if div.empty or "agent_name_f" not in div.columns:
+        return
+    counts = div.groupby("agent_name_f").size().sort_values(ascending=False).head(8)
+    if counts.empty:
+        return
+    groups = {
+        agent: pd.to_numeric(
+            div.loc[div["agent_name_f"] == agent, "entropy_bits"], errors="coerce"
+        ).dropna()
+        for agent in counts.index
+    }
+    _boxplot(
+        groups,
+        "Tool-entropy distribution by agent (top 8)",
+        "Agent",
+        "Entropy (bits)",
+        p.charts / "75_tool_entropy_by_agent_boxplot.png",
+    )
+
+
+# ── NEW: Stuck streaks (76–77) ───────────────────────────────────────────────
+
+
+def _chart_stuck_streaks_hist(s: MetricSlices, p: OutputPaths) -> None:
+    ss = s.stuck_streaks
+    if ss.empty:
+        return
+    _hist(
+        ss["streak_len"],
+        max(5, min(20, int(ss["streak_len"].max()))),
+        "Stuck-streak length distribution (consecutive same-tool same-args)",
+        "Streak length",
+        "Streaks",
+        p.charts / "76_stuck_streak_lengths.png",
+    )
+
+
+def _chart_top_stuck_streaks_by_tool(s: MetricSlices, p: OutputPaths) -> None:
+    ss = s.stuck_streaks
+    if ss.empty:
+        return
+    by_tool = (
+        ss.groupby("tool_name_f")["streak_len"]
+        .max()
+        .sort_values(ascending=False)
+        .rename("max_streak")
+    )
+    if by_tool.empty:
+        return
+    _bar(
+        by_tool,
+        "Worst stuck streak by tool (max consecutive identical calls)",
+        "Tool",
+        "Max streak length",
+        p.charts / "77_max_stuck_streak_by_tool.png",
+        horizontal=True,
+        top_n=15,
+    )
+
+
+# ── NEW: Prompt-token trend (78) ─────────────────────────────────────────────
+
+
+def _chart_prompt_token_trend(s: MetricSlices, p: OutputPaths) -> None:
+    if s.llm.empty or not s.llm["ts"].notna().any():
+        return
+    llm = s.llm[
+        ["ts", "invocation_id_f", "prompt_tokens", "agent_name_f"]
+    ].dropna(subset=["ts"]).copy()
+    if llm.empty:
+        return
+    # Pick top N invocations by total prompt tokens
+    top_invs = (
+        llm.groupby("invocation_id_f")["prompt_tokens"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(5)
+        .index
+    )
+    sub = llm[llm["invocation_id_f"].isin(top_invs)].copy()
+    if sub.empty:
+        return
+    sub = sub.sort_values(["invocation_id_f", "ts"])
+    sub["call_seq"] = sub.groupby("invocation_id_f").cumcount() + 1
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+    for inv, group in sub.groupby("invocation_id_f"):
+        ax.plot(
+            group["call_seq"],
+            group["prompt_tokens"],
+            marker="o",
+            label=str(inv)[:12],
+        )
+    ax.set_title("Prompt tokens per LLM call (top 5 invocations)")
+    ax.set_xlabel("LLM call sequence")
+    ax.set_ylabel("Prompt tokens")
+    ax.legend(fontsize=8, loc="best")
+    _save_fig(fig, p.charts / "78_prompt_token_trend_top_invocations.png")
+
+
+# ── NEW: Error rate by agent (79) ────────────────────────────────────────────
+
+
+def _chart_error_rate_by_agent(s: MetricSlices, p: OutputPaths) -> None:
+    tc, tr, te = s.tool_calls, s.tool_results, s.tool_exc
+    if tc.empty:
+        return
+
+    calls = tc.groupby("agent_name_f").size().rename("calls")
+    result_errs = (
+        tr[tr["result_error"].fillna(False)]
+        .groupby("agent_name_f")
+        .size()
+        .rename("result_errors")
+        if not tr.empty
+        else pd.Series(dtype="int64")
+    )
+    exc_errs = (
+        te.groupby("agent_name_f").size().rename("exception_errors")
+        if not te.empty
+        else pd.Series(dtype="int64")
+    )
+
+    tbl = (
+        pd.concat([calls, result_errs, exc_errs], axis=1)
+        .reindex(columns=["calls", "result_errors", "exception_errors"], fill_value=0)
+        .fillna(0)
+    )
+    tbl["total_errors"] = tbl["result_errors"] + tbl["exception_errors"]
+    tbl["error_rate"] = tbl["total_errors"] / tbl["calls"].replace(0, pd.NA)
+    tbl = tbl.fillna(0)
+    filtered = tbl[tbl["calls"] >= _MIN_CALLS_FOR_ERROR_RATE].sort_values(
+        "error_rate", ascending=False
+    )
+    if filtered.empty:
+        return
+    _bar(
+        filtered["error_rate"],
+        f"Tool error rate by agent (min {_MIN_CALLS_FOR_ERROR_RATE} calls)",
+        "Agent",
+        "Error rate",
+        p.charts / "79_error_rate_by_agent.png",
+        horizontal=True,
+    )
+
+
+# ── NEW: Per-template success rate (80–81) ───────────────────────────────────
+
+
+def _chart_success_rate_by_template(s: MetricSlices, p: OutputPaths) -> None:
+    ts = s.template_summary
+    if ts.empty or (ts["finished"].sum() + ts["failed"].sum()) == 0:
+        return
+    series = (
+        ts.set_index("template_key")["success_rate"].sort_values(ascending=False)
+    )
+    if series.empty:
+        return
+    _bar(
+        series,
+        "Success rate by task template (finished / (finished + failed))",
+        "Template",
+        "Success rate",
+        p.charts / "80_success_rate_by_template.png",
+        horizontal=True,
+    )
+
+
+def _chart_avg_iterations_by_template(s: MetricSlices, p: OutputPaths) -> None:
+    ts = s.template_summary
+    if ts.empty or "avg_iterations" not in ts.columns:
+        return
+    series = (
+        ts.set_index("template_key")["avg_iterations"].sort_values(ascending=False)
+    )
+    series = series[series > 0]
+    if series.empty:
+        return
+    _bar(
+        series,
+        "Avg iterations until task done, by template",
+        "Template",
+        "Avg iterations",
+        p.charts / "81_avg_iterations_by_template.png",
+        horizontal=True,
+    )
+
+
 # ─── Chart pipeline ──────────────────────────────────────────────────────────
 
 _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]]] = [
@@ -2356,6 +3086,29 @@ _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]
     ("error_rate_by_iteration", _chart_error_rate_by_iteration),
     ("session_duration", _chart_session_duration),
     ("events_per_session", _chart_events_per_session),
+    # ── FS coverage (67–69) ──────────────────────────────────────────────
+    ("fs_coverage_by_agent", _chart_fs_coverage_by_agent),
+    ("read_amplification_by_agent", _chart_read_amplification_by_agent),
+    ("files_seen_by_agent", _chart_files_seen_by_agent),
+    # ── Re-read hotspots (70–71) ─────────────────────────────────────────
+    ("top_reread_files", _chart_top_reread_files),
+    ("reread_count_distribution", _chart_reread_count_distribution),
+    # ── Result-error clustering (72–73) ──────────────────────────────────
+    ("top_result_error_messages", _chart_top_result_error_messages),
+    ("result_errors_by_tool", _chart_result_errors_by_tool),
+    # ── Tool diversity (74–75) ───────────────────────────────────────────
+    ("diversity_per_invocation_hist", _chart_diversity_per_invocation_hist),
+    ("diversity_by_agent_boxplot", _chart_diversity_by_agent_boxplot),
+    # ── Stuck streaks (76–77) ────────────────────────────────────────────
+    ("stuck_streaks_hist", _chart_stuck_streaks_hist),
+    ("top_stuck_streaks_by_tool", _chart_top_stuck_streaks_by_tool),
+    # ── Prompt-token trend (78) ──────────────────────────────────────────
+    ("prompt_token_trend", _chart_prompt_token_trend),
+    # ── Error rate by agent (79) ─────────────────────────────────────────
+    ("error_rate_by_agent", _chart_error_rate_by_agent),
+    # ── Per-template (80–81) ─────────────────────────────────────────────
+    ("success_rate_by_template", _chart_success_rate_by_template),
+    ("avg_iterations_by_template", _chart_avg_iterations_by_template),
 ]
 
 
@@ -2453,6 +3206,52 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
                 ].reset_index(drop=True),
                 p.tables / "detected_retries.csv",
             )
+
+    # FS coverage
+    if not s.fs_coverage_by_agent.empty:
+        _save_table(
+            s.fs_coverage_by_agent.reset_index(),
+            p.tables / "fs_coverage_by_agent.csv",
+        )
+
+    # Re-read hotspots
+    if not s.reads_per_file.empty:
+        _save_table(s.reads_per_file, p.tables / "reads_per_file.csv")
+
+    # Result-error messages (overall + per tool)
+    if not s.result_error_messages.empty:
+        msgs = s.result_error_messages
+        _save_table(
+            msgs["error_message_short"]
+            .value_counts()
+            .head(50)
+            .reset_index()
+            .rename(columns={"index": "error_message", "count": "count"}),
+            p.tables / "top_result_error_messages.csv",
+        )
+        per_tool = (
+            msgs.groupby(["tool_name_f", "error_message_short"])
+            .size()
+            .rename("count")
+            .reset_index()
+            .sort_values(["tool_name_f", "count"], ascending=[True, False])
+        )
+        _save_table(per_tool, p.tables / "result_error_messages_by_tool.csv")
+
+    # Tool diversity per invocation
+    if not s.diversity_per_invocation.empty:
+        _save_table(
+            s.diversity_per_invocation.reset_index(),
+            p.tables / "tool_diversity_per_invocation.csv",
+        )
+
+    # Stuck streaks (length >= 2)
+    if not s.stuck_streaks.empty:
+        _save_table(s.stuck_streaks, p.tables / "stuck_streaks.csv")
+
+    # Per-template summary
+    if not s.template_summary.empty:
+        _save_table(s.template_summary, p.tables / "template_summary.csv")
 
 
 # ─── Main orchestrator ───────────────────────────────────────────────────────

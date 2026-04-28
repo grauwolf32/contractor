@@ -72,3 +72,49 @@ def mk_llm_response(total, prompt, candidates) -> MockRespose:
 
     resp.usage_metadata = usage
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Minimal LlmRequest / Content / Part stand-ins for callback tests.
+# The callbacks only access a small slice of the real google.adk types:
+#   request.contents (list)
+#   content.parts (list or None)
+#   part.text, part.function_response (with .parts and .response)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MockFunctionResponse:
+    parts: Any = None
+    response: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MockPart:
+    text: Optional[str] = None
+    function_response: Optional[MockFunctionResponse] = None
+
+
+@dataclass
+class MockContent:
+    role: str = "user"
+    parts: Optional[list[MockPart]] = None
+
+
+@dataclass
+class MockLlmRequest:
+    contents: list[Any] = field(default_factory=list)
+
+
+def mk_llm_request(contents: Optional[list[Any]] = None) -> MockLlmRequest:
+    return MockLlmRequest(contents=list(contents or []))
+
+
+def mk_function_response_part(response: Optional[dict[str, Any]] = None) -> MockPart:
+    return MockPart(
+        function_response=MockFunctionResponse(response=dict(response or {}))
+    )
+
+
+def mk_text_part(text: str) -> MockPart:
+    return MockPart(text=text)

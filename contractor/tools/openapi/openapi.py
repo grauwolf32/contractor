@@ -105,35 +105,40 @@ class OpenApiArtifact:
     def openapi_key(self) -> str:
         return f"user:oas-{self.name}"
 
+    async def _save_schema_locked(self, ctx: ToolContext) -> int:
+        artifact = types.Part.from_text(text=self.dump())
+        meta = self.meta()
+        self.version = await ctx.save_artifact(self.openapi_key(), artifact, meta)
+        return self.version
+
+    async def _load_schema_locked(self, ctx: ToolContext) -> dict[str, Any]:
+        artifact = await ctx.load_artifact(filename=self.openapi_key())
+        if artifact is None:
+            self.schema = copy.deepcopy(openapi_base_schema)
+            return self.schema
+
+        self.schema = yaml.safe_load(artifact.text)
+        return self.schema
+
     async def save_schema(self, ctx: ToolContext) -> int:
         async with self._lock:
-            artifact = types.Part.from_text(text=self.dump())
-            meta = self.meta()
-            self.version = await ctx.save_artifact(self.openapi_key(), artifact, meta)
-
-        return self.version
+            return await self._save_schema_locked(ctx)
 
     async def load_schema(self, ctx: ToolContext) -> dict[str, Any]:
         async with self._lock:
-            artifact = await ctx.load_artifact(filename=self.openapi_key())
-            if artifact is None:
-                self.schema = openapi_base_schema
-                return self.schema
-
-            self.schema = yaml.safe_load(artifact.text)
-
-        return self.schema
+            return await self._load_schema_locked(ctx)
 
     async def update_schema(self, diff: dict[str, Any], ctx: ToolContext) -> DictDiff:
-        await self.load_schema(ctx)
+        async with self._lock:
+            await self._load_schema_locked(ctx)
 
-        schema = copy.deepcopy(self.schema)
-        schema = deep_merge(schema, diff)
-        schema_diff: DictDiff = dict_diff(self.schema, schema)
+            schema = copy.deepcopy(self.schema)
+            schema = deep_merge(schema, diff)
+            schema_diff: DictDiff = dict_diff(self.schema, schema)
 
-        self.schema = schema
+            self.schema = schema
 
-        await self.save_schema(ctx)
+            await self._save_schema_locked(ctx)
 
         return schema_diff
 
@@ -244,7 +249,7 @@ def openapi_tools(
         else:
             return {"error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path)}
 
-        diff = dict_diff(oas.schema, current)
+        diff = dict_diff(current, oas.schema)
         await oas.save_schema(tool_context)
 
         return {"result": asdict(diff)}
@@ -359,7 +364,7 @@ def openapi_tools(
                 )
             }
 
-        diff = dict_diff(oas.schema, current)
+        diff = dict_diff(current, oas.schema)
         await oas.save_schema(tool_context)
 
         return {"result": asdict(diff)}

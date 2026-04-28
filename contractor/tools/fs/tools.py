@@ -14,7 +14,10 @@ from typing import (
 )
 
 import fsspec
+from google.adk.tools.tool_context import ToolContext
+
 from contractor.tools.fs.const import (
+    FS_COVERAGE_STATE_KEY,
     INCORRECT_REGEXP_ERROR,
     PATH_NOT_FOUND_ERROR,
     PATH_IS_NOT_A_FILE_ERROR,
@@ -45,6 +48,20 @@ from contractor.tools.fs.format import FileFormat
 ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]
 PatchPayload: TypeAlias = dict[str, Any] | str
+
+
+def _push_fs_coverage(
+    tool_context: ToolContext | None, snapshot: dict[str, int]
+) -> None:
+    if tool_context is None:
+        return
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return
+    try:
+        state[FS_COVERAGE_STATE_KEY] = snapshot
+    except Exception:
+        pass
 
 
 def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list[str]:
@@ -258,6 +275,26 @@ class FsspecInteractionFileTools:
                 }
                 for path, entry in sorted(self._interactions.items())
             },
+        }
+
+    def coverage_stats(self) -> dict[str, int]:
+        files_read = 0
+        files_matched = 0
+        total_reads = 0
+        total_matches = 0
+        for entry in self._interactions.values():
+            if entry.has_read:
+                files_read += 1
+            if entry.has_match:
+                files_matched += 1
+            total_reads += entry.read_count
+            total_matches += entry.match_count
+        return {
+            "files_seen": len(self._interactions),
+            "files_read": files_read,
+            "files_matched": files_matched,
+            "total_reads": total_reads,
+            "total_matches": total_matches,
         }
 
     def ls(self, path: str) -> ToolResult:
@@ -606,18 +643,22 @@ def ro_file_tools(
         file: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """
         Read text content from a file.
         """
         offset = _ensure_int_or_none(offset)
         limit = _ensure_int_or_none(limit)
-        return tools.read_file(file_path=file, offset=offset, limit=limit)
+        result = tools.read_file(file_path=file, offset=offset, limit=limit)
+        _push_fs_coverage(tool_context, tools.coverage_stats())
+        return result
 
     def grep(
         pattern: str,
         path: Optional[str] = None,
         offset: int = 0,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression.
@@ -626,7 +667,9 @@ def ro_file_tools(
          - be more specific, avoid too general patterns like .*
         """
         offset = _ensure_int_or_none(offset) or 0
-        return tools.grep(pattern=pattern, path=path, offset=offset)
+        result = tools.grep(pattern=pattern, path=path, offset=offset)
+        _push_fs_coverage(tool_context, tools.coverage_stats())
+        return result
 
     def interaction_stats(
         path: str = "/",
@@ -1138,6 +1181,9 @@ class FsspecWriteTools:
         self._reader.reset_interactions()
         return {"result": "ok"}
 
+    def coverage_stats(self) -> dict[str, int]:
+        return self._reader.coverage_stats()
+
     def insert_line(
         self,
         path: str,
@@ -1606,6 +1652,7 @@ def rw_file_tools(
         offset: Optional[int] = None,
         limit: Optional[int] = None,
         with_line_numbers: bool = False,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """
         Read text content from a file.
@@ -1640,17 +1687,20 @@ def rw_file_tools(
 
         offset = _ensure_int_or_none(offset)
         limit = _ensure_int_or_none(limit)
-        return tools.read_file(
+        result = tools.read_file(
             file_path=file,
             offset=offset,
             limit=limit,
             with_line_numbers=bool(with_line_numbers),
         )
+        _push_fs_coverage(tool_context, tools.coverage_stats())
+        return result
 
     def grep(
         pattern: str,
         path: Optional[str] = None,
         offset: int = 0,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """
         Search file contents using a regular expression in the overlay-visible tree.
@@ -1659,7 +1709,9 @@ def rw_file_tools(
          - be more specific, avoid too general patterns like .*
         """
         offset = _ensure_int_or_none(offset) or 0
-        return tools.grep(pattern=pattern, path=path, offset=offset)
+        result = tools.grep(pattern=pattern, path=path, offset=offset)
+        _push_fs_coverage(tool_context, tools.coverage_stats())
+        return result
 
     def write_file(
         path: str,

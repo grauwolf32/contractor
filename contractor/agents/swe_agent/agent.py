@@ -56,7 +56,7 @@ def build_swe_agent(
     model: Optional[LiteLlm] = None,
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-    fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=format))
+    fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
 
     tools = [default_tool, *fs_tools, *mem_tools, *ctools]

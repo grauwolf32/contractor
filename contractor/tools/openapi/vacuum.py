@@ -324,7 +324,8 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
             return {"error": str(exc)}
 
         try:
-            result = linter.lint(
+            result = await asyncio.to_thread(
+                linter.lint,
                 openapi_str=openapi_str,
                 limit=limit,
             )

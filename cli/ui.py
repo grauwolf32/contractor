@@ -5,6 +5,7 @@ import json
 import textwrap
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Deque, Optional
 
 from rich.console import Console, Group, RenderableType
@@ -22,6 +23,101 @@ TOP_PANEL_HEIGHT = 6
 EVENT_HISTORY_LIMIT = 200
 
 
+def render_artifact_summary(
+    output_dir: Path,
+    saved_paths: list[Path],
+    *,
+    console: Optional[Console] = None,
+) -> None:
+    """Print the post-run artifact summary, grouped by top-level prefix.
+
+    Renders the output directory as a ``file://`` URL so terminals that
+    support it can open it. No-ops when ``saved_paths`` is empty.
+    """
+    if not saved_paths:
+        return
+
+    console = console or Console()
+
+    grouped: dict[str, list[str]] = {}
+    standalone: list[str] = []
+    for path in saved_paths:
+        rel = path.relative_to(output_dir).as_posix()
+        head, sep, tail = rel.partition("/")
+        if sep:
+            grouped.setdefault(head, []).append(tail)
+        else:
+            standalone.append(rel)
+
+    folder_url = output_dir.resolve().as_uri()
+    body_parts: list[RenderableType] = [
+        Text.from_markup(f"[bold]Folder:[/bold] [link={folder_url}]{folder_url}[/link]"),
+        Text(""),
+    ]
+
+    for group in sorted(grouped):
+        body_parts.append(Text(f"{group}/", style="bold cyan"))
+        for entry in sorted(grouped[group]):
+            body_parts.append(Text(f"  - {entry}", style="white"))
+        body_parts.append(Text(""))
+
+    if standalone:
+        body_parts.append(Text("(top-level)", style="bold cyan"))
+        for entry in sorted(standalone):
+            body_parts.append(Text(f"  - {entry}", style="white"))
+
+    console.print(
+        Panel(
+            Group(*body_parts),
+            title=f"Artifacts ({len(saved_paths)})",
+            border_style="green",
+            padding=(0, 1),
+            expand=True,
+        )
+    )
+
+
+def interactive_prompt(
+    pipeline_name: str,
+    *,
+    title: str = "Interactive prompt",
+    hint: str = "Describe what you want the router to do.",
+    console: Optional[Console] = None,
+) -> str:
+    """Show a dedicated input screen and return the user's prompt.
+
+    Renders a single Rich panel as the input "screen", then reads a line
+    from stdin via ``Console.input``. Loops until the user enters a
+    non-empty line.
+    """
+    console = console or Console()
+    while True:
+        console.clear()
+        console.print(
+            Panel(
+                Group(
+                    Text(f"Pipeline: {pipeline_name}", style="bold cyan"),
+                    Text(""),
+                    Text(hint, style="white"),
+                    Text(""),
+                    Text("Press Enter to submit. Ctrl+C to abort.", style="dim"),
+                ),
+                title=title,
+                border_style="cyan",
+                padding=(1, 2),
+                expand=True,
+            )
+        )
+        try:
+            text = console.input("[bold cyan]> [/bold cyan]").strip()
+        except (EOFError, KeyboardInterrupt):
+            raise
+
+        if text:
+            return text
+        console.print("[yellow]Prompt must not be empty.[/yellow]")
+
+
 @dataclass
 class UiState:
     pipeline_name: str
@@ -32,6 +128,8 @@ class UiState:
     current_task_index: int = 0
     current_iteration: Optional[int] = None
     current_max_attempts: Optional[int] = None
+
+    pipeline_phase: Optional[str] = None
 
     events: Deque[EventView] = field(
         default_factory=lambda: deque(maxlen=EVENT_HISTORY_LIMIT)
@@ -83,7 +181,17 @@ class LiveRenderer:
         event_type = getattr(event, "type", "") or ""
         payload = getattr(event, "payload", {}) or {}
 
+        if event_type == "pipeline_started":
+            self.state.pipeline_phase = str(payload.get("phase") or "initializing")
+            self.state.current_task_name = "initializing pipeline…"
+            return
+
+        if event_type == "pipeline_finished":
+            self.state.pipeline_phase = "ok" if payload.get("ok") else "failed"
+            return
+
         if event_type == "run_started":
+            self.state.pipeline_phase = "running"
             self.state.total_tasks = int(payload.get("total_tasks") or 0)
             self.state.completed_tasks = int(payload.get("completed_tasks") or 0)
             return
@@ -158,9 +266,13 @@ class LiveRenderer:
         grid.add_column(ratio=1)
         grid.add_column(ratio=1)
 
+        pipeline_text = f"Pipeline: {self.state.pipeline_name}"
+        if self.state.pipeline_phase:
+            pipeline_text += f" [{self.state.pipeline_phase}]"
+
         left = Group(
             Text(
-                f"Pipeline: {self.state.pipeline_name}",
+                pipeline_text,
                 style="bold cyan",
                 no_wrap=False,
                 overflow="fold",
@@ -327,6 +439,12 @@ def _normalize_event(event: Any) -> Optional[EventView]:
     event_type = getattr(event, "type", "") or ""
     payload = getattr(event, "payload", {}) or {}
 
+    if event_type == "pipeline_started":
+        return _fmt_pipeline_started_event(payload)
+
+    if event_type == "pipeline_finished":
+        return _fmt_pipeline_finished_event(payload)
+
     if event_type == "run_started":
         return _fmt_run_started_event(payload)
 
@@ -358,6 +476,27 @@ def _normalize_event(event: Any) -> Optional[EventView]:
         return _fmt_task_failed_event(event, payload)
 
     return None
+
+
+def _fmt_pipeline_started_event(payload: dict[str, Any]) -> EventView:
+    pipeline = payload.get("pipeline") or "—"
+    return EventView(
+        event_type="pipeline_started",
+        title=f"Pipeline starting: {pipeline}",
+        body="Constructing agents and runner…",
+        tone="info",
+    )
+
+
+def _fmt_pipeline_finished_event(payload: dict[str, Any]) -> EventView:
+    pipeline = payload.get("pipeline") or "—"
+    ok = bool(payload.get("ok"))
+    return EventView(
+        event_type="pipeline_finished",
+        title=f"Pipeline finished: {pipeline}",
+        body="status: ok" if ok else "status: failed",
+        tone="success" if ok else "error",
+    )
 
 
 def _fmt_run_started_event(payload: dict[str, Any]) -> EventView:

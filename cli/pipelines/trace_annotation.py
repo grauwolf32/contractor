@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 from functools import partial
 
-from google.adk.artifacts import BaseArtifactService
 from google.adk.models import LiteLlm
 from google.genai import types
 
@@ -17,7 +16,7 @@ from contractor.runners.task_runner import (
 from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
 
-from cli.pipelines import PipelineContext, persist_seed_artifact
+from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -96,28 +95,27 @@ def extract_openapi_paths(
     return paths
 
 
-@dataclass
-class AnnotationRunner:
-    app_name: str
-    llm: LiteLlm
-    fs: MemoryOverlayFileSystem
-    artifact_service: BaseArtifactService
-    paths: list[OpenApiPath] = field(default_factory=list)
+class TraceAnnotationPipeline(Pipeline):
     namespace: str = "openapi"
-    folder: str = "/"
-    overlayfs: MemoryOverlayFileSystem = field(init=False)
 
-    def __post_init__(self):
+    def __init__(self, ctx: PipelineContext) -> None:
+        super().__init__(ctx)
+        self.llm = LiteLlm(model=ctx.model)
+        self.fs = RootedLocalFileSystem(root_path=ctx.project_path)
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
+        self.paths: list[OpenApiPath] = []
 
-    async def run(
+    async def _run_impl(
         self,
         *,
-        user_id: str = "cli-user",
-        on_event: Optional[TaskRunnerEventHandler] = None,
-    ):
-        raw = await self.artifact_service.load_artifact(
-            app_name=self.app_name,
+        user_id: str,
+        on_event: Optional[TaskRunnerEventHandler],
+    ) -> Any:
+        ctx = self.ctx
+        await persist_seed_artifact(ctx, filename="oas-openapi-building")
+
+        raw = await ctx.artifact_service.load_artifact(
+            app_name=ctx.app_name,
             user_id=user_id,
             filename=f"oas-{self.namespace}-building",
         )
@@ -128,23 +126,23 @@ class AnnotationRunner:
         self.paths = extract_openapi_paths(openapi=openapi)
 
         for api_path in self.paths:
-            fs_state_artifact = await self.artifact_service.load_artifact(
-                app_name=self.app_name,
+            fs_state_artifact = await ctx.artifact_service.load_artifact(
+                app_name=ctx.app_name,
                 user_id=user_id,
                 filename=f"trace-{self.namespace}-fs",
             )
             if fs_state_artifact:
                 self.overlayfs.load(json.loads(fs_state_artifact.text))
 
-            await self.run_path_analysis(
+            await self._run_path_analysis(
                 api_path,
                 user_id=user_id,
                 on_event=on_event,
             )
 
             artifact_text = types.Part.from_text(text=json.dumps(self.overlayfs.save()))
-            await self.artifact_service.save_artifact(
-                app_name=self.app_name,
+            await ctx.artifact_service.save_artifact(
+                app_name=ctx.app_name,
                 user_id=user_id,
                 filename=f"trace-{self.namespace}-fs",
                 artifact=artifact_text,
@@ -153,20 +151,21 @@ class AnnotationRunner:
             artifact_text = types.Part.from_text(
                 text=self.overlayfs.diff(context_lines=4)
             )
-            await self.artifact_service.save_artifact(
-                app_name=self.app_name,
+            await ctx.artifact_service.save_artifact(
+                app_name=ctx.app_name,
                 user_id=user_id,
                 filename=f"trace-{self.namespace}-diff",
                 artifact=artifact_text,
             )
 
-    async def run_path_analysis(
+    async def _run_path_analysis(
         self,
         api_path: OpenApiPath,
         *,
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
-    ):
+    ) -> None:
+        ctx = self.ctx
         trace_builder = partial(
             build_trace_agent,
             name="trace_agent",
@@ -178,10 +177,10 @@ class AnnotationRunner:
 
         runner = TaskRunner(
             name="contractor",
-            artifact_service=self.artifact_service,
+            artifact_service=ctx.artifact_service,
         )
 
-        runner.add_variable(name="project_path", value=self.folder)
+        runner.add_variable(name="project_path", value=ctx.folder_name)
 
         path_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
 
@@ -207,15 +206,3 @@ class AnnotationRunner:
             )
 
         await runner.run(user_id=user_id, on_event=on_event)
-
-
-async def trace_annotation_pipeline(ctx: PipelineContext) -> AnnotationRunner:
-    await persist_seed_artifact(ctx, filename="oas-openapi-building")
-
-    return AnnotationRunner(
-        app_name=ctx.app_name,
-        llm=LiteLlm(model=ctx.model),
-        fs=RootedLocalFileSystem(root_path=ctx.project_path),
-        artifact_service=ctx.artifact_service,
-        folder=ctx.folder_name,
-    )

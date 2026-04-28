@@ -18,13 +18,15 @@ from contractor.runners.task_runner import (
 from cli.metrics import MetricsSink
 from cli.pipelines import PipelineContext, get_pipelines
 from cli.render import _render_event
-from cli.ui import LiveRenderer
+from cli.ui import LiveRenderer, interactive_prompt, render_artifact_summary
 from cli.utils import (
     remove_artifacts,
     save_artifact,
     validate_folder_name,
     validate_project_path,
 )
+
+PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
 
 load_dotenv()
 
@@ -45,7 +47,13 @@ _QUIET_LOGGERS = (
     "opentelemetry",
 )
 
-_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed"})
+_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed", "pipeline_finished"})
+
+# High-volume / non-user-facing events. Persisted to metrics.jsonl when they
+# match, but never forwarded to the live UI (they would just flood it).
+_UI_SKIP_EVENT_TYPES = frozenset(
+    {"adk_before_run", "adk_after_run", "adk_event"}
+)
 
 
 def _setup_logging() -> None:
@@ -96,13 +104,17 @@ def _build_event_handler(
         ui.start()
 
     async def handle(event: TaskRunnerEvent) -> None:
+        event_type = getattr(event, "type", "") or ""
+
         if metrics.matches(event):
             await metrics.write(event)
+
+        if event_type.startswith("metrics_") or event_type in _UI_SKIP_EVENT_TYPES:
             return
 
         if ui is not None:
             ui.on_event(event)
-            if (getattr(event, "type", "") or "") in _UI_STOP_EVENTS:
+            if event_type in _UI_STOP_EVENTS:
                 ui.stop()
             return
 
@@ -120,6 +132,7 @@ async def async_main(
     model: str,
     pipeline: str,
     artifact: Optional[str],
+    prompt: Optional[str],
     output_dir: Path,
     rm_artifacts: bool,
     enable_ui: bool,
@@ -136,7 +149,7 @@ async def async_main(
             artifact_service=artifact_service,
         )
 
-    spec = get_pipelines()[pipeline]
+    pipeline_cls = get_pipelines()[pipeline]
     ctx = PipelineContext(
         project_path=project_path,
         folder_name=folder_name,
@@ -145,19 +158,21 @@ async def async_main(
         user_id=user_id,
         artifact_service=artifact_service,
         artifact=artifact,
+        prompt=prompt,
     )
 
-    runner = await spec.builder(ctx)
+    runner = pipeline_cls(ctx)
     handler = _build_event_handler(output_dir, pipeline, enable_ui=enable_ui)
 
     await runner.run(user_id=user_id, on_event=handler)
 
-    await save_artifact(
+    saved_paths = await save_artifact(
         app_name=APP_NAME,
         user_id=user_id,
         output_dir=output_dir,
         artifact_service=artifact_service,
     )
+    render_artifact_summary(output_dir, saved_paths)
 
 
 @click.command(name=APP_NAME)
@@ -202,6 +217,15 @@ async def async_main(
     show_default=True,
     help="Model name to use for the task",
 )
+@click.option(
+    "--prompt",
+    type=str,
+    default=None,
+    help=(
+        "User prompt for prompt-driven pipelines (e.g. router). "
+        "Required with --no-ui; otherwise an interactive input screen is shown."
+    ),
+)
 @click.option("--rm", is_flag=True, help="Remove previous artifacts")
 @click.option(
     "-o",
@@ -216,6 +240,7 @@ def main(
     project_path: Path,
     folder_name: str,
     artifact: Optional[str],
+    prompt: Optional[str],
     output: Optional[Path],
     user_id: str,
     model: str,
@@ -231,6 +256,13 @@ def main(
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if pipeline in PROMPT_REQUIRED_PIPELINES and not prompt:
+        if no_ui:
+            raise click.UsageError(
+                f"--prompt is required for pipeline '{pipeline}' when --no-ui is set"
+            )
+        prompt = interactive_prompt(pipeline_name=pipeline)
+
     asyncio.run(
         async_main(
             project_path=project_path,
@@ -239,6 +271,7 @@ def main(
             model=model,
             pipeline=pipeline,
             artifact=artifact,
+            prompt=prompt,
             rm_artifacts=rm,
             output_dir=output_dir,
             enable_ui=not no_ui,

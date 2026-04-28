@@ -65,8 +65,32 @@ def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
         f.write("\n")
 
 
+# Non-metrics_* event types that the analyzer also consumes. Keeping these
+# in metrics.jsonl gives us invocation durations, agent transitions, and
+# per-template success/iteration stats without a second sink.
+_LIFECYCLE_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "adk_before_run",
+        "adk_after_run",
+        "adk_event",
+        "pipeline_started",
+        "pipeline_finished",
+        "run_started",
+        "run_finished",
+        "task_started",
+        "task_finished",
+        "task_failed",
+        "iteration_started",
+        "iteration_finished",
+        "iteration_result",
+        "global_task_finished",
+        "final_text",
+    }
+)
+
+
 class MetricsSink:
-    """Filters metrics_* events and persists them to a JSONL file."""
+    """Filters metrics_* and lifecycle events and persists them to a JSONL file."""
 
     def __init__(self, output_dir: Path) -> None:
         self._path = output_dir / "metrics.jsonl"
@@ -75,7 +99,9 @@ class MetricsSink:
     @staticmethod
     def matches(event: TaskRunnerEvent) -> bool:
         event_type = getattr(event, "type", "") or ""
-        return event_type.startswith("metrics_")
+        if event_type.startswith("metrics_"):
+            return True
+        return event_type in _LIFECYCLE_EVENT_TYPES
 
     async def write(self, event: TaskRunnerEvent) -> None:
         record = _event_to_record(event)
