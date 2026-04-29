@@ -18,7 +18,7 @@ from contractor.callbacks.guardrails import (
 )
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.code import code_tools
-from contractor.tools.fs import FileFormat, ro_file_tools
+from contractor.tools.fs import FileFormat, rw_file_tools
 from contractor.tools.likec4 import likec4_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (
@@ -62,9 +62,13 @@ def build_likec4_builder_agent(
     model: Optional[LiteLlm] = None,
 ) -> LlmAgent:
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-    fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
+    fs_tools = rw_file_tools(
+        fs,
+        fmt=FileFormat(_format=_format),
+        with_interaction_tools=True,
+    )
     ctools = code_tools(fs=fs)
-    c4_tools = likec4_tools()
+    c4_tools = likec4_tools(fs=fs)
 
     tools = [default_tool, *fs_tools, *mem_tools, *ctools, *c4_tools]
 

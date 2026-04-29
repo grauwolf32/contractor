@@ -83,16 +83,46 @@ class OutputPaths:
     tables: Path
 
     @classmethod
-    def from_args(cls, input_file: Path, output_dir: Path | None) -> OutputPaths:
-        input_file = input_file.resolve()
-        root = (
-            output_dir.resolve() if output_dir else input_file.parent / "metrics_report"
-        )
+    def for_root(cls, root: Path) -> OutputPaths:
         charts = root / "charts"
         tables = root / "tables"
         charts.mkdir(parents=True, exist_ok=True)
         tables.mkdir(parents=True, exist_ok=True)
         return cls(root=root, charts=charts, tables=tables)
+
+    @classmethod
+    def base_from_args(cls, input_file: Path, output_dir: Path | None) -> Path:
+        input_file = input_file.resolve()
+        base = (
+            output_dir.resolve() if output_dir else input_file.parent / "metrics_report"
+        )
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+
+
+# Charts and tables that aggregate *across* tasks/templates. These are emitted
+# in the global scope only — running them on a single-task slice would produce
+# a one-bar chart or a one-row table.
+_CROSS_TASK_CHART_NAMES: frozenset[str] = frozenset(
+    {
+        "total_tokens_by_task",
+        "tool_calls_by_task",
+        "avg_tokens_by_task",
+        "task_calls_vs_tokens",
+        "cost_by_task",
+        "success_rate_by_template",
+        "avg_iterations_by_template",
+    }
+)
+
+_CROSS_TASK_TABLE_NAMES: frozenset[str] = frozenset(
+    {"tokens_by_task.csv", "cost_by_task.csv", "template_summary.csv"}
+)
+
+
+def _sanitize_task_name(name: str) -> str:
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(name))
+    return safe[:120] or "unnamed_task"
 
 
 # ─── Data loading & normalisation ─────────────────────────────────────────────
@@ -3160,7 +3190,12 @@ _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]
 # ─── Tables pipeline ─────────────────────────────────────────────────────────
 
 
-def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
+def _emit_tables(s: MetricSlices, p: OutputPaths, *, skip_cross_task: bool = False) -> None:
+    def _emit(df: pd.DataFrame, filename: str) -> None:
+        if skip_cross_task and filename in _CROSS_TASK_TABLE_NAMES:
+            return
+        _save_table(df, p.tables / filename)
+
     _save_table(
         s.all.drop(columns=["raw", "payload", "tool_args", "result"], errors="ignore"),
         p.tables / "events_flat.csv",
@@ -3179,7 +3214,7 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
         )
 
     if not s.tokens_by_task.empty:
-        _save_table(s.tokens_by_task.reset_index(), p.tables / "tokens_by_task.csv")
+        _emit(s.tokens_by_task.reset_index(), "tokens_by_task.csv")
 
     if not s.llm.empty:
         llm_calls = (
@@ -3225,7 +3260,7 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
             .sum()
             .sort_values(ascending=False)
         )
-        _save_table(cost_by_task.reset_index(), p.tables / "cost_by_task.csv")
+        _emit(cost_by_task.reset_index(), "cost_by_task.csv")
 
         cost_by_model = (
             s.llm_with_cost.groupby(
@@ -3296,13 +3331,15 @@ def _emit_tables(s: MetricSlices, p: OutputPaths) -> None:
 
     # Per-template summary
     if not s.template_summary.empty:
-        _save_table(s.template_summary, p.tables / "template_summary.csv")
+        _emit(s.template_summary, "template_summary.csv")
 
 
 # ─── Main orchestrator ───────────────────────────────────────────────────────
 
 
-def analyze(df: pd.DataFrame, paths: OutputPaths) -> None:
+def analyze(
+    df: pd.DataFrame, paths: OutputPaths, *, skip_cross_task: bool = False
+) -> None:
     if df.empty:
         summary = compute_summary(df)
         (paths.root / "summary.json").write_text(
@@ -3322,12 +3359,16 @@ def analyze(df: pd.DataFrame, paths: OutputPaths) -> None:
     write_markdown_report(df, summary, paths.root / "report.md")
 
     # Tables
-    _emit_tables(slices, paths)
+    _emit_tables(slices, paths, skip_cross_task=skip_cross_task)
 
     # Charts — each isolated so one failure doesn't abort the rest
     generated = 0
+    skipped = 0
     failed = 0
     for chart_name, chart_fn in _CHART_PIPELINE:
+        if skip_cross_task and chart_name in _CROSS_TASK_CHART_NAMES:
+            skipped += 1
+            continue
         try:
             chart_fn(slices, paths)
             generated += 1
@@ -3336,8 +3377,9 @@ def analyze(df: pd.DataFrame, paths: OutputPaths) -> None:
             logger.warning("Chart '%s' failed:\n%s", chart_name, traceback.format_exc())
 
     logger.info(
-        "Charts complete: %d generated, %d failed out of %d",
+        "Charts complete: %d generated, %d skipped, %d failed out of %d",
         generated,
+        skipped,
         failed,
         len(_CHART_PIPELINE),
     )
@@ -3365,11 +3407,35 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = parse_args()
     input_path = args.input.resolve()
-    paths = OutputPaths.from_args(input_path, args.output_dir)
+    base = OutputPaths.base_from_args(input_path, args.output_dir)
     records = load_jsonl(input_path)
     df = normalize_records(records)
-    analyze(df, paths)
-    print(f"Done. Report written to: {paths.root}")
+
+    global_paths = OutputPaths.for_root(base / "global")
+    logger.info("Running global analysis → %s", global_paths.root)
+    analyze(df, global_paths)
+
+    if not df.empty:
+        task_names = sorted(df["task_name"].dropna().unique().tolist())
+        seen: dict[str, int] = {}
+        for task_name in task_names:
+            safe = _sanitize_task_name(task_name)
+            # Disambiguate collisions from sanitization (e.g. "a/b" and "a:b" both → "a_b")
+            count = seen.get(safe, 0)
+            seen[safe] = count + 1
+            folder = safe if count == 0 else f"{safe}__{count + 1}"
+
+            task_df = df[df["task_name"] == task_name].copy()
+            task_paths = OutputPaths.for_root(base / "tasks" / folder)
+            logger.info(
+                "Running task analysis for %r (%d rows) → %s",
+                task_name,
+                len(task_df),
+                task_paths.root,
+            )
+            analyze(task_df, task_paths, skip_cross_task=True)
+
+    print(f"Done. Reports written under: {base}")
 
 
 if __name__ == "__main__":

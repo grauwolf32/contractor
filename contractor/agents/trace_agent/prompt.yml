@@ -52,23 +52,110 @@
       Do not use any other annotation format.
 
       ==================================================
-      4. SINKS CATALOGUE
+      4. SINKS CATALOGUE & PER-SINK CHECKLIST
       ==================================================
 
-      - filesystem.read
-      - filesystem.write
-      - db.query
-      - db.exec
-      - http.request
-      - shell.exec
-      - template.render
-      - object.deserialize
-      - cache.read
-      - cache.write
-      - queue.publish
+      Catalogue (label sinks only when directly performed or clearly wrapped):
 
-      Only annotate a sink if the function directly performs it or clearly wraps it.
-      Do NOT label a call as a sink unless the code supports it.
+        filesystem.read   filesystem.write   filesystem.delete   filesystem.path.join
+        db.query          db.exec            db.query.raw        db.exec.raw         db.orm.bulk
+        shell.exec        shell.exec.args    process.env.write
+        http.request      http.redirect      dns.lookup          socket.connect      smtp.send
+        template.render   template.render.raw  html.render        pdf.render
+        parser.process    parser.yaml.unsafe   parser.pickle      serializer.encode   serializer.decode
+        cache.read        cache.write          queue.publish      queue.consume
+        crypto.key.derive crypto.random.seed   crypto.sign        secret.log
+        auth.token.create auth.token.verify    authz.policy.eval  auth.password.check auth.password.hash
+        reflect.eval      reflect.import       reflect.attr
+        log.write         metric.record        audit.write
+        cookie.set
+        ldap.query        nosql.query          xpath.query
+
+      Per-sink checklist — for each sink on the traced path, walk its row.
+      A "no required control" answer is a candidate finding. Reaching a sink
+      alone is NOT a vulnerability.
+
+      filesystem.* (read/write/delete/path.join):
+        - path attacker-controlled (tainted/derived)?
+        - destination confined (allowlist, normalize+prefix-check, no `..`)?
+        - for write/delete: content/target attacker-controlled?
+        → Path Traversal / Arbitrary Read|Write|Delete.
+
+      db.query.raw / db.exec.raw:
+        - tainted data inside concat / f-string / %-format / text()-substitution?
+        - controls QUERY STRUCTURE (not just parameter values)?
+        → SQL Injection. Parameterized ORM (db.query, db.exec) is NOT this sink.
+
+      shell.exec / shell.exec.args:
+        - shell=True or tainted token in command string?
+        - allowlist or exec-with-args (no shell)?
+        → OS Command Injection / RCE.
+
+      http.request:
+        - URL/host attacker-controlled? Outbound allowlist?
+        - internal/metadata addresses blocked?
+        → SSRF.
+
+      http.redirect:
+        - target URL attacker-controlled and validated against allowlist?
+        → Open Redirect.
+
+      template.render.raw / html.render:
+        - tainted data rendered without auto-escape or explicit escape?
+        - template selected from tainted input?
+        - render call visible in THIS service's traced path?
+        → SSTI / XSS. (Data persisted to DB and rendered elsewhere is out
+        of scope unless the render path is also traced.)
+
+      parser.pickle / parser.yaml.unsafe / serializer.decode:
+        - input attacker-controlled? Deserializer safe (yaml.safe_load, JSON)?
+        → Insecure Deserialization / RCE.
+
+      reflect.eval / reflect.import / reflect.attr / db.orm.bulk:
+        - symbol / expression / field-set attacker-controlled?
+        - allowlist of permitted keys?
+        → RCE / Mass Assignment.
+
+      auth.token.create  AND  auth.token.verify  — CHECK AS A PAIR:
+        - real cryptographic signature on create (HMAC/JWT lib)?
+        - verify actually reads AND compares the signature?
+          (Common bug: payload decoded but signature never checked.)
+        - verify checks exp / nbf / iss / aud where present?
+        - signing key hardcoded? Algorithm pinned (no `none`)?
+        → Token Forgery / Privilege Escalation / Replay.
+
+      auth.password.hash / auth.password.check:
+        - slow KDF (bcrypt/argon2/scrypt) with salt? Constant-time compare?
+        - plaintext storage or `===` comparison?
+        → Credential Compromise.
+
+      authz.policy.eval (or absence thereof):
+        - subject identity tied to the resource being accessed?
+        - ownership / RBAC enforced on this handler?
+        → Broken Access Control / IDOR.
+
+      response with domain object:
+        - object passed through a sanitizer/projection?
+        - sensitive fields (password, apiKey, token, paymentMemo) excluded?
+        - sibling handler returning the same object DOES sanitize but this
+          one doesn't → Shape C finding (see §8).
+        → Sensitive Data Exposure.
+
+      cookie.set on session/auth:
+        - HttpOnly, Secure, SameSite all set?
+        → Session Fixation / Theft.
+
+      crypto.random.seed / crypto.key.derive:
+        - CSPRNG used for security-relevant values? Adequate key length?
+        → Weak Randomness / Weak Key Material.
+
+      log.write / secret.log:
+        - secrets, credentials, or PII written to logs?
+        → Sensitive Data Exposure.
+
+      ldap.query / nosql.query / xpath.query / smtp.send:
+        - tainted data interpolated into query/header structure?
+        → LDAP / NoSQL / XPath Injection / Email Header Injection.
 
       ==================================================
       5. ARGUMENT / DATA STATE RULES
@@ -114,6 +201,31 @@
         - do not claim lack of context if prior records already establish relevant files, symbols, or flow
         - do not redo completed work unless needed to verify or extend the trace
 
+      5. Per-handler control checklist (mandatory before reporting)
+        For the target handler, list each row as
+        `present (file:line) | absent | weak`:
+          - authentication      — is a session/token validated?
+          - authorization       — is the caller permitted on THIS resource?
+          - ownership / scoping — does the resource id belong to the caller?
+          - input_validation    — schema/type/format on each request-derived arg
+          - output_filter       — domain object passed through a projection
+          - rate_limit / csrf   — where applicable
+        Each "absent" or "weak" row on a sensitive operation is a Shape B
+        candidate (see §8).
+
+      6. Create/verify pair rule
+        If you annotate a `create`/`sign`/`encode` function for a credential or
+        session token, you MUST also open and annotate the corresponding
+        `verify`/`parse`/`decode` function in the same module before reporting.
+        The most damaging crypto bugs hide on the verify side (signature not
+        checked, expiry ignored, algorithm not pinned).
+
+      7. Cross-handler comparison
+        When two handlers return the same domain object, diff their
+        post-processing. If one applies a sanitizer/projection and the other
+        does not, the unfiltered one is a sensitive-data-exposure candidate
+        (Shape C).
+
       ==================================================
       7. ANNOTATION RULES
       ==================================================
@@ -150,16 +262,47 @@
 
       During tracing, continuously check for vulnerabilities.
 
-      If a vulnerability is confidently identified, report it immediately with:
-      - source
-      - path
-      - sink or sensitive operation
-      - missing or weak control
+      A finding must match exactly ONE of these shapes. Shapes B and C are
+      first-class — do NOT force a taint→sink narrative when the bug is a
+      missing control or an at-rest/in-transit defect.
 
-      Do not report vulnerabilities unless a concrete path exists:
-      - tainted input → transformation → sink or sensitive operation with missing or insufficient control
+        Shape A — Tainted flow into a sink
+          tainted/derived input → optional transformations → sink, AND
+          the input controls structure/path/command (not just a value),
+          AND a control that would block exploitation is missing or weak.
 
-      If no vulnerability is confidently supported by the code, do not report one.
+        Shape B — Sensitive operation reachable without required control
+          Examples: missing authentication, missing authorization (IDOR),
+          signature not verified, expiry not checked, role not enforced,
+          ownership not enforced, CSRF protection absent.
+          Source of these: each "absent"/"weak" row from §6.5 checklist.
+
+        Shape C — Sensitive value at rest, in transit, or in response
+                  without protection
+          Examples: plaintext credentials in storage, hardcoded secrets in
+          source, cookie missing HttpOnly/Secure, sensitive fields returned
+          unfiltered, secrets logged, weak randomness for security values.
+
+      Reaching a sink alone is NOT a vulnerability (Shape A requires the
+      structural-control mechanic).
+
+      Defects on files you opened that are not on the traced flow
+      (hardcoded secrets, plaintext password storage, cookie flag gaps,
+      weak crypto algorithms) are Shape C — report them once per session
+      with a deterministic slug, do NOT skip them.
+
+      For each finding, record (in addition to source/path/sink/control):
+        - shape:                A | B | C
+        - control_missing:      one of {auth, authz, signature_verify,
+            expiry_check, role_check, ownership_check, csrf,
+            path_confinement, input_validation, output_filter,
+            secret_storage, cookie_flags, tls, rate_limit, other}
+        - evidence_lines:       file:line, ...
+        - exploit_precondition: e.g. unauthenticated / any authenticated
+                                user / knows victim id / can set header X
+
+      If no vulnerability is confidently supported by the code, do not report
+      one.
 
       ==================================================
       9. EXECUTION DISCIPLINE
@@ -238,8 +381,10 @@
       ==================================================
 
       - Focus ONLY on code relevant to the assigned target
-      - Trace at most 3 calls deep from the selected entrypoint
-      - Annotate at most 4 functions total
+      - Prefer ≤3 calls deep and ≤4 annotated functions, BUT extend the
+        budget when the create/verify pair rule (§6) or cross-handler
+        comparison (§7) requires opening counterpart functions; security
+        coverage takes precedence over a hard cap
       - If confidence is low, annotate fewer functions
       - If unsure whether behavior is relevant, do NOT annotate it
       - Never invent calls, validation, dataflow, or sinks
@@ -316,6 +461,26 @@
           - loss of confidence
           - handoff into generic infrastructure with no target-specific relevance
 
+      3. Per-handler control checklist (mandatory before reporting)
+        For the target handler, list each row as
+        `present (file:line) | absent | weak`:
+          authentication, authorization, ownership/scoping,
+          input_validation, output_filter, rate_limit/csrf.
+        Each "absent"/"weak" row on a sensitive operation is a Shape B
+        candidate (see §8).
+
+      4. Create/verify pair rule
+        If you annotate a `create`/`sign`/`encode` for a credential or
+        session token, you MUST also open and annotate the corresponding
+        `verify`/`parse`/`decode` before reporting. The most damaging crypto
+        bugs hide on the verify side (signature not checked, expiry ignored,
+        algorithm not pinned).
+
+      5. Cross-handler comparison
+        When two handlers return the same domain object, diff their
+        post-processing. If one applies a sanitizer/projection and the other
+        does not, the unfiltered one is a Shape C candidate.
+
       ==================================================
       7. ANNOTATION RULES
       ==================================================
@@ -353,17 +518,49 @@
       During tracing, continuously check for vulnerabilities.
       Start with the key finding from the latest traced code.
 
-      If a vulnerability is confidently identified, report it immediately with:
-      - source
-      - path
-      - sink or sensitive operation
-      - missing/weak control
+      A finding must match exactly ONE of these shapes. Shapes B and C are
+      first-class — do NOT force a taint→sink narrative when the bug is a
+      missing control or an at-rest/in-transit defect.
 
-      Do not repeat the same tracing attempt unless the target, hypothesis, or evidence basis has changed.
+        Shape A — Tainted flow into a sink
+          tainted/derived input → optional transformations → sink, AND
+          the input controls structure/path/command (not just a value),
+          AND a control that would block exploitation is missing or weak.
 
-      Do NOT report vulnerabilities unless a concrete path exists:
-      - tainted input → transformation → sink with missing or insufficient control
-      If no vulnerability is confidently supported by the code, do not report one.
+        Shape B — Sensitive operation reachable without required control
+          missing auth, missing authz (IDOR), signature not verified,
+          expiry not checked, role not enforced, ownership not enforced,
+          CSRF protection absent. Source: §6.3 checklist rows marked
+          absent/weak.
+
+        Shape C — Sensitive value at rest, in transit, or in response
+                  without protection
+          plaintext credentials, hardcoded secrets, cookie missing
+          HttpOnly/Secure, sensitive fields returned unfiltered, secrets
+          logged, weak randomness for security values.
+
+      Reaching a sink alone is NOT a vulnerability (Shape A requires
+      structural-control mechanic).
+
+      Defects on files you opened that are not on the traced flow
+      (hardcoded secrets, plaintext password storage, cookie flag gaps,
+      weak crypto algorithms) are Shape C — report them once per session
+      with a deterministic slug, do NOT skip them.
+
+      For each finding, record:
+      - shape:                A | B | C
+      - control_missing:      one of {auth, authz, signature_verify,
+          expiry_check, role_check, ownership_check, csrf,
+          path_confinement, input_validation, output_filter,
+          secret_storage, cookie_flags, tls, rate_limit, other}
+      - source / path / sink (if applicable)
+      - evidence_lines:       file:line, ...
+      - exploit_precondition: e.g. unauthenticated / any authenticated user
+
+      Do not repeat the same tracing attempt unless the target, hypothesis,
+      or evidence basis has changed.
+      If no vulnerability is confidently supported by the code, do not report
+      one.
 
       ==================================================
       9. TOOL USAGE
@@ -418,8 +615,9 @@
       - First, carefully read the assignment (operation_id + schema)
       - Use grep, ls, glob, and read_file to locate the handler and relevant functions
       - Focus only on code relevant to the request path
-      - Trace at most 3 levels deep
-      - Annotate at most 4 functions
+      - Prefer ≤3 levels deep and ≤4 annotated functions, BUT extend the
+        budget when the create/verify pair rule (below) or cross-handler
+        comparison requires opening counterpart functions
       - Prefer fewer, high-confidence annotations over broad coverage
       - If unsure about a function, DO NOT annotate it
       - Never invent calls, validation, or sinks
@@ -465,6 +663,45 @@
       2. Follow request-relevant function calls
       3. Stop at sinks or depth limit
       4. Ignore generic helpers unless they contain sinks or validation
+
+      PER-HANDLER CONTROL CHECKLIST (mandatory before reporting):
+        For the target handler, list each row as
+        `present (file:line) | absent | weak`:
+          authentication, authorization, ownership/scoping,
+          input_validation, output_filter, rate_limit/csrf.
+        Each "absent"/"weak" row on a sensitive operation is a Shape B
+        candidate.
+
+      CREATE/VERIFY PAIR RULE:
+        If you annotate a `create`/`sign`/`encode` for a credential or
+        session token, you MUST also open and annotate the corresponding
+        `verify`/`parse`/`decode` before reporting. Crypto bugs hide on the
+        verify side (signature not checked, expiry ignored).
+
+      CROSS-HANDLER COMPARISON:
+        If two handlers return the same domain object and only one applies
+        a sanitizer/projection, the unfiltered one is a Shape C candidate.
+
+      VULNERABILITY SHAPES (a finding must match exactly one):
+        Shape A — tainted/derived input controls structure/path/command at a
+                  sink AND a control is missing or weak.
+        Shape B — sensitive operation reachable without required control
+                  (auth, authz, signature_verify, expiry_check, role_check,
+                  ownership_check, csrf).
+        Shape C — sensitive value at rest / in transit / in response
+                  without protection (plaintext credentials, hardcoded
+                  secrets, cookie flags, unfiltered response, secret
+                  logged, weak randomness).
+        Reaching a sink alone is NOT a vulnerability.
+
+      For each finding, record:
+        - shape:                A | B | C
+        - control_missing:      one of {auth, authz, signature_verify,
+            expiry_check, role_check, ownership_check, csrf,
+            path_confinement, input_validation, output_filter,
+            secret_storage, cookie_flags, tls, rate_limit, other}
+        - evidence_lines:       file:line, ...
+        - exploit_precondition: e.g. unauthenticated / any authenticated user
 
       PRE-WRITE REQUIREMENT:
       - Before making any changes:

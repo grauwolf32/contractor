@@ -9,9 +9,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from fsspec import AbstractFileSystem
+
 
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
+DEFAULT_LIKEC4_PATH: str = "/architecture.c4"
+_DEFAULT_TIMEOUT_S: float = 120.0
+
+# Auto-confirm flags for fallback package runners. Without these, a runner
+# that needs to fetch `likec4` on first use will wait on stdin for a
+# "Ok to proceed?" prompt and hang the agent.
+_RUNNER_AUTOCONFIRM: dict[str, list[str]] = {
+    "npx": ["--yes"],
+    "pnpx": ["--yes"],
+    "bunx": [],
+}
 
 
 class Likec4Error(Exception):
@@ -33,6 +46,10 @@ class Likec4OutputError(Likec4Error):
         self.details = details
         self.raw_output = raw_output
         super().__init__(message)
+
+
+class Likec4SourceNotFoundError(Likec4Error):
+    """Raised when the LikeC4 source file does not exist on the configured fs."""
 
 
 @dataclass
@@ -64,19 +81,24 @@ class Likec4Linter:
             return ["likec4"]
         for runner in _RUNNER_FALLBACKS:
             if shutil.which(runner) is not None:
-                return [runner, "likec4"]
+                return [runner, *_RUNNER_AUTOCONFIRM.get(runner, []), "likec4"]
         raise Likec4NotFoundError(
             "likec4 not found in PATH and no fallback runner available "
             "(tried: likec4, bunx, pnpx, npx)"
         )
 
-    def validate(self, content: str) -> list[dict[str, Any]]:
+    def validate(
+        self, content: str, *, timeout: float = _DEFAULT_TIMEOUT_S
+    ) -> list[dict[str, Any]]:
         """
         Runs `likec4 validate --json --no-layout` against a single in-memory
         LikeC4 DSL string.
 
         Args:
             content: Full source of a `.c4`/`.likec4` file.
+            timeout: Seconds to wait for the likec4 process. The call hard-fails
+                with `Likec4ExecutionError` past this — prevents an unattended
+                agent from hanging on an interactive prompt or stuck install.
 
         Returns:
             Parsed list of issue objects emitted by likec4. Empty list means
@@ -84,7 +106,7 @@ class Likec4Linter:
 
         Raises:
             Likec4NotFoundError: If likec4/runner binary is not available.
-            Likec4ExecutionError: If the likec4 process fails to run.
+            Likec4ExecutionError: If the likec4 process fails to run or times out.
             Likec4OutputError: If output cannot be parsed or has unexpected shape.
         """
         cmd_prefix = self._resolve_command()
@@ -106,9 +128,21 @@ class Likec4Linter:
             try:
                 process = subprocess.run(
                     cmd,
+                    stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    timeout=timeout,
                 )
+            except subprocess.TimeoutExpired as exc:
+                stderr_tail = (
+                    exc.stderr.decode("utf-8", errors="ignore")
+                    if isinstance(exc.stderr, (bytes, bytearray))
+                    else ""
+                )
+                raise Likec4ExecutionError(
+                    f"likec4 timed out after {timeout:.0f}s",
+                    details=stderr_tail or " ".join(cmd),
+                ) from exc
             except Exception as exc:
                 raise Likec4ExecutionError(f"failed to run likec4: {exc}") from exc
 
@@ -132,41 +166,99 @@ class Likec4Linter:
                 raw_output=stdout,
             ) from exc
 
-        if not isinstance(parsed, list):
-            raise Likec4OutputError(
-                "unexpected likec4 output format",
-                details=f"expected a list of issues, got {type(parsed).__name__}",
-                raw_output=parsed,
+        # `likec4 validate --json` emits {"valid": bool, "errors": [...], "stats": {...}}.
+        # Older/alternate builds emit a bare issue list. Accept both.
+        if isinstance(parsed, dict):
+            errors = parsed.get("errors")
+            if not isinstance(errors, list):
+                raise Likec4OutputError(
+                    "unexpected likec4 output format",
+                    details=(
+                        "expected dict with list 'errors', "
+                        f"got {type(errors).__name__} (keys: {sorted(parsed)})"
+                    ),
+                    raw_output=parsed,
+                )
+            return errors
+
+        if isinstance(parsed, list):
+            return parsed
+
+        raise Likec4OutputError(
+            "unexpected likec4 output format",
+            details=f"expected list or dict, got {type(parsed).__name__}",
+            raw_output=parsed,
+        )
+
+    def validate_path(
+        self,
+        fs: AbstractFileSystem,
+        path: str,
+        *,
+        timeout: float = _DEFAULT_TIMEOUT_S,
+    ) -> list[dict[str, Any]]:
+        """
+        Reads a LikeC4 source file from `fs` (overlay-aware) and validates it.
+
+        Args:
+            fs: fsspec filesystem; for the agent this is the overlay over the
+                project root, so unsaved edits are visible.
+            path: Path to the LikeC4 source file on `fs`.
+            timeout: Forwarded to :meth:`validate`.
+
+        Raises:
+            Likec4SourceNotFoundError: If `path` does not exist on `fs`.
+        """
+        if not fs.exists(path):
+            raise Likec4SourceNotFoundError(
+                f"likec4 source file not found at {path!r}"
             )
+        content = fs.read_text(path, encoding="utf-8")
+        return self.validate(content, timeout=timeout)
 
-        return parsed
 
-
-def likec4_tools() -> list[Callable[..., Any]]:
+def likec4_tools(
+    fs: AbstractFileSystem,
+    *,
+    default_path: str = DEFAULT_LIKEC4_PATH,
+) -> list[Callable[..., Any]]:
     """
-    Creates a Likec4Linter and returns tool functions.
+    Creates a Likec4Linter wired to the given filesystem and returns tool
+    functions.
 
-    Returns:
-        A list of tool functions returning `{"result": ...}` or `{"error": ...}`.
+    The agent maintains its LikeC4 source as a single file on `fs` (overlay-
+    backed for the build agent), so `validate_likec4` re-reads from disk on
+    every call and no separate in-memory copy of the source is needed.
+
+    Args:
+        fs: fsspec filesystem (typically an overlay over the project root).
+        default_path: Path used when `validate_likec4` is called with no
+            argument. Defaults to ``/architecture.c4``.
     """
 
     linter = Likec4Linter()
 
-    async def validate_likec4(content: str) -> dict[str, Any]:
+    async def validate_likec4(path: str = default_path) -> dict[str, Any]:
         """
-        Validates a LikeC4 DSL string via `likec4 validate` and returns parsed issues.
+        Validates a LikeC4 source file by running `likec4 validate --json` against it.
+
+        The file is read from the agent's filesystem (overlay-aware), so any
+        edits made via write_file / edit / replace_range are picked up
+        immediately.
 
         Args:
-            content: Full source text of a `.c4`/`.likec4` file (typically held
-                by the agent in its memory store).
+            path: Path to the LikeC4 source file. Defaults to
+                ``/architecture.c4``.
 
         Returns:
             On success: {"result": [<issue>, ...]}. Empty list means no issues.
             On failure: {"error": "...", "details"?: "...", "raw_output"?: ...}.
         """
         try:
-            issues = await asyncio.to_thread(linter.validate, content)
+            issues = await asyncio.to_thread(linter.validate_path, fs, path)
             return {"result": issues}
+        except Likec4SourceNotFoundError as exc:
+            return {"error": str(exc)}
         except Likec4ExecutionError as exc:
             out: dict[str, Any] = {"error": str(exc)}
             if exc.details:

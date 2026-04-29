@@ -46,26 +46,39 @@ class OasBuildingPipeline(Pipeline):
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
-        runner.add_task(
-            name="dependency_information",
-            worker_builder=swe_builder,
-            iterations=1,
-            max_attempts=3,
-            max_steps=20,
-            namespace="dependency_information",
-            model=llm,
-        )
+        # Code-analysis tasks (`dependency_information`, `project_information`)
+        # are expensive and idempotent — if a previous run already produced
+        # the artifact downstream tasks consume, skip the regeneration.
+        if not await self.artifact_exists(
+            user_id=user_id, filename="dependency_information/result"
+        ):
+            runner.add_task(
+                name="dependency_information",
+                worker_builder=swe_builder,
+                iterations=1,
+                max_attempts=3,
+                max_steps=20,
+                namespace="dependency_information",
+                model=llm,
+            )
+        else:
+            await self.emit_task_skipped(on_event, "dependency_information")
 
-        runner.add_task(
-            name="project_information_experimental",
-            worker_builder=swe_builder,
-            iterations=1,
-            max_attempts=3,
-            max_steps=20,
-            artifacts=["dependency_information/result"],
-            namespace="project_information",
-            model=llm,
-        )
+        if not await self.artifact_exists(
+            user_id=user_id, filename="project_information/result"
+        ):
+            runner.add_task(
+                name="project_information_experimental",
+                worker_builder=swe_builder,
+                iterations=1,
+                max_attempts=3,
+                max_steps=20,
+                artifacts=["dependency_information/result"],
+                namespace="project_information",
+                model=llm,
+            )
+        else:
+            await self.emit_task_skipped(on_event, "project_information_experimental")
 
         runner.add_task(
             name="oas_update_experimental",

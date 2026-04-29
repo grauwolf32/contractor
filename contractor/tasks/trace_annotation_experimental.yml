@@ -85,39 +85,102 @@ task:
     # IPC / INTER-SERVICE
     #   grpc.call   ipc.pipe   ldap.query   xpath.query   nosql.query
 
-    # ── SINK → VULNERABILITY CLASS (guidance) ──────────────────────────────
+    # ── SINK → VULNERABILITY CHECKLIST ─────────────────────────────────────
     #
-    # db.query.raw / db.exec.raw  → SQL Injection
-    # shell.exec                  → OS Command Injection / RCE
-    # reflect.eval                → RCE
-    # parser.pickle               → Insecure Deserialization / RCE
-    # parser.yaml.unsafe          → Arbitrary Code Execution
-    # template.render.raw         → SSTI
-    # http.request                → SSRF
-    # http.redirect               → Open Redirect
-    # filesystem.path.join / read / write → Path Traversal
-    # ldap.query                  → LDAP Injection
-    # nosql.query                 → NoSQL Injection
-    # xpath.query                 → XPath Injection
-    # smtp.send                   → Email Header Injection
-    # html.render                 → XSS
-    # auth.token.create           → Privilege Escalation / Token Forgery
-    # secret.log / log.write      → Sensitive Data Exposure
-    # crypto.random.seed          → Weak Randomness
-    # reflect.attr / db.orm.bulk  → Mass Assignment
+    # For each sink encountered on the traced path, walk the matching list.
+    # A "no required control" answer is a candidate finding. Reaching a sink
+    # alone is NOT a vulnerability — apply the structural question for each
+    # class.
     #
-    # IMPORTANT — sink kind governs injection class:
-    # - db.exec and db.query (ORM/parameterized) do NOT map to SQL Injection.
-    #   Only db.query.raw / db.exec.raw (string concatenation or text() with
-    #   f-string/%-format) constitute SQLi candidates. Tainted data stored via
-    #   ORM is expected behaviour, not a vulnerability.
-    # - html.render (XSS) applies only when the rendering call is visible in
-    #   THIS service's code path. Data persisted to DB and later rendered by
-    #   a separate frontend service is out of scope unless that render path
-    #   is also traced.
-    # - "data reaches a sink" ≠ vulnerability. The structural question is
-    #   whether tainted data controls the QUERY STRUCTURE / COMMAND, not
-    #   merely its parameter values.
+    # filesystem.read / filesystem.write / filesystem.delete / filesystem.path.join
+    #   - Is the path argument attacker-controlled (tainted/derived)?
+    #   - Is the destination confined? (allowlist, normalize+prefix-check, no `..`)
+    #   - For write/delete: is the content/target attacker-controlled?
+    #   → Path Traversal / Arbitrary Read|Write|Delete
+    #
+    # db.query.raw / db.exec.raw
+    #   - Does tainted data appear inside string concatenation, f-string,
+    #     %-format, or text()-with-substitution?  Structure-controlling, not
+    #     just parameter values?
+    #   → SQL Injection. Parameterized ORM calls are NOT this sink.
+    #
+    # shell.exec / shell.exec.args
+    #   - Is shell=True or any tainted token in the command string?
+    #   - Is there an allowlist or exec-with-args (no shell)?
+    #   → OS Command Injection / RCE.
+    #
+    # http.request
+    #   - Is the URL/host attacker-controlled?
+    #   - Is there an allowlist for outbound destinations?
+    #   - Are internal/metadata addresses blocked?
+    #   → SSRF.
+    #
+    # http.redirect
+    #   - Is the target URL attacker-controlled and validated against an
+    #     allowlist of relative paths or hosts?
+    #   → Open Redirect.
+    #
+    # template.render.raw / html.render
+    #   - Is tainted data rendered without auto-escaping or explicit escape?
+    #   - Is the template itself selected from tainted input?
+    #   - Is the render call in THIS service's traced path? (Data persisted to
+    #     DB and later rendered by another service is out of scope unless that
+    #     render path is also traced.)
+    #   → SSTI / XSS.
+    #
+    # parser.pickle / parser.yaml.unsafe / serializer.decode
+    #   - Is the input attacker-controlled?
+    #   - Is the deserializer safe (yaml.safe_load, JSON, msgpack with whitelists)?
+    #   → Insecure Deserialization / RCE.
+    #
+    # reflect.eval / reflect.import / reflect.attr / db.orm.bulk
+    #   - Is the symbol/expression/field-set attacker-controlled?
+    #   - Is there an allowlist of permitted keys?
+    #   → RCE / Mass Assignment.
+    #
+    # auth.token.create  AND  auth.token.verify  — ALWAYS CHECK AS A PAIR
+    #   - Does create produce a real cryptographic signature (HMAC/JWT lib)?
+    #   - Does verify actually read AND compare the signature?
+    #     (Common bug: payload is decoded but signature is never checked.)
+    #   - Does verify check exp/nbf/iss/aud where present?
+    #   - Is the signing key a hardcoded constant?
+    #   - Is the algorithm pinned (no `none`, no algorithm confusion)?
+    #   → Token Forgery / Privilege Escalation / Replay.
+    #
+    # auth.password.hash / auth.password.check
+    #   - Is hashing a slow KDF (bcrypt/argon2/scrypt) with salt?
+    #   - Is comparison constant-time?
+    #   - Is the password stored or compared in plaintext?
+    #   → Credential Compromise.
+    #
+    # authz.policy.eval  (or absence thereof)
+    #   - Is the subject identity tied to the resource being accessed?
+    #   - Is there an ownership or RBAC check on this handler?
+    #   → Broken Access Control / IDOR.
+    #
+    # response with domain object
+    #   - Is the response object passed through a sanitizer/projection?
+    #   - Are sensitive fields (password, apiKey, token, paymentMemo) excluded?
+    #   - If a sibling handler returning the same object DOES sanitize and
+    #     this one does not, the unfiltered one is a Shape C finding.
+    #   → Sensitive Data Exposure.
+    #
+    # cookie.set on session/auth tokens
+    #   - Are HttpOnly, Secure, SameSite all set?
+    #   → Session Fixation / Theft.
+    #
+    # crypto.random.seed / crypto.key.derive
+    #   - Is a CSPRNG used for security-relevant values?
+    #   - Is the key length adequate and the KDF non-trivial?
+    #   → Weak Randomness / Weak Key Material.
+    #
+    # log.write / secret.log
+    #   - Are secrets, credentials, or PII written to logs?
+    #   → Sensitive Data Exposure.
+    #
+    # ldap.query / nosql.query / xpath.query / smtp.send
+    #   - Is tainted data interpolated into the query/header structure?
+    #   → LDAP / NoSQL / XPath Injection / Email Header Injection.
 
     # ── EXECUTION PHASES ───────────────────────────────────────────────────
 
@@ -153,6 +216,27 @@ task:
         - A shared bypass function (e.g. _is_dwh_integration) triggered on
           multiple endpoints is ONE root-cause finding, not N findings.
 
+    1e. Per-handler control checklist (mandatory before §2)
+        For the target handler, list each row as
+        `present (file:line) | absent | weak`:
+
+          - authentication       — is a session/token validated?
+          - authorization        — is the caller permitted on THIS resource?
+          - ownership / scoping  — does the resource id belong to the caller?
+          - input_validation     — schema/type/format on each request-derived arg
+          - output_filter        — domain object passed through a projection
+          - rate_limit / csrf    — where applicable
+
+        Any "absent" or "weak" row on a sensitive operation is a Shape B
+        candidate (see §4a).
+
+    1f. Create/verify pair rule
+        If you annotate a `create`/`sign`/`encode` function for a credential
+        or session token, you MUST also open and annotate the corresponding
+        `verify`/`parse`/`decode` function in the same module before reporting.
+        The most damaging crypto bugs hide on the verify side (signature not
+        checked, expiry ignored, algorithm not pinned).
+
     ## Phase 2 — Infer annotation content
 
     2a. Arg states: request params → tainted; computed from tainted without
@@ -173,18 +257,40 @@ task:
 
     ## Phase 4 — Vulnerability report
 
-    4a. Vulnerability candidate criteria — ALL must hold:
-        (i)   A tainted/derived arg reaches a sink visible in the traced code,
-              AND the arg controls query/command STRUCTURE (not just value); OR
-              an authorization check is provably absent/bypassable on the traced
-              path.
-        (ii)  The vulnerability is exploitable given realistic prerequisites
-              (see §4e). Hypothetical prerequisites lower confidence, not
-              severity on their own.
-        (iii) The finding has not already been reported this session (§1d).
+    4a. Finding shapes
+        A finding must match ONE of these shapes. Shapes B and C are
+        first-class — do NOT force a taint→sink narrative when the bug is a
+        missing control or an at-rest/in-transit defect.
 
-        Also consider: broken access control, missing auth check, insecure
-        defaults, sensitive data exposure — subject to the same criteria.
+          Shape A — Tainted flow into a sink
+            tainted/derived input → optional transformations → sink, AND
+            the input controls structure/path/command (not just a value),
+            AND a control that would block exploitation is missing or weak.
+
+          Shape B — Sensitive operation reachable without required control
+            Examples: missing authentication, missing authorization (IDOR),
+            signature not verified, expiry not checked, role not enforced,
+            ownership not enforced, CSRF protection absent.
+
+          Shape C — Sensitive value at rest, in transit, or in response
+                    without protection
+            Examples: plaintext credentials in storage, hardcoded secrets in
+            source, cookie missing HttpOnly/Secure, sensitive fields returned
+            unfiltered, secrets logged, weak randomness for security values.
+
+        Reaching a sink alone is NOT a vulnerability (Shape A requires the
+        structural-control mechanic). Each "absent" row from the §1e checklist
+        is a Shape B candidate. Defects on files you opened that are not
+        on the traced flow (hardcoded secrets, plaintext password storage,
+        cookie flags, weak crypto algorithms) are Shape C — report them once
+        per session under §1d dedup, do not skip them.
+
+        Vulnerability candidate criteria — ALL must hold:
+          (i)   The finding fits exactly one shape above with code evidence.
+          (ii)  The vulnerability is exploitable given realistic prerequisites
+                (see §4e). Hypothetical prerequisites lower confidence, not
+                severity on their own.
+          (iii) The finding has not already been reported this session (§1d).
 
     4b. For each vulnerability, call report_vulnerability once:
 
@@ -206,9 +312,18 @@ task:
             # medium: sink visible, data-flow or exploitability requires
             #         assumptions about code not directly read
             # low:    circumstantial, incomplete trace, needs further review
-            details    = "<affected function/file, sink kind, arg name,
-                          tainted arg trace, verified prerequisites,
-                          PoC notes, recommended mitigation>",
+            details    = "<MUST include all of:
+                            shape:           A | B | C
+                            control_missing: one of {{auth, authz,
+                              signature_verify, expiry_check, role_check,
+                              ownership_check, csrf, path_confinement,
+                              input_validation, output_filter, secret_storage,
+                              cookie_flags, tls, rate_limit, other}}
+                            evidence_lines:  file:line, ...
+                            exploit_precondition: e.g. unauthenticated /
+                              any authenticated user / knows victim id /
+                              can set header X
+                            poc_notes, recommended mitigation>",
           )
 
     4c. If no vulnerabilities found, do not call report_vulnerability.
@@ -279,9 +394,27 @@ task:
 
     ---
 
+    ## Per-Handler Control Checklist
+
+    | control            | status                              |
+    |--------------------|-------------------------------------|
+    | authentication     | present (file:line) / absent / weak |
+    | authorization      | present (file:line) / absent / weak |
+    | ownership/scoping  | present (file:line) / absent / weak |
+    | input_validation   | present (file:line) / absent / weak |
+    | output_filter      | present (file:line) / absent / weak |
+    | rate_limit / csrf  | present (file:line) / absent / N/A  |
+
+    ---
+
     ## Security Summary
 
-    - **Identified problems**
+    For each finding:
+      - shape:                A | B | C
+      - control_missing:      <one tag from the closed set>
+      - evidence_lines:       file:line, ...
+      - exploit_precondition: <e.g. any authenticated user>
+      - severity / confidence
 
     ---
 

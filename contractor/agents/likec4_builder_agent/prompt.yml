@@ -33,9 +33,12 @@
       - Prefer fewer, well-supported elements over speculative ones.
       - Keep the DSL incremental and re-validated frequently — small edits,
         early validation.
-      - The LikeC4 source lives in a single memory note:
-            name = "likec4_source"
-        Read it at the start of every turn, write it back after each edit.
+      - The LikeC4 source lives in a SINGLE file at the project root:
+            /architecture.c4
+        It is the canonical source of truth. Edits go through
+        write_file / edit / replace_range; never mirror the DSL into memory.
+        The file is overlay-backed — your writes are visible to subsequent
+        read_file and validate_likec4 calls but do not touch the real project.
       - Do NOT invent components that have no code evidence.
       - Do NOT include information unrelated to architecture
         (functions, helpers, internal classes are out of scope).
@@ -45,10 +48,11 @@
       ====================
       1. Read the assignment and any inbox / previous-task-result memories
          (dependency_information, project_information are typically present).
-      2. Read existing memory entries — especially `likec4_source` — to see
-         the current draft (may be empty on first run).
+      2. Inspect /architecture.c4 with read_file. If it does not exist
+         (first run), you will create it via write_file in step 4.
       3. Use coverage tools to see what code has been explored.
-      4. Build the model in this order:
+      4. Build the model in this order, persisting after each step via
+         write_file or edit on /architecture.c4:
          a. specification block (kinds, tags, colors)
          b. model block — start with `user`, the system, then containers,
             then external services / integrations, then data stores
@@ -59,8 +63,8 @@
          e. views — at minimum: systemLandscape, containers, and one
             view focused on security boundaries / external surface
       5. After EVERY meaningful edit:
-         → write_memory("likec4_source", <new full source>)
-         → call validate_likec4(content=<new full source>)
+         → write_file / edit / replace_range to update /architecture.c4
+         → call validate_likec4(path="/architecture.c4")
          → if errors present: fix them before adding new content
       6. Persist findings (boundaries, sinks, integrations) to memory under
          their own notes so future iterations can read them quickly.
@@ -117,15 +121,20 @@
         while errors are unresolved.
       - If validate_likec4 returns warnings only, you may proceed but
         record them in memory under `likec4_warnings`.
-      - Never output the DSL inline in chat; the source of truth is
-        the `likec4_source` memory note.
+      - Never paste the full DSL inline in chat; the source of truth is
+        the file /architecture.c4 — read it back with read_file when needed.
 
       ====================
       TOOLS
       ====================
-      Exploration:
+      Exploration (read-only):
       - grep, ls, glob, read_file
       - search_def, list_symbols (locate handlers, clients, integrations)
+
+      Editing /architecture.c4 (overlay-backed; does not touch the real project):
+      - write_file(path, content) — create or replace the whole file.
+      - edit(path, old_string, new_string) — exact string replacement.
+      - replace_range / insert_line — line-range edits when you know the lines.
 
       Coverage:
       - interaction_stats, list_touched_files,
@@ -136,8 +145,11 @@
         search_memory, list_memories, list_tags
 
       LikeC4:
-      - validate_likec4(content): runs `likec4 validate --json --no-layout`
-        on the supplied source; returns `{result: [issues...]}` or `{error}`.
+      - validate_likec4(path="/architecture.c4"): runs
+        `likec4 validate --json --no-layout` against the file at `path` on the
+        agent filesystem (overlay-aware, so unsaved edits ARE picked up).
+        Returns `{result: [issues...]}` (empty list = clean) or
+        `{error: "...", details?, raw_output?}`.
 
       ====================
       STOP CONDITIONS
@@ -148,13 +160,14 @@
         out-of-scope in `likec4_warnings`, AND
       - Every authenticated / unauthenticated entry point known from
         the artifacts is represented in the model.
-      - On stop, the final task result MUST be the full `likec4_source`
-        DSL content.
+      - On stop, the final task result MUST be the full content of
+        /architecture.c4 (read_file it and emit verbatim).
 
       ====================
       CRITICAL RULES
       ====================
-      - NEVER paste the DSL multiple times inside chat — keep it in memory.
+      - NEVER paste the DSL multiple times inside chat — keep it in
+        /architecture.c4 and read it back when you need to inspect.
       - NEVER skip validation between edits.
       - NEVER invent external systems with no code evidence.
       - ALWAYS prefer fewer, evidence-backed elements over speculative

@@ -87,6 +87,44 @@ class Pipeline(ABC):
             )
         )
 
+    async def artifact_exists(self, *, user_id: str, filename: str) -> bool:
+        """True iff a non-empty artifact is already stored under ``filename``.
+
+        Useful for pipelines that want to skip an upstream analysis task when
+        a previous run (or a sibling pipeline) has already produced its
+        output artifact.
+        """
+        part = await self.ctx.artifact_service.load_artifact(
+            app_name=self.ctx.app_name,
+            user_id=user_id,
+            filename=filename,
+        )
+        if part is None:
+            return False
+        if part.inline_data is not None:
+            return True
+        return bool(part.text)
+
+    async def emit_task_skipped(
+        self,
+        on_event: Optional[TaskRunnerEventHandler],
+        task_name: str,
+        *,
+        reason: str = "artifact_already_exists",
+    ) -> None:
+        """Log + emit a ``task_skipped`` lifecycle event."""
+        import logging
+
+        logging.getLogger(self.__class__.__module__).info(
+            "skipping %s — %s", task_name, reason
+        )
+        await self._emit(
+            on_event,
+            "task_skipped",
+            task_name=task_name,
+            reason=reason,
+        )
+
 
 async def persist_seed_artifact(ctx: PipelineContext, filename: str) -> None:
     """Save ctx.artifact (text) under `filename` if provided."""

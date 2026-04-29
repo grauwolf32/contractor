@@ -78,7 +78,7 @@
         • place_type  : "file" (code-anchored) or "url" (spec-anchored)
         • place       : file path or path template
         • title       : short STRIDE-tagged title
-                        e.g. "[I] /users/{id} returns email to peers"
+                        e.g. "[I] /users/<id> returns email to peers"
         • summary     : one sentence on the threat
         • severity    : critical | high | medium | low | info
         • confidence  : high | medium | low

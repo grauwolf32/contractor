@@ -148,7 +148,7 @@ class GitlabFileSystemSettings(BaseSettings):
         return v.rstrip("/")
 
     @model_validator(mode="after")
-    def _resolve_legacy_env_tokens(self) -> "GitlabFileSystemSettings":
+    def _resolve_env_tokens(self) -> "GitlabFileSystemSettings":
         if not self.private_token:
             self.private_token = os.environ.get("GITLAB_PRIVATE_TOKEN")
         if not self.oauth_token:
