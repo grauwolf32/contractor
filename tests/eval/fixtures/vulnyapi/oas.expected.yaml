@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: vulnyapi
+  version: 0.1.0
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisteredUser" }
+  /auth/login:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+  /auth/password/reset/request:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordResetRequest" }
+      responses:
+        "200": { description: OK }
+  /auth/password/reset/confirm:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordResetConfirm" }
+      responses:
+        "200": { description: OK }
+  /users/{user_id}:
+    get:
+      tags: [users]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+  /users/{user_id}/notes:
+    get:
+      tags: [users]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NoteResponse" }
+  /notes:
+    post:
+      tags: [notes]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateNoteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NoteResponse" }
+  /notes/{note_id}:
+    delete:
+      tags: [notes]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - { name: note_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+  /notes/search:
+    get:
+      tags: [notes]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+  /webhooks/test:
+    post:
+      tags: [webhooks]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookTestRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookResult" }
+  /admin/users:
+    get:
+      tags: [admin]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminUserRow" }
+  /files/upload:
+    post:
+      tags: [files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/FileUploadMeta" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadResponse" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    cookieAuth: { type: apiKey, in: cookie, name: pg_session_id }
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, email, phone, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        password: { type: string, format: password }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    PasswordResetRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string }
+    PasswordResetConfirm:
+      type: object
+      required: [phone, code, new_password]
+      properties:
+        phone: { type: string }
+        code: { type: string }
+        new_password: { type: string, format: password }
+    CreateNoteRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        is_private: { type: boolean }
+    WebhookTestRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+        payload: { type: object }
+    FileUploadMeta:
+      type: object
+      properties:
+        file: { type: string, format: binary }
+        description: { type: string }
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string }
+    RegisteredUser:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        password_hash: { type: string }
+        created_at: { type: string, format: date-time }
+    UserResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        is_admin: { type: boolean }
+        created_at: { type: string, format: date-time }
+    NoteResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        owner_id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        is_private: { type: boolean }
+        created_at: { type: string, format: date-time }
+    WebhookResult:
+      type: object
+      properties:
+        status: { type: integer }
+        body: { type: string }
+    UploadResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        filename: { type: string }
+        size: { type: integer }
+        stored_at: { type: string }
+    AdminUserRow:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        is_admin: { type: boolean }
+        password_hash: { type: string }
+        last_session_token: { type: string, nullable: true }

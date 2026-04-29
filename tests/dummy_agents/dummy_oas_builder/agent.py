@@ -82,7 +82,7 @@ DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
 
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
 
-playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
+playground_path = Path(__file__).parent.parent.parent / "playground"
 
 sandbox = PodmanContainer(
     name="contractor_oas_sandbox",

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "login",
+    "intent": "Trace the POST /login flow from the router through the user-lookup, password verification, and session creation.",
+    "entrypoint": {
+      "file": "/fastapi-pg/routers/login.py",
+      "function": "login",
+      "route": "POST /login"
+    },
+    "expected_annotated": [
+      { "file": "/fastapi-pg/routers/login.py", "function": "login" },
+      { "file": "/fastapi-pg/services/users.py", "function": "get_user_by_name" },
+      { "file": "/fastapi-pg/services/sessions.py", "function": "create_session" },
+      { "file": "/fastapi-pg/utils/security.py", "function": "verify_user_password" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  }
+]

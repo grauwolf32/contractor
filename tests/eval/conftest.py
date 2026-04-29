@@ -8,11 +8,21 @@ from typing import Any, Optional
 
 import pytest
 import yaml
+from dotenv import load_dotenv
 from google.adk.models.lite_llm import LiteLlm
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_ROOT = REPO_ROOT / "tests" / "playground"
 FIXTURES_ROOT = Path(__file__).resolve().parent / "fixtures"
+
+# Mirror the CLI: load the same `.env` files the CLI does so eval runs see
+# the LiteLLM proxy / Langfuse / GitLab config the user has already wired
+# up. `cli/.env` is the canonical source (where `USE_LITELLM_PROXY`,
+# `LITELLM_PROXY_API_BASE`, etc. live); `<repo>/.env` is also tried as a
+# convenience fallback. Existing process env always wins.
+for _env_path in (REPO_ROOT / "cli" / ".env", REPO_ROOT / ".env"):
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
 
 
 @dataclass(frozen=True)
@@ -24,6 +34,7 @@ class EvalFixture:
     expected_oas: dict[str, Any]
     expected_vulnerabilities: list[dict[str, Any]]
     swe_cases: list[dict[str, Any]]
+    trace_cases: list[dict[str, Any]]
 
 
 def _load_yaml(path: Path) -> Any:
@@ -45,6 +56,10 @@ def _load_fixture(slug: str) -> EvalFixture:
             f"Fixture {slug} source_root not found: {source_root}. "
             "Did you initialise the playground submodule?"
         )
+    trace_cases_path = fixture_dir / "trace-cases.json"
+    trace_cases = (
+        _load_json(trace_cases_path) if trace_cases_path.exists() else []
+    )
     return EvalFixture(
         slug=slug,
         source_root=source_root,
@@ -53,6 +68,7 @@ def _load_fixture(slug: str) -> EvalFixture:
             fixture_dir / "vulnerabilities.expected.json"
         ),
         swe_cases=_load_json(fixture_dir / "swe-cases.json"),
+        trace_cases=trace_cases,
     )
 
 
@@ -89,7 +105,7 @@ def eval_model() -> LiteLlm:
 
 @pytest.fixture(
     scope="session",
-    params=["spring", "fastapi"],
+    params=["spring", "fastapi", "vulnyapi", "vaultpay"],
     ids=lambda s: f"fixture[{s}]",
 )
 def fixture(request: pytest.FixtureRequest) -> EvalFixture:

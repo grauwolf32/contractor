@@ -103,27 +103,24 @@ Never claim CLI execution happened unless it actually ran.
 
 ## Validation
 
-```bash
-<runtime> likec4 validate --json --no-layout --file <edited-file> <project-dir>
+You do not invoke the LikeC4 CLI directly — call the `validate_likec4` tool. The
+tool runs `likec4 validate --json --no-layout --file <path> <project-dir>` for
+you against the file at `path` on the agent filesystem (overlay-aware, so
+unsaved edits are picked up). It returns the parsed JSON report described
+below.
+
+```text
+validate_likec4(path="/architecture.c4")
 ```
 
-Runtime launchers are equivalent for this command family:
+The flags the tool sets internally, and what they mean for your output:
 
-```bash
-npx likec4 validate --json --no-layout --file <edited-file> <project-dir>
-bunx likec4 validate --json --no-layout --file <edited-file> <project-dir>
-pnpm dlx likec4 validate --json --no-layout --file <edited-file> <project-dir>
-```
-
-- `--json` — structured output (stdout), logging goes to stderr
-- `--no-layout` — skip layout drift checks (faster, only syntax+semantic)
-- `--file <path>` — use with `--json` to scope results to the edited files. Without `--json`, text output still prints all diagnostics. Repeat once per edited source file.
-- `<project-dir>` — path to the project directory
-- There is **no** `likec4 check` command; use `likec4 validate`.
-
-For evals/gradings/executions, be **runner-tolerant** (`npx`/`bunx`/`pnpm dlx`), and judge correctness by subcommand + flags + project scope.
-
-If workspace already has `likec4` as a dependency, check its version from package.json and ensure it is at least 1.53.0. If pinning is needed, use the active runner (`npx`/`bunx`/`pnpm dlx`) with `likec4@1.53.0`.
+- `--json` — structured output; the tool returns the parsed payload directly.
+- `--no-layout` — skip layout drift checks (faster, only syntax+semantic).
+- `--file <path>` — scopes the result to the file you passed. Counts of
+  `filteredFiles` / `filteredErrors` reflect this scoping.
+- `<project-dir>` — the project directory containing the file.
+- There is **no** `likec4 check` command; the validator is `likec4 validate`.
 
 Example output:
 
@@ -261,7 +258,7 @@ Style properties control visual appearance: `color`, `shape`, `border`, `opacity
 
 Full color token table, all shape values, border/opacity/size tokens, icon pack prefixes (`aws:`, `azure:`, `gcp:`, `tech:`, `bootstrap:`), and correct usage patterns → `references/style-tokens-colors.md`
 
-To discover available icons, use the CLI: `likec4 list-icons` (text, one per line). Filter by group with `--group <name>`. Icon groups and approximate counts: `aws` (~307), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051) (see `references/cli.md` for details).
+Icon names follow `<group>:<name>`. Available groups and approximate counts: `aws` (~307), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051). For commonly-used names within each group, see `references/style-tokens-colors.md`. (Listing the full icon catalogue requires the LikeC4 CLI, which is not available to this agent — use a known name from the reference, or pick a different style property like `shape`/`color` if uncertain.)
 
 ## Deployment
 
@@ -399,8 +396,7 @@ Load a reference file when the task involves the corresponding topic. Claude rea
 | `references/dynamic-views.md`                | Writing dynamic views: steps, return arrows, chained steps, parallel blocks, `variant sequence`          |
 | `references/identifier-validity.md`          | Identifier vs FQN confusion; "dots in names" errors; understanding FQN construction                      |
 | `references/relationships-bidirectional.md`  | Bidirectional relationship syntax and `<->` view predicate patterns                                      |
-| `references/bridge-leanix-drawio.md`         | LeanIX bridge · `drawio --profile leanix` · round-trip · mapping · MCP vs bridge · sync/artifacts/managed cells |
-| `references/cli.md`                          | Full CLI reference: serve, build, export, codegen, mcp, format; flag disambiguation                      |
+| `references/cli.md`                          | What `validate_likec4` does under the hood: validate flags, JSON output shape, runner fallback notes    |
 | `references/configuration.md`                | Project config options, multi-project setup, include/exclude paths, generators                           |
 | `references/examples.md`                     | Compact real-world examples: extend, groups, globals, dynamic views, deployment, rank                    |
 | `references/troubleshooting.md`              | Errors, unexpected output, eval failures — 6 error tables, 5-step debug workflow, 7 best practices       |

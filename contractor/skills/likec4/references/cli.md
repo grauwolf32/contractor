@@ -1,139 +1,70 @@
-# CLI Reference
+# CLI Reference (validation behavior of `validate_likec4`)
 
-`likec4` is npm package that provides a CLI tool for working with LikeC4 models.
-Only essential commands/parameters are listed here, for full documentation use `likec4 help`, `likec4 <command> --help`.
-Examples use `bunx` to run the CLI, but you should use workspace's package manager (e.g. `bun`, `pnpm`, `npm`).
-If workspace is not a npm project, use `bunx` (if available) -> `pnpx` (if available) -> `npx` as a fallback.
+The agent does **not** invoke `likec4` directly — there is no shell tool. All
+validation goes through the `validate_likec4` tool, which wraps the LikeC4 CLI
+internally. This file documents the contract so you can interpret tool output
+correctly and avoid asking for CLI capabilities that are not exposed.
 
-If workspace already has `likec4` as a dependency, check its version from package.json, make sure it is at least 1.53.0. Pin the version `bunx likec4@1.53.0 ...` otherwise.
+## What `validate_likec4` runs
 
-## Common Commands and Frequent Mistakes
+Internally, the tool executes:
 
-### ✅ Correct commands (use these)
-
-| Task              | Correct Command                                                       |
-| ----------------- | --------------------------------------------------------------------- |
-| Validate files    | `bunx likec4 validate --json --no-layout --file <file> [project-dir]` |
-| Start dev server  | `bunx likec4 serve [project-dir]`                                     |
-| Export PNG        | `bunx likec4 export png -o ./images [project-dir]`                    |
-| Build static site | `bunx likec4 build -o ./dist [project-dir]`                           |
-| List icons        | `bunx likec4 list-icons` or `bunx likec4 list-icons --group tech`     |
-
-### ❌ Common mistakes (avoid these)
-
-| Incorrect                                  | Why it fails                              | Correct                                  |
-| ------------------------------------------ | ----------------------------------------- | ---------------------------------------- |
-| `bunx likec4 check ...`                    | Command doesn't exist                     | Use `bunx likec4 validate ...`           |
-| `bunx likec4 lint ...`                     | Command doesn't exist                     | Use `bunx likec4 validate ...`           |
-| `bunx likec4 verify ...`                   | Command doesn't exist                     | Use `bunx likec4 validate ...`           |
-| `bunx likec4 export png --out-dir ./images` | Unknown flag (`--out-dir`)                | Use `-o ./images` or `--outdir ./images` |
-
-## `serve` (aliases: `start`, `dev`)
-
-Starts local server with live reload to preview diagrams (default port is 5173).
-
-```bash
-bunx likec4 serve [project-dir]
-bunx likec4 serve --port 3000 [project-dir]
+```text
+likec4 validate --json --no-layout --file <path> <project-dir>
 ```
 
-When started, you can show the diagram to user in the browser by following the URL displayed in the console.
-To navigate to specific view, use the URL path `/view/<view-id>`.
+- The runtime resolves a launcher in this order: `likec4` (if installed) →
+  `bunx` → `pnpx` → `npx`. Fallback runners are auto-confirmed (no interactive
+  prompt). You do not pick a launcher — it is selected for you.
+- The required minimum LikeC4 version is `>= 1.53.0`. If the project pins
+  another version in `package.json`, the runtime will respect the pin.
 
-## `build` (alias: `bundle`)
+## Validate flags (and why they matter for output)
 
-Build a static website for deployment.
+- `--json` — emits a structured JSON payload on stdout; logs go to stderr.
+  The tool parses the payload and returns it to you.
+- `--no-layout` — skips layout drift checks; only syntax + semantic errors
+  are reported. This is intentional: layout is not the agent's concern.
+- `--file <path>` — scopes results to the file you passed in. The payload's
+  `filteredFiles` / `filteredErrors` reflect this scope.
+- `<project-dir>` — implied by the file location; the tool determines it
+  internally from a temp project directory.
 
-```bash
-bunx likec4 build -o ./dist [project-dir]
+## Output shape
+
+`validate_likec4` returns one of:
+
+```jsonc
+// Success path — empty list means clean
+{ "result": [ /* issue objects */ ] }
 ```
 
-## `export`
-
-Export diagrams to various formats.
-
-```bash
-# PNG (requires Playwright)
-bunx likec4 export png -o ./images [project-dir]
-bunx likec4 export png --theme dark --flat -f "overview*" -o ./images [project-dir]
-
-# JSON model
-bunx likec4 export json -o model.json --pretty --skip-layout [project-dir]
-
-# DrawIO
-bunx likec4 export drawio --all-in-one -o ./diagrams [project-dir]
+```jsonc
+// Failure path — execution problem, parse error, or unexpected shape
+{ "error": "...", "details": "...", "raw_output": ... }
 ```
 
-**export png** options: `--outdir` (`-o`), `--theme` [light|dark], `--flat`, `--filter` (`-f`, glob patterns), `--seq` (sequence layout for dynamic views), `--timeout` (default 15s)
-**export json** options: `--outfile` (`-o`, default "likec4.json"), `--pretty`, `--skip-layout`
-**export drawio** options: `--outdir` (`-o`), `--all-in-one`, `--roundtrip`, `--uncompressed`, `--profile` [default|leanix]
+Each issue object carries `message`, `file`, `line`, and a `range`. When the
+underlying CLI emits the dict form, the report also includes a `stats` block:
 
-### LeanIX bridge and Draw.io (LeanIX profile)
+| Field            | Meaning                                                |
+| ---------------- | ------------------------------------------------------ |
+| `totalFiles`     | Total `.c4` / `.likec4` source files in the project    |
+| `totalErrors`    | All errors across the full project                     |
+| `filteredFiles`  | Files actually included by the `--file` filter         |
+| `filteredErrors` | Errors only in the filtered subset                     |
 
-Use these when the task is **LeanIX inventory**, **bridge artifacts**, or **Draw.io with stable bridge-managed ids** — not for generic DSL editing alone.
+If `filteredErrors == 0` but `totalErrors > 0`, the file you edited is clean —
+the cascade is from another file you do not own. Self-check: `filteredFiles`
+should equal the number of files you focused on.
 
-| Task                                           | Command                                                                  |
-| ---------------------------------------------- | ------------------------------------------------------------------------ |
-| Manifest + LeanIX dry-run + report             | `bunx likec4 gen leanix dry-run -o out/bridge [project-dir]`             |
-| Sync workflow (review / apply)                 | `bunx likec4 sync leanix --dry-run -o out/bridge [project-dir]` / `bunx likec4 sync leanix --apply -o out/bridge [project-dir]` |
-| Draw.io with `likec4Id`, `bridgeManaged`, etc. | `bunx likec4 export drawio --profile leanix -o ./diagrams [project-dir]` |
+## Anti-substitutions (what the tool will NOT do)
 
-Full boundaries, round-trip notes, and MCP vs bridge: **`references/bridge-leanix-drawio.md`**.
+- It will not run `check`, `lint`, `verify`, or `build` — none of those exist
+  in `likec4`. Validation is `likec4 validate` only.
+- It will not export PNG / JSON / DrawIO, run `serve`, run `codegen`, run an
+  MCP server, list icons, format files, or sync to LeanIX. None of those
+  capabilities are exposed to this agent — do not plan around them.
 
-## `codegen` (aliases: `gen`, `generate`)
-
-Generate code artifacts from the model.
-
-```bash
-# TypeScript model (typed, with all views and elements)
-bunx likec4 gen model -o likec4-model.ts [project-dir]
-
-# React component
-bunx likec4 gen react -o dist/likec4-views.mjs [project-dir]
-
-# Web component JS bundle
-bunx likec4 gen webcomponent -o likec4.js -w c4 [project-dir]
-
-# Diagram formats
-bunx likec4 gen mermaid -o ./out      # .mmd files
-bunx likec4 gen plantuml -o ./out     # .puml files
-bunx likec4 gen d2 -o ./out           # .d2 files
-bunx likec4 gen dot -o ./out          # .dot files (Graphviz)
-```
-
-Shared options: `--outfile`/`--outdir` (`-o`), `--project` (`-p`), `--use-dot`
-
-## `mcp`
-
-Start MCP (Model Context Protocol) server for AI tool integration.
-
-```bash
-bunx likec4 mcp [workspace]                # stdio transport (default)
-bunx likec4 mcp --http [workspace]         # HTTP transport on port 33335
-bunx likec4 mcp -p 1234 [workspace]        # HTTP transport on custom port
-```
-
-Options: `--stdio` (default), `--http`, `--port` (`-p`, default 33335), `--use-dot`
-
-## `list-icons`
-
-List all available built-in icons. Fast, no workspace initialization needed.
-
-```bash
-bunx likec4 list-icons                        # all icons, one group:name per line
-bunx likec4 list-icons --format json          # grouped JSON object
-bunx likec4 list-icons --group aws            # only AWS icons
-bunx likec4 list-icons --group tech -f json   # tech icons as JSON
-```
-
-Options: `--format` (`-f`, `text` default or `json`), `--group` (`-g`, one of: `aws`, `azure`, `gcp`, `tech`, `bootstrap`)
-
-Icon groups: `aws` (~307 icons), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051).
-
-## `format`
-
-Format LikeC4 source files in-place.
-
-```bash
-bunx likec4 format [workspace]
-```
+If a task asks for one of those capabilities, surface that the agent cannot
+execute it and stop, rather than emitting a CLI command the agent cannot run.

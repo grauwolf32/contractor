@@ -1,0 +1,37 @@
+[
+  {
+    "id": "list-routes",
+    "prompt": "List every HTTP endpoint exposed by this FastAPI project (HTTP method + URL path), one per line. Cite the file each route is defined in.",
+    "expected_phrases": [
+      "auth.py",
+      "users.py",
+      "notes.py",
+      "webhooks.py",
+      "admin.py",
+      "files.py",
+      "/auth/register",
+      "/auth/login",
+      "/notes",
+      "/webhooks/test",
+      "/admin/users",
+      "/files/upload"
+    ],
+    "expected_tools_any": ["grep", "search_def", "glob"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.66
+  },
+  {
+    "id": "describe-auth-flow",
+    "prompt": "Explain how an authenticated request is identified by this service. Reference concrete files and functions, including where the JWT is decoded and where the session cookie is consulted.",
+    "expected_phrases": [
+      "helpers/auth.py",
+      "current_user",
+      "decode_token",
+      "pg_session_id",
+      "Session"
+    ],
+    "expected_tools_any": ["grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.6
+  }
+]

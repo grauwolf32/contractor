@@ -78,7 +78,7 @@ Icons use the format `group:name` (e.g. `tech:react`, `aws:lambda`, `azure:app-s
 | `tech`      | ~2000 | `tech:react`, `tech:postgresql`, `tech:docker` |
 | `bootstrap` | ~2051 | `bootstrap:gear`, `bootstrap:person`           |
 
-To get the full up-to-date list, run `likec4 list-icons` or `likec4 list-icons --group tech` (see `references/cli.md`)
+The full icon catalogue is only enumerable via the LikeC4 CLI, which the agent cannot invoke. Use icon names you already know to be valid in the listed groups, or fall back to a non-icon style property (`shape`, `color`).
 
 ## Complete style example
 

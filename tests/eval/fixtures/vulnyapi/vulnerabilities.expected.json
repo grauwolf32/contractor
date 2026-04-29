@@ -1,0 +1,172 @@
+[
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/auth/register",
+    "parameters": ["username", "password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Cookie auth path accepted; JSON-only body but no anti-CSRF token"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/auth/login",
+    "parameters": ["username", "password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Login issues a session cookie and accepts cookie auth on subsequent requests with no CSRF mitigation"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/notes",
+    "parameters": ["title", "body"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "State-changing endpoint accepts cookie auth"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/users/{user_id}",
+    "parameters": ["user_id"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Returns any user's profile by integer id with no ownership/role check"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/users/{user_id}/notes",
+    "parameters": ["user_id"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Lists any user's private notes by integer id"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "delete",
+    "path": "/notes/{note_id}",
+    "parameters": ["note_id"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Deletes a note by id without an owner check"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "sqli",
+    "method": "get",
+    "path": "/notes/search",
+    "parameters": ["q"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Search query is f-string-interpolated into a LIKE clause"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "ssrf",
+    "method": "post",
+    "path": "/webhooks/test",
+    "parameters": ["url"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Outbound HTTP to a user-supplied URL with no scheme/host allow-list"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "path-traversal",
+    "method": "post",
+    "path": "/files/upload",
+    "parameters": ["file"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Upload writes to a path concatenated from the client-supplied filename"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "broken-access-control",
+    "method": "get",
+    "path": "/admin/users",
+    "parameters": [],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Admin endpoint reachable without an admin role check"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "post",
+    "path": "/auth/register",
+    "parameters": ["password_hash"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Response body returns the bcrypt password hash"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "post",
+    "path": "/auth/login",
+    "parameters": ["password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Password handled in plain JSON body"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "pii-exposure",
+    "method": "get",
+    "path": "/users/{user_id}",
+    "parameters": ["phone", "email"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Phone and email visible to any authenticated caller"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "get",
+    "path": "/admin/users",
+    "parameters": ["password_hash", "last_session_token"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Returns bcrypt hashes and live session tokens"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "credential-stuffing",
+    "method": "post",
+    "path": "/auth/login",
+    "parameters": ["username", "password"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Login has no rate limit, lockout, or backoff"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "sms-bomb",
+    "method": "post",
+    "path": "/auth/password/reset/request",
+    "parameters": ["phone"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "OTP SMS issued without per-phone rate limit"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "otp-brute-force",
+    "method": "post",
+    "path": "/auth/password/reset/confirm",
+    "parameters": ["code"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "OTP confirmation has no attempt counter; 6-digit code is brute-forceable"
+  }
+]

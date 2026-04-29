@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: vault-pay
+  version: 0.1.0
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccessTokenResponse" }
+  /auth/login:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+  /auth/2fa/verify:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TwoFactorVerifyRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccessTokenResponse" }
+  /me:
+    get:
+      tags: [users]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDto" }
+  /accounts/{accountId}:
+    get:
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountDto" }
+  /accounts/{accountId}/transactions:
+    get:
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TransferDto" }
+  /transfers:
+    post:
+      tags: [transfers]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransferRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TransferDto" }
+  /transfers/{transferId}:
+    get:
+      tags: [transfers]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: transferId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TransferDto" }
+  /transfers/{transferId}/cancel:
+    post:
+      tags: [transfers]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: transferId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+  /cards:
+    post:
+      tags: [cards]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardSummaryDto" }
+  /cards/{cardId}/full:
+    get:
+      tags: [cards]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardFullDto" }
+  /promos/redeem:
+    post:
+      tags: [promos]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PromoRedeemRequest" }
+      responses:
+        "200": { description: OK }
+  /fx/quote:
+    post:
+      tags: [fx]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FxQuoteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FxQuoteDto" }
+  /admin/audit:
+    get:
+      tags: [admin]
+      responses:
+        "200": { description: OK }
+  /admin/users:
+    get:
+      tags: [admin]
+      responses:
+        "200": { description: OK }
+  /webhooks/payment:
+    post:
+      tags: [webhooks]
+      parameters:
+        - { name: X-Webhook-Signature, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, displayName, password]
+      properties:
+        email: { type: string, format: email }
+        displayName: { type: string }
+        phone: { type: string }
+        password: { type: string, format: password }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    TwoFactorVerifyRequest:
+      type: object
+      required: [challengeToken, code]
+      properties:
+        challengeToken: { type: string }
+        code: { type: string }
+    TransferRequest:
+      type: object
+      required: [fromAccountId, toAccountId, amountMinor, currency]
+      properties:
+        fromAccountId: { type: integer }
+        toAccountId: { type: integer }
+        amountMinor: { type: integer }
+        currency: { type: string }
+        memo: { type: string }
+    CardCreateRequest:
+      type: object
+      required: [pan, expiryMonth, expiryYear, cardholderName]
+      properties:
+        pan: { type: string }
+        expiryMonth: { type: integer }
+        expiryYear: { type: integer }
+        cardholderName: { type: string }
+    PromoRedeemRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    FxQuoteRequest:
+      type: object
+      required: [base, quote, amountMinor]
+      properties:
+        base: { type: string }
+        quote: { type: string }
+        amountMinor: { type: integer }
+        provider: { type: string, format: uri }
+    AccessTokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+    LoginResponse:
+      oneOf:
+        - $ref: "#/components/schemas/LoginInitiatedDto"
+        - $ref: "#/components/schemas/LoginCompletedDto"
+    LoginInitiatedDto:
+      type: object
+      properties:
+        challengeToken: { type: string }
+        twoFactorRequired: { type: boolean }
+    LoginCompletedDto:
+      type: object
+      properties:
+        accessToken: { type: string }
+        twoFactorRequired: { type: boolean }
+    UserDto:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        displayName: { type: string }
+        isAdmin: { type: boolean }
+    AccountDto:
+      type: object
+      properties:
+        id: { type: integer }
+        ownerId: { type: integer }
+        currency: { type: string }
+        balanceMinor: { type: integer }
+    TransferDto:
+      type: object
+      properties:
+        id: { type: integer }
+        fromAccountId: { type: integer }
+        toAccountId: { type: integer }
+        amountMinor: { type: integer }
+        currency: { type: string }
+        status: { type: string }
+        memo: { type: string }
+        createdAt: { type: string, format: date-time }
+    CardSummaryDto:
+      type: object
+      properties:
+        id: { type: integer }
+        last4: { type: string }
+        expiryMonth: { type: integer }
+        expiryYear: { type: integer }
+        cardholderName: { type: string }
+    CardFullDto:
+      allOf:
+        - $ref: "#/components/schemas/CardSummaryDto"
+        - type: object
+          properties:
+            pan: { type: string }
+    FxQuoteDto:
+      type: object
+      properties:
+        base: { type: string }
+        quote: { type: string }
+        rate: { type: number }
+        amountMinor: { type: integer }
+        convertedMinor: { type: integer }
+        provider: { type: string }

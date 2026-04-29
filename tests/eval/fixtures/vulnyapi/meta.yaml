@@ -1,0 +1,8 @@
+slug: vulnyapi
+language: python
+framework: fastapi
+source_root: tests/playground/python/vulnyapi
+description: >
+  Mid-sized intentionally-vulnerable FastAPI service. Per-user notes,
+  cookie+JWT auth, OTP password reset, webhook tester, file upload, admin
+  surface. Designed to exercise appsec/datasec/ddos analyzers together.

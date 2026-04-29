@@ -1,0 +1,36 @@
+[
+  {
+    "id": "create-transfer",
+    "intent": "Trace the POST /transfers flow from the route handler through balance read/write to the persisted transfer row. Include the JWT validation step.",
+    "entrypoint": {
+      "file": "/src/routes/transfers.ts",
+      "function": "transfersRouter",
+      "route": "POST /transfers"
+    },
+    "expected_annotated": [
+      { "file": "/src/services/transfers.ts", "function": "initiate" },
+      { "file": "/src/db/repos/accounts.ts", "function": "byId" },
+      { "file": "/src/db/repos/accounts.ts", "function": "setBalance" },
+      { "file": "/src/db/repos/transfers.ts", "function": "insert" },
+      { "file": "/src/middleware/auth.ts", "function": "requireAuth" }
+    ],
+    "min_precision": 0.4,
+    "min_recall": 0.5
+  },
+  {
+    "id": "card-full-pan",
+    "intent": "Trace the GET /cards/:cardId/full flow showing how a stored encrypted PAN is decrypted and returned to the caller.",
+    "entrypoint": {
+      "file": "/src/routes/cards.ts",
+      "function": "cardsRouter",
+      "route": "GET /cards/:cardId/full"
+    },
+    "expected_annotated": [
+      { "file": "/src/db/repos/cards.ts", "function": "byId" },
+      { "file": "/src/services/crypto.ts", "function": "decryptPan" },
+      { "file": "/src/middleware/auth.ts", "function": "requireAuth" }
+    ],
+    "min_precision": 0.4,
+    "min_recall": 0.5
+  }
+]

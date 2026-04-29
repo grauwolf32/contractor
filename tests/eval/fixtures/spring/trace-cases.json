@@ -1,0 +1,19 @@
+[
+  {
+    "id": "send-message",
+    "intent": "Trace the path of an authenticated POST /api/messages/send request from the controller through the service to the repository.",
+    "entrypoint": {
+      "file": "/src/main/java/app/web/MessageController.java",
+      "function": "send",
+      "route": "POST /api/messages/send"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/app/web/MessageController.java", "function": "send" },
+      { "file": "/src/main/java/app/web/MessageController.java", "function": "requireUser" },
+      { "file": "/src/main/java/app/service/MessageService.java", "function": "send" },
+      { "file": "/src/main/java/app/security/SessionFilter.java", "function": "doFilter" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  }
+]

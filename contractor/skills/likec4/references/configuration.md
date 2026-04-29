@@ -212,7 +212,7 @@ export default defineConfig({
 })
 ```
 
-Run with: `likec4 gen my-gen`
+Generators are invoked by the operator via the LikeC4 CLI — the agent cannot run them. Define them in config when the project requires them; do not attempt to execute them.
 
 ## Multi-Project Setup
 

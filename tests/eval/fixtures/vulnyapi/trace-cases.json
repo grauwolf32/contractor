@@ -1,0 +1,33 @@
+[
+  {
+    "id": "notes-search-sqli",
+    "intent": "Trace the GET /notes/search flow that builds a raw SQL query from the user-supplied `q` argument. The annotation set must reach the f-string interpolation site.",
+    "entrypoint": {
+      "file": "/routers/notes.py",
+      "function": "search_notes",
+      "route": "GET /notes/search"
+    },
+    "expected_annotated": [
+      { "file": "/routers/notes.py", "function": "search_notes" },
+      { "file": "/services/notes.py", "function": "search" },
+      { "file": "/utils/security.py", "function": "raw_query" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.66
+  },
+  {
+    "id": "webhook-test-ssrf",
+    "intent": "Trace the POST /webhooks/test flow showing how the user-supplied URL reaches the outbound httpx call.",
+    "entrypoint": {
+      "file": "/routers/webhooks.py",
+      "function": "test_webhook",
+      "route": "POST /webhooks/test"
+    },
+    "expected_annotated": [
+      { "file": "/routers/webhooks.py", "function": "test_webhook" },
+      { "file": "/helpers/auth.py", "function": "current_user" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  }
+]

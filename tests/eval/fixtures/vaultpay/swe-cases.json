@@ -1,0 +1,39 @@
+[
+  {
+    "id": "list-routes",
+    "prompt": "List every HTTP endpoint exposed by this Express service (HTTP method + URL path), one per line. Cite the file each route is defined in.",
+    "expected_phrases": [
+      "routes/auth.ts",
+      "routes/transfers.ts",
+      "routes/accounts.ts",
+      "routes/cards.ts",
+      "routes/promos.ts",
+      "routes/fx.ts",
+      "routes/admin.ts",
+      "routes/webhooks.ts",
+      "/auth/login",
+      "/transfers",
+      "/cards",
+      "/fx/quote",
+      "/webhooks/payment"
+    ],
+    "expected_tools_any": ["grep", "search_def", "glob"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.6
+  },
+  {
+    "id": "describe-transfer-flow",
+    "prompt": "Walk through what happens when a client POSTs to /transfers. Include the request validation, the balance check, how the database is updated, and how the idempotency key is handled. Reference concrete files and functions.",
+    "expected_phrases": [
+      "transferService",
+      "TransferRequest",
+      "accountsRepo",
+      "transfersRepo",
+      "Idempotency-Key",
+      "balance_minor"
+    ],
+    "expected_tools_any": ["grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.6
+  }
+]

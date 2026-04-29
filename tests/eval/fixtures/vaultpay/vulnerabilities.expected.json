@@ -1,0 +1,172 @@
+[
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/accounts/{accountId}",
+    "parameters": ["accountId"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Resolves any account by id without an ownership check"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/accounts/{accountId}/transactions",
+    "parameters": ["accountId"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Returns transaction history for any account id"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/transfers/{transferId}",
+    "parameters": ["transferId"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Returns any transfer by id without owner/participant check"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "idor",
+    "method": "get",
+    "path": "/cards/{cardId}/full",
+    "parameters": ["cardId"],
+    "severity": "critical",
+    "confidence": "high",
+    "description": "Returns full PAN of any card by id"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "business-logic",
+    "method": "post",
+    "path": "/transfers",
+    "parameters": ["amountMinor", "fromAccountId", "toAccountId"],
+    "severity": "critical",
+    "confidence": "high",
+    "description": "TOCTOU on balance, accepts negative amounts, idempotency key recorded after debit"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "business-logic",
+    "method": "post",
+    "path": "/transfers/{transferId}/cancel",
+    "parameters": ["transferId"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Re-credits funds without checking the transfer is still pending; double-refund possible"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "ssrf",
+    "method": "post",
+    "path": "/fx/quote",
+    "parameters": ["provider"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Outbound HTTP issued to a user-supplied provider URL"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "broken-access-control",
+    "method": "get",
+    "path": "/admin/audit",
+    "parameters": [],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Admin route reachable by any caller; X-Admin header is read but never enforced"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "broken-access-control",
+    "method": "get",
+    "path": "/admin/users",
+    "parameters": [],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Admin route reachable by any caller; returns password hashes and TOTP secrets"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "signature-bypass",
+    "method": "post",
+    "path": "/webhooks/payment",
+    "parameters": ["X-Webhook-Signature"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "HMAC compared with === (timing-leak); missing signature accepted unless NODE_ENV=production"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "totp-replay",
+    "method": "post",
+    "path": "/auth/2fa/verify",
+    "parameters": ["code"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "TOTP code accepted multiple times within the 30s window; no replay protection"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "race-condition",
+    "method": "post",
+    "path": "/promos/redeem",
+    "parameters": ["code"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Reads `used` then writes; concurrent requests double-redeem the bonus"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "pan-storage",
+    "method": "post",
+    "path": "/cards",
+    "parameters": ["pan"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "PAN stored under reversible AES-256-CBC with hard-coded key fallback"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "pan-exposure",
+    "method": "get",
+    "path": "/cards/{cardId}/full",
+    "parameters": [],
+    "severity": "critical",
+    "confidence": "high",
+    "description": "Endpoint returns the decrypted PAN to any authenticated caller"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "get",
+    "path": "/admin/users",
+    "parameters": ["passwordHash", "totpSecret"],
+    "severity": "critical",
+    "confidence": "high",
+    "description": "Returns bcrypt hashes and TOTP secrets in the admin user list"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "credential-stuffing",
+    "method": "post",
+    "path": "/auth/login",
+    "parameters": ["email", "password"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "No rate-limit, lockout, or backoff on login"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "totp-brute-force",
+    "method": "post",
+    "path": "/auth/2fa/verify",
+    "parameters": ["code"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "Six-digit TOTP can be brute-forced; no attempt counter"
+  }
+]
