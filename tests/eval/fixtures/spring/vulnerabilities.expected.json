@@ -1,0 +1,52 @@
+[
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/api/auth/login",
+    "parameters": ["username", "password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "JSON body cookie-session login lacks CSRF token; same-origin form-post abuse depends on Content-Type enforcement"
+  },
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/api/messages/send",
+    "parameters": ["toUserId", "body"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "State-changing endpoint relying solely on cookie-session auth"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "post",
+    "path": "/api/auth/register",
+    "parameters": ["password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Password handled in plain JSON body; ensure TLS-only and hashing at rest"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "post",
+    "path": "/api/auth/login",
+    "parameters": ["password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Password handled in plain JSON body"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "credential-stuffing",
+    "method": "post",
+    "path": "/api/auth/login",
+    "parameters": ["username", "password"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "No rate-limit visible; brute-force / credential stuffing risk"
+  }
+]

@@ -1,0 +1,86 @@
+---
+task:
+  name: "LikeC4 Model Validation"
+
+  objective: >
+    Validate and repair only the serious issues in the LikeC4 model
+    held in the `likec4_source` memory note. Use validate_likec4 to
+    enumerate issues, then apply the smallest evidence-based edits to
+    resolve them. Do not extend the model with new architecture content
+    in this task.
+
+  skills:
+    - likec4
+
+  instructions: >
+
+    Workflow: validate -> verify -> fix -> revalidate once -> stop.
+
+    Start:
+    - Read the `likec4_source` memory note. If absent or empty, abort
+      and report the gap — there is nothing to validate.
+    - Run validate_likec4(content=likec4_source) once.
+    - Treat returned issues as authoritative.
+
+    For each issue:
+
+      1. Inspect
+         - Parse the issue: file location, range, and message.
+         - Identify the smallest affected unit: a single element,
+           relationship, view, or specification entry.
+
+      2. Verify before fixing
+         - Cross-check against project_information / dependency_information
+           memories and the actual code only when the fix is non-trivial
+           (e.g. wrong target FQN, missing kind in specification).
+         - Use the `likec4` skill memory for syntax questions.
+
+      3. Fix only verified issues
+         - Edit `likec4_source` in memory: write_memory("likec4_source",
+           <new full source>).
+         - Apply the smallest localized change.
+         - Do NOT introduce new architecture elements unless the issue
+           explicitly requires one (e.g. an unknown FQN that maps to a
+           real component already present in project_information).
+
+      4. Re-validate
+         - After all edits in a pass, run validate_likec4 once more.
+         - Stop when no issues remain or remaining issues cannot be
+           proven from project artifacts / code.
+
+    Focus on issues such as:
+      - syntax errors (invalid identifiers, missing quotes, bad blocks)
+      - unknown element kinds / tags / deployment kinds
+      - unresolved FQNs in relationships / view predicates
+      - duplicate identifiers
+      - invalid view predicates (`*` vs `**` confusion, bad `where`)
+      - missing top-level blocks (`specification`, `model`, `views`)
+
+    Out of scope:
+      - cosmetic style preferences
+      - adding new architecture elements / integrations
+      - reorganising the model
+
+    Constraints:
+      - Edit only `likec4_source`.
+      - Never paste the DSL into chat — work through memory.
+      - Never skip validation between passes.
+
+  output_format: >
+    Produce Markdown with:
+
+    ## Validation Status
+    - Initial issue count: <N>
+    - Final issue count: <N>
+
+    ## Fixes Applied
+    - <issue summary> -> <one-line fix description>
+
+    ## Remaining Issues
+    - <issue> — why not fixed / next step
+
+    ## LikeC4 Source (Final)
+
+    ```likec4
+    <full likec4_source content>
+    ```

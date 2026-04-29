@@ -7,12 +7,12 @@ from pathlib import Path
 import fsspec
 import pytest
 
+from cli.fs import RootedLocalFileSystem
 from contractor.tools.fs import (
     FileFormat,
     FsspecInteractionFileTools,
     InteractionFilter,
     InteractionKind,
-    RootedLocalFileSystem,
     ro_file_tools,
     rw_file_tools,
 )

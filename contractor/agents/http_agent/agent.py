@@ -23,17 +23,13 @@ from contractor.tools.tasks import (
     _prepare_worker_instructions,
 )
 from contractor.utils import load_prompt
+from contractor.utils.settings import DEFAULT_MODEL
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
 HTTP_PROMPT: Final[str] = load_prompt("http_agent")
-
-HTTP_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
 
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
@@ -78,7 +74,7 @@ def build_http_agent(
             "follows multi-step request flows (auth, sessions, redirects)."
         ),
         instruction=HTTP_PROMPT,
-        model=model if model is not None else HTTP_MODEL,
+        model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),
     )

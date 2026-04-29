@@ -17,8 +17,8 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.utils import load_prompt
+from contractor.utils.settings import DEFAULT_MODEL
 from contractor.tools.memory import memory_tools, MemoryFormat
-from contractor.agents.dummy_fs_swe.agent import dummy_fs_swe
 from contractor.tools.tasks import (
     task_tools,
     SubtaskFormatter,
@@ -29,11 +29,6 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     langfuse = get_client()
 
 SUBTASK_PLANNING_PROMPT: Final[str] = load_prompt("planning_agent")
-
-PLANNING_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
 
 FINISH_MAX_CALLS_RVALUE: dict[str, str] = {
     "error": "The 'finish' tool has already been called once. Stop execution."
@@ -82,17 +77,9 @@ def build_planning_agent(
         name=agent_name,
         description=f"planner for queued task {name}",
         instruction=SUBTASK_PLANNING_PROMPT,
-        model=model if model is not None else PLANNING_MODEL,
+        model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),
     )
 
     return planning_agent
-
-
-root_agent = build_planning_agent(
-    name="swe",
-    namespace="swe",
-    model=PLANNING_MODEL,
-    worker=dummy_fs_swe,
-)

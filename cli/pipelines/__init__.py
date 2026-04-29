@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from fsspec import AbstractFileSystem
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types
 
@@ -20,6 +21,7 @@ class PipelineContext:
     app_name: str
     user_id: str
     artifact_service: BaseArtifactService
+    fs: AbstractFileSystem
     artifact: Optional[str] = None
     prompt: Optional[str] = None
 
@@ -99,15 +101,19 @@ async def persist_seed_artifact(ctx: PipelineContext, filename: str) -> None:
 
 
 def get_pipelines() -> dict[str, type[Pipeline]]:
+    from .likec4_building import LikeC4BuildingPipeline
     from .oas_building import OasBuildingPipeline
     from .oas_enrichment import OasEnrichmentPipeline
     from .router import RouterPipeline
     from .trace_annotation import TraceAnnotationPipeline
+    from .trace_annotation_direct import TraceAnnotationDirectPipeline
 
     return {
         "build": OasBuildingPipeline,
         "enrich": OasEnrichmentPipeline,
+        "likec4": LikeC4BuildingPipeline,
         "trace": TraceAnnotationPipeline,
+        "trace-direct": TraceAnnotationDirectPipeline,
         "router": RouterPipeline,
     }
 

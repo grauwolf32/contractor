@@ -6,7 +6,6 @@ from google.adk.models import LiteLlm
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-from contractor.tools.fs import RootedLocalFileSystem
 
 from cli.pipelines import Pipeline, persist_seed_artifact
 
@@ -25,7 +24,7 @@ class OasEnrichmentPipeline(Pipeline):
         )
 
         llm = LiteLlm(model=ctx.model)
-        fs = RootedLocalFileSystem(root_path=ctx.project_path)
+        fs = ctx.fs
         oas_builder = partial(
             build_oas_builder_agent,
             name="oas_builder",
@@ -62,8 +61,8 @@ class OasEnrichmentPipeline(Pipeline):
         runner.add_task(
             name="oas_validate",
             worker_builder=oas_linter,
-            iterations=2,
-            max_attempts=6,
+            iterations=1,
+            max_attempts=2,
             max_steps=30,
             artifacts=[
                 "dependency_information/result",

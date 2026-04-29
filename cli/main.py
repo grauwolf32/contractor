@@ -10,11 +10,15 @@ import tree_sitter_language_pack as ts_pack
 from dotenv import load_dotenv
 from google.adk.artifacts import FileArtifactService
 
+load_dotenv()
+
 from contractor.runners.task_runner import (
     TaskRunnerEvent,
     TaskRunnerEventHandler,
 )
+from contractor.utils.settings import get_settings
 
+from cli.fs import RootedLocalFileSystem
 from cli.metrics import MetricsSink
 from cli.pipelines import PipelineContext, get_pipelines
 from cli.render import _render_event
@@ -28,10 +32,10 @@ from cli.utils import (
 
 PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
 
-load_dotenv()
-
 APP_NAME = "contractor"
-ARTIFACTS_DIR: Path = Path(__file__).parent.parent / "artifacts"
+ARTIFACTS_DIR: Path = (
+    get_settings().artifacts_dir or Path(__file__).parent.parent / "artifacts"
+)
 
 _QUIET_LOGGERS = (
     "httpcore",
@@ -141,6 +145,7 @@ async def async_main(
 
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    fs = RootedLocalFileSystem(root_path=str(project_path))
 
     if rm_artifacts:
         await remove_artifacts(
@@ -157,6 +162,7 @@ async def async_main(
         app_name=APP_NAME,
         user_id=user_id,
         artifact_service=artifact_service,
+        fs=fs,
         artifact=artifact,
         prompt=prompt,
     )

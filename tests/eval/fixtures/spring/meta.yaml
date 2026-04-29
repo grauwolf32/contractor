@@ -1,0 +1,7 @@
+slug: spring
+language: java
+framework: spring
+source_root: tests/playground/java/spring
+description: >
+  Minimal Spring Boot REST app with cookie-session auth (register, login),
+  user-scoped messages (send, inbox, outbox).

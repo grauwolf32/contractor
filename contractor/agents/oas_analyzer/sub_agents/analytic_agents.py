@@ -20,6 +20,7 @@ from contractor.agents.oas_analyzer.models import (
     ServiceBasicInfo,
 )
 from contractor.agents.oas_analyzer.prompts.factory import SectionPrompts
+from contractor.utils.settings import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -27,12 +28,6 @@ logger.setLevel(logging.DEBUG)
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
-
-
-DEFAULT_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
 
 
 @dataclass

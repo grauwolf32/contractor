@@ -1,0 +1,29 @@
+[
+  {
+    "id": "list-routers",
+    "prompt": "Identify every FastAPI APIRouter in the project and list each route it registers (HTTP method + path). Cite file paths.",
+    "expected_phrases": [
+      "login_router",
+      "message_router",
+      "/login",
+      "/messages",
+      "routers/login.py",
+      "routers/messages.py"
+    ],
+    "expected_tools_any": ["ls", "glob", "grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.66
+  },
+  {
+    "id": "describe-auth-flow",
+    "prompt": "Explain how the project authenticates a request to /messages. Reference the concrete functions and files that perform the check.",
+    "expected_phrases": [
+      "verify_cookie",
+      "pg_session_id",
+      "helpers/auth.py"
+    ],
+    "expected_tools_any": ["grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.66
+  }
+]

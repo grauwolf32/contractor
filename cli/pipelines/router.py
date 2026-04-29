@@ -21,7 +21,6 @@ from contractor.runners.models import (
 )
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
-from contractor.tools.fs import RootedLocalFileSystem
 
 from cli.pipelines import Pipeline
 
@@ -53,7 +52,7 @@ class RouterPipeline(Pipeline):
             raise ValueError("RouterPipeline requires ctx.prompt to be set")
 
         llm = LiteLlm(model=ctx.model)
-        fs = RootedLocalFileSystem(root_path=ctx.project_path)
+        fs = ctx.fs
 
         sub_agents = [
             build_swe_agent(

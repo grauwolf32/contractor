@@ -90,7 +90,7 @@ class BaseAdkPlugin(BasePlugin):
         self._raw_emit = emit
 
     async def _emit(self, event_type: str, **payload: Any) -> None:
-        await self._raw_emit(type=event_type, **self._ctx.as_dict(), **payload)
+        await self._raw_emit(event_type, **self._ctx.as_dict(), **payload)
 
     @staticmethod
     def _identity(context: Any) -> tuple[str | None, str | None]:

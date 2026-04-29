@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Final
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
@@ -17,7 +16,8 @@ from contractor.callbacks.guardrails import (
 )
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
-from contractor.tools.fs import FileFormat, RootedLocalFileSystem, ro_file_tools
+from cli.fs import RootedLocalFileSystem
+from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
@@ -25,6 +25,7 @@ from contractor.tools.tasks import (
     SubtaskFormatter,
     _prepare_worker_instructions,
 )
+from contractor.utils.settings import DEFAULT_MODEL
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
@@ -81,11 +82,6 @@ DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
 
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
 
-DUMMY_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
-
 playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 
 sandbox = PodmanContainer(
@@ -121,7 +117,7 @@ dummy_oas_builder = LlmAgent(
     name="dummy_oas_builder",
     description=DUMMY_SWE_DESCRIPTION,
     instruction=DUMMY_SWE_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
     tools=tools,
     **callback_adapter(),
 )

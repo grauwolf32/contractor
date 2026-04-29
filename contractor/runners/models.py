@@ -78,6 +78,7 @@ class TaskInvocation:
 
     params: dict[str, Any] = field(default_factory=dict)
     artifacts: list[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)
 
     iterations: int = 1
     max_attempts: int = 1
@@ -200,6 +201,7 @@ class TaskTemplate:
     instructions: str
     output_format: str
     default_artifacts: list[str] = field(default_factory=list)
+    default_skills: list[str] = field(default_factory=list)
     default_iterations: int = 1
     format: str = "json"
 
@@ -222,6 +224,7 @@ class TaskTemplate:
             instructions=raw["instructions"],
             output_format=raw["output_format"],
             default_artifacts=list(raw.get("artifacts", []) or []),
+            default_skills=list(raw.get("skills", []) or []),
             default_iterations=int(raw.get("iterations", 1) or 1),
             format=raw.get("format", "json") or "json",
         )

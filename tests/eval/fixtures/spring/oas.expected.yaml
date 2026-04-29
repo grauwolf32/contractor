@@ -1,0 +1,118 @@
+openapi: 3.0.3
+info:
+  title: Spring Playground API
+  version: 1.0.0
+paths:
+  /api/auth/register:
+    post:
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200": { description: OK }
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate and obtain a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+  /api/messages/send:
+    post:
+      tags: [messages]
+      summary: Send a message to another user
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "200": { description: OK }
+        "401": { description: Unauthorized }
+  /api/messages/inbox:
+    get:
+      tags: [messages]
+      summary: List messages addressed to the current user
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "401": { description: Unauthorized }
+  /api/messages/outbox:
+    get:
+      tags: [messages]
+      summary: List messages sent by the current user
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "401": { description: Unauthorized }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+    SendMessageRequest:
+      type: object
+      required: [toUserId, body]
+      properties:
+        toUserId: { type: integer }
+        body: { type: string }
+    Message:
+      type: object
+      properties:
+        id: { type: integer }
+        fromUserId: { type: integer }
+        toUserId: { type: integer }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }

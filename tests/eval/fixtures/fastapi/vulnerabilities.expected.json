@@ -1,0 +1,32 @@
+[
+  {
+    "tag": "appsec",
+    "vulnerability": "csrf",
+    "method": "post",
+    "path": "/login",
+    "parameters": ["username", "password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Cookie-session auth issued via /login JSON POST without CSRF token"
+  },
+  {
+    "tag": "datasec",
+    "vulnerability": "credential-exposure",
+    "method": "post",
+    "path": "/login",
+    "parameters": ["password"],
+    "severity": "medium",
+    "confidence": "high",
+    "description": "Password sent in plaintext JSON body; depends on TLS at edge"
+  },
+  {
+    "tag": "ddos",
+    "vulnerability": "credential-stuffing",
+    "method": "post",
+    "path": "/login",
+    "parameters": ["username", "password"],
+    "severity": "high",
+    "confidence": "high",
+    "description": "No rate-limit observed on login"
+  }
+]

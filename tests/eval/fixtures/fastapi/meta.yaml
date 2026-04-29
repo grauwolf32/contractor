@@ -1,0 +1,7 @@
+slug: fastapi
+language: python
+framework: fastapi
+source_root: tests/playground/python/fastapi
+description: >
+  Minimal FastAPI app with cookie-session auth (login) and a per-user
+  messages listing endpoint.

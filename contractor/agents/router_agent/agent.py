@@ -18,17 +18,13 @@ from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.utils import load_prompt
+from contractor.utils.settings import DEFAULT_MODEL
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
 ROUTER_PROMPT: Final[str] = load_prompt("router_agent")
-
-ROUTER_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
 
 
 def build_router_agent(
@@ -65,7 +61,7 @@ def build_router_agent(
         name=name,
         description="routes subtasks to specialized sub-agents",
         instruction=ROUTER_PROMPT,
-        model=model if model is not None else ROUTER_MODEL,
+        model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),
     )

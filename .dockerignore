@@ -1,0 +1,28 @@
+.git/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# local artifacts / scratch dirs
+artifacts/
+.artifacts*/
+.contractor/
+metrics/
+old/
+
+# secrets and local config
+.env
+.env.*
+*.env
+
+# tests, docs, IDE
+tests/
+docs/
+.claude/
+.vscode/
+.idea/
+.coverage

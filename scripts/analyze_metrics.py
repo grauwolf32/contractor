@@ -188,6 +188,13 @@ def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
                     for col in _TOKEN_COLS
                 },
                 "tool_args": _safe_dict(payload.get("tool_args")),
+                "args_hash": _opt_str(payload.get("args_hash")),
+                "started_at": pd.to_datetime(
+                    payload.get("started_at"), utc=True, errors="coerce"
+                ),
+                "duration_ms": pd.to_numeric(
+                    payload.get("duration_ms"), errors="coerce"
+                ),
                 "result": result,
                 "payload": payload,
                 "raw": rec,
@@ -395,8 +402,25 @@ class MetricSlices:
         tc = self.tool_calls
         tr = self.tool_results
 
-        # Tool call durations: pair before_tool → after_tool
-        if (
+        # Prefer emitted duration_ms (present on tool_result/tool_exc events for
+        # any run produced after the metrics_plugin was instrumented). Fall back
+        # to pairing before_tool → after_tool by timestamp for legacy data.
+        emitted = pd.concat(
+            [df for df in (tr, self.tool_exc) if not df.empty], ignore_index=True
+        ) if (not tr.empty or not self.tool_exc.empty) else pd.DataFrame()
+
+        if not emitted.empty and "duration_ms" in emitted.columns and emitted[
+            "duration_ms"
+        ].notna().any():
+            cols = ["ts", "invocation_id_f", "agent_name_f", "tool_name_f"]
+            durations = emitted[emitted["duration_ms"].notna()][
+                cols + ["duration_ms"]
+            ].copy()
+            durations["duration_s"] = durations["duration_ms"].astype(float) / 1000.0
+            self.tool_durations = durations.drop(columns=["duration_ms"]).reset_index(
+                drop=True
+            )
+        elif (
             not tc.empty
             and not tr.empty
             and tc["ts"].notna().any()
@@ -460,7 +484,16 @@ class MetricSlices:
             return
 
         tc = tc.copy()
-        tc["args_hash"] = tc["tool_args"].apply(_args_hash)
+        # Prefer the emitter-supplied hash (instrumented runs) and fall back to
+        # recomputing from tool_args on legacy events without args_hash.
+        if "args_hash" in tc.columns:
+            missing = tc["args_hash"].isna() | (tc["args_hash"].astype(str) == "")
+            if missing.any():
+                tc.loc[missing, "args_hash"] = tc.loc[missing, "tool_args"].apply(
+                    _args_hash
+                )
+        else:
+            tc["args_hash"] = tc["tool_args"].apply(_args_hash)
         tc = tc.sort_values(["invocation_id_f", "ts", "row_id"])
         tc["prev_tool"] = tc.groupby("invocation_id_f")["tool_name_f"].shift(1)
         tc["prev_hash"] = tc.groupby("invocation_id_f")["args_hash"].shift(1)
@@ -654,19 +687,22 @@ class MetricSlices:
         if keyed.empty:
             return
 
+        empty_index = pd.Index([], name="task_name_f")
         started = ts_started.groupby("task_name_f").size().rename("started")
         finished = (
             ts_finished.groupby("task_name_f").size().rename("finished")
             if not ts_finished.empty
-            else pd.Series(dtype="int64")
+            else pd.Series(dtype="int64", name="finished", index=empty_index)
         )
         failed = (
             ts_failed.groupby("task_name_f").size().rename("failed")
             if not ts_failed.empty
-            else pd.Series(dtype="int64")
+            else pd.Series(dtype="int64", name="failed", index=empty_index)
         )
 
-        iters_per_task = pd.Series(dtype="float64")
+        iters_per_task = pd.Series(
+            dtype="float64", name="max_iteration", index=empty_index
+        )
         if not iters.empty and iters["iteration"].notna().any():
             iters_per_task = (
                 iters.groupby("task_name_f")["iteration"]
@@ -701,8 +737,15 @@ class MetricSlices:
             )
             .reset_index()
         )
-        # success_rate: finished / (finished + failed); guard zero
-        denom = (agg["finished"] + agg["failed"]).replace(0, pd.NA)
+        # In-flight = started but neither finished nor failed (abandoned, crashed,
+        # or still running at log-end). Counting these as non-successes is what
+        # turns a misleading 100% rate into the truthful 1/4 = 25%.
+        agg["in_flight"] = (
+            (agg["started"] - agg["finished"] - agg["failed"]).clip(lower=0)
+        )
+        # success_rate: finished / started (guard zero). Dropping in_flight from
+        # the denominator hid abandoned tasks; keeping them surfaces them.
+        denom = agg["started"].replace(0, pd.NA)
         agg["success_rate"] = (agg["finished"] / denom).fillna(0)
         agg = agg.sort_values(["success_rate", "started"], ascending=[True, False])
         self.template_summary = agg
@@ -908,7 +951,7 @@ def _scatter(
     fig, ax = plt.subplots(figsize=(9, 6))
     if color_col and color_col in df.columns:
         categories = df[color_col].unique()
-        cmap = plt.cm.get_cmap("tab10", len(categories))
+        cmap = plt.colormaps["tab10"].resampled(len(categories))
         for i, cat in enumerate(categories):
             sub = df[df[color_col] == cat]
             ax.scatter(sub[x], sub[y], alpha=0.7, label=str(cat), color=cmap(i))
@@ -1117,10 +1160,11 @@ def compute_summary(
         if not slices.template_summary.empty:
             ts = slices.template_summary
             out["templates"] = int(len(ts))
-            if (ts["finished"].sum() + ts["failed"].sum()) > 0:
+            if int(ts["started"].sum()) > 0:
                 out["templates_success_rate_avg"] = round(
                     float(ts["success_rate"].mean()), 4
                 )
+                out["templates_in_flight_total"] = int(ts["in_flight"].sum())
                 worst = ts.sort_values("success_rate").iloc[0]
                 out["templates_worst"] = {
                     "template_key": str(worst["template_key"]),
@@ -1128,6 +1172,7 @@ def compute_summary(
                     "started": int(worst["started"]),
                     "finished": int(worst["finished"]),
                     "failed": int(worst["failed"]),
+                    "in_flight": int(worst["in_flight"]),
                 }
 
         if not slices.diversity_per_invocation.empty:
@@ -1224,9 +1269,9 @@ def write_markdown_report(
             "",
             f"- **Template:** `{worst.get('template_key')}`",
             f"- **Success rate:** {worst.get('success_rate', 0):.2%}",
-            f"- **Started / Finished / Failed:** "
+            f"- **Started / Finished / Failed / In-flight:** "
             f"{worst.get('started', 0)} / {worst.get('finished', 0)} / "
-            f"{worst.get('failed', 0)}",
+            f"{worst.get('failed', 0)} / {worst.get('in_flight', 0)}",
             "",
         ]
 

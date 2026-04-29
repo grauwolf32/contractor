@@ -13,13 +13,16 @@ from contractor.runners.task_runner import (
     TaskRunner,
     TaskRunnerEventHandler,
 )
-from contractor.tools.fs import RootedLocalFileSystem, MemoryOverlayFileSystem
+from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+TRACE_MAX_TOKENS: int = 80_000
 
 
 @dataclass
@@ -101,7 +104,7 @@ class TraceAnnotationPipeline(Pipeline):
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
         self.llm = LiteLlm(model=ctx.model)
-        self.fs = RootedLocalFileSystem(root_path=ctx.project_path)
+        self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []
 
@@ -125,38 +128,40 @@ class TraceAnnotationPipeline(Pipeline):
         openapi = yaml.safe_load(raw.text)
         self.paths = extract_openapi_paths(openapi=openapi)
 
-        for api_path in self.paths:
-            fs_state_artifact = await ctx.artifact_service.load_artifact(
-                app_name=ctx.app_name,
-                user_id=user_id,
-                filename=f"trace-{self.namespace}-fs",
-            )
-            if fs_state_artifact:
-                self.overlayfs.load(json.loads(fs_state_artifact.text))
+        fs_state_artifact = await ctx.artifact_service.load_artifact(
+            app_name=ctx.app_name,
+            user_id=user_id,
+            filename=f"trace-{self.namespace}-fs",
+        )
+        if fs_state_artifact:
+            self.overlayfs.load(json.loads(fs_state_artifact.text))
 
-            await self._run_path_analysis(
-                api_path,
-                user_id=user_id,
-                on_event=on_event,
-            )
+        try:
+            for api_path in self.paths:
+                await self._run_path_analysis(
+                    api_path,
+                    user_id=user_id,
+                    on_event=on_event,
+                )
+        finally:
+            await self._persist_overlay(user_id=user_id)
 
-            artifact_text = types.Part.from_text(text=json.dumps(self.overlayfs.save()))
-            await ctx.artifact_service.save_artifact(
-                app_name=ctx.app_name,
-                user_id=user_id,
-                filename=f"trace-{self.namespace}-fs",
-                artifact=artifact_text,
-            )
-
-            artifact_text = types.Part.from_text(
+    async def _persist_overlay(self, *, user_id: str) -> None:
+        ctx = self.ctx
+        await ctx.artifact_service.save_artifact(
+            app_name=ctx.app_name,
+            user_id=user_id,
+            filename=f"trace-{self.namespace}-fs",
+            artifact=types.Part.from_text(text=json.dumps(self.overlayfs.save())),
+        )
+        await ctx.artifact_service.save_artifact(
+            app_name=ctx.app_name,
+            user_id=user_id,
+            filename=f"trace-{self.namespace}-diff",
+            artifact=types.Part.from_text(
                 text=self.overlayfs.diff(context_lines=4)
-            )
-            await ctx.artifact_service.save_artifact(
-                app_name=ctx.app_name,
-                user_id=user_id,
-                filename=f"trace-{self.namespace}-diff",
-                artifact=artifact_text,
-            )
+            ),
+        )
 
     async def _run_path_analysis(
         self,
@@ -165,13 +170,16 @@ class TraceAnnotationPipeline(Pipeline):
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> None:
+        if not api_path.operations:
+            return
+
         ctx = self.ctx
         trace_builder = partial(
             build_trace_agent,
             name="trace_agent",
             fs=self.overlayfs,
             model=self.llm,
-            max_tokens=160000,
+            max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,
         )
 
@@ -182,27 +190,60 @@ class TraceAnnotationPipeline(Pipeline):
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
-        path_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
+        operation_ids, operation_schema_yaml = self._build_path_task_payload(api_path)
+        pipeline_namespace = f"trace-annotation:{self.namespace}"
 
-        for operation in api_path.operations:
-            operation_id = operation.operation_id
-            operation_schema = yaml.safe_dump(
-                {operation.path: {operation.method: operation.schema}}, sort_keys=False
-            )
+        runner.add_variable(name="operation_id", value=operation_ids)
+        runner.add_variable(name="operation_schema", value=operation_schema_yaml)
 
-            runner.add_variable(name="operation_id", value=operation_id)
-            runner.add_variable(name="operation_schema", value=operation_schema)
-
-            runner.add_task(
-                name="trace_annotation",
-                ref=f"trace_annotation:{self.namespace}:{operation_id}",
-                worker_builder=trace_builder,
-                iterations=1,
-                max_attempts=3,
-                max_steps=20,
-                artifacts=[],
-                namespace=path_namespace,
-                model=self.llm,
-            )
+        runner.add_task(
+            name="trace_annotation",
+            ref=f"trace_annotation:{self.namespace}:{api_path.path_key}",
+            worker_builder=trace_builder,
+            iterations=1,
+            max_attempts=3,
+            max_steps=20,
+            artifacts=[],
+            namespace=pipeline_namespace,
+            model=self.llm,
+        )
 
         await runner.run(user_id=user_id, on_event=on_event)
+
+    @staticmethod
+    def _build_path_task_payload(api_path: OpenApiPath) -> tuple[str, str]:
+        """Collapse all operations under ``api_path`` into a single task payload.
+
+        Returns a (operation_ids, operation_schema_yaml) tuple where operation_ids
+        is a comma-separated list and the schema YAML keeps shared
+        ``x-path-files`` / ``components`` at the path-item / document level
+        instead of duplicating them per method.
+        """
+        methods: dict[str, Any] = {}
+        shared_path_files: list[str] | None = None
+        shared_security_schemes: dict[str, Any] = {}
+
+        for operation in api_path.operations:
+            schema = dict(operation.schema)
+            path_files = schema.pop("x-path-files", None)
+            components = schema.pop("components", None)
+
+            if path_files and shared_path_files is None:
+                shared_path_files = path_files
+            if components:
+                schemes = components.get("securitySchemes") or {}
+                if schemes:
+                    shared_security_schemes.update(schemes)
+
+            methods[operation.method] = schema
+
+        if shared_path_files is not None:
+            methods["x-path-files"] = shared_path_files
+
+        doc: dict[str, Any] = {api_path.path: methods}
+        if shared_security_schemes:
+            doc["components"] = {"securitySchemes": shared_security_schemes}
+
+        operation_ids = ", ".join(op.operation_id for op in api_path.operations)
+        operation_schema_yaml = yaml.safe_dump(doc, sort_keys=False)
+        return operation_ids, operation_schema_yaml

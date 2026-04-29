@@ -1,0 +1,30 @@
+[
+  {
+    "id": "list-controllers",
+    "prompt": "Identify every Spring REST controller in the project and list, for each, the HTTP endpoints it exposes (method + URL path). Cite file paths.",
+    "expected_phrases": [
+      "AuthController",
+      "MessageController",
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/messages/send",
+      "/api/messages/inbox",
+      "/api/messages/outbox"
+    ],
+    "expected_tools_any": ["ls", "glob", "grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.8
+  },
+  {
+    "id": "describe-auth-flow",
+    "prompt": "Describe how the project authenticates incoming requests after login. Reference the concrete class names and files that implement the check.",
+    "expected_phrases": [
+      "SessionFilter",
+      "AuthContext",
+      "SessionRepo"
+    ],
+    "expected_tools_any": ["grep", "search_def"],
+    "expected_tools_all": ["read_file"],
+    "min_phrase_recall": 0.66
+  }
+]

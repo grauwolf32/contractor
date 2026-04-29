@@ -17,7 +17,8 @@ from contractor.callbacks.guardrails import (
 )
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
-from contractor.tools.fs import FileFormat, RootedLocalFileSystem, ro_file_tools
+from cli.fs import RootedLocalFileSystem
+from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.tools.podman import PodmanContainer
 from contractor.tools.tasks import (

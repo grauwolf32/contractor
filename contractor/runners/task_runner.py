@@ -6,7 +6,6 @@ import logging
 from typing import Any, Literal, Optional
 from uuid import uuid4
 
-from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.artifacts import BaseArtifactService
 from google.adk.events import Event
@@ -33,16 +32,15 @@ from contractor.runners.models import (
     TaskRunnerEventHandler,
     WorkerBuilder,
 )
+from contractor.runners.skills import SkillFile, load_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
-
-load_dotenv()
+from contractor.utils.settings import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 _ARTIFACT_KINDS: tuple[ArtifactKind, ...] = ("result", "summary", "records")
-DEFAULT_MODEL = LiteLlm(model="lm-studio-qwen3.5", timeout=300)
 
 
 # ─── Custom Exceptions ───────────────────────────────────────────────────────
@@ -154,6 +152,7 @@ class TaskRunner(BaseModel):
         ref: str | None = None,
         params: dict[str, Any] | None = None,
         artifacts: list[str] | None = None,
+        skills: list[str] | None = None,
         iterations: int | None = None,
         max_attempts: int | None = None,
         max_steps: int = 15,
@@ -175,6 +174,7 @@ class TaskRunner(BaseModel):
             worker_builder=worker_builder,
             params=params or {},
             artifacts=list(artifacts or template.default_artifacts),
+            skills=list(skills if skills is not None else template.default_skills),
             iterations=eff_iterations,
             max_attempts=eff_max_attempts,
             max_steps=max_steps,
@@ -421,6 +421,34 @@ class TaskRunner(BaseModel):
             user_id=user_id,
         )
 
+    async def _inject_skills(
+        self, user_id: str, namespace: str, skills: list[str]
+    ) -> None:
+        if not skills:
+            return
+
+        files = load_skills(skills)
+        if not files:
+            return
+
+        memories = [
+            MemoryNote(
+                name=f.name,
+                memory=f.content,
+                description=f.description,
+                tags=["skill", f.skill] if f.is_index else [f.skill],
+            )
+            for f in files
+        ]
+
+        mem_tools = MemoryTools(name=namespace)
+        await mem_tools.inject(
+            memories=memories,
+            artifact_service=self.artifact_service,
+            app_name=self.name,
+            user_id=user_id,
+        )
+
     def _describe_artifact(self, name: str) -> str:
         """Derive a human-readable description for a loaded artifact."""
         if "/" in name:
@@ -477,9 +505,15 @@ class TaskRunner(BaseModel):
         iteration: int,
     ) -> TaskResult:
         agent = self._spawn_planning_agent(item, rendered_task)
+        namespace = item.effective_namespace(self.name)
+        await self._inject_skills(
+            user_id=user_id,
+            namespace=namespace,
+            skills=item.skills,
+        )
         await self._inject_artifacts(
             user_id=user_id,
-            namespace=item.effective_namespace(self.name),
+            namespace=namespace,
             input_artifacts=input_artifacts,
         )
 
@@ -676,6 +710,7 @@ class TaskRunner(BaseModel):
                         EventType.TASK_FINISHED,
                         task_name=item.ref,
                         task_id=task_id,
+                        template_key=item.template_key,
                         session_id=result["session_id"],
                         status=result["status"],
                         result=result["result"],
@@ -693,6 +728,7 @@ class TaskRunner(BaseModel):
             EventType.TASK_FAILED,
             task_name=item.ref,
             task_id=task_id,
+            template_key=item.template_key,
             max_attempts=item.max_attempts,
             last_result=last_result,
             total_tasks=total_tasks,

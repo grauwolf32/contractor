@@ -6,7 +6,7 @@ import pytest
 
 from contractor.tools.fs.models import FsEntry
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
-from contractor.tools.fs.rootfs import RootedLocalFileSystem
+from cli.fs import RootedLocalFileSystem
 
 
 @pytest.fixture()

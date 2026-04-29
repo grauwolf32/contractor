@@ -4,7 +4,6 @@ import os
 from typing import Any, Final
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
@@ -16,6 +15,7 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.http import http_tools
 from contractor.tools.memory import memory_tools, MemoryFormat
+from contractor.utils.settings import DEFAULT_MODEL
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
@@ -28,12 +28,6 @@ DUMMY_AGENT_PROMPT: Final[str] = (
 DUMMY_AGENT_DESCRIPTION: Final[str] = (
     "software engineering agent to test tools and integrational scenarios."
 )
-
-DUMMY_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
-
 
 def default_tool(meta: dict[str, Any]) -> dict:
     """
@@ -64,7 +58,7 @@ dummy_http = LlmAgent(
     name="dummy_http",
     description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
     tools=tools,
     **callback_adapter(),
 )

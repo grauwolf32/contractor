@@ -308,8 +308,9 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
         """
         Runs Vacuum spectral-report on the current OpenAPI artifact.
 
-        Loads the OpenAPI specification from the artifact store, lints it
-        using vacuum, and returns processed issues.
+        Returns only serious issues (severity 2). Lower-severity findings
+        (warnings, hints) are intentionally suppressed so the caller can
+        focus repair effort on schema-breaking problems.
 
         Args:
             ctx: The tool context for loading artifacts.
@@ -327,6 +328,7 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
             result = await asyncio.to_thread(
                 linter.lint,
                 openapi_str=openapi_str,
+                include_severities=(2,),
                 limit=limit,
             )
             return {"result": result}

@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: FastAPI Playground
+  version: 1.0.0
+paths:
+  /login:
+    post:
+      tags: [login]
+      summary: Authenticate and set session cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /messages:
+    get:
+      tags: [messages]
+      summary: List the current user's messages
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMessages"
+        "401": { description: Unauthorized }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: pg_session_id
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+    UserMessages:
+      type: object
+      description: Aggregated message list returned to the authenticated user

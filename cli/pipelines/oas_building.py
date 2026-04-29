@@ -7,7 +7,6 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-from contractor.tools.fs import RootedLocalFileSystem
 
 from cli.pipelines import Pipeline
 
@@ -26,7 +25,7 @@ class OasBuildingPipeline(Pipeline):
         )
 
         llm = LiteLlm(model=ctx.model)
-        fs = RootedLocalFileSystem(root_path=ctx.project_path)
+        fs = ctx.fs
         swe_builder = partial(
             build_swe_agent, name="swe_agent", fs=fs, model=llm, max_tokens=100_000
         )
@@ -86,7 +85,7 @@ class OasBuildingPipeline(Pipeline):
             name="oas_validate",
             worker_builder=oas_linter,
             iterations=1,
-            max_attempts=3,
+            max_attempts=1,
             max_steps=20,
             artifacts=[
                 "dependency_information/result",

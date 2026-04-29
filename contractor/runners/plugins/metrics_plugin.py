@@ -1,10 +1,13 @@
 # contractor/runners/metrics_plugin.py
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum, unique
 from typing import Any, Awaitable, Callable, Optional
 
@@ -38,6 +41,15 @@ def _jsonable(value: Any) -> str:
         return repr(value)
 
 
+def _args_hash(args: Any) -> str:
+    """Stable 16-hex digest of canonical-JSON-serialised tool args.
+
+    Matches the algorithm scripts/analyze_metrics.py uses for retry/streak
+    detection so emitter and analyzer agree byte-for-byte.
+    """
+    return hashlib.sha256(_jsonable(args).encode()).hexdigest()[:16]
+
+
 def _fingerprint(
     invocation_id: str,
     agent_name: str,
@@ -45,6 +57,10 @@ def _fingerprint(
     args: dict[str, Any],
 ) -> str:
     return f"{invocation_id}||{agent_name}||{tool_name}||{_jsonable(args)}"
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _safe_int(value: Any) -> int:
@@ -134,6 +150,9 @@ class _TrackedCall:
     agent_name: str
     tool_name: str
     args: dict[str, Any]
+    args_hash: str
+    started_at: str
+    started_monotonic: float
     exception_seen: bool = False
     finished: bool = False
 
@@ -164,6 +183,9 @@ class _CallTracker:
             agent_name=agent_name,
             tool_name=tool_name,
             args=args,
+            args_hash=_args_hash(args),
+            started_at=_utcnow_iso(),
+            started_monotonic=time.monotonic(),
         )
         fp = _fingerprint(invocation_id, agent_name, tool_name, args)
         self._calls[call.call_id] = call
@@ -305,6 +327,23 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             "cached": _safe_int(data.get("cached_content_token_count")),
         }
 
+    @staticmethod
+    def _timing_payload(call: _TrackedCall | None) -> dict[str, Any]:
+        """Build the timing/identity fields shared by tool result/exception events.
+
+        When the before_tool callback was missed (call is None) we still emit
+        args_hash via _args_hash() at the call site if needed; here we just
+        skip duration since we don't know when the call started.
+        """
+        if call is None:
+            return {}
+        elapsed_ms = max(0.0, (time.monotonic() - call.started_monotonic) * 1000.0)
+        return {
+            "args_hash": call.args_hash,
+            "started_at": call.started_at,
+            "duration_ms": round(elapsed_ms, 3),
+        }
+
     # ── Tool callbacks ────────────────────────────────────────────────────
 
     async def before_tool_callback(
@@ -320,7 +359,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         raw_inv, raw_agent = self._identity(tool_context)
         inv, agent = self._normalise_identity(raw_inv, raw_agent)
 
-        self._tracker.register(inv, agent, tool.name, actual_args)
+        call = self._tracker.register(inv, agent, tool.name, actual_args)
         self._tool_bucket(inv, agent, tool.name).calls_total += 1
 
         await self._emit(
@@ -329,6 +368,8 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             agent_name=agent,
             tool_name=tool.name,
             tool_args=actual_args,
+            args_hash=call.args_hash,
+            started_at=call.started_at,
         )
         return None
 
@@ -355,6 +396,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             if call:
                 call.exception_seen = True
 
+        timing = self._timing_payload(call)
         await self._emit(
             "metrics_tool_exception_error",
             invocation_id=inv,
@@ -362,6 +404,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             tool_name=tool.name,
             tool_args=actual_args,
             error=repr(error) if error is not None else None,
+            **timing,
         )
         return None
 
@@ -394,6 +437,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             )
             bucket.record_outcome(outcome)
 
+        timing = self._timing_payload(call)
         if call:
             self._tracker.finish(call)
 
@@ -405,6 +449,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             tool_args=actual_args,
             result=actual_result,
             result_error=is_error,
+            **timing,
         )
 
         await self._maybe_record_fs_coverage(inv, agent, tool_context)

@@ -4,7 +4,6 @@ import os
 from typing import Final
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
@@ -12,6 +11,7 @@ from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.ratelimits import RpmRatelimitCallback
 from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.utils.settings import DEFAULT_MODEL
 
 if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
@@ -23,18 +23,13 @@ DUMMY_AGENT_PROMPT: Final[str] = (
 
 DUMMY_AGENT_DESCRIPTION: Final[str] = "agent to test tools and integrational scenarios."
 
-DUMMY_MODEL = LiteLlm(
-    model="lm-studio-qwen3.5",
-    timeout=300,
-)
-
 DUMMY_SUMMARIZER_MESSAGE: Final[str] = "Summarize our conversation."
 
 dummy = LlmAgent(
     name="dummy",
     description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
 )
 
 callback_adapter = CallbackAdapter()
@@ -44,7 +39,7 @@ dummy_with_token_count = LlmAgent(
     name="dummy_with_token_count",
     description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
     **callback_adapter(),
 )
 
@@ -54,7 +49,7 @@ dummy_with_rpm_ratelimit = LlmAgent(
     name="dummy_with_rpm_ratelimit",
     description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
     **callback_adapter(),
 )
 
@@ -66,7 +61,7 @@ dummy_summarizator = LlmAgent(
     name="dummy_summarizator",
     description=DUMMY_AGENT_DESCRIPTION,
     instruction=DUMMY_AGENT_PROMPT,
-    model=DUMMY_MODEL,
+    model=DEFAULT_MODEL,
     **callback_adapter(),
 )
 
