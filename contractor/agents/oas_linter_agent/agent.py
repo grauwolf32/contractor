@@ -35,7 +35,16 @@ OAS_LINTER_PROMPT: Final[str] = load_prompt("oas_linter_agent")
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
-        "You have reached context limit. Summarize your progress and call report tool."
+        "You have reached the context limit. Summarize your progress:\n"
+        "1. Subtask objective as you understand it\n"
+        "2. Initial lint_openapi findings vs. current state (issues resolved, issues remaining)\n"
+        "3. Schema mutations applied so far (upsert_path / upsert_component / remove_*) with the rule or finding that motivated each\n"
+        "4. Code or schema evidence supporting each mutation (file:line, component name, or lint rule id)\n"
+        "5. Lint issues intentionally left unresolved and the reason (e.g., needs human input, ambiguous spec)\n"
+        "6. Assumptions made when reconciling lint output with code\n"
+        "7. Open questions or blockers\n"
+        "8. Smallest concrete next step (typically: re-run lint_openapi and address the highest-severity remaining issue)\n"
+        "Include only claims supported by tool output; mark anything inferred as such.\n"
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 

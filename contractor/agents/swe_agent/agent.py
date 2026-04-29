@@ -35,7 +35,14 @@ SWE_PROMPT: Final[str] = load_prompt("swe_agent")
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
-        "You have reached context limit. Summarize your progress and call report tool."
+        "You have reached the context limit. Summarize your progress:\n"
+        "1. Subtask objective as you understand it\n"
+        "2. Key findings (definitions, symbols, file:line locations) confirmed by tool output\n"
+        "3. Areas explored vs. relevant areas still unexplored\n"
+        "4. Assumptions made and decisions taken, with the reason for each\n"
+        "5. Open questions, blockers, or contradictions encountered\n"
+        "6. Smallest concrete next step to resume the subtask\n"
+        "Include only claims supported by tool output; mark anything inferred as such.\n"
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 

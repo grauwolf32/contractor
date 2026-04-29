@@ -8,6 +8,7 @@ from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from langfuse import get_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from fsspec import AbstractFileSystem
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
@@ -18,10 +19,9 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from contractor.utils import load_prompt
-from contractor.tools.fs import FileFormat, RootedLocalFileSystem, ro_file_tools
+from contractor.tools.fs import FileFormat, RootedLocalFileSystem, rw_file_tools
 from contractor.tools.memory import memory_tools, MemoryFormat
-from contractor.tools.openapi.openapi import openapi_tools
-from contractor.tools.code.tools import code_tools
+from contractor.tools.code import code_tools
 from contractor.tools.tasks import (
     SubtaskFormatter,
     _prepare_worker_instructions,
@@ -31,46 +31,45 @@ if os.environ.get("USE_LANGFUSE", "").lower() == "true":
     GoogleADKInstrumentor().instrument()
     langfuse = get_client()
 
-OAS_PROMPT: Final[str] = load_prompt("oas_builder_agent")
+SWE_EDIT_PROMPT: Final[str] = load_prompt("swe_edit_agent")
 
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
-        "You have reached the context limit. Summarize your progress:\n"
-        "1. Subtask objective as you understand it\n"
-        "2. Endpoints upserted into the schema (method + path) and the source file:line they were derived from\n"
-        "3. Components/schemas upserted, with the source they were derived from\n"
-        "4. Code areas explored vs. relevant areas still unexplored\n"
-        "5. Assumptions made (inferred types, optionality, auth, content types) and the reason for each\n"
-        "6. Endpoints or components observed but not yet upserted, and why\n"
-        "7. Open questions, ambiguous handlers, or blockers\n"
-        "8. Smallest concrete next step to resume building the schema\n"
-        "Include only claims supported by tool output; mark anything inferred as such.\n"
+        "You have reached context limit. Summarize your progress:\n"
+        "1. Subtask understanding and goal\n"
+        "2. Files explored and key findings\n"
+        "3. Edits applied so far (paths and brief description)\n"
+        "4. Outstanding edits or verification steps\n"
+        "5. Blockers or open questions\n"
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 
 
-OAS_MODEL = LiteLlm(
+SWE_EDIT_MODEL = LiteLlm(
     model="lm-studio-qwen3.5",
     timeout=300,
 )
 
 
-def build_oas_builder_agent(
+def build_swe_edit_agent(
     name: str,
-    fs,
+    fs: AbstractFileSystem,
     *,
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
-):
+) -> LlmAgent:
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-    fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
-    oas_tools = openapi_tools(name=namespace, fs=fs)
+    fs_tools = rw_file_tools(
+        fs,
+        fmt=FileFormat(_format=_format),
+        with_interaction_tools=True,
+    )
     ctools = code_tools(fs=fs)
 
-    tools = [default_tool, *fs_tools, *mem_tools, *oas_tools, *ctools]
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
 
     callback_adapter = CallbackAdapter(agent_name=name)
     callback_adapter.register(TokenUsageCallback())
@@ -86,24 +85,24 @@ def build_oas_builder_agent(
     )
     callback_adapter.register(RepeatedToolCallCallback(threshold=5))
 
-    swe_agent = LlmAgent(
+    swe_edit_agent = LlmAgent(
         name=name,
-        description="software engineering agent",
-        instruction=OAS_PROMPT,
-        model=model if model is not None else OAS_MODEL,
+        description="software engineering agent with edit capabilities",
+        instruction=SWE_EDIT_PROMPT,
+        model=model if model is not None else SWE_EDIT_MODEL,
         tools=tools,
         **callback_adapter(),
     )
 
-    return swe_agent
+    return swe_edit_agent
 
 
 playground_path = Path(__file__).parent.parent.parent.parent / "tests" / "playground"
 
 fs = RootedLocalFileSystem(root_path=playground_path)
 
-root_agent = build_oas_builder_agent(
-    name="oas_builder_agent",
-    namespace="code_review",
+root_agent = build_swe_edit_agent(
+    name="swe_edit_agent",
+    namespace="swe_edit",
     fs=fs,
 )
