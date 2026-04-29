@@ -47,6 +47,14 @@ def _load_json(path: Path) -> Any:
         return json.load(f)
 
 
+def _maybe_load_yaml(path: Path, default: Any) -> Any:
+    return _load_yaml(path) if path.is_file() else default
+
+
+def _maybe_load_json(path: Path, default: Any) -> Any:
+    return _load_json(path) if path.is_file() else default
+
+
 def _load_fixture(slug: str) -> EvalFixture:
     fixture_dir = FIXTURES_ROOT / slug
     meta = _load_yaml(fixture_dir / "meta.yaml")
@@ -56,19 +64,15 @@ def _load_fixture(slug: str) -> EvalFixture:
             f"Fixture {slug} source_root not found: {source_root}. "
             "Did you initialise the playground submodule?"
         )
-    trace_cases_path = fixture_dir / "trace-cases.json"
-    trace_cases = (
-        _load_json(trace_cases_path) if trace_cases_path.exists() else []
-    )
     return EvalFixture(
         slug=slug,
         source_root=source_root,
-        expected_oas=_load_yaml(fixture_dir / "oas.expected.yaml") or {},
-        expected_vulnerabilities=_load_json(
-            fixture_dir / "vulnerabilities.expected.json"
+        expected_oas=_maybe_load_yaml(fixture_dir / "oas.expected.yaml", {}) or {},
+        expected_vulnerabilities=_maybe_load_json(
+            fixture_dir / "vulnerabilities.expected.json", []
         ),
-        swe_cases=_load_json(fixture_dir / "swe-cases.json"),
-        trace_cases=trace_cases,
+        swe_cases=_maybe_load_json(fixture_dir / "swe-cases.json", []),
+        trace_cases=_maybe_load_json(fixture_dir / "trace-cases.json", []),
     )
 
 
