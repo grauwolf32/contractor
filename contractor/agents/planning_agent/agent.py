@@ -64,10 +64,14 @@ def build_planning_agent(
     )
     callback_adapter.register(RepeatedToolCallCallback(threshold=2))
 
+    instruction = SUBTASK_PLANNING_PROMPT.replace(
+        "<<MAX_SUBTASKS>>", str(max_steps)
+    )
+
     planning_agent = LlmAgent(
         name=agent_name,
         description=f"planner for queued task {name}",
-        instruction=SUBTASK_PLANNING_PROMPT,
+        instruction=instruction,
         model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),
