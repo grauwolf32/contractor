@@ -5,8 +5,6 @@ from typing import Any, Final
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.guardrails import (
@@ -16,10 +14,6 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.podman import PodmanContainer
 from contractor.utils.settings import DEFAULT_MODEL
-
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
 
 DUMMY_AGENT_PROMPT: Final[str] = (
     "You are helpfull assistent. You must comply with the user request."
@@ -38,7 +32,6 @@ sandbox = PodmanContainer(
     workdir="/",
 )
 
-
 def default_tool(meta: dict[str, Any]) -> dict:
     """
     default_tool: You must not use this tool. This is safeguard mechanism.
@@ -49,7 +42,6 @@ def default_tool(meta: dict[str, Any]) -> dict:
     """
 
     return {"error": f"tool {meta.get('func_name')} is not available!"}
-
 
 tools = [default_tool, *sandbox.tools()]
 

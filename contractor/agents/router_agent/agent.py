@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import os
 from typing import Final, Literal, Optional, Sequence
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import AgentTool
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.guardrails import (
@@ -20,12 +17,7 @@ from contractor.tools.memory import memory_tools, MemoryFormat
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
 
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
-
 ROUTER_PROMPT: Final[str] = load_prompt("router_agent")
-
 
 def build_router_agent(
     name: str,

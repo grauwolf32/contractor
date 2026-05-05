@@ -4,18 +4,12 @@ import os
 from typing import Final
 
 from google.adk.agents import LlmAgent
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.ratelimits import RpmRatelimitCallback
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.utils.settings import DEFAULT_MODEL
-
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
 
 DUMMY_AGENT_PROMPT: Final[str] = (
     "You are helpfull assistent. You must comply with the user request."

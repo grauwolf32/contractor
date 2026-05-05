@@ -56,30 +56,6 @@ def get_settings() -> Settings:
     return Settings()
 
 
-_observability_initialized = False
-
-
-def init_observability() -> None:
-    """Idempotent Langfuse + ADK instrumentation hook.
-
-    Replaces the per-agent `if os.environ.get("USE_LANGFUSE")...` block.
-    Safe to call from any module at import time.
-    """
-    global _observability_initialized
-    if _observability_initialized:
-        return
-    _observability_initialized = True
-
-    if not get_settings().use_langfuse:
-        return
-
-    from langfuse import get_client
-    from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-
-    GoogleADKInstrumentor().instrument()
-    get_client()
-
-
 def _build_default_model() -> LiteLlm:
     s = get_settings()
     return LiteLlm(model=s.default_model_name, timeout=s.default_model_timeout)

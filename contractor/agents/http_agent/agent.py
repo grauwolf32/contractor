@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
 from typing import Final, Literal, Optional
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
@@ -25,19 +22,13 @@ from contractor.tools.tasks import (
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
 
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
-
 HTTP_PROMPT: Final[str] = load_prompt("http_agent")
-
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
         "You have reached context limit. Summarize your progress and call report tool."
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
-
 
 def build_http_agent(
     name: str,

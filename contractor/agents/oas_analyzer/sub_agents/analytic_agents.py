@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import logging
 from dataclasses import dataclass
 from typing import AsyncGenerator, Callable, Literal, Optional
@@ -10,8 +9,6 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.tool_context import ToolContext
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from pydantic import BaseModel
 from typing_extensions import override
 
@@ -24,11 +21,6 @@ from contractor.utils.settings import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
-
 
 @dataclass
 class BotFactory:
@@ -56,7 +48,6 @@ class BotFactory:
                 )
             )
         return bots
-
 
 def save_vulnerability(
     path: str,
@@ -112,7 +103,6 @@ def save_vulnerability(
 
     return {"success": "true"}
 
-
 def _create_branch_ctx_for_sub_agent(
     agent: BaseAgent,
     sub_agent: BaseAgent,
@@ -127,7 +117,6 @@ def _create_branch_ctx_for_sub_agent(
         else branch_suffix
     )
     return invocation_context
-
 
 class AnalyticAgent(BaseAgent):
     class Config:
@@ -159,6 +148,5 @@ class AnalyticAgent(BaseAgent):
                 _create_branch_ctx_for_sub_agent(self, agent, ctx)
             ):
                 yield event
-
 
 analytic_agent = AnalyticAgent()

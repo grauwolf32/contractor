@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Final
 
 from google.adk.agents import LlmAgent
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
@@ -26,10 +23,6 @@ from contractor.tools.tasks import (
     _prepare_worker_instructions,
 )
 from contractor.utils.settings import DEFAULT_MODEL
-
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
 
 DUMMY_SWE_PROMPT: Final[str] = (
     "You are a professional, helpful Software Engineer (SWE) agent.\n"
@@ -69,7 +62,6 @@ DUMMY_SWE_PROMPT: Final[str] = (
     "IMPORTANT: always write useful information to the memory\n"
     "\n"
 )
-
 
 DUMMY_SWE_DESCRIPTION: Final[str] = (
     "Professional software engineer focused on implementing and validating assigned subtasks."

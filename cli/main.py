@@ -16,6 +16,7 @@ from contractor.runners.task_runner import (
     TaskRunnerEvent,
     TaskRunnerEventHandler,
 )
+from contractor.utils import observability
 from contractor.utils.settings import get_settings
 
 from cli.fs import RootedLocalFileSystem
@@ -170,7 +171,18 @@ async def async_main(
     runner = pipeline_cls(ctx)
     handler = _build_event_handler(output_dir, pipeline, enable_ui=enable_ui)
 
-    await runner.run(user_id=user_id, on_event=handler)
+    with observability.run_context(
+        name=f"pipeline.{pipeline}",
+        user_id=user_id,
+        session_id=f"{pipeline}:{project_path.name}",
+        tags=[f"pipeline:{pipeline}", f"model:{model}"],
+        metadata={
+            "project_path": str(project_path),
+            "folder_name": folder_name,
+            "model": model,
+        },
+    ):
+        await runner.run(user_id=user_id, on_event=handler)
 
     saved_paths = await save_artifact(
         app_name=APP_NAME,
@@ -255,6 +267,7 @@ def main(
 ) -> None:
     """Run contractor task pipeline for a project."""
     _setup_logging()
+    observability.init()
 
     pipeline = pipeline.lower()
     project_path = validate_project_path(project_path)
