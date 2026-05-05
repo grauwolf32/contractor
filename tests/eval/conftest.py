@@ -91,6 +91,18 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_eval)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _eval_observability() -> None:
+    """Initialise Langfuse instrumentation once per eval session.
+
+    No-op when Langfuse is disabled in settings — the harness still tags
+    runs with ``prompt_version`` etc., the calls just don't emit anything.
+    """
+    from contractor.utils import observability
+
+    observability.init()
+
+
 @pytest.fixture(scope="session")
 def eval_model() -> LiteLlm:
     """LiteLlm instance used by eval agents.

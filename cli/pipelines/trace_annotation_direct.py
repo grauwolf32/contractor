@@ -16,6 +16,7 @@ from contractor.runners.models import (
 )
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
+from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
@@ -118,6 +119,14 @@ class TraceAnnotationDirectPipeline(Pipeline):
     ) -> None:
         path_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
+
+        await inject_skills(
+            ["trace"],
+            namespace=path_namespace,
+            artifact_service=self.ctx.artifact_service,
+            app_name=self.ctx.app_name,
+            user_id=user_id,
+        )
 
         for idx, operation in enumerate(api_path.operations):
             await self._run_operation_trace(

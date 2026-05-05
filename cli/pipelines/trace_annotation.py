@@ -204,6 +204,7 @@ class TraceAnnotationPipeline(Pipeline):
             max_attempts=3,
             max_steps=20,
             artifacts=[],
+            skills=["trace"],
             namespace=pipeline_namespace,
             model=self.llm,
         )

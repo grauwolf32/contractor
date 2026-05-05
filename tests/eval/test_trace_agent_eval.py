@@ -4,9 +4,17 @@ Each case anchors a trace at a specific entrypoint (route handler or
 function) and lists the functions the agent is expected to annotate. We
 score the produced `(file, function)` set against ground truth using the
 same precision/recall machinery as the other agents.
+
+Prompt version: a case may specify ``prompt_version`` to pin a specific
+entry from ``contractor/agents/trace_agent/prompt.yml``. The env var
+``CONTRACTOR_EVAL_TRACE_PROMPT_VERSION`` overrides every case (handy for
+sweeping a candidate version across all fixtures). When neither is set
+the manifest's ``active`` version is used.
 """
 
 from __future__ import annotations
+
+import os
 
 import pytest
 
@@ -36,6 +44,12 @@ def _expected_set(case: dict) -> set[Annotation]:
     }
 
 
+def _resolve_prompt_version(case: dict) -> str | None:
+    return os.environ.get("CONTRACTOR_EVAL_TRACE_PROMPT_VERSION") or case.get(
+        "prompt_version"
+    )
+
+
 @pytest.mark.eval
 @pytest.mark.asyncio
 async def test_trace_agent_cases(fixture, eval_model):
@@ -51,6 +65,7 @@ async def test_trace_agent_cases(fixture, eval_model):
             model=eval_model,
             namespace=f"trace-eval-{fixture.slug}-{case['id']}",
             timeout_s=float(case.get("timeout_s", 900.0)),
+            prompt_version=_resolve_prompt_version(case),
         )
 
         expected = _expected_set(case)
@@ -63,7 +78,7 @@ async def test_trace_agent_cases(fixture, eval_model):
 
         if not score.passes(min_precision=min_precision, min_recall=min_recall):
             failures.append(
-                f"case={case['id']}\n"
+                f"case={case['id']} prompt_version={run.prompt_version}\n"
                 f"  modified_files={sorted(run.modified_files)}\n"
                 f"  {score.explain('annotations')}\n"
                 f"  tools_used={sorted(set(run.agent_run.tool_names()))}"

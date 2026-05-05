@@ -3,6 +3,7 @@
 .adk/
 artifacts/*
 contractor/artifacts/*
+scripts/*.yml
 metrics/*
 .artifacts
 .artifacts.*

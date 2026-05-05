@@ -12,7 +12,8 @@ task:
 
     Constraints:
     - Never output YAML during the build phase.
-    - Apply all schema changes through OpenAPI write tools only.
+    - Apply all schema changes through the worker's schema-mutation
+      capabilities only — never edit OpenAPI artifacts directly.
 
     Core approach:
     - Work incrementally: update one path or a small related group at a time.
@@ -28,38 +29,38 @@ task:
     - Do not invent exact locations; use the strongest supported evidence.
 
     Operating procedure:
-    1. Review prior records, and existing memories.
+    1. Review prior records and existing memories.
 
-    2. Inspect current OpenAPI state using the smallest necessary reads:
-       - list_paths, list_components, list_servers
-       - get_info, get_path, get_component
+    2. Inspect current OpenAPI state using the smallest necessary reads
+       (enumerate paths/components/servers, fetch a single path or
+       component, fetch top-level info). Avoid fetching the whole schema.
 
     3. Check exploration coverage before planning:
-       - interaction_stats
-       - list_touched_files
-       - list_untouched_files
-       - list_match_only_files
-       Prioritize untouched, matched or weakly explored areas. Do not keep revisiting the same files
-       while relevant gaps remain.
+       - Use the worker's coverage inspection capabilities to obtain
+         interaction statistics and to enumerate touched, untouched, and
+         match-only files.
+       - Prioritize untouched, matched, or weakly explored areas. Do not
+         keep revisiting the same files while relevant gaps remain.
 
     4. Plan minimal, additive, evidence-based updates:
-       - Prefer strongly supported endpoints and components
-       - Improve both schema quality and coverage
+       - Prefer strongly supported endpoints and components.
+       - Improve both schema quality and coverage.
 
-    5. Apply changes using write tools only:
-       - set_info, add_server, upsert_path, upsert_component
-       - remove_server, remove_path, remove_component
-       Remove only when provably incorrect; otherwise prefer deprecation or notes.
+    5. Apply changes through the worker's schema-mutation capabilities only:
+       - Set top-level info, add servers, upsert paths and components.
+       - Removals (servers / paths / components) are permitted only when an
+         entry is provably incorrect; otherwise prefer deprecation or notes.
 
     Validation rules:
-    - Coverage tools are mandatory throughout the workflow.
+    - Coverage inspection is mandatory throughout the workflow.
     - operationIds must be stable and unique.
     - All discovered supported paths/components must be added.
     - New or updated paths/components must carry provenance metadata when evidence supports it.
 
     Efficiency:
     - Immediately add all discovered paths and components.
-    - Avoid get_full_openapi_schema except for broad consistency review or final validation.
+    - Avoid pulling the whole OpenAPI document except for broad consistency
+      review or final validation.
     - Batch closely related updates when safe.
     - Never output YAML during intermediate steps.
 
@@ -72,5 +73,6 @@ task:
     - What paths or components have not been added and why
 
     Do not paste the schema.
-    Before finishing, validate completeness with list_paths, list_components tools.
+    Before finishing, the worker (not the planner) must validate
+    completeness by enumerating paths and components in the managed schema.
     Ensure that you have added all discovered paths and components.

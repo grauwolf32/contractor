@@ -13,7 +13,8 @@ Usage:
     poetry run python scripts/dump_langfuse_trace.py \\
         --trace-id <id> \\
         [--project <label>] [--agent <name>] \\
-        [--output trace.json] [--no-llm-content]
+        [--format yaml|json] [--output trace.yaml] \\
+        [--no-llm-content] [--max-tokens N] [--prompts-only]
 
 Credentials are read from env (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY /
 LANGFUSE_HOST). The script also auto-loads `contractor/cli/.env` or `.env`.
@@ -90,6 +91,33 @@ def _safe_json(v: Any) -> Any:
     return v
 
 
+# Noise keys produced by ADK/Gemini that aren't useful for trace analysis.
+# - usage_metadata: token counters duplicated outside the trace
+# - tools / tool_choice: full tool catalog re-sent on every LLM call; we already
+#   surface this once at the invocation level (inv.tools)
+# - system_instruction: same — system prompt is hoisted to inv.system_prompt
+_STRIP_KEYS = frozenset(
+    {
+        "usage_metadata",
+        "usageMetadata",
+        "tools",
+        "tool_choice",
+        "toolChoice",
+        "system_instruction",
+        "systemInstruction",
+    }
+)
+
+
+def _strip_noise(obj: Any) -> Any:
+    """Recursively drop bookkeeping keys (e.g. usage_metadata) from nested data."""
+    if isinstance(obj, dict):
+        return {k: _strip_noise(v) for k, v in obj.items() if k not in _STRIP_KEYS}
+    if isinstance(obj, list):
+        return [_strip_noise(x) for x in obj]
+    return obj
+
+
 def _start_key(obs):
     return obs.start_time or _DT_MIN
 
@@ -126,6 +154,20 @@ def _system_prompt(obs) -> str | None:
     if getattr(obs, "type", None) != "GENERATION":
         return None
     inp = getattr(obs, "input", None)
+    # Gemini-style: top-level system_instruction outside the messages array.
+    if isinstance(inp, dict):
+        for k in ("system_instruction", "systemInstruction"):
+            v = inp.get(k)
+            if isinstance(v, str):
+                return v
+            if isinstance(v, dict):
+                parts = v.get("parts") or []
+                if isinstance(parts, list):
+                    joined = "\n".join(
+                        p.get("text", "") for p in parts if isinstance(p, dict)
+                    )
+                    if joined:
+                        return joined
     msgs = inp if isinstance(inp, list) else (
         inp.get("messages") if isinstance(inp, dict) else None
     )
@@ -142,19 +184,6 @@ def _system_prompt(obs) -> str | None:
                 )
             return content if isinstance(content, str) else None
     return None
-
-
-def _usage(obs) -> dict[str, Any] | None:
-    u = getattr(obs, "usage", None) or getattr(obs, "usage_details", None)
-    if u is None:
-        return None
-    if isinstance(u, dict):
-        return {k: u.get(k) for k in ("input", "output", "total") if u.get(k) is not None}
-    return {
-        k: getattr(u, k, None)
-        for k in ("input", "output", "total")
-        if getattr(u, k, None) is not None
-    }
 
 
 def _tool_calls_from_output(out: Any) -> list[dict[str, Any]]:
@@ -183,8 +212,6 @@ def _llm_event(obs, *, include_content: bool) -> dict[str, Any]:
         "model": getattr(obs, "model", None),
         "start": obs.start_time.isoformat() if obs.start_time else None,
     }
-    if usage := _usage(obs):
-        ev["usage"] = usage
     tool_calls = _tool_calls_from_output(getattr(obs, "output", None))
     if tool_calls:
         ev["tool_calls"] = tool_calls
@@ -201,6 +228,8 @@ def _llm_event(obs, *, include_content: bool) -> dict[str, Any]:
         else:
             ev["input"] = inp
         ev["output"] = getattr(obs, "output", None)
+        ev["input"] = _strip_noise(ev["input"])
+        ev["output"] = _strip_noise(ev["output"])
     return ev
 
 
@@ -216,8 +245,8 @@ def _tool_event(obs, *, include_content: bool) -> dict[str, Any]:
     if (status := getattr(obs, "status_message", None)):
         ev["status"] = status
     if include_content:
-        ev["arguments"] = _safe_json(getattr(obs, "input", None))
-        ev["result"] = _safe_json(getattr(obs, "output", None))
+        ev["arguments"] = _strip_noise(_safe_json(getattr(obs, "input", None)))
+        ev["result"] = _strip_noise(_safe_json(getattr(obs, "output", None)))
     return ev
 
 
@@ -290,6 +319,46 @@ def assemble(observations, *, include_content: bool) -> list[Invocation]:
     return invocations
 
 
+# ── Output shaping ──────────────────────────────────────────────────────────
+
+
+def _event_token_cost(ev: dict[str, Any]) -> int:
+    """Rough token estimate for one event = chars of its JSON repr / 4."""
+    s = json.dumps(ev, default=str, ensure_ascii=False)
+    return max(1, len(s) // 4)
+
+
+def apply_token_budget(invocations: list[Invocation], max_tokens: int) -> None:
+    """Drop trailing events once the running token estimate exceeds budget.
+
+    Walks events in order; the first event that would push us over budget is
+    replaced (along with any later events) by an `{type: elided}` marker so
+    the consumer knows truncation happened.
+    """
+    remaining = max_tokens
+    stopped = False
+    for inv in invocations:
+        if stopped:
+            inv.events = [{"type": "elided", "reason": "token_budget", "skipped": len(inv.events)}]
+            continue
+        kept: list[dict[str, Any]] = []
+        for i, ev in enumerate(inv.events):
+            cost = _event_token_cost(ev)
+            if cost > remaining:
+                kept.append(
+                    {
+                        "type": "elided",
+                        "reason": "token_budget",
+                        "skipped": len(inv.events) - i,
+                    }
+                )
+                stopped = True
+                break
+            kept.append(ev)
+            remaining -= cost
+        inv.events = kept
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -311,8 +380,12 @@ def main() -> int:
     p.add_argument("--agent", default=None, help="Keep only invocations of this agent name.")
     p.add_argument("--output", "-o", default="-", help="Output path or '-' for stdout.")
     p.add_argument("--no-llm-content", action="store_true", help="Strip LLM input/output bodies and tool args/results.")
-    p.add_argument("--indent", type=int, default=2)
+    p.add_argument("--max-tokens", type=int, default=None, help="Soft cap on total content tokens; later events become 'elided'.")
+    p.add_argument("--prompts-only", action="store_true", help="Output only agent_name + system_prompt per invocation.")
+    p.add_argument("--format", choices=("yaml", "json"), default="yaml", help="Output format (default: yaml).")
+    p.add_argument("--indent", type=int, default=2, help="JSON indent (ignored for yaml).")
     p.add_argument("--list-agents", action="store_true", help="Just list distinct agent names from the trace.")
+    p.add_argument("--timeout", type=int, default=120, help="HTTP timeout (seconds) for the Langfuse API call.")
     args = p.parse_args()
 
     _load_env()
@@ -326,9 +399,10 @@ def main() -> int:
         public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
         secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
         host=os.getenv("LANGFUSE_HOST"),
+        timeout=args.timeout,
     )
 
-    trace = client.api.trace.get(args.trace_id)
+    trace = client.api.trace.get(args.trace_id, request_options={"timeout_in_seconds": args.timeout})
     observations = getattr(trace, "observations", None) or []
 
     invocations = assemble(observations, include_content=not args.no_llm_content)
@@ -342,17 +416,56 @@ def main() -> int:
     if args.agent:
         invocations = [i for i in invocations if i.agent_name == args.agent]
 
-    payload = {
-        "trace_id": args.trace_id,
-        "project": args.project,
-        "trace_name": getattr(trace, "name", None),
-        "agent_count": len(invocations),
-        "invocations": [inv.__dict__ for inv in invocations],
-    }
+    if args.prompts_only:
+        payload = {
+            "trace_id": args.trace_id,
+            "project": args.project,
+            "trace_name": getattr(trace, "name", None),
+            "agent_count": len(invocations),
+            "agents": [
+                {"agent_name": inv.agent_name, "system_prompt": inv.system_prompt}
+                for inv in invocations
+            ],
+        }
+    else:
+        if args.max_tokens is not None:
+            apply_token_budget(invocations, args.max_tokens)
+        payload = {
+            "trace_id": args.trace_id,
+            "project": args.project,
+            "trace_name": getattr(trace, "name", None),
+            "agent_count": len(invocations),
+            "invocations": [inv.__dict__ for inv in invocations],
+        }
 
-    text = json.dumps(payload, indent=args.indent, default=str, ensure_ascii=False)
+    if args.format == "yaml":
+        import yaml
+
+        # Force literal block style ("|") for any string containing newlines,
+        # otherwise PyYAML falls back to single-quoted folded scalars with
+        # ugly `\n\` line-continuations. Trailing whitespace must be stripped
+        # per-line — yaml refuses literal style otherwise.
+        def _str_presenter(dumper, data):
+            if "\n" in data:
+                cleaned = "\n".join(line.rstrip() for line in data.split("\n"))
+                return dumper.represent_scalar("tag:yaml.org,2002:str", cleaned, style="|")
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+        yaml.add_representer(str, _str_presenter, Dumper=yaml.SafeDumper)
+
+        plain = json.loads(json.dumps(payload, default=str, ensure_ascii=False))
+        text = yaml.safe_dump(
+            plain,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+            width=10**9,
+        )
+    else:
+        text = json.dumps(payload, indent=args.indent, default=str, ensure_ascii=False) + "\n"
+
     if args.output == "-":
-        sys.stdout.write(text + "\n")
+        sys.stdout.write(text)
     else:
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(text)

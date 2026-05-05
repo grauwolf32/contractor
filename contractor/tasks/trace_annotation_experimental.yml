@@ -211,8 +211,8 @@ task:
         - Before adding a finding, check whether the same root cause (same
           vulnerable code location, same mechanism) was already reported for
           another operation in this session.
-        - If yes: note the duplicate in Uncertainties and do NOT call
-          report_vulnerability again. Reference the prior slug instead.
+        - If yes: note the duplicate in Uncertainties and do NOT raise
+          another vulnerability report. Reference the prior slug instead.
         - A shared bypass function (e.g. _is_dwh_integration) triggered on
           multiple endpoints is ONE root-cause finding, not N findings.
 
@@ -292,26 +292,26 @@ task:
                 severity on their own.
           (iii) The finding has not already been reported this session (§1d).
 
-    4b. For each vulnerability, call report_vulnerability once:
+    4b. For each vulnerability, raise exactly one vulnerability report
+        with the following fields:
 
-          report_vulnerability(
-            name       = "<kebab-case-slug>",          # stable, deterministic
-            place_type = "<file|url>",
-            place      = "<file-path-or-api-path>",
-            title      = "<short human-readable title>",
-            summary    = "<what is vulnerable; what attacker can do>",
-            severity   = "<critical|high|medium|low|info>",
-            # critical: RCE, full auth bypass, full data breach
-            # high:     significant exposure, privilege escalation,
-            #           cross-tenant data access with realistic prerequisites
-            # medium:   limited impact, requires chaining or non-default config
-            # low:      defence-in-depth gap, minor information leak
-            # info:     observation only, not directly exploitable
-            confidence = "<high|medium|low>",
-            # high:   sink + tainted arg + exploitability all clearly visible
-            # medium: sink visible, data-flow or exploitability requires
-            #         assumptions about code not directly read
-            # low:    circumstantial, incomplete trace, needs further review
+            name       = "<kebab-case-slug>"            # stable, deterministic
+            place_type = "<file|url>"
+            place      = "<file-path-or-api-path>"
+            title      = "<short human-readable title>"
+            summary    = "<what is vulnerable; what attacker can do>"
+            severity   = "<critical|high|medium|low|info>"
+              # critical: RCE, full auth bypass, full data breach
+              # high:     significant exposure, privilege escalation,
+              #           cross-tenant data access with realistic prerequisites
+              # medium:   limited impact, requires chaining or non-default config
+              # low:      defence-in-depth gap, minor information leak
+              # info:     observation only, not directly exploitable
+            confidence = "<high|medium|low>"
+              # high:   sink + tainted arg + exploitability all clearly visible
+              # medium: sink visible, data-flow or exploitability requires
+              #         assumptions about code not directly read
+              # low:    circumstantial, incomplete trace, needs further review
             details    = "<MUST include all of:
                             shape:           A | B | C
                             control_missing: one of {{auth, authz,
@@ -323,11 +323,10 @@ task:
                             exploit_precondition: e.g. unauthenticated /
                               any authenticated user / knows victim id /
                               can set header X
-                            poc_notes, recommended mitigation>",
-          )
+                            poc_notes, recommended mitigation>"
 
-    4c. If no vulnerabilities found, do not call report_vulnerability.
-    4d. One call per vulnerability — do not batch.
+    4c. If no vulnerabilities are found, raise no vulnerability reports.
+    4d. One vulnerability report per finding — do not batch.
 
     4e. Prerequisite verification (mandatory before assigning severity)
         For every candidate finding, explicitly state and verify:

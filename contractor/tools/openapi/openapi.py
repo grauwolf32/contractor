@@ -211,14 +211,25 @@ def openapi_tools(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Upsert a path definition in the OpenAPI schema
+        Upsert (create or merge) an OpenAPI path definition.
+
         Args:
-            path: str
-                The path to update
-            path_def: PathItem
-                The path definition to update
-            files: list[str]
-                REQUIRED: The list of files in the project where the path is defined
+            path: API path (e.g. "/users/{id}").
+            path_def: PathItem object — pass the structured dict, NOT a JSON string.
+            path_files: REQUIRED list of source files where this endpoint is defined.
+                Files ending in .json, .yaml, .yml, .md are REJECTED —
+                provide source code only.
+
+        Returns:
+            {"result": <diff>} on success.
+            {"error": <message>} if path_def fails PathItem validation, path_files is
+            empty, contains a banned extension, or references a missing file. Read the
+            error and fix the arguments — do not retry with the same args.
+
+        Behavior:
+            Merges path_def into the existing schema (upsert, not replace at the
+            operation level). Safe to call repeatedly with the same path to add
+            operations or update fields.
         """
 
         if err := validate_files(path_files, fs):
@@ -256,7 +267,7 @@ def openapi_tools(
 
     async def list_paths(tool_context: ToolContext) -> dict[str, Any]:
         """
-        List all API paths defined in the schema.
+        List all API paths currently in the schema.
         """
 
         schema = await oas.load_schema(tool_context)
@@ -266,8 +277,9 @@ def openapi_tools(
     async def get_path(path: str, tool_context: ToolContext) -> dict[str, Any]:
         """
         Retrieve a specific API path definition.
+
         Args:
-            path (str): API path to retrieve
+            path (str): API path to retrieve.
         """
 
         schema = await oas.load_schema(tool_context)
@@ -290,12 +302,26 @@ def openapi_tools(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Upsert (create or update) an OpenAPI component definition.
+        Upsert (create or merge) an OpenAPI component definition.
+
         Args:
-            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
-            name (str): The name of the component
-            component_def (dict): Component definition
-            component_files (list[str]): Required list of project files where the component is defined
+            key: One of "schemas", "securitySchemes", "requestBodies", "headers",
+                "responses".
+            name: Component name 
+            component_def: Component definition as a dict object — never a JSON string.
+            component_files: REQUIRED list of source files where this component is
+                defined. Files ending in .json, .yaml, .yml, .md
+                are REJECTED — provide source code only.
+
+        Returns:
+            {"result": <diff>} on success.
+            {"error": <message>} on invalid key, invalid component_def shape, missing
+            or banned files. Fix and retry — do not retry with the same args.
+
+        Validation:
+            securitySchemes / requestBodies / responses are validated against pydantic
+            models (errors include the offending field path). schemas and headers are
+            accepted as-is — author them carefully.
         """
 
         allowed_keys = {
@@ -344,7 +370,7 @@ def openapi_tools(
         """
         Remove an existing OpenAPI component.
         Args:
-            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
+            key (str): schemas, securitySchemes, requestBodies, headers, responses
             component_name (str): Component name
         """
 
@@ -376,7 +402,9 @@ def openapi_tools(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        List component names for a given component type.
+        List component names for the given component type.
+        Args:
+            key (str): schemas, securitySchemes, requestBodies, headers, responses
         """
 
         allowed_keys = {
@@ -405,8 +433,9 @@ def openapi_tools(
     ) -> dict[str, Any]:
         """
         Retrieve a specific component definition.
+
         Args:
-            key (Literal[schemas, securitySchemes, requestBodies, headers, responses]): Component type
+            key (str): schemas, securitySchemes, requestBodies, headers, responses
             component_name (str): Component name
         """
 
@@ -434,13 +463,20 @@ def openapi_tools(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Set info section of the OpenAPI schema
+        Set the info section of the OpenAPI schema.
+
         Args:
-            title: The title of the API
-            framework: The framework used to build service
-            code_language: The code languague used to build service backend
+            title: The title of the API.
+            framework: The framework used to build the service (stored as x-framework).
+            code_language: The code language used for the service backend
+                (stored as x-code-language).
+
         Returns:
-            dict: result of the operation
+            dict: result of the operation.
+
+        Note:
+            This REPLACES the entire info section — any previously set fields
+            (description, version, custom x-* extras) are dropped.
         """
 
         extra: dict[str, Any] = dict()
@@ -525,8 +561,13 @@ def openapi_tools(
 
     async def get_full_openapi_schema(tool_context: ToolContext) -> dict[str, Any]:
         """
-        Retrieve the complete OpenAPI schema.
-        IMPORTANT: This is very heavy operation, use it when absoutely necessary.
+        Return the full OpenAPI schema as a YAML string.
+
+        HEAVY: call it only when global cross-cutting checks
+        are needed (e.g. resolving naming conflicts across many components). Do NOT
+        call this to verify an upsert you just made — a successful upsert returns
+        its own diff. Prefer list_paths / list_components / get_path / get_component
+        for targeted reads.
         """
 
         await oas.load_schema(tool_context)

@@ -524,7 +524,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Writes a memory to the memory store.
+        Writes a memory to the shared memory store.
+
+        OVERWRITES any existing entry with the same name, including its tags
+        and description. To extend without losing metadata, use append_memory.
+
+        Before writing, check list_memories or search_memory to avoid
+        duplicating an entry under a slightly different name. If unsure which
+        tag to use, call list_tags first — tags are case-sensitive.
 
         Args:
             name: A concise, meaningful title that clearly reflects the content of the memory.
@@ -533,12 +540,9 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             tags: A list of 1–3 short tags representing the main topics of the memory.
 
         Guidelines:
-            - Use clear, specific, and descriptive names.
-            - Avoid vague titles like "note1" or "stuff".
+            - Use clear, specific, and descriptive names in snake_case; avoid vague titles like "note1".
             - Ensure the description adds context, not just repetition of the name.
-            - Always include one to three short, relevant tags.
-            - Tags should be short and reflect the topic of the memory.
-            - The tags "skill" and "inbox" are reserved for system use and must not be assigned manually.
+            - The tags "skill" and "inbox" are reserved for system use.
         """
         await m.write_memory(name, memory, description, tags, tool_context)
         return {"result": "ok"}
@@ -549,7 +553,10 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Appends text to an existing memory.
+        Appends text to an existing memory, preserving its description and tags.
+
+        Prefer this over write_memory when adding incremental findings to a
+        known entry — no need to re-specify the description or tags.
 
         Args:
             name: The name of the memory to append to.
@@ -566,7 +573,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
-        Reads a memory by name from the memory store.
+        Reads a memory by name.
+
+        Use this only when the name is known and the full content is needed.
+        If the name is unknown, use search_memory or list_memories first.
+        Memory results persist in context — reuse the previous result if you
+        have already read this entry since the last write_memory/append_memory.
 
         Args:
             name: The exact name of the memory to read.
@@ -575,10 +587,7 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             The full stored memory, including content, tags, insertion order, and timestamps.
 
         Behavior:
-            - Reads from the unified store regardless of category.
-            - Returns the full content of the memory when found.
-            - Use this when the memory name is known but the category is not important.
-            - Prefer skills_read or inbox_read when the memory should belong to a specific
+            - Prefer skills_read or inbox_read when the memory must belong to a specific category.
         """
         memory = await m.read_memory(name, tool_context)
         if memory is None:
@@ -593,17 +602,16 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         """
         Searches for memories matching any of the provided tags.
 
+        Prefer this over multiple read_memory calls when collecting context by
+        topic — one call returns previews of all matches in insertion order.
+        Previews only (no full body); follow up with read_memory only when the
+        full content of a specific entry is needed.
+
         Args:
             tags: One or more tags to match.
 
         Returns:
             A preview list of matching memories.
-
-        Behavior:
-            - Matches memories that contain at least one of the requested tags.
-            - Returns memory previews rather than full content.
-            - Results are ordered by insertion order.
-            - Use this for tag-based discovery across the whole store.
         """
         memories = await m.search_memory(tags, tool_context)
         return {"result": m.fmt.format_memories(memories, preview=True)}
@@ -620,7 +628,11 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
 
     async def list_memories(tool_context: ToolContext) -> dict[str, Any]:
         """
-        Lists all memories in insertion order.
+        Lists all memories in insertion order (preview only).
+
+        Call once to discover what is available. Results persist in context —
+        reuse the previous result unless a write_memory/append_memory has
+        happened since.
 
         Returns:
             A preview list of all memories.

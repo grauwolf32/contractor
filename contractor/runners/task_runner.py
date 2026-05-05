@@ -32,7 +32,7 @@ from contractor.runners.models import (
     TaskRunnerEventHandler,
     WorkerBuilder,
 )
-from contractor.runners.skills import SkillFile, load_skills
+from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
 from contractor.utils.settings import DEFAULT_MODEL
 
@@ -424,26 +424,9 @@ class TaskRunner(BaseModel):
     async def _inject_skills(
         self, user_id: str, namespace: str, skills: list[str]
     ) -> None:
-        if not skills:
-            return
-
-        files = load_skills(skills)
-        if not files:
-            return
-
-        memories = [
-            MemoryNote(
-                name=f.name,
-                memory=f.content,
-                description=f.description,
-                tags=["skill", f.skill] if f.is_index else [f.skill],
-            )
-            for f in files
-        ]
-
-        mem_tools = MemoryTools(name=namespace)
-        await mem_tools.inject(
-            memories=memories,
+        await inject_skills(
+            skills,
+            namespace=namespace,
             artifact_service=self.artifact_service,
             app_name=self.name,
             user_id=user_id,

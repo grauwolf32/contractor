@@ -21,6 +21,7 @@ from contractor.runners.models import (
 )
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
+from contractor.runners.skills import inject_skills
 
 from cli.pipelines import Pipeline
 
@@ -110,6 +111,14 @@ class RouterPipeline(Pipeline):
         runner = AgentRunner(
             name=ctx.app_name,
             artifact_service=ctx.artifact_service,
+        )
+
+        await inject_skills(
+            ["trace"],
+            namespace=ROUTER_NAMESPACE,
+            artifact_service=ctx.artifact_service,
+            app_name=ctx.app_name,
+            user_id=user_id,
         )
 
         keys = TaskScopedKeys(ROUTER_TASK_ID)

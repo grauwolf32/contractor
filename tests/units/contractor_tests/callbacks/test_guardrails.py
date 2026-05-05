@@ -102,6 +102,37 @@ def test_unhashable_args_does_not_crash():
     assert isinstance(result, dict)
 
 
+def test_empty_args_pass_through_and_never_trigger():
+    cb = RepeatedToolCallCallback(threshold=2)
+    ctx = mk_tool_context()
+    tool = _mk_tool("execute_current_subtask")
+
+    assert cb(tool, {}, ctx) is None
+    assert cb(tool, {}, ctx) is None
+    assert cb(tool, None, ctx) is None  # type: ignore[arg-type]
+
+    assert cb.run_length == 0
+    assert cb.last_signature is None
+    assert cb.history == []
+
+
+def test_empty_args_do_not_break_existing_streak():
+    cb = RepeatedToolCallCallback(threshold=3)
+    ctx = mk_tool_context()
+    add = _mk_tool("add_subtask")
+    execute = _mk_tool("execute_current_subtask")
+
+    cb(add, {"description": "x"}, ctx)
+    cb(execute, {}, ctx)  # transparent
+    cb(add, {"description": "x"}, ctx)
+    cb(execute, {}, ctx)  # transparent
+    result = cb(add, {"description": "x"}, ctx)
+
+    assert isinstance(result, dict)
+    assert "warning" in result
+    assert "add_subtask" in result["warning"]
+
+
 def test_state_is_persisted():
     cb = RepeatedToolCallCallback(threshold=2)
     ctx = mk_tool_context()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 from uuid import uuid4
 
 from google.adk.agents import BaseAgent
@@ -10,6 +10,8 @@ from google.adk.artifacts import InMemoryArtifactService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+
+SetupHook = Callable[[InMemoryArtifactService, str, str], Awaitable[None]]
 
 
 @dataclass
@@ -40,11 +42,20 @@ async def run_agent(
     app_name: str = "eval",
     user_id: str = "eval-user",
     timeout_s: float = 600.0,
+    setup: Optional[SetupHook] = None,
 ) -> AgentRun:
-    """Drive `agent` end-to-end via ADK Runner and capture outputs."""
+    """Drive `agent` end-to-end via ADK Runner and capture outputs.
+
+    `setup`, if given, is awaited with `(artifact_service, app_name, user_id)`
+    after the artifact service is created but before the session is opened —
+    use it to pre-populate memory/skills.
+    """
     artifact_service = InMemoryArtifactService()
     session_service = InMemorySessionService()
     session_id = uuid4().hex
+
+    if setup is not None:
+        await setup(artifact_service, app_name, user_id)
 
     await session_service.create_session(
         app_name=app_name,

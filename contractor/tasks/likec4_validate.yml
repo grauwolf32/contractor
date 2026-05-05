@@ -4,10 +4,10 @@ task:
 
   objective: >
     Validate and repair only the serious issues in the LikeC4 model
-    held in the `likec4_source` memory note. Use validate_likec4 to
-    enumerate issues, then apply the smallest evidence-based edits to
-    resolve them. Do not extend the model with new architecture content
-    in this task.
+    held in the `likec4_source` memory note. Use the LikeC4 validation
+    capability to enumerate issues, then apply the smallest evidence-based
+    edits to resolve them. Do not extend the model with new architecture
+    content in this task.
 
   skills:
     - likec4
@@ -19,7 +19,7 @@ task:
     Start:
     - Read the `likec4_source` memory note. If absent or empty, abort
       and report the gap — there is nothing to validate.
-    - Run validate_likec4(content=likec4_source) once.
+    - Run the LikeC4 validation capability against `likec4_source` once.
     - Treat returned issues as authoritative.
 
     For each issue:
@@ -36,15 +36,16 @@ task:
          - Use the `likec4` skill memory for syntax questions.
 
       3. Fix only verified issues
-         - Edit `likec4_source` in memory: write_memory("likec4_source",
-           <new full source>).
+         - Edit `likec4_source` in memory by writing the full new source
+           back to the same note.
          - Apply the smallest localized change.
          - Do NOT introduce new architecture elements unless the issue
            explicitly requires one (e.g. an unknown FQN that maps to a
            real component already present in project_information).
 
       4. Re-validate
-         - After all edits in a pass, run validate_likec4 once more.
+         - After all edits in a pass, run the LikeC4 validation
+           capability once more.
          - Stop when no issues remain or remaining issues cannot be
            proven from project artifacts / code.
 

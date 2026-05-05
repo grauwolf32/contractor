@@ -19,7 +19,10 @@ from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
+from contractor.utils import load_prompt_with_version
+from contractor.utils import observability
 
 from tests.eval.harness import AgentRun, run_agent
 
@@ -163,6 +166,7 @@ class TraceAgentRun:
     agent_run: AgentRun
     annotations: set[Annotation]
     modified_files: set[str]
+    prompt_version: str
 
 
 async def run_trace_agent(
@@ -173,10 +177,20 @@ async def run_trace_agent(
     namespace: str = "trace-eval",
     enable_vuln_reporting: bool = False,
     timeout_s: float = 900.0,
+    prompt_version: Optional[str] = None,
 ) -> TraceAgentRun:
     """Build a trace agent over a fresh overlay of the fixture, run it, and
-    return both the raw `AgentRun` and the parsed annotations."""
+    return both the raw `AgentRun` and the parsed annotations.
+
+    `prompt_version` pins a specific version from
+    `contractor/agents/trace_agent/prompt.yml`; `None` resolves to the
+    manifest's `active` version. The resolved id is recorded on the result.
+    """
     from cli.fs import RootedLocalFileSystem
+
+    prompt_text, resolved_version = load_prompt_with_version(
+        "trace_agent", prompt_version
+    )
 
     base_fs: AbstractFileSystem = RootedLocalFileSystem(str(fixture_root))
     overlay = MemoryOverlayFileSystem(base_fs)
@@ -188,15 +202,42 @@ async def run_trace_agent(
         model=model,
         max_tokens=80_000,
         enable_vuln_reporting=enable_vuln_reporting,
+        prompt=prompt_text,
     )
 
-    run = await run_agent(
-        agent,
-        user_message=user_message,
-        timeout_s=timeout_s,
-    )
+    async def _setup(artifact_service, app_name: str, user_id: str) -> None:
+        await inject_skills(
+            ["trace"],
+            namespace=namespace,
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+        )
+
+    with observability.run_context(
+        name="eval.trace_agent",
+        session_id=namespace,
+        tags=[
+            "eval",
+            "agent:trace_agent",
+            f"prompt:trace_agent@{resolved_version}",
+        ],
+        metadata={
+            "agent": "trace_agent",
+            "prompt_version": resolved_version,
+            "namespace": namespace,
+            "fixture_root": str(fixture_root),
+        },
+    ):
+        run = await run_agent(
+            agent,
+            user_message=user_message,
+            timeout_s=timeout_s,
+            setup=_setup,
+        )
     return TraceAgentRun(
         agent_run=run,
         annotations=extract_annotations_from_overlay(overlay),
         modified_files=overlay_modified_files(overlay),
+        prompt_version=resolved_version,
     )

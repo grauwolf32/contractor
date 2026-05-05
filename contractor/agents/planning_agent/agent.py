@@ -62,7 +62,7 @@ def build_planning_agent(
             tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
         )
     )
-    callback_adapter.register(RepeatedToolCallCallback(threshold=5))
+    callback_adapter.register(RepeatedToolCallCallback(threshold=2))
 
     planning_agent = LlmAgent(
         name=agent_name,

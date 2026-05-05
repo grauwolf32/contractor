@@ -10,9 +10,9 @@ task:
     classes of data they hold, and outbound integrations.
 
     The canonical LikeC4 source MUST be maintained in the memory note
-    `likec4_source`. Validate the source via the `validate_likec4` tool
-    after every meaningful edit. The final task result MUST be the
-    full content of `likec4_source` (the validated DSL).
+    `likec4_source`. Validate the source through the LikeC4 validation
+    capability after every meaningful edit. The final task result MUST
+    be the full content of `likec4_source` (the validated DSL).
 
     Inputs you should consume before exploring code:
       - Project information:  project_information/result
@@ -38,8 +38,8 @@ task:
       surface — name it, tag it, and place it in the right trust zone.
     - The LikeC4 source lives in a single memory note called
       `likec4_source`. Read it at the start of every iteration; write the
-      full updated content back after each edit; validate with
-      validate_likec4 before adding more.
+      full updated content back after each edit; run the LikeC4
+      validation capability before adding more.
 
     ## Required Coverage
 
@@ -122,29 +122,31 @@ task:
             external systems → data stores → relationships.
          c. views block — systemLandscape, containers, security view.
     4. After EVERY non-trivial edit:
-         - write_memory("likec4_source", <full new source>)
-         - validate_likec4(content=<full new source>)
+         - persist the full new source to the `likec4_source` memory note
+         - run the LikeC4 validation capability against the new source
          - if any issues are reported: fix them before proceeding
     5. Use the `likec4` skill memory (index + references) to look up
        exact DSL syntax — predicates, identifier rules, scoping, view
        options. Do NOT guess syntax.
     6. Record explored vs unexplored coverage and any uncertainties to
        memory under `likec4_uncertainties`.
-    7. Stop when validate_likec4 returns no issues AND the required
-       coverage above is met.
+    7. Stop when the LikeC4 validation reports no issues AND the
+       required coverage above is met.
 
-    ## Tool Usage Rules
+    ## Capability Usage Rules
 
-    - Code: prefer search_def / list_symbols for handlers, clients,
-      adapters, integrations. Use grep for framework decorators, route
-      registrations, queue subscribers, env-var lookups (`os.environ`,
-      `os.getenv`, config keys), and outbound HTTP libraries.
+    - Code: prefer symbol / definition lookup for handlers, clients,
+      adapters, integrations. Use literal text search for framework
+      decorators, route registrations, queue subscribers, env-var
+      lookups (`os.environ`, `os.getenv`, config keys), and outbound
+      HTTP libraries.
     - Memory: read existing entries before writing; update the same
       `likec4_source` note rather than appending duplicates.
     - LikeC4: validate after every edit. Do NOT continue building while
       errors remain.
-    - Coverage: use list_untouched_files / interaction_stats to make sure
-      handlers, jobs, and integration adapters have actually been read.
+    - Coverage: use the worker's coverage inspection capabilities to
+      make sure handlers, jobs, and integration adapters have actually
+      been read.
 
     ## Anti-Drift Rules
 
@@ -159,10 +161,10 @@ task:
 
     ## Failure Handling
 
-    - validate_likec4 errors → fix syntactically before adding new content.
-    - Validator command not available (Likec4NotFoundError) → record the
-      blocker in memory and continue building the source; mark the task
-      as blocked rather than skipping validation entirely.
+    - LikeC4 validation errors → fix syntactically before adding new content.
+    - Validator command not available → record the blocker in memory
+      and continue building the source; mark the task as blocked
+      rather than skipping validation entirely.
     - Conflicting evidence between artifacts and code → prefer code,
       record the conflict in `likec4_uncertainties`.
 
@@ -180,7 +182,7 @@ task:
     - Views produced: <list>
 
     ## Validation
-    - Last validate_likec4 status: ok | <N issues>
+    - Last LikeC4 validation status: ok | <N issues>
     - Outstanding warnings: <list or none>
 
     ## Uncertainties

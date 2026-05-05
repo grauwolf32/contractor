@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 import yaml
+
+from contractor.tools.memory import MemoryNote, MemoryTools
 
 SKILLS_BASE_DIR = Path(__file__).parent.parent / "skills"
 
@@ -88,3 +90,46 @@ def load_skills(skills: Iterable[str]) -> list[SkillFile]:
     for s in skills:
         out.extend(load_skill(s))
     return out
+
+
+def _skill_files_to_memories(files: Iterable[SkillFile]) -> list[MemoryNote]:
+    return [
+        MemoryNote(
+            name=f.name,
+            memory=f.content,
+            description=f.description,
+            tags=["skill", f.skill],
+        )
+        for f in files
+    ]
+
+
+async def inject_skills(
+    skills: Iterable[str],
+    *,
+    namespace: str,
+    artifact_service: Any,
+    app_name: str,
+    user_id: str,
+) -> None:
+    """Load `skills` from disk and inject them as memories under `namespace`.
+
+    Every skill file (index and references) is tagged with both "skill" and
+    the owning skill name so `skills_read(name)` can resolve any reference,
+    not just the index.
+    """
+    skill_list = list(skills)
+    if not skill_list:
+        return
+
+    files = load_skills(skill_list)
+    if not files:
+        return
+
+    mem_tools = MemoryTools(name=namespace)
+    await mem_tools.inject(
+        memories=_skill_files_to_memories(files),
+        artifact_service=artifact_service,
+        app_name=app_name,
+        user_id=user_id,
+    )

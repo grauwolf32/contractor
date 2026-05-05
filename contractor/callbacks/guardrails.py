@@ -219,6 +219,11 @@ class RepeatedToolCallCallback(BaseCallback):
     On the threshold-th identical consecutive call, returns an advisory dict
     instead of executing the tool. Subsequent identical calls keep returning
     the advisory until the agent breaks the streak with a different call.
+
+    Tools invoked without arguments (e.g. ``execute_current_subtask``, ``skip``)
+    are passed through unchanged: they do not advance the streak, do not break
+    it, and never trigger the advisory. Repetition guarantees for those tools
+    must be enforced inside the tool implementation.
     """
 
     cb_type: CallbackTypes = CallbackTypes.before_tool_callback
@@ -251,6 +256,9 @@ class RepeatedToolCallCallback(BaseCallback):
     def __call__(
         self, tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
     ) -> Optional[dict]:
+        if not args:
+            return None
+
         sig = self._signature(tool.name, args)
 
         if sig == self.last_signature:

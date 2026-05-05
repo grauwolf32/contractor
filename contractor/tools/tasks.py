@@ -1203,34 +1203,32 @@ _WORKER_EXAMPLE_DONE: Final[SubtaskExecutionResult] = SubtaskExecutionResult(
     task_id="1",
     status="done",
     output=(
-        "- Reviewed source files for HTTP endpoint definitions:\n"
-        "  - src/main/java/com/example/ExampleController.java\n"
-        "  - src/main/java/com/example/AdminController.java\n"
-        "- Identified endpoints:\n"
-        "  - GET /example\n"
-        "  - POST /example\n"
-        "  - PUT /example/id\n"
-        "  - DELETE /example/id\n"
-        "  - GET /admin/health"
+        "- Inspected the requested artifacts:\n"
+        "  - artifacts/source_a\n"
+        "  - artifacts/source_b\n"
+        "- Extracted entries:\n"
+        "  - entry_1: value_a\n"
+        "  - entry_2: value_b\n"
+        "  - entry_3: value_c\n"
+        "- Verified the extracted entries against the source artifacts."
     ),
     summary=(
-        "Goal: Identify all HTTP endpoints in the project. "
-        "Result: Found 5 endpoints across 2 controller classes."
+        "Goal: Extract the requested entries from the listed artifacts. "
+        "Result: Found 3 verified entries across 2 artifacts."
     ),
 )
 _WORKER_EXAMPLE_INCOMPLETE: Final[SubtaskExecutionResult] = SubtaskExecutionResult(
     task_id="2",
     status="incomplete",
     output=(
-        "- Found 2 endpoints in ExampleController.java:\n"
-        "  - GET /example\n"
-        "  - POST /example\n"
-        "- Did not yet examine: AdminController.java, "
-        "HealthController.java, and 3 other controller files."
+        "- Inspected artifacts/source_a and extracted 1 entry:\n"
+        "  - entry_1: value_a\n"
+        "- Did not yet inspect: artifacts/source_b, artifacts/source_c, "
+        "and 2 other artifacts referenced by the subtask."
     ),
     summary=(
-        "Goal: Identify all HTTP endpoints. "
-        "Status: Incomplete — only 1 of 5 controller files examined."
+        "Goal: Extract the requested entries from the listed artifacts. "
+        "Status: Incomplete — only 1 of 5 artifacts inspected."
     ),
 )
 
@@ -1263,6 +1261,18 @@ STATUS RULES:
   - Make your best effort to complete the assigned task; only return 'incomplete' when work genuinely remains and decomposition is needed.
 - output: Include only concrete results from work actually performed (not plans or intentions).
 - summary: State the goal, what was completed, and, if incomplete, exactly what remains and why.
+
+VERIFICATION (only when write operations were performed):
+- A "write operation" is any tool call that mutates external state: e.g.,
+  set_*, add_*, upsert_*, remove_*, write_memory, append_memory, file edits,
+  or any other state-changing call.
+- If your subtask included one or more write operations, you MUST perform at
+  least one read-back of the affected entity BEFORE returning status='done'
+  (e.g., get_path / get_component / read_memory / file read of the same
+  artifact you just wrote).
+- If the read-back is missing, fails, or does not reflect the change, return
+  status='incomplete' and name the missing verification step in the summary.
+- Pure read-only subtasks do NOT require this verification step.
 
 OUTPUT RULES:
 - The output must contain findings, results, or observations — not a plan.

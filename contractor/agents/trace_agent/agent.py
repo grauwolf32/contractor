@@ -54,7 +54,9 @@ def build_trace_agent(
     enable_vuln_reporting: bool = False,
     elide_tool_results: Optional[Iterable[str]] = None,
     elide_keep_last_n: int = 15,
+    prompt: Optional[str] = None,
 ) -> LlmAgent:
+    instruction = prompt if prompt is not None else TRACE_AGENT_PROMPT
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = rw_file_tools(
         fs,
@@ -103,7 +105,7 @@ def build_trace_agent(
     trace_agent = LlmAgent(
         name=name,
         description="request trace annotation agent",
-        instruction=TRACE_AGENT_PROMPT,
+        instruction=instruction,
         model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),

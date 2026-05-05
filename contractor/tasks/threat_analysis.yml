@@ -85,8 +85,8 @@ task:
       missing controls only.
     - Do NOT enumerate threats outside STRIDE.
     - Do NOT raise a threat already covered by an existing finding.
-      Read list_vulnerabilities first; extend an existing report if it
-      covers the same asset and STRIDE category.
+      Enumerate the existing vulnerability reports first; extend an
+      existing report if it covers the same asset and STRIDE category.
 
     ## Methodology
 
@@ -123,11 +123,11 @@ task:
          - existing controls observed (cite project_information location)
          - smallest control that would reduce risk
 
-    6. Persist each threat via report_vulnerability (one per threat).
+    6. Persist each threat as a vulnerability report (one per threat).
 
     ## Threat Report Shape (MANDATORY)
 
-    Each threat is written with report_vulnerability using:
+    Each threat is written as a vulnerability report with:
       - name        : stable slug, e.g. "stride-i-profile-leak-v1"
       - place_type  : "file" (code-anchored) or "url" (spec-anchored)
       - place       : file path or OpenAPI path template
@@ -186,18 +186,19 @@ task:
         → Extract useful data manually and CONTINUE.
         → DO NOT restart the same step.
 
-    ## Tool Usage Rules
+    ## Capability Usage Rules
 
-    - OpenAPI: use list_paths, get_path, list_components, get_component,
-      list_servers, get_info. Never use write tools.
-    - Code: prefer search_def for named symbols; grep for literals,
-      decorators, sinks. Read project_information first to localize
-      before searching.
-    - Memory: read existing inventories before writing new ones; update
-      in place rather than appending duplicates.
-    - Vulnerability reports: list_vulnerabilities before raising new
-      threats; extend an existing report when it already covers the
-      same asset and STRIDE category.
+    - OpenAPI inspection: use enumerations and targeted reads (paths,
+      components, servers, top-level info). Never apply schema
+      mutations — this task is read-only on the spec.
+    - Code inspection: prefer symbol/definition search for named
+      symbols; use literal text search for decorators or sinks. Read
+      project_information first to localize before searching.
+    - Memory: read existing inventories before writing new ones;
+      update in place rather than appending duplicates.
+    - Vulnerability reports: enumerate existing reports before raising
+      new threats; extend an existing report when it already covers
+      the same asset and STRIDE category.
 
   output_format: >
     Produce Markdown output with the following structure:
