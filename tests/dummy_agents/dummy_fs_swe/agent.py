@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Final
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
@@ -25,10 +22,6 @@ from contractor.tools.tasks import (
     SubtaskFormatter,
     _prepare_worker_instructions,
 )
-
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
 
 DUMMY_SWE_PROMPT: Final[str] = (
     "You are a professional, helpful Software Engineer (SWE) agent.\n"
@@ -82,7 +75,6 @@ sandbox = PodmanContainer(
 )
 
 fs = RootedLocalFileSystem(root_path=playground_path)
-
 
 mem_tools = memory_tools(name="swe", fmt=MemoryFormat("json"))
 fs_tools = ro_file_tools(fs, fmt=FileFormat("json"))

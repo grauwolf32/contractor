@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import os
-from typing import Final, Literal, Optional
+from typing import Final, Iterable, Literal, Optional
 
 from fsspec import AbstractFileSystem
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.context import SummarizationLimitCallback
+from contractor.callbacks.context import (
+    FunctionResultsRemovalCallback,
+    SummarizationLimitCallback,
+)
+from contractor.tools import DEFAULT_HEAVY_TOOLS
 from contractor.callbacks.guardrails import (
     InvalidToolCallGuardrailCallback,
     RepeatedToolCallCallback,
@@ -31,12 +32,7 @@ from contractor.tools.vuln import (
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
 
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
-
 TRIAGE_PROMPT: Final[str] = load_prompt("triage_agent")
-
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
@@ -53,7 +49,6 @@ def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 
-
 def build_triage_agent(
     name: str,
     fs: AbstractFileSystem,
@@ -62,6 +57,8 @@ def build_triage_agent(
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
+    elide_tool_results: Optional[Iterable[str]] = None,
+    elide_keep_last_n: int = 15,
 ) -> LlmAgent:
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
@@ -80,6 +77,18 @@ def build_triage_agent(
             max_tokens=max_tokens, message=summarization_message(_format=_format)
         )
     )
+    elide_targets = (
+        list(elide_tool_results)
+        if elide_tool_results is not None
+        else list(DEFAULT_HEAVY_TOOLS)
+    )
+    if elide_targets:
+        callback_adapter.register(
+            FunctionResultsRemovalCallback(
+                keep_last_n=elide_keep_last_n,
+                target_tools=elide_targets,
+            )
+        )
     callback_adapter.register(
         InvalidToolCallGuardrailCallback(
             tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
@@ -98,5 +107,4 @@ def build_triage_agent(
         tools=tools,
         **callback_adapter(),
     )
-
 

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
 from typing import Final, Optional, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from langfuse import get_client
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from contractor.callbacks.adapter import CallbackAdapter
 from contractor.callbacks.context import SummarizationLimitCallback
@@ -26,12 +23,7 @@ from contractor.tools.tasks import (
     _prepare_worker_instructions,
 )
 
-if os.environ.get("USE_LANGFUSE", "").lower() == "true":
-    GoogleADKInstrumentor().instrument()
-    langfuse = get_client()
-
 OAS_LINTER_PROMPT: Final[str] = load_prompt("oas_linter_agent")
-
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
@@ -47,7 +39,6 @@ def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -
         "Include only claims supported by tool output; mark anything inferred as such.\n"
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
-
 
 def build_oas_linter_agent(
     name: str,
