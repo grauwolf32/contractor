@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Final
 
 from google.adk.agents import LlmAgent

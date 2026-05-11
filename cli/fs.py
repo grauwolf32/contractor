@@ -1,5 +1,5 @@
-import os
 import fnmatch
+import os
 from typing import Any, Iterator
 
 from fsspec.implementations.local import LocalFileSystem, stringify_path

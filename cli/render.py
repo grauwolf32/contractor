@@ -447,7 +447,7 @@ def _fmt_error(result: dict[str, Any]) -> str | None:
             break
 
     if err_key == "":
-        return
+        return None
 
     lines.append(f"    {C.wrap('error:', C.DIM, C.RED)} {result[err_key]}")
     result.pop(err_key, None)
@@ -475,7 +475,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         return "\n".join(lines) if lines else None
 
     if tool_name == "finish":
-        lines: list[str] = []
+        lines = []
         if "result" in result:
             lines.append(f"    {C.wrap('result:', C.DIM)} {_short(result['result'])}")
         if result.get("summary"):
@@ -487,7 +487,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         payload = result.get("result")
         if payload is None:
             return None
-        lines: list[str] = []
+        lines = []
         meta = _fmt_fs_paging(result)
         if meta:
             lines.append(meta)
@@ -496,7 +496,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         return "\n".join(lines)
 
     if tool_name in {"ls", "glob", "grep"}:
-        lines: list[str] = []
+        lines = []
         meta = _fmt_fs_paging(result)
         if meta:
             lines.append(meta)
@@ -525,7 +525,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         return indent(_j(result), "    ")
 
     if tool_name in {"list_touched_files", "uncovered"}:
-        lines: list[str] = []
+        lines = []
         meta = _fmt_fs_paging(result)
         if meta:
             lines.append(meta)
@@ -558,7 +558,7 @@ def _fmt_tool_result(tool_name: str, result: dict[str, Any] | None) -> str | Non
         return indent(_short_block(payload, 1200), "    ")
 
     if tool_name == "code_execution_tool":
-        lines: list[str] = []
+        lines = []
         stdout = result.get("result")
         stderr = result.get("error")
         if stdout:

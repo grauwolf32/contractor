@@ -1,7 +1,7 @@
-import yaml
-
-from pydantic import BaseModel
 from pathlib import Path
+
+import yaml
+from pydantic import BaseModel
 
 AGENTS_PATH = Path(__file__).parent.parent / "agents"
 

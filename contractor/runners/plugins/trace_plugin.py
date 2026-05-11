@@ -7,13 +7,10 @@ from google.adk.events import Event
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.runners.plugins.base import (
-    BaseAdkPlugin,
-    PluginContext,
-    resolve_tool_args,
-    resolve_tool_response,
-    snapshot_state,
-)
+from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
+                                             resolve_tool_args,
+                                             resolve_tool_response,
+                                             snapshot_state)
 
 
 class AdkTracePlugin(BaseAdkPlugin):

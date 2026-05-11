@@ -7,14 +7,11 @@ from enum import Enum
 from pathlib import PurePosixPath
 from typing import Any, Iterator, Optional
 
+from fsspec import AbstractFileSystem
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_parser
-from fsspec import AbstractFileSystem
 
-from contractor.utils.formatting import (
-    norm_unicode,
-    normalize_slashes,
-)
+from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
 logger = logging.getLogger(__name__)

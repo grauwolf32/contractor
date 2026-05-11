@@ -15,25 +15,15 @@ from google.genai import types
 from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.agents.planning_agent.agent import build_planning_agent
+from contractor.runners.artifacts import (artifact_names_for_key,
+                                          save_result_artifacts)
+from contractor.runners.models import (EventType, RenderedTask, TaskInvocation,
+                                       TaskResult, TaskRunnerEvent,
+                                       TaskRunnerEventHandler, TaskScopedKeys,
+                                       TaskStatus, TaskTemplate, WorkerBuilder,
+                                       build_active_state)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
-from contractor.runners.artifacts import (
-    artifact_names_for_key,
-    save_result_artifacts,
-)
-from contractor.runners.models import (
-    TaskRunnerEvent,
-    TaskInvocation,
-    TaskResult,
-    TaskStatus,
-    EventType,
-    TaskScopedKeys,
-    build_active_state,
-    RenderedTask,
-    TaskTemplate,
-    TaskRunnerEventHandler,
-    WorkerBuilder,
-)
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
 from contractor.utils import all_active_prompt_versions
@@ -564,14 +554,22 @@ class TaskRunner(BaseModel):
         iteration: int,
         session_id: str,
     ) -> list:
-        common = dict(
-            task_name=item.ref,
-            task_id=task_id,
-            iteration=iteration,
-            session_id=session_id,
-            emit=self._emit,
-        )
-        return [AdkTracePlugin(**common), AdkMetricsPlugin(**common)]
+        return [
+            AdkTracePlugin(
+                task_name=item.ref,
+                task_id=task_id,
+                iteration=iteration,
+                session_id=session_id,
+                emit=self._emit,
+            ),
+            AdkMetricsPlugin(
+                task_name=item.ref,
+                task_id=task_id,
+                iteration=iteration,
+                session_id=session_id,
+                emit=self._emit,
+            ),
+        ]
 
     async def _consume_events(
         self,

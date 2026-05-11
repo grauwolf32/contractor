@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 import re
-from typing import Final, Optional, Literal
+from typing import Final, Literal, Optional
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
-from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import (
-    InvalidToolCallGuardrailCallback,
-    RepeatedToolCallCallback,
-)
-from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
+from contractor.callbacks.adapter import CallbackAdapter
+from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
+                                             RepeatedToolCallCallback)
+from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.tools.memory import MemoryFormat, memory_tools
+from contractor.tools.tasks import SubtaskFormatter, task_tools
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
-from contractor.tools.memory import memory_tools, MemoryFormat
-from contractor.tools.tasks import (
-    task_tools,
-    SubtaskFormatter,
-)
 
 SUBTASK_PLANNING_PROMPT: Final[str] = load_prompt("planning_agent")
 

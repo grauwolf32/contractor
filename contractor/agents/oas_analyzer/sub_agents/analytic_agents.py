@@ -12,10 +12,8 @@ from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel
 from typing_extensions import override
 
-from contractor.agents.oas_analyzer.models import (
-    EndpointVulnerability,
-    ServiceBasicInfo,
-)
+from contractor.agents.oas_analyzer.models import (EndpointVulnerability,
+                                                   ServiceBasicInfo)
 from contractor.agents.oas_analyzer.prompts.factory import SectionPrompts
 from contractor.utils.settings import DEFAULT_MODEL
 

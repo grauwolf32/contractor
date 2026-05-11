@@ -221,6 +221,7 @@ class PodmanContainer:
             self._ensure_mounts()
             self._ensure_container_running()
 
+        assert self.container_id is not None, "container_id must be set after _ensure_container_running"
         command = command.strip()
         result = subprocess.run(
             ["podman", "exec", self.container_id[:12], "sh", "-c", command],
@@ -236,6 +237,7 @@ class PodmanContainer:
             self._ensure_image()
             self._ensure_mounts()
             self._ensure_container_running()
+            assert self.container_id is not None, "container_id must be set after _ensure_container_running"
             result = subprocess.run(
                 ["podman", "exec", self.container_id[:12], "sh", "-c", command],
                 capture_output=True,

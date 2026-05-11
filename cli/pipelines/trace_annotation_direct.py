@@ -1,37 +1,30 @@
-import yaml
 import json
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 from uuid import uuid4
 
+import yaml
 from google.adk.models import LiteLlm
 from google.genai import types
 
+from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
+from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
+                                            extract_openapi_paths)
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
-from contractor.runners.models import (
-    RenderedTask,
-    TaskRunnerEventHandler,
-    TaskTemplate,
-)
+from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
+                                       TaskTemplate)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
-
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.trace_annotation import (
-    OpenApiPath,
-    OpenApiOperation,
-    extract_openapi_paths,
-)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
-TRACE_MAX_TOKENS: int = 80_000
+TRACE_MAX_TOKENS: int = 100_000
 
 
 class TraceAnnotationDirectPipeline(Pipeline):
@@ -176,16 +169,21 @@ class TraceAnnotationDirectPipeline(Pipeline):
 
         session_id = uuid4().hex
         event_name = f"trace_annotation:{self.namespace}:{operation.operation_id}"
-        plugin_kwargs = dict(
-            task_name=event_name,
-            task_id=idx,
-            iteration=1,
-            session_id=session_id,
-            emit=self._runner._emit,
-        )
         plugins = [
-            AdkTracePlugin(**plugin_kwargs),
-            AdkMetricsPlugin(**plugin_kwargs),
+            AdkTracePlugin(
+                task_name=event_name,
+                task_id=idx,
+                iteration=1,
+                session_id=session_id,
+                emit=self._runner._emit,
+            ),
+            AdkMetricsPlugin(
+                task_name=event_name,
+                task_id=idx,
+                iteration=1,
+                session_id=session_id,
+                emit=self._runner._emit,
+            ),
         ]
 
         await self._runner.run(

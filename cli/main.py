@@ -12,24 +12,17 @@ from google.adk.artifacts import FileArtifactService
 
 load_dotenv()
 
-from contractor.runners.task_runner import (
-    TaskRunnerEvent,
-    TaskRunnerEventHandler,
-)
-from contractor.utils import observability
-from contractor.utils.settings import get_settings
-
 from cli.fs import RootedLocalFileSystem
 from cli.metrics import MetricsSink
 from cli.pipelines import PipelineContext, get_pipelines
 from cli.render import _render_event
 from cli.ui import LiveRenderer, interactive_prompt, render_artifact_summary
-from cli.utils import (
-    remove_artifacts,
-    save_artifact,
-    validate_folder_name,
-    validate_project_path,
-)
+from cli.utils import (remove_artifacts, save_artifact, validate_folder_name,
+                       validate_project_path)
+from contractor.runners.task_runner import (TaskRunnerEvent,
+                                            TaskRunnerEventHandler)
+from contractor.utils import observability
+from contractor.utils.settings import get_settings
 
 PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
 
@@ -231,7 +224,7 @@ async def async_main(
 @click.option(
     "--model",
     type=str,
-    default="lm-studio-qwen3.5",
+    default="lm-studio-qwen3.6",
     show_default=True,
     help="Model name to use for the task",
 )

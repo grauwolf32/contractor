@@ -5,13 +5,13 @@ from typing import Any, Optional
 from google.adk.models import LiteLlm
 from google.genai import types
 
-from contractor.agents.likec4_builder_agent.agent import build_likec4_builder_agent
+from cli.pipelines import Pipeline
+from contractor.agents.likec4_builder_agent.agent import \
+    build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import DEFAULT_LIKEC4_PATH
-
-from cli.pipelines import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class LikeC4BuildingPipeline(Pipeline):
             user_id=user_id, filename="project_information/result"
         ):
             runner.add_task(
-                name="project_information_experimental",
+                name="project_information",
                 worker_builder=swe_builder,
                 iterations=1,
                 max_attempts=3,
@@ -103,7 +103,7 @@ class LikeC4BuildingPipeline(Pipeline):
                 model=llm,
             )
         else:
-            await self.emit_task_skipped(on_event, "project_information_experimental")
+            await self.emit_task_skipped(on_event, "project_information")
 
         runner.add_task(
             name="likec4_build",

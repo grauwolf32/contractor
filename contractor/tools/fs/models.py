@@ -1,12 +1,11 @@
 import re
-import fsspec
-
-from magika import ContentTypeInfo, Magika
-from typing import Optional, ClassVar
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import ClassVar, Optional
 from weakref import WeakKeyDictionary
 
-from dataclasses import dataclass, field
+import fsspec
+from magika import ContentTypeInfo, Magika
 
 from contractor.utils.formatting import norm_unicode
 

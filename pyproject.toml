@@ -49,6 +49,16 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = "--strict-markers"
+norecursedirs = ["tests/playground"]
 markers = [
     "eval: end-to-end agent evaluation (slow, LLM-bound; opt in with `pytest -m eval` or CONTRACTOR_RUN_EVAL=1)",
 ]
+
+[tool.ruff]
+extend-exclude = ["tests/playground"]
+
+[tool.ruff.lint.per-file-ignores]
+"cli/main.py" = ["E402"]
+
+[tool.isort]
+extend_skip = ["tests/playground"]

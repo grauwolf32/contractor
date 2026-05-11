@@ -3,22 +3,18 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
-import fsspec
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Final, Literal, Optional
 
+import fsspec
 import yaml
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 from pydantic import ValidationError
 
+from contractor.tools.openapi.models import (PathItem, RequestBody, Response,
+                                             SecurityScheme)
 from contractor.utils import DictDiff, deep_merge, dict_diff
-from contractor.tools.openapi.models import (
-    PathItem,
-    SecurityScheme,
-    RequestBody,
-    Response,
-)
 
 COMPONENT_KEY_ERROR: Final[str] = "got key={key} but only keys {keys} are allowed"
 COMPONENT_VALIDATION_ERROR: Final[str] = (

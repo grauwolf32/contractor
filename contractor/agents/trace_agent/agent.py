@@ -1,33 +1,28 @@
 from __future__ import annotations
 
-from typing import Final, Iterable, Optional, Literal
+from typing import Final, Iterable, Literal, Optional
 
+from fsspec import AbstractFileSystem
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from fsspec import AbstractFileSystem
 
-from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.context import (
-    FunctionResultsRemovalCallback,
-    SummarizationLimitCallback,
-)
-from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.callbacks.guardrails import (
-    InvalidToolCallGuardrailCallback,
-    RepeatedToolCallCallback,
-)
-from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
+from contractor.callbacks.adapter import CallbackAdapter
+from contractor.callbacks.context import (FunctionResultsRemovalCallback,
+                                          SummarizationLimitCallback)
+from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
+                                             RepeatedToolCallCallback)
+from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.tools import DEFAULT_HEAVY_TOOLS
+from contractor.tools.code import code_tools
+from contractor.tools.fs import FileFormat, rw_file_tools
+from contractor.tools.memory import MemoryFormat, memory_tools
+from contractor.tools.tasks import (SubtaskFormatter,
+                                    _prepare_worker_instructions)
+from contractor.tools.vuln import (VulnerabilityReportFormat,
+                                   vulnerability_report_tools)
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
-from contractor.tools.fs import FileFormat, rw_file_tools
-from contractor.tools.vuln import vulnerability_report_tools, VulnerabilityReportFormat
-from contractor.tools.code import code_tools
-from contractor.tools.memory import memory_tools, MemoryFormat
-from contractor.tools.tasks import (
-    SubtaskFormatter,
-    _prepare_worker_instructions,
-)
 
 TRACE_AGENT_PROMPT: Final[str] = load_prompt("trace_agent")
 

@@ -5,9 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from contractor.runners.task_runner import TaskRunnerEvent
-
 from cli.utils import utc_now_iso
+from contractor.runners.task_runner import TaskRunnerEvent
 
 
 def _jsonable(value: Any) -> Any:

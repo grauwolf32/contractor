@@ -15,7 +15,6 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
-
 JSONLike: TypeAlias = dict[str, Any] | list[Any]
 HTTPRequestMethod: TypeAlias = Literal[
     "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"

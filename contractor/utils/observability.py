@@ -38,7 +38,8 @@ def init() -> None:
         return
     try:
         from langfuse import get_client
-        from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+        from openinference.instrumentation.google_adk import \
+            GoogleADKInstrumentor
 
         GoogleADKInstrumentor().instrument()
         get_client()

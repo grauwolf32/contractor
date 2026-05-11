@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import base64
+import difflib
 import hashlib
 import io
 import posixpath
 import threading
-import difflib
-
 from copy import deepcopy
 from datetime import datetime
 from pathlib import PurePosixPath
@@ -15,7 +14,6 @@ from typing import Any, Iterable, Iterator
 from fsspec.spec import AbstractFileSystem
 
 from contractor.tools.fs.models import FsEntry
-
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]

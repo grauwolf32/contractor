@@ -1,12 +1,9 @@
 import json
+from dataclasses import asdict, dataclass
+from typing import Any, Literal, Optional, Union
 
-from typing import Union, Optional, Any, Literal
-from contractor.tools.fs.models import (
-    FileLoc,
-    FsEntry,
-)
+from contractor.tools.fs.models import FileLoc, FsEntry
 from contractor.utils.formatting import xml_escape
-from dataclasses import dataclass, asdict
 
 
 @dataclass(slots=True)

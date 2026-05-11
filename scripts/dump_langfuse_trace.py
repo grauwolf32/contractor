@@ -26,7 +26,6 @@ import datetime as _dt
 import json
 import os
 import sys
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 

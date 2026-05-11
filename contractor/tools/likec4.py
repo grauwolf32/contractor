@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 from fsspec import AbstractFileSystem
 
-
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
 DEFAULT_LIKEC4_PATH: str = "/architecture.c4"

@@ -2,48 +2,26 @@ from __future__ import annotations
 
 import fnmatch
 import re
-
-from typing import (
-    Any,
-    Callable,
-    Iterator,
-    Literal,
-    Optional,
-    TypeAlias,
-    Iterable,
-)
+from typing import (Any, Callable, Iterable, Iterator, Literal, Optional,
+                    TypeAlias)
 
 import fsspec
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.tools.fs.const import (
-    FS_COVERAGE_STATE_KEY,
-    INCORRECT_REGEXP_ERROR,
-    PATH_NOT_FOUND_ERROR,
-    PATH_IS_NOT_A_FILE_ERROR,
-    _IGNORE_DEFAULTS,
-)
-from contractor.tools.fs.models import (
-    FileInteractionEntry,
-    FsEntry,
-    InteractionFilter,
-    InteractionKind,
-)
-from contractor.tools.fs.utils import (
-    _is_ignored,
-    _ensure_int_or_none,
-    _split_lines_keepends,
-    _line_ending_for_text,
-    _parse_bool,
-)
-from contractor.utils.formatting import (
-    norm_unicode,
-    norm_unicode_strict,
-    normalize_slashes,
-)
-from contractor.utils.fs import join_path
-from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
+from contractor.tools.fs.const import (_IGNORE_DEFAULTS, FS_COVERAGE_STATE_KEY,
+                                       INCORRECT_REGEXP_ERROR,
+                                       PATH_IS_NOT_A_FILE_ERROR,
+                                       PATH_NOT_FOUND_ERROR)
 from contractor.tools.fs.format import FileFormat
+from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
+                                        InteractionFilter, InteractionKind)
+from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
+from contractor.tools.fs.utils import (_ensure_int_or_none, _is_ignored,
+                                       _line_ending_for_text, _parse_bool,
+                                       _split_lines_keepends)
+from contractor.utils.formatting import (norm_unicode, norm_unicode_strict,
+                                         normalize_slashes)
+from contractor.utils.fs import join_path
 
 ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]

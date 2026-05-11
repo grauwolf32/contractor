@@ -3,12 +3,11 @@ from typing import Any, Optional
 
 from google.adk.models import LiteLlm
 
+from cli.pipelines import Pipeline
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-
-from cli.pipelines import Pipeline
 
 
 class OasBuildingPipeline(Pipeline):

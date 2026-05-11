@@ -3,11 +3,10 @@ from typing import Any, Optional
 
 from google.adk.models import LiteLlm
 
+from cli.pipelines import Pipeline, persist_seed_artifact
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-
-from cli.pipelines import Pipeline, persist_seed_artifact
 
 
 class OasEnrichmentPipeline(Pipeline):

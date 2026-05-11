@@ -6,15 +6,7 @@ import logging
 import re
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Callable,
-    Final,
-    Generator,
-    Literal,
-    Optional,
-    Union,
-)
+from typing import Any, Callable, Final, Generator, Literal, Optional, TypeAlias, Union, cast
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -79,6 +71,10 @@ SUBTASK_RESULT_MALFORMED: Final[str] = (
     "The subtask is marked 'malformed' — its raw results may still contain "
     "useful information. You MUST either decompose or skip it."
 )
+SubtaskStatus: TypeAlias = Literal[
+    "new", "done", "incomplete", "malformed", "skipped", "decomposed"
+]
+
 SUBTASK_STATUS_TRANSITIONS: Final[dict[str, list[str]]] = {
     "new": ["done", "incomplete", "malformed", "skipped"],
     "malformed": ["skipped", "decomposed"],
@@ -233,9 +229,7 @@ class Subtask(BaseModel):
         ),
         min_length=1,
     )
-    status: Literal[
-        "new", "done", "incomplete", "malformed", "skipped", "decomposed"
-    ] = Field(
+    status: SubtaskStatus = Field(
         default="new",
         description=(
             "Lifecycle status of the subtask:\n"
@@ -825,7 +819,7 @@ class StreamlineManager:
     @staticmethod
     def _apply_status_transition(subtask: Subtask, new_status: str) -> None:
         validate_status_transition(subtask.status, new_status)
-        subtask.status = new_status
+        subtask.status = cast(SubtaskStatus, new_status)
 
     # ── Core operations ─────────────────────────────────────────────
     def add_subtask(
@@ -1262,18 +1256,6 @@ STATUS RULES:
 - output: Include only concrete results from work actually performed (not plans or intentions).
 - summary: State the goal, what was completed, and, if incomplete, exactly what remains and why.
 
-VERIFICATION (only when write operations were performed):
-- A "write operation" is any tool call that mutates external state: e.g.,
-  set_*, add_*, upsert_*, remove_*, write_memory, append_memory, file edits,
-  or any other state-changing call.
-- If your subtask included one or more write operations, you MUST perform at
-  least one read-back of the affected entity BEFORE returning status='done'
-  (e.g., get_path / get_component / read_memory / file read of the same
-  artifact you just wrote).
-- If the read-back is missing, fails, or does not reflect the change, return
-  status='incomplete' and name the missing verification step in the summary.
-- Pure read-only subtasks do NOT require this verification step.
-
 OUTPUT RULES:
 - The output must contain findings, results, or observations — not a plan.
 - Provide concrete evidence from work performed.
@@ -1305,7 +1287,13 @@ EXAMPLE — Incomplete subtask:
 def _get_agent_ref(worker: Union[LlmAgent, AgentTool]) -> LlmAgent:
     """Extract the underlying LlmAgent from an AgentTool or return as-is."""
     if isinstance(worker, AgentTool):
-        return worker.agent
+        inner = worker.agent
+        if not isinstance(inner, LlmAgent):
+            raise TypeError(
+                f"AgentTool wraps non-LlmAgent ({type(inner).__name__}); "
+                f"instrument_worker and task_tools require an LlmAgent worker."
+            )
+        return inner
     return worker
 
 

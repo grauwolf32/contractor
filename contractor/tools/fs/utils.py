@@ -1,7 +1,7 @@
 import fnmatch
-
-from typing import Optional, Any
+from typing import Any, Optional
 from urllib.parse import quote as url_quote
+
 from contractor.utils.formatting import normalize_slashes
 
 

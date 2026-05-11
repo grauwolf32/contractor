@@ -4,7 +4,8 @@ import logging
 
 from google.adk.agents import SequentialAgent
 
-from contractor.agents.oas_analyzer.sub_agents.analytic_agents import analytic_agent
+from contractor.agents.oas_analyzer.sub_agents.analytic_agents import \
+    analytic_agent
 from contractor.agents.oas_analyzer.sub_agents.report_agent import report_agent
 
 logger = logging.getLogger(__name__)

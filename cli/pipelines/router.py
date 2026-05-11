@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from google.adk.models import LiteLlm
 
+from cli.pipelines import Pipeline
 from contractor.agents.http_agent.agent import build_http_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
@@ -13,18 +14,12 @@ from contractor.agents.router_agent.agent import build_router_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
-from contractor.runners.models import (
-    GLOBAL_TASK_ID_KEY,
-    TaskRunnerEventHandler,
-    TaskScopedKeys,
-    TaskStatus,
-)
+from contractor.runners.models import (GLOBAL_TASK_ID_KEY,
+                                       TaskRunnerEventHandler, TaskScopedKeys,
+                                       TaskStatus)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
-
-from cli.pipelines import Pipeline
-
 
 ROUTER_NAMESPACE = "router"
 ROUTER_TASK_NAME = "router"

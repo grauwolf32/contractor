@@ -14,15 +14,11 @@ from typing import Any, Awaitable, Callable, Optional
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.runners.plugins.base import (
-    BaseAdkPlugin,
-    PluginContext,
-    resolve_tool_args,
-    resolve_tool_response,
-    snapshot_state,
-)
+from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
+                                             resolve_tool_args,
+                                             resolve_tool_response,
+                                             snapshot_state)
 from contractor.tools.fs.const import FS_COVERAGE_STATE_KEY
-
 
 # ─── Small helpers ────────────────────────────────────────────────────────────
 

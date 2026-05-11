@@ -18,7 +18,6 @@ from rich.text import Text
 
 from cli import EventView
 
-
 TOP_PANEL_HEIGHT = 6
 EVENT_HISTORY_LIMIT = 200
 

@@ -13,9 +13,9 @@ from __future__ import annotations
 import asyncio
 import enum
 import fnmatch
-import os
 import io
 import logging
+import os
 import posixpath
 import re
 import threading

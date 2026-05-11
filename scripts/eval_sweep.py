@@ -31,12 +31,11 @@ import argparse
 import datetime
 import itertools
 import json
-import shutil
 import subprocess
 import sys
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
@@ -49,7 +48,6 @@ TASKS_DIR = REPO_ROOT / "contractor" / "tasks"
 # Make scripts/diagnose.py importable as a module.
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import diagnose  # type: ignore  # noqa: E402
-
 
 # ─── Axis specification ───────────────────────────────────────────────────────
 
@@ -511,16 +509,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"# Sweep plan")
+    print("# Sweep plan")
     print(f"  pipeline:     {args.pipeline}")
     print(f"  project:      {args.project_path}")
     print(f"  model:        {args.model}")
     print(f"  out:          {out_dir}")
     print(f"  combos:       {len(combos)} × repeat={args.repeat} = {total_runs} runs")
-    print(f"  axes:")
+    print("  axes:")
     for axis in axes:
         print(f"    {axis.kind}:{axis.name}  -> {axis.versions}  ({axis.manifest_path})")
-    print(f"  combinations:")
+    print("  combinations:")
     for i, combo in enumerate(combos):
         bits = ", ".join(f"{a.name}={v}" for a, v in zip(axes, combo))
         print(f"    #{i}  {bits}")

@@ -1,22 +1,18 @@
-import yaml
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, Any
 from functools import partial
+from typing import Any, Optional
 
+import yaml
 from google.adk.models import LiteLlm
 from google.genai import types
 
+from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from contractor.agents.trace_agent.agent import build_trace_agent
-from contractor.runners.task_runner import (
-    TaskRunner,
-    TaskRunnerEventHandler,
-)
+from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
-
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

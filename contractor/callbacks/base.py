@@ -100,7 +100,7 @@ class BaseCallback(ABC):
     def save_to_state(self, ctx: CallbackContext | ToolContext) -> None:
         ctx.state.setdefault("callbacks", {})
 
-        # HACK: ctx.state must be explicilty overwritten
+        # HACK: ctx.state must be explicitly overwritten
         callbacks = ctx.state["callbacks"]
         callbacks[self._callback_state_key(self.name)] = self.to_state()
         ctx.state["callbacks"] = callbacks
