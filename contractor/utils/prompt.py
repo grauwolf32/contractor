@@ -49,3 +49,26 @@ def load_prompt_with_version(
 
 def load_prompt(agent_name: str, version: str | None = None) -> str:
     return load_prompt_with_version(agent_name, version)[0]
+
+
+def all_active_prompt_versions() -> dict[str, str]:
+    """Snapshot ``{agent_name: active_version}`` for every agent with a manifest.
+
+    Used by the task runner to emit prompt-version provenance on ``run_started``
+    so metrics consumers can slice runs by which prompt was active.
+    Agents without a ``prompt.yml`` or with broken manifests are skipped silently.
+    """
+    versions: dict[str, str] = {}
+    if not AGENTS_PATH.is_dir():
+        return versions
+    for entry in sorted(AGENTS_PATH.iterdir()):
+        if not entry.is_dir():
+            continue
+        if not (entry / "prompt.yml").exists():
+            continue
+        try:
+            _, resolved = load_prompt_with_version(entry.name)
+        except Exception:
+            continue
+        versions[entry.name] = resolved
+    return versions

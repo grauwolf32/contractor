@@ -36,6 +36,7 @@ from contractor.runners.models import (
 )
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
+from contractor.utils import all_active_prompt_versions
 from contractor.utils.settings import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
@@ -184,6 +185,15 @@ class TaskRunner(BaseModel):
                 total_tasks=total_tasks,
                 completed_tasks=0,
                 user_id=user_id,
+                prompt_versions=all_active_prompt_versions(),
+                task_invocations=[
+                    {
+                        "ref": item.ref,
+                        "template_key": item.template_key,
+                        "template_version": item.template_version,
+                    }
+                    for item in self.queue
+                ],
             )
 
             for task_id, item in enumerate(self.queue):
@@ -200,6 +210,8 @@ class TaskRunner(BaseModel):
                     EventType.GLOBAL_TASK_FINISHED,
                     task_name=item.ref,
                     task_id=task_id,
+                    template_key=item.template_key,
+                    template_version=item.template_version,
                     session_id=result["session_id"],
                     status=result["status"],
                     result=result["result"],
@@ -495,6 +507,8 @@ class TaskRunner(BaseModel):
             session_id=session_id,
             objective=rendered_task.objective,
             initial_state=initial_state,
+            template_key=item.template_key,
+            template_version=item.template_version,
         )
 
         runner = Runner(
@@ -538,6 +552,8 @@ class TaskRunner(BaseModel):
             iteration=iteration,
             session_id=session_id,
             result=result,
+            template_key=item.template_key,
+            template_version=item.template_version,
         )
         return result
 
@@ -615,6 +631,7 @@ class TaskRunner(BaseModel):
             task_name=item.ref,
             task_id=task_id,
             template_key=item.template_key,
+            template_version=item.template_version,
             task_title=template.title,
             iterations=item.iterations,
             max_attempts=item.max_attempts,
@@ -660,6 +677,8 @@ class TaskRunner(BaseModel):
                 successful_runs=next_successful_runs,
                 total_tasks=total_tasks,
                 completed_tasks=task_id,
+                template_key=item.template_key,
+                template_version=item.template_version,
             )
 
             if completed:
@@ -672,6 +691,7 @@ class TaskRunner(BaseModel):
                         task_name=item.ref,
                         task_id=task_id,
                         template_key=item.template_key,
+                        template_version=item.template_version,
                         session_id=result["session_id"],
                         status=result["status"],
                         result=result["result"],
@@ -690,6 +710,7 @@ class TaskRunner(BaseModel):
             task_name=item.ref,
             task_id=task_id,
             template_key=item.template_key,
+            template_version=item.template_version,
             max_attempts=item.max_attempts,
             last_result=last_result,
             total_tasks=total_tasks,
