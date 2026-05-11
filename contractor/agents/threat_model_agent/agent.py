@@ -1,3 +1,11 @@
+"""Currently unused: ``build_threat_model_agent`` has no callers in production
+pipelines (``cli/pipelines/``) or tests as of 2026-05. The matching
+``contractor/tasks/threat_analysis*`` template is also orphaned. Kept for
+potential future use (security-analysis workflows). If you wire this up,
+remove this notice; if it remains unreferenced, consider deleting the
+directory along with its prompts and tasks.
+"""
+
 from __future__ import annotations
 
 from typing import Final, Iterable, Literal, Optional
