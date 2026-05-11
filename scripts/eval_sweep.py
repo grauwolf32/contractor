@@ -229,8 +229,16 @@ def spawn_run(
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        (out_dir / "stdout.log").write_text(exc.stdout or "", encoding="utf-8")
-        (out_dir / "stderr.log").write_text(exc.stderr or "", encoding="utf-8")
+        # subprocess.TimeoutExpired returns stdout/stderr as bytes even with
+        # text=True (Python ≥3.6 quirk). Decode defensively.
+        def _decode(b: Any) -> str:
+            if b is None:
+                return ""
+            if isinstance(b, bytes):
+                return b.decode("utf-8", errors="replace")
+            return str(b)
+        (out_dir / "stdout.log").write_text(_decode(exc.stdout), encoding="utf-8")
+        (out_dir / "stderr.log").write_text(_decode(exc.stderr), encoding="utf-8")
         return "timeout", None, time.time() - started, cmd
 
     duration = time.time() - started
