@@ -45,10 +45,10 @@ class OasEnrichmentPipeline(Pipeline):
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
         runner.add_task(
-            name="oas_enrich_experimental",
+            name="oas_enrich",
             worker_builder=oas_builder,
             iterations=3,
-            max_attempts=9,
+            max_attempts=6,
             max_steps=30,
             artifacts=[
                 "dependency_information/result",
@@ -61,9 +61,9 @@ class OasEnrichmentPipeline(Pipeline):
         runner.add_task(
             name="oas_validate",
             worker_builder=oas_linter,
-            iterations=1,
+            iterations=2,
             max_attempts=2,
-            max_steps=30,
+            max_steps=20,
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",

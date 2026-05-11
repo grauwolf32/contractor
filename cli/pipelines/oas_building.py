@@ -56,7 +56,7 @@ class OasBuildingPipeline(Pipeline):
                 name="dependency_information",
                 worker_builder=swe_builder,
                 iterations=1,
-                max_attempts=3,
+                max_attempts=2,
                 max_steps=20,
                 namespace="dependency_information",
                 model=llm,
@@ -68,23 +68,23 @@ class OasBuildingPipeline(Pipeline):
             user_id=user_id, filename="project_information/result"
         ):
             runner.add_task(
-                name="project_information_experimental",
+                name="project_information",
                 worker_builder=swe_builder,
                 iterations=1,
-                max_attempts=3,
+                max_attempts=2,
                 max_steps=20,
                 artifacts=["dependency_information/result"],
                 namespace="project_information",
                 model=llm,
             )
         else:
-            await self.emit_task_skipped(on_event, "project_information_experimental")
+            await self.emit_task_skipped(on_event, "project_information")
 
         runner.add_task(
-            name="oas_update_experimental",
+            name="oas_update",
             worker_builder=oas_builder,
-            iterations=3,
-            max_attempts=9,
+            iterations=2,
+            max_attempts=4,
             max_steps=20,
             artifacts=[
                 "dependency_information/result",

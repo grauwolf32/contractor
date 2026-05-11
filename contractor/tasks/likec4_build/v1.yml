@@ -1,0 +1,353 @@
+---
+task:
+  name: "LikeC4 Architecture Model Build"
+
+  objective: >
+    You are working on project {project_path}.
+
+    Build a complete LikeC4 architecture model for this project, focused on
+    security-relevant facts: external interactions, trust boundaries,
+    authentication and authorization touch points, data stores and the classes
+    of data they hold, secrets handling, and outbound integrations.
+
+    The canonical LikeC4 source MUST be maintained in the memory note
+    `likec4_source`. Read it before every modeling iteration, overwrite it with
+    the full updated source after every meaningful edit, and validate it through
+    the LikeC4 validation capability before continuing.
+
+    The final task result MUST include the full validated content of
+    `likec4_source`.
+
+    Inputs to consume before exploring code:
+      - Project information: project_information/result
+      - Dependency inventory: dependency_information/result
+
+    Read existing memories and records first.
+
+  skills:
+    - likec4
+
+  instructions: >
+
+    ## Core Principles
+
+    - The upstream artifacts `project_information/result` and
+      `dependency_information/result` are the primary system map. Do not rebuild
+      them from scratch. Mine them for external integrations, entry points, data
+      stores, secrets handling, authentication patterns, authorization patterns,
+      deployment units, and infrastructure dependencies.
+    - Verify artifact findings against code before modeling them when possible.
+      Prefer code evidence over artifact summaries if they conflict.
+    - Anchor every modeled element and relationship to concrete evidence. If
+      exact line numbers are unavailable, use the file path plus a short
+      rationale.
+    - The model is security-first. Treat every external system, inbound entry
+      point, outbound call, data store, identity boundary, and privileged tool as
+      a potential attack surface.
+    - The LikeC4 source lives in a single memory note named `likec4_source`.
+      Always read the current note before editing, then write the full updated
+      source back after each meaningful edit.
+    - Validate the full LikeC4 source after every meaningful edit. Do not add
+      more model content while validation errors remain.
+
+    ## Required Coverage
+
+    The final model MUST represent, at minimum:
+
+      1. External actors
+         - anonymous users
+         - authenticated users
+         - administrators / operators
+         - third-party callers, partners, webhook senders, or automation clients
+
+      2. Inbound entry points
+         - HTTP / REST APIs, grouped by logical service
+         - gRPC / RPC endpoints
+         - message-queue consumers / event handlers
+         - scheduled jobs / cron tasks / workers
+         - CLI tools / admin tooling
+
+      3. Internal containers
+         - each deployable service, process, worker, or job
+         - first-party identity, authentication, or authorization subsystems
+         - internal gateways, API layers, and background processors
+
+      4. Data stores
+         - relational databases
+         - document databases
+         - key-value stores
+         - object storage
+         - caches
+         - message brokers, modeled both as data stores and integrations where
+           appropriate
+         - secret stores / KMS
+         - audit, analytics, telemetry, and log sinks
+
+         Tag data stores with the data classes they hold:
+           #pii
+           #secrets
+           #tokens
+           #credentials
+           #audit
+           #business
+
+      5. External integrations
+         - identity providers: OIDC, SAML, OAuth2, LDAP, SSO
+         - payment / billing providers
+         - email, SMS, push, or notification providers
+         - third-party APIs called by the project
+         - telemetry, analytics, observability, logging, and error-reporting
+           platforms
+         - cloud provider services such as object storage, queues, KMS, secret
+           managers, databases, and managed identity services
+
+         Model each integration as its own element. Tag each with #external and
+         protocol tags where supported by the project evidence.
+
+      6. Trust boundaries
+         - Encode trust zones using tags such as:
+             #public
+             #dmz
+             #internal
+             #admin
+             #external
+         - Use grouping or boundaries in the model to make trust zones visually
+           clear.
+         - Every relationship that crosses a trust boundary MUST name the
+           crossing in its title, for example:
+             "internet → DMZ over HTTPS"
+             "DMZ → internal over gRPC"
+             "internal → external SaaS over HTTPS w/ API key"
+
+      7. Security-relevant relationships
+         Include relationships for:
+           - authentication:
+               "authenticates via"
+               "issues tokens"
+               "validates JWT"
+               "exchanges OAuth code"
+           - authorization:
+               "checks RBAC against"
+               "evaluates policy via"
+               "enforces tenant boundary"
+           - cryptography and secrets:
+               "fetches secrets from"
+               "decrypts using KMS"
+               "signs webhook with"
+           - sensitive data flow:
+               "stores PII"
+               "persists tokens"
+               "logs audit events"
+               "processes payment data"
+           - outbound calls:
+               include protocol and credential type in the relationship title,
+               for example:
+                 "calls payments API over HTTPS w/ API key"
+                 "publishes events over AMQP w/ service credentials"
+                 "calls identity provider over HTTPS w/ OAuth client secret"
+
+    ## Required Views
+
+    At least these three views MUST be present:
+
+      - `systemLandscape`
+          Full system overview.
+          Use `autoLayout lr`.
+
+      - `containers`
+          Internal container detail.
+          Use `autoLayout lr`.
+
+      - `security` or `external_surface`
+          Security-focused view emphasizing:
+            - external attack surface
+            - public and admin entry points
+            - identity boundaries
+            - trust-zone crossings
+            - stores tagged #pii, #secrets, #tokens, or #credentials
+
+    Add additional views only when concrete evidence supports them, such as:
+      - deployment views
+      - authentication dynamic flows
+      - webhook flow views
+      - data-flow views for sensitive data
+
+    Do not pad the model with speculative or low-value views.
+
+    ## Workflow
+
+    1. Read current memory:
+         - `likec4_source`, if present
+         - any prior `likec4_*` memories
+         - `likec4_uncertainties`, if present
+
+    2. Read upstream inputs:
+         - `project_information/result`
+         - `dependency_information/result`
+
+    3. Build or extend the model in this order:
+         a. specification block
+              - element kinds
+              - deployment kinds, if needed
+              - relationship kinds, if needed
+              - tags
+              - colors / styles needed for security emphasis
+
+         b. model block
+              - external actors
+              - system boundary
+              - trust-zone groupings
+              - internal containers
+              - data stores
+              - external systems
+              - relationships
+
+         c. views block
+              - systemLandscape
+              - containers
+              - security or external_surface
+              - any additional evidence-backed views
+
+    4. After every meaningful edit:
+         - write the complete updated LikeC4 source to `likec4_source`
+         - run LikeC4 validation against the complete source
+         - fix validation errors before making further model additions
+
+    5. Use the `likec4` skill memory, including index and references, to confirm
+       exact DSL syntax for:
+         - specification syntax
+         - element declarations
+         - relationship syntax
+         - tags
+         - style rules
+         - predicates
+         - identifier rules
+         - scoping
+         - view syntax
+         - autoLayout options
+
+       Do NOT guess LikeC4 syntax.
+
+    6. Explore code evidence using targeted inspection:
+         - Use symbol / definition lookup for handlers, clients, adapters,
+           services, repositories, middleware, auth modules, jobs, and workers.
+         - Use literal text search for:
+             - route decorators and registrations
+             - framework entry points
+             - queue subscribers
+             - event handlers
+             - cron / scheduler definitions
+             - env-var lookups
+             - config keys
+             - HTTP, gRPC, database, queue, cache, storage, KMS, and secret-store
+               clients
+             - authentication and authorization middleware
+             - token, credential, session, role, tenant, permission, and policy
+               handling
+
+    7. Track coverage:
+         - Record explored and unexplored areas in `likec4_uncertainties`.
+         - Use coverage inspection capabilities to verify that handlers, jobs,
+           workers, integration adapters, and data access layers have actually
+           been read.
+         - Record uncertainty instead of inventing missing facts.
+
+    8. Stop only when:
+         - LikeC4 validation reports no errors
+         - required coverage is satisfied
+         - unresolved uncertainty has been recorded in `likec4_uncertainties`
+
+    ## Capability Usage Rules
+
+    - Code:
+        Prefer precise symbol and definition lookup for handlers, clients,
+        adapters, middleware, repositories, integration modules, and workers.
+        Use literal search for framework syntax, route declarations, queue
+        subscriptions, cron definitions, environment variables, config keys, and
+        outbound client usage.
+
+    - Memory:
+        Read existing entries before writing. Maintain exactly one canonical
+        `likec4_source` note by overwriting it with the full current source.
+        Do not append duplicate source notes.
+
+    - LikeC4:
+        Validate after every meaningful edit. Do not continue building while
+        syntax or validation errors remain.
+
+    - Coverage:
+        Use available coverage inspection capabilities to confirm that inbound
+        handlers, scheduled jobs, workers, integration adapters, and data access
+        paths have been inspected.
+
+    ## Anti-Drift Rules
+
+    - Do NOT model internal helper functions, utility classes, DTOs, mappers, or
+      library wrappers unless they are deployed or operated as independent
+      containers.
+    - Do NOT invent integrations, protocols, identity providers, stores, queues,
+      or trust boundaries that are not supported by artifacts or code evidence.
+    - Do NOT model implementation details unrelated to security, such as logging
+      formatters, config parser internals, serialization helpers, or purely local
+      data transformation utilities.
+    - Do NOT over-model individual routes when a logical API container is more
+      appropriate. Model route groups only when they represent distinct security
+      surfaces.
+    - Do NOT include speculative views or placeholder elements.
+    - Do NOT output the full DSL in intermediate chat messages. During the task,
+      the canonical source lives only in `likec4_source`. The full DSL is
+      included only in the final task result as required by `output_format`.
+
+    ## Failure Handling
+
+    - LikeC4 validation errors:
+        Fix syntax and model issues before adding new content.
+
+    - Validator command or capability unavailable:
+        Record the blocker in `likec4_uncertainties`, continue building the best
+        possible source, and mark validation as blocked in the final result. Do
+        not claim validation succeeded.
+
+    - Missing upstream artifacts:
+        Record the missing artifact in `likec4_uncertainties`, inspect code
+        directly, and continue with best-effort modeling.
+
+    - Conflicting evidence between upstream artifacts and code:
+        Prefer code evidence. Record the conflict and chosen interpretation in
+        `likec4_uncertainties`.
+
+    - Insufficient evidence for a required category:
+        Do not invent elements. Record what was searched, what was not found,
+        and why the category is omitted or represented generically.
+
+  output_format: >
+    The final task result MUST be a single response containing a short Markdown
+    summary followed by the full validated content of the `likec4_source` memory
+    note.
+
+    Use exactly this structure:
+
+    ## Coverage
+    - Containers modeled: <count> (<names>)
+    - External systems modeled: <count> (<names>)
+    - Data stores modeled: <count> (<names + tags>)
+    - Trust boundaries encoded: <list>
+    - Views produced: <list>
+
+    ## Validation
+    - Last LikeC4 validation status: ok | blocked | <N issues>
+    - Outstanding warnings: <list or none>
+
+    ## Uncertainties
+    - <items left out and why, or none>
+
+    ## LikeC4 Source
+
+    ```likec4
+    <full likec4_source content>
+    ```
+
+    Do NOT paste the source twice.
+    Do NOT include code excerpts beyond the LikeC4 block.
+    Do NOT claim validation passed unless the LikeC4 validation capability
+    reported success.

@@ -1,0 +1,149 @@
+---
+task:
+  name: "External-Service Dependency Inventory"
+
+  objective: >
+    Produce a Markdown inventory of dependencies in the project at
+    {project_path} that are used to interact with external services,
+    systems, or infrastructure. Each kept dependency is classified with
+    one or more role tags so downstream threat-modeling tasks can
+    consume it. Purely internal or local-only libraries are excluded.
+    The final output is the Markdown document itself — not a memory
+    entry or intermediate summary.
+
+  context: >
+    If prior dependency analysis for {project_path} exists in memory or
+    records, load it first and use it as a starting point. Do not
+    repeat work already completed. If no prior results exist, start
+    from scratch.
+
+  instructions: |
+    Analyze the project at {project_path} and produce the Markdown
+    report described in output_format below.
+
+    STEP 1 — Locate dependency manifests
+      - Enumerate manifest and lock files in the repository root and in
+        any per-service subdirectories. Examples by ecosystem:
+          - Node.js : package.json, package-lock.json, yarn.lock, pnpm-lock.yaml
+          - Python  : pyproject.toml, requirements*.txt, Pipfile, poetry.lock, uv.lock
+          - JVM     : pom.xml, build.gradle, build.gradle.kts, *.lockfile
+          - Go      : go.mod, go.sum
+          - Ruby    : Gemfile, Gemfile.lock
+          - PHP     : composer.json, composer.lock
+          - .NET    : *.csproj, packages.lock.json
+          - Rust    : Cargo.toml, Cargo.lock
+          - System  : Dockerfile (apt/apk/pip lines), Helm/K8s manifests
+      - Determine the primary languages and frameworks in use.
+      - Skip vendor/, node_modules/, .git/, build/, dist/, target/,
+        .venv/, and similar artifact directories.
+
+    STEP 2 — Filter to external-service dependencies
+      Keep a dependency only if it is responsible at runtime for
+      interacting with a system outside the application process:
+        - HTTP / REST clients and servers
+        - GraphQL clients and servers
+        - gRPC, Thrift, SOAP runtimes
+        - WebSocket, SSE, MQTT, AMQP, Kafka, NATS, SQS, Pub/Sub
+        - Database drivers, ORMs, query builders that talk to a DB
+        - Object/blob storage clients (S3, GCS, Azure Blob)
+        - Identity providers (OIDC / OAuth / SAML clients)
+        - JWT / JOSE / PASETO / COSE token libraries
+        - Secret managers (Vault, AWS Secrets Manager, KMS clients)
+        - Cryptographic libraries used at trust boundaries
+
+      Prefer direct dependencies. Include a transitive dependency only
+      when it clearly provides external connectivity (e.g., a gRPC
+      transport, a database driver pulled in by an ORM, a protocol
+      runtime).
+
+      Exclude unless they directly drive runtime external interaction:
+        - Test frameworks, mocks, fixtures
+        - Build tools, bundlers, linters, formatters, type checkers
+        - UI / templating / styling libraries
+        - General utility libraries
+        - Dev-only tooling (debuggers, profilers)
+
+    STEP 3 — Tag each kept dependency
+      Use the tags below. Add a new tag only when none fit; justify the
+      addition in the row's "Why included" cell.
+
+        - http            REST clients/servers, generic HTTP libs
+        - graphql         GraphQL clients/servers
+        - grpc            gRPC runtimes and codegen
+        - thrift          Thrift runtimes
+        - soap            SOAP / WSDL clients
+        - websocket       WebSocket / SSE
+        - openapi         OpenAPI codegen / validation runtimes
+        - queue           Message brokers, pub/sub, work queues
+        - database        SQL/NoSQL drivers, ORMs, search engines
+        - s3              Object/blob storage clients
+        - authentication  Identity / login / OIDC / OAuth client libs
+        - authorization   Policy engines, RBAC/ABAC libraries
+        - secrets         Vault, KMS, secret-manager SDKs
+        - cryptography    Crypto primitives used at trust boundaries
+        - security        Other security-relevant libs that don't fit above
+
+      Assign tags by primary responsibility. A library may carry more
+      than one tag (e.g., an OIDC client → http + authentication; a
+      JDBC driver → database; an AWS SDK S3 client → s3 + http).
+
+    STEP 4 — Provide evidence
+      For every kept dependency, cite at least one piece of evidence:
+        - Manifest entry (file path, plus line if meaningful)
+        - Configuration reference (env var, settings file, URL constant)
+        - Import or call site (file path; full code excerpts not needed)
+        - The library name itself when its purpose is unambiguous
+          (e.g., "psycopg2", "@aws-sdk/client-s3")
+      If usage is inferred rather than confirmed, prefix the "Why
+      included" cell with "Suspected:" and explain the reasoning.
+
+    STEP 5 — Compose the Markdown report
+      Write the report exactly as in output_format. The report IS the
+      deliverable.
+
+  output_format: |
+    Return a single Markdown document with this exact structure:
+
+    ```
+    # External-Service Dependency Inventory
+
+    ## Detected Stack and Dependency Sources
+    - **Primary languages / frameworks:** <list>
+    - **Manifest files analyzed:** <relative paths>
+    - **Lock files analyzed:** <relative paths or "none found">
+
+    ## External-Service Dependencies
+    | Dependency | Version | Ecosystem | Tags | Why included | Evidence |
+    |------------|---------|-----------|------|--------------|----------|
+    | <name>     | <ver>   | <npm/PyPI/Maven/Go/...> | <tag1, tag2> | <one line; prefix "Suspected:" if inferred> | <manifest:line, import path, config ref> |
+
+    ## Summary by Tag
+    - **http:** <dep1>, <dep2>, ...
+    - **database:** ...
+    - (one bullet per tag that has at least one dependency)
+
+    ## Gaps and Follow-ups
+    - **Suspected (low-confidence) dependencies:** <names + reason>
+    - **Missing inputs:** <e.g., no lock file, private registry, vendored deps without manifest>
+    - **Assumptions made:** <list>
+    ```
+
+    Rules:
+      - If a section has no entries, keep the heading and write
+        "Not found." with a one-line note on what was searched.
+      - If the version cannot be resolved (no lock file, range
+        constraint only), record the constraint as-is and note it under
+        Gaps and Follow-ups.
+
+  constraints:
+    - Do NOT recurse into vendor/, node_modules/, .git/, build/, dist/,
+      target/, .venv/, or similar artifact directories.
+    - Do NOT invent dependencies. If a manifest or lock file is
+      missing, state the limitation under Gaps and Follow-ups.
+    - Do NOT include test, build, or lint dependencies unless they
+      directly drive runtime external interaction.
+    - Limit code reads to import lines and configuration references;
+      full implementation reads are unnecessary for this task.
+    - The final answer MUST be the Markdown report. Do not return JSON
+      and do not wrap the report in code fences other than the Markdown
+      itself.

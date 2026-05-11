@@ -74,6 +74,7 @@ class TaskInvocation:
     id: str
     ref: str
     template_key: str
+    template_version: str
     worker_builder: WorkerBuilder
 
     params: dict[str, Any] = field(default_factory=dict)
@@ -92,6 +93,11 @@ class TaskInvocation:
 
     def effective_model(self, fallback: LiteLlm) -> LiteLlm:
         return self.model or fallback
+
+    @property
+    def template_cache_key(self) -> tuple[str, str]:
+        """Composite key used by ``TaskRunner.templates``."""
+        return (self.template_key, self.template_version)
 
 
 # ─── Key-name helpers ────────────────────────────────────────────────────────
@@ -196,6 +202,7 @@ def _artifact_var_name(artifact_ref: str) -> str:
 @dataclass(slots=True, frozen=True)
 class TaskTemplate:
     key: str
+    version: str
     title: str
     objective: str
     instructions: str
@@ -206,19 +213,33 @@ class TaskTemplate:
     format: str = "json"
 
     @classmethod
-    def load(cls, name: str) -> TaskTemplate:
-        template_key = Path(name).stem
-        fname = TASKS_BASE_DIR / f"{template_key}.yml"
-        if not os.path.exists(fname):
-            raise ValueError(f"Task template {template_key} not found")
+    def load(cls, name: str, version: str | None = None) -> TaskTemplate:
+        """Load a task template by name, optionally pinning the version.
 
-        with open(fname, "r", encoding="utf-8") as f:
+        Layout (mirrors the prompt manifest system):
+          contractor/tasks/<name>.yml          — manifest with `active:` + `versions:`
+          contractor/tasks/<name>/<vN>.yml     — task body for each version
+
+        When ``version`` is ``None`` the manifest's ``active`` version is used.
+        """
+        template_key = Path(name).stem
+        manifest_path, resolved_version, body_path = _resolve_task_version(
+            template_key, version
+        )
+
+        with open(body_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
+        if "task" not in data:
+            raise ValueError(
+                f"Task body {body_path} missing top-level 'task:' key "
+                f"(manifest: {manifest_path})"
+            )
         raw = data["task"]
 
         return cls(
             key=template_key,
+            version=resolved_version,
             title=raw.get("name", template_key) or template_key,
             objective=raw["objective"],
             instructions=raw["instructions"],
@@ -228,6 +249,62 @@ class TaskTemplate:
             default_iterations=int(raw.get("iterations", 1) or 1),
             format=raw.get("format", "json") or "json",
         )
+
+
+# ─── Task manifest resolution ─────────────────────────────────────────────────
+
+
+def _resolve_task_version(
+    template_key: str, version: str | None
+) -> tuple[Path, str, Path]:
+    """Resolve a task name (+ optional version) to a body file on disk.
+
+    Returns ``(manifest_path, resolved_version, body_path)``. Raises
+    ``ValueError`` with a clear message on missing manifest, missing
+    version, or missing body file.
+    """
+    manifest_path = TASKS_BASE_DIR / f"{template_key}.yml"
+    if not manifest_path.exists():
+        raise ValueError(f"Task template {template_key} not found at {manifest_path}")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = yaml.safe_load(f) or {}
+
+    if "active" not in manifest or "versions" not in manifest:
+        raise ValueError(
+            f"Task manifest {manifest_path} must declare 'active:' and 'versions:' "
+            f"(see contractor/tasks/dependency_information.yml for the layout)"
+        )
+
+    versions = manifest["versions"] or {}
+    if not isinstance(versions, dict):
+        raise ValueError(
+            f"Task manifest {manifest_path} 'versions:' must be a mapping"
+        )
+
+    resolved = version or manifest["active"]
+    if resolved not in versions:
+        available = ", ".join(sorted(versions.keys())) or "(none)"
+        raise ValueError(
+            f"Task version {resolved!r} not declared in {manifest_path}. "
+            f"Available versions: {available}"
+        )
+
+    entry = versions[resolved] or {}
+    file_ref = entry.get("file") if isinstance(entry, dict) else None
+    if not file_ref:
+        raise ValueError(
+            f"Task manifest {manifest_path} version {resolved!r} missing 'file:' field"
+        )
+
+    body_path = TASKS_BASE_DIR / file_ref
+    if not body_path.exists():
+        raise ValueError(
+            f"Task body for {template_key}@{resolved} not found at {body_path} "
+            f"(referenced by {manifest_path})"
+        )
+
+    return manifest_path, str(resolved), body_path
 
 
 @dataclass(slots=True, frozen=True)

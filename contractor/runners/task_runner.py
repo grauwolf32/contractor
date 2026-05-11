@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import copy
-import json
 import logging
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from google.adk.agents import LlmAgent
@@ -18,6 +17,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
+from contractor.runners.artifacts import (
+    artifact_names_for_key,
+    save_result_artifacts,
+)
 from contractor.runners.models import (
     TaskRunnerEvent,
     TaskInvocation,
@@ -28,7 +31,6 @@ from contractor.runners.models import (
     build_active_state,
     RenderedTask,
     TaskTemplate,
-    ArtifactKind,
     TaskRunnerEventHandler,
     WorkerBuilder,
 )
@@ -37,10 +39,6 @@ from contractor.tools.memory import MemoryNote, MemoryTools
 from contractor.utils.settings import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
-
-# ─── Constants ────────────────────────────────────────────────────────────────
-
-_ARTIFACT_KINDS: tuple[ArtifactKind, ...] = ("result", "summary", "records")
 
 
 # ─── Custom Exceptions ───────────────────────────────────────────────────────
@@ -59,31 +57,7 @@ class TaskNotCompletedError(Exception):
         )
 
 
-class InvalidTemplateKeyError(ValueError):
-    """Raised when an artifact template key is invalid."""
-
-
 # ─── Helpers (module-level, stateless) ────────────────────────────────────────
-
-
-def _validate_template_key(template_key: str) -> str:
-    """Return a cleaned template key or raise."""
-    cleaned = (template_key or "").strip().strip("/")
-    if not cleaned:
-        raise InvalidTemplateKeyError("template_key must not be empty")
-    if ".." in cleaned.split("/"):
-        raise InvalidTemplateKeyError(
-            "template_key must not contain path traversal segments"
-        )
-    return cleaned
-
-
-def _artifact_filename(template_key: str, kind: ArtifactKind) -> str:
-    return f"{_validate_template_key(template_key)}/{kind}"
-
-
-def _artifact_names_for_task(template_key: str) -> dict[ArtifactKind, str]:
-    return {kind: _artifact_filename(template_key, kind) for kind in _ARTIFACT_KINDS}
 
 
 def _extract_final_text(event: Event) -> str:
@@ -126,7 +100,7 @@ class TaskRunner(BaseModel):
     name: str = Field(description="Runner name")
     artifact_service: BaseArtifactService
 
-    templates: dict[str, TaskTemplate] = Field(default_factory=dict)
+    templates: dict[tuple[str, str], TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
     variables: dict[str, str] = Field(default_factory=dict)
     default_model: LiteLlm = Field(default=DEFAULT_MODEL)
@@ -149,6 +123,7 @@ class TaskRunner(BaseModel):
         name: str,
         *,
         worker_builder: WorkerBuilder,
+        version: str | None = None,
         ref: str | None = None,
         params: dict[str, Any] | None = None,
         artifacts: list[str] | None = None,
@@ -159,7 +134,13 @@ class TaskRunner(BaseModel):
         namespace: Optional[str] = None,
         model: Optional[LiteLlm] = None,
     ) -> str:
-        template = self._ensure_template(name)
+        """Queue a task invocation.
+
+        ``version`` pins a specific template version (must be declared in the
+        task's manifest at ``contractor/tasks/<name>.yml``). When omitted, the
+        manifest's ``active`` version is used.
+        """
+        template = self._ensure_template(name, version=version)
         task_ref = ref or f"{name}:{len(self.queue)}"
         self._assert_unique_ref(task_ref)
 
@@ -171,6 +152,7 @@ class TaskRunner(BaseModel):
             id=uuid4().hex,
             ref=task_ref,
             template_key=template.key,
+            template_version=template.version,
             worker_builder=worker_builder,
             params=params or {},
             artifacts=list(artifacts or template.default_artifacts),
@@ -232,10 +214,16 @@ class TaskRunner(BaseModel):
 
     # ── Template & validation helpers ─────────────────────────────────────
 
-    def _ensure_template(self, key: str) -> TaskTemplate:
-        if key not in self.templates:
-            self.templates[key] = TaskTemplate.load(key)
-        return self.templates[key]
+    def _ensure_template(
+        self, key: str, version: str | None = None
+    ) -> TaskTemplate:
+        # Resolve once to determine the concrete version so the cache key is
+        # stable even when callers pass ``version=None``.
+        template = TaskTemplate.load(key, version=version)
+        cache_key = (template.key, template.version)
+        if cache_key not in self.templates:
+            self.templates[cache_key] = template
+        return self.templates[cache_key]
 
     def _assert_unique_ref(self, ref: str) -> None:
         if any(item.ref == ref for item in self.queue):
@@ -373,27 +361,15 @@ class TaskRunner(BaseModel):
         template_key: str,
         result: TaskResult,
     ) -> None:
-        records_raw = result.get("records", [])
-        records_text = (
-            records_raw
-            if isinstance(records_raw, str)
-            else json.dumps(records_raw, ensure_ascii=False)
+        await save_result_artifacts(
+            artifact_service=self.artifact_service,
+            app_name=self.name,
+            user_id=user_id,
+            key=template_key,
+            result=result.get("result", "") or "",
+            summary=result.get("summary", "") or "",
+            records=result.get("records", []),
         )
-
-        payloads: dict[ArtifactKind, str] = {
-            "result": result.get("result", "") or "",
-            "summary": result.get("summary", "") or "",
-            "records": records_text,
-        }
-
-        for kind, text in payloads.items():
-            await self.artifact_service.save_artifact(
-                app_name=self.name,
-                user_id=user_id,
-                session_id=None,
-                filename=_artifact_filename(template_key, kind),
-                artifact=types.Part.from_text(text=text),
-            )
 
     async def _inject_artifacts(
         self, user_id: str, namespace: str, input_artifacts: dict[str, str]
@@ -436,9 +412,11 @@ class TaskRunner(BaseModel):
         """Derive a human-readable description for a loaded artifact."""
         if "/" in name:
             template_key = name.split("/", 1)[0]
-            template = self.templates.get(template_key)
-            if template is not None:
-                return template.title
+            # Templates are cached under (key, version); any cached entry
+            # for this key is fine for description purposes.
+            for (cached_key, _), template in self.templates.items():
+                if cached_key == template_key:
+                    return template.title
         return f"result from previous task {name}"
 
     # ── Iteration execution ───────────────────────────────────────────────
@@ -473,7 +451,7 @@ class TaskRunner(BaseModel):
             status=final_state.get(keys.status),
             params=copy.deepcopy(item.params),
             input_artifacts=copy.deepcopy(input_artifacts),
-            published_artifacts=_artifact_names_for_task(rendered_task.key),
+            published_artifacts=artifact_names_for_key(rendered_task.key),
         )
 
     async def _run_single_iteration(
@@ -624,7 +602,7 @@ class TaskRunner(BaseModel):
         user_id: str,
         total_tasks: int,
     ) -> TaskResult:
-        template = self.templates[item.template_key]
+        template = self.templates[item.template_cache_key]
         input_artifacts = await self._load_artifacts(user_id, item.artifacts)
         rendered_task = self._render_task(
             template,
@@ -642,7 +620,7 @@ class TaskRunner(BaseModel):
             max_attempts=item.max_attempts,
             params=item.params,
             artifacts=item.artifacts,
-            published_artifacts=_artifact_names_for_task(template.key),
+            published_artifacts=artifact_names_for_key(template.key),
             total_tasks=total_tasks,
             completed_tasks=task_id,
         )

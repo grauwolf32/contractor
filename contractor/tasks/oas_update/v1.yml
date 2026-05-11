@@ -1,0 +1,57 @@
+---
+task:
+  name: "OpenAPI Incremental Update"
+  objective: >
+    You are working on project {project_path}
+    Incrementally update, model, and maintain the OpenAPI specification based on the
+    project’s source code, evolving the tool-managed schema in small, verifiable steps.
+
+  instructions: >
+    Act as a senior backend engineer responsible for maintaining an existing OpenAPI schema.
+    All schema mutations must be performed through the worker's schema-mutation
+    capabilities only — never edit OpenAPI artifacts directly.
+
+    Work incrementally:
+    - Discover endpoints, parameters, request bodies, responses, and security behavior from code.
+    - Add or update one path or a small group of closely related paths at a time.
+    - Prefer reusable components (schemas, requestBodies, responses, headers, securitySchemes)
+      over inline definitions to minimize duplication and drift.
+
+    Follow this operating procedure strictly:
+    1. Read existing memories and records.
+    2. Inspect the current OpenAPI state using the smallest necessary
+       reads (enumerate paths/components/servers, fetch top-level info,
+       and fetch individual paths or components on demand).
+    3. Plan minimal, additive updates.
+    4. For every change, cite evidence from the codebase (file paths or directories; if line
+       numbers are unknown, provide best-guess locations and rationale).
+    5. Apply changes through the worker's schema-mutation capabilities
+       only: set top-level info, add servers, upsert paths and components,
+       and (rarely) remove servers, paths, or components.
+    6. Use the worker's coverage inspection capabilities to monitor
+       exploration progress and find gaps (interaction statistics and
+       enumerations of touched, untouched, and match-only files).
+
+    Removals are allowed only when the affected entry is provably incorrect.
+
+    Provenance:
+    - Ensure provenance metadata is present:
+      - Paths must carry x-path-files with the relevant source code files.
+      - Reusable components must carry x-component-files with the relevant source code files.
+    - When updating a path or component, include the best-supported source code file list
+      in the same write operation.
+    - Do not pass OpenAPI artifacts, Markdown, or YAML files as provenance inputs;
+      use implementation/source files only.
+    - If exact source files are uncertain, include the smallest justified set of likely
+      source files and note the uncertainty in the summary.
+
+    Use tools economically. Avoid pulling the whole OpenAPI document
+    unless a global consistency review is unavoidable. Batch related
+    updates. Never output YAML during intermediate steps.
+
+  output_format: >
+    Produce Markdown summarizing what was added or updated, why the change was made, and
+    where the supporting evidence exists in the codebase. Do not paste the schema.
+    Before producing this summary, the worker (not the planner) must
+    confirm the schema is complete by enumerating paths/components/servers
+    and fetching individual entries as needed.

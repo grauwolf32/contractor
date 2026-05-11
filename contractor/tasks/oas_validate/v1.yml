@@ -1,0 +1,121 @@
+task:
+  name: "OpenAPI Serious-Issue Repair"
+
+  objective: >
+    Repair only verified serious issues in the tool-managed OpenAPI schema.
+    Treat linter findings as hypotheses, verify each one with targeted schema
+    reads and, when needed, project code inspection, then apply the smallest
+    evidence-based fix using only the worker's schema-mutation capabilities.
+
+  instructions: >
+    Workflow: lint once -> verify -> fix -> relint once -> stop.
+
+    The linter output is pre-filtered to serious issues. Do not chase warnings,
+    hints, cosmetic style findings, or speculative improvements.
+
+    Never reconstruct, paste, or directly edit the full OpenAPI document.
+    Never access OpenAPI files directly. The schema is tool-managed, and all
+    schema changes must go through the worker's schema-mutation capabilities.
+
+    Start:
+    - Run the OpenAPI linter exactly once to obtain the full work list.
+    - Treat every lint result as a hypothesis until verified.
+    - Parse each finding precisely before taking action.
+
+    Read minimally:
+    - Prefer targeted schema reads for the smallest affected unit:
+      top-level info, servers, a single path, a single component, or a ref.
+    - Use lightweight enumerations of paths, components, or servers when needed.
+    - Pull the whole OpenAPI document only if the issue cannot reasonably be
+      verified with targeted reads.
+
+    Use code inspection only when needed:
+    - Search, list, glob, or read source files only when schema reads are
+      insufficient to verify whether a finding is real.
+    - Use code evidence to confirm required paths, referenced components,
+      supported servers, or provenance expectations.
+
+    Use memory carefully:
+    - Read memory only when it may help verify a decision.
+    - Persist only verified findings, constraints, or durable project facts.
+    - Do not store guesses or unverified lint output.
+
+    For each serious issue:
+    1. Inspect
+       - Identify the smallest affected unit: info, server, path, component,
+         operation, property, or ref.
+       - Determine the exact failure mode reported by the linter.
+
+    2. Verify before fixing
+       - Confirm the finding with targeted schema reads.
+       - Cross-check project code when the schema alone is insufficient.
+       - If the issue cannot be proven with available capabilities, do not fix it;
+         record it as a warning or blocker.
+
+    3. Fix only verified issues
+       - Apply changes only through the worker's schema-mutation capabilities:
+         set top-level info, add servers, upsert paths, upsert components, or,
+         rarely, remove servers, paths, or components.
+       - Apply the smallest localized change that resolves the verified issue.
+       - Prefer upsert over removal.
+       - Remove only when the entry is clearly invalid, broken, duplicated, or
+         unsupported by code evidence.
+       - Do not introduce new structures, endpoints, schemas, fields, examples,
+         or metadata unless required to resolve a verified serious issue.
+       - Preserve existing valid schema content whenever possible.
+
+    Serious issues in scope include:
+    - unresolved or broken refs
+    - missing reusable components referenced elsewhere
+    - missing or clearly incorrect paths required by project code
+    - invalid or duplicate servers
+    - missing provenance on touched entries, including:
+      x-path-files, x-component-files
+    - schema defects that make the OpenAPI document invalid or internally
+      inconsistent
+
+    Out of scope:
+    - cosmetic style nits
+    - naming preferences
+    - optional metadata that does not affect validity
+    - hint-level or warning-level findings
+    - broad normalization, refactoring, or cleanup
+    - inferred endpoints, schemas, or components not backed by evidence
+
+    Re-lint and stop:
+    - After applying all verified fixes, run the linter exactly one more time.
+    - Stop when no serious issues remain.
+    - Also stop if remaining issues cannot be proven or fixed with available
+      capabilities.
+    - Do not loop on lint indefinitely.
+
+    Constraints:
+    - Use only the worker's schema-mutation capabilities for schema changes.
+    - Do not edit or read OpenAPI files directly.
+    - Do not paste the schema.
+    - Do not make broad, speculative, or convenience edits.
+    - Do not fix anything without verification.
+    - If evidence is insufficient, report a warning instead of guessing.
+
+  output_format: >
+    Produce Markdown with the following sections:
+
+    ## Serious issues found
+    - issue -> fixed | warning | blocked
+
+    ## Fixes applied
+    - change
+    - capability used, such as info update, server add, path upsert,
+      component upsert, or removal
+    - evidence
+
+    ## Verification reads performed
+    - read
+    - confirmation
+
+    ## Remaining warnings / blockers
+    - issue
+    - why not fixed
+    - next step
+
+    Do not paste the schema.

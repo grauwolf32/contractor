@@ -7,7 +7,6 @@ task:
     to security-relevant components. The final output is the Markdown document
     itself — not a memory entry or intermediate summary.
 
-  context: >
     If prior analysis results exist in memory/records for {project_path},
     load them first and use them as a starting point. Do not repeat work
     that has already been completed and recorded. If no prior results exist,
@@ -69,6 +68,16 @@ task:
       Write the report exactly following the structure in output_format.
       This report IS the deliverable. Do not save intermediate results
       to memory; return the report directly.
+
+    CONSTRAINTS:
+    - Do NOT recurse into vendor/, node_modules/, .git/, or build
+      artifact directories.
+    - Limit file reads to headers/first 50 lines unless deeper
+      inspection is clearly needed.
+    - The final answer MUST be the Markdown report. Do not return
+      JSON, do not wrap in code fences other than the Markdown itself.
+    - Do not create subtasks for "verify memory was saved." The report
+      is the single output artifact.
 
   output_format: |
     Return a single Markdown document with this exact structure:
@@ -136,13 +145,3 @@ task:
 
     For any category with no matches, include the heading and write:
     > Not found. Searched for: <what was looked for>.
-
-  constraints:
-    - Do NOT recurse into vendor/, node_modules/, .git/, or build
-      artifact directories.
-    - Limit file reads to headers/first 50 lines unless deeper
-      inspection is clearly needed.
-    - The final answer MUST be the Markdown report. Do not return
-      JSON, do not wrap in code fences other than the Markdown itself.
-    - Do not create subtasks for "verify memory was saved." The report
-      is the single output artifact.
