@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from google.adk.agents import LlmAgent
 from google.adk.artifacts import BaseArtifactService
-from google.adk.events import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -15,6 +14,7 @@ from google.genai import types
 from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.agents.planning_agent.agent import build_planning_agent
+from contractor.runners._helpers import _decode_part_text, _extract_final_text
 from contractor.runners.artifacts import (artifact_names_for_key,
                                           save_result_artifacts)
 from contractor.runners.models import (EventType, RenderedTask, TaskInvocation,
@@ -46,40 +46,6 @@ class TaskNotCompletedError(Exception):
             f"Task '{ref}' was not completed "
             f"{iterations} time(s) after {max_attempts} attempt(s)."
         )
-
-
-# ─── Helpers (module-level, stateless) ────────────────────────────────────────
-
-
-def _extract_final_text(event: Event) -> str:
-    """Pull the concatenated text from a final-response event."""
-    if not event.is_final_response():
-        return ""
-
-    parts = getattr(getattr(event, "content", None), "parts", None) or []
-    return "\n".join(
-        text for part in parts if (text := getattr(part, "text", None))
-    ).strip()
-
-
-def _decode_part_text(part: types.Part | None) -> str:
-    """Best-effort text extraction from an artifact Part."""
-    if part is None:
-        return ""
-
-    text = part.text
-    if text is not None:
-        return text
-
-    inline_data = getattr(part, "inline_data", None)
-    data = getattr(inline_data, "data", None) if inline_data else None
-    if data is None:
-        return ""
-    if isinstance(data, str):
-        return data
-    if isinstance(data, (bytes, bytearray)):
-        return data.decode("utf-8", errors="ignore")
-    return ""
 
 
 # ─── Main Runner ──────────────────────────────────────────────────────────────

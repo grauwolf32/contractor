@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Literal, Optional, Union
 from xml.sax.saxutils import escape as xml_escape
 
@@ -12,9 +11,7 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from contractor.utils import utc_now_iso
 
 
 @dataclass

@@ -11,12 +11,8 @@ from contractor.runners.models import (
     TaskStatus,
     TaskTemplate,
 )
-from contractor.runners.task_runner import (
-    TaskNotCompletedError,
-    TaskRunner,
-    _decode_part_text,
-    _extract_final_text,
-)
+from contractor.runners._helpers import _decode_part_text, _extract_final_text
+from contractor.runners.task_runner import TaskNotCompletedError, TaskRunner
 
 
 # ─── _extract_final_text ──────────────────────────────────────────────────────

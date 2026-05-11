@@ -7,13 +7,16 @@ from uuid import uuid4
 
 from google.adk.agents import LlmAgent
 from google.adk.artifacts import BaseArtifactService
-from google.adk.events import Event
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel, Field, PrivateAttr
 
-from contractor.runners.models import TaskRunnerEvent, TaskRunnerEventHandler
+from contractor.runners._helpers import _extract_final_text
+from contractor.runners.artifacts import (artifact_names_for_key,
+                                          save_result_artifacts)
+from contractor.runners.models import (ArtifactKind, TaskRunnerEvent,
+                                       TaskRunnerEventHandler, TaskScopedKeys)
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +26,6 @@ class AgentRunResult:
     final_text: str
     session_id: str
     final_state: dict[str, Any]
-
-
-def _extract_final_text(event: Event) -> str:
-    if not event.is_final_response():
-        return ""
-    parts = getattr(getattr(event, "content", None), "parts", None) or []
-    return "\n".join(
-        text for part in parts if (text := getattr(part, "text", None))
-    ).strip()
 
 
 class AgentRunner(BaseModel):
@@ -134,6 +128,39 @@ class AgentRunner(BaseModel):
             )
         finally:
             self._on_event = None
+
+    # ── Artifact publishing ───────────────────────────────────────────────
+
+    async def publish_artifacts(
+        self,
+        *,
+        user_id: str,
+        key: str,
+        result: AgentRunResult,
+        task_id: int = 0,
+    ) -> dict[ArtifactKind, str]:
+        """Persist ``result``/``summary``/``records`` artifacts from a run.
+
+        Mirrors ``TaskRunner._publish_task_artifacts``: reads task-scoped
+        ``result``/``summary``/``pool`` values from ``result.final_state``
+        using ``TaskScopedKeys(task_id)`` and saves each as ``{key}/{kind}``.
+        """
+        keys = TaskScopedKeys(task_id)
+        state = result.final_state
+        return await save_result_artifacts(
+            artifact_service=self.artifact_service,
+            app_name=self.name,
+            user_id=user_id,
+            key=key,
+            result=state.get(keys.result, "") or "",
+            summary=state.get(keys.summary, "") or "",
+            records=state.get(keys.pool, []),
+        )
+
+    @staticmethod
+    def artifact_names(key: str) -> dict[ArtifactKind, str]:
+        """Return the ``{kind: filename}`` mapping that ``publish_artifacts`` produces."""
+        return artifact_names_for_key(key)
 
     # ── Session management ────────────────────────────────────────────────
 
