@@ -1,0 +1,4 @@
+active: v1
+versions:
+  v1:
+    file: trace_verify/v1.yml
