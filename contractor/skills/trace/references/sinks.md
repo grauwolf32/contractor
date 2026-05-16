@@ -42,6 +42,71 @@ parameterized ORM is NOT raw SQL.
 If the parameterized form is clearly used (placeholders bound by the
 driver), do NOT label it as `*.raw`.
 
+## Quick FP filter
+
+Before labeling a sink, answer:
+
+1. Is this the function that performs the side effect, or a direct
+   wrapper around it?
+2. Is the sink kind visible from code, not inferred from the function name?
+3. Are attacker-influenced values controlling structure, or only bound
+   as values?
+4. Is there a control that blocks exploitation on this path?
+5. Is the label the most specific accurate label?
+
+Examples:
+
+- A wrapper with a name like `execute_query(sql, params)` that always
+  delegates to the parameterized driver call → label `db.query`, even
+  if the wrapper's name suggests something raw.
+- A method that accepts an SQL string but interpolates the caller's
+  values into it before calling the driver → `db.query.raw`.
+- `subprocess.run([...argv], shell=False)` is `shell.exec.args` — the
+  argv-list form is not the OS-command-injection mechanic.
+- `subprocess.run("git show " + ref, shell=True)` → `shell.exec`.
+- `os.path.join(safe_root, untrusted)` without a normalize+prefix-check
+  is still `filesystem.path.join` with attacker-controlled segment —
+  `..` traversal applies.
+- `yaml.safe_load(x)` → not `parser.yaml.unsafe`. `yaml.load(x)`
+  without safe loader → `parser.yaml.unsafe`.
+
+## Shape A structural-control rule
+
+For Shape A, tainted/derived input must control STRUCTURE, not just
+appear as a bound value.
+
+Structural control includes:
+
+- filesystem path segment or full path
+- SQL table, column, operator, clause, raw predicate, or query string
+- shell command string, shell metacharacters, executable name, or
+  argument with dangerous command semantics
+- outbound URL, host, scheme, or IP
+- redirect target
+- template name, template source, or unescaped HTML context
+- deserializer input
+- reflection target, import path, attribute name, expression
+- NoSQL/LDAP/XPath query structure
+- email header structure
+
+NOT structural by itself:
+
+- value bound through SQL placeholders
+- JSON response field value
+- safe template variable with auto-escape
+- argv list element when no shell is invoked, unless the target
+  executable interprets it as dangerous structure
+- user value stored as data with no immediate sensitive use
+
+## Auth pair rule (read before reporting any token defect)
+
+`auth.token.create` and `auth.token.verify` MUST be analyzed as a pair.
+Annotating only the create side and reporting "no signature" is invalid
+unless you have also opened the verify path and confirmed the signature
+is never compared. Common bug: payload is decoded (looks like verify)
+but the signature is never read or compared — that IS the defect, but
+you must show the verify-side code to claim it.
+
 ## Per-sink vulnerability checklist
 
 For each sink encountered on the traced path, walk its row. A "no required
