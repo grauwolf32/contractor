@@ -99,6 +99,20 @@ _LANG_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         ),
         re.compile(r"^\s*class\s+(\w+)\b", re.MULTILINE),
     ],
+    ".php": [
+        # functions / methods (with optional visibility, static/final/abstract,
+        # by-ref ``&``). Excludes anonymous closures.
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*"
+            r"function\s+&?(\w+)\s*\(",
+            re.MULTILINE,
+        ),
+        re.compile(
+            r"^\s*(?:abstract\s+|final\s+)?class\s+(\w+)\b",
+            re.MULTILINE,
+        ),
+        re.compile(r"^\s*(?:trait|interface)\s+(\w+)\b", re.MULTILINE),
+    ],
 }
 
 ANNOTATION_LOOKAHEAD_LINES = 6
