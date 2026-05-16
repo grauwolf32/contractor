@@ -339,6 +339,12 @@ class MetricSlices:
     # Per-template summary: started, finished, failed, avg iterations, success rate
     template_summary: pd.DataFrame = field(default_factory=pd.DataFrame)
 
+    # Tokens spent processing each tool call: pair each tool_call with the next
+    # LLM call in the same invocation. When multiple tool calls share the same
+    # following LLM call (parallel invocation), tokens are split equally so
+    # per-tool sums remain truthful in totals.
+    processing_tokens_per_tool_call: pd.DataFrame = field(default_factory=pd.DataFrame)
+
     @classmethod
     def build(cls, df: pd.DataFrame) -> MetricSlices:
         df = df.copy()
@@ -385,6 +391,7 @@ class MetricSlices:
         slices._compute_diversity()
         slices._compute_stuck_streaks()
         slices._compute_template_summary()
+        slices._compute_processing_tokens_per_tool_call()
         return slices
 
     def _compute_aggregates(self) -> None:
@@ -779,6 +786,60 @@ class MetricSlices:
         agg["success_rate"] = (agg["finished"] / denom).fillna(0)
         agg = agg.sort_values(["success_rate", "started"], ascending=[True, False])
         self.template_summary = agg
+
+    def _compute_processing_tokens_per_tool_call(self) -> None:
+        tc, llm = self.tool_calls, self.llm
+        if tc.empty or llm.empty:
+            return
+        if not tc["ts"].notna().any() or not llm["ts"].notna().any():
+            return
+
+        tc_cols = [
+            "row_id",
+            "ts",
+            "invocation_id_f",
+            "agent_name_f",
+            "tool_name_f",
+            "task_name_f",
+        ]
+        tc_sorted = (
+            tc[tc["ts"].notna()][tc_cols].sort_values("ts").reset_index(drop=True)
+        )
+        llm_sorted = (
+            llm[llm["ts"].notna()][
+                [
+                    "ts",
+                    "invocation_id_f",
+                    "prompt_tokens",
+                    "completion_tokens",
+                    "total_tokens",
+                ]
+            ]
+            .sort_values("ts")
+            .reset_index(drop=True)
+            .rename(columns={"ts": "llm_ts"})
+        )
+        llm_sorted["llm_id"] = range(len(llm_sorted))
+
+        merged = pd.merge_asof(
+            tc_sorted,
+            llm_sorted,
+            by="invocation_id_f",
+            left_on="ts",
+            right_on="llm_ts",
+            direction="forward",
+            allow_exact_matches=False,
+        ).dropna(subset=["llm_ts"])
+        if merged.empty:
+            return
+
+        share = merged.groupby("llm_id")["row_id"].transform("count")
+        for col in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            merged[col] = merged[col].astype(float) / share
+
+        self.processing_tokens_per_tool_call = merged[
+            tc_cols + ["prompt_tokens", "completion_tokens", "total_tokens"]
+        ].reset_index(drop=True)
 
     @staticmethod
     def _build_error_table(
@@ -3084,6 +3145,71 @@ def _chart_avg_iterations_by_template(s: MetricSlices, p: OutputPaths) -> None:
     )
 
 
+# ── NEW: Tokens spent processing each tool call (82–84) ─────────────────────
+
+
+def _chart_processing_tokens_total_by_tool(s: MetricSlices, p: OutputPaths) -> None:
+    pt = s.processing_tokens_per_tool_call
+    if pt.empty:
+        return
+    series = (
+        pt.groupby("tool_name_f")["total_tokens"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+    _bar(
+        series,
+        "Total tokens spent processing tool results, by tool",
+        "Tool",
+        "Tokens",
+        p.charts / "82_processing_tokens_total_by_tool.png",
+        horizontal=True,
+        top_n=15,
+    )
+
+
+def _chart_processing_tokens_avg_by_tool(s: MetricSlices, p: OutputPaths) -> None:
+    pt = s.processing_tokens_per_tool_call
+    if pt.empty:
+        return
+    series = (
+        pt.groupby("tool_name_f")["total_tokens"]
+        .mean()
+        .sort_values(ascending=False)
+    )
+    _bar(
+        series,
+        "Avg tokens spent processing one tool call, by tool",
+        "Tool",
+        "Avg tokens / call",
+        p.charts / "83_processing_tokens_avg_by_tool.png",
+        horizontal=True,
+        top_n=15,
+    )
+
+
+def _chart_processing_tokens_split_by_tool(s: MetricSlices, p: OutputPaths) -> None:
+    pt = s.processing_tokens_per_tool_call
+    if pt.empty:
+        return
+    by_tool = (
+        pt.groupby("tool_name_f")[["prompt_tokens", "completion_tokens"]]
+        .sum()
+        .sort_values("prompt_tokens", ascending=False)
+    )
+    if by_tool.empty:
+        return
+    _stacked_bar(
+        by_tool,
+        ["prompt_tokens", "completion_tokens"],
+        "Prompt vs completion tokens of post-tool-call LLM calls, by tool",
+        "Tool",
+        "Tokens",
+        p.charts / "84_processing_prompt_vs_completion_by_tool.png",
+        sort_by="prompt_tokens",
+    )
+
+
 # ─── Chart pipeline ──────────────────────────────────────────────────────────
 
 _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]]] = [
@@ -3184,6 +3310,10 @@ _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]
     # ── Per-template (80–81) ─────────────────────────────────────────────
     ("success_rate_by_template", _chart_success_rate_by_template),
     ("avg_iterations_by_template", _chart_avg_iterations_by_template),
+    # ── Tokens spent processing each tool call (82–84) ───────────────────
+    ("processing_tokens_total_by_tool", _chart_processing_tokens_total_by_tool),
+    ("processing_tokens_avg_by_tool", _chart_processing_tokens_avg_by_tool),
+    ("processing_tokens_split_by_tool", _chart_processing_tokens_split_by_tool),
 ]
 
 
@@ -3332,6 +3462,24 @@ def _emit_tables(s: MetricSlices, p: OutputPaths, *, skip_cross_task: bool = Fal
     # Per-template summary
     if not s.template_summary.empty:
         _emit(s.template_summary, "template_summary.csv")
+
+    # Tokens spent processing each tool call
+    if not s.processing_tokens_per_tool_call.empty:
+        pt = s.processing_tokens_per_tool_call
+        _save_table(pt, p.tables / "processing_tokens_per_tool_call.csv")
+        per_tool = (
+            pt.groupby("tool_name_f")
+            .agg(
+                calls=("row_id", "count"),
+                prompt_tokens=("prompt_tokens", "sum"),
+                completion_tokens=("completion_tokens", "sum"),
+                total_tokens=("total_tokens", "sum"),
+                avg_total_tokens=("total_tokens", "mean"),
+            )
+            .sort_values("total_tokens", ascending=False)
+            .reset_index()
+        )
+        _save_table(per_tool, p.tables / "processing_tokens_by_tool.csv")
 
 
 # ─── Main orchestrator ───────────────────────────────────────────────────────
