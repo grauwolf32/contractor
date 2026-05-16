@@ -79,6 +79,7 @@ class RouterPipeline(Pipeline):
                 model=llm,
                 max_tokens=ROUTER_MAX_TOKENS,
                 enable_vuln_reporting=True,
+                with_graph_tools=True,
             ),
             build_http_agent(
                 name="http_agent",

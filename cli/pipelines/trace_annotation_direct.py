@@ -165,6 +165,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,
+            with_graph_tools=True,
         )
 
         session_id = uuid4().hex

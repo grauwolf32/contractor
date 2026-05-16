@@ -177,6 +177,7 @@ class TraceAnnotationPipeline(Pipeline):
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,
+            with_graph_tools=True,
         )
 
         runner = TaskRunner(

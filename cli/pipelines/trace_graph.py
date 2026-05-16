@@ -22,7 +22,7 @@ from google.genai import types
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
                                             extract_openapi_paths)
-from contractor.agents.code_graph_agent.agent import build_code_graph_agent
+from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
                                        TaskTemplate)
@@ -170,15 +170,15 @@ class TraceGraphPipeline(Pipeline):
             artifacts={},
         )
 
-        agent = build_code_graph_agent(
-            name="code_graph_agent",
+        agent = build_trace_agent(
+            name="trace_agent",
             fs=self.overlayfs,
-            project_root=self.ctx.project_path,
             namespace=namespace,
             _format=self._template.format,
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,
+            with_graph_tools=True,
         )
 
         session_id = uuid4().hex
