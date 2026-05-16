@@ -658,11 +658,14 @@ def _render_iteration_started(event: Any) -> str:
 def _render_tool_call(event: Any) -> str:
     tool_name = event.payload["tool_name"]
     title = f"  {C.wrap('🛠', C.CYAN)} {C.wrap(tool_name, C.CYAN)}"
-    body = _fmt_tool_args(tool_name, event.payload.get("tool_args"))
+    body = _fmt_tool_args(tool_name, event.payload.get("arguments"))
     return f"{title}\n{body}" if body else title
 
 
 def _render_tool_result(event: Any) -> str | None:
+    if event.payload.get("successful") is False:
+        return _render_tool_result_error(event)
+
     tool_name = event.payload["tool_name"]
 
     if tool_name in IGNORED_TOOL_RESULTS:
@@ -676,9 +679,22 @@ def _render_tool_result(event: Any) -> str | None:
     return f"{title}\n{body}" if body else title
 
 
-def _render_tool_error(event: Any) -> str:
+def _render_tool_result_error(event: Any) -> str:
+    """Tool ran fine but its payload signalled an LLM-facing error."""
+    tool_name = event.payload.get("tool_name")
+    result = event.payload.get("result")
+    body = _fmt_tool_result(tool_name, result) if result is not None else ""
+    head = (
+        f"\n  {C.wrap('⚠ Tool returned error', C.BOLD, C.YELLOW)}\n"
+        f"    {C.wrap('tool:', C.DIM)} {tool_name}"
+    )
+    return f"{head}\n{body}" if body else head
+
+
+def _render_tool_exception(event: Any) -> str:
+    """Tool implementation raised a Python exception."""
     return (
-        f"\n  {C.wrap('✖ Tool error', C.BOLD, C.RED)}\n"
+        f"\n  {C.wrap('✖ Tool exception', C.BOLD, C.RED)}\n"
         f"    {C.wrap('tool:', C.DIM)} {event.payload.get('tool_name')}\n"
         f"    {C.wrap('error:', C.DIM)} {event.payload.get('error')}"
     )
@@ -742,8 +758,8 @@ def _render_event(event: Any) -> str | None:
     if event.type == "tool_result":
         return _render_tool_result(event)
 
-    if event.type == "tool_error":
-        return _render_tool_error(event)
+    if event.type == "tool_exception":
+        return _render_tool_exception(event)
 
     if event.type == "final_text":
         return _render_final_text(event)

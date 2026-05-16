@@ -169,6 +169,85 @@ class TraceAgentRun:
     prompt_version: str
 
 
+async def run_code_graph_agent(
+    *,
+    fixture_root: Path,
+    user_message: str,
+    model: LiteLlm,
+    namespace: str = "trace-graph-eval",
+    enable_vuln_reporting: bool = False,
+    timeout_s: float = 900.0,
+    prompt_version: Optional[str] = None,
+    graph_language: str = "auto",
+) -> TraceAgentRun:
+    """A/B counterpart to ``run_trace_agent`` using ``code_graph_agent``.
+
+    Same overlay-FS contract and same annotation-extraction so eval cases
+    score identically; differences in token cost and tool-call shape
+    surface in the recorded ``AgentRun``.
+    """
+    from cli.fs import RootedLocalFileSystem
+
+    from contractor.agents.code_graph_agent.agent import \
+        build_code_graph_agent
+
+    prompt_text, resolved_version = load_prompt_with_version(
+        "code_graph_agent", prompt_version
+    )
+
+    base_fs: AbstractFileSystem = RootedLocalFileSystem(str(fixture_root))
+    overlay = MemoryOverlayFileSystem(base_fs)
+
+    agent = build_code_graph_agent(
+        name="code_graph_agent",
+        fs=overlay,
+        project_root=fixture_root,
+        namespace=namespace,
+        model=model,
+        max_tokens=80_000,
+        enable_vuln_reporting=enable_vuln_reporting,
+        prompt=prompt_text,
+        graph_language=graph_language,
+    )
+
+    async def _setup(artifact_service, app_name: str, user_id: str) -> None:
+        await inject_skills(
+            ["trace"],
+            namespace=namespace,
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+        )
+
+    with observability.run_context(
+        name="eval.code_graph_agent",
+        session_id=namespace,
+        tags=[
+            "eval",
+            "agent:code_graph_agent",
+            f"prompt:code_graph_agent@{resolved_version}",
+        ],
+        metadata={
+            "agent": "code_graph_agent",
+            "prompt_version": resolved_version,
+            "namespace": namespace,
+            "fixture_root": str(fixture_root),
+        },
+    ):
+        run = await run_agent(
+            agent,
+            user_message=user_message,
+            timeout_s=timeout_s,
+            setup=_setup,
+        )
+    return TraceAgentRun(
+        agent_run=run,
+        annotations=extract_annotations_from_overlay(overlay),
+        modified_files=overlay_modified_files(overlay),
+        prompt_version=resolved_version,
+    )
+
+
 async def run_trace_agent(
     *,
     fixture_root: Path,

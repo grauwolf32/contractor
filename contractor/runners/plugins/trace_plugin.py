@@ -7,6 +7,7 @@ from google.adk.events import Event
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
+from contractor.runners.agio import AgioEventType
 from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
                                              resolve_tool_args,
                                              resolve_tool_response,
@@ -43,11 +44,11 @@ class AdkTracePlugin(BaseAdkPlugin):
 
     async def before_run_callback(self, *, invocation_context: Any) -> None:
         invocation_id, _ = self._identity(invocation_context)
-        await self._emit("adk_before_run", invocation_id=invocation_id)
+        await self._emit(AgioEventType.AGENT_RUN_START, invocation_id=invocation_id)
 
     async def after_run_callback(self, *, invocation_context: Any) -> None:
         invocation_id, _ = self._identity(invocation_context)
-        await self._emit("adk_after_run", invocation_id=invocation_id)
+        await self._emit(AgioEventType.AGENT_RUN_END, invocation_id=invocation_id)
 
     # ── Tool lifecycle ────────────────────────────────────────────────────
 
@@ -62,9 +63,9 @@ class AdkTracePlugin(BaseAdkPlugin):
     ) -> Optional[dict]:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
-            "tool_call",
+            AgioEventType.ADK_TOOL_CALL,
             tool_name=tool.name,
-            tool_args=resolve_tool_args(tool_args, args),
+            arguments=resolve_tool_args(tool_args, args),
             agent_name=agent_name,
             invocation_id=invocation_id,
             state=snapshot_state(tool_context.state),
@@ -84,9 +85,9 @@ class AdkTracePlugin(BaseAdkPlugin):
     ) -> Optional[dict]:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
-            "tool_result",
+            AgioEventType.ADK_TOOL_RESULT,
             tool_name=tool.name,
-            tool_args=resolve_tool_args(tool_args, args),
+            arguments=resolve_tool_args(tool_args, args),
             result=resolve_tool_response(tool_response, result),
             agent_name=agent_name,
             invocation_id=invocation_id,
@@ -106,9 +107,9 @@ class AdkTracePlugin(BaseAdkPlugin):
     ) -> Optional[dict]:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
-            "tool_error",
+            AgioEventType.ADK_TOOL_ERROR,
             tool_name=tool.name,
-            tool_args=resolve_tool_args(tool_args, args),
+            arguments=resolve_tool_args(tool_args, args),
             error=repr(error) if error is not None else None,
             agent_name=agent_name,
             invocation_id=invocation_id,
@@ -126,7 +127,7 @@ class AdkTracePlugin(BaseAdkPlugin):
     ) -> Optional[Event]:
         invocation_id, _ = self._identity(invocation_context)
         await self._emit(
-            "adk_event",
+            AgioEventType.ADK_EVENT,
             author=getattr(event, "author", None),
             event=event,
             invocation_id=invocation_id,

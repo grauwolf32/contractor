@@ -1,0 +1,4 @@
+active: v0
+versions:
+  v0:
+    file: prompts/v0.md

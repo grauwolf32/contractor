@@ -49,8 +49,22 @@ _UI_STOP_EVENTS = frozenset({"run_finished", "task_failed", "pipeline_finished"}
 
 # High-volume / non-user-facing events. Persisted to metrics.jsonl when they
 # match, but never forwarded to the live UI (they would just flood it).
+# The Agio-flavoured tool_call/tool_result/tool_exception come from the
+# metrics plugin (with full arguments + result) — those are what the UI
+# renders. The trace plugin's adk_* variants carry state snapshots and are
+# skipped here to avoid duplicate rendering.
 _UI_SKIP_EVENT_TYPES = frozenset(
-    {"adk_before_run", "adk_after_run", "adk_event"}
+    {
+        "agent_run_start",
+        "agent_run_end",
+        "adk_event",
+        "adk_tool_call",
+        "adk_tool_result",
+        "adk_tool_error",
+        "fs_coverage",
+        "llm_usage",
+        "run_summary",
+    }
 )
 
 
@@ -107,7 +121,7 @@ def _build_event_handler(
         if metrics.matches(event):
             await metrics.write(event)
 
-        if event_type.startswith("metrics_") or event_type in _UI_SKIP_EVENT_TYPES:
+        if event_type in _UI_SKIP_EVENT_TYPES:
             return
 
         if ui is not None:
