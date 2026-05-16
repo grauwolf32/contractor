@@ -24,22 +24,24 @@ logger = logging.getLogger(__name__)
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 _TOKEN_COLS = (
-    "prompt_tokens",
-    "completion_tokens",
+    "input_tokens",
+    "output_tokens",
     "total_tokens",
     "thoughts_tokens",
     "cached_tokens",
 )
 
+# Maps internal short keys to the Agio event ``type`` strings on disk.
+# See contractor/runners/agio.py for the canonical taxonomy.
 _METRIC_EVENT_TYPES = {
-    "tool_call": "metrics_tool_call",
-    "tool_result": "metrics_tool_result",
-    "tool_exc": "metrics_tool_exception_error",
-    "llm": "metrics_llm_usage",
-    "summary": "metrics_summary",
-    "fs_coverage": "metrics_fs_coverage",
-    "before_run": "adk_before_run",
-    "after_run": "adk_after_run",
+    "tool_call": "tool_call",
+    "tool_result": "tool_result",
+    "tool_exc": "tool_exception",
+    "llm": "llm_usage",
+    "summary": "run_summary",
+    "fs_coverage": "fs_coverage",
+    "before_run": "agent_run_start",
+    "after_run": "agent_run_end",
     "adk_event": "adk_event",
     "task_started": "task_started",
     "task_finished": "task_finished",
@@ -66,11 +68,11 @@ _TOP_N_DEFAULT = 12
 
 # Approximate pricing per 1M tokens — adjust to actual rates
 _PRICE_PER_M_TOKENS: dict[str, dict[str, float]] = {
-    "gemini-2.5-pro": {"prompt": 1.25, "completion": 10.00, "cached": 0.3125},
-    "gemini-2.5-flash": {"prompt": 0.15, "completion": 0.60, "cached": 0.0375},
-    "gemini-2.0-flash": {"prompt": 0.10, "completion": 0.40, "cached": 0.025},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.00, "cached": 0.3125},
+    "gemini-2.5-flash": {"input": 0.15, "output": 0.60, "cached": 0.0375},
+    "gemini-2.0-flash": {"input": 0.10, "output": 0.40, "cached": 0.025},
 }
-_DEFAULT_PRICE = {"prompt": 1.00, "completion": 3.00, "cached": 0.25}
+_DEFAULT_PRICE = {"input": 1.00, "output": 3.00, "cached": 0.25}
 
 
 # ─── Output paths ────────────────────────────────────────────────────────────
@@ -174,59 +176,63 @@ def _result_error_message(result: Any) -> str | None:
 
 
 def normalize_records(records: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalise Agio-shaped JSONL records into a flat DataFrame.
+
+    Records are produced by ``cli.metrics.MetricsSink`` — one flat dict per
+    line, with fields lifted out of the legacy ``payload`` wrapper and
+    standardised on the Agio taxonomy (see contractor/runners/agio.py).
+    """
     norm: list[dict[str, Any]] = []
     for idx, rec in enumerate(records):
-        payload = _safe_dict(rec.get("payload"))
-        usage = _safe_dict(payload.get("usage"))
-        result = payload.get("result")
+        usage = _safe_dict(rec.get("usage"))
+        result = rec.get("result")
         result_error_msg = (
             _result_error_message(result)
-            if bool(payload.get("result_error", False))
+            if bool(rec.get("result_error", False))
             else None
         )
 
         norm.append(
             {
                 "row_id": idx,
-                "ts": pd.to_datetime(rec.get("ts"), utc=True, errors="coerce"),
+                "ts": pd.to_datetime(rec.get("ts_iso"), utc=True, errors="coerce"),
                 "type": _opt_str(rec.get("type")),
                 "task_name": _opt_str(rec.get("task_name")),
                 "task_id": rec.get("task_id"),
-                "iteration": rec.get("iteration", payload.get("iteration")),
-                "session_id": _opt_str(
-                    rec.get("session_id", payload.get("session_id"))
-                ),
-                "invocation_id": _opt_str(
-                    rec.get("invocation_id", payload.get("invocation_id"))
-                ),
-                "agent_name": _opt_str(
-                    rec.get("agent_name", payload.get("agent_name"))
-                ),
-                "tool_name": _opt_str(rec.get("tool_name", payload.get("tool_name"))),
-                "author": _opt_str(rec.get("author", payload.get("author"))),
-                "result_error": bool(payload.get("result_error", False)),
-                "error": _opt_str(payload.get("error") or payload.get("error_message")),
+                "iteration": rec.get("iteration"),
+                "session_id": _opt_str(rec.get("session_id")),
+                "invocation_id": _opt_str(rec.get("invocation_id")),
+                "agent_name": _opt_str(rec.get("agent_name")),
+                "tool_name": _opt_str(rec.get("tool_name")),
+                "author": _opt_str(rec.get("author")),
+                "result_error": bool(rec.get("result_error", False)),
+                "successful": rec.get("successful"),
+                "error": _opt_str(rec.get("error") or rec.get("error_message")),
                 "result_error_message": result_error_msg,
-                "template_key": _opt_str(payload.get("template_key")),
-                "status": _opt_str(payload.get("status")),
-                "completed": payload.get("completed"),
-                "model": _opt_str(payload.get("model")),
+                "template_key": _opt_str(rec.get("template_key")),
+                "status": _opt_str(rec.get("status")),
+                "completed": rec.get("completed"),
+                "model": _opt_str(rec.get("model")),
                 **{
                     col: pd.to_numeric(
                         usage.get(col.removesuffix("_tokens")), errors="coerce"
                     )
                     for col in _TOKEN_COLS
                 },
-                "tool_args": _safe_dict(payload.get("tool_args")),
-                "args_hash": _opt_str(payload.get("args_hash")),
-                "started_at": pd.to_datetime(
-                    payload.get("started_at"), utc=True, errors="coerce"
+                "arguments": _safe_dict(rec.get("arguments")),
+                "arguments_size": pd.to_numeric(
+                    rec.get("arguments_size"), errors="coerce"
                 ),
-                "duration_ms": pd.to_numeric(
-                    payload.get("duration_ms"), errors="coerce"
+                "result_size": pd.to_numeric(rec.get("result_size"), errors="coerce"),
+                "tool_call_id": _opt_str(rec.get("tool_call_id")),
+                "args_hash": _opt_str(rec.get("args_hash")),
+                "started_at": pd.to_datetime(
+                    rec.get("started_at"), utc=True, errors="coerce"
+                ),
+                "execution_time_ms": pd.to_numeric(
+                    rec.get("execution_time_ms"), errors="coerce"
                 ),
                 "result": result,
-                "payload": payload,
                 "raw": rec,
             }
         )
@@ -274,8 +280,8 @@ def _estimate_row_cost(row: pd.Series) -> float:
     model = str(row.get("model", ""))
     prices = _PRICE_PER_M_TOKENS.get(model, _DEFAULT_PRICE)
     return (
-        row.get("prompt_tokens", 0) * prices["prompt"]
-        + row.get("completion_tokens", 0) * prices["completion"]
+        row.get("input_tokens", 0) * prices["input"]
+        + row.get("output_tokens", 0) * prices["output"]
         + row.get("cached_tokens", 0) * prices.get("cached", 0)
     ) / 1_000_000
 
@@ -327,7 +333,7 @@ class MetricSlices:
     read_calls: pd.DataFrame = field(default_factory=pd.DataFrame)
     reads_per_file: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    # Result-error message extraction (from metrics_tool_result with result_error=True)
+    # Result-error message extraction (from tool_result with result_error=True)
     result_error_messages: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     # Tool diversity per invocation (entropy + unique/total)
@@ -420,7 +426,7 @@ class MetricSlices:
             )
             self.tokens_by_task = (
                 llm.groupby("task_name_f")[
-                    ["prompt_tokens", "completion_tokens", "total_tokens"]
+                    ["input_tokens", "output_tokens", "total_tokens"]
                 ]
                 .sum()
                 .sort_values("total_tokens", ascending=False)
@@ -439,22 +445,22 @@ class MetricSlices:
         tc = self.tool_calls
         tr = self.tool_results
 
-        # Prefer emitted duration_ms (present on tool_result/tool_exc events for
+        # Prefer emitted execution_time_ms (present on tool_result/tool_exc events for
         # any run produced after the metrics_plugin was instrumented). Fall back
         # to pairing before_tool → after_tool by timestamp for legacy data.
         emitted = pd.concat(
             [df for df in (tr, self.tool_exc) if not df.empty], ignore_index=True
         ) if (not tr.empty or not self.tool_exc.empty) else pd.DataFrame()
 
-        if not emitted.empty and "duration_ms" in emitted.columns and emitted[
-            "duration_ms"
+        if not emitted.empty and "execution_time_ms" in emitted.columns and emitted[
+            "execution_time_ms"
         ].notna().any():
             cols = ["ts", "invocation_id_f", "agent_name_f", "tool_name_f"]
-            durations = emitted[emitted["duration_ms"].notna()][
-                cols + ["duration_ms"]
+            durations = emitted[emitted["execution_time_ms"].notna()][
+                cols + ["execution_time_ms"]
             ].copy()
-            durations["duration_s"] = durations["duration_ms"].astype(float) / 1000.0
-            self.tool_durations = durations.drop(columns=["duration_ms"]).reset_index(
+            durations["duration_s"] = durations["execution_time_ms"].astype(float) / 1000.0
+            self.tool_durations = durations.drop(columns=["execution_time_ms"]).reset_index(
                 drop=True
             )
         elif (
@@ -522,15 +528,15 @@ class MetricSlices:
 
         tc = tc.copy()
         # Prefer the emitter-supplied hash (instrumented runs) and fall back to
-        # recomputing from tool_args on legacy events without args_hash.
+        # recomputing from arguments on legacy events without args_hash.
         if "args_hash" in tc.columns:
             missing = tc["args_hash"].isna() | (tc["args_hash"].astype(str) == "")
             if missing.any():
-                tc.loc[missing, "args_hash"] = tc.loc[missing, "tool_args"].apply(
+                tc.loc[missing, "args_hash"] = tc.loc[missing, "arguments"].apply(
                     _args_hash
                 )
         else:
-            tc["args_hash"] = tc["tool_args"].apply(_args_hash)
+            tc["args_hash"] = tc["arguments"].apply(_args_hash)
         tc = tc.sort_values(["invocation_id_f", "ts", "row_id"])
         tc["prev_tool"] = tc.groupby("invocation_id_f")["tool_name_f"].shift(1)
         tc["prev_hash"] = tc.groupby("invocation_id_f")["args_hash"].shift(1)
@@ -541,13 +547,13 @@ class MetricSlices:
 
     def _compute_fs_coverage(self) -> None:
         # Prefer the per-call fs_coverage events (latest snapshot per agent).
-        # Fall back to metrics_summary.agents[name].fs_coverage when no per-call
+        # Fall back to run_summary.agents[name].fs_coverage when no per-call
         # events were captured.
         rows: list[dict[str, Any]] = []
 
         if not self.fs_coverage_events.empty:
             ev = self.fs_coverage_events.copy()
-            ev["fs_coverage"] = ev["payload"].apply(
+            ev["fs_coverage"] = ev["raw"].apply(
                 lambda pl: pl.get("fs_coverage") if isinstance(pl, dict) else None
             )
             ev = ev[ev["fs_coverage"].apply(lambda v: isinstance(v, dict))]
@@ -560,10 +566,10 @@ class MetricSlices:
 
         if not rows and not self.summaries.empty:
             for _, r in self.summaries.iterrows():
-                payload = r.get("payload")
-                if not isinstance(payload, dict):
+                raw = r.get("raw")
+                if not isinstance(raw, dict):
                     continue
-                agents = payload.get("agents")
+                agents = raw.get("agents")
                 if not isinstance(agents, dict):
                     continue
                 for agent_name, agent_metrics in agents.items():
@@ -607,7 +613,7 @@ class MetricSlices:
         reads = tc[tc["tool_name_f"] == "read_file"].copy()
         if reads.empty:
             return
-        reads["file"] = reads["tool_args"].apply(
+        reads["file"] = reads["arguments"].apply(
             lambda a: a.get("file") if isinstance(a, dict) else None
         )
         reads = reads[reads["file"].notna() & (reads["file"].astype(str) != "")]
@@ -810,8 +816,8 @@ class MetricSlices:
                 [
                     "ts",
                     "invocation_id_f",
-                    "prompt_tokens",
-                    "completion_tokens",
+                    "input_tokens",
+                    "output_tokens",
                     "total_tokens",
                 ]
             ]
@@ -834,11 +840,11 @@ class MetricSlices:
             return
 
         share = merged.groupby("llm_id")["row_id"].transform("count")
-        for col in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        for col in ("input_tokens", "output_tokens", "total_tokens"):
             merged[col] = merged[col].astype(float) / share
 
         self.processing_tokens_per_tool_call = merged[
-            tc_cols + ["prompt_tokens", "completion_tokens", "total_tokens"]
+            tc_cols + ["input_tokens", "output_tokens", "total_tokens"]
         ].reset_index(drop=True)
 
     @staticmethod
@@ -1138,8 +1144,8 @@ def compute_summary(
         "tool_result_errors": 0,
         "tool_exception_errors": 0,
         "llm_calls": 0,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "total_tokens": 0,
         "agents": 0,
         "tools": 0,
@@ -1186,7 +1192,7 @@ def compute_summary(
 
     llm_mask = masks.get("llm", pd.Series(dtype=bool))
     llm_rows = df.loc[llm_mask]
-    for col in ("prompt_tokens", "completion_tokens", "total_tokens"):
+    for col in ("input_tokens", "output_tokens", "total_tokens"):
         out[col] = int(llm_rows[col].sum())
 
     out["agents"] = int(df["agent_name"].dropna().nunique())
@@ -1214,7 +1220,7 @@ def compute_summary(
         )
 
     # Efficiency ratios
-    prompt_total = float(llm_rows["prompt_tokens"].sum())
+    prompt_total = float(llm_rows["input_tokens"].sum())
     cached_total = float(llm_rows["cached_tokens"].sum())
     total_total = float(llm_rows["total_tokens"].sum())
     thoughts_total = float(llm_rows["thoughts_tokens"].sum())
@@ -1319,8 +1325,8 @@ def write_markdown_report(
         "### LLM Metrics",
         "",
         _fmt("llm_calls", "LLM calls"),
-        _fmt("prompt_tokens", "Prompt tokens", ","),
-        _fmt("completion_tokens", "Completion tokens", ","),
+        _fmt("input_tokens", "Prompt tokens", ","),
+        _fmt("output_tokens", "Completion tokens", ","),
         _fmt("total_tokens", "Total tokens", ","),
         _fmt("cache_hit_rate", "Cache hit rate", "%"),
         _fmt("thinking_overhead", "Thinking overhead", "%"),
@@ -1470,7 +1476,7 @@ def _chart_prompt_vs_completion_by_agent(s: MetricSlices, p: OutputPaths) -> Non
         return
     _stacked_bar(
         s.tokens_by_agent,
-        ["prompt_tokens", "completion_tokens"],
+        ["input_tokens", "output_tokens"],
         "Prompt vs completion tokens by agent",
         "Agent",
         "Tokens",
@@ -1509,9 +1515,9 @@ def _chart_prompt_completion_scatter(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty:
         return
     _scatter(
-        s.llm[["prompt_tokens", "completion_tokens", "agent_name_f"]].copy(),
-        "prompt_tokens",
-        "completion_tokens",
+        s.llm[["input_tokens", "output_tokens", "agent_name_f"]].copy(),
+        "input_tokens",
+        "output_tokens",
         "Prompt vs completion tokens per LLM call",
         "Prompt tokens",
         "Completion tokens",
@@ -1524,16 +1530,16 @@ def _chart_cumulative_tokens(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty or not s.llm["ts"].notna().any():
         return
     ts = (
-        s.llm[["ts", "prompt_tokens", "completion_tokens", "total_tokens"]]
+        s.llm[["ts", "input_tokens", "output_tokens", "total_tokens"]]
         .sort_values("ts")
         .copy()
     )
-    for col in ("prompt_tokens", "completion_tokens", "total_tokens"):
+    for col in ("input_tokens", "output_tokens", "total_tokens"):
         ts[f"cum_{col}"] = ts[col].cumsum()
     _line(
         ts,
         "ts",
-        [f"cum_{c}" for c in ("prompt_tokens", "completion_tokens", "total_tokens")],
+        [f"cum_{c}" for c in ("input_tokens", "output_tokens", "total_tokens")],
         "Cumulative tokens over time",
         "Time",
         "Tokens",
@@ -1697,7 +1703,7 @@ def _chart_tokens_by_iteration(s: MetricSlices, p: OutputPaths) -> None:
         return
     by_iter = (
         s.llm.groupby("iteration")[
-            ["prompt_tokens", "completion_tokens", "total_tokens"]
+            ["input_tokens", "output_tokens", "total_tokens"]
         ]
         .sum()
         .sort_index()
@@ -1706,7 +1712,7 @@ def _chart_tokens_by_iteration(s: MetricSlices, p: OutputPaths) -> None:
     _line(
         by_iter,
         "iteration",
-        ["prompt_tokens", "completion_tokens", "total_tokens"],
+        ["input_tokens", "output_tokens", "total_tokens"],
         "Tokens by iteration",
         "Iteration",
         "Tokens",
@@ -1831,8 +1837,8 @@ def _chart_tool_calls_vs_errors(s: MetricSlices, p: OutputPaths) -> None:
 def _chart_summary_agent_count(s: MetricSlices, p: OutputPaths) -> None:
     if s.summaries.empty or not s.summaries["ts"].notna().any():
         return
-    t = s.summaries[["ts", "payload"]].copy()
-    t["agent_count"] = t["payload"].map(
+    t = s.summaries[["ts", "raw"]].copy()
+    t["agent_count"] = t["raw"].map(
         lambda pl: len(pl.get("agents", {}))
         if isinstance(pl, dict) and isinstance(pl.get("agents"), dict)
         else 0
@@ -1841,7 +1847,7 @@ def _chart_summary_agent_count(s: MetricSlices, p: OutputPaths) -> None:
         t,
         "ts",
         "agent_count",
-        "Agent count in metrics_summary over time",
+        "Agent count in run_summary over time",
         "Time",
         "Agents",
         p.charts / "25_summary_agent_count_over_time.png",
@@ -2643,7 +2649,7 @@ def _chart_cache_hit_rate_by_agent(s: MetricSlices, p: OutputPaths) -> None:
     if s.tokens_by_agent.empty:
         return
     ta = s.tokens_by_agent.copy()
-    ta["cache_hit_rate"] = ta["cached_tokens"] / ta["prompt_tokens"].replace(0, pd.NA)
+    ta["cache_hit_rate"] = ta["cached_tokens"] / ta["input_tokens"].replace(0, pd.NA)
     ta = ta.dropna(subset=["cache_hit_rate"])
     if ta.empty or (ta["cache_hit_rate"] == 0).all():
         return
@@ -3024,13 +3030,13 @@ def _chart_prompt_token_trend(s: MetricSlices, p: OutputPaths) -> None:
     if s.llm.empty or not s.llm["ts"].notna().any():
         return
     llm = s.llm[
-        ["ts", "invocation_id_f", "prompt_tokens", "agent_name_f"]
+        ["ts", "invocation_id_f", "input_tokens", "agent_name_f"]
     ].dropna(subset=["ts"]).copy()
     if llm.empty:
         return
     # Pick top N invocations by total prompt tokens
     top_invs = (
-        llm.groupby("invocation_id_f")["prompt_tokens"]
+        llm.groupby("invocation_id_f")["input_tokens"]
         .sum()
         .sort_values(ascending=False)
         .head(5)
@@ -3046,7 +3052,7 @@ def _chart_prompt_token_trend(s: MetricSlices, p: OutputPaths) -> None:
     for inv, group in sub.groupby("invocation_id_f"):
         ax.plot(
             group["call_seq"],
-            group["prompt_tokens"],
+            group["input_tokens"],
             marker="o",
             label=str(inv)[:12],
         )
@@ -3193,20 +3199,20 @@ def _chart_processing_tokens_split_by_tool(s: MetricSlices, p: OutputPaths) -> N
     if pt.empty:
         return
     by_tool = (
-        pt.groupby("tool_name_f")[["prompt_tokens", "completion_tokens"]]
+        pt.groupby("tool_name_f")[["input_tokens", "output_tokens"]]
         .sum()
-        .sort_values("prompt_tokens", ascending=False)
+        .sort_values("input_tokens", ascending=False)
     )
     if by_tool.empty:
         return
     _stacked_bar(
         by_tool,
-        ["prompt_tokens", "completion_tokens"],
+        ["input_tokens", "output_tokens"],
         "Prompt vs completion tokens of post-tool-call LLM calls, by tool",
         "Tool",
         "Tokens",
         p.charts / "84_processing_prompt_vs_completion_by_tool.png",
-        sort_by="prompt_tokens",
+        sort_by="input_tokens",
     )
 
 
@@ -3327,7 +3333,7 @@ def _emit_tables(s: MetricSlices, p: OutputPaths, *, skip_cross_task: bool = Fal
         _save_table(df, p.tables / filename)
 
     _save_table(
-        s.all.drop(columns=["raw", "payload", "tool_args", "result"], errors="ignore"),
+        s.all.drop(columns=["raw", "arguments", "result"], errors="ignore"),
         p.tables / "events_flat.csv",
     )
 
@@ -3471,8 +3477,8 @@ def _emit_tables(s: MetricSlices, p: OutputPaths, *, skip_cross_task: bool = Fal
             pt.groupby("tool_name_f")
             .agg(
                 calls=("row_id", "count"),
-                prompt_tokens=("prompt_tokens", "sum"),
-                completion_tokens=("completion_tokens", "sum"),
+                input_tokens=("input_tokens", "sum"),
+                output_tokens=("output_tokens", "sum"),
                 total_tokens=("total_tokens", "sum"),
                 avg_total_tokens=("total_tokens", "mean"),
             )
