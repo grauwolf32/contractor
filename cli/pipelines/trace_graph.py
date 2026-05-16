@@ -1,11 +1,12 @@
-"""Trace-annotation pipeline that swaps `trace_agent` for the
-`code_graph_agent` (trailmark-backed call graph + same annotation task).
+"""Trace-annotation pipeline that runs ``trace_agent`` with the
+trailmark-backed call-graph tool set explicitly enabled.
 
-Built as an A/B counterpart to ``trace-direct``: identical task template,
-identical operation-level loop, identical overlay-FS / artifact contract.
-The only difference is the worker that runs per operation, so the
-resulting ``metrics.jsonl`` can be diffed against a baseline ``trace-direct``
-run to see how much navigation cost shifts from grep to graph hops.
+Mostly a thin variant of ``trace-direct``: identical task template,
+identical operation-level loop, identical overlay-FS / artifact
+contract. The only difference is that ``build_trace_agent`` is called
+with ``with_graph_tools=True`` per operation. Useful as an A/B preset
+when comparing the graph-equipped configuration against the prompt-only
+baseline on the same fixture / operation.
 """
 
 from __future__ import annotations
@@ -39,12 +40,12 @@ TRACE_MAX_TOKENS: int = 100_000
 
 
 class TraceGraphPipeline(Pipeline):
-    """Variant of ``TraceAnnotationDirectPipeline`` that runs the
-    ``code_graph_agent`` per operation.
+    """Variant of ``TraceAnnotationDirectPipeline`` that runs
+    ``trace_agent`` with ``with_graph_tools=True`` per operation.
 
-    The underlying project filesystem is parsed once by trailmark on the
-    first agent call (lazy build inside ``code_graph_tools``); subsequent
-    operations reuse the cached engine for free.
+    Trailmark parses the project on the first agent call (lazy build
+    inside ``attach_graph_tools_if_local``); subsequent operations reuse
+    the cached engine for free.
     """
 
     namespace: str = "openapi"

@@ -1,6 +1,0 @@
-active: v1
-versions:
-  v0:
-    file: prompts/v0.md
-  v1:
-    file: prompts/v1.md

@@ -1,19 +1,17 @@
-"""Compare the tool-call shape of two eval runs.
+"""Compare two ``trace_agent`` configurations head-to-head on a single
+eval fixture/case.
 
-Wraps both eval harnesses and prints a side-by-side table of:
-  - tool call counts per tool name
-  - total tool calls
-  - number of annotations produced
-  - precision / recall vs ground truth
+Used to A/B prompt versions and the ``with_graph_tools`` opt-in. Each
+side runs ``run_trace_agent`` with its own ``prompt_version`` and
+``with_graph_tools`` knob; the script prints a side-by-side table of
+tool counts, token usage (input/output), tool execution time, and
+precision/recall against the case's ground truth.
 
 Usage:
     poetry run python scripts/compare_eval_runs.py \\
-        --fixture vulnyapi --case notes-search-sqli
-
-Requires:
-    - LiteLLM proxy reachable (the eval default)
-    - CONTRACTOR_RUN_EVAL=1 not strictly needed here, but mirrors the
-      test environment
+        --fixture vulnyapi --case notes-search-sqli \\
+        --a-prompt v5 \\
+        --b-prompt v7 --b-graph-tools
 """
 
 from __future__ import annotations
@@ -25,48 +23,39 @@ import os
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 
 async def _run_one(
-    agent_runner: str,
+    *,
+    label: str,
     fixture_root: Path,
     user_message: str,
     case: dict[str, Any],
     model,
-    *,
-    trace_with_graph_tools: bool = False,
-    trace_prompt_version: Optional[str] = None,
+    prompt_version: Optional[str],
+    with_graph_tools: bool,
 ) -> dict[str, Any]:
-    from tests.eval.trace_harness import (run_code_graph_agent,
-                                          run_trace_agent)
+    from tests.eval.trace_harness import run_trace_agent
 
-    namespace = f"compare-{case['id']}-{agent_runner}"
-    if agent_runner == "code_graph_agent":
-        result = await run_code_graph_agent(
-            fixture_root=fixture_root,
-            user_message=user_message,
-            model=model,
-            namespace=namespace,
-            timeout_s=float(case.get("timeout_s", 900.0)),
-        )
-    else:
-        result = await run_trace_agent(
-            fixture_root=fixture_root,
-            user_message=user_message,
-            model=model,
-            namespace=namespace,
-            timeout_s=float(case.get("timeout_s", 900.0)),
-            prompt_version=trace_prompt_version,
-            with_graph_tools=trace_with_graph_tools,
-        )
+    namespace = f"compare-{case['id']}-{label}"
+    result = await run_trace_agent(
+        fixture_root=fixture_root,
+        user_message=user_message,
+        model=model,
+        namespace=namespace,
+        timeout_s=float(case.get("timeout_s", 900.0)),
+        prompt_version=prompt_version,
+        with_graph_tools=with_graph_tools,
+    )
 
-    # Ground-truth tool counts come from AdkMetricsPlugin's tool_call events
-    # (captures every call regardless of how ADK packaged it). Fall back to
-    # the harness's ADK-event reader when the plugin wasn't attached.
+    # Ground-truth tool counts come from AdkMetricsPlugin's tool_call
+    # events (captures every call regardless of how ADK packaged it).
+    # Fall back to the harness's ADK-event reader when the plugin
+    # wasn't attached.
     metrics_events = result.agent_run.metrics_events
     tc_events = [e for e in metrics_events if str(e.get("event_type")) == "tool_call"]
     tr_events = [e for e in metrics_events if str(e.get("event_type")) == "tool_result"]
@@ -90,8 +79,11 @@ async def _run_one(
     tp = len(expected & actual)
     precision = tp / len(actual) if actual else 0.0
     recall = tp / len(expected) if expected else 0.0
+
     return {
-        "agent": agent_runner,
+        "label": label,
+        "prompt_version": result.prompt_version,
+        "with_graph_tools": with_graph_tools,
         "tool_counts": dict(tool_counts),
         "total_tool_calls": sum(tool_counts.values()),
         "llm_calls": len(llm_events),
@@ -104,7 +96,6 @@ async def _run_one(
         "annotations": [(a.file, a.function) for a in sorted(result.annotations, key=lambda x: (x.file, x.function))],
         "expected": sorted(expected),
         "modified_files": sorted(result.modified_files),
-        "prompt_version": result.prompt_version,
         "precision": precision,
         "recall": recall,
     }
@@ -130,18 +121,24 @@ def _render(report: dict[str, Any]) -> str:
     a = report["a"]
     b = report["b"]
     lines.append(f"# case: {report['case_id']}  fixture: {report['fixture']}")
+    lines.append(
+        f"A: prompt={a['prompt_version']} graph_tools={a['with_graph_tools']}"
+    )
+    lines.append(
+        f"B: prompt={b['prompt_version']} graph_tools={b['with_graph_tools']}"
+    )
     lines.append("")
-    lines.append(f"{'metric':30s} {'trace_agent':>16s} {'code_graph':>16s}  delta")
+    lines.append(f"{'metric':30s} {'A':>16s} {'B':>16s}  delta")
     lines.append("-" * 80)
     metrics = [
         ("total tool calls", a["total_tool_calls"], b["total_tool_calls"]),
-        ("llm calls", a.get("llm_calls", 0), b.get("llm_calls", 0)),
-        ("input tokens", a.get("input_tokens", 0), b.get("input_tokens", 0)),
-        ("output tokens", a.get("output_tokens", 0), b.get("output_tokens", 0)),
-        ("total tokens", a.get("total_tokens", 0), b.get("total_tokens", 0)),
-        ("tool time (ms)", a.get("tool_time_ms", 0.0), b.get("tool_time_ms", 0.0)),
-        ("args size (bytes)", a.get("args_bytes", 0), b.get("args_bytes", 0)),
-        ("result size (bytes)", a.get("result_bytes", 0), b.get("result_bytes", 0)),
+        ("llm calls", a["llm_calls"], b["llm_calls"]),
+        ("input tokens", a["input_tokens"], b["input_tokens"]),
+        ("output tokens", a["output_tokens"], b["output_tokens"]),
+        ("total tokens", a["total_tokens"], b["total_tokens"]),
+        ("tool time (ms)", a["tool_time_ms"], b["tool_time_ms"]),
+        ("args size (bytes)", a["args_bytes"], b["args_bytes"]),
+        ("result size (bytes)", a["result_bytes"], b["result_bytes"]),
         ("precision", a["precision"], b["precision"]),
         ("recall", a["recall"], b["recall"]),
         ("annotated count", len(a["annotations"]), len(b["annotations"])),
@@ -156,7 +153,7 @@ def _render(report: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## tool call counts")
     all_tools = sorted(set(a["tool_counts"]) | set(b["tool_counts"]))
-    lines.append(f"{'tool':30s} {'trace_agent':>16s} {'code_graph':>16s}")
+    lines.append(f"{'tool':30s} {'A':>16s} {'B':>16s}")
     lines.append("-" * 65)
     for tool in all_tools:
         va = a["tool_counts"].get(tool, 0)
@@ -171,21 +168,15 @@ def main() -> int:
     ap.add_argument("--fixture", default="vulnyapi")
     ap.add_argument("--case", required=True, help="trace-case id")
     ap.add_argument("--output", type=Path, default=None)
+    ap.add_argument("--a-prompt", default="v5")
     ap.add_argument(
-        "--trace-prompt", default=None,
-        help="trace_agent prompt version (e.g. v6); None = manifest default",
+        "--a-graph-tools", action="store_true",
+        help="attach graph tools to side A",
     )
+    ap.add_argument("--b-prompt", default="v7")
     ap.add_argument(
-        "--trace-graph-tools", action="store_true",
-        help="attach graph tools to trace_agent (opt-in)",
-    )
-    ap.add_argument(
-        "--skip-trace", action="store_true",
-        help="skip the trace_agent run (use when probing code_graph alone)",
-    )
-    ap.add_argument(
-        "--skip-graph", action="store_true",
-        help="skip the code_graph_agent run",
+        "--b-graph-tools", action="store_true", default=True,
+        help="attach graph tools to side B (default true)",
     )
     args = ap.parse_args()
 
@@ -224,19 +215,23 @@ def main() -> int:
     user_msg = _user_message(case)
 
     async def _both() -> tuple[dict[str, Any], dict[str, Any]]:
-        a = (
-            await _run_one(
-                "trace_agent", fixture.source_root, user_msg, case, model,
-                trace_with_graph_tools=args.trace_graph_tools,
-                trace_prompt_version=args.trace_prompt,
-            )
-            if not args.skip_trace
-            else {"agent": "trace_agent", "skipped": True, "tool_counts": {}}
+        a = await _run_one(
+            label="A",
+            fixture_root=fixture.source_root,
+            user_message=user_msg,
+            case=case,
+            model=model,
+            prompt_version=args.a_prompt,
+            with_graph_tools=args.a_graph_tools,
         )
-        b = (
-            await _run_one("code_graph_agent", fixture.source_root, user_msg, case, model)
-            if not args.skip_graph
-            else {"agent": "code_graph_agent", "skipped": True, "tool_counts": {}}
+        b = await _run_one(
+            label="B",
+            fixture_root=fixture.source_root,
+            user_message=user_msg,
+            case=case,
+            model=model,
+            prompt_version=args.b_prompt,
+            with_graph_tools=args.b_graph_tools,
         )
         return a, b
 
