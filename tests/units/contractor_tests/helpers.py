@@ -87,6 +87,7 @@ def mk_llm_response(total, prompt, candidates) -> MockRespose:
 class MockFunctionResponse:
     parts: Any = None
     response: dict[str, Any] = field(default_factory=dict)
+    name: Optional[str] = None
 
 
 @dataclass
@@ -110,9 +111,14 @@ def mk_llm_request(contents: Optional[list[Any]] = None) -> MockLlmRequest:
     return MockLlmRequest(contents=list(contents or []))
 
 
-def mk_function_response_part(response: Optional[dict[str, Any]] = None) -> MockPart:
+def mk_function_response_part(
+    response: Optional[dict[str, Any]] = None,
+    name: Optional[str] = None,
+) -> MockPart:
     return MockPart(
-        function_response=MockFunctionResponse(response=dict(response or {}))
+        function_response=MockFunctionResponse(
+            response=dict(response or {}), name=name
+        )
     )
 
 

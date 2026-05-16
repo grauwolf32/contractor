@@ -140,9 +140,9 @@ def test_results_removal_preserves_recent_function_responses():
     cb = FunctionResultsRemovalCallback(keep_last_n=2)
 
     parts = [
-        mk_function_response_part(response={"v": 1}),
-        mk_function_response_part(response={"v": 2}),
-        mk_function_response_part(response={"v": 3}),
+        mk_function_response_part(response={"v": 1}, name="tool_a"),
+        mk_function_response_part(response={"v": 2}, name="tool_a"),
+        mk_function_response_part(response={"v": 3}, name="tool_a"),
     ]
     request = mk_llm_request([MockContent(role="tool", parts=parts)])
 
@@ -155,8 +155,8 @@ def test_results_removal_preserves_recent_function_responses():
     # 2 < 2 is false → it strips. When func_count==3 (v=1), it strips.
     # So only the most-recent one (v=3) is preserved.
     assert parts[-1].function_response.response == {"v": 3}
-    assert parts[-2].function_response.response == {}
-    assert parts[-3].function_response.response == {}
+    assert parts[-2].function_response.response == {"elided": True, "tool": "tool_a"}
+    assert parts[-3].function_response.response == {"elided": True, "tool": "tool_a"}
     assert cb.counter == 2  # two responses cleared
 
 
@@ -166,8 +166,8 @@ def test_results_removal_skips_text_only_parts():
 
     parts = [
         mk_text_part("hello"),
-        mk_function_response_part(response={"v": 1}),
-        mk_function_response_part(response={"v": 2}),
+        mk_function_response_part(response={"v": 1}, name="tool_a"),
+        mk_function_response_part(response={"v": 2}, name="tool_a"),
     ]
     request = mk_llm_request([MockContent(role="tool", parts=parts)])
 
@@ -178,7 +178,7 @@ def test_results_removal_skips_text_only_parts():
     # Most recent function_response is preserved.
     assert parts[-1].function_response.response == {"v": 2}
     # Older one is wiped.
-    assert parts[-2].function_response.response == {}
+    assert parts[-2].function_response.response == {"elided": True, "tool": "tool_a"}
 
 
 def test_results_removal_handles_content_with_no_parts():
