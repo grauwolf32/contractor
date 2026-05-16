@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from contractor.tools.code.graph import code_graph_tools
+from contractor.tools.code.graph import code_graph_tools, strip_prefix_resolver
 
 
 @pytest.fixture
@@ -103,22 +103,56 @@ def test_utf8_safety_skips_bad_file(project_with_bad_utf8: Path) -> None:
     assert result["total_items"] >= 1
 
 
-def test_paths_are_virtual_not_host_absolute(tiny_project: Path) -> None:
-    """Tool results expose ``/foo.py``-style virtual paths so they
-    compose with the overlay-FS file-mutation tools the agent has.
-    Regression: previously trailmark's host-FS absolute paths leaked into
-    the agent's tool args and caused double-write artifacts.
+def test_paths_default_to_host_absolute(tiny_project: Path) -> None:
+    """Without a ``path_resolver``, tools surface trailmark's host-FS
+    paths untouched. ``code/graph`` does not bake in any specific FS
+    convention; callers opt into translation explicitly.
     """
     tools = _by_name(code_graph_tools(tiny_project))
     found = tools["find_symbol"]("login")
     assert found["result"], found
     file = found["result"][0]["file"]
     assert file is not None
-    assert file.startswith("/")
-    # Must not be the host-FS absolute path
-    assert str(tiny_project) not in file
-    # Must look like a fixture-relative virtual path
+    assert str(tiny_project) in file, file
+
+
+def test_path_resolver_rewrites_to_virtual_root(tiny_project: Path) -> None:
+    """With ``strip_prefix_resolver`` injected, tool results expose
+    ``/relative/path.py`` form so they compose with overlay-FS file
+    tools rooted at the same project dir. Regression: this path used
+    to live inside ``code/graph`` itself, coupling the module to the
+    ``RootedLocalFileSystem`` convention.
+    """
+    tools = _by_name(
+        code_graph_tools(
+            tiny_project,
+            path_resolver=strip_prefix_resolver(str(tiny_project)),
+        )
+    )
+    found = tools["find_symbol"]("login")
+    assert found["result"], found
+    file = found["result"][0]["file"]
     assert file == "/app.py", file
+    # Same translator must apply to caller / callee rows too.
+    callers = tools["find_callers"]("authenticate")
+    assert callers["result"]
+    assert callers["result"][0]["file"] == "/app.py", callers
+
+
+def test_path_resolver_returning_none_keeps_original(tiny_project: Path) -> None:
+    """If the resolver returns None for a path, the original is kept —
+    lets callers do partial mapping (e.g. only translate paths inside
+    a sandboxed root and pass external library paths through).
+    """
+    def _never_match(_: str):
+        return None
+
+    tools = _by_name(
+        code_graph_tools(tiny_project, path_resolver=_never_match)
+    )
+    found = tools["find_symbol"]("login")
+    file = found["result"][0]["file"]
+    assert str(tiny_project) in file, file
 
 
 def test_unresolved_callee_returns_symbolic_row(tmp_path: Path) -> None:

@@ -19,6 +19,14 @@ The engine is built lazily on the first tool call and cached for the
 lifetime of the tool factory. Trailmark crashes on files with non-UTF8
 bytes (real-world C/C++ codebases hit this); we monkey-patch the inner
 parser dispatcher to skip such files gracefully and log them.
+
+Path resolution: trailmark returns host-FS absolute paths in
+``CodeUnit.location.file_path``. By default the tools surface those
+paths as-is — callers are responsible for translating them to whatever
+their agent's filesystem view expects (e.g. an overlay rooted at the
+same project dir surfaces ``/relative/segment.py``). Pass
+``path_resolver`` to inject that translation here rather than wrapping
+every result on the caller side.
 """
 
 from __future__ import annotations
@@ -26,7 +34,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +42,13 @@ DEFAULT_LANGUAGE = "auto"
 DEFAULT_MAX_RESULTS = 200
 DEFAULT_MAX_PATHS = 25
 _MAX_PATH_DEPTH = 30
+
+# A path resolver maps a host-FS absolute path (as trailmark returns it)
+# to whatever string the consuming agent should see. Returning ``None``
+# means "keep the original host path". The signature is deliberately
+# minimal so callers can wire any FS convention (rooted sandboxes,
+# repo-relative, URI-prefixed, …) without leaking into this module.
+PathResolver = Callable[[str], Optional[str]]
 
 
 def _install_utf8_safety() -> None:
@@ -76,48 +91,56 @@ def _install_utf8_safety() -> None:
     tm_common.parse_directory = _safe
 
 
-def _to_virtual_path(host_path: Optional[str], host_root: str) -> Optional[str]:
-    """Rewrite a host-FS absolute path into the virtual form the agent
-    sees through a ``RootedLocalFileSystem``-sandboxed overlay (i.e.
-    ``/relative/segment/file.py``).
+def strip_prefix_resolver(host_root: str, virtual_root: str = "/") -> PathResolver:
+    """Build a ``PathResolver`` that strips ``host_root`` and re-roots
+    matches under ``virtual_root``.
 
-    Returns the input unchanged for paths outside the configured root
-    (so external library symbols stay unambiguous) or for ``None``.
+    Useful when the consuming agent operates on a sandboxed view of the
+    same project tree trailmark parsed. Paths that fall outside
+    ``host_root`` are returned unchanged so external-library / generated
+    symbols stay unambiguous.
+
+    Example:
+        # Agent sees the project as ``/foo.py``; trailmark sees it as
+        # ``/abs/path/foo.py``.
+        resolver = strip_prefix_resolver("/abs/path", virtual_root="/")
     """
-    if host_path is None:
-        return None
     import os
 
-    norm = os.path.normpath(host_path)
     root = os.path.normpath(host_root)
-    if norm == root:
-        return "/"
-    sep = os.sep
-    if norm.startswith(root + sep):
-        rel = norm[len(root) + 1 :]
-        return "/" + rel.replace(os.sep, "/")
-    # Fallback for paths that don't share the sandbox prefix — keep them
-    # untouched but log once so we notice if trailmark resolves something
-    # outside the project root.
-    return host_path
+    vroot = virtual_root.rstrip("/") or ""
+
+    def _resolve(host_path: str) -> Optional[str]:
+        if host_path is None:
+            return None
+        norm = os.path.normpath(host_path)
+        if norm == root:
+            return vroot or "/"
+        if norm.startswith(root + os.sep):
+            rel = norm[len(root) + 1 :].replace(os.sep, "/")
+            return f"{vroot}/{rel}" if vroot else f"/{rel}"
+        return host_path
+
+    return _resolve
 
 
 def _slim_unit(
     unit: dict[str, Any],
-    host_root: Optional[str] = None,
+    path_resolver: Optional[PathResolver] = None,
 ) -> dict[str, Any]:
     """Strip a trailmark CodeUnit dict down to fields useful to an agent.
 
     Drops parameters/branches/exception_types to keep token cost low; the
     agent can read the file directly with ``read_file`` if it needs the
-    body. When ``host_root`` is provided, the ``file`` field is rewritten
-    to the virtual form (``/relative/path.py``) so it composes with the
-    overlay-FS file-mutation tools.
+    body. ``path_resolver``, when supplied, rewrites the ``file`` field
+    so it composes with whatever FS view the consuming agent has.
     """
     loc = unit.get("location") or {}
     file_path = loc.get("file_path")
-    if host_root is not None:
-        file_path = _to_virtual_path(file_path, host_root)
+    if path_resolver is not None and file_path is not None:
+        resolved = path_resolver(file_path)
+        if resolved is not None:
+            file_path = resolved
     return {
         "id": unit.get("id"),
         "name": unit.get("name"),
@@ -164,14 +187,22 @@ def code_graph_tools(
     root: str | Path,
     *,
     language: str = DEFAULT_LANGUAGE,
+    path_resolver: Optional[PathResolver] = None,
 ) -> list:
     """Build the code-graph tool set for an LLM agent.
 
     ``root`` must be a host-filesystem path (trailmark uses tree-sitter
     against real files; in-memory overlays are not supported).
+
+    ``path_resolver`` is an optional ``Callable[[str], Optional[str]]``
+    that rewrites the host-FS file paths trailmark returns into whatever
+    the consuming agent expects. Without it, paths are surfaced
+    untouched. Callers who run their agent against a
+    ``RootedLocalFileSystem``-sandboxed overlay typically want
+    ``strip_prefix_resolver(root)`` here so graph results compose with
+    the agent's file-mutation tools.
     """
     holder = GraphEngineHolder(root=Path(root), language=language)
-    host_root = str(holder.root)
 
     def graph_summary() -> dict[str, Any]:
         """Return node/edge/entrypoint counts + the list of imported deps.
@@ -204,7 +235,7 @@ def code_graph_tools(
 
                 d = asdict(unit)
                 d["kind"] = unit.kind.value
-                matches.append(_slim_unit(d, host_root=host_root))
+                matches.append(_slim_unit(d, path_resolver=path_resolver))
             if len(matches) >= 50:
                 break
         return {
@@ -254,7 +285,7 @@ def code_graph_tools(
                     continue
                 d = asdict(src_unit)
                 d["kind"] = src_unit.kind.value
-                slim = _slim_unit(d, host_root=host_root)
+                slim = _slim_unit(d, path_resolver=path_resolver)
                 slim["edge_confidence"] = edge.confidence.value
                 slim["edge_target"] = tgt
                 rows.append(slim)
@@ -293,7 +324,7 @@ def code_graph_tools(
             if target_unit is not None:
                 d = asdict(target_unit)
                 d["kind"] = target_unit.kind.value
-                row = _slim_unit(d, host_root=host_root)
+                row = _slim_unit(d, path_resolver=path_resolver)
             else:
                 row = {
                     "id": edge.target_id,
@@ -377,7 +408,7 @@ def code_graph_tools(
         """
         rows = holder.engine().complexity_hotspots(int(threshold)) or []
         return {
-            "result": [_slim_unit(r, host_root=host_root) for r in rows],
+            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
             "total_items": len(rows),
             "kind": "complexity_hotspots",
         }
@@ -390,7 +421,7 @@ def code_graph_tools(
             holder.engine().functions_that_raise(str(exception)) or []
         )
         return {
-            "result": [_slim_unit(r, host_root=host_root) for r in rows],
+            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
             "total_items": len(rows),
             "kind": "functions_that_raise",
         }
@@ -410,5 +441,7 @@ def code_graph_tools(
 
 __all__ = [
     "GraphEngineHolder",
+    "PathResolver",
     "code_graph_tools",
+    "strip_prefix_resolver",
 ]
