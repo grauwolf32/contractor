@@ -27,7 +27,7 @@ class DictDiff:
     changed: dict[str, Any] = field(default_factory=dict)
 
 
-def dict_diff(old: dict, new: dict) -> dict:
+def dict_diff(old: dict, new: dict) -> DictDiff:
     """Structural diff without external dependencies."""
 
     diff: DictDiff = DictDiff()
