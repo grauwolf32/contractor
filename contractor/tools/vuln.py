@@ -20,11 +20,22 @@ Severity = Literal["info", "low", "medium", "high", "critical"]
 Confidence = Literal["low", "medium", "high"]
 PlaceType = Literal["file", "url"]
 OutputFormat = Literal["json", "markdown", "yaml", "xml"]
+Verdict = Literal[
+    "exploitable",
+    "exploitable_unverified",
+    "not_exploitable",
+    "inconclusive",
+]
+AttackerControl = Literal["full", "partial", "none"]
 
 _VALID_SEVERITIES: frozenset[str] = frozenset(
     {"info", "low", "medium", "high", "critical"}
 )
 _VALID_CONFIDENCES: frozenset[str] = frozenset({"low", "medium", "high"})
+_VALID_VERDICTS: frozenset[str] = frozenset(
+    {"exploitable", "exploitable_unverified", "not_exploitable", "inconclusive"}
+)
+_VALID_ATTACKER_CONTROL: frozenset[str] = frozenset({"full", "partial", "none"})
 
 
 # ---------------------------------------------------------------------------
@@ -478,4 +489,379 @@ def vulnerability_report_tools(
         report_vulnerability,
         get_vulnerability,
         list_vulnerabilities,
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Verification — second-stage attacker-role-play assessment of a finding
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VerifiedFinding:
+    """Outcome of a verifier-stage assessment.
+
+    Verifier consumes a :class:`VulnerabilityReport` and produces this record,
+    which is stored separately so the original finding remains immutable and
+    multiple verification attempts can coexist.
+    """
+
+    name: str
+    source_namespace: str
+    verdict: Verdict
+    summary: str
+    attacker_control_at_sink: AttackerControl
+    sink_reached: bool
+    entry_point: str
+    data_flow: list[str] = field(default_factory=list)
+    path_broken_at: Optional[str] = None
+    impact: str = ""
+    notes: str = ""
+    verified_at: str = field(default_factory=utc_now_iso)
+
+    def __post_init__(self) -> None:
+        if self.verdict not in _VALID_VERDICTS:
+            raise ValueError(
+                f"Invalid verdict {self.verdict!r}. "
+                f"Must be one of {sorted(_VALID_VERDICTS)}."
+            )
+        if self.attacker_control_at_sink not in _VALID_ATTACKER_CONTROL:
+            raise ValueError(
+                f"Invalid attacker_control_at_sink "
+                f"{self.attacker_control_at_sink!r}. "
+                f"Must be one of {sorted(_VALID_ATTACKER_CONTROL)}."
+            )
+
+
+_VERIFICATION_PREVIEW_FIELDS: tuple[str, ...] = (
+    "name",
+    "source_namespace",
+    "verdict",
+    "summary",
+    "attacker_control_at_sink",
+    "sink_reached",
+    "verified_at",
+)
+
+
+def _verification_to_dict(
+    finding: VerifiedFinding, *, preview: bool = False
+) -> dict[str, Any]:
+    data = asdict(finding)
+    if preview:
+        return {k: data[k] for k in _VERIFICATION_PREVIEW_FIELDS}
+    return data
+
+
+def _verification_to_yaml(
+    finding: VerifiedFinding, *, preview: bool = False
+) -> str:
+    payload = {f"verification_{finding.name}": _verification_to_dict(finding, preview=preview)}
+    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+
+
+def _verification_to_markdown(
+    finding: VerifiedFinding, *, preview: bool = False
+) -> str:
+    lines = [
+        f"### {finding.name} — {finding.verdict}",
+        f"**Source namespace**: `{finding.source_namespace}`",
+        f"**Entry point**: `{finding.entry_point}`",
+        f"**Sink reached**: {finding.sink_reached}",
+        f"**Attacker control at sink**: {finding.attacker_control_at_sink}",
+        f"**Summary**: {finding.summary}",
+        f"**Verified at**: {finding.verified_at or '-'}",
+    ]
+    if not preview:
+        if finding.data_flow:
+            flow_md = "\n".join(f"  {i+1}. {step}" for i, step in enumerate(finding.data_flow))
+            lines.append(f"**Data flow**:\n{flow_md}")
+        if finding.path_broken_at:
+            lines.append(f"**Path broken at**: {finding.path_broken_at}")
+        if finding.impact:
+            lines.append(f"**Impact**: {finding.impact}")
+        if finding.notes:
+            lines.append(f"**Notes**:\n{finding.notes}")
+    return "\n".join(lines) + "\n"
+
+
+def _verification_to_xml(
+    finding: VerifiedFinding,
+    *,
+    preview: bool = False,
+    indent: int = 0,
+) -> str:
+    pad = " " * (indent * 4)
+    pad2 = " " * ((indent + 1) * 4)
+    children = [
+        _xml_tag("source_namespace", finding.source_namespace, pad2),
+        _xml_tag("verdict", finding.verdict, pad2),
+        _xml_tag("summary", finding.summary, pad2),
+        _xml_tag("entry_point", finding.entry_point, pad2),
+        _xml_tag("sink_reached", str(finding.sink_reached).lower(), pad2),
+        _xml_tag("attacker_control_at_sink", finding.attacker_control_at_sink, pad2),
+        _xml_tag("verified_at", finding.verified_at, pad2),
+    ]
+    if not preview:
+        flow_inner = "".join(
+            f"\n{pad2}    <step>{xml_escape(step)}</step>" for step in finding.data_flow
+        )
+        children.append(f"{pad2}<data_flow>{flow_inner}\n{pad2}</data_flow>")
+        if finding.path_broken_at:
+            children.append(_xml_tag("path_broken_at", finding.path_broken_at, pad2))
+        if finding.impact:
+            children.append(_xml_tag("impact", finding.impact, pad2))
+        if finding.notes:
+            children.append(_xml_tag("notes", finding.notes, pad2))
+    inner = "\n".join(children)
+    return (
+        f'{pad}<verification name="{xml_escape(finding.name)}">\n'
+        f"{inner}\n"
+        f"{pad}</verification>"
+    )
+
+
+@dataclass
+class VerifiedFindingFormat:
+    """Formats one or many :class:`VerifiedFinding` instances."""
+
+    _format: OutputFormat = "json"
+
+    def format_finding(
+        self,
+        finding: VerifiedFinding,
+        *,
+        preview: bool = False,
+    ) -> Union[str, dict[str, Any]]:
+        if self._format == "json":
+            return _verification_to_dict(finding, preview=preview)
+        if self._format == "yaml":
+            return _verification_to_yaml(finding, preview=preview)
+        if self._format == "markdown":
+            return _verification_to_markdown(finding, preview=preview)
+        return _verification_to_xml(finding, preview=preview)
+
+    def format_findings(
+        self,
+        findings: list[VerifiedFinding],
+        *,
+        preview: bool = False,
+    ) -> Union[str, list[Any]]:
+        if self._format == "json":
+            return [_verification_to_dict(f, preview=preview) for f in findings]
+        if self._format == "yaml":
+            payload = {
+                f"verification_{f.name}": _verification_to_dict(f, preview=preview)
+                for f in findings
+            }
+            return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+        if self._format == "markdown":
+            return "\n".join(
+                _verification_to_markdown(f, preview=preview) for f in findings
+            )
+        body = "\n".join(
+            _verification_to_xml(f, preview=preview, indent=1) for f in findings
+        )
+        return f"<verifications>\n{body}\n</verifications>"
+
+
+@dataclass
+class VerifiedFindingsTools:
+    """Per-namespace store for :class:`VerifiedFinding` records.
+
+    Findings are keyed by ``name`` (which mirrors the upstream
+    :class:`VulnerabilityReport.name`); writing a record for the same name
+    overwrites the previous verdict.
+    """
+
+    name: str
+    fmt: VerifiedFindingFormat = field(
+        default_factory=lambda: VerifiedFindingFormat("json")
+    )
+    findings: dict[str, VerifiedFinding] = field(default_factory=dict)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+
+    @property
+    def artifact_key(self) -> str:
+        return f"user:vulnerability-verifications/{self.name}"
+
+    @staticmethod
+    def _normalize(name: str, item: dict[str, Any]) -> VerifiedFinding:
+        return VerifiedFinding(
+            name=item.get("name", name),
+            source_namespace=item.get("source_namespace", ""),
+            verdict=item.get("verdict", "inconclusive"),
+            summary=item.get("summary", ""),
+            attacker_control_at_sink=item.get("attacker_control_at_sink", "none"),
+            sink_reached=bool(item.get("sink_reached", False)),
+            entry_point=item.get("entry_point", ""),
+            data_flow=list(item.get("data_flow", []) or []),
+            path_broken_at=item.get("path_broken_at"),
+            impact=item.get("impact", ""),
+            notes=item.get("notes", ""),
+            verified_at=item.get("verified_at", utc_now_iso()),
+        )
+
+    async def load(self, ctx: ToolContext | CallbackContext) -> None:
+        async with self._lock:
+            artifact = await ctx.load_artifact(filename=self.artifact_key)
+            if artifact is None:
+                self.findings = {}
+                return
+            raw: dict[str, Any] = yaml.safe_load(artifact.text) or {}
+            self.findings = {
+                f.name: f
+                for name, item in raw.items()
+                if isinstance(item, dict)
+                for f in (self._normalize(name=name, item=item),)
+            }
+
+    def dump(self) -> str:
+        payload = {f.name: asdict(f) for f in self.findings.values()}
+        return yaml.safe_dump(
+            payload, sort_keys=False, allow_unicode=True, default_flow_style=False
+        )
+
+    async def save(self, ctx: ToolContext | CallbackContext) -> None:
+        async with self._lock:
+            artifact = types.Part.from_text(text=self.dump())
+            await ctx.save_artifact(filename=self.artifact_key, artifact=artifact)
+
+    async def list_findings(
+        self, ctx: ToolContext | CallbackContext
+    ) -> list[VerifiedFinding]:
+        await self.load(ctx)
+        return sorted(self.findings.values(), key=lambda f: f.name)
+
+    async def get_finding(
+        self, name: str, ctx: ToolContext | CallbackContext
+    ) -> Optional[VerifiedFinding]:
+        await self.load(ctx)
+        return self.findings.get(name)
+
+    async def write_finding(
+        self,
+        *,
+        name: str,
+        source_namespace: str,
+        verdict: Verdict,
+        summary: str,
+        attacker_control_at_sink: AttackerControl,
+        sink_reached: bool,
+        entry_point: str,
+        data_flow: list[str],
+        path_broken_at: Optional[str],
+        impact: str,
+        notes: str,
+        ctx: ToolContext | CallbackContext,
+    ) -> VerifiedFinding:
+        await self.load(ctx)
+        finding = VerifiedFinding(
+            name=name,
+            source_namespace=source_namespace,
+            verdict=verdict,
+            summary=summary,
+            attacker_control_at_sink=attacker_control_at_sink,
+            sink_reached=sink_reached,
+            entry_point=entry_point,
+            data_flow=list(data_flow or []),
+            path_broken_at=path_broken_at,
+            impact=impact,
+            notes=notes,
+        )
+        self.findings[name] = finding
+        await self.save(ctx)
+        return finding
+
+
+def verification_tools(
+    name: str,
+    fmt: Optional[VerifiedFindingFormat] = None,
+) -> list[Any]:
+    """Tools the verifier uses to persist its verdict for a finding.
+
+    Args:
+        name:  Logical namespace key — typically the same string used for the
+               upstream ``vulnerability_report_tools`` so verifications and
+               their source findings share scope.
+        fmt:   Output format descriptor; defaults to JSON.
+    """
+    vt = VerifiedFindingsTools(
+        name=name,
+        fmt=fmt if fmt is not None else VerifiedFindingFormat("json"),
+    )
+
+    async def report_verification(
+        name: str,
+        source_namespace: str,
+        verdict: Verdict,
+        summary: str,
+        attacker_control_at_sink: AttackerControl,
+        sink_reached: bool,
+        entry_point: str,
+        data_flow: list[str],
+        impact: str,
+        notes: str,
+        tool_context: ToolContext,
+        path_broken_at: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Persist a verifier verdict for a single upstream finding.
+
+        Args:
+            name:                       Same as the upstream VulnerabilityReport.name.
+            source_namespace:           Namespace where the upstream report lives.
+            verdict:                    "exploitable", "exploitable_unverified",
+                                        "not_exploitable", or "inconclusive".
+            summary:                    One-sentence verdict rationale.
+            attacker_control_at_sink:   "full", "partial", or "none".
+            sink_reached:               True iff attacker-controlled data reaches the sink.
+            entry_point:                Concrete entry point used (URL or function:line).
+            data_flow:                  Ordered list of code locations through which
+                                        the data travels — file:line or func name per step.
+            impact:                     What an external attacker gains. Required for
+                                        "exploitable" — must harm someone OTHER than the
+                                        attacker themselves.
+            notes:                      Attacker-narrative reasoning, alternative attempts,
+                                        and refuted hypotheses.
+            path_broken_at:             For "not_exploitable" / "inconclusive": which step
+                                        the path breaks at (function name or guard). None
+                                        when sink is reached.
+        """
+        finding = await vt.write_finding(
+            name=name,
+            source_namespace=source_namespace,
+            verdict=verdict,
+            summary=summary,
+            attacker_control_at_sink=attacker_control_at_sink,
+            sink_reached=sink_reached,
+            entry_point=entry_point,
+            data_flow=data_flow,
+            path_broken_at=path_broken_at,
+            impact=impact,
+            notes=notes,
+            ctx=tool_context,
+        )
+        return {"result": vt.fmt.format_finding(finding)}
+
+    async def get_verification(
+        name: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Read a previously-stored verification by finding name."""
+        finding = await vt.get_finding(name, tool_context)
+        if finding is None:
+            return {"error": f"Verification for {name!r} not found."}
+        return {"result": vt.fmt.format_finding(finding)}
+
+    async def list_verifications(
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """List all verifications stored in this namespace (preview only)."""
+        findings = await vt.list_findings(tool_context)
+        return {"result": vt.fmt.format_findings(findings, preview=True)}
+
+    return [
+        report_verification,
+        get_verification,
+        list_verifications,
     ]
