@@ -14,6 +14,9 @@ old/*
 */__pycache__/*
 __pycache__/*
 *.env
+eval_runs/*
+scripts/output/*
+.research/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
