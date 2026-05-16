@@ -238,8 +238,16 @@ async def run_trace_agent(
         "trace_agent", prompt_version
     )
 
+    # fsspec instance-caches AbstractFileSystem subclasses by their init
+    # signature; without ``skip_instance_cache`` two trace-eval cases
+    # against the same fixture_root would share the SAME overlay (and
+    # therefore the same ``_files`` dict), letting annotations from
+    # case N leak into case N+1's extraction. The flag forces a fresh
+    # overlay per call. RootedLocalFileSystem is stateless (just a
+    # sandboxing wrapper around the local FS) so its instance cache
+    # stays on.
     base_fs: AbstractFileSystem = RootedLocalFileSystem(str(fixture_root))
-    overlay = MemoryOverlayFileSystem(base_fs)
+    overlay = MemoryOverlayFileSystem(base_fs, skip_instance_cache=True)
 
     agent = build_trace_agent(
         name="trace_agent",

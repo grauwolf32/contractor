@@ -58,6 +58,10 @@ async def test_trace_agent_cases(fixture, eval_model):
 
     failures: list[str] = []
 
+    # Match the production pipeline default: trace_agent gets graph
+    # tools when the fs has a local root. Override per-case with
+    # ``with_graph_tools: false`` if a fixture needs the no-graph
+    # baseline measured.
     for case in fixture.trace_cases:
         run = await run_trace_agent(
             fixture_root=fixture.source_root,
@@ -66,6 +70,7 @@ async def test_trace_agent_cases(fixture, eval_model):
             namespace=f"trace-eval-{fixture.slug}-{case['id']}",
             timeout_s=float(case.get("timeout_s", 900.0)),
             prompt_version=_resolve_prompt_version(case),
+            with_graph_tools=bool(case.get("with_graph_tools", True)),
         )
 
         expected = _expected_set(case)
