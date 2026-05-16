@@ -490,6 +490,20 @@ def test_read_file_full_and_paginated(tools_json, tmpdir_path: Path):
     assert page["result"].splitlines() == ["hello world", "ERROR: boom"]
 
 
+def test_read_file_with_line_numbers(tools_json, tmpdir_path: Path):
+    f = abs_path(tmpdir_path / "src" / "a.py")
+
+    full = tools_json["read_file"](f, with_line_numbers=True)
+    assert "error" not in full
+    lines = full["result"].splitlines()
+    assert lines[0].startswith("1 | ")
+    assert lines[1].startswith("2 | ")
+
+    page = tools_json["read_file"](f, offset=1, limit=2, with_line_numbers=True)
+    assert "error" not in page
+    assert page["result"].splitlines() == ["2 | hello world", "3 | ERROR: boom"]
+
+
 def test_read_file_errors(tools_json, tmpdir_path: Path):
     missing = tools_json["read_file"](abs_path(tmpdir_path / "nope.txt"))
     assert "error" in missing
