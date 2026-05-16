@@ -26,6 +26,12 @@ class AgentRun:
     state: dict[str, Any]
     artifacts: dict[str, str]
     tool_calls: list[ToolCall] = field(default_factory=list)
+    # Function-response parts we observed from the ADK Runner. One per
+    # tool finish; the count should match ``tool_calls`` and the
+    # plugin's tool_call/tool_result events. Imbalance is a signal that
+    # ADK batched some calls and our `function_call` reader missed
+    # them. Each entry is ``{"name": str, "ok": bool}``.
+    tool_responses: list[dict[str, Any]] = field(default_factory=list)
     # Agio events emitted by attached ADK plugins (e.g. AdkMetricsPlugin).
     # When the harness wires up the metrics plugin, each entry is the kwargs
     # dict of the emitted event with ``event_type`` added — same shape as a
@@ -40,6 +46,34 @@ class AgentRun:
 
     def events_of(self, event_type: str) -> list[dict[str, Any]]:
         return [e for e in self.metrics_events if e.get("event_type") == event_type]
+
+    def capture_imbalance(self) -> dict[str, int]:
+        """Difference between observed tool_responses and tool_calls.
+
+        Positive ``missing_calls`` means we captured a function_response
+        without a matching function_call — a sign ADK emitted parallel
+        tool invocations and our reader missed some. Cross-checks the
+        plugin's metrics events: ``missing_metrics`` is the analogous
+        gap between tool_result events and tool_call events.
+        """
+        plugin_calls = sum(
+            1
+            for e in self.metrics_events
+            if str(e.get("event_type")) == "tool_call"
+        )
+        plugin_results = sum(
+            1
+            for e in self.metrics_events
+            if str(e.get("event_type")) == "tool_result"
+        )
+        return {
+            "tool_calls_seen": len(self.tool_calls),
+            "tool_responses_seen": len(self.tool_responses),
+            "missing_calls": len(self.tool_responses) - len(self.tool_calls),
+            "plugin_tool_calls": plugin_calls,
+            "plugin_tool_results": plugin_results,
+            "missing_metrics": plugin_results - plugin_calls,
+        }
 
 
 async def run_agent(
@@ -91,6 +125,7 @@ async def run_agent(
 
     final_text = ""
     tool_calls: list[ToolCall] = []
+    tool_responses: list[dict[str, Any]] = []
 
     async def _consume() -> None:
         nonlocal final_text
@@ -103,6 +138,22 @@ async def run_agent(
                 if fc is not None and fc.name:
                     tool_calls.append(
                         ToolCall(name=fc.name, args=dict(fc.args or {}))
+                    )
+                fr = getattr(part, "function_response", None)
+                if fr is not None and getattr(fr, "name", None):
+                    response_payload = getattr(fr, "response", None) or {}
+                    is_error = (
+                        isinstance(response_payload, dict)
+                        and any(
+                            response_payload.get(k)
+                            for k in ("error", "errors", "error_message")
+                        )
+                    )
+                    tool_responses.append(
+                        {
+                            "name": fr.name,
+                            "ok": not is_error,
+                        }
                     )
             if event.is_final_response():
                 text = "\n".join(
@@ -142,5 +193,6 @@ async def run_agent(
         state=state,
         artifacts=artifacts,
         tool_calls=tool_calls,
+        tool_responses=tool_responses,
         metrics_events=list(metrics_events) if metrics_events is not None else [],
     )

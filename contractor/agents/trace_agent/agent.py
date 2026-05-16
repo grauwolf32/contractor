@@ -27,6 +27,27 @@ from contractor.utils.settings import DEFAULT_MODEL
 
 TRACE_AGENT_PROMPT: Final[str] = load_prompt("trace_agent")
 
+# Tools that mutate the filesystem in ways the trace_agent should no
+# longer reach for now that ``annotate_trace`` / ``annotate_validate``
+# / ``annotate_sink`` exist. Filtered out of the agent's tool registry
+# so the LLM cannot bypass the structured annotation surface (which
+# enforces argument schemas, indentation, comment style, and
+# duplicate-refusal). ``restore`` / ``changed_paths`` / ``diff`` stay —
+# they are read-side / undo, not source mutations.
+_TRACE_DISALLOWED_FS_TOOLS: Final[frozenset[str]] = frozenset(
+    {
+        "insert_line",
+        "edit",
+        "replace_range",
+        "write_file",
+        "append_file",
+        "mkdir",
+        "rm",
+        "cp",
+        "mv",
+    }
+)
+
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
         "You have reached the context limit. Summarize your progress:\n"
@@ -64,6 +85,10 @@ def build_trace_agent(
     ctools = code_tools(fs)
     atools = annotation_tools(fs)
     gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
+    fs_tools = [
+        t for t in fs_tools
+        if getattr(t, "__name__", "") not in _TRACE_DISALLOWED_FS_TOOLS
+    ]
     tools = [default_tool, *fs_tools, *mem_tools, *ctools, *atools, *gtools]
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
