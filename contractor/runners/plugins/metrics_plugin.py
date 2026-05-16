@@ -523,10 +523,36 @@ class AdkMetricsPlugin(BaseAdkPlugin):
 
         by_agent = self._metrics.pop(inv, {})
 
+        # Sanity check: every before_tool call should pair with one
+        # after_tool (or on_tool_error). When ADK batches parallel tool
+        # invocations the callbacks can desync — we surface the
+        # imbalance here so downstream analysis can decide whether to
+        # trust the counts. ``calls_total`` increments in before_tool;
+        # success/exception/result-error sum in after_tool / on_error.
+        imbalances: list[dict[str, Any]] = []
+        for agent_name, m in by_agent.items():
+            for tool_name, tm in m.tools.items():
+                accounted = (
+                    tm.success_total
+                    + tm.exception_errors_total
+                    + tm.result_errors_total
+                )
+                if tm.calls_total != accounted:
+                    imbalances.append(
+                        {
+                            "agent_name": agent_name,
+                            "tool_name": tool_name,
+                            "calls_total": tm.calls_total,
+                            "accounted": accounted,
+                            "missing": tm.calls_total - accounted,
+                        }
+                    )
+
         await self._emit(
             AgioEventType.RUN_SUMMARY,
             invocation_id=inv,
             agents={name: m.as_dict() for name, m in by_agent.items()},
+            callback_imbalances=imbalances,
         )
 
         self._tracker.cleanup_invocation(inv)
