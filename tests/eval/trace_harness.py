@@ -19,12 +19,39 @@ from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils import load_prompt_with_version
 from contractor.utils import observability
 
 from tests.eval.harness import AgentRun, run_agent
+
+
+def _make_metrics_plugin(
+    *,
+    task_name: str,
+    namespace: str,
+) -> tuple[AdkMetricsPlugin, list[dict]]:
+    """Build an in-process AdkMetricsPlugin whose emit appends to a list.
+
+    Returned plugin can be passed to ``run_agent(plugins=...)``; the list
+    is captured into the resulting ``AgentRun.metrics_events`` so callers
+    have token usage, exec time, and arg/result sizes per tool call.
+    """
+    events: list[dict] = []
+
+    async def _emit(event_type: str, **payload) -> None:
+        events.append({"event_type": event_type, **payload})
+
+    plugin = AdkMetricsPlugin(
+        task_name=task_name,
+        task_id=0,
+        iteration=1,
+        session_id=namespace,
+        emit=_emit,
+    )
+    return plugin, events
 
 TRACE_MARKER = re.compile(r"@trace\b")
 
@@ -219,6 +246,11 @@ async def run_code_graph_agent(
             user_id=user_id,
         )
 
+    plugin, metrics_events = _make_metrics_plugin(
+        task_name="eval.code_graph_agent",
+        namespace=namespace,
+    )
+
     with observability.run_context(
         name="eval.code_graph_agent",
         session_id=namespace,
@@ -239,6 +271,8 @@ async def run_code_graph_agent(
             user_message=user_message,
             timeout_s=timeout_s,
             setup=_setup,
+            plugins=[plugin],
+            metrics_events=metrics_events,
         )
     return TraceAgentRun(
         agent_run=run,
@@ -293,6 +327,11 @@ async def run_trace_agent(
             user_id=user_id,
         )
 
+    plugin, metrics_events = _make_metrics_plugin(
+        task_name="eval.trace_agent",
+        namespace=namespace,
+    )
+
     with observability.run_context(
         name="eval.trace_agent",
         session_id=namespace,
@@ -313,6 +352,8 @@ async def run_trace_agent(
             user_message=user_message,
             timeout_s=timeout_s,
             setup=_setup,
+            plugins=[plugin],
+            metrics_events=metrics_events,
         )
     return TraceAgentRun(
         agent_run=run,

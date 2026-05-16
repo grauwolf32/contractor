@@ -103,6 +103,24 @@ def test_utf8_safety_skips_bad_file(project_with_bad_utf8: Path) -> None:
     assert result["total_items"] >= 1
 
 
+def test_paths_are_virtual_not_host_absolute(tiny_project: Path) -> None:
+    """Tool results expose ``/foo.py``-style virtual paths so they
+    compose with the overlay-FS file-mutation tools the agent has.
+    Regression: previously trailmark's host-FS absolute paths leaked into
+    the agent's tool args and caused double-write artifacts.
+    """
+    tools = _by_name(code_graph_tools(tiny_project))
+    found = tools["find_symbol"]("login")
+    assert found["result"], found
+    file = found["result"][0]["file"]
+    assert file is not None
+    assert file.startswith("/")
+    # Must not be the host-FS absolute path
+    assert str(tiny_project) not in file
+    # Must look like a fixture-relative virtual path
+    assert file == "/app.py", file
+
+
 def test_unresolved_callee_returns_symbolic_row(tmp_path: Path) -> None:
     # A call to an attribute on a runtime object (`self.svc.do()`) is
     # left INFERRED with a symbolic target; the tool must still surface

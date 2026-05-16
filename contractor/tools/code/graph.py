@@ -76,19 +76,53 @@ def _install_utf8_safety() -> None:
     tm_common.parse_directory = _safe
 
 
-def _slim_unit(unit: dict[str, Any]) -> dict[str, Any]:
+def _to_virtual_path(host_path: Optional[str], host_root: str) -> Optional[str]:
+    """Rewrite a host-FS absolute path into the virtual form the agent
+    sees through a ``RootedLocalFileSystem``-sandboxed overlay (i.e.
+    ``/relative/segment/file.py``).
+
+    Returns the input unchanged for paths outside the configured root
+    (so external library symbols stay unambiguous) or for ``None``.
+    """
+    if host_path is None:
+        return None
+    import os
+
+    norm = os.path.normpath(host_path)
+    root = os.path.normpath(host_root)
+    if norm == root:
+        return "/"
+    sep = os.sep
+    if norm.startswith(root + sep):
+        rel = norm[len(root) + 1 :]
+        return "/" + rel.replace(os.sep, "/")
+    # Fallback for paths that don't share the sandbox prefix — keep them
+    # untouched but log once so we notice if trailmark resolves something
+    # outside the project root.
+    return host_path
+
+
+def _slim_unit(
+    unit: dict[str, Any],
+    host_root: Optional[str] = None,
+) -> dict[str, Any]:
     """Strip a trailmark CodeUnit dict down to fields useful to an agent.
 
     Drops parameters/branches/exception_types to keep token cost low; the
     agent can read the file directly with ``read_file`` if it needs the
-    body.
+    body. When ``host_root`` is provided, the ``file`` field is rewritten
+    to the virtual form (``/relative/path.py``) so it composes with the
+    overlay-FS file-mutation tools.
     """
     loc = unit.get("location") or {}
+    file_path = loc.get("file_path")
+    if host_root is not None:
+        file_path = _to_virtual_path(file_path, host_root)
     return {
         "id": unit.get("id"),
         "name": unit.get("name"),
         "kind": unit.get("kind"),
-        "file": loc.get("file_path"),
+        "file": file_path,
         "start_line": loc.get("start_line"),
         "end_line": loc.get("end_line"),
     }
@@ -137,6 +171,7 @@ def code_graph_tools(
     against real files; in-memory overlays are not supported).
     """
     holder = GraphEngineHolder(root=Path(root), language=language)
+    host_root = str(holder.root)
 
     def graph_summary() -> dict[str, Any]:
         """Return node/edge/entrypoint counts + the list of imported deps.
@@ -169,7 +204,7 @@ def code_graph_tools(
 
                 d = asdict(unit)
                 d["kind"] = unit.kind.value
-                matches.append(_slim_unit(d))
+                matches.append(_slim_unit(d, host_root=host_root))
             if len(matches) >= 50:
                 break
         return {
@@ -219,7 +254,7 @@ def code_graph_tools(
                     continue
                 d = asdict(src_unit)
                 d["kind"] = src_unit.kind.value
-                slim = _slim_unit(d)
+                slim = _slim_unit(d, host_root=host_root)
                 slim["edge_confidence"] = edge.confidence.value
                 slim["edge_target"] = tgt
                 rows.append(slim)
@@ -258,7 +293,7 @@ def code_graph_tools(
             if target_unit is not None:
                 d = asdict(target_unit)
                 d["kind"] = target_unit.kind.value
-                row = _slim_unit(d)
+                row = _slim_unit(d, host_root=host_root)
             else:
                 row = {
                     "id": edge.target_id,
@@ -342,7 +377,7 @@ def code_graph_tools(
         """
         rows = holder.engine().complexity_hotspots(int(threshold)) or []
         return {
-            "result": [_slim_unit(r) for r in rows],
+            "result": [_slim_unit(r, host_root=host_root) for r in rows],
             "total_items": len(rows),
             "kind": "complexity_hotspots",
         }
@@ -355,7 +390,7 @@ def code_graph_tools(
             holder.engine().functions_that_raise(str(exception)) or []
         )
         return {
-            "result": [_slim_unit(r) for r in rows],
+            "result": [_slim_unit(r, host_root=host_root) for r in rows],
             "total_items": len(rows),
             "kind": "functions_that_raise",
         }
