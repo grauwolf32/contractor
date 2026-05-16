@@ -22,7 +22,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import code_tools
+from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.openapi.openapi import OpenAPIFormat, openapi_tools
@@ -77,12 +77,13 @@ def build_threat_model_agent(
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
+    gtools = attach_graph_tools_if_local(fs)
     vuln_tools = vulnerability_report_tools(
         name=namespace,
         fmt=VulnerabilityReportFormat(_format=_format),
     )
 
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *vuln_tools]
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools, *vuln_tools]
 
     if with_openapi:
         oas_all = openapi_tools(name=namespace, fs=fs, fmt=OpenAPIFormat(_format=_format))

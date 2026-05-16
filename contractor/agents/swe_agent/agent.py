@@ -13,7 +13,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import code_tools
+from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (SubtaskFormatter,
@@ -50,8 +50,9 @@ def build_swe_agent(
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
+    gtools = attach_graph_tools_if_local(fs)
 
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools]
 
     callback_adapter = CallbackAdapter(agent_name=name)
     callback_adapter.register(TokenUsageCallback())

@@ -183,6 +183,56 @@ class GraphEngineHolder:
         return self.engine()._store._graph
 
 
+def resolve_local_root(fs: Any) -> Optional[str]:
+    """Return a host-disk root path for ``fs``, or ``None`` for remote
+    backends (``GitlabFileSystem`` and friends) where trailmark cannot
+    parse files directly.
+
+    Walks ``fs`` and its known wrapper attributes
+    (``base_fs`` / ``fs`` / ``_fs``) — ``MemoryOverlayFileSystem`` wraps
+    a ``RootedLocalFileSystem`` whose ``root_path`` is the actual disk
+    location. Stops at the first ``root_path`` it finds.
+    """
+    current = fs
+    for _ in range(8):
+        rp = getattr(current, "root_path", None)
+        if rp is not None:
+            return str(rp)
+        inner = (
+            getattr(current, "base_fs", None)
+            or getattr(current, "fs", None)
+            or getattr(current, "_fs", None)
+        )
+        if inner is None or inner is current:
+            return None
+        current = inner
+    return None
+
+
+def attach_graph_tools_if_local(
+    fs: Any,
+    *,
+    language: str = DEFAULT_LANGUAGE,
+) -> list:
+    """Return ``code_graph_tools`` wired against ``fs``'s local root, or
+    ``[]`` when the fs isn't backed by a host-disk directory.
+
+    Lets every worker factory opt into call-graph navigation with a
+    single line, with no behaviour change for non-local filesystems
+    (GitlabFS, S3, …). The graph tools share the agent's path
+    convention through ``strip_prefix_resolver`` so results compose
+    with the file-mutation tools sharing the same ``fs``.
+    """
+    root = resolve_local_root(fs)
+    if root is None:
+        return []
+    return code_graph_tools(
+        root,
+        language=language,
+        path_resolver=strip_prefix_resolver(root),
+    )
+
+
 def code_graph_tools(
     root: str | Path,
     *,

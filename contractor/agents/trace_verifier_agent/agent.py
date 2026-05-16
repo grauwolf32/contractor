@@ -14,7 +14,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import code_tools
+from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (SubtaskFormatter,
@@ -75,6 +75,7 @@ def build_trace_verifier_agent(
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
+    gtools = attach_graph_tools_if_local(fs)
 
     # Read-only access to upstream finding store. Filtered to drop the
     # writer tool so the verifier cannot fabricate new VulnerabilityReports.
@@ -97,6 +98,7 @@ def build_trace_verifier_agent(
         *fs_tools,
         *mem_tools,
         *ctools,
+        *gtools,
         *upstream_tools,
         *verif_tools,
     ]

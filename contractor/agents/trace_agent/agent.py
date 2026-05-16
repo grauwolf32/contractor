@@ -14,7 +14,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import code_tools
+from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, rw_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (SubtaskFormatter,
@@ -60,7 +60,8 @@ def build_trace_agent(
     )
 
     ctools = code_tools(fs)
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
+    gtools = attach_graph_tools_if_local(fs)
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools]
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
             name=namespace,

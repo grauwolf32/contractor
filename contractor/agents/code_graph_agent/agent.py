@@ -15,8 +15,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import (PathResolver, code_graph_tools, code_tools,
-                                   strip_prefix_resolver)
+from contractor.tools.code import (attach_graph_tools_if_local, code_tools)
 from contractor.tools.fs import FileFormat, rw_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (SubtaskFormatter,
@@ -27,39 +26,6 @@ from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
 
 CODE_GRAPH_AGENT_PROMPT: Final[str] = load_prompt("code_graph_agent")
-
-
-def _build_path_resolver(
-    fs: AbstractFileSystem,
-    project_root: Path | str,
-) -> Optional[PathResolver]:
-    """Pick a graph→fs path translator from whatever ``fs`` exposes.
-
-    The contract here is intentionally narrow: any fs that holds a
-    ``root_path`` attribute (today: ``RootedLocalFileSystem`` and
-    overlays wrapping it) is treated as a sandboxed view of the same
-    project tree trailmark parsed, and graph paths get re-rooted so
-    they match the fs's virtual ``/relative/path.py`` form. Anything
-    else (plain ``LocalFileSystem``, remote backends) gets no
-    translation — callers can pass a custom resolver via
-    ``code_graph_tools`` if their FS has a different convention.
-    """
-    # Walk through known wrapper attributes — overlays may nest several
-    # layers deep (MemoryOverlayFileSystem.base_fs → …).
-    current = fs
-    for _ in range(8):
-        fs_root = getattr(current, "root_path", None)
-        if fs_root is not None:
-            return strip_prefix_resolver(str(fs_root))
-        inner = (
-            getattr(current, "base_fs", None)
-            or getattr(current, "fs", None)
-            or getattr(current, "_fs", None)
-        )
-        if inner is None or inner is current:
-            return None
-        current = inner
-    return None
 
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
@@ -80,8 +46,8 @@ def build_code_graph_agent(
     name: str,
     fs: AbstractFileSystem,
     *,
-    project_root: Path | str,
     namespace: str,
+    project_root: Optional[Path | str] = None,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
@@ -95,11 +61,15 @@ def build_code_graph_agent(
 
     Identical in role to ``trace_agent`` but with the call-graph tool
     set added — and the prompt steers it toward graph-first navigation.
-    ``project_root`` must be a host-filesystem path: trailmark parses
-    real files, so passing a memory-overlay FS would not extend to graph
-    building (the overlay still applies to ``read_file`` / ``insert_line``
-    used by the agent for annotation).
+
+    The trailmark engine is built lazily against whatever local-disk
+    root the agent's ``fs`` exposes (via ``attach_graph_tools_if_local``).
+    ``project_root`` is accepted for backward compatibility but ignored;
+    callers that pass it can stop. When ``fs`` has no local root
+    (``GitlabFileSystem`` etc.), the graph tool set is empty and the
+    agent falls back to ``code_tools`` + the trace_agent toolset.
     """
+    del project_root  # superseded by fs-driven detection
     instruction = prompt if prompt is not None else CODE_GRAPH_AGENT_PROMPT
 
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
@@ -109,18 +79,7 @@ def build_code_graph_agent(
         with_interaction_tools=True,
     )
     ctools = code_tools(fs)
-    # Trailmark returns host-FS absolute paths; the agent's `fs` here is
-    # a sandboxed view (RootedLocalFileSystem under any overlays) where
-    # files live at `/relative/path`. Translate so graph results compose
-    # with the file tools sharing the same `fs`. When the underlying fs
-    # has no `root_path` (e.g. plain LocalFileSystem) we leave graph
-    # paths as-is.
-    resolver = _build_path_resolver(fs, project_root)
-    gtools = code_graph_tools(
-        project_root,
-        language=graph_language,
-        path_resolver=resolver,
-    )
+    gtools = attach_graph_tools_if_local(fs, language=graph_language)
     tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools]
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
