@@ -29,5 +29,125 @@
     ],
     "min_precision": 0.5,
     "min_recall": 0.5
+  },
+  {
+    "id": "users-get-idor",
+    "intent": "Trace GET /users/{user_id}. The handler resolves any user by integer id with no comparison against the caller; identify the entrypoint and the service-layer lookup the integer id reaches.",
+    "entrypoint": {
+      "file": "/routers/users.py",
+      "function": "get_user",
+      "route": "GET /users/{user_id}"
+    },
+    "expected_annotated": [
+      { "file": "/routers/users.py", "function": "get_user" },
+      { "file": "/services/users.py", "function": "get" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "users-list-notes-idor",
+    "intent": "Trace GET /users/{user_id}/notes — the same integer id selects which user's notes are returned. Annotate the handler and the service-layer listing call.",
+    "entrypoint": {
+      "file": "/routers/users.py",
+      "function": "list_user_notes",
+      "route": "GET /users/{user_id}/notes"
+    },
+    "expected_annotated": [
+      { "file": "/routers/users.py", "function": "list_user_notes" },
+      { "file": "/services/notes.py", "function": "list_for_owner" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "notes-delete-idor",
+    "intent": "Trace DELETE /notes/{note_id}. The handler looks up the note by id and deletes it; the path from user input to the delete sink runs through NoteService.get and NoteService.delete.",
+    "entrypoint": {
+      "file": "/routers/notes.py",
+      "function": "delete_note",
+      "route": "DELETE /notes/{note_id}"
+    },
+    "expected_annotated": [
+      { "file": "/routers/notes.py", "function": "delete_note" },
+      { "file": "/services/notes.py", "function": "get" },
+      { "file": "/services/notes.py", "function": "delete" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "files-upload-path-traversal",
+    "intent": "Trace POST /files/upload. The handler constructs the storage path from `file.filename` (client-supplied). Annotate the entrypoint and any helper that touches the filename before it reaches `open()`.",
+    "entrypoint": {
+      "file": "/routers/files.py",
+      "function": "upload_file",
+      "route": "POST /files/upload"
+    },
+    "expected_annotated": [
+      { "file": "/routers/files.py", "function": "upload_file" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "admin-users-access-control",
+    "intent": "Trace GET /admin/users. The handler enumerates every user; identify the entrypoint and the service-layer enumeration call. Verify whether any auth/role check gates the handler.",
+    "entrypoint": {
+      "file": "/routers/admin.py",
+      "function": "list_users",
+      "route": "GET /admin/users"
+    },
+    "expected_annotated": [
+      { "file": "/routers/admin.py", "function": "list_users" },
+      { "file": "/services/users.py", "function": "list_all" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "register-credential-exposure",
+    "intent": "Trace POST /auth/register. Follow the request body through the service-layer registration and into the response object. The response shape returns the bcrypt password_hash to the caller; the annotation must reach the service call and ideally the model that carries the hash.",
+    "entrypoint": {
+      "file": "/routers/auth.py",
+      "function": "register",
+      "route": "POST /auth/register"
+    },
+    "expected_annotated": [
+      { "file": "/routers/auth.py", "function": "register" },
+      { "file": "/services/auth.py", "function": "register" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "password-reset-confirm-bruteforce",
+    "intent": "Trace POST /auth/password/reset/confirm. The handler delegates to AuthService.confirm_password_reset which checks the OTP code by equality. Annotate the entrypoint and the verification function and note whether attempt counting / rate limit guards the check.",
+    "entrypoint": {
+      "file": "/routers/auth.py",
+      "function": "password_reset_confirm",
+      "route": "POST /auth/password/reset/confirm"
+    },
+    "expected_annotated": [
+      { "file": "/routers/auth.py", "function": "password_reset_confirm" },
+      { "file": "/services/auth.py", "function": "confirm_password_reset" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
+  },
+  {
+    "id": "notes-create-csrf",
+    "intent": "Trace POST /notes. The handler accepts a cookie-authenticated state-changing request. Annotate the entrypoint and the service-layer create call; note whether any anti-CSRF token / Origin / Referer check is present.",
+    "entrypoint": {
+      "file": "/routers/notes.py",
+      "function": "create_note",
+      "route": "POST /notes"
+    },
+    "expected_annotated": [
+      { "file": "/routers/notes.py", "function": "create_note" },
+      { "file": "/services/notes.py", "function": "create" }
+    ],
+    "min_precision": 0.5,
+    "min_recall": 0.5
   }
 ]
