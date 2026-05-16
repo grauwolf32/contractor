@@ -291,6 +291,7 @@ async def run_trace_agent(
     enable_vuln_reporting: bool = False,
     timeout_s: float = 900.0,
     prompt_version: Optional[str] = None,
+    with_graph_tools: bool = False,
 ) -> TraceAgentRun:
     """Build a trace agent over a fresh overlay of the fixture, run it, and
     return both the raw `AgentRun` and the parsed annotations.
@@ -298,6 +299,10 @@ async def run_trace_agent(
     `prompt_version` pins a specific version from
     `contractor/agents/trace_agent/prompt.yml`; `None` resolves to the
     manifest's `active` version. The resolved id is recorded on the result.
+
+    `with_graph_tools` opts the agent into the trailmark-backed
+    call-graph toolset (see ``contractor.tools.code.graph``). Off by
+    default to keep v5 prompts free of tool-description tax.
     """
     from cli.fs import RootedLocalFileSystem
 
@@ -314,6 +319,7 @@ async def run_trace_agent(
         namespace=namespace,
         model=model,
         max_tokens=80_000,
+        with_graph_tools=with_graph_tools,
         enable_vuln_reporting=enable_vuln_reporting,
         prompt=prompt_text,
     )

@@ -255,21 +255,11 @@ def code_graph_tools(
     holder = GraphEngineHolder(root=Path(root), language=language)
 
     def graph_summary() -> dict[str, Any]:
-        """Return node/edge/entrypoint counts + the list of imported deps.
-
-        Cheap (microseconds) — call this once at the start of a trace to
-        gauge graph size and confirm the engine built successfully.
-        """
+        """Graph diagnostic: node/edge/entrypoint counts and deps."""
         return holder.engine().summary()
 
     def find_symbol(symbol: str) -> dict[str, Any]:
-        """Resolve a symbol name to one or more graph nodes.
-
-        Matches by ``module:Class.method`` id, bare name (last segment),
-        or case-insensitive equality. Returns up to 50 candidates with
-        location info; use the ``id`` value with other graph tools for an
-        unambiguous lookup.
-        """
+        """Resolve a name to up to 50 graph nodes with locations."""
         graph = holder.graph()
         sym = str(symbol)
         bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
@@ -309,13 +299,7 @@ def code_graph_tools(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callers of ``symbol``.
-
-        Returns every node that has a call edge whose target matches
-        ``symbol``. Trailmark stores both ``certain`` and ``inferred``
-        edges; both are included so the agent can decide whether to
-        follow uncertain ones. Use ``find_symbol`` first to disambiguate.
-        """
+        """Direct callers of ``symbol``. Includes inferred edges."""
         node_id = _resolve_id(symbol)
         graph = holder.graph()
         if node_id is None:
@@ -351,15 +335,7 @@ def code_graph_tools(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callees of ``symbol`` (call edges leaving its body).
-
-        Returns the raw call targets, including ``inferred`` and
-        ``uncertain`` edges whose target may be a virtual name (e.g.
-        ``svc.authenticate``) rather than a resolved graph node. When the
-        target resolves to a known node, location info is attached; when
-        not, only the symbolic name is returned. Use ``find_symbol`` to
-        chase virtual names.
-        """
+        """Direct callees of ``symbol``. Unresolved targets get kind=unresolved."""
         node_id = _resolve_id(symbol)
         graph = holder.graph()
         if node_id is None:
@@ -399,11 +375,7 @@ def code_graph_tools(
         dst: str,
         max_paths: int = DEFAULT_MAX_PATHS,
     ) -> dict[str, Any]:
-        """All simple call paths from ``src`` to ``dst``.
-
-        Each path is a list of node ids ordered from caller to callee.
-        Empty result means no static call path was found.
-        """
+        """All simple call paths from ``src`` to ``dst`` as id-lists."""
         engine = holder.engine()
         paths = engine.paths_between(str(src), str(dst)) or []
         return {
@@ -417,13 +389,7 @@ def code_graph_tools(
         max_paths: int = DEFAULT_MAX_PATHS,
         max_depth: int = _MAX_PATH_DEPTH,
     ) -> dict[str, Any]:
-        """Paths from any detected entrypoint to ``symbol``.
-
-        Canonical attack-surface query: given a sensitive sink, what
-        externally-triggered call paths can reach it? Empty result means
-        the sink is unreachable from a known entrypoint (or trailmark
-        could not detect one for this codebase / language).
-        """
+        """Paths from any detected entrypoint to ``symbol``."""
         engine = holder.engine()
         paths = (
             engine.entrypoint_paths_to(str(symbol), max_depth=max_depth)
@@ -436,13 +402,7 @@ def code_graph_tools(
         }
 
     def attack_surface() -> dict[str, Any]:
-        """List detected entrypoints with trust/asset metadata.
-
-        Backed by trailmark's framework-aware entrypoint scanner
-        (FastAPI/Flask/NestJS/Spring/ASP.NET/actix/etc.). Returns
-        ``node_id``, ``kind`` (user_input/api/database/file_system/
-        third_party), ``trust_level``, ``asset_value``, and ``description``.
-        """
+        """Framework-detected entrypoints with trust/asset metadata."""
         rows = holder.engine().attack_surface() or []
         return {
             "result": rows,
@@ -451,11 +411,7 @@ def code_graph_tools(
         }
 
     def complexity_hotspots(threshold: int = 10) -> dict[str, Any]:
-        """Functions/methods with cyclomatic complexity ≥ ``threshold``.
-
-        Useful for prioritising review effort; high complexity is
-        correlated with bug density but is not a finding by itself.
-        """
+        """Functions with cyclomatic complexity ≥ ``threshold``."""
         rows = holder.engine().complexity_hotspots(int(threshold)) or []
         return {
             "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
@@ -464,9 +420,7 @@ def code_graph_tools(
         }
 
     def functions_that_raise(exception: str) -> dict[str, Any]:
-        """Functions whose parser-detected exception list includes
-        ``exception`` (case-sensitive bare name, e.g. ``PermissionError``).
-        """
+        """Functions whose detected exception list includes ``exception``."""
         rows = (
             holder.engine().functions_that_raise(str(exception)) or []
         )

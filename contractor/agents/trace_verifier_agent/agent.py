@@ -60,6 +60,7 @@ def build_trace_verifier_agent(
     model: Optional[LiteLlm] = None,
     elide_tool_results: Optional[Iterable[str]] = None,
     elide_keep_last_n: int = 15,
+    with_graph_tools: bool = False,
     prompt: Optional[str] = None,
 ) -> LlmAgent:
     """Static, code-evidence-based verifier of a single vulnerability finding.
@@ -75,7 +76,7 @@ def build_trace_verifier_agent(
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
-    gtools = attach_graph_tools_if_local(fs)
+    gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
 
     # Read-only access to upstream finding store. Filtered to drop the
     # writer tool so the verifier cannot fabricate new VulnerabilityReports.

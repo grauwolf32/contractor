@@ -37,15 +37,16 @@ async def _run_one(
     user_message: str,
     case: dict[str, Any],
     model,
+    *,
+    trace_with_graph_tools: bool = False,
+    trace_prompt_version: Optional[str] = None,
 ) -> dict[str, Any]:
     from tests.eval.trace_harness import (run_code_graph_agent,
                                           run_trace_agent)
 
-    runners = {"trace_agent": run_trace_agent, "code_graph_agent": run_code_graph_agent}
-    runner = runners[agent_runner]
     namespace = f"compare-{case['id']}-{agent_runner}"
     if agent_runner == "code_graph_agent":
-        result = await runner(
+        result = await run_code_graph_agent(
             fixture_root=fixture_root,
             user_message=user_message,
             model=model,
@@ -53,12 +54,14 @@ async def _run_one(
             timeout_s=float(case.get("timeout_s", 900.0)),
         )
     else:
-        result = await runner(
+        result = await run_trace_agent(
             fixture_root=fixture_root,
             user_message=user_message,
             model=model,
             namespace=namespace,
             timeout_s=float(case.get("timeout_s", 900.0)),
+            prompt_version=trace_prompt_version,
+            with_graph_tools=trace_with_graph_tools,
         )
 
     # Ground-truth tool counts come from AdkMetricsPlugin's tool_call events
@@ -168,6 +171,22 @@ def main() -> int:
     ap.add_argument("--fixture", default="vulnyapi")
     ap.add_argument("--case", required=True, help="trace-case id")
     ap.add_argument("--output", type=Path, default=None)
+    ap.add_argument(
+        "--trace-prompt", default=None,
+        help="trace_agent prompt version (e.g. v6); None = manifest default",
+    )
+    ap.add_argument(
+        "--trace-graph-tools", action="store_true",
+        help="attach graph tools to trace_agent (opt-in)",
+    )
+    ap.add_argument(
+        "--skip-trace", action="store_true",
+        help="skip the trace_agent run (use when probing code_graph alone)",
+    )
+    ap.add_argument(
+        "--skip-graph", action="store_true",
+        help="skip the code_graph_agent run",
+    )
     args = ap.parse_args()
 
     from dotenv import load_dotenv
@@ -205,8 +224,20 @@ def main() -> int:
     user_msg = _user_message(case)
 
     async def _both() -> tuple[dict[str, Any], dict[str, Any]]:
-        a = await _run_one("trace_agent", fixture.source_root, user_msg, case, model)
-        b = await _run_one("code_graph_agent", fixture.source_root, user_msg, case, model)
+        a = (
+            await _run_one(
+                "trace_agent", fixture.source_root, user_msg, case, model,
+                trace_with_graph_tools=args.trace_graph_tools,
+                trace_prompt_version=args.trace_prompt,
+            )
+            if not args.skip_trace
+            else {"agent": "trace_agent", "skipped": True, "tool_counts": {}}
+        )
+        b = (
+            await _run_one("code_graph_agent", fixture.source_root, user_msg, case, model)
+            if not args.skip_graph
+            else {"agent": "code_graph_agent", "skipped": True, "tool_counts": {}}
+        )
         return a, b
 
     a, b = asyncio.run(_both())
