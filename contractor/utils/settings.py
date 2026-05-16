@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     # ── LLM (LiteLLM proxy) ──────────────────────────────────────────────
-    default_model_name: str = Field(default="lm-studio-qwen3.5")
+    default_model_name: str = Field(default="lm-studio-qwen3.6")
     default_model_timeout: int = Field(default=300)
     litellm_api_base: Optional[str] = Field(default=None)
     litellm_api_key: Optional[str] = Field(default=None)
