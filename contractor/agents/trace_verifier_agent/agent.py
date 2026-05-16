@@ -1,11 +1,3 @@
-"""Currently unused: ``build_threat_model_agent`` has no callers in production
-pipelines (``cli/pipelines/``) or tests as of 2026-05. The matching
-``contractor/tasks/threat_analysis*`` template is also orphaned. Kept for
-potential future use (security-analysis workflows). If you wire this up,
-remove this notice; if it remains unreferenced, consider deleting the
-directory along with its prompts and tasks.
-"""
-
 from __future__ import annotations
 
 from typing import Final, Iterable, Literal, Optional
@@ -25,77 +17,99 @@ from contractor.tools import DEFAULT_HEAVY_TOOLS
 from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
-from contractor.tools.openapi.openapi import OpenAPIFormat, openapi_tools
 from contractor.tools.tasks import (SubtaskFormatter,
                                     _prepare_worker_instructions)
-from contractor.tools.vuln import (VulnerabilityReportFormat,
+from contractor.tools.vuln import (VerifiedFindingFormat,
+                                   VulnerabilityReportFormat,
+                                   verification_tools,
                                    vulnerability_report_tools)
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
 
-THREAT_MODEL_PROMPT: Final[str] = load_prompt("threat_model_agent")
+TRACE_VERIFIER_PROMPT: Final[str] = load_prompt("trace_verifier_agent")
 
-_OAS_READ_ONLY_TOOLS = frozenset(
-    {
-        "list_paths",
-        "list_components",
-        "list_servers",
-        "get_info",
-        "get_path",
-        "get_component",
-        "get_full_openapi_schema",
-    }
+# Tools we keep from `vulnerability_report_tools` for the verifier. The
+# verifier reads upstream findings but must not author new ones.
+_READ_ONLY_VULN_TOOL_NAMES: frozenset[str] = frozenset(
+    {"get_vulnerability", "list_vulnerabilities"}
 )
+
 
 def summarization_message(_format: Literal["json", "xml", "yaml", "markdown"]) -> str:
     return (
         "You have reached the context limit. Summarize your progress:\n"
-        "1. Subtask objective as you understand it\n"
-        "2. Asset inventory built so far\n"
-        "3. Entry points cataloged (handler, file:line, auth state)\n"
-        "4. Trust boundaries identified\n"
-        "5. Threats raised (name, STRIDE letter, severity, confidence)\n"
-        "6. Areas of the system not yet modeled\n"
-        "7. Open questions or blockers\n"
-        "8. Smallest concrete next step to resume modeling\n"
-        "Include only claims supported by tool output; mark anything inferred as such.\n"
+        "1. Finding under verification (name, sink place, claimed kind)\n"
+        "2. Entry point and auth state being assumed\n"
+        "3. Data-flow steps traced so far (file:line)\n"
+        "4. Guards / validators discovered (passing or refuting)\n"
+        "5. Approaches already refuted\n"
+        "6. Current tentative verdict and what is missing to lock it\n"
+        "7. Smallest next code lookup that would resolve the open question\n"
         + _prepare_worker_instructions(SubtaskFormatter(_format=_format))
     )
 
-def build_threat_model_agent(
+
+def build_trace_verifier_agent(
     name: str,
     fs: AbstractFileSystem,
     *,
     namespace: str,
+    source_namespace: Optional[str] = None,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
-    with_openapi: bool = True,
     elide_tool_results: Optional[Iterable[str]] = None,
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
+    prompt: Optional[str] = None,
 ) -> LlmAgent:
+    """Static, code-evidence-based verifier of a single vulnerability finding.
+
+    OpenAnt Stage-2 style: attacker role-play, no HTTP probes, no edits.
+    Reads upstream findings from ``source_namespace`` (defaults to
+    ``namespace`` for runs where verification shares scope with the
+    upstream stage) and writes verdicts via ``verification_tools``.
+    """
+    instruction = prompt if prompt is not None else TRACE_VERIFIER_PROMPT
+    src_ns = source_namespace if source_namespace is not None else namespace
+
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
     ctools = code_tools(fs=fs)
     gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
-    vuln_tools = vulnerability_report_tools(
-        name=namespace,
-        fmt=VulnerabilityReportFormat(_format=_format),
+
+    # Read-only access to upstream finding store. Filtered to drop the
+    # writer tool so the verifier cannot fabricate new VulnerabilityReports.
+    upstream_tools = [
+        t
+        for t in vulnerability_report_tools(
+            name=src_ns,
+            fmt=VulnerabilityReportFormat(_format=_format),
+        )
+        if t.__name__ in _READ_ONLY_VULN_TOOL_NAMES
+    ]
+
+    verif_tools = verification_tools(
+        name=src_ns,
+        fmt=VerifiedFindingFormat(_format=_format),
     )
 
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools, *vuln_tools]
-
-    if with_openapi:
-        oas_all = openapi_tools(name=namespace, fs=fs, fmt=OpenAPIFormat(_format=_format))
-        oas_read = [t for t in oas_all if getattr(t, "__name__", "") in _OAS_READ_ONLY_TOOLS]
-        tools.extend(oas_read)
+    tools = [
+        default_tool,
+        *fs_tools,
+        *mem_tools,
+        *ctools,
+        *gtools,
+        *upstream_tools,
+        *verif_tools,
+    ]
 
     callback_adapter = CallbackAdapter(agent_name=name)
     callback_adapter.register(TokenUsageCallback())
     callback_adapter.register(
         SummarizationLimitCallback(
-            max_tokens=max_tokens, message=summarization_message(_format=_format)
+            max_tokens=max_tokens,
+            message=summarization_message(_format=_format),
         )
     )
     elide_targets = (
@@ -112,7 +126,9 @@ def build_threat_model_agent(
         )
     callback_adapter.register(
         InvalidToolCallGuardrailCallback(
-            tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
+            tools=tools,
+            default_tool_name="default_tool",
+            default_tool_arg="meta",
         )
     )
     callback_adapter.register(RepeatedToolCallCallback(threshold=5))
@@ -120,12 +136,12 @@ def build_threat_model_agent(
     return LlmAgent(
         name=name,
         description=(
-            "threat modeling agent — produces a STRIDE-aligned threat "
-            "model from code and OpenAPI, persisted as findings."
+            "trace verifier agent — static, attacker-role-play assessment of "
+            "a single upstream vulnerability finding; produces a structured "
+            "exploit_path and verdict, never authors new findings."
         ),
-        instruction=THREAT_MODEL_PROMPT,
+        instruction=instruction,
         model=model if model is not None else DEFAULT_MODEL,
         tools=tools,
         **callback_adapter(),
     )
-

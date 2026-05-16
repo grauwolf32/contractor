@@ -19,12 +19,39 @@ from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils import load_prompt_with_version
 from contractor.utils import observability
 
 from tests.eval.harness import AgentRun, run_agent
+
+
+def _make_metrics_plugin(
+    *,
+    task_name: str,
+    namespace: str,
+) -> tuple[AdkMetricsPlugin, list[dict]]:
+    """Build an in-process AdkMetricsPlugin whose emit appends to a list.
+
+    Returned plugin can be passed to ``run_agent(plugins=...)``; the list
+    is captured into the resulting ``AgentRun.metrics_events`` so callers
+    have token usage, exec time, and arg/result sizes per tool call.
+    """
+    events: list[dict] = []
+
+    async def _emit(event_type: str, **payload) -> None:
+        events.append({"event_type": event_type, **payload})
+
+    plugin = AdkMetricsPlugin(
+        task_name=task_name,
+        task_id=0,
+        iteration=1,
+        session_id=namespace,
+        emit=_emit,
+    )
+    return plugin, events
 
 TRACE_MARKER = re.compile(r"@trace\b")
 
@@ -71,6 +98,20 @@ _LANG_PATTERNS: dict[str, list[re.Pattern[str]]] = {
             re.MULTILINE,
         ),
         re.compile(r"^\s*class\s+(\w+)\b", re.MULTILINE),
+    ],
+    ".php": [
+        # functions / methods (with optional visibility, static/final/abstract,
+        # by-ref ``&``). Excludes anonymous closures.
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*"
+            r"function\s+&?(\w+)\s*\(",
+            re.MULTILINE,
+        ),
+        re.compile(
+            r"^\s*(?:abstract\s+|final\s+)?class\s+(\w+)\b",
+            re.MULTILINE,
+        ),
+        re.compile(r"^\s*(?:trait|interface)\s+(\w+)\b", re.MULTILINE),
     ],
 }
 
@@ -178,6 +219,7 @@ async def run_trace_agent(
     enable_vuln_reporting: bool = False,
     timeout_s: float = 900.0,
     prompt_version: Optional[str] = None,
+    with_graph_tools: bool = False,
 ) -> TraceAgentRun:
     """Build a trace agent over a fresh overlay of the fixture, run it, and
     return both the raw `AgentRun` and the parsed annotations.
@@ -185,6 +227,10 @@ async def run_trace_agent(
     `prompt_version` pins a specific version from
     `contractor/agents/trace_agent/prompt.yml`; `None` resolves to the
     manifest's `active` version. The resolved id is recorded on the result.
+
+    `with_graph_tools` opts the agent into the trailmark-backed
+    call-graph toolset (see ``contractor.tools.code.graph``). Off by
+    default to keep v5 prompts free of tool-description tax.
     """
     from cli.fs import RootedLocalFileSystem
 
@@ -201,6 +247,7 @@ async def run_trace_agent(
         namespace=namespace,
         model=model,
         max_tokens=80_000,
+        with_graph_tools=with_graph_tools,
         enable_vuln_reporting=enable_vuln_reporting,
         prompt=prompt_text,
     )
@@ -213,6 +260,11 @@ async def run_trace_agent(
             app_name=app_name,
             user_id=user_id,
         )
+
+    plugin, metrics_events = _make_metrics_plugin(
+        task_name="eval.trace_agent",
+        namespace=namespace,
+    )
 
     with observability.run_context(
         name="eval.trace_agent",
@@ -234,6 +286,8 @@ async def run_trace_agent(
             user_message=user_message,
             timeout_s=timeout_s,
             setup=_setup,
+            plugins=[plugin],
+            metrics_events=metrics_events,
         )
     return TraceAgentRun(
         agent_run=run,

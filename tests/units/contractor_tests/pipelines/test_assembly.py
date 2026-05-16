@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import yaml
 from google.adk.artifacts import BaseArtifactService
 
 from cli.pipelines import Pipeline, PipelineContext, get_pipelines
@@ -23,6 +24,7 @@ from cli.pipelines.oas_enrichment import OasEnrichmentPipeline
 from cli.pipelines.router import RouterPipeline
 from cli.pipelines.trace_annotation import TraceAnnotationPipeline
 from cli.pipelines.trace_annotation_direct import TraceAnnotationDirectPipeline
+from cli.pipelines.trace_verify import TraceVerifyPipeline
 from contractor.runners.task_runner import TaskRunner
 
 
@@ -38,6 +40,8 @@ class TestRegistry:
             "likec4",
             "trace",
             "trace-direct",
+            "trace-graph",
+            "trace-verify",
             "router",
         }
 
@@ -55,6 +59,7 @@ class TestRegistry:
         assert registry["likec4"] is LikeC4BuildingPipeline
         assert registry["trace"] is TraceAnnotationPipeline
         assert registry["trace-direct"] is TraceAnnotationDirectPipeline
+        assert registry["trace-verify"] is TraceVerifyPipeline
         assert registry["router"] is RouterPipeline
 
 
@@ -318,3 +323,112 @@ class TestTraceAnnotationDirectPipeline:
         pipeline = TraceAnnotationDirectPipeline(_make_context())
         assert pipeline._template.key == "trace_annotation"
         assert pipeline._template.version  # any non-empty version is fine
+
+
+# ─── TraceVerifyPipeline ──────────────────────────────────────────────────────
+
+
+class TestTraceVerifyPipeline:
+    """Per-path verifier pipeline. Tests use ``_verify_path_findings``
+    directly with a hand-crafted ``OpenApiPath`` since the outer loop only
+    reads the OpenAPI artifact to discover paths."""
+
+    @staticmethod
+    def _make_findings_yaml(*names: str) -> str:
+        return yaml.safe_dump(
+            {
+                name: {
+                    "name": name,
+                    "place_type": "file",
+                    "place": f"handler.py:{i+10}",
+                    "title": f"finding {name}",
+                    "summary": f"summary for {name}",
+                    "severity": "high",
+                    "confidence": "medium",
+                    "details": "...",
+                }
+                for i, name in enumerate(names)
+            }
+        )
+
+    @pytest.mark.asyncio
+    async def test_one_task_per_finding(self, monkeypatch):
+        from cli.pipelines.trace_annotation import OpenApiPath
+
+        ctx = _make_context()
+        findings_yaml = self._make_findings_yaml("sqli-list", "xss-list")
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == "user:vulnerability-reports/trace-annotation:openapi:items":
+                return MagicMock(text=findings_yaml, inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        pipeline = TraceVerifyPipeline(ctx)
+
+        # Bypass the OpenAPI-loading outer loop — only this inner method
+        # touches the findings artifact and the task queue.
+        api_path = OpenApiPath(path="/items", operations=[])
+
+        captured: list = []
+        original_init = TaskRunner.__init__
+
+        def capture_init(self, **kwargs):
+            original_init(self, **kwargs)
+            captured.append(self)
+
+        monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+        monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+
+        await pipeline._verify_path_findings(
+            api_path=api_path,
+            user_id="u",
+            on_event=None,
+        )
+
+        assert len(captured) == 1
+        runner = captured[0]
+        assert len(runner.queue) == 2
+        assert {item.template_key for item in runner.queue} == {"trace_verify"}
+        assert {item.ref for item in runner.queue} == {
+            "trace_verify:openapi:items:sqli-list",
+            "trace_verify:openapi:items:xss-list",
+        }
+        for item in runner.queue:
+            assert item.params["source_namespace"] == "trace-annotation:openapi:items"
+            assert item.params["finding_name"] in {"sqli-list", "xss-list"}
+            assert item.namespace == "trace-annotation:openapi:items"
+
+    @pytest.mark.asyncio
+    async def test_skips_path_with_no_findings(self, monkeypatch):
+        from cli.pipelines.trace_annotation import OpenApiPath
+
+        # Default _make_context's load_artifact returns None for everything.
+        pipeline = TraceVerifyPipeline(_make_context())
+        api_path = OpenApiPath(path="/items", operations=[])
+
+        captured: list = []
+        original_init = TaskRunner.__init__
+
+        def capture_init(self, **kwargs):
+            original_init(self, **kwargs)
+            captured.append(self)
+
+        monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+        monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+
+        await pipeline._verify_path_findings(
+            api_path=api_path,
+            user_id="u",
+            on_event=None,
+        )
+
+        # No findings → no TaskRunner created and no tasks queued.
+        assert captured == []
+
+    def test_template_loads(self):
+        from contractor.runners.models import TaskTemplate
+
+        t = TaskTemplate.load("trace_verify")
+        assert t.key == "trace_verify"
+        assert t.version

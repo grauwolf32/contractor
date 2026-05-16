@@ -14,6 +14,7 @@ from typing import Any, Awaitable, Callable, Optional
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
+from contractor.runners.agio import AgioEventType
 from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
                                              resolve_tool_args,
                                              resolve_tool_response,
@@ -105,8 +106,8 @@ class ToolMetrics:
 @dataclass(slots=True)
 class AgentMetrics:
     llm_calls: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
     total_tokens: int = 0
     thoughts_tokens: int = 0
     cached_tokens: int = 0
@@ -117,8 +118,8 @@ class AgentMetrics:
 
     def add_usage(self, usage: dict[str, int]) -> None:
         self.llm_calls += 1
-        self.prompt_tokens += usage.get("prompt", 0)
-        self.completion_tokens += usage.get("completion", 0)
+        self.input_tokens += usage.get("input", 0)
+        self.output_tokens += usage.get("output", 0)
         self.total_tokens += usage.get("total", 0)
         self.thoughts_tokens += usage.get("thoughts", 0)
         self.cached_tokens += usage.get("cached", 0)
@@ -126,8 +127,8 @@ class AgentMetrics:
     def as_dict(self) -> dict[str, Any]:
         return {
             "llm_calls": self.llm_calls,
-            "prompt_tokens": self.prompt_tokens,
-            "completion_tokens": self.completion_tokens,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
             "thoughts_tokens": self.thoughts_tokens,
             "cached_tokens": self.cached_tokens,
@@ -311,13 +312,13 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         usage = getattr(llm_response, "usage_metadata", None)
         if usage is None:
             return {
-                k: 0 for k in ("prompt", "completion", "total", "thoughts", "cached")
+                k: 0 for k in ("input", "output", "total", "thoughts", "cached")
             }
 
         data = snapshot_state(usage)
         return {
-            "prompt": _safe_int(data.get("prompt_token_count")),
-            "completion": _safe_int(data.get("candidates_token_count")),
+            "input": _safe_int(data.get("prompt_token_count")),
+            "output": _safe_int(data.get("candidates_token_count")),
             "total": _safe_int(data.get("total_token_count")),
             "thoughts": _safe_int(data.get("thoughts_token_count")),
             "cached": _safe_int(data.get("cached_content_token_count")),
@@ -335,10 +336,21 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             return {}
         elapsed_ms = max(0.0, (time.monotonic() - call.started_monotonic) * 1000.0)
         return {
+            "tool_call_id": f"call_{call.call_id}",
             "args_hash": call.args_hash,
             "started_at": call.started_at,
-            "duration_ms": round(elapsed_ms, 3),
+            "execution_time_ms": round(elapsed_ms, 3),
         }
+
+    @staticmethod
+    def _payload_size(value: Any) -> int:
+        """Approximate JSON byte size of a tool argument/result payload."""
+        if value is None:
+            return 0
+        try:
+            return len(json.dumps(value, default=str, ensure_ascii=False).encode("utf-8"))
+        except (TypeError, ValueError):
+            return len(repr(value).encode("utf-8"))
 
     # ── Tool callbacks ────────────────────────────────────────────────────
 
@@ -359,11 +371,13 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         self._tool_bucket(inv, agent, tool.name).calls_total += 1
 
         await self._emit(
-            "metrics_tool_call",
+            AgioEventType.TOOL_CALL,
             invocation_id=inv,
             agent_name=agent,
             tool_name=tool.name,
-            tool_args=actual_args,
+            tool_call_id=f"call_{call.call_id}",
+            arguments=actual_args,
+            arguments_size=self._payload_size(actual_args),
             args_hash=call.args_hash,
             started_at=call.started_at,
         )
@@ -394,11 +408,12 @@ class AdkMetricsPlugin(BaseAdkPlugin):
 
         timing = self._timing_payload(call)
         await self._emit(
-            "metrics_tool_exception_error",
+            AgioEventType.TOOL_EXCEPTION,
             invocation_id=inv,
             agent_name=agent,
             tool_name=tool.name,
-            tool_args=actual_args,
+            arguments=actual_args,
+            arguments_size=self._payload_size(actual_args),
             error=repr(error) if error is not None else None,
             **timing,
         )
@@ -437,13 +452,17 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         if call:
             self._tracker.finish(call)
 
+        successful = not is_error and not (call and call.exception_seen)
         await self._emit(
-            "metrics_tool_result",
+            AgioEventType.TOOL_RESULT,
             invocation_id=inv,
             agent_name=agent,
             tool_name=tool.name,
-            tool_args=actual_args,
+            arguments=actual_args,
+            arguments_size=self._payload_size(actual_args),
             result=actual_result,
+            result_size=self._payload_size(actual_result),
+            successful=successful,
             result_error=is_error,
             **timing,
         )
@@ -468,7 +487,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
 
         agent_bucket.fs_coverage = dict(snapshot)
         await self._emit(
-            "metrics_fs_coverage",
+            AgioEventType.FS_COVERAGE,
             invocation_id=inv,
             agent_name=agent,
             fs_coverage=agent_bucket.fs_coverage,
@@ -489,7 +508,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         self._agent_bucket(inv, agent).add_usage(usage)
 
         await self._emit(
-            "metrics_llm_usage",
+            AgioEventType.LLM_USAGE,
             invocation_id=inv,
             agent_name=agent,
             usage=usage,
@@ -505,7 +524,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         by_agent = self._metrics.pop(inv, {})
 
         await self._emit(
-            "metrics_summary",
+            AgioEventType.RUN_SUMMARY,
             invocation_id=inv,
             agents={name: m.as_dict() for name, m in by_agent.items()},
         )

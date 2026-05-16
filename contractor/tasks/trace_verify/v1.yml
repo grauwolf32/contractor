@@ -1,0 +1,74 @@
+task:
+  name: "verify_vulnerability_finding"
+
+  objective: >
+    Decide if a single upstream vulnerability finding is practically
+    exploitable from an external-attacker position, using only static
+    code evidence. Produce a structured exploit_path or refute the
+    finding with concrete code reasoning.
+
+    Finding under verification:
+      name:       {finding_name}
+      title:      {finding_title}
+      place:      {finding_place_type} :: {finding_place}
+      severity:   {finding_severity}
+      confidence: {finding_confidence}
+      summary:    {finding_summary}
+
+    Source namespace (where the upstream report lives): {source_namespace}
+
+  instructions: >
+    Workflow:
+
+    1. Call get_vulnerability(name="{finding_name}") to load the full
+       upstream report. Read the details section.
+
+    2. Identify the external entry point an attacker would use to reach
+       the sink. Use search_def / grep / read_file. If the sink is not
+       reachable from outside (no HTTP route, scheduler-only, internal
+       API behind firewall), prepare a "not_exploitable" verdict with
+       path_broken_at naming the boundary.
+
+    3. Trace attacker-controlled data through the system, function by
+       function, recording each step in data_flow. Note guards, validators,
+       and encoders observed along the way.
+
+    4. Determine attacker_control_at_sink:
+         full     — attacker chooses the exact value reaching the sink
+         partial  — attacker influences within constraints (length, charset, prefix)
+         none     — value at sink is no longer attacker-derived
+
+    5. Try at least two alternative paths or attack approaches before
+       concluding "not_exploitable". Document refuted attempts in notes.
+
+    6. Decide verdict:
+         exploitable             — full path proven + third-party impact named
+         exploitable_unverified  — strong path, missing runtime confirmation
+         not_exploitable         — code evidence refutes the requirements;
+                                   path_broken_at is mandatory
+         inconclusive            — last resort; insufficient code visibility
+
+    7. Call report_verification ONCE with:
+         name="{finding_name}"
+         source_namespace="{source_namespace}"
+         verdict, summary, attacker_control_at_sink, sink_reached,
+         entry_point, data_flow (list of file:line / func steps),
+         impact (one sentence for "exploitable", naming the third party),
+         notes (your reasoning + refuted alternatives),
+         path_broken_at (when sink_reached=false).
+
+    Anti-patterns:
+    - Citing the upstream summary as your verification (your evidence
+      chain must be independent).
+    - "exploitable" without third-party impact.
+    - "inconclusive" used to avoid reading code.
+    - Repeat calls to report_verification — one verdict per finding.
+
+  output_format: >
+    Return a structured worker result confirming the finding name and
+    the verdict you persisted via report_verification. The persisted
+    record is the authoritative output; the worker result is the
+    runner handshake.
+
+  iterations: 1
+  format: json

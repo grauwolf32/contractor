@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from cli.utils import utc_now_iso
+from contractor.runners.agio import ALL_AGIO_EVENT_TYPES
 from contractor.runners.task_runner import TaskRunnerEvent
 
 
@@ -40,21 +42,26 @@ def _jsonable(value: Any) -> Any:
 
 
 def _event_to_record(event: TaskRunnerEvent) -> dict[str, Any]:
-    payload = _jsonable(getattr(event, "payload", {}) or {})
-    payload_dict = payload if isinstance(payload, dict) else {}
+    """Flatten a ``TaskRunnerEvent`` into an Agio-shaped record.
 
-    return {
-        "ts": utc_now_iso(),
+    The Agio convention is one flat dict per line — no nested ``payload``.
+    Identification fields (``type``, ``task_name``, ``task_id``) are pulled
+    from the event envelope; everything else from ``event.payload`` is
+    lifted to the top level so analysis scripts can index by name directly.
+    """
+    payload = _jsonable(event.payload or {})
+    payload_dict: dict[str, Any] = payload if isinstance(payload, dict) else {}
+
+    record: dict[str, Any] = {
         "type": getattr(event, "type", None),
+        "timestamp": time.time() * 1000.0,
+        "ts_iso": utc_now_iso(),
         "task_name": getattr(event, "task_name", None),
         "task_id": getattr(event, "task_id", None),
-        "payload": payload,
-        "iteration": payload_dict.get("iteration"),
-        "session_id": payload_dict.get("session_id"),
-        "invocation_id": payload_dict.get("invocation_id"),
-        "agent_name": payload_dict.get("agent_name"),
-        "tool_name": payload_dict.get("tool_name"),
     }
+    for key, value in payload_dict.items():
+        record.setdefault(key, value)
+    return record
 
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
@@ -64,32 +71,8 @@ def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
         f.write("\n")
 
 
-# Non-metrics_* event types that the analyzer also consumes. Keeping these
-# in metrics.jsonl gives us invocation durations, agent transitions, and
-# per-template success/iteration stats without a second sink.
-_LIFECYCLE_EVENT_TYPES: frozenset[str] = frozenset(
-    {
-        "adk_before_run",
-        "adk_after_run",
-        "adk_event",
-        "pipeline_started",
-        "pipeline_finished",
-        "run_started",
-        "run_finished",
-        "task_started",
-        "task_finished",
-        "task_failed",
-        "iteration_started",
-        "iteration_finished",
-        "iteration_result",
-        "global_task_finished",
-        "final_text",
-    }
-)
-
-
 class MetricsSink:
-    """Filters metrics_* and lifecycle events and persists them to a JSONL file."""
+    """Filters Agio events and persists them to a JSONL file."""
 
     def __init__(self, output_dir: Path) -> None:
         self._path = output_dir / "metrics.jsonl"
@@ -98,9 +81,7 @@ class MetricsSink:
     @staticmethod
     def matches(event: TaskRunnerEvent) -> bool:
         event_type = getattr(event, "type", "") or ""
-        if event_type.startswith("metrics_"):
-            return True
-        return event_type in _LIFECYCLE_EVENT_TYPES
+        return event_type in ALL_AGIO_EVENT_TYPES
 
     async def write(self, event: TaskRunnerEvent) -> None:
         record = _event_to_record(event)

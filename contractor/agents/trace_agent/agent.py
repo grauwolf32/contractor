@@ -14,7 +14,7 @@ from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
                                              RepeatedToolCallCallback)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
-from contractor.tools.code import code_tools
+from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, rw_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import (SubtaskFormatter,
@@ -50,6 +50,7 @@ def build_trace_agent(
     elide_tool_results: Optional[Iterable[str]] = None,
     elide_keep_last_n: int = 15,
     prompt: Optional[str] = None,
+    with_graph_tools: bool = False,
 ) -> LlmAgent:
     instruction = prompt if prompt is not None else TRACE_AGENT_PROMPT
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
@@ -60,7 +61,8 @@ def build_trace_agent(
     )
 
     ctools = code_tools(fs)
-    tools = [default_tool, *fs_tools, *mem_tools, *ctools]
+    gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
+    tools = [default_tool, *fs_tools, *mem_tools, *ctools, *gtools]
     if enable_vuln_reporting:
         vuln_tools = vulnerability_report_tools(
             name=namespace,

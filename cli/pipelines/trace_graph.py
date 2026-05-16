@@ -1,3 +1,16 @@
+"""Trace-annotation pipeline that runs ``trace_agent`` with the
+trailmark-backed call-graph tool set explicitly enabled.
+
+Mostly a thin variant of ``trace-direct``: identical task template,
+identical operation-level loop, identical overlay-FS / artifact
+contract. The only difference is that ``build_trace_agent`` is called
+with ``with_graph_tools=True`` per operation. Useful as an A/B preset
+when comparing the graph-equipped configuration against the prompt-only
+baseline on the same fixture / operation.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 from typing import Any, Optional
@@ -22,18 +35,17 @@ from contractor.tools.fs import MemoryOverlayFileSystem
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 TRACE_MAX_TOKENS: int = 100_000
 
 
-class TraceAnnotationDirectPipeline(Pipeline):
-    """Variant of TraceAnnotationPipeline that skips the planning_agent layer.
+class TraceGraphPipeline(Pipeline):
+    """Variant of ``TraceAnnotationDirectPipeline`` that runs
+    ``trace_agent`` with ``with_graph_tools=True`` per operation.
 
-    Each OpenAPI operation is rendered directly from its task template and
-    handed to a freshly built ``trace_agent`` via ``AgentRunner``. The pipeline
-    keeps the same overlay-FS / artifact contract as ``TraceAnnotationPipeline``
-    so that produced annotations can be compared head-to-head.
+    Trailmark parses the project on the first agent call (lazy build
+    inside ``attach_graph_tools_if_local``); subsequent operations reuse
+    the cached engine for free.
     """
 
     namespace: str = "openapi"
@@ -85,7 +97,9 @@ class TraceAnnotationDirectPipeline(Pipeline):
                 on_event=on_event,
             )
 
-            artifact_text = types.Part.from_text(text=json.dumps(self.overlayfs.save()))
+            artifact_text = types.Part.from_text(
+                text=json.dumps(self.overlayfs.save())
+            )
             await ctx.artifact_service.save_artifact(
                 app_name=ctx.app_name,
                 user_id=user_id,
@@ -110,7 +124,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
         user_id: str = "cli-user",
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> None:
-        path_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
+        path_namespace = f"trace-graph:{self.namespace}:{api_path.path_key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
 
         await inject_skills(
@@ -169,7 +183,9 @@ class TraceAnnotationDirectPipeline(Pipeline):
         )
 
         session_id = uuid4().hex
-        event_name = f"trace_annotation:{self.namespace}:{operation.operation_id}"
+        event_name = (
+            f"trace_graph:{self.namespace}:{operation.operation_id}"
+        )
         plugins = [
             AdkTracePlugin(
                 task_name=event_name,

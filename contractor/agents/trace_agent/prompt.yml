@@ -1,5 +1,9 @@
-active: v5
+active: v7
 versions:
+  v7:
+    file: prompts/v7.md
+  v6:
+    file: prompts/v6.md
   v5:
     file: prompts/v5.md
   v4:

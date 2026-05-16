@@ -459,8 +459,8 @@ def _normalize_event(event: Any) -> Optional[EventView]:
     if event_type == "tool_result":
         return _fmt_tool_result_event(payload)
 
-    if event_type == "tool_error":
-        return _fmt_tool_error_event(payload)
+    if event_type == "tool_exception":
+        return _fmt_tool_exception_event(payload)
 
     if event_type == "final_text":
         return _fmt_final_text_event(payload)
@@ -546,9 +546,9 @@ def _fmt_iteration_started_event(payload: dict[str, Any]) -> EventView:
 def _fmt_tool_call_event(payload: dict[str, Any]) -> EventView:
     tool_name = payload.get("tool_name", "unknown_tool")
     tool_args = (
-        payload.get("tool_args")
+        payload.get("arguments")
         or payload.get("args")
-        or payload.get("arguments")
+        or payload.get("tool_args")
         or payload.get("input")
     )
 
@@ -561,6 +561,9 @@ def _fmt_tool_call_event(payload: dict[str, Any]) -> EventView:
 
 
 def _fmt_tool_result_event(payload: dict[str, Any]) -> EventView:
+    if payload.get("successful") is False:
+        return _fmt_tool_result_error_event(payload)
+
     tool_name = payload.get("tool_name", "unknown_tool")
     result = (
         payload.get("result")
@@ -577,13 +580,32 @@ def _fmt_tool_result_event(payload: dict[str, Any]) -> EventView:
     )
 
 
-def _fmt_tool_error_event(payload: dict[str, Any]) -> EventView:
+def _fmt_tool_result_error_event(payload: dict[str, Any]) -> EventView:
+    """Tool ran fine but its payload signalled an LLM-facing error."""
+    tool_name = payload.get("tool_name", "unknown_tool")
+    result = (
+        payload.get("result")
+        or payload.get("output")
+        or payload.get("response")
+        or payload.get("data")
+    )
+
+    return EventView(
+        event_type="tool_result_error",
+        title=f"Tool returned error: {tool_name}",
+        body=_fmt_tool_data(result, max_lines=10, max_width=100),
+        tone="warning",
+    )
+
+
+def _fmt_tool_exception_event(payload: dict[str, Any]) -> EventView:
+    """Tool implementation raised a Python exception."""
     tool_name = payload.get("tool_name", "unknown_tool")
     error = payload.get("error") or payload.get("message")
 
     return EventView(
-        event_type="tool_error",
-        title=f"Tool error: {tool_name}",
+        event_type="tool_exception",
+        title=f"Tool exception: {tool_name}",
         body=_fmt_blob(error, max_lines=8, max_width=100),
         tone="error",
     )

@@ -26,12 +26,20 @@ class AgentRun:
     state: dict[str, Any]
     artifacts: dict[str, str]
     tool_calls: list[ToolCall] = field(default_factory=list)
+    # Agio events emitted by attached ADK plugins (e.g. AdkMetricsPlugin).
+    # When the harness wires up the metrics plugin, each entry is the kwargs
+    # dict of the emitted event with ``event_type`` added — same shape as a
+    # row in metrics.jsonl.
+    metrics_events: list[dict[str, Any]] = field(default_factory=list)
 
     def tool_names(self) -> list[str]:
         return [c.name for c in self.tool_calls]
 
     def calls_named(self, name: str) -> list[ToolCall]:
         return [c for c in self.tool_calls if c.name == name]
+
+    def events_of(self, event_type: str) -> list[dict[str, Any]]:
+        return [e for e in self.metrics_events if e.get("event_type") == event_type]
 
 
 async def run_agent(
@@ -43,12 +51,19 @@ async def run_agent(
     user_id: str = "eval-user",
     timeout_s: float = 600.0,
     setup: Optional[SetupHook] = None,
+    plugins: Optional[list[Any]] = None,
+    metrics_events: Optional[list[dict[str, Any]]] = None,
 ) -> AgentRun:
     """Drive `agent` end-to-end via ADK Runner and capture outputs.
 
     `setup`, if given, is awaited with `(artifact_service, app_name, user_id)`
     after the artifact service is created but before the session is opened —
     use it to pre-populate memory/skills.
+
+    `plugins`, if given, is forwarded to the ADK ``Runner`` (e.g. to wire up
+    ``AdkMetricsPlugin`` for token/timing capture). `metrics_events`, when
+    supplied, is the list those plugins should append to; it is attached to
+    the returned ``AgentRun`` so callers can inspect it.
     """
     artifact_service = InMemoryArtifactService()
     session_service = InMemorySessionService()
@@ -69,6 +84,7 @@ async def run_agent(
         app_name=app_name,
         session_service=session_service,
         artifact_service=artifact_service,
+        plugins=plugins or [],
     )
 
     message = types.Content(role="user", parts=[types.Part(text=user_message)])
@@ -126,4 +142,5 @@ async def run_agent(
         state=state,
         artifacts=artifacts,
         tool_calls=tool_calls,
+        metrics_events=list(metrics_events) if metrics_events is not None else [],
     )

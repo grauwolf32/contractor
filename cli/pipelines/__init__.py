@@ -145,6 +145,8 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
     from .router import RouterPipeline
     from .trace_annotation import TraceAnnotationPipeline
     from .trace_annotation_direct import TraceAnnotationDirectPipeline
+    from .trace_graph import TraceGraphPipeline
+    from .trace_verify import TraceVerifyPipeline
 
     return {
         "build": OasBuildingPipeline,
@@ -152,6 +154,8 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
         "likec4": LikeC4BuildingPipeline,
         "trace": TraceAnnotationPipeline,
         "trace-direct": TraceAnnotationDirectPipeline,
+        "trace-graph": TraceGraphPipeline,
+        "trace-verify": TraceVerifyPipeline,
         "router": RouterPipeline,
     }
 

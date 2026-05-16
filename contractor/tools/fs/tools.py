@@ -357,6 +357,7 @@ class FsspecInteractionFileTools:
         file_path: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
+        with_line_numbers: bool = False,
     ) -> ToolResult:
         normalized_file, err = self._validate_path(
             file_path,
@@ -377,16 +378,24 @@ class FsspecInteractionFileTools:
 
         lines = content.splitlines()
 
+        start_line = 1
         if offset is not None:
             offset = max(0, offset)
             if offset >= len(lines):
                 return {"result": ""}
             lines = lines[offset:]
+            start_line = offset + 1
 
         if limit is not None:
             lines = lines[: max(1, limit)]
 
-        sliced = "\n".join(lines)
+        if with_line_numbers:
+            sliced = "\n".join(
+                f"{line_no} | {line}"
+                for line_no, line in enumerate(lines, start=start_line)
+            )
+        else:
+            sliced = "\n".join(lines)
         return {"result": self.fmt.format_output(sliced, self.max_output)}
 
     def grep(
@@ -621,14 +630,29 @@ def ro_file_tools(
         file: str,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
+        with_line_numbers: bool = False,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """
         Read text content from a file.
+
+        Args:
+            file: Path to the file to read.
+            offset: Zero-based line offset. If provided, reading starts from
+                this line.
+            limit: Maximum number of lines to return after applying offset.
+            with_line_numbers: If True, each returned line is prefixed with
+                its 1-based line number (e.g. ``10 | def hello():``). Line
+                numbers are NOT part of the file content.
         """
         offset = _ensure_int_or_none(offset)
         limit = _ensure_int_or_none(limit)
-        result = tools.read_file(file_path=file, offset=offset, limit=limit)
+        result = tools.read_file(
+            file_path=file,
+            offset=offset,
+            limit=limit,
+            with_line_numbers=bool(with_line_numbers),
+        )
         _push_fs_coverage(tool_context, tools.coverage_stats())
         return result
 
@@ -907,28 +931,12 @@ class FsspecWriteTools:
         limit: Optional[int] = None,
         with_line_numbers: bool = False,
     ) -> ToolResult:
-        result = self._reader.read_file(
+        return self._reader.read_file(
             file_path=file_path,
             offset=offset,
             limit=limit,
+            with_line_numbers=with_line_numbers,
         )
-
-        if with_line_numbers is not True:
-            return result
-
-        if "error" in result:
-            return result
-
-        content = result.get("result", "")
-        if not isinstance(content, str) or content == "":
-            return result
-
-        start_line = 1 if offset is None else max(0, offset) + 1
-        numbered = "\n".join(
-            f"{line_no} | {line}"
-            for line_no, line in enumerate(content.splitlines(), start=start_line)
-        )
-        return {"result": numbered}
 
     # ---- write tools ----
 
