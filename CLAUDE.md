@@ -15,7 +15,7 @@ poetry install                              # install runtime + dev deps
 poetry run contractor --help                # main CLI (entrypoint: cli.main:main)
 
 # Pipelines (see cli/pipelines/__init__.py for the full registry):
-#   build | enrich | likec4 | trace | trace-direct | router
+#   build | enrich | likec4 | trace | trace-direct | trace-graph | trace-verify | router
 poetry run contractor --pipeline build --project-path ./target --folder-name src --model lm-studio-qwen3.6
 poetry run contractor --pipeline enrich  --project-path ./target --artifact openapi.yaml --model ...
 poetry run contractor --pipeline router  --project-path ./target --prompt "..."   # prompt-driven; interactive prompt opens when --prompt omitted

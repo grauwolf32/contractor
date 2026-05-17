@@ -64,7 +64,7 @@ contractor \
   --pipeline build \
   --project-path ./project \
   --folder-name src \
-  --model lm-studio-qwen3.5
+  --model lm-studio-qwen3.6
 ```
 
 ---
@@ -78,7 +78,7 @@ contractor \
   --pipeline enrich \
   --project-path ./project \
   --artifact openapi.yaml \
-  --model lm-studio-qwen3.5
+  --model lm-studio-qwen3.6
 ```
 
 ---
@@ -92,7 +92,7 @@ contractor \
   --pipeline trace \
   --project-path ./project \
   --artifact openapi.yaml \
-  --model lm-studio-qwen3.5
+  --model lm-studio-qwen3.6
 ```
 
 What it’s useful for
@@ -150,9 +150,9 @@ Your `--model` must match a configured alias:
 
 ```yaml
 model_list:
-  - model_name: lm-studio-qwen3.5
+  - model_name: lm-studio-qwen3.6
     litellm_params:
-      model: openai/qwen/qwen3.5-35b-a3b
+      model: openai/qwen/qwen3.6-35b-a3b
       api_base: http://localhost:1234/v1
       api_key: lm-studio
 ```
@@ -160,15 +160,16 @@ model_list:
 
 ## 🧾 CLI options (simple version)
 
-| Option           | What it does             |
-| ---------------- | ------------------------ |
-| `--pipeline`     | build / enrich / trace   |
-| `--project-path` | your codebase            |
-| `--folder-name`  | optional subfolder scope |
-| `--artifact`     | required for enrich      |
-| `--model`        | model alias              |
-| `--output`       | where results go         |
-| `--rm`           | clean temp files         |
+| Option           | What it does                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `--pipeline`     | `build` / `enrich` / `likec4` / `trace` / `trace-direct` / `trace-graph` / `trace-verify` / `router` |
+| `--project-path` | your codebase                                                                      |
+| `--folder-name`  | optional subfolder scope                                                           |
+| `--artifact`     | required for `enrich` and `trace*`                                                 |
+| `--prompt`       | required for `router` (interactive prompt opens if omitted)                        |
+| `--model`        | LiteLLM alias from `deploy/litellm/litellm_config.yaml`                            |
+| `--output`       | where results go                                                                   |
+| `--rm`           | clean temp files                                                                   |
 
 ---
 

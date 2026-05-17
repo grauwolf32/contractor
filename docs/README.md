@@ -161,15 +161,32 @@ subtasks.
 
 Concrete pipelines are thin assemblers of templates + worker builders:
 
-- [oas_building.py](../cli/pipelines/oas_building.py)
-- [oas_enrichment.py](../cli/pipelines/oas_enrichment.py)
-- [trace_annotation.py](../cli/pipelines/trace_annotation.py)
-- [router.py](../cli/pipelines/router.py)
+- [oas_building.py](../cli/pipelines/oas_building.py) — `build`
+- [oas_enrichment.py](../cli/pipelines/oas_enrichment.py) — `enrich`
+- [likec4_building.py](../cli/pipelines/likec4_building.py) — `likec4`
+- [trace_annotation.py](../cli/pipelines/trace_annotation.py) — `trace` (planner-driven, per-operation overlay FS)
+- [trace_annotation_direct.py](../cli/pipelines/trace_annotation_direct.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
+- [trace_graph.py](../cli/pipelines/trace_graph.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
+- [trace_verify.py](../cli/pipelines/trace_verify.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
+- [router.py](../cli/pipelines/router.py) — `router`
 
-The router pipeline is the odd one out — it skips the templated task
-queue and runs a single planner whose worker is a *router agent* that
-dispatches to one of several specialised sub-agents (SWE, OAS builder,
-OAS linter, trace, HTTP).
+Two pipelines diverge from the planner+worker pattern:
+
+- **`router`** skips the templated task queue and runs a single planner
+  whose worker is a *router agent* that dispatches to one of several
+  specialised sub-agents (SWE, OAS builder, OAS linter, trace, HTTP).
+- **`trace-direct` / `trace-graph`** use the bare `AgentRunner`
+  (`contractor/runners/agent_runner.py`) instead of `TaskRunner`: one
+  `trace_agent` invocation per OpenAPI operation, no planner, no
+  subtask state machine. The pipeline wraps the project filesystem in
+  `MemoryOverlayFileSystem` so worker writes (the inlined `@trace`
+  annotations) are captured as an artifact diff rather than mutating
+  the host tree.
+- **`trace-verify`** is downstream of `trace` / `trace-direct`: it
+  loads each per-path `VulnerabilityReport` artifact and queues one
+  task per finding for `trace_verifier_agent`, which produces a
+  code-evidence-only verdict paired with the upstream finding by
+  namespace (`user:vulnerability-{reports,verifications}/...`).
 
 ---
 

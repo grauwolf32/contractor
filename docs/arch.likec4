@@ -18,28 +18,33 @@ model {
       technology "Python + Click"
       description '''
 - Entry point exposed as the `contractor` command.
-- Accepts project path, model, pipeline selection, optional artifact, folder name, and output directory.
+- Accepts project path, model, pipeline selection, optional artifact, folder name, prompt, output directory.
 - Validates input paths and incompatible option combinations (e.g. `--artifact` with non-enrich/trace pipelines).
 - Resolves the selected model/provider route through LiteLLM-compatible configuration.
-- Builds the task queue or annotation runner by selecting a pipeline builder from the registry.
+- Builds the pipeline by selecting a `Pipeline` subclass from the registry and constructing a `PipelineContext`.
 - Registers on_event handlers so emitted runner/plugin events can be normalised and exported.
 - Writes final artifacts and metrics.jsonl to the output directory after the run completes.
 '''
     }
 
     pipelineRegistry = component "Pipeline Registry" {
-      technology "Python functions"
+      technology "Python class registry"
       description '''
-- Maps pipeline names to async builder functions.
-- Current pipelines: `build`, `enrich`, `trace`.
-- `build`: dependency_information -> project_information -> oas_update (SWE + OAS workers).
-- `enrich`: oas_enrich seeded by an optional user-supplied OpenAPI artifact (OAS worker).
-- `trace`: trace_annotation_pipeline — produces an AnnotationRunner, not a TaskRunner directly.
+- Maps pipeline names to `Pipeline` subclasses (`cli/pipelines/__init__.py::get_pipelines`).
+- Current pipelines:
+    `build`         → `OasBuildingPipeline`
+    `enrich`        → `OasEnrichmentPipeline`
+    `likec4`        → `LikeC4BuildingPipeline`
+    `trace`         → `TraceAnnotationPipeline`        (planner-driven)
+    `trace-direct`  → `TraceAnnotationDirectPipeline`  (single-agent, AgentRunner)
+    `trace-graph`   → `TraceGraphPipeline`             (trace-direct + graph tools)
+    `trace-verify`  → `TraceVerifyPipeline`            (per-finding static verifier)
+    `router`        → `RouterPipeline`                 (prompt-driven dispatcher)
 '''
     }
 
     buildPipeline = component "Build Pipeline" {
-      technology "Task queue"
+      technology "Task queue (TaskRunner)"
       description '''
 - Adds `dependency_information` task using SWE worker.
 - Adds `project_information` task using SWE worker with dependency artifact as input.
@@ -48,95 +53,219 @@ model {
     }
 
     enrichPipeline = component "Enrich Pipeline" {
-      technology "Task queue"
+      technology "Task queue (TaskRunner)"
       description '''
 - Optionally pre-saves user-supplied OpenAPI text as `oas-openapi-building` artifact.
 - Adds `oas_enrich` task using OAS builder worker.
 '''
     }
 
-    tracePipeline = component "Trace Pipeline" {
-      technology "AnnotationRunner + TaskRunner (per operation)"
+    likec4Pipeline = component "LikeC4 Pipeline" {
+      technology "Task queue (TaskRunner) + shared overlay"
       description '''
-- Implemented as `trace_annotation_pipeline` returning an `AnnotationRunner`.
-- Loads an OpenAPI artifact and extracts all paths and operations.
-- For each API path, calls `run_path_analysis` which spawns a TaskRunner and adds a
-  `trace_annotation` task per operation.
-- The TaskRunner runs the planning agent as root; the planning agent delegates annotation
+- Builds a LikeC4 architecture model focused on security-relevant facts
+  (external interactions, trust boundaries, data classes).
+- Stages: `dependency_information` (SWE) → `project_information` (SWE) →
+  `likec4_build` (LikeC4 builder) → `likec4_validate` (LikeC4 builder, repair-only).
+- Persists the LikeC4 source as a single text artifact (`likec4-architecture.c4`)
+  via a shared overlay file at `contractor.tools.likec4.DEFAULT_LIKEC4_PATH`.
+  The overlay is seeded from the artifact at start and saved back at end so reruns resume.
+'''
+    }
+
+    tracePipeline = component "Trace Pipeline" {
+      technology "TaskRunner per operation (planner-driven)"
+      description '''
+- `TraceAnnotationPipeline`: full planner+worker stack — for each OpenAPI path it
+  spawns a `TaskRunner` and adds a `trace_annotation` task per operation.
+- The TaskRunner runs the planning agent as root; the planner delegates annotation
   subtasks to the trace agent (wrapped as a tool via workerAdapter).
-- The trace agent annotates code with structured `@trace`, `@validate`, and `@sink`
-  comments and reports vulnerabilities found during execution tracing.
-- After each path, saves the MemoryOverlayFileSystem state and a unified diff as artifacts.
+- The trace agent annotates code with `@trace`, `@validate`, and `@sink` markers
+  and reports vulnerabilities when a tainted-input → sink path is confirmed.
+- After each path, saves the MemoryOverlayFileSystem state and a unified diff as
+  artifacts (`trace-<ns>-fs`, `trace-<ns>-diff`).
 - Operates on an in-memory overlay so the target codebase is never written to directly.
+'''
+    }
+
+    traceDirectPipeline = component "Trace-Direct Pipeline" {
+      technology "AgentRunner per operation (single-agent)"
+      description '''
+- `TraceAnnotationDirectPipeline`: bypasses the planner entirely.
+- One `trace_agent` invocation per OpenAPI operation, driven by `AgentRunner`.
+- Same overlay / artifact contract as `trace`, but cheaper and faster
+  because there is no planner loop or subtask state machine.
+'''
+    }
+
+    traceGraphPipeline = component "Trace-Graph Pipeline" {
+      technology "AgentRunner + trailmark call-graph tools"
+      description '''
+- `TraceGraphPipeline`: thin variant of `trace-direct` that constructs
+  `trace_agent` with `with_graph_tools=True`.
+- Trailmark parses the project lazily on the first agent call and the
+  cached engine is reused across operations.
+- Used as the production default for the trace family — same quality as
+  the prompt-only baseline on small fixtures, materially better on large ones.
+'''
+    }
+
+    traceVerifyPipeline = component "Trace-Verify Pipeline" {
+      technology "TaskRunner — per-finding fan-out"
+      description '''
+- `TraceVerifyPipeline` (OpenAnt Stage-2 style): downstream of `trace` / `trace-direct`.
+- For each OpenAPI path, loads the per-path `VulnerabilityReport` artifact and queues
+  one task per finding for `trace_verifier_agent`.
+- Verifier is code-evidence-only — no HTTP probes.
+- Verdicts persist alongside the upstream findings under matching namespaces:
+    `user:vulnerability-reports/trace-annotation:openapi:{path_key}`
+    `user:vulnerability-verifications/trace-annotation:openapi:{path_key}`
+'''
+    }
+
+    routerPipeline = component "Router Pipeline" {
+      technology "Planner with router agent as worker"
+      description '''
+- Prompt-driven mode: skips the templated task queue.
+- Runs a single planner whose worker is the `router_agent`, which dispatches to one of
+  several specialised sub-agents (SWE, OAS builder, OAS linter, trace, HTTP).
+- `--prompt` is the task objective; if omitted an interactive prompt opens.
 '''
     }
 
     taskRunner = container "TaskRunner" {
       technology "Google ADK Runner + custom orchestration"
       description '''
-- Owns task queue entries with name, worker builder, params, required artifacts, iterations,
-  attempts, steps, namespace, and model.
-- Renders task templates before execution.
-- Creates or reuses session state per task iteration.
-- Loads artifacts needed by downstream tasks and injects upstream outputs as inbox /
-  previous-task-result memory notes.
+- Per-task state machine: render → spawn planner+worker → iterate up to `iterations`
+  successful runs → persist artifacts → emit `TaskRunnerEvent`s.
+- Owns task queue entries with name, worker builder, params, required artifacts,
+  iterations, attempts, steps, namespace, and model.
+- Loads required upstream artifacts and injects their text as memory notes tagged
+  `inbox` / `previous-task-result` in the planner's namespace.
 - Always runs the planning agent as the root agent through ADK Runner.
 - Collects event streams from trace and metrics plugins.
 - Persists `result`, `summary`, and `records` artifacts after each task.
-- Repeats iterations when configured, allowing long tasks (e.g. OAS update) to evolve.
-- Also used inside AnnotationRunner, one TaskRunner instance per API path.
+- Used by `build`, `enrich`, `likec4`, `trace`, `trace-verify`, and `router`.
+'''
+    }
+
+    agentRunner = container "AgentRunner" {
+      technology "Bare single-agent ADK Runner"
+      description '''
+- Minimal runner for a single `LlmAgent` invocation: no planner, no subtask state machine.
+- Renders one task template, attaches metrics/trace plugins, runs the agent once
+  against an ADK session, returns the final response.
+- Used by `trace-direct`, `trace-graph` (one invocation per OpenAPI operation) and
+  by `router` for the trailing free-form router run.
 '''
     }
 
     planningAgent = container "Planning Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Top-level root agent for every task across all pipelines (build, enrich, trace).
-- Treats execution as a strict subtask state machine: add → execute → done/incomplete/skip.
-- On incomplete: must decompose_subtask (no silent retries).
-- Delegates each subtask to a worker agent (SWE, OAS Builder, or Trace) via workerAdapter.
-- Workers are invoked as tools through execute_current_subtask; the planner interprets results.
+- Root agent for every TaskRunner-driven pipeline (build, enrich, likec4, trace,
+  trace-verify, router).
+- Strict subtask state machine: add → execute → done | incomplete | malformed | skipped.
+- On incomplete/malformed: must call `decompose_subtask` (1-3 children) — silent retries
+  are forbidden.
+- Delegates each subtask to a worker agent via workerAdapter; results are parsed
+  deterministically into `SubtaskExecutionResult`.
 - Reads and writes shared working memory via memory tools.
-- Calls finish with result + summary only when the global task objective is satisfied.
-- Produces `result`, `summary`, and `records` artifacts persisted by the TaskRunner.
+- Calls `finish` with result + summary only when the global objective is satisfied
+  and no subtask is still `new`. After `finish`, the invocation is forcibly ended.
 '''
     }
 
     traceAgent = container "Trace Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Worker agent specialised in execution-path tracing and security annotation.
-- Invoked by the planning agent via workerAdapter as a tool, same as SWE and OAS Builder.
-- Receives a subtask with an OpenAPI operation_id and operation schema.
+- Worker specialised in execution-path tracing and security annotation.
+- Used as a worker inside the `trace` pipeline (planner-driven) AND as a standalone
+  agent inside `trace-direct` / `trace-graph` (via AgentRunner).
+- Receives a subtask with an OpenAPI `operation_id` and operation schema.
 - Traces the request execution path through the codebase (max 3 calls deep).
-- Inserts structured `@trace`, `@validate`, and `@sink` annotation comments (max 4 functions).
-- Reports vulnerabilities (SQL injection, RCE, SSRF, etc.) only when a concrete
-  tainted-input → sink path is confirmed by code evidence.
-- Operates on MemoryOverlayFileSystem so all file writes are in-memory until explicitly saved.
-- Tools: grep, ls, glob, read_file, search_def, insert_line, edit, replace_range,
-  append_memory, read_memory, write_memory, list_memories, list_tags,
-  interaction_stats, list_touched_files, list_untouched_files, list_match_only_files,
-  report_vulnerability, list_vulnerabilities.
+- Inserts `@trace`, `@validate`, `@sink` markers using dedicated annotation tools.
+- Reports vulnerabilities (SQL injection, RCE, SSRF, IDOR, BAC, …) only when a
+  concrete tainted-input → sink path is confirmed by code evidence.
+- Operates on MemoryOverlayFileSystem so all writes are buffered in memory.
+- Tool surface:
+    fs read     — `ls`, `glob`, `grep`, `read_file`, `search_def`
+    annotation  — `annotate_trace`, `annotate_validate`, `annotate_sink`
+    memory      — `append_memory`, `read_memory`, `write_memory`, `list_memories`,
+                  `list_tags`, `interaction_stats`
+    coverage    — `list_touched_files`, `list_untouched_files`, `list_match_only_files`
+    vuln        — `report_vulnerability`, `list_vulnerabilities`
+    graph (opt) — `call_graph`, `callers_of`, `callees_of` (enabled by `with_graph_tools`
+                  in `build_trace_agent`; default in `trace-graph`)
+'''
+    }
+
+    traceVerifierAgent = container "Trace Verifier Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Static, code-evidence-only verifier of upstream trace findings (OpenAnt Stage-2 style).
+- Reads, never writes, source code. Cannot author new findings — `report_vulnerability`
+  is filtered out of its tool set (`_READ_ONLY_VULN_TOOL_NAMES`).
+- Produces a structured `VerifiedFinding` verdict via `verification_tools`, paired
+  by namespace with the upstream `VulnerabilityReport`.
 '''
     }
 
     sweAgent = container "SWE Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Worker agent for file-system exploration and dependency/project analysis tasks.
-- Uses fs tools (ls, glob, grep, read_file) to inspect the target codebase.
-- Records discovered findings via memory tools.
-- Invoked by the planning agent through the WorkerAdapter.
+- Worker for read-only file-system exploration and dependency/project analysis.
+- Uses fs tools (`ls`, `glob`, `grep`, `read_file`, `search_def`) to inspect the codebase.
+- Records findings via memory tools.
+- Invoked by the planning agent through the worker adapter.
+'''
+    }
+
+    sweEditAgent = container "SWE Edit Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Sibling of SWE Agent with write tools (`insert_line`, `edit`, `replace_range`) enabled.
+- Reserved for tasks that need source-level edits beyond the trace annotation set
+  (e.g. router-dispatched code changes).
 '''
     }
 
     oasBuilderAgent = container "OAS Builder Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Worker agent specialised in constructing and updating OpenAPI specifications.
+- Worker specialised in constructing and updating OpenAPI specifications.
 - Reads code evidence via fs tools and applies structured schema updates via openapi tools.
 - Records rationale and evidence in memory tools.
-- Invoked by the planning agent through the WorkerAdapter.
+'''
+    }
+
+    oasLinterAgent = container "OAS Linter Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description "Worker that audits the evolving OpenAPI artifact for schema consistency and gaps; one of the router's downstream sub-agents."
+    }
+
+    likec4BuilderAgent = container "LikeC4 Builder Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Worker that authors and validates the LikeC4 architecture file.
+- Uses likec4 tools to read / write the overlay-backed `architecture.c4` plus the
+  standard fs and memory tools for evidence and rationale.
+'''
+    }
+
+    httpAgent = container "HTTP Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description "Worker that issues HTTP probes via the http tool. Available to the router; not on the build/enrich/trace path."
+    }
+
+    routerAgent = container "Router Agent" {
+      technology "Google ADK LlmAgent + LiteLLM"
+      description '''
+- Free-form dispatcher used by the `router` pipeline.
+- Wraps the available worker agents (SWE, OAS builder, OAS linter, trace, HTTP)
+  as AgentTools and picks the right one (or several) for the user's prompt.
+- Invoked as the planner's worker via workerAdapter; the planner still owns
+  subtask state.
 '''
     }
 
@@ -146,27 +275,31 @@ model {
 - Sequential agent that reviews an existing OpenAPI schema.
 - Produces: service name/description/summary, data-flow diagram (Mermaid), criticality rating,
   and a list of endpoint vulnerabilities with severity and confidence scores.
-- Not on the primary build/enrich/trace CLI path; invoked as an independent analysis step.
+- Not on the primary CLI pipelines; invoked as an independent analysis step.
 - Reads from and emits reports to the artifact store.
 '''
     }
 
     workerAdapter = component "Worker-as-Tool Adapter" {
-      technology "AgentTool wrapper"
+      technology "AgentTool wrapper + instrument_worker"
       description '''
-- Wraps a worker agent (SWE Agent, OAS Builder Agent, or Trace Agent) so the planning agent
-  can invoke it via tool semantics (execute_current_subtask).
-- Makes subtask execution part of the planner's tool-driven control loop across all pipelines.
+- Wraps a worker agent (SWE, SWE Edit, OAS Builder, OAS Linter, Trace, Trace Verifier,
+  LikeC4 Builder, HTTP, Router) so the planning agent can invoke it via tool semantics.
+- `instrument_worker` attaches `input_schema = Subtask` and
+  `output_schema = SubtaskExecutionResult`, plus a worker-instruction trailer to the
+  worker's prompt — so any agent in the repo can be used as a worker with no glue.
 '''
     }
 
     taskTools = component "Task Tools" {
       technology "Python functions registered as ADK tools"
       description '''
-- Provides add_subtask, execute_subtask, skip_subtask, and summarise_subtask.
-- Enforces the subtask state machine consumed by the planning agent.
-- Includes optional summarization via a dedicated summarizer sub-agent.
-- Instruments worker agents with structured input/output schemas (Subtask / SubtaskExecutionResult).
+- Implements the streamline subtask state machine consumed by the planning agent.
+- Tools: `add_subtask`, `execute_current_subtask`, `decompose_subtask`,
+  `get_records`, `skip`, `finish`.
+- Enforces `SUBTASK_STATUS_TRANSITIONS` (e.g. `incomplete` / `malformed` can only be
+  decomposed or skipped, never re-executed in place).
+- Owns the streamline summarizer sub-agent used by `finish`.
 '''
     }
 
@@ -175,18 +308,23 @@ model {
       description '''
 - Provides read/write/append/list operations on named memory notes.
 - Backed by the artifact store, so memory persists across iterations of the same task.
-- Used to pass context between planning agent and worker agents, and between pipeline stages.
+- Used to pass context between planning agent and worker agents, and as the carrier
+  for `inbox` (upstream artifacts) and `skill` (markdown reference bundles) injections.
 '''
     }
 
     fsTools = component "File System Tools" {
       technology "RootedLocalFileSystem / MemoryOverlayFileSystem"
       description '''
-- Provides ls, glob, grep, read_file for codebase exploration.
-- For build/enrich pipelines: backed by RootedLocalFileSystem (read-only access).
-- For trace pipeline: backed by MemoryOverlayFileSystem, allowing in-memory writes
-  (annotations) without touching the real filesystem until explicitly saved.
-- Also includes search_def, insert_line, edit, replace_range for trace agent writes.
+- Read: `ls`, `glob`, `grep`, `read_file`, `search_def`.
+- Write (where allowed): `insert_line`, `edit`, `replace_range`, plus the trace-specific
+  `annotate_trace` / `annotate_validate` / `annotate_sink`.
+- Filesystem is always sandboxed: build/enrich/likec4/router see a `RootedLocalFileSystem`;
+  the trace family additionally wraps it in `MemoryOverlayFileSystem` so writes are
+  captured as an artifact diff and never reach the host tree.
+- Optional graph tools (`call_graph`, `callers_of`, `callees_of`) are attached on
+  request via `attach_graph_tools_if_local`; they are the per-agent successor of the
+  retired `code_graph_agent`.
 '''
     }
 
@@ -198,37 +336,53 @@ model {
 '''
     }
 
+    vulnTools = component "Vulnerability Tools" {
+      technology "Python tools backed by the artifact store"
+      description '''
+- `vulnerability_report_tools`: `report_vulnerability`, `list_vulnerabilities` — used
+  by the trace agent to author `VulnerabilityReport`s.
+- `verification_tools`: `verify_finding`, `list_verifications` — used by the trace
+  verifier agent to author `VerifiedFinding`s paired with upstream reports by namespace.
+- Both sets persist under `user:vulnerability-{reports,verifications}/{namespace}` in
+  the artifact store.
+'''
+    }
+
     overlayfs = storage "Memory Overlay Filesystem" {
       technology "MemoryOverlayFileSystem (in-memory)"
       description '''
 - In-memory copy-on-write layer over the target project directory.
-- Used exclusively by the trace pipeline so annotation writes do not touch the real filesystem.
-- State is serialised to artifact store after each API path as `trace-<ns>-fs`.
-- A unified diff is also saved as `trace-<ns>-diff` for inspection.
-- Loaded at the start of each path analysis to resume from prior state.
+- Used by the trace family and the likec4 pipeline so annotation/architecture writes
+  never touch the real filesystem.
+- For trace: state is serialised after each API path as `trace-<ns>-fs`; a unified
+  diff is saved as `trace-<ns>-diff` for inspection; reloaded at the start of each
+  path so successive operations see prior annotations.
 '''
     }
 
     pipelineArtifacts = component "Cross-Task Artifact Handoff" {
       technology "Memory injection convention"
       description '''
-- Converts upstream task artifacts into tagged memory notes (inbox, previous-task-result).
-- Primary continuity mechanism between pipeline stages.
+- Converts upstream task artifacts into tagged memory notes (`inbox`, `previous-task-result`).
+- Primary continuity mechanism between pipeline stages — tasks never share globals.
 '''
     }
 
     templateRenderer = component "Task Template Renderer" {
-      technology "Jinja-like templating layer"
+      technology "str.format over YAML templates"
       description '''
-- Renders task prompt text from task names, variables, and params before each task run.
-- Produces the concrete task objective consumed by the root agent.
+- Renders task prompt text from task names, variables, params, and loaded artifact
+  contents (`artifact__<safe_name>` plus a `{artifacts}` YAML dump) before each run.
+- Same ADK brace pitfall applies inside `.yml` instructions as in agent prompts —
+  bare `{identifier}` is interpreted as a session-state lookup.
 '''
     }
 
     runnerCore = component "ADK Runner Core" {
       technology "google-adk Runner"
       description '''
-- Executes the root agent with session state, artifact service, and attached plugins.
+- Executes the root agent (planner for TaskRunner, worker for AgentRunner) with
+  session state, artifact service, and attached plugins.
 - Produces an event stream that the CLI normalises into metrics logs and trace records.
 '''
     }
@@ -237,21 +391,22 @@ model {
       technology "ADK plugin (AdkTracePlugin)"
       description '''
 - Implements before/after run and before/after tool callbacks on the ADK runner.
-- Converts ADK lifecycle events into TaskRunnerEvents carrying full tool-call /
-  tool-result / step-level trace data.
+- Converts ADK lifecycle events into `TaskRunnerEvent`s carrying full tool-call /
+  tool-result / step-level trace data (Agio event taxonomy).
 '''
     }
 
     metricsPlugin = component "Metrics Plugin" {
-      technology "ADK plugin"
-      description "Captures metrics_* events; the CLI exports these to metrics.jsonl."
+      technology "ADK plugin (AdkMetricsPlugin)"
+      description "Captures tool_call / tool_result / tool_exception / llm_usage / run_summary events (Agio shape); the CLI exports these to metrics.jsonl."
     }
 
     sessionStore = storage "Session Store" {
       technology "InMemorySessionService"
       description '''
 - Per-run / per-iteration session state for ADK Runner.
-- Carries state forward between iterations of the same task.
+- Carries state forward between iterations of the same task under
+  `task::{global_task_id}::*` keys owned by the planner's tools.
 '''
     }
 
@@ -259,40 +414,33 @@ model {
       technology "FileArtifactService"
       description '''
 - Durable artifact storage keyed by app_name, user_id, and filename.
-- Stores task outputs: dependency_information/result, project_information/result,
-  oas_update/result, oas-openapi-building, oas_enrich/result.
-- Also stores summary and records payloads, memory notes, and trace overlay state
-  (trace-<ns>-fs, trace-<ns>-diff).
+- Stores task outputs: `dependency_information/result`, `project_information/result`,
+  `oas_update/result`, `oas-openapi-building`, `oas_enrich/result`,
+  `likec4-architecture.c4`, …
+- Also stores per-task summary/records, memory notes, trace overlay state
+  (`trace-<ns>-fs`, `trace-<ns>-diff`), and `user:vulnerability-{reports,verifications}/{ns}`.
 - Enables cross-task continuity without a long-lived in-memory context.
 '''
     }
 
     localProject = storage "Target Project Directory" {
-      technology "Local filesystem (read-only for build/enrich; overlaid for trace)"
+      technology "Local filesystem (rooted, read-only for build/enrich; overlaid for trace/likec4)"
       description "Repository/codebase being analysed by worker and trace agents."
     }
 
     outputDir = storage "Export Output Directory" {
       technology "Local filesystem"
       description '''
-- Defaults to `.contractor`.
-- Receives exported OpenAPI artifacts, intermediate files, and metrics.jsonl after a CLI run.
+- Defaults to `<project>/.contractor`.
+- Receives exported OpenAPI artifacts, trace diffs, intermediate files, and `metrics.jsonl` after a CLI run.
 '''
     }
 
     litellmProxy = container "LiteLLM Proxy" {
       technology "LiteLLM + OpenAI-compatible backend"
       description '''
-- Required runtime dependency.
-- Model aliases (e.g. lm-studio-qwen3.5) are resolved here and routed to the configured backend.
-'''
-    }
-
-    likec4Stub = component "LikeC4 Stub Tools" {
-      technology "Python dataclass placeholder"
-      description '''
-- `LikeC4Tools` defines: load, save, list_models, list_components, list_views.
-- Not integrated into any active execution path.
+- Required runtime dependency, started via `deploy/litellm/run.sh` (Podman).
+- Model aliases (e.g. `lm-studio-qwen3.6`) are resolved here and routed to the configured backend.
 '''
     }
   }
@@ -301,71 +449,118 @@ model {
 
   user -> cli "runs contractor"
 
-  cli -> pipelineRegistry "selects builder by pipeline name"
+  cli -> pipelineRegistry "selects pipeline class by name"
   pipelineRegistry -> buildPipeline "build"
   pipelineRegistry -> enrichPipeline "enrich"
+  pipelineRegistry -> likec4Pipeline "likec4"
   pipelineRegistry -> tracePipeline "trace"
+  pipelineRegistry -> traceDirectPipeline "trace-direct"
+  pipelineRegistry -> traceGraphPipeline "trace-graph"
+  pipelineRegistry -> traceVerifyPipeline "trace-verify"
+  pipelineRegistry -> routerPipeline "router"
 
-  cli -> taskRunner "creates runner and enqueues tasks"
   cli -> outputDir "exports final artifacts and metrics.jsonl"
   cli -> litellmProxy "resolves model alias"
 
-  buildPipeline -> taskRunner "queue dependency_information"
-  buildPipeline -> taskRunner "queue project_information (depends on dependency artifact)"
-  buildPipeline -> taskRunner "queue oas_update (depends on prior artifacts, multi-iteration)"
-
+  buildPipeline -> taskRunner "queue dependency_information / project_information / oas_update"
   enrichPipeline -> artifactStore "optionally seed oas-openapi-building"
   enrichPipeline -> taskRunner "queue oas_enrich"
 
+  likec4Pipeline -> overlayfs "mount overlay rooted at DEFAULT_LIKEC4_PATH"
+  likec4Pipeline -> artifactStore "seed/save likec4-architecture.c4"
+  likec4Pipeline -> taskRunner "queue dependency_information / project_information / likec4_build / likec4_validate"
+
   tracePipeline -> artifactStore "load oas-openapi-building"
   tracePipeline -> overlayfs "initialise in-memory overlay over target project"
-  tracePipeline -> taskRunner "create per-path TaskRunner, queue trace_annotation per operation"
+  tracePipeline -> taskRunner "per-path: queue trace_annotation per operation"
   tracePipeline -> artifactStore "save trace-<ns>-fs and trace-<ns>-diff after each path"
 
+  traceDirectPipeline -> artifactStore "load oas-openapi-building"
+  traceDirectPipeline -> overlayfs "initialise overlay"
+  traceDirectPipeline -> agentRunner "per-operation single agent invocation"
+  traceDirectPipeline -> artifactStore "save trace-<ns>-fs and trace-<ns>-diff"
+
+  traceGraphPipeline -> agentRunner "per-operation single agent invocation (with_graph_tools=True)"
+  traceGraphPipeline -> overlayfs "initialise overlay"
+  traceGraphPipeline -> artifactStore "save trace-<ns>-fs and trace-<ns>-diff"
+
+  traceVerifyPipeline -> artifactStore "load per-path VulnerabilityReports"
+  traceVerifyPipeline -> taskRunner "per-finding fan-out, one task per finding"
+
+  routerPipeline -> taskRunner "single planner with router_agent as worker"
+  routerPipeline -> agentRunner "trailing free-form run"
+
   taskRunner -> templateRenderer "render task prompt/objective"
-  taskRunner -> artifactStore "load input artifacts"
-  taskRunner -> memoryTools "inject upstream artifacts as prior-task memories"
+  taskRunner -> artifactStore "load input artifacts + persist result/summary/records"
+  taskRunner -> memoryTools "inject upstream artifacts as inbox / previous-task-result"
   taskRunner -> pipelineArtifacts "convert artifacts into memory handoff"
   taskRunner -> sessionStore "create/reuse per-iteration session state"
-  taskRunner -> runnerCore "run planning agent (root agent for all pipelines)"
-  taskRunner -> artifactStore "save result/summary/records"
+  taskRunner -> runnerCore "run planning agent (root agent)"
+
+  agentRunner -> templateRenderer "render task prompt/objective"
+  agentRunner -> sessionStore "create per-invocation session state"
+  agentRunner -> runnerCore "run single worker agent as root"
 
   pipelineArtifacts -> memoryTools "inject upstream outputs as tagged notes"
-
   templateRenderer -> planningAgent "deliver rendered task objective"
 
-  runnerCore -> planningAgent "execute planning agent as root"
+  runnerCore -> planningAgent "execute planning agent as root (TaskRunner)"
+  runnerCore -> traceAgent "execute trace agent as root (AgentRunner, trace-direct/graph)"
   runnerCore -> tracePlugin "emit trace callbacks"
-  runnerCore -> metricsPlugin "emit metrics_* events"
+  runnerCore -> metricsPlugin "emit Agio events"
 
   planningAgent -> taskTools "manage subtask state machine (add/execute/decompose/skip/finish)"
   planningAgent -> memoryTools "read/write working memory"
   planningAgent -> workerAdapter "delegate current subtask to a worker agent"
 
   workerAdapter -> sweAgent "wrap SWE worker"
+  workerAdapter -> sweEditAgent "wrap SWE Edit worker"
   workerAdapter -> oasBuilderAgent "wrap OAS builder worker"
+  workerAdapter -> oasLinterAgent "wrap OAS linter worker"
+  workerAdapter -> likec4BuilderAgent "wrap LikeC4 builder worker"
   workerAdapter -> traceAgent "wrap trace worker"
+  workerAdapter -> traceVerifierAgent "wrap trace verifier worker"
+  workerAdapter -> httpAgent "wrap HTTP worker"
+  workerAdapter -> routerAgent "wrap router worker"
 
   sweAgent -> fsTools "ls / glob / grep / read_file to explore codebase"
   sweAgent -> memoryTools "record findings"
+
+  sweEditAgent -> fsTools "read + write source files (insert_line/edit/replace_range)"
+  sweEditAgent -> memoryTools "record rationale"
 
   oasBuilderAgent -> fsTools "inspect route/controller/model files"
   oasBuilderAgent -> openapiTools "read/update OpenAPI schema state"
   oasBuilderAgent -> memoryTools "record rationale and evidence"
 
-  traceAgent -> fsTools "explore codebase via overlay (grep/ls/glob/read_file)"
-  traceAgent -> fsTools "insert annotations (insert_line/edit/replace_range)"
+  oasLinterAgent -> openapiTools "audit evolving OpenAPI artifact"
+  oasLinterAgent -> memoryTools "record lint findings"
+
+  likec4BuilderAgent -> fsTools "read evidence (overlay-backed)"
+  likec4BuilderAgent -> memoryTools "record rationale"
+  likec4BuilderAgent -> overlayfs "write architecture.c4 in-memory"
+
+  traceAgent -> fsTools "explore codebase via overlay (read tools + optional graph tools)"
+  traceAgent -> fsTools "insert annotations (annotate_trace/validate/sink)"
   traceAgent -> memoryTools "store and retrieve findings"
+  traceAgent -> vulnTools "report_vulnerability / list_vulnerabilities"
   traceAgent -> overlayfs "all writes buffered in-memory"
 
+  traceVerifierAgent -> fsTools "read source as evidence (no writes)"
+  traceVerifierAgent -> vulnTools "verify_finding / list_verifications"
+  traceVerifierAgent -> memoryTools "record reasoning"
+
+  httpAgent -> memoryTools "log probes/results"
+
+  routerAgent -> workerAdapter "delegates to wrapped sub-agents (SWE / OAS / Trace / HTTP)"
+
   fsTools -> localProject "rooted read access (build/enrich)"
-  fsTools -> overlayfs "copy-on-write access (trace)"
+  fsTools -> overlayfs "copy-on-write access (trace/likec4)"
   openapiTools -> artifactStore "persist evolving OpenAPI artifact"
   memoryTools -> artifactStore "persist memory notes"
+  vulnTools -> artifactStore "persist VulnerabilityReports and VerifiedFindings"
 
   oasAnalyzer -> artifactStore "reads inputs / emits analysis reports"
-
-  likec4Stub -> artifactStore "would persist/load LikeC4 state if adopted"
 }
 
 views {
@@ -382,12 +577,24 @@ views {
     include pipelineRegistry
     include buildPipeline
     include enrichPipeline
+    include likec4Pipeline
     include tracePipeline
+    include traceDirectPipeline
+    include traceGraphPipeline
+    include traceVerifyPipeline
+    include routerPipeline
     include taskRunner
+    include agentRunner
     include planningAgent
     include traceAgent
+    include traceVerifierAgent
     include sweAgent
+    include sweEditAgent
     include oasBuilderAgent
+    include oasLinterAgent
+    include likec4BuilderAgent
+    include httpAgent
+    include routerAgent
     include oasAnalyzer
     include runnerCore
     include litellmProxy
@@ -405,13 +612,17 @@ views {
     title "Contractor — agent, tools, and storage detail"
     include planningAgent
     include traceAgent
+    include traceVerifierAgent
     include sweAgent
     include oasBuilderAgent
+    include likec4BuilderAgent
+    include routerAgent
     include workerAdapter
     include taskTools
     include memoryTools
     include fsTools
     include openapiTools
+    include vulnTools
     include overlayfs
     include pipelineArtifacts
     include artifactStore
@@ -424,7 +635,9 @@ views {
     include cli
     include buildPipeline
     include enrichPipeline
+    include likec4Pipeline
     include tracePipeline
+    include traceVerifyPipeline
     include taskRunner
     include taskTools
     include templateRenderer
@@ -432,7 +645,9 @@ views {
     include workerAdapter
     include sweAgent
     include oasBuilderAgent
+    include likec4BuilderAgent
     include traceAgent
+    include traceVerifierAgent
     include pipelineArtifacts
     include artifactStore
     include sessionStore
@@ -443,12 +658,18 @@ views {
     title "Contractor — trace pipeline detail"
     include cli
     include tracePipeline
+    include traceDirectPipeline
+    include traceGraphPipeline
+    include traceVerifyPipeline
     include taskRunner
+    include agentRunner
     include planningAgent
     include workerAdapter
     include traceAgent
+    include traceVerifierAgent
     include fsTools
     include memoryTools
+    include vulnTools
     include overlayfs
     include artifactStore
     include localProject
@@ -462,21 +683,30 @@ views {
     include pipelineRegistry
     include buildPipeline
     include enrichPipeline
+    include likec4Pipeline
     include tracePipeline
+    include traceDirectPipeline
+    include traceGraphPipeline
+    include traceVerifyPipeline
+    include routerPipeline
     include taskRunner
+    include agentRunner
     include templateRenderer
     include planningAgent
     include traceAgent
+    include traceVerifierAgent
     include sweAgent
     include oasBuilderAgent
+    include likec4BuilderAgent
+    include routerAgent
     include taskTools
     include memoryTools
     include fsTools
     include openapiTools
+    include vulnTools
     include artifactStore
     include sessionStore
     include overlayfs
-    include likec4Stub
     autoLayout lr
   }
 
@@ -484,9 +714,12 @@ views {
     title "Contractor — file tools and repository access"
     include planningAgent
     include traceAgent
+    include traceVerifierAgent
     include workerAdapter
     include sweAgent
+    include sweEditAgent
     include oasBuilderAgent
+    include likec4BuilderAgent
     include fsTools
     include memoryTools
     include openapiTools
@@ -520,7 +753,7 @@ views {
 
     user -> cli "Invoke `contractor --pipeline build`"
     cli -> pipelineRegistry "Resolve build pipeline"
-    pipelineRegistry -> buildPipeline "Create build task sequence"
+    pipelineRegistry -> buildPipeline "Construct OasBuildingPipeline"
     buildPipeline -> taskRunner "Enqueue dependency_information"
     buildPipeline -> taskRunner "Enqueue project_information"
     buildPipeline -> taskRunner "Enqueue oas_update (multi-iteration)"
@@ -538,11 +771,11 @@ views {
   }
 
   dynamic traceRun {
-    title "Dynamic — trace pipeline run"
+    title "Dynamic — trace pipeline run (planner-driven)"
 
     user -> cli "Invoke `contractor --pipeline trace --artifact openapi.yaml`"
     cli -> pipelineRegistry "Resolve trace pipeline"
-    pipelineRegistry -> tracePipeline "Create AnnotationRunner"
+    pipelineRegistry -> tracePipeline "Construct TraceAnnotationPipeline"
     tracePipeline -> artifactStore "Load oas-openapi-building"
     tracePipeline -> overlayfs "Initialise memory overlay over project"
     tracePipeline -> taskRunner "Per-path: queue trace_annotation per operation"
@@ -551,12 +784,49 @@ views {
     planningAgent -> workerAdapter "Delegate trace_annotation subtask"
     workerAdapter -> traceAgent "Invoke trace worker for current operation"
     traceAgent -> fsTools "Explore codebase via overlay"
-    traceAgent -> fsTools "Insert @trace/@validate/@sink annotations"
+    traceAgent -> fsTools "Insert @trace / @validate / @sink annotations"
+    traceAgent -> vulnTools "report_vulnerability when sink path confirmed"
     traceAgent -> memoryTools "Record findings"
     traceAgent -> overlayfs "Buffer annotation writes in-memory"
     tracePipeline -> artifactStore "Save trace-<ns>-fs overlay state"
     tracePipeline -> artifactStore "Save trace-<ns>-diff unified diff"
     cli -> outputDir "Export annotation diffs and metrics.jsonl"
+  }
+
+  dynamic traceDirectRun {
+    title "Dynamic — trace-direct / trace-graph run"
+
+    user -> cli "Invoke `contractor --pipeline trace-direct` (or trace-graph)"
+    cli -> pipelineRegistry "Resolve direct trace pipeline"
+    pipelineRegistry -> traceDirectPipeline "Construct TraceAnnotationDirectPipeline"
+    traceDirectPipeline -> artifactStore "Load oas-openapi-building"
+    traceDirectPipeline -> overlayfs "Initialise memory overlay"
+    traceDirectPipeline -> agentRunner "Per-operation: invoke trace_agent directly"
+    agentRunner -> runnerCore "Run trace_agent as root (no planner)"
+    runnerCore -> traceAgent "Execute single agent loop"
+    traceAgent -> fsTools "Read + annotate via overlay"
+    traceAgent -> vulnTools "report_vulnerability when sink path confirmed"
+    traceAgent -> overlayfs "Buffer writes in-memory"
+    traceDirectPipeline -> artifactStore "Save trace-<ns>-fs / trace-<ns>-diff per path"
+    cli -> outputDir "Export annotation diffs and metrics.jsonl"
+  }
+
+  dynamic traceVerifyRun {
+    title "Dynamic — trace-verify run (Stage-2 verifier)"
+
+    user -> cli "Invoke `contractor --pipeline trace-verify --artifact openapi.yaml`"
+    cli -> pipelineRegistry "Resolve trace-verify pipeline"
+    pipelineRegistry -> traceVerifyPipeline "Construct TraceVerifyPipeline"
+    traceVerifyPipeline -> artifactStore "Load per-path VulnerabilityReports from prior trace run"
+    traceVerifyPipeline -> taskRunner "Per-finding: queue trace_verify task"
+    taskRunner -> runnerCore "Run planning agent with trace_verifier_agent as worker"
+    runnerCore -> planningAgent "Execute subtask state machine"
+    planningAgent -> workerAdapter "Delegate verify subtask"
+    workerAdapter -> traceVerifierAgent "Static, read-only verifier"
+    traceVerifierAgent -> fsTools "Read source as evidence"
+    traceVerifierAgent -> vulnTools "verify_finding (paired with upstream report by namespace)"
+    taskRunner -> artifactStore "Save result/summary/records + VerifiedFinding"
+    cli -> outputDir "Export verdicts and metrics.jsonl"
   }
 
   dynamic memoryHandoffRun {
@@ -570,51 +840,31 @@ views {
     planningAgent -> workerAdapter "Delegate subtask to appropriate worker"
   }
 
-  dynamic fileToolsWorkflow {
-    title "Dynamic — file tools workflow"
-
-    planningAgent -> workerAdapter "Dispatch repo-analysis subtask"
-    workerAdapter -> sweAgent "Invoke SWE worker"
-    sweAgent -> fsTools "ls to inspect top-level structure"
-    sweAgent -> fsTools "glob to find route, handler, model, schema, and config files"
-    sweAgent -> fsTools "grep to locate framework-specific signatures and endpoints"
-    sweAgent -> fsTools "read_file for evidence extraction"
-    sweAgent -> memoryTools "Write discovered findings and rationale"
-
-    planningAgent -> workerAdapter "Dispatch OAS-oriented subtask"
-    workerAdapter -> oasBuilderAgent "Invoke OAS builder worker"
-    oasBuilderAgent -> fsTools "Inspect route/controller/model files"
-    oasBuilderAgent -> openapiTools "Read current OpenAPI state"
-    oasBuilderAgent -> openapiTools "Apply structured updates from file evidence"
-    oasBuilderAgent -> memoryTools "Record why schema changes were made"
-
-    planningAgent -> workerAdapter "Dispatch trace annotation subtask"
-    workerAdapter -> traceAgent "Invoke trace worker"
-    traceAgent -> fsTools "Explore codebase via overlay"
-    traceAgent -> fsTools "Insert structured annotations into source files"
-    traceAgent -> memoryTools "Record entrypoints, sinks, and validation patterns"
-  }
-
   dynamic instrumentationFlow {
     title "Dynamic — execution tracing and metrics"
 
     cli -> taskRunner "Register on_event handler"
     taskRunner -> runnerCore "Attach plugins"
     runnerCore -> tracePlugin "Emit trace callbacks (before/after run and tool)"
-    runnerCore -> metricsPlugin "Emit metrics_* events"
+    runnerCore -> metricsPlugin "Emit Agio events (tool_call / tool_result / llm_usage / run_summary)"
     taskRunner -> cli "Surface normalised events"
     cli -> outputDir "Write metrics.jsonl and exported artifacts"
   }
 }
 
 // Notes:
-// 1. The planning agent is the single root agent for ALL pipelines (build, enrich, trace).
-//    It always sits between the TaskRunner and the worker agents.
-// 2. SWE Agent, OAS Builder Agent, and Trace Agent are all workers: they are wrapped by
-//    workerAdapter and invoked by the planning agent via execute_current_subtask.
-// 3. The `trace` pipeline is a first-class pipeline (trace_annotation_pipeline /
-//    AnnotationRunner) with MemoryOverlayFileSystem and per-operation TaskRunner instances.
-// 4. oasAnalyzer (SequentialAgent) remains present in code but is not on the primary CLI path.
-// 5. LikeC4 tooling (likec4Stub) is still a placeholder dataclass with no active integration.
-// 6. This file is hand-authored architecture documentation, not generated by the repo's own
-//    LikeC4 tooling.
+// 1. The planning agent is the root agent for every TaskRunner-driven pipeline
+//    (build, enrich, likec4, trace, trace-verify, router). It always sits between
+//    the TaskRunner and the worker agents.
+// 2. `trace-direct` and `trace-graph` bypass the planner entirely — they use the
+//    bare `AgentRunner` (`contractor/runners/agent_runner.py`) and run `trace_agent`
+//    directly, one invocation per OpenAPI operation. `trace-graph` is the
+//    production default for the trace family (same quality as the prompt-only
+//    baseline on small fixtures, materially better on large ones).
+// 3. The `code_graph_agent` has been retired; its graph capabilities now ship as
+//    per-agent opt-in tools (`attach_graph_tools_if_local` / `with_graph_tools=True`).
+// 4. `trace-verify` is downstream of `trace` / `trace-direct`. The verifier is
+//    code-evidence-only (no HTTP probes) and cannot author new findings.
+// 5. `oasAnalyzer` (SequentialAgent) remains present but is not on any primary CLI path.
+// 6. This file is hand-authored architecture documentation, not generated by the
+//    repo's own LikeC4 tooling (which is a real working pipeline now).
