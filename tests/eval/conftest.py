@@ -35,6 +35,7 @@ class EvalFixture:
     expected_vulnerabilities: list[dict[str, Any]]
     swe_cases: list[dict[str, Any]]
     trace_cases: list[dict[str, Any]]
+    task_cases: list[dict[str, Any]]
 
 
 def _load_yaml(path: Path) -> Any:
@@ -73,6 +74,7 @@ def _load_fixture(slug: str) -> EvalFixture:
         ),
         swe_cases=_maybe_load_json(fixture_dir / "swe-cases.json", []),
         trace_cases=_maybe_load_json(fixture_dir / "trace-cases.json", []),
+        task_cases=_maybe_load_json(fixture_dir / "task-cases.json", []),
     )
 
 
@@ -121,7 +123,7 @@ def eval_model() -> LiteLlm:
 
 @pytest.fixture(
     scope="session",
-    params=["spring", "fastapi", "vulnyapi", "vaultpay"],
+    params=["spring", "fastapi", "vulnyapi", "vaultpay", "crapi-workshop", "crapi-identity"],
     ids=lambda s: f"fixture[{s}]",
 )
 def fixture(request: pytest.FixtureRequest) -> EvalFixture:

@@ -1,0 +1,115 @@
+[
+  {
+    "id": "auth-login-credential-flow",
+    "intent": "Trace POST /identity/api/auth/login. Follow the LoginForm body from AuthController.authenticateUser into UserService.authenticateUserLogin. Annotate the entrypoint and the service-layer implementation.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "authenticateUser",
+      "route": "POST /identity/api/auth/login"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "authenticateUser" },
+      { "file": "/src/main/java/com/crapi/service/Impl/UserServiceImpl.java", "function": "authenticateUserLogin" }
+    ],
+    "min_precision": 0.4,
+    "min_recall": 0.5
+  },
+  {
+    "id": "auth-signup-registration",
+    "intent": "Trace POST /identity/api/auth/signup. Follow SignUpForm from AuthController.registerUser into UserRegistrationService.registerUser. Annotate the entrypoint and note any validation / dedup checks.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "registerUser",
+      "route": "POST /identity/api/auth/signup"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "registerUser" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "auth-verify-jwt-flow",
+    "intent": "Trace POST /identity/api/auth/verify. Follow JwtTokenForm.token from AuthController.verifyJwtToken into UserService.verifyJwtToken and the JwtProvider's validate path. Identify how signed tokens are checked.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "verifyJwtToken",
+      "route": "POST /identity/api/auth/verify"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "verifyJwtToken" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "vehicle-get-location-no-owner-check",
+    "intent": "Trace GET /identity/vehicle/{carId}/location. The handler resolves any car location by UUID with no comparison against the calling user. Annotate the entrypoint and the service method it delegates to.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/VehicleController.java",
+      "function": "getLocationByCarId",
+      "route": "GET /identity/vehicle/{carId}/location"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/VehicleController.java", "function": "getLocationByCarId" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "profile-admin-delete-video",
+    "intent": "Trace DELETE /identity/api/v2/admin/videos/{video_id}. The handler is named to imply admin-only access yet performs no role check itself — that responsibility is delegated to the service layer. Annotate the entrypoint and the service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/ProfileController.java",
+      "function": "deleteVideoAsAdmin",
+      "route": "DELETE /identity/api/v2/admin/videos/{video_id}"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/ProfileController.java", "function": "deleteVideoAsAdmin" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "profile-convert-video",
+    "intent": "Trace GET /identity/api/v2/user/videos/convert_video. The handler reads `video_id` from the query string and calls ProfileService.convertVideo, which in the legacy code path runs a shell command built from conversion params stored on the ProfileVideo record. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/ProfileController.java",
+      "function": "convertVideoEndPoint",
+      "route": "GET /identity/api/v2/user/videos/convert_video"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/ProfileController.java", "function": "convertVideoEndPoint" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "change-email-verify-token",
+    "intent": "Trace POST /identity/api/v2/user/verify-email-token. Follow ChangeEmailForm with the verification token from ChangeEmailController.verifyEmailToken into UserService.verifyEmailToken. Note how the token is matched.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/ChangeEmailController.java",
+      "function": "verifyEmailToken",
+      "route": "POST /identity/api/v2/user/verify-email-token"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/ChangeEmailController.java", "function": "verifyEmailToken" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "change-phone-verify-otp",
+    "intent": "Trace POST /identity/api/v2/user/verify-phone-otp. Follow ChangePhoneForm with the OTP from ChangePhoneController.verifyPhoneOTP into UserService.verifyPhoneOTP. Note whether attempt counting / rate-limit guards the check.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/ChangePhoneController.java",
+      "function": "verifyPhoneOTP",
+      "route": "POST /identity/api/v2/user/verify-phone-otp"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/ChangePhoneController.java", "function": "verifyPhoneOTP" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  }
+]

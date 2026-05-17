@@ -1,0 +1,186 @@
+[
+  {
+    "id": "shop-apply-coupon-sqli",
+    "intent": "Trace POST workshop/api/shop/apply_coupon. The handler builds a raw SQL string by concatenating the user-supplied `coupon_code` (and `user.id`) into a cursor.execute call. Annotate the entrypoint that performs the raw query.",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/shop/apply_coupon"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "shop-order-get-bola",
+    "intent": "Trace GET workshop/api/shop/orders/{order_id}. The handler looks up Order by id; there is no @jwt_auth_required decorator and no ownership check, so any caller can read any order. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/shop/orders/{order_id}"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "get" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "merchant-contact-mechanic-ssrf",
+    "intent": "Trace POST workshop/api/merchant/contact_mechanic. Follow `request.data['mechanic_api']` into the outbound `requests.get` call — the URL is taken directly from the request body with no host allowlist. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/crapi/merchant/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/merchant/contact_mechanic"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/merchant/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-signup-role-assignment",
+    "intent": "Trace POST workshop/api/mechanic/signup. The handler is @csrf_exempt and not behind @jwt_auth_required; it creates a User with role=MECH gated only by a shared `mechanic_code`. Annotate the entrypoint and note the missing auth/role checks.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/mechanic/signup"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "admin-users-all-broken-ac",
+    "intent": "Trace GET workshop/api/management/users/all. The handler is decorated with @jwt_auth_required but performs no role/admin check before returning every UserDetails row. Annotate the entrypoint and note the absent role check.",
+    "entrypoint": {
+      "file": "/crapi/user/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/management/users/all"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/user/views.py", "function": "get" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-service-request-put-bola",
+    "intent": "Trace PUT workshop/api/mechanic/service_request/{service_request_id}. The handler updates ServiceRequest by id but never checks that the caller owns (or is the mechanic assigned to) that request. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "put",
+      "route": "PUT /workshop/api/mechanic/service_request/{service_request_id}"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "put" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-download-report-path-traversal",
+    "intent": "Trace GET workshop/api/mechanic/download_report. The handler validates `filename` against an allow-list, then `unquote()`s it (decoding `%2e%2e%2f` after validation) before joining with the reports directory and opening the file. Annotate the entrypoint and the validate_filename helper.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/mechanic/download_report"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "get" },
+      { "file": "/crapi/mechanic/views.py", "function": "validate_filename" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "shop-products-post-role-check",
+    "intent": "Trace POST workshop/api/shop/products. The handler is decorated with @jwt_auth_required but performs no role/admin check before saving a new Product to the catalogue. Annotate the entrypoint and note whether anything restricts who may create products.",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/shop/products"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-receive-report-no-auth",
+    "intent": "Trace GET workshop/api/mechanic/receive_report. The handler has no @jwt_auth_required decorator and creates a ServiceRequest using the supplied mechanic_code + vin. Annotate the entrypoint and note the missing authentication.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/mechanic/receive_report"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "get" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-service-request-get-no-auth",
+    "intent": "Trace GET workshop/api/mechanic/service_request/{service_request_id}. The GET method has no @jwt_auth_required decorator (the sibling PUT does); any caller can read any service request by id. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/mechanic/service_request/{service_request_id}"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "get" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "shop-orders-post-quantity-bounds",
+    "intent": "Trace POST workshop/api/shop/orders. Follow request.data['quantity'] through credit-balance arithmetic — there is no lower bound on quantity, so a negative value flips the available_credit subtraction into an addition. Annotate the entrypoint and (if a serializer enforces bounds) the validation function.",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/shop/orders"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "shop-return-order-defended-path",
+    "intent": "Trace POST workshop/api/shop/orders/return_order. The handler reads order_id from the query string but DOES compare order.user to the caller before returning. Annotate the entrypoint and note the present ownership check (Shape B negative case).",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/shop/orders/return_order"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "mechanic-get-report-fetch",
+    "intent": "Trace GET workshop/api/mechanic/mechanic_report. The handler reads report_id from the query string, requires it to be numeric, and then fetches the ServiceRequest by id with no ownership check. Annotate the entrypoint and the service_report_pdf helper it calls.",
+    "entrypoint": {
+      "file": "/crapi/mechanic/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/mechanic/mechanic_report"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/mechanic/views.py", "function": "get" },
+      { "file": "/crapi/mechanic/views.py", "function": "service_report_pdf" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  }
+]

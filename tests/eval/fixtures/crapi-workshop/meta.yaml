@@ -1,0 +1,11 @@
+slug: crapi-workshop
+language: python
+framework: django
+source_root: tests/playground/crapi/services/workshop
+description: >
+  OWASP crAPI "workshop" service — Django/DRF micro-service covering
+  shop (products, orders, coupons), mechanic (sign-up, service
+  requests, report download), merchant (contact-mechanic), and an
+  admin user listing endpoint. URL prefixes mounted under
+  `/workshop/api/<area>/`. Used as a multi-area Django fixture for
+  the trace_agent eval; complements the FastAPI vulnyapi fixture.

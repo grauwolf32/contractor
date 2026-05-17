@@ -1,0 +1,11 @@
+slug: crapi-identity
+language: java
+framework: spring
+source_root: tests/playground/crapi/services/identity
+description: >
+  OWASP crAPI "identity" service — Spring Boot REST API covering
+  authentication (signup, login, JWT verify, password reset OTP),
+  email/phone change with verification tokens, user/vehicle/profile
+  controllers, and a video-conversion endpoint. Sibling fixture to
+  crapi-workshop; same submodule (`tests/playground/crapi`), different
+  service root.

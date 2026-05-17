@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -129,3 +130,27 @@ def score_phrases(
 ) -> Score:
     found = {p for p in expected_phrases if has_phrase(text, p, case_sensitive)}
     return _score_sets(found, set(expected_phrases))
+
+
+_MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
+
+
+def markdown_headings(text: str) -> set[str]:
+    """Return the lowercased text of every ATX-style markdown heading."""
+    return {m.group(1).strip().lower() for m in _MARKDOWN_HEADING_RE.finditer(text)}
+
+
+def score_markdown_sections(text: str, expected_sections: list[str]) -> Score:
+    """Score how many expected headings the document contains.
+
+    Matching is case-insensitive substring — an expected ``"Configuration"``
+    matches any heading containing the word. Use this for structural
+    checks on Markdown task outputs (e.g. ``project_information``'s
+    nine numbered categories).
+    """
+    headings = markdown_headings(text)
+    expected_norm = [s.strip().lower() for s in expected_sections]
+    found = {
+        exp for exp in expected_norm if any(exp in h for h in headings)
+    }
+    return _score_sets(found, set(expected_norm))
