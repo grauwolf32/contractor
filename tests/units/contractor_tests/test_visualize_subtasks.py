@@ -115,6 +115,105 @@ def test_build_tree_sorts_children_numerically(vs):
     assert nodes["1"].children == ["1.1", "1.2", "1.10"]
 
 
+def test_extract_runs_collects_add_subtask_calls_by_session(vs):
+    events = [
+        {
+            "type": "tool_call",
+            "tool_name": "add_subtask",
+            "session_id": "sess-A",
+            "tool_call_id": "c1",
+            "arguments": {"title": "first", "description": "do thing 1"},
+        },
+        {
+            "type": "tool_call",
+            "tool_name": "add_subtask",
+            "session_id": "sess-A",
+            "tool_call_id": "c2",
+            "arguments": {"title": "second", "description": "do thing 2"},
+        },
+        {
+            "type": "tool_call",
+            "tool_name": "add_subtask",
+            "session_id": "sess-other",
+            "tool_call_id": "c3",
+            "arguments": {"title": "stray", "description": "unrelated"},
+        },
+        {
+            "type": "task_finished",
+            "task_name": "build",
+            "task_id": 0,
+            "session_id": "sess-A",
+            "records": [{"task_id": "1", "title": "first", "status": "done"}],
+        },
+    ]
+    runs = vs.extract_runs(events)
+    assert len(runs) == 1
+    assert [a.title for a in runs[0].add_actions] == ["first", "second"]
+
+
+def test_extract_runs_drops_add_subtask_calls_that_errored(vs):
+    events = [
+        {
+            "type": "tool_call",
+            "tool_name": "add_subtask",
+            "session_id": "sess",
+            "tool_call_id": "c1",
+            "arguments": {"title": "ok", "description": "ok"},
+        },
+        {
+            "type": "tool_call",
+            "tool_name": "add_subtask",
+            "session_id": "sess",
+            "tool_call_id": "c2",
+            "arguments": {"title": "limit-hit", "description": "boom"},
+        },
+        {
+            "type": "tool_result",
+            "tool_name": "add_subtask",
+            "session_id": "sess",
+            "tool_call_id": "c2",
+            "result_error": True,
+        },
+        {
+            "type": "task_finished",
+            "task_name": "x",
+            "task_id": 0,
+            "session_id": "sess",
+            "records": [{"task_id": "1", "title": "ok", "status": "done"}],
+        },
+    ]
+    runs = vs.extract_runs(events)
+    assert [a.title for a in runs[0].add_actions] == ["ok"]
+
+
+def test_build_tree_backfills_new_subtask_from_add_action(vs):
+    records = [{"task_id": "1", "title": "executed", "status": "done"}]
+    adds = [
+        vs.AddSubtaskAction(title="executed", description="", session_id="s"),
+        vs.AddSubtaskAction(title="never ran", description="", session_id="s"),
+    ]
+    nodes, roots = vs.build_tree(records, adds)
+    assert roots == ["1", "2"]
+    assert nodes["2"].status == "new"
+    assert nodes["2"].title == "never ran"
+    # Existing record's status must not be overwritten.
+    assert nodes["1"].status == "done"
+
+
+def test_build_tree_ignores_add_actions_when_record_count_matches(vs):
+    records = [
+        {"task_id": "1", "title": "a", "status": "done"},
+        {"task_id": "2", "title": "b", "status": "done"},
+    ]
+    adds = [
+        vs.AddSubtaskAction(title="a", description="", session_id="s"),
+        vs.AddSubtaskAction(title="b", description="", session_id="s"),
+    ]
+    nodes, roots = vs.build_tree(records, adds)
+    assert roots == ["1", "2"]
+    assert all(n.status == "done" for n in nodes.values())
+
+
 def test_render_tree_writes_png(vs, tmp_path: Path):
     records = [
         {"task_id": "1", "title": "do thing", "status": "done"},
