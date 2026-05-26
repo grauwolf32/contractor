@@ -8,15 +8,12 @@ and score the findings against an expected vulnerability list.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 import yaml
 
 from contractor.agents.oas_analyzer.agent import root_agent
-
 from tests.eval.harness import run_agent
-from tests.eval.scoring import score_vulnerabilities
+from tests.eval.scorers import score_oas_analysis
 
 VULN_STATE_KEY = "oas_analyzer::vulnerabilities"
 SERVICE_INFO_KEY = "oas_analyzer::service_information"
@@ -36,10 +33,6 @@ def _user_message(schema: dict) -> str:
 @pytest.mark.eval
 @pytest.mark.asyncio
 async def test_oas_analyzer_finds_expected_classes(fixture, eval_model):
-    # Inject the model into every LlmAgent in the analyzer tree. The analyzer
-    # currently captures DEFAULT_MODEL at import time, so this monkeys the
-    # configured model onto each constructed sub-agent for the duration of
-    # the test.
     from google.adk.agents import LlmAgent
 
     def _all_llm_agents(node) -> list:
@@ -66,14 +59,14 @@ async def test_oas_analyzer_finds_expected_classes(fixture, eval_model):
     assert isinstance(vulnerabilities, list), (
         f"expected list under {VULN_STATE_KEY}, got {type(vulnerabilities).__name__}"
     )
-
     assert run.state.get(SERVICE_INFO_KEY), (
         "review sub-agent did not populate oas_analyzer::service_information"
     )
 
-    score = score_vulnerabilities(vulnerabilities, fixture.expected_vulnerabilities)
-
-    debug_msg = score.explain("vulnerabilities") + "\nactual:\n" + json.dumps(
-        vulnerabilities, indent=2, default=str
+    result = score_oas_analysis(
+        vulnerabilities, fixture.expected_vulnerabilities,
+        min_precision=0.4, min_recall=0.5,
     )
-    assert score.passes(min_precision=0.4, min_recall=0.5), debug_msg
+    assert result.passed, (
+        f"oas_analyzer eval failed: fixture={fixture.slug}\n{result.explain()}"
+    )

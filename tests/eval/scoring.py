@@ -1,8 +1,53 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
+
+# ---------------------------------------------------------------------------
+# Composite eval result
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EvalCheck:
+    """A single named check within an eval result."""
+
+    name: str
+    passed: bool
+    details: str
+
+
+@dataclass
+class EvalResult:
+    """Composite eval result — one or more named checks.
+
+    Tests assert ``result.passed``; scripts can also inspect individual
+    checks and the ``meta`` dict for underlying Score objects / run info.
+    """
+
+    checks: list[EvalCheck]
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def passed(self) -> bool:
+        return all(c.passed for c in self.checks)
+
+    def explain(self) -> str:
+        lines: list[str] = []
+        for c in self.checks:
+            status = "PASS" if c.passed else "FAIL"
+            lines.append(f"[{status}] {c.name}")
+            for detail_line in c.details.splitlines():
+                lines.append(f"  {detail_line}")
+        for key, value in self.meta.items():
+            lines.append(f"{key}={value}")
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Primitive score
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 import pytest
 import yaml
@@ -25,22 +25,6 @@ for _env_path in (REPO_ROOT / "cli" / ".env", REPO_ROOT / ".env"):
         load_dotenv(_env_path, override=False)
 
 
-@dataclass(frozen=True)
-class EvalFixture:
-    """A self-contained eval fixture: source tree + ground-truth artifacts."""
-
-    slug: str
-    source_root: Path
-    expected_oas: dict[str, Any]
-    expected_vulnerabilities: list[dict[str, Any]]
-    swe_cases: list[dict[str, Any]]
-    trace_cases: list[dict[str, Any]]
-    task_cases: list[dict[str, Any]]
-    planner_cases: list[dict[str, Any]]
-    vuln_cases: list[dict[str, Any]]
-    benchmark: Optional[str]
-
-
 def _load_yaml(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -59,7 +43,110 @@ def _maybe_load_json(path: Path, default: Any) -> Any:
     return _load_json(path) if path.is_file() else default
 
 
+@dataclass
+class EvalFixture:
+    """A self-contained eval fixture: source tree + lazily-loaded ground-truth.
+
+    Case files (``*-cases.json``) and expected-output files are loaded on
+    first access and cached for the lifetime of the fixture.  This avoids
+    reading planner cases when only running trace evals, and means adding a
+    new case type never requires touching this dataclass.
+    """
+
+    slug: str
+    source_root: Path
+    benchmark: Optional[str]
+    _fixture_dir: Path = field(repr=False)
+    _cache: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+
+    def load_cases(self, case_type: str) -> list[dict[str, Any]]:
+        """Load ``{case_type}-cases.json`` from the fixture directory."""
+        key = f"cases:{case_type}"
+        if key not in self._cache:
+            self._cache[key] = _maybe_load_json(
+                self._fixture_dir / f"{case_type}-cases.json", [],
+            )
+        return self._cache[key]
+
+    def _load_expected_yaml(self, name: str) -> dict[str, Any]:
+        key = f"yaml:{name}"
+        if key not in self._cache:
+            self._cache[key] = _maybe_load_yaml(
+                self._fixture_dir / f"{name}.yaml", {},
+            ) or {}
+        return self._cache[key]
+
+    def _load_expected_json(self, name: str) -> list[dict[str, Any]]:
+        key = f"json:{name}"
+        if key not in self._cache:
+            self._cache[key] = _maybe_load_json(
+                self._fixture_dir / f"{name}.json", [],
+            )
+        return self._cache[key]
+
+    # -- ground-truth accessors ------------------------------------------------
+
+    @property
+    def expected_oas(self) -> dict[str, Any]:
+        return self._load_expected_yaml("oas.expected")
+
+    @property
+    def expected_vulnerabilities(self) -> list[dict[str, Any]]:
+        return self._load_expected_json("vulnerabilities.expected")
+
+    # -- convenience case-list properties --------------------------------------
+
+    @property
+    def swe_cases(self) -> list[dict[str, Any]]:
+        return self.load_cases("swe")
+
+    @property
+    def trace_cases(self) -> list[dict[str, Any]]:
+        return self.load_cases("trace")
+
+    @property
+    def task_cases(self) -> list[dict[str, Any]]:
+        return self.load_cases("task")
+
+    @property
+    def planner_cases(self) -> list[dict[str, Any]]:
+        return self.load_cases("planner")
+
+    @property
+    def vuln_cases(self) -> list[dict[str, Any]]:
+        return self.load_cases("vuln")
+
+
+# ---------------------------------------------------------------------------
+# Fixture discovery & caching
+# ---------------------------------------------------------------------------
+
+def _discover_fixture_slugs() -> list[str]:
+    """Auto-discover all fixture slugs that have ``meta.yaml``."""
+    if not FIXTURES_ROOT.is_dir():
+        return []
+    return sorted(
+        d.name
+        for d in FIXTURES_ROOT.iterdir()
+        if d.is_dir() and (d / "meta.yaml").is_file()
+    )
+
+
+def _discover_slugs_with_cases(case_type: str) -> list[str]:
+    """Auto-discover fixture slugs containing ``{case_type}-cases.json``."""
+    return [
+        slug
+        for slug in _discover_fixture_slugs()
+        if (FIXTURES_ROOT / slug / f"{case_type}-cases.json").is_file()
+    ]
+
+
+_fixture_cache: dict[str, EvalFixture] = {}
+
+
 def _load_fixture(slug: str) -> EvalFixture:
+    if slug in _fixture_cache:
+        return _fixture_cache[slug]
     fixture_dir = FIXTURES_ROOT / slug
     meta = _load_yaml(fixture_dir / "meta.yaml")
     source_root = (REPO_ROOT / meta["source_root"]).resolve()
@@ -68,21 +155,35 @@ def _load_fixture(slug: str) -> EvalFixture:
             f"Fixture {slug} source_root not found: {source_root}. "
             "Did you initialise the playground submodule?"
         )
-    return EvalFixture(
+    fix = EvalFixture(
         slug=slug,
         source_root=source_root,
-        expected_oas=_maybe_load_yaml(fixture_dir / "oas.expected.yaml", {}) or {},
-        expected_vulnerabilities=_maybe_load_json(
-            fixture_dir / "vulnerabilities.expected.json", []
-        ),
-        swe_cases=_maybe_load_json(fixture_dir / "swe-cases.json", []),
-        trace_cases=_maybe_load_json(fixture_dir / "trace-cases.json", []),
-        task_cases=_maybe_load_json(fixture_dir / "task-cases.json", []),
-        planner_cases=_maybe_load_json(fixture_dir / "planner-cases.json", []),
-        vuln_cases=_maybe_load_json(fixture_dir / "vuln-cases.json", []),
         benchmark=meta.get("benchmark"),
+        _fixture_dir=fixture_dir,
     )
+    _fixture_cache[slug] = fix
+    return fix
 
+
+def _load_case_params(case_type: str) -> list[tuple[str, str]]:
+    """Return ``(slug, case_id)`` pairs for parametrization.
+
+    Only reads the JSON files — fixture validation (source_root exists)
+    is deferred to the per-case fixture that calls ``_load_fixture``.
+    """
+    params: list[tuple[str, str]] = []
+    for slug in _discover_fixture_slugs():
+        cases = _maybe_load_json(
+            FIXTURES_ROOT / slug / f"{case_type}-cases.json", [],
+        )
+        for case in cases:
+            params.append((slug, case["id"]))
+    return params
+
+
+# ---------------------------------------------------------------------------
+# Pytest hooks
+# ---------------------------------------------------------------------------
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Auto-skip eval tests unless explicitly opted in."""
@@ -99,13 +200,37 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_eval)
 
 
+_CASE_PARAM_MAP = {
+    "trace_case": "trace",
+    "swe_case": "swe",
+    "planner_case": "planner",
+}
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """Auto-parametrize per-case fixtures (``trace_case``, ``swe_case``, …).
+
+    Each ``(slug, case_id)`` pair becomes its own pytest item, giving
+    independent timeouts, xdist parallelism, and per-case CI visibility.
+    """
+    for fixture_name, case_type in _CASE_PARAM_MAP.items():
+        if fixture_name in metafunc.fixturenames:
+            params = _load_case_params(case_type)
+            metafunc.parametrize(
+                fixture_name,
+                params,
+                ids=[f"{slug}/{cid}" for slug, cid in params],
+                indirect=True,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped fixtures
+# ---------------------------------------------------------------------------
+
 @pytest.fixture(scope="session", autouse=True)
 def _eval_observability() -> None:
-    """Initialise Langfuse instrumentation once per eval session.
-
-    No-op when Langfuse is disabled in settings — the harness still tags
-    runs with ``prompt_version`` etc., the calls just don't emit anything.
-    """
+    """Initialise Langfuse instrumentation once per eval session."""
     from contractor.utils import observability
 
     observability.init()
@@ -129,7 +254,7 @@ def eval_model() -> LiteLlm:
 
 @pytest.fixture(
     scope="session",
-    params=["spring", "fastapi", "vulnyapi", "vaultpay", "crapi-workshop", "crapi-identity"],
+    params=_discover_fixture_slugs(),
     ids=lambda s: f"fixture[{s}]",
 )
 def fixture(request: pytest.FixtureRequest) -> EvalFixture:
@@ -144,20 +269,9 @@ def fixture_fs(fixture: EvalFixture):
     return RootedLocalFileSystem(str(fixture.source_root))
 
 
-def _discover_vuln_fixtures() -> Sequence[str]:
-    """Auto-discover fixture slugs that have vuln-cases.json."""
-    slugs: list[str] = []
-    if not FIXTURES_ROOT.is_dir():
-        return slugs
-    for d in sorted(FIXTURES_ROOT.iterdir()):
-        if d.is_dir() and (d / "vuln-cases.json").is_file():
-            slugs.append(d.name)
-    return slugs
-
-
 @pytest.fixture(
     scope="session",
-    params=_discover_vuln_fixtures(),
+    params=_discover_slugs_with_cases("vuln"),
     ids=lambda s: f"vuln[{s}]",
 )
 def vuln_fixture(request: pytest.FixtureRequest) -> EvalFixture:
@@ -165,6 +279,38 @@ def vuln_fixture(request: pytest.FixtureRequest) -> EvalFixture:
     return _load_fixture(request.param)
 
 
+# ---------------------------------------------------------------------------
+# Per-case fixtures (resolved via pytest_generate_tests)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def trace_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, dict]:
+    slug, case_id = request.param
+    fix = _load_fixture(slug)
+    case = next(c for c in fix.trace_cases if c["id"] == case_id)
+    return fix, case
+
+
+@pytest.fixture(scope="session")
+def swe_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, dict]:
+    slug, case_id = request.param
+    fix = _load_fixture(slug)
+    case = next(c for c in fix.swe_cases if c["id"] == case_id)
+    return fix, case
+
+
+@pytest.fixture(scope="session")
+def planner_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, dict]:
+    slug, case_id = request.param
+    fix = _load_fixture(slug)
+    case = next(c for c in fix.planner_cases if c["id"] == case_id)
+    return fix, case
+
+
+# ---------------------------------------------------------------------------
+# Public helpers for scripts
+# ---------------------------------------------------------------------------
+
 def select_fixture(slug: str) -> Optional[EvalFixture]:
-    """Helper for tests that need a specific fixture (not parametrized)."""
+    """Helper for tests/scripts that need a specific fixture (not parametrized)."""
     return _load_fixture(slug)

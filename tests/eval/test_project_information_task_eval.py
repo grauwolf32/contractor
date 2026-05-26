@@ -21,8 +21,7 @@ import pytest
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
-
-from tests.eval.scoring import score_markdown_sections, score_phrases
+from tests.eval.scorers import score_project_info
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -90,24 +89,10 @@ async def test_project_information_task(fixture, eval_model: LiteLlm):
         + render_metrics_table(run.metrics)
     )
 
-    section_score = score_markdown_sections(
-        result_text, case["expected_sections"]
+    result = score_project_info(result_text, case)
+    assert result.passed, (
+        f"project_information eval failed: "
+        f"fixture={fixture.slug} case={case['id']}\n"
+        f"{result.explain()}\n\n"
+        f"metrics:\n{render_metrics_table(run.metrics)}"
     )
-    min_section_recall = float(case.get("min_section_recall", 0.7))
-
-    expected_phrases = case.get("expected_phrases_any", [])
-    phrase_score = score_phrases(result_text, expected_phrases)
-    min_phrase_recall = float(case.get("min_phrase_recall", 0.5))
-
-    if (
-        section_score.recall < min_section_recall
-        or phrase_score.recall < min_phrase_recall
-    ):
-        pytest.fail(
-            "project_information eval failed for "
-            f"fixture={fixture.slug} case={case['id']}\n"
-            f"  {section_score.explain('sections')}\n"
-            f"  {phrase_score.explain('phrases')}\n"
-            f"  result_chars={len(result_text)}\n\n"
-            f"metrics:\n{render_metrics_table(run.metrics)}"
-        )
