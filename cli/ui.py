@@ -273,7 +273,7 @@ class LiveRenderer:
         "execute_current_subtask",
         "get_current_subtask",
         "decompose_subtask",
-        "skip_current_subtask",
+        "skip",
     })
 
     def _apply_subtask_from_tool_call(self, payload: dict[str, Any]) -> None:

@@ -48,6 +48,7 @@ _METRIC_EVENT_TYPES = {
     "task_failed": "task_failed",
     "iteration_finished": "iteration_finished",
     "iteration_result": "iteration_result",
+    "callback_summary": "callback_summary",
 }
 
 _FALLBACKS = {
@@ -345,6 +346,10 @@ class MetricSlices:
     # Per-template summary: started, finished, failed, avg iterations, success rate
     template_summary: pd.DataFrame = field(default_factory=pd.DataFrame)
 
+    # Callback summary: one row per (agent, callback) with callback state
+    callback_summaries: pd.DataFrame = field(default_factory=pd.DataFrame)
+    callback_stats: pd.DataFrame = field(default_factory=pd.DataFrame)
+
     # Tokens spent processing each tool call: pair each tool_call with the next
     # LLM call in the same invocation. When multiple tool calls share the same
     # following LLM call (parallel invocation), tokens are split equally so
@@ -386,6 +391,7 @@ class MetricSlices:
             task_failed=_where("task_failed"),
             iteration_finished=_where("iteration_finished"),
             iteration_result=_where("iteration_result"),
+            callback_summaries=_where("callback_summary"),
         )
         slices._compute_aggregates()
         slices._compute_durations()
@@ -398,6 +404,7 @@ class MetricSlices:
         slices._compute_stuck_streaks()
         slices._compute_template_summary()
         slices._compute_processing_tokens_per_tool_call()
+        slices._compute_callback_stats()
         return slices
 
     def _compute_aggregates(self) -> None:
@@ -793,6 +800,117 @@ class MetricSlices:
         agg = agg.sort_values(["success_rate", "started"], ascending=[True, False])
         self.template_summary = agg
 
+    def _compute_callback_stats(self) -> None:
+        cs = self.callback_summaries
+        if cs.empty:
+            return
+
+        rows: list[dict[str, Any]] = []
+        for _, rec in cs.iterrows():
+            raw = rec.get("raw")
+            if not isinstance(raw, dict):
+                continue
+            callbacks = raw.get("callbacks")
+            if not isinstance(callbacks, dict):
+                continue
+            task_name = rec.get("task_name_f", _FALLBACKS["task"])
+            invocation_id = rec.get("invocation_id_f", _FALLBACKS["invocation"])
+            for cb_key, cb_state in callbacks.items():
+                if not isinstance(cb_state, dict):
+                    continue
+                parts = cb_key.split("::", 1)
+                agent_name = parts[0] if len(parts) == 2 and parts[0] else None
+                cb_name = parts[-1]
+
+                row: dict[str, Any] = {
+                    "task_name": task_name,
+                    "invocation_id": invocation_id,
+                    "agent_name": agent_name,
+                    "callback": cb_name,
+                }
+
+                # ThinkingBudgetGuardrailCallback
+                if "token_budget" in cb_state:
+                    row["token_budget"] = cb_state.get("token_budget")
+                    row["token_count"] = cb_state.get("token_count", 0)
+                    budget = cb_state.get("token_budget", 0)
+                    row["budget_exceeded"] = (
+                        cb_state.get("token_count", 0) > budget if budget else False
+                    )
+
+                # ToolMaxCallsGuardrailCallback
+                if "max_calls" in cb_state and "call_count" in cb_state:
+                    row["max_calls"] = cb_state.get("max_calls")
+                    row["call_count"] = cb_state.get("call_count", 0)
+                    row["tool_name"] = cb_state.get("tool_name")
+                    row["limit_exceeded"] = (
+                        cb_state.get("call_count", 0) > cb_state.get("max_calls", 0)
+                    )
+
+                # InvalidToolCallGuardrailCallback
+                if "history" in cb_state and "default_tool_name" in cb_state:
+                    history = cb_state.get("history", [])
+                    row["invalid_calls"] = len(history) if isinstance(history, list) else 0
+
+                # RepeatedToolCallCallback
+                if "threshold" in cb_state and "run_length" in cb_state:
+                    row["threshold"] = cb_state.get("threshold")
+                    row["run_length"] = cb_state.get("run_length", 0)
+                    history = cb_state.get("history", [])
+                    row["streak_triggers"] = len(history) if isinstance(history, list) else 0
+
+                # SummarizationLimitCallback
+                if "max_tokens" in cb_state and "message" in cb_state:
+                    row["max_tokens"] = cb_state.get("max_tokens")
+                    row["token_count"] = cb_state.get("token_count", 0)
+                    history = cb_state.get("history", [])
+                    row["summarizations_triggered"] = (
+                        len(history) if isinstance(history, list) else 0
+                    )
+
+                # FunctionResultsRemovalCallback
+                if "keep_last_n" in cb_state and "counter" in cb_state:
+                    row["keep_last_n"] = cb_state.get("keep_last_n")
+                    row["results_elided"] = cb_state.get("counter", 0)
+
+                # TpmRatelimitCallback
+                if "tpm_limit" in cb_state:
+                    row["tpm_limit"] = cb_state.get("tpm_limit")
+                    row["token_count"] = cb_state.get("token_count", 0)
+                    history = cb_state.get("history", [])
+                    row["throttle_events"] = (
+                        len(history) if isinstance(history, list) else 0
+                    )
+                    if isinstance(history, list) and history:
+                        row["total_delay_s"] = sum(
+                            h.get("delay", 0) for h in history if isinstance(h, dict)
+                        )
+
+                # RpmRatelimitCallback
+                if "rpm_limit" in cb_state:
+                    row["rpm_limit"] = cb_state.get("rpm_limit")
+                    row["request_count"] = cb_state.get("request_count", 0)
+                    history = cb_state.get("history", [])
+                    row["throttle_events"] = (
+                        len(history) if isinstance(history, list) else 0
+                    )
+                    if isinstance(history, list) and history:
+                        row["total_delay_s"] = sum(
+                            h.get("delay", 0) for h in history if isinstance(h, dict)
+                        )
+
+                # TokenUsageCallback
+                if "counter" in cb_state and "history" not in cb_state:
+                    counter = cb_state.get("counter", {})
+                    if isinstance(counter, dict):
+                        row["total_tokens_tracked"] = counter.get("total", 0)
+
+                rows.append(row)
+
+        if not rows:
+            return
+        self.callback_stats = pd.DataFrame(rows)
+
     def _compute_processing_tokens_per_tool_call(self) -> None:
         tc, llm = self.tool_calls, self.llm
         if tc.empty or llm.empty:
@@ -1166,6 +1284,13 @@ def compute_summary(
         "templates_success_rate_avg": None,
         "templates_worst": None,
         "tool_entropy_median_bits": None,
+        "callback_budget_exceeded": 0,
+        "callback_invalid_tool_calls": 0,
+        "callback_repeated_streaks": 0,
+        "callback_summarizations": 0,
+        "callback_results_elided": 0,
+        "callback_throttle_events": 0,
+        "callback_total_delay_s": 0.0,
     }
     if df.empty:
         return out
@@ -1279,6 +1404,27 @@ def compute_summary(
             if not ent.empty:
                 out["tool_entropy_median_bits"] = round(float(ent.median()), 3)
 
+        if not slices.callback_stats.empty:
+            cs = slices.callback_stats
+
+            def _bool_sum(col: str) -> int:
+                if col not in cs.columns:
+                    return 0
+                return int(cs[col].fillna(False).astype(bool).sum())
+
+            def _num_sum(col: str) -> float:
+                if col not in cs.columns:
+                    return 0.0
+                return float(pd.to_numeric(cs[col], errors="coerce").fillna(0).sum())
+
+            out["callback_budget_exceeded"] = _bool_sum("budget_exceeded")
+            out["callback_invalid_tool_calls"] = int(_num_sum("invalid_calls"))
+            out["callback_repeated_streaks"] = int(_num_sum("streak_triggers"))
+            out["callback_summarizations"] = int(_num_sum("summarizations_triggered"))
+            out["callback_results_elided"] = int(_num_sum("results_elided"))
+            out["callback_throttle_events"] = int(_num_sum("throttle_events"))
+            out["callback_total_delay_s"] = round(_num_sum("total_delay_s"), 2)
+
     return out
 
 
@@ -1356,6 +1502,16 @@ def write_markdown_report(
         _fmt("stuck_streak_max", "Worst stuck streak length"),
         _fmt("tool_entropy_median_bits", "Median tool entropy per invocation (bits)", "f2"),
         _fmt("templates_success_rate_avg", "Avg template success rate", "%"),
+        "",
+        "### Callback Guardrails",
+        "",
+        _fmt("callback_budget_exceeded", "Thinking budget exceeded"),
+        _fmt("callback_invalid_tool_calls", "Invalid tool calls corrected"),
+        _fmt("callback_repeated_streaks", "Repeated-call streak triggers"),
+        _fmt("callback_summarizations", "Context summarizations triggered"),
+        _fmt("callback_results_elided", "Stale tool results elided"),
+        _fmt("callback_throttle_events", "Rate-limit throttle events"),
+        _fmt("callback_total_delay_s", "Total rate-limit delay (s)", "f2"),
         "",
     ]
 
@@ -3216,6 +3372,75 @@ def _chart_processing_tokens_split_by_tool(s: MetricSlices, p: OutputPaths) -> N
     )
 
 
+# ── NEW: Callback usage (85–86) ─────────────────────────────────────────────
+
+
+def _chart_callback_triggers(s: MetricSlices, p: OutputPaths) -> None:
+    cs = s.callback_stats
+    if cs.empty:
+        return
+
+    trigger_cols = {
+        "budget_exceeded": "Budget exceeded",
+        "limit_exceeded": "Tool limit exceeded",
+        "invalid_calls": "Invalid tool calls",
+        "streak_triggers": "Repeated call streaks",
+        "summarizations_triggered": "Summarizations",
+        "results_elided": "Results elided",
+        "throttle_events": "Rate-limit throttles",
+    }
+
+    counts: dict[str, int] = {}
+    for col, label in trigger_cols.items():
+        if col not in cs.columns:
+            continue
+        vals = pd.to_numeric(cs[col], errors="coerce").fillna(0)
+        if col in ("budget_exceeded", "limit_exceeded"):
+            total = int(vals.astype(bool).sum())
+        else:
+            total = int(vals.sum())
+        if total > 0:
+            counts[label] = total
+
+    if not counts:
+        return
+    series = pd.Series(counts).sort_values(ascending=False)
+    _bar(
+        series,
+        "Callback guardrail triggers",
+        "Callback",
+        "Count",
+        p.charts / "85_callback_triggers.png",
+        horizontal=True,
+    )
+
+
+def _chart_callback_rate_limit_delay(s: MetricSlices, p: OutputPaths) -> None:
+    cs = s.callback_stats
+    if cs.empty or "total_delay_s" not in cs.columns:
+        return
+    with_delay = cs[cs["total_delay_s"].fillna(0) > 0].copy()
+    if with_delay.empty:
+        return
+    with_delay["label"] = with_delay["callback"].astype(str)
+    if "agent_name" in with_delay.columns:
+        has_agent = with_delay["agent_name"].notna()
+        with_delay.loc[has_agent, "label"] = (
+            with_delay.loc[has_agent, "agent_name"].astype(str)
+            + " :: "
+            + with_delay.loc[has_agent, "callback"].astype(str)
+        )
+    series = with_delay.set_index("label")["total_delay_s"].sort_values(ascending=False)
+    _bar(
+        series,
+        "Rate-limit total delay by callback",
+        "Callback",
+        "Delay (s)",
+        p.charts / "86_callback_rate_limit_delay.png",
+        horizontal=True,
+    )
+
+
 # ─── Chart pipeline ──────────────────────────────────────────────────────────
 
 _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]]] = [
@@ -3320,6 +3545,9 @@ _CHART_PIPELINE: Sequence[tuple[str, Callable[[MetricSlices, OutputPaths], None]
     ("processing_tokens_total_by_tool", _chart_processing_tokens_total_by_tool),
     ("processing_tokens_avg_by_tool", _chart_processing_tokens_avg_by_tool),
     ("processing_tokens_split_by_tool", _chart_processing_tokens_split_by_tool),
+    # ── Callback usage (85–86) ──────────────────────────────────────────
+    ("callback_triggers", _chart_callback_triggers),
+    ("callback_rate_limit_delay", _chart_callback_rate_limit_delay),
 ]
 
 
@@ -3468,6 +3696,10 @@ def _emit_tables(s: MetricSlices, p: OutputPaths, *, skip_cross_task: bool = Fal
     # Per-template summary
     if not s.template_summary.empty:
         _emit(s.template_summary, "template_summary.csv")
+
+    # Callback stats
+    if not s.callback_stats.empty:
+        _save_table(s.callback_stats, p.tables / "callback_stats.csv")
 
     # Tokens spent processing each tool call
     if not s.processing_tokens_per_tool_call.empty:

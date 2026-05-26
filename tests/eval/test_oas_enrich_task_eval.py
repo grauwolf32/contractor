@@ -20,11 +20,9 @@ import yaml
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
-from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.utils.prompt import load_prompt_with_version
-
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.scoring import score_components, score_endpoints
+from tests.eval.scorers import score_oas_schema
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -127,31 +125,18 @@ async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm):
     if not isinstance(actual_schema, dict):
         actual_schema = {}
 
-    endpoint_score = score_endpoints(actual_schema, fixture.expected_oas)
-    schemas_score = score_components(actual_schema, fixture.expected_oas, "schemas")
-
-    min_endpoint_precision = 0.5
-    min_endpoint_recall = 0.7
-    min_schema_recall = 0.4
+    result = score_oas_schema(
+        actual_schema, fixture.expected_oas,
+        min_endpoint_precision=0.5, min_endpoint_recall=0.7,
+        min_schema_recall=0.4,
+    )
 
     summary = (
         f"fixture={fixture.slug}\n"
-        f"  {endpoint_score.explain('endpoints')}\n"
-        f"  {schemas_score.explain('schemas')}\n"
+        f"{result.explain()}\n"
         f"  precomputed={'yes' if precomputed else 'no'}\n\n"
         f"metrics:\n{render_metrics_table(run.metrics)}"
     )
     print(f"\n{'='*60}\n{summary}\n{'='*60}")
 
-    if (
-        endpoint_score.precision < min_endpoint_precision
-        or endpoint_score.recall < min_endpoint_recall
-    ):
-        pytest.fail(
-            f"oas_enrich endpoint eval failed\n{summary}"
-        )
-
-    if schemas_score.recall < min_schema_recall:
-        pytest.fail(
-            f"oas_enrich schema eval failed\n{summary}"
-        )
+    assert result.passed, f"oas_enrich eval failed\n{summary}"

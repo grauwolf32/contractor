@@ -99,7 +99,7 @@ async def _run_one(
 
 def _render(a: dict[str, Any], b: dict[str, Any]) -> str:
     lines: list[str] = []
-    lines.append(f"# probe: trace_agent A vs B")
+    lines.append("# probe: trace_agent A vs B")
     lines.append(f"A: prompt={a['prompt_version']} graph_tools={a['with_graph_tools']}")
     lines.append(f"B: prompt={b['prompt_version']} graph_tools={b['with_graph_tools']}")
     lines.append("")

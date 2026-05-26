@@ -23,7 +23,6 @@ import re
 import shutil
 from datetime import datetime, timezone
 from functools import partial
-from pathlib import Path
 
 import pytest
 from google.adk.models.lite_llm import LiteLlm
@@ -33,13 +32,11 @@ from contractor.agents.likec4_builder_agent.agent import \
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import (DEFAULT_LIKEC4_PATH, Likec4Error,
-                                     Likec4NotFoundError, Likec4Linter)
+                                     Likec4Linter, Likec4NotFoundError)
 from contractor.utils.prompt import load_prompt_with_version
-
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.scoring import score_phrases
+from tests.eval.scorers import score_likec4_build
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
-
 
 _LIKEC4_FENCE_RE = re.compile(
     r"```(?:likec4|c4)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE
@@ -165,9 +162,6 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
 
     (run_dir / "architecture.c4").write_text(dsl, encoding="utf-8")
 
-    keyword_score = score_phrases(dsl, case.get("expected_keywords", []))
-    min_keyword_recall = float(case.get("min_keyword_recall", 1.0))
-
     validation_errors: list[dict] = []
     if case.get("must_validate", True):
         try:
@@ -181,22 +175,15 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
                 f"metrics:\n{render_metrics_table(run.metrics)}"
             )
 
-    max_errors = int(case.get("max_validation_errors", 0))
-    failed_validation = len(validation_errors) > max_errors
-    failed_keywords = keyword_score.recall < min_keyword_recall
+    result = score_likec4_build(dsl, case, validation_errors)
 
     summary = (
         f"fixture={fixture.slug} case={case['id']}\n"
-        f"  source_origin={source_origin} dsl_chars={len(dsl)}\n"
-        f"  validation_errors={len(validation_errors)} (max={max_errors})\n"
-        f"  {keyword_score.explain('keywords')}\n"
+        f"  source_origin={source_origin}\n"
+        f"{result.explain()}\n"
         f"  precomputed={'yes' if precomputed else 'no'}\n\n"
         f"metrics:\n{render_metrics_table(run.metrics)}"
     )
     print(f"\n{'='*60}\n{summary}\n{'='*60}")
 
-    if failed_validation or failed_keywords:
-        pytest.fail(
-            f"likec4 eval failed\n{summary}\n\n"
-            f"first_errors:\n{validation_errors[:5]}"
-        )
+    assert result.passed, f"likec4 eval failed\n{summary}"

@@ -41,11 +41,15 @@ Mechanic: a sensitive value is exposed without the protection it
 requires.
 
 Examples:
-- plaintext credentials in storage
-- hardcoded secrets in source
+- plaintext credentials in storage (passwords stored without hashing)
+- hardcoded secrets in source (signing keys, API keys)
+- hardcoded user credentials in database seed/init functions
+  (e.g. `User(username="admin", password="admin123")` in seed data)
 - cookie missing HttpOnly / Secure / SameSite
 - sensitive fields returned unfiltered (password, apiKey, token,
   paymentMemo, internal flags)
+- validation/schema error messages returned verbatim to clients
+  (leaks field names, types, and internal structure)
 - secrets written to logs
 - weak randomness used for security-relevant values
 - TLS verification disabled on outbound calls
@@ -119,7 +123,11 @@ The `report_vulnerability` tool stores: `name`, `place_type`, `place`,
                 Lowercase; `[a-z0-9._-]` only; no spaces.
   place_type  — `file` for code findings; `url` only when reporting
                 against a deployed endpoint URL.
-  place       — primary file path (entrypoint for A/B; defect site for C).
+  place       — the source file containing the vulnerable function or
+                defect (entrypoint handler file for A/B; defect site for
+                C). NEVER report against spec files (OpenAPI YAML, proto,
+                swagger), documentation, or configuration that merely
+                describes the endpoint — find and cite the source function.
                 Use the same path style as the source tree (relative).
   title       — short, ≤ 80 chars, no trailing period.
   summary     — one sentence; what + where + impact, no remediation.

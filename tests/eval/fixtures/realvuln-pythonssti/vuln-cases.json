@@ -1,0 +1,51 @@
+[
+  {
+    "id": "python-ssti-001",
+    "is_vulnerable": true,
+    "vulnerability_class": "server_side_template_injection",
+    "primary_cwe": "CWE-1336",
+    "acceptable_cwes": [
+      "CWE-1336",
+      "CWE-94",
+      "CWE-95"
+    ],
+    "file": "main.py",
+    "start_line": 14,
+    "end_line": 14,
+    "function": "read_root",
+    "severity": "critical",
+    "description": "User-controlled 'username' query parameter is concatenated directly into a Jinja2 template string via Jinja2.from_string('Welcome ' + username + '!'). An attacker can inject Jinja2 template expressions (e.g., {{ 7*7 }}, {{ config }}, or RCE payloads like {{ ''.__class__.__mro__[1].__subclasses__() }}) which will be evaluated server-side. This allows arbitrary code execution."
+  },
+  {
+    "id": "python-ssti-002",
+    "is_vulnerable": true,
+    "vulnerability_class": "reflected_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "main.py",
+    "start_line": 14,
+    "end_line": 14,
+    "function": "read_root",
+    "severity": "medium",
+    "description": "The Jinja2 Environment is created with default settings (autoescape=False). User input from the 'username' query parameter is concatenated into the template string and the rendered output is returned as HTMLResponse. An attacker can inject HTML/JavaScript (e.g., <script>alert(1)</script>) which will be rendered in the victim's browser. Note: this is technically a consequence of the SSTI, but XSS is independently exploitable even without template syntax \u2014 plain HTML tags in the username are passed through to the HTML response."
+  },
+  {
+    "id": "python-ssti-fp-001",
+    "is_vulnerable": false,
+    "vulnerability_class": "server_side_template_injection",
+    "primary_cwe": "CWE-1336",
+    "acceptable_cwes": [
+      "CWE-1336",
+      "CWE-94"
+    ],
+    "file": "main.py",
+    "start_line": 17,
+    "end_line": 17,
+    "function": "read_root",
+    "severity": "critical",
+    "description": "The commented-out safe implementation on line 17 uses Jinja2 template variable interpolation: Jinja2.from_string('Welcome {{ user_name }}!').render(user_name=username). This passes user input as a template variable rather than concatenating it into the template string, so Jinja2 template expressions in the input would be treated as literal text, not evaluated. This is the correct and safe approach to template rendering. (Code is commented out and not active.)"
+  }
+]

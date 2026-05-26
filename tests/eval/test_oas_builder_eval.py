@@ -7,13 +7,12 @@ produced schema's endpoint and component sets against ground truth.
 
 from __future__ import annotations
 
-import yaml
 import pytest
+import yaml
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
-
 from tests.eval.harness import run_agent
-from tests.eval.scoring import score_components, score_endpoints
+from tests.eval.scorers import score_oas_schema
 
 NAMESPACE = "openapi-eval"
 ARTIFACT_KEY = f"user:oas-{NAMESPACE}"
@@ -54,11 +53,9 @@ async def test_oas_builder_endpoint_coverage(fixture, fixture_fs, eval_model):
     )
 
     actual_schema = yaml.safe_load(schema_text) or {}
-
-    endpoint_score = score_endpoints(actual_schema, fixture.expected_oas)
-    schemas_score = score_components(actual_schema, fixture.expected_oas, "schemas")
-
-    assert endpoint_score.passes(min_precision=0.7, min_recall=0.8), (
-        endpoint_score.explain("endpoints")
+    result = score_oas_schema(
+        actual_schema, fixture.expected_oas,
+        min_endpoint_precision=0.7, min_endpoint_recall=0.8,
+        min_schema_recall=0.5,
     )
-    assert schemas_score.recall >= 0.5, schemas_score.explain("schemas (recall>=0.5)")
+    assert result.passed, f"oas_builder eval failed: fixture={fixture.slug}\n{result.explain()}"

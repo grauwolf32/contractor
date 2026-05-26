@@ -57,7 +57,11 @@ class Pipeline(ABC):
             ok = True
             return result
         finally:
-            await self._cleanup(user_id=user_id)
+            try:
+                await self._cleanup(user_id=user_id)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("_cleanup failed")
             await self._emit(
                 on_event,
                 "pipeline_finished",

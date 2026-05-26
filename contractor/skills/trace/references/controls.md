@@ -129,7 +129,11 @@ error/debug branch uses the same projection or a safe error object.
 `present` when visible code enforces rate limits on
 login/password-reset/token-issuance/invite/expensive-search/etc., CSRF
 token validation for browser-authenticated state-changing requests, or
-replay protection for signed webhooks.
+replay protection for signed webhooks. Also check for the presence of
+rate-limiting middleware/library project-wide (e.g. Flask-Limiter,
+django-ratelimit, slowapi, express-rate-limit). If no rate-limiting
+library is imported anywhere in the project, all auth-sensitive
+endpoints have `absent` rate limiting.
 
 `weak` when:
 - rate limit keyed only on IP behind an untrusted proxy
@@ -160,9 +164,12 @@ Sensitive operations:
 
 - any write/state-changing operation
 - any read of another user's/tenant's/organization's resources
+- user listing / search endpoints that return emails, usernames, or PII
 - access to PII, secrets, credentials, audit data, billing, or internal
   security data
 - any admin / privileged action
+- database init / seed / reset / migration endpoints
+- debug / diagnostic endpoints
 - token issuance or token verification
 - login, password reset, credential change, invite creation
 - expensive operation where abuse has security or availability impact

@@ -9,7 +9,7 @@ already measure.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from tests.eval.scoring import Score, _score_sets

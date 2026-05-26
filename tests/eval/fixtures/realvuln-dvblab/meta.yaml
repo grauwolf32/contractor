@@ -1,0 +1,9 @@
+slug: realvuln-dvblab
+language: python
+framework: flask
+source_root: tests/playground/realvuln-repos/realvuln-dvblab
+benchmark: realvuln
+repo_url: https://github.com/mamgad/DVBLab
+commit_sha: 25bdef1e32055bfb6366856acc5db829e61e3647
+description: 'RealVuln benchmark: dvblab — python/flask app with 22 known vulnerabilities
+  and 4 FP traps.'
