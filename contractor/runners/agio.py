@@ -52,6 +52,7 @@ class AgioEventType(StrEnum):
     LLM_USAGE = "llm_usage"            # was metrics_llm_usage
     FS_COVERAGE = "fs_coverage"        # was metrics_fs_coverage
     RUN_SUMMARY = "run_summary"        # was metrics_summary
+    CALLBACK_SUMMARY = "callback_summary"
 
     # ── Contractor extensions: ADK trace (state snapshots, full event objects) ──
     ADK_TOOL_CALL = "adk_tool_call"
