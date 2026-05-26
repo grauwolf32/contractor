@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import pytest
 import yaml
@@ -36,6 +36,9 @@ class EvalFixture:
     swe_cases: list[dict[str, Any]]
     trace_cases: list[dict[str, Any]]
     task_cases: list[dict[str, Any]]
+    planner_cases: list[dict[str, Any]]
+    vuln_cases: list[dict[str, Any]]
+    benchmark: Optional[str]
 
 
 def _load_yaml(path: Path) -> Any:
@@ -75,6 +78,9 @@ def _load_fixture(slug: str) -> EvalFixture:
         swe_cases=_maybe_load_json(fixture_dir / "swe-cases.json", []),
         trace_cases=_maybe_load_json(fixture_dir / "trace-cases.json", []),
         task_cases=_maybe_load_json(fixture_dir / "task-cases.json", []),
+        planner_cases=_maybe_load_json(fixture_dir / "planner-cases.json", []),
+        vuln_cases=_maybe_load_json(fixture_dir / "vuln-cases.json", []),
+        benchmark=meta.get("benchmark"),
     )
 
 
@@ -136,6 +142,27 @@ def fixture_fs(fixture: EvalFixture):
     from cli.fs import RootedLocalFileSystem
 
     return RootedLocalFileSystem(str(fixture.source_root))
+
+
+def _discover_vuln_fixtures() -> Sequence[str]:
+    """Auto-discover fixture slugs that have vuln-cases.json."""
+    slugs: list[str] = []
+    if not FIXTURES_ROOT.is_dir():
+        return slugs
+    for d in sorted(FIXTURES_ROOT.iterdir()):
+        if d.is_dir() and (d / "vuln-cases.json").is_file():
+            slugs.append(d.name)
+    return slugs
+
+
+@pytest.fixture(
+    scope="session",
+    params=_discover_vuln_fixtures(),
+    ids=lambda s: f"vuln[{s}]",
+)
+def vuln_fixture(request: pytest.FixtureRequest) -> EvalFixture:
+    """Session-scoped fixture parametrized over all vuln benchmark fixtures."""
+    return _load_fixture(request.param)
 
 
 def select_fixture(slug: str) -> Optional[EvalFixture]:

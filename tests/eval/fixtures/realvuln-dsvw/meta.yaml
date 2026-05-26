@@ -1,0 +1,9 @@
+slug: realvuln-dsvw
+language: python
+framework: unknown
+source_root: tests/playground/realvuln-repos/realvuln-dsvw
+benchmark: realvuln
+repo_url: https://github.com/stamparm/DSVW
+commit_sha: 7d40f4b7939c901610ed9b85724552d60e7d63fa
+description: 'RealVuln benchmark: dsvw — python/None app with 27 known vulnerabilities
+  and 4 FP traps.'
