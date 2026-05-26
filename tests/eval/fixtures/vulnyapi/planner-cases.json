@@ -1,0 +1,68 @@
+[
+  {
+    "id": "planner-project-info",
+    "task": "project_information",
+    "description": "Evaluate planner decomposition for project_information on vulnyapi",
+
+    "min_subtasks": 3,
+    "max_subtasks": 15,
+    "max_depth": 1,
+    "max_skip_rate": 0.4,
+    "must_complete": true,
+
+    "expected_topics": [
+      {
+        "label": "reconnaissance",
+        "keywords": ["project structure", "directory", "layout", "tree", "top-level", "reconnaissance"]
+      },
+      {
+        "label": "config",
+        "keywords": ["configuration", "config", "environment", "settings", ".env"]
+      },
+      {
+        "label": "business-logic",
+        "keywords": ["business", "domain", "logic", "endpoint", "route", "api", "handler"]
+      },
+      {
+        "label": "security",
+        "keywords": ["security", "auth", "authentication", "authorization", "crypto", "jwt"]
+      },
+      {
+        "label": "data-models",
+        "keywords": ["data model", "schema", "entity", "orm", "database", "model"]
+      },
+      {
+        "label": "external",
+        "keywords": ["external", "integration", "database", "client", "service"]
+      }
+    ],
+    "min_topic_recall": 0.5,
+
+    "timeout_s": 1800
+  },
+  {
+    "id": "planner-dep-info",
+    "task": "dependency_information",
+    "description": "Evaluate planner decomposition for dependency_information on vulnyapi",
+
+    "min_subtasks": 2,
+    "max_subtasks": 12,
+    "max_depth": 1,
+    "max_skip_rate": 0.4,
+    "must_complete": true,
+
+    "expected_topics": [
+      {
+        "label": "manifest",
+        "keywords": ["manifest", "requirements", "package", "dependency", "pyproject", "lock"]
+      },
+      {
+        "label": "external-deps",
+        "keywords": ["external", "service", "database", "http", "client", "driver"]
+      }
+    ],
+    "min_topic_recall": 0.5,
+
+    "timeout_s": 1200
+  }
+]
