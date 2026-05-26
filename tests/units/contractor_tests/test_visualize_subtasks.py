@@ -199,9 +199,9 @@ def test_render_dot_writes_expected_content(vs, tmp_path: Path):
         {"task_id": "1", "title": "root", "status": "decomposed"},
         {"task_id": "1.1", "title": "child", "status": "done"},
     ]
-    nodes, _ = vs.build_tree(records)
+    nodes, roots = vs.build_tree(records)
     out = tmp_path / "graph.dot"
-    vs.render_dot(nodes, "test", out)
+    vs.render_dot(nodes, roots, "test", out)
     text = out.read_text(encoding="utf-8")
     assert 'digraph "test"' in text
     assert '"1" -> "1.1";' in text

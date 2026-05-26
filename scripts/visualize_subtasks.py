@@ -250,6 +250,10 @@ def build_tree(records: list[dict[str, Any]]) -> tuple[dict[str, Node], list[str
     return nodes, roots
 
 
+_X_SLOT = 2.4
+_Y_SLOT = 1.6
+
+
 def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
     """Assign x/y coordinates via a simple leaf-packing tree layout.
 
@@ -260,9 +264,9 @@ def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
 
     def _assign(tid: str, depth: int) -> float:
         node = nodes[tid]
-        node.y = float(-depth)
+        node.y = float(-depth) * _Y_SLOT
         if not node.children:
-            x = float(counter["x"])
+            x = float(counter["x"]) * _X_SLOT
             counter["x"] += 1
             node.x = x
             return x
@@ -278,7 +282,7 @@ def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
 # ─── Rendering ───────────────────────────────────────────────────────────────
 
 
-def _wrap(text: str, width: int = 28, max_lines: int = 3) -> str:
+def _wrap(text: str, width: int = 24, max_lines: int = 3) -> str:
     text = text.strip()
     if not text:
         return ""
@@ -303,6 +307,28 @@ def _wrap(text: str, width: int = 28, max_lines: int = 3) -> str:
     return "\n".join(lines)
 
 
+_ARROW_KW: dict[str, Any] = {
+    "arrowstyle": "->,head_width=0.25,head_length=0.15",
+    "connectionstyle": "arc3,rad=0",
+    "color": "#555555",
+    "linewidth": 1.2,
+    "zorder": 1,
+    "shrinkA": 18,
+    "shrinkB": 18,
+}
+
+_ORDER_ARROW_KW: dict[str, Any] = {
+    "arrowstyle": "->,head_width=0.2,head_length=0.12",
+    "connectionstyle": "arc3,rad=0",
+    "color": "#999999",
+    "linewidth": 1.0,
+    "linestyle": "dashed",
+    "zorder": 1,
+    "shrinkA": 18,
+    "shrinkB": 18,
+}
+
+
 def render_tree(
     nodes: dict[str, Node],
     roots: list[str],
@@ -317,23 +343,39 @@ def render_tree(
 
     xs = [n.x for n in nodes.values()]
     ys = [n.y for n in nodes.values()]
-    width = max(8.0, (max(xs) - min(xs) + 2) * 1.6)
-    height = max(4.0, (max(ys) - min(ys) + 2) * 1.4)
+    x_span = max(xs) - min(xs) if len(xs) > 1 else _X_SLOT
+    y_span = max(ys) - min(ys) if len(ys) > 1 else _Y_SLOT
+    width = max(8.0, x_span + 2 * _X_SLOT)
+    height = max(4.0, y_span + 2 * _Y_SLOT)
 
     fig, ax = plt.subplots(figsize=(width, height))
 
-    # Edges first so node boxes draw on top.
+    # Parent → child arrows.
     for node in nodes.values():
         for child_id in node.children:
             child = nodes[child_id]
-            ax.plot(
-                [node.x, child.x],
-                [node.y, child.y],
-                color="#555555",
-                linewidth=1.0,
+            ax.annotate(
+                "",
+                xy=(child.x, child.y),
+                xytext=(node.x, node.y),
+                arrowprops=_ARROW_KW,
                 zorder=1,
             )
 
+    # Order arrows between consecutive siblings (dashed).
+    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
+    for siblings in all_child_lists:
+        for i in range(len(siblings) - 1):
+            a, b = nodes[siblings[i]], nodes[siblings[i + 1]]
+            ax.annotate(
+                "",
+                xy=(b.x, b.y),
+                xytext=(a.x, a.y),
+                arrowprops=_ORDER_ARROW_KW,
+                zorder=1,
+            )
+
+    # Node boxes.
     for node in nodes.values():
         colour = STATUS_COLOURS.get(node.status, STATUS_COLOURS["unknown"])
         label_lines = [f"#{node.task_id}"]
@@ -348,10 +390,11 @@ def render_tree(
             label,
             ha="center",
             va="center",
-            fontsize=7,
+            fontsize=8,
+            fontfamily="monospace",
             zorder=3,
             bbox={
-                "boxstyle": "round,pad=0.4",
+                "boxstyle": "round,pad=0.5",
                 "facecolor": colour,
                 "edgecolor": "#222222",
                 "linewidth": 0.8,
@@ -368,9 +411,9 @@ def render_tree(
     ]
     ax.legend(handles=legend_handles, loc="lower right", fontsize=8, framealpha=0.9)
 
-    ax.set_title(title)
-    ax.set_xlim(min(xs) - 1, max(xs) + 1)
-    ax.set_ylim(min(ys) - 0.8, max(ys) + 0.8)
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    ax.set_xlim(min(xs) - _X_SLOT, max(xs) + _X_SLOT)
+    ax.set_ylim(min(ys) - _Y_SLOT * 0.8, max(ys) + _Y_SLOT * 0.8)
     ax.set_axis_off()
 
     fig.tight_layout()
@@ -381,11 +424,16 @@ def render_tree(
 
 def render_dot(
     nodes: dict[str, Node],
+    roots: list[str],
     title: str,
     output_path: Path,
 ) -> None:
     """Write a Graphviz DOT file alongside the PNG for editable rendering."""
-    lines = [f'digraph "{title}" {{', "  rankdir=TB;", '  node [shape=box, style="rounded,filled", fontname="Helvetica"];']
+    lines = [
+        f'digraph "{title}" {{',
+        "  rankdir=TB;",
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica"];',
+    ]
     for node in nodes.values():
         colour = STATUS_COLOURS.get(node.status, STATUS_COLOURS["unknown"])
         title_part = node.title.replace('"', '\\"')
@@ -396,6 +444,14 @@ def render_dot(
     for node in nodes.values():
         for child_id in node.children:
             lines.append(f'  "{node.task_id}" -> "{child_id}";')
+    # Order edges between consecutive siblings.
+    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
+    for siblings in all_child_lists:
+        for i in range(len(siblings) - 1):
+            lines.append(
+                f'  "{siblings[i]}" -> "{siblings[i + 1]}" '
+                f'[style=dashed, color="#999999", constraint=false];'
+            )
     lines.append("}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -470,7 +526,7 @@ def main() -> None:
         png_path = output_dir / f"{slug}.png"
         render_tree(nodes, roots, title, png_path)
         if not args.no_dot:
-            render_dot(nodes, title, output_dir / f"{slug}.dot")
+            render_dot(nodes, roots, title, output_dir / f"{slug}.dot")
 
         logger.info("Wrote %s (%d subtasks)", png_path, len(nodes))
 
