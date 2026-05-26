@@ -62,7 +62,6 @@ _UI_SKIP_EVENT_TYPES = frozenset(
         "adk_tool_result",
         "adk_tool_error",
         "fs_coverage",
-        "llm_usage",
         "run_summary",
     }
 )
