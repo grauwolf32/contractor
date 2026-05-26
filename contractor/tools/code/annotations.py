@@ -21,8 +21,6 @@ malformed annotation.
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import PurePosixPath
 from typing import Any, Optional
 
 from fsspec import AbstractFileSystem

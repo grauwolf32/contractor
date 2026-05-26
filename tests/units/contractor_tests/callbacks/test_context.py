@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from contractor.callbacks.context import (

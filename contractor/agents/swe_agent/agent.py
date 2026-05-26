@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Final, Iterable, Literal, Optional
 
+from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.callbacks import default_tool
@@ -27,7 +28,7 @@ _SUMMARIZATION_BULLETS: Final[str] = (
 
 def build_swe_agent(
     name: str,
-    fs,
+    fs: AbstractFileSystem,
     *,
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",

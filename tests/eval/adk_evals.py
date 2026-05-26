@@ -9,8 +9,6 @@ Provides:
 
 from __future__ import annotations
 
-from typing import Optional
-
 from google.adk.evaluation.eval_case import IntermediateData, Invocation
 from google.genai import types
 

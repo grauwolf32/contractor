@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from cli.fs import RootedLocalFileSystem
 from contractor.tools.code import annotation_tools
 from contractor.tools.fs import MemoryOverlayFileSystem

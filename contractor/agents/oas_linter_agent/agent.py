@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Final, Literal, Optional
 
+from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.callbacks import default_tool
@@ -29,7 +30,7 @@ _SUMMARIZATION_BULLETS: Final[str] = (
 
 def build_oas_linter_agent(
     name: str,
-    fs,
+    fs: AbstractFileSystem,
     *,
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",

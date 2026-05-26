@@ -16,7 +16,7 @@ import time
 from enum import StrEnum, unique
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from cli.utils import utc_now_iso
 
