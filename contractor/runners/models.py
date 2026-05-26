@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum, unique
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, Mapping, TypedDict
+from typing import Any, Awaitable, Callable, Literal, Mapping
 
 import yaml
 from google.adk.agents import LlmAgent
@@ -44,8 +44,9 @@ class TaskStatus(StrEnum):
 # ─── Data Structures ─────────────────────────────────────────────────────────
 
 
-class TaskResult(TypedDict):
-    """Strongly-typed dict returned from each iteration / task."""
+@dataclass(slots=True)
+class TaskResult:
+    """Structured result returned from each iteration / task."""
 
     invocation_id: str
     task_ref: str

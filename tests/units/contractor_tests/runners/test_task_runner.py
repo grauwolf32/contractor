@@ -247,7 +247,7 @@ class TestRetryLoop:
         result = await runner._run_task_with_retries(
             item=invocation, task_id=1, user_id="u", total_tasks=1,
         )
-        assert result["status"] == "done"
+        assert result.status == "done"
         assert single.await_count == 1
         runner._publish_task_artifacts.assert_awaited_once()
 
@@ -405,7 +405,7 @@ class TestCheckpointIntegration:
         # Task should be skipped — _run_single_iteration never called.
         single.assert_not_awaited()
         assert len(results) == 1
-        assert results[0]["status"] == TaskStatus.DONE
+        assert results[0].status == TaskStatus.DONE
 
     @pytest.mark.asyncio
     async def test_checkpoint_reruns_if_artifact_missing(self, tmp_path, monkeypatch):

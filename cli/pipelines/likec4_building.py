@@ -5,7 +5,7 @@ from typing import Any, Optional
 from google.adk.models import LiteLlm
 from google.genai import types
 
-from cli.pipelines import Pipeline
+from cli.pipelines import Pipeline, PipelineContext
 from contractor.agents.likec4_builder_agent.agent import \
     build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
@@ -39,6 +39,10 @@ class LikeC4BuildingPipeline(Pipeline):
     as that artifact.
     """
 
+    def __init__(self, ctx: "PipelineContext") -> None:
+        super().__init__(ctx)
+        self._overlay_fs = MemoryOverlayFileSystem(fs=ctx.fs)
+
     async def _run_impl(
         self,
         *,
@@ -53,9 +57,7 @@ class LikeC4BuildingPipeline(Pipeline):
         )
 
         llm = LiteLlm(model=ctx.model)
-        # Single overlay shared across the build and validate tasks so the
-        # validate worker sees what the build worker wrote.
-        overlay_fs = MemoryOverlayFileSystem(fs=ctx.fs)
+        overlay_fs = self._overlay_fs
 
         await self._seed_overlay_from_artifact(overlay_fs, user_id=user_id)
 
@@ -135,10 +137,10 @@ class LikeC4BuildingPipeline(Pipeline):
             model=llm,
         )
 
-        try:
-            return await runner.run(user_id=user_id, on_event=on_event)
-        finally:
-            await self._persist_overlay_to_artifact(overlay_fs, user_id=user_id)
+        return await runner.run(user_id=user_id, on_event=on_event)
+
+    async def _cleanup(self, *, user_id: str) -> None:
+        await self._persist_overlay_to_artifact(self._overlay_fs, user_id=user_id)
 
     async def _seed_overlay_from_artifact(
         self,
