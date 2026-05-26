@@ -1,0 +1,320 @@
+# Project Structure & Security-Relevant Inventory
+
+## Overview
+- **Repository root:** /home/ruslan/src/contractor/tests/playground/crapi/services/identity
+- **Suspected tech stack:** Java 17, Spring Boot 3.2.2, Spring Security 6.0.3, PostgreSQL 42.4.0, JWT (jjwt 0.12.5 + Nimbus JOSE JWT 9.37.3), Lombok 1.18.30, Log4j 2.14.0, Apache HttpClient 4.x + 5.x, Google Cloud Storage 2.10.0
+- **Main entry points:** `src/main/java/com/crapi/CRAPIBootApplication.java` (Spring Boot `main` method at line 35)
+- **Build / runtime tooling:** Gradle 8.1 (Kotlin DSL), Docker multi-stage build (gradle:8.1-jdk17-focal → eclipse-temurin:17-noble), Gradle wrapper (gradlew/gradlew.bat), build-image.sh/bat
+
+## 1. Configuration & Environment Settings
+| Path | Responsibility | Risk note |
+|------|---------------|-----------|
+| `/.env` | Runtime env vars: DB credentials, SMTP auth, JWT_SECRET, TLS passwords, MailHog config | **HIGH** — Contains plaintext DB password (`crapisecretpassword`), SMTP password, JWT secret (`crapi`), TLS keystore passwords (`passw0rd`) |
+| `/gradle.properties` | Gradle JVM args (MaxHeapSize=1024m, add-exports) | **LOW** — Build-only JVM tuning; no secrets |
+| `/gradle/wrapper/gradle-wrapper.properties` | Gradle wrapper distribution URL (gradle-8.1-bin.zip) | **LOW** — Build tool version; no secrets |
+| `/src/main/resources/application.properties` | Spring Boot config: datasource URL/credentials, mail SMTP, JWT expiration, gateway URL/credentials, TLS settings, multipart limits | **HIGH** — Contains gateway API password (`Pa$$4Vendor_1`), mail password placeholders, TLS passwords; DB creds via env vars |
+| `/src/main/resources/logback.xml` | Logback logging config: console appender, log level for com.crapi (info), root (error) | **LOW** — Logging only; no secrets |
+| `/jwks.json` | RSA-256 JWKS key pair (public + private key) for JWT signing/verification | **HIGH** — Contains private RSA key in plaintext; if leaked, JWT tokens can be forged |
+| `/src/main/resources/certs/server.crt` | TLS server certificate | **MEDIUM** — Public cert; low risk alone but paired with private key |
+| `/src/main/resources/certs/server.key` | TLS private key | **HIGH** — Private TLS key in plaintext; enables impersonation of the server |
+| `/src/main/resources/certs/server.keystore` | PKCS12 Java keystore (password: `passw0rd`) | **HIGH** — Keystore with hardcoded password; contains private key material |
+| `/src/main/resources/certs/server.p12` | PKCS12 bundle (server.crt + server.key) | **HIGH** — Combined cert+key bundle with weak password |
+| `/src/main/resources/certs/keystore.sh` | Script to generate PKCS12 keystore from server.crt/server.key | **MEDIUM** — Hardcodes password `passw0rd` in cleartext |
+| `/src/main/java/com/crapi/config/JwtProvider.java` | JWT token generation/validation: secret key, expiration, issuer | **HIGH** — JWT secret is `crapi` (weak, easily guessable) |
+| `/src/main/java/com/crapi/config/WebSecurityConfig.java` | Spring Security config: CSRF disabled, CORS, session management, permit-all paths | **MEDIUM** — CSRF disabled, all auth paths permit-all in dev; session cookie may be insecure |
+| `/src/main/java/com/crapi/config/SSLConfig.java` | SSL/TLS configuration: keystore type (PKCS12), path, password, alias | **HIGH** — Hardcoded TLS keystore password `passw0rd` in source code |
+| `/src/main/java/com/crapi/config/InitialDataConfig.java` | Initial data seeding: default admin user (admin@crapi.com / admin1234) | **HIGH** — Hardcoded default admin credentials with known password |
+| `/src/main/java/com/crapi/config/MailConfiguration.java` | SMTP mail configuration: host, port, auth, SSL/TLS settings | **MEDIUM** — SMTP credentials from env vars; uses example.com domain |
+| `/src/main/java/com/crapi/config/MailHogConfiguration.java` | MailHog test email server config: host, port, auth disabled | **LOW** — Test/dev mail server; no production secrets |
+| `/src/main/java/com/crapi/config/JwtAuthTokenFilter.java` | JWT authentication filter: extracts Bearer token, validates via JwtProvider | **MEDIUM** — Token validation logic; relies on weak JWT secret |
+| `/src/main/java/com/crapi/config/JwtAuthEntryPoint.java` | Handles 401 unauthorized responses for JWT auth failures | **LOW** — Error handling; no secrets |
+| `/Dockerfile` | Multi-stage Docker build: exposes ports 10001, 8080, 8989; copies jwks.json, entrypoint.sh, health.sh | **MEDIUM** — Exposes multiple ports; copies jwks.json into image; no non-root user |
+| `/entrypoint.sh` | Container entrypoint: loads JWKS (from /app/keys/ or default), launches JAR with --app.jwksJson | **MEDIUM** — JWKS loaded at runtime; fallback to default key if no custom key provided |
+| `/health.sh` | Health check: curl to /identity/health_check (http or https based on TLS_ENABLED) | **LOW** — Health check script; no secrets |
+| `/build.gradle.kts` | Gradle build: Java 17, Spring Boot 3.2.0, dependencies, bootJar task | **LOW** — Build config; no secrets |
+| `/settings.gradle.kts` | Gradle project name: identity-service | **LOW** — Project metadata only |
+| `/build-image.sh` | Docker image build script: tags as crapi/crapi-identity:${VERSION} | **LOW** — Build script; no secrets |
+| `/build-image.bat` | Windows equivalent of build-image.sh | **LOW** — Build script; no secrets |
+
+**Example files:**
+- `/.env` — Contains 27 environment variables including plaintext DB password, SMTP password, JWT_SECRET=crapi, TLS passwords
+- `/jwks.json` — RSA key pair in JWKS format with private key (`d` field present)
+- `/src/main/resources/certs/` — TLS certificate chain (server.crt, server.key, server.keystore, server.p12)
+
+**Notes:**
+- No README.md or SECURITY.md found in the project root.
+- All runtime configuration is via environment variables (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, SMTP_*, JWT_*, SERVER_PORT, etc.).
+- No docker-compose.yml found in the project root.
+
+## 2. Tests
+| Path | Type (unit/integration/E2E) | Notes |
+|------|---------------------------|-------|
+| `src/test/java/com/crapi/service/UserResetJobTest.java` | unit | Mockito; tests `UserResetJob` with mocked `UserRepository`, `PasswordEncoder` |
+| `src/test/java/com/crapi/service/Impl/UserServiceImplTest.java` | unit | Mockito; tests `UserServiceImpl` with mocked repos/dependencies |
+| `src/test/java/com/crapi/service/Impl/UserRegistrationServiceImplTest.java` | unit | Mockito; tests `UserRegistrationServiceImpl` with mocked `UserRepository`, `PasswordEncoder` |
+| `src/test/java/com/crapi/service/Impl/ProfileServiceImplTest.java` | unit | Mockito; tests `ProfileServiceImpl` with mocked `UserService`, repositories |
+| `src/test/java/com/crapi/service/Impl/OtpServiceImplTest.java` | unit | Mockito; tests `OtpServiceImpl` with mocked `OtpRepository`, `UserRepository`, `PasswordEncoder`, `SMTPMailServer` |
+| `src/test/java/com/crapi/service/Impl/VehicleServiceImplTest.java` | unit | Mockito; tests `VehicleServiceImpl` with mocked repos and `UserService` |
+| `src/test/java/com/crapi/service/Impl/UserDetailsServiceImplTest.java` | unit | Mockito; tests `UserDetailsServiceImpl.loadUserByUsername()` with mocked `UserRepository` |
+
+**Notes:**
+- All 7 test files are unit tests using `@RunWith(MockitoJUnitRunner.class)`, `@InjectMocks`, `@Mock` patterns.
+- No integration tests (`@SpringBootTest`) or E2E tests found.
+- No `tests/`, `it/`, or `e2e/` directories exist.
+- No test resources found in `src/test/resources/` (empty).
+
+## 3. Business / Domain Logic
+| Path | Responsibility |
+|------|---------------|
+| `controller/AuthController.java` | Authentication (login, signup, OTP verification) |
+| `controller/ChangeEmailController.java` | Email change request flow |
+| `controller/ChangePhoneController.java` | Phone change request flow |
+| `controller/HealthCheckController.java` | Health check / readiness endpoint |
+| `controller/ManagementControlller.java` | Management operations (note: typo in filename) |
+| `controller/ProfileController.java` | User profile management |
+| `controller/UserController.java` | User CRUD operations |
+| `controller/VehicleController.java` | Vehicle management |
+| `service/OtpService.java` | OTP generation/validation contract |
+| `service/ProfileService.java` | Profile operations contract |
+| `service/UserRegistrationService.java` | User registration contract |
+| `service/UserService.java` | User business logic contract |
+| `service/VehicleOwnershipService.java` | Vehicle ownership contract |
+| `service/VehicleService.java` | Vehicle operations contract |
+| `service/Impl/OtpServiceImpl.java` | OTP service implementation |
+| `service/Impl/ProfileServiceImpl.java` | Profile service implementation |
+| `service/Impl/UserDetailsServiceImpl.java` | Spring Security UserDetails service |
+| `service/Impl/UserRegistrationServiceImpl.java` | User registration implementation |
+| `service/Impl/UserServiceImpl.java` | User business logic implementation (largest: 22,874 bytes) |
+| `service/Impl/VehicleOwnershipServiceImpl.java` | Vehicle ownership implementation |
+| `service/Impl/VehicleServiceImpl.java` | Vehicle service implementation |
+| `service/UserResetJob.java` | Scheduled job for user reset tasks (hourly) |
+| `repository/ChangeEmailRepository.java` | ChangeEmailRequest entity access |
+| `repository/ChangePhoneRepository.java` | ChangePhoneRequest entity access |
+| `repository/OtpRepository.java` | OTP entity access |
+| `repository/ProfileVideoRepository.java` | ProfileVideo entity access |
+| `repository/UserDetailsRepository.java` | UserDetails entity access |
+| `repository/UserRepository.java` | User entity access |
+| `repository/VehicleCompanyRepository.java` | VehicleCompany entity access |
+| `repository/VehicleDetailsRepository.java` | VehicleDetails entity access |
+| `repository/VehicleLocationRepository.java` | VehicleLocation entity access |
+| `repository/VehicleModelRepository.java` | VehicleModel entity access |
+| `entity/ChangeEmailRequest.java` | Change email request domain model |
+| `entity/ChangePhoneRequest.java` | Change phone request domain model |
+| `entity/Otp.java` | OTP token domain model |
+| `entity/ProfileVideo.java` | Profile video domain model |
+| `entity/User.java` | User domain model |
+| `entity/UserDetails.java` | User details domain model |
+| `entity/UserPrinciple.java` | Spring Security user principal |
+| `entity/VehicleCompany.java` | Vehicle company domain model |
+| `entity/VehicleDetails.java` | Vehicle details domain model |
+| `entity/VehicleLocation.java` | Vehicle location domain model |
+| `entity/VehicleModel.java` | Vehicle model domain model |
+| `model/LoginForm.java` | Login request DTO |
+| `model/SignUpForm.java` | Sign-up request DTO |
+| `model/JwtTokenForm.java` | JWT token request DTO |
+| `model/JwtResponse.java` | JWT response DTO |
+| `model/OtpForm.java` | OTP request DTO |
+| `model/ForgetPassword.java` | Forgot-password request DTO |
+| `model/LoginWithEmailToken.java` | Login with email token DTO |
+| `model/ChangeEmailForm.java` | Change email request DTO |
+| `model/ChangePhoneForm.java` | Change phone request DTO |
+| `model/VehicleForm.java` | Vehicle request DTO |
+| `model/VideoForm.java` | Profile video upload DTO |
+| `model/LockAccountForm.java` | Lock account request DTO |
+| `model/UnlockAccountForm.java` | Unlock account request DTO |
+| `model/VehicleOwnership.java` | Vehicle ownership DTO |
+| `model/VehicleLocationResponse.java` | Vehicle location response DTO |
+| `model/DashboardResponse.java` | Dashboard summary DTO |
+| `model/ApiKeyResponse.java` | API key response DTO |
+| `model/CRAPIResponse.java` | Generic API response wrapper |
+| `model/ErrorDetails.java` | Error details DTO |
+| `model/SeedUser.java` | Seed user data DTO |
+| `config/InitialDataConfig.java` | Seed data initialization |
+| `config/JwtAuthEntryPoint.java` | JWT authentication entry point |
+| `config/JwtAuthTokenFilter.java` | JWT token filter |
+| `config/JwtProvider.java` | JWT token provider |
+| `config/MailConfiguration.java` | Mail server configuration |
+| `config/MailHogConfiguration.java` | MailHog test configuration |
+| `config/SSLConfig.java` | SSL configuration |
+| `config/WebSecurityConfig.java` | Spring Security configuration |
+| `constant/TestUsers.java` | Test user data constants |
+| `constant/UserMessage.java` | User-facing message constants |
+| `enums/EFuelType.java` | Fuel type enumeration |
+| `enums/ERole.java` | User role enumeration |
+| `enums/EStatus.java` | Status enumeration |
+| `exception/CRAPIExceptionHandler.java` | Global exception handler |
+| `exception/EntityNotFoundException.java` | Custom exception |
+| `exception/ExceptionHandler.java` | Exception handler |
+| `exception/IOExceptionHandler.java` | IO exception handler |
+| `utils/BashCommand.java` | Bash command execution |
+| `utils/EmailTokenGenerator.java` | Email token generation |
+| `utils/GenerateVIN.java` | VIN number generation |
+| `utils/MailBody.java` | Email body builder |
+| `utils/OTPGenerator.java` | OTP generation |
+| `utils/ProfileValidator.java` | Profile validation |
+| `utils/SMTPMailServer.java` | SMTP mail server |
+| `utils/UserData.java` | User data utilities |
+| `utils/VehicleLocationData.java` | Vehicle location utilities |
+| `CRAPIBootApplication.java` | Spring Boot application entry point |
+
+**Summary:** 89 Java files across 13 roles (8 controllers, 6 service interfaces, 7 service implementations, 10 repositories, 11 entities, 20 DTOs, 8 config classes, 2 constants, 3 enums, 4 exception handlers, 9 utilities, 1 entry point).
+
+## 4. Data Models & Schemas
+| Path | Format / Type | Responsibility |
+|------|--------------|---------------|
+| `entity/User.java` | JPA `@Entity` — Jakarta Persistence | Core user account (`users` table) |
+| `entity/UserDetails.java` | JPA `@Entity` — Jakarta Persistence | Extended user info (`user_details` table) |
+| `entity/UserPrinciple.java` | In-memory Spring Security principal | Wraps `User` + `UserDetails` for auth context |
+| `entity/Otp.java` | JPA `@Entity` — Jakarta Persistence | OTP token storage (`otp` table) |
+| `entity/ChangeEmailRequest.java` | JPA `@Entity` — Jakarta Persistence | Pending email change (`change_email_request` table) |
+| `entity/ChangePhoneRequest.java` | JPA `@Entity` — Jakarta Persistence | Pending phone change (`change_phone_request` table) |
+| `entity/ProfileVideo.java` | JPA `@Entity` — Jakarta Persistence | User profile video (`profile_video` table) |
+| `entity/VehicleCompany.java` | JPA `@Entity` — Jakarta Persistence | Vehicle manufacturer (`vehicle_company` table) |
+| `entity/VehicleModel.java` | JPA `@Entity` — Jakarta Persistence | Vehicle model (`vehicle_model` table) |
+| `entity/VehicleDetails.java` | JPA `@Entity` — Jakarta Persistence | Vehicle info (`vehicle_details` table) |
+| `entity/VehicleLocation.java` | JPA `@Entity` — Jakarta Persistence | GPS location tracking (`vehicle_location` table) |
+| `model/LoginForm.java` | Lombok `@Data` POJO | Login credentials request DTO |
+| `model/SignUpForm.java` | Lombok `@Data` POJO | Sign-up data request DTO |
+| `model/JwtTokenForm.java` | Lombok `@Data` POJO | JWT token request DTO |
+| `model/JwtResponse.java` | Lombok `@Data` POJO | JWT response DTO |
+| `model/OtpForm.java` | Lombok `@Data` POJO | OTP request DTO |
+| `model/ForgetPassword.java` | Lombok `@Data` POJO | Forgot-password request DTO |
+| `model/LoginWithEmailToken.java` | Lombok `@Data` POJO | Login with email token DTO |
+| `model/ChangeEmailForm.java` | Lombok `@Data` POJO | Change email request DTO |
+| `model/ChangePhoneForm.java` | Lombok `@Data` POJO | Change phone request DTO |
+| `model/VehicleForm.java` | Lombok `@Data` POJO | Vehicle creation/update DTO |
+| `model/VideoForm.java` | Lombok `@Data` POJO | Profile video upload DTO |
+| `model/LockAccountForm.java` | Lombok `@Data` POJO | Lock account request DTO |
+| `model/UnlockAccountForm.java` | Lombok `@Data` POJO | Unlock account request DTO |
+| `model/VehicleOwnership.java` | Lombok `@Data` POJO | Vehicle ownership DTO |
+| `model/VehicleLocationResponse.java` | Lombok `@Data` POJO | Vehicle location response DTO |
+| `model/DashboardResponse.java` | Lombok `@Data` POJO | Dashboard summary DTO |
+| `model/ApiKeyResponse.java` | Lombok `@Data` POJO | API key response DTO |
+| `model/CRAPIResponse.java` | Lombok `@Data` POJO | Generic API response wrapper |
+| `model/ErrorDetails.java` | Lombok `@Data` POJO | Error details DTO |
+| `model/SeedUser.java` | Lombok `@Data` POJO | Seed user data DTO |
+| `enums/ERole.java` | Java enum | User roles: ROLE_PREDEFINE, ROLE_USER, ROLE_MECHANIC, ROLE_ADMIN |
+| `enums/EStatus.java` | Java enum | Status values: UPDATED, ACTIVE, INACTIVE, SUCCESS, ALREADY, INVALID, NOTMATCHED, SENT, FAILED |
+| `enums/EFuelType.java` | Java enum | Vehicle fuel types: CNG, PETROL, DIESEL |
+
+**Notes:**
+- No external schema files found (no Protobuf, XSD, Avro, GraphQL, SQL migrations, Flyway, Liquibase, or OpenAPI specs).
+- All entities use JPA `@Entity` + `@Column` annotations with Jakarta Persistence.
+- All DTOs use Lombok `@Data` with Jakarta validation annotations.
+- Database schema managed by Hibernate `ddl-auto=update` (no migration tooling).
+
+## 5. Cryptographic Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `src/main/java/com/crapi/config/JwtProvider.java:89` | `generateJwtToken(User)` — RS256-signed JWT with expiration | **LOW** — Standard RSA signing; key loaded from config |
+| `src/main/java/com/crapi/config/JwtProvider.java:106` | `generateApiKey(User)` — RS256-signed JWT **without expiration** for API keys | **HIGH** — Perpetual JWT token; no expiry means tokens never invalidate if compromised |
+| `src/main/java/com/crapi/config/JwtProvider.java:123` | `getUserNameFromJwtToken(String)` — Parses JWT subject **without verifying signature** | **CRITICAL** — Accepts unsigned/any token; bypasses all authentication |
+| `src/main/java/com/crapi/config/JwtProvider.java:137` | `getKeyFromJkuHeader(JWSHeader)` — Retrieves RSA public key from JKU header URL | **MEDIUM** — Trusts external key source; potential key injection via JKU header |
+| `src/main/java/com/crapi/config/JwtProvider.java:150` | `getJwtSecret(JWSHeader)` — Builds HS256 secret; handles `/dev/null` KID bypass | **CRITICAL** — KID `/dev/null` returns hardcoded secret `"AA=="` (base64 of `\0`); allows trivial forgery of HS256 tokens |
+| `src/main/java/com/crapi/config/JwtProvider.java:168` | `validateJwtToken(String)` — Validates JWT: RS256, HS256, **PlainJWT accepted as valid** | **CRITICAL** — PlainJWT (no signature) is accepted as valid; `validateJwtToken("")` returns `true` |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:68` | `doFilterInternal` — Auth filter: extracts token type, delegates to JwtProvider | **MEDIUM** — Routes to unverified `getUserNameFromJwtToken` for PlainJWT tokens |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:189` | `getToken(HttpServletRequest)` — Extracts token from Authorization header | **LOW** — Standard header extraction |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:203` | `getKeyType(HttpServletRequest)` — Detects auth type: JWT, APIKEY, or BASIC | **LOW** — Standard type detection |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:217` | `getUserFromToken(HttpServletRequest)` — Gets username via JwtProvider | **MEDIUM** — Depends on unverified `getUserNameFromJwtToken` for PlainJWT |
+| `src/main/java/com/crapi/config/JwtAuthEntryPoint.java:32` | `commence(...)` — Returns 401 "Invalid Token" on unauthorized access | **LOW** — Standard auth entry point |
+| `/jwks.json` | RSA-256 JWKS key pair (public + private key) | **CRITICAL** — Private key stored in plaintext in repository; `d` (private exponent) is present |
+| `/.env:1` | `DB_PASSWORD=crapisecretpassword` — Database password | **CRITICAL** — Hardcoded DB password in plaintext |
+| `/.env:21` | `JWT_SECRET=crapi` — Hardcoded JWT secret value | **CRITICAL** — Weak, hardcoded secret (`"crapi"`); trivially guessable |
+| `/.env:22` | `TLS_KEYSTORE_PASSWORD=passw0rd` — TLS keystore password | **CRITICAL** — Hardcoded TLS password in plaintext |
+| `/.env:23` | `TLS_KEY_PASSWORD=passw0rd` — TLS key password | **CRITICAL** — Hardcoded TLS key password in plaintext |
+| `/.env:24` | `JWKS=$(openssl base64 -in ./jwks.json -A)` — Base64-encodes JWKS at runtime | **HIGH** — Private key material encoded in environment variable |
+| `/entrypoint.sh:5` | Loads JWKS from `/app/keys/jwks.json`, base64-encodes | **HIGH** — Private key material in runtime environment |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:84` | `passwordEncoder()` bean — BCryptPasswordEncoder | **LOW** — Standard BCrypt bean; appropriate for password hashing |
+| `src/main/java/com/crapi/service/Impl/UserRegistrationServiceImpl.java:92` | `encoder.encode(password)` — Hashes password on signup | **LOW** — Proper BCrypt hashing on registration |
+| `src/main/java/com/crapi/service/Impl/OtpServiceImpl.java:68` | `encoder.encode(password)` — Hashes password on reset | **LOW** — Proper BCrypt hashing on password reset |
+| `src/main/java/com/crapi/config/SSLConfig.java:23` | `setEnabled(String)` — Parses boolean-like strings for `server.ssl` | **MEDIUM** — TLS can be disabled via config; `TLS_ENABLED=false` in `.env` |
+| `src/main/java/com/crapi/service/Impl/VehicleOwnershipServiceImpl.java:64` | Trust-all SSL context + NoopHostnameVerifier for HTTP client | **CRITICAL** — Disables all certificate validation; accepts any TLS certificate; vulnerable to MITM |
+| `src/main/java/com/crapi/utils/OTPGenerator.java:20` | `Math.random()` for OTP generation | **HIGH** — Non-cryptographic PRNG; OTPs are predictable |
+| `src/main/java/com/crapi/utils/EmailTokenGenerator.java:17` | `Math.random()` for email token generation | **HIGH** — Non-cryptographic PRNG; email tokens are predictable |
+
+## 6. Security Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:81–93` | `securityFilterChainWeb(HttpSecurity)` — Spring Security filter chain | **HIGH** — CSRF disabled; `/identity/management/user/**` and `/identity/api/auth/**` are `permitAll()`; `/identity/api/v2/user/dashboard` is `permitAll()` |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:68` | `doFilterInternal` — OncePerRequestFilter: extracts auth type, validates token | **CRITICAL** — Routes unverified tokens via `getUserNameFromJwtToken` (no signature check); PlainJWT accepted; `/dev/null` KID allows trivial HS256 forgery |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:189` | `getToken(HttpServletRequest)` — Extracts token from Authorization header | **LOW** — Standard extraction |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:203` | `getKeyType(HttpServletRequest)` — Detects auth type: JWT, APIKEY, or BASIC | **LOW** — Standard detection |
+| `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:217` | `getUserFromToken(HttpServletRequest)` — Gets username via JwtProvider | **MEDIUM** — Depends on unverified `getUserNameFromJwtToken` for PlainJWT |
+| `src/main/java/com/crapi/config/JwtAuthEntryPoint.java:32` | `commence(...)` — Returns 401 JSON on unauthorized access | **LOW** — Standard entry point |
+| `src/main/java/com/crapi/config/JwtProvider.java:89` | `generateJwtToken(User)` — Generates RS256-signed JWT with expiration | **LOW** — Standard RSA signing |
+| `src/main/java/com/crapi/config/JwtProvider.java:106` | `generateApiKey(User)` — Generates RS256-signed JWT **without expiration** for API keys | **HIGH** — Perpetual token; never invalidates if compromised |
+| `src/main/java/com/crapi/config/JwtProvider.java:123` | `getUserNameFromJwtToken(String)` — Parses JWT subject **without verifying signature** | **CRITICAL** — Accepts any token (signed or unsigned); bypasses authentication |
+| `src/main/java/com/crapi/config/JwtProvider.java:168` | `validateJwtToken(String)` — Validates JWT: RS256, HS256, PlainJWT accepted as valid | **CRITICAL** — PlainJWT (no signature) returns `true`; HS256 with hardcoded `"AA=="` secret for `/dev/null` KID |
+| `src/main/java/com/crapi/controller/AuthController.java:54` | `authenticateUserLogin(LoginForm)` — POST /login — authenticates user, returns JWT | **MEDIUM** — Endpoint is `permitAll()`; relies on filter chain for auth |
+| `src/main/java/com/crapi/controller/AuthController.java:138` | `checkOtp(OtpForm)` — POST /v2/check-otp — OTP validation, no rate limiting | **HIGH** — Comment confirms: "attacker can enter 'n' number of times invalid otp" |
+| `src/main/java/com/crapi/controller/AuthController.java:152` | `secureCheckOtp(OtpForm)` — POST /v3/check-otp — OTP validation with 10-attempt limit | **LOW** — Rate-limited to 10 attempts before invalidation |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:88` | `.hasRole("ADMIN")` — Admin endpoints require ADMIN role | **LOW** — Standard Spring Security role check |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:81–91` | URL access rules — `permitAll()` for auth/health/dashboard/user; `hasRole("ADMIN")` for admin; `authenticated()` for rest | **HIGH** — Too many endpoints are `permitAll()`; management/user/** has no auth; dashboard is public |
+| `src/main/java/com/crapi/enums/ERole.java:17–21` | ERole enum — Roles: ROLE_PREDEFINE, ROLE_USER, ROLE_MECHANIC, ROLE_ADMIN | **LOW** — Standard role enum |
+| `src/main/java/com/crapi/entity/UserPrinciple.java:48` | `getAuthorities()` — Returns `SingleGrantedAuthority(user.getRole())` | **LOW** — Single authority per user; no role hierarchy |
+| `src/main/java/com/crapi/entity/UserPrinciple.java:71` | `isAccountNonLocked()` — Returns `!mfaRequired` — MFA required means locked | **MEDIUM** — MFA requirement used as lock flag; unusual semantics |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:94` | `http.csrf().disable()` — Disables CSRF protection | **MEDIUM** — Acceptable for stateless JWT API but removes CSRF defense |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:95` | `http.cors(Customizer.withDefaults())` — Enables default CORS | **LOW** — Standard CORS config |
+| `src/main/java/com/crapi/config/WebSecurityConfig.java:90` | `.anyRequest().authenticated()` — Catch-all: unmatched requests require auth | **LOW** — Standard fallback |
+
+**Absent Security Mechanisms:**
+- **Sandboxing / Jail / Chroot Isolation:** Not found. No process isolation mechanisms in the codebase.
+- **CSP Headers:** Not found. No Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, or X-XSS-Protection headers.
+- **Rate Limiting:** Only present in OTP v3 (10-attempt limit). No rate limiting on login, signup, or other auth endpoints.
+- **Role Hierarchy:** No hierarchical roles (e.g., ADMIN > MANAGER > USER). Each user has exactly one role.
+
+## 7. External-System Integration
+| Path | Integration type | Target system |
+|------|-----------------|---------------|
+| `controller/AuthController.java` | REST (@RestController) | Internal — JWT auth flow |
+| `controller/ChangeEmailController.java` | REST (@RestController) | Internal — email change |
+| `controller/ChangePhoneController.java` | REST (@RestController) | Internal — phone change |
+| `controller/HealthCheckController.java` | REST (@RestController) | Internal — health probe |
+| `controller/ManagementControlller.java` | REST (@RestController) | Internal — admin management |
+| `controller/ProfileController.java` | REST (@RestController) | Internal — profile CRUD |
+| `controller/UserController.java` | REST (@RestController) | Internal — user management |
+| `controller/VehicleController.java` | REST (@RestController) | Internal — vehicle management |
+| `exception/ExceptionHandler.java` | @ControllerAdvice + @RestController | Global exception handling |
+| `repository/UserRepository.java` | JpaRepository<User, Long> | PostgreSQL (User entity) |
+| `repository/UserDetailsRepository.java` | JpaRepository<UserDetails, Long> | PostgreSQL (UserDetails entity) |
+| `repository/ChangeEmailRepository.java` | JpaRepository<ChangeEmailRequest, Long> | PostgreSQL (ChangeEmailRequest) |
+| `repository/ChangePhoneRepository.java` | JpaRepository<ChangePhoneRequest, Long> | PostgreSQL (ChangePhoneRequest) |
+| `repository/OtpRepository.java` | JpaRepository<Otp, Long> | PostgreSQL (Otp entity) |
+| `repository/ProfileVideoRepository.java` | JpaRepository<ProfileVideo, Long> | PostgreSQL (ProfileVideo entity) |
+| `repository/VehicleCompanyRepository.java` | JpaRepository<VehicleCompany, Long> | PostgreSQL (VehicleCompany) |
+| `repository/VehicleDetailsRepository.java` | JpaRepository<VehicleDetails, Long> | PostgreSQL (VehicleDetails) |
+| `repository/VehicleLocationRepository.java` | JpaRepository<VehicleLocation, Long> | PostgreSQL (VehicleLocation) |
+| `repository/VehicleModelRepository.java` | JpaRepository<VehicleModel, Long> | PostgreSQL (VehicleModel) |
+| `service/Impl/VehicleOwnershipServiceImpl.java` | RestTemplate (HTTP GET) | External API Gateway (`${api.gateway.url}`) — vehicle ownership lookup via `/v1/vin/ownership?vin=` with basic auth |
+| `utils/SMTPMailServer.java` | SMTP sendMail() | MailHog (dev) or production SMTP (configurable) |
+| `config/MailConfiguration.java` | @ConfigurationProperties (SMTP) | Production SMTP server (${mail.smtp.host}:${mail.smtp.port}) |
+| `config/MailHogConfiguration.java` | @ConfigurationProperties (MailHog) | MailHog dev mail server (${mail.mailhog.host}:${mail.mailhog.port}) |
+| `service/UserResetJob.java` | @Scheduled(fixedRate=3600000) | Internal — hourly user data reset |
+| `config/SSLConfig.java` | @ConfigurationProperties("server.ssl") | TLS keystore (${TLS_KEYSTORE}) for HTTPS |
+| `src/main/resources/certs/server.crt` | Self-signed certificate | HTTPS server cert |
+| `config/WebSecurityConfig.java` | @Configuration, SecurityFilterChain bean | Spring Security filter chain (JWT auth) |
+| `config/JwtProvider.java` | JWT token builder/parser (jjwt + nimbus-jose-jwt) | JWT auth — loads JWKS from ${JWKS} env var |
+
+**Not Found:** gRPC clients, SOAP clients, message brokers (Kafka, RabbitMQ, ActiveMQ, JMS, Pulsar, NATS), WebSockets, GraphQL resolvers, ORM migrations (Flyway/Liquibase), caching (Redis/@Cacheable). Google Cloud Storage declared in build.gradle.kts but no source code usage found — suspected unused dependency.
+
+## 8. Documentation
+> Not found. Searched for: README, docs/, ADRs, wiki, man pages, developer notes, CHANGELOG, CONTRIBUTING, LICENSE, NOTICE, DESIGN docs, specs, examples/samples, tutorials, authors/credits, release notes, security policy, sponsor info, dependencies list, manifest, install guide. All patterns returned zero matches. The project has zero documentation files.
+
+## 9. API Specifications
+> Not found. Searched for: OpenAPI/Swagger (YAML/JSON), GraphQL schema definitions, WSDL, Protobuf. No formal API specification files exist. The API is defined inline via Spring Boot @RestController annotations across 8 controllers with ~30+ endpoints:
+> - `AuthController` — `/identity/auth` (11 endpoints: login, signup, OTP send/verify)
+> - `UserController` — `/identity/api/v1` (8 endpoints: profile, password, logout, OTP)
+> - `ProfileController` — `/identity/profile` (2 endpoints: GET/PUT)
+> - `ChangeEmailController` — `/identity/change/email` (2 endpoints: update, verify)
+> - `ChangePhoneController` — `/identity/change/phone` (2 endpoints: update, verify)
+> - `HealthCheckController` — `/identity/health` (1 endpoint: GET /)
+> - `ManagementControlller` — `/identity/management` (2 endpoints: lockUser, apikey)
+> - `VehicleController` — `/identity/api/v2` (5 endpoints: register, add, resend, list, location)
+
+## Security Risk Summary
+| Risk level | Paths | Rationale |
+|-----------|-------|-----------|
+| **CRITICAL** | `src/main/java/com/crapi/config/JwtProvider.java:123` (`getUserNameFromJwtToken` accepts unsigned tokens), `src/main/java/com/crapi/config/JwtProvider.java:168` (`validateJwtToken` accepts PlainJWT), `src/main/java/com/crapi/config/JwtProvider.java:150` (`/dev/null` KID bypass with hardcoded `"AA=="` secret), `src/main/java/com/crapi/service/Impl/VehicleOwnershipServiceImpl.java:64` (trust-all SSL with NoopHostnameVerifier), `/.env` (hardcoded DB password `crapisecretpassword`, TLS passwords `passw0rd`), `/jwks.json` (plaintext RSA private key in repository) | JWT authentication can be bypassed entirely by sending unsigned/PlainJWT tokens; SSL/TLS can be disabled for external HTTP calls; private key material exposed in repo and env vars; hardcoded DB/TLS passwords in plaintext |
+| **HIGH** | `src/main/java/com/crapi/config/JwtProvider.java:106` (perpetual API key JWT with no expiry), `/.env` (JWT_SECRET=crapi — weak hardcoded secret), `src/main/java/com/crapi/controller/AuthController.java:138` (OTP v2 endpoint with no rate limiting), `src/main/java/com/crapi/config/WebSecurityConfig.java:81–91` (too many `permitAll()` URL patterns), `src/main/java/com/crapi/config/SSLConfig.java:23` (TLS can be disabled via config), `src/main/java/com/crapi/utils/OTPGenerator.java:20` (non-cryptographic `Math.random()` for OTPs), `src/main/java/com/crapi/utils/EmailTokenGenerator.java:17` (non-cryptographic `Math.random()` for email tokens), `/entrypoint.sh:5` (JWKS private key in runtime env var), `/src/main/resources/certs/server.key` (plaintext TLS private key), `/src/main/resources/certs/server.keystore` (keystore with hardcoded password `passw0rd`), `/src/main/resources/certs/server.p12` (PKCS12 bundle with weak password), `/src/main/java/com/crapi/config/InitialDataConfig.java` (hardcoded admin@crapi.com/admin1234) | Perpetual API tokens, weak JWT secret, no rate limiting on OTP, overly permissive URL rules, non-cryptographic PRNG for security tokens, plaintext TLS keys/passwords, hardcoded default admin credentials |
+| **MEDIUM** | `src/main/java/com/crapi/config/JwtProvider.java:137` (JKU header key trust), `src/main/java/com/crapi/config/WebSecurityConfig.java:94` (CSRF disabled), `src/main/java/com/crapi/entity/UserPrinciple.java:71` (MFA requirement used as lock flag — unusual semantics), `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:68` (unverified token routing), `src/main/java/com/crapi/config/MailConfiguration.java` (SMTP credentials from env vars), `/Dockerfile` (exposes multiple ports; copies jwks.json into image; no non-root user), `/src/main/resources/certs/keystore.sh` (hardcoded password `passw0rd`), `/entrypoint.sh` (JWKS fallback to default key) | Shared key pair for tokens and API keys, CSRF removed, unusual MFA semantics, filter routing to unverified parser, SMTP credentials in env, Docker image security concerns, keystore script with hardcoded password, JWKS fallback risk |
+| **LOW** | `src/main/java/com/crapi/config/WebSecurityConfig.java:84` (BCryptPasswordEncoder bean), `src/main/java/com/crapi/service/Impl/UserRegistrationServiceImpl.java:92` (BCrypt on signup), `src/main/java/com/crapi/service/Impl/OtpServiceImpl.java:68` (BCrypt on reset), `src/main/java/com/crapi/config/JwtProvider.java:89` (RS256 JWT signing), `src/main/java/com/crapi/config/JwtAuthTokenFilter.java:189` (token extraction), `src/main/java/com/crapi/config/JwtAuthEntryPoint.java:32` (401 entry point), `src/main/java/com/crapi/enums/ERole.java` (role enum), `/gradle.properties` (JVM tuning), `/gradle/wrapper/gradle-wrapper.properties` (Gradle version), `/src/main/resources/logback.xml` (logging config), `/src/main/resources/certs/server.crt` (public cert), `/build-image.sh` (build script), `/build-image.bat` (build script), `/health.sh` (health check), `/src/main/java/com/crapi/config/MailHogConfiguration.java` (dev mail config) | Standard BCrypt password hashing, standard JWT signing, standard header extraction, standard auth entry point, standard role enum, build-only configs, public cert, build scripts, health check, dev-only mail config |

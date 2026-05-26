@@ -1,10 +1,8 @@
-"""End-to-end eval for the ``likec4_build`` (+ ``likec4_validate``) chain.
+"""End-to-end eval for the ``likec4_build`` task.
 
-Runs the same four-task pipeline ``LikeC4BuildingPipeline`` assembles
-(deps → project_info → likec4_build → likec4_validate) over a single
-shared in-memory overlay so the validate worker sees the build worker's
-writes — identical wiring to production, just with an
-``InMemoryArtifactService``.
+Runs the likec4_build task (optionally preceded by dependency_information
++ project_information when precomputed artifacts are not available) and
+scores the output.
 
 Scoring is two-pronged:
 
@@ -15,7 +13,7 @@ Scoring is two-pronged:
    test skips so unrelated CI doesn't go red.
 2. **Structural keyword coverage.** Every well-formed LikeC4 source
    must contain at minimum ``specification``, ``model``, ``views``
-   blocks — we match each as a substring on the result body. Per-case
+   blocks -- we match each as a substring on the result body. Per-case
    overrides come from ``task-cases.json``.
 """
 
@@ -33,8 +31,9 @@ from contractor.agents.likec4_builder_agent.agent import \
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import (DEFAULT_LIKEC4_PATH, Likec4Error,
-                                     Likec4Linter, Likec4NotFoundError)
+                                     Likec4NotFoundError, Likec4Linter)
 
+from tests.eval.conftest import FIXTURES_ROOT
 from tests.eval.scoring import score_phrases
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
@@ -45,20 +44,9 @@ _LIKEC4_FENCE_RE = re.compile(
 
 
 def _extract_likec4_source(result_text: str) -> str:
-    """Pull the LikeC4 DSL body out of the task result.
-
-    ``likec4_build`` is instructed (see ``contractor/tasks/likec4_build/v1.yml``)
-    to embed the full source under a ``## LikeC4 Source`` heading inside
-    a fenced ``likec4`` block. We extract the LAST such block — if the
-    agent quoted intermediate drafts above the final one, the last one
-    is the canonical source it committed to.
-    """
     matches = _LIKEC4_FENCE_RE.findall(result_text)
     if matches:
         return matches[-1].strip()
-    # Fall back to the whole body — covers cases where the model
-    # forgot the fence but still emitted DSL text. The linter will
-    # tell us whether it's valid.
     return result_text
 
 
@@ -67,6 +55,18 @@ def _case_for(fixture, task: str) -> dict | None:
         if case.get("task") == task:
             return case
     return None
+
+
+def _load_precomputed(slug: str) -> dict[str, str] | None:
+    """Load precomputed dep/project artifacts from disk, if available."""
+    art_dir = FIXTURES_ROOT / slug / "artifacts"
+    mapping: dict[str, str] = {}
+    for task_key in ("dependency_information", "project_information"):
+        path = art_dir / f"{task_key}_result.txt"
+        if not path.is_file():
+            return None
+        mapping[f"{task_key}/result"] = path.read_text(encoding="utf-8")
+    return mapping
 
 
 @pytest.mark.eval
@@ -84,18 +84,11 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
     from cli.fs import RootedLocalFileSystem
 
     fs = RootedLocalFileSystem(str(fixture.source_root))
-    # Shared overlay across build + validate so validate sees the
-    # canonical /architecture.c4 the build worker wrote.
     overlay_fs = MemoryOverlayFileSystem(fs=fs)
 
+    precomputed = _load_precomputed(fixture.slug)
+
     def queue(runner) -> None:
-        swe_builder = partial(
-            build_swe_agent,
-            name="swe_agent",
-            fs=fs,
-            model=eval_model,
-            max_tokens=100_000,
-        )
         likec4_builder = partial(
             build_likec4_builder_agent,
             name="likec4_builder",
@@ -105,19 +98,29 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
         )
 
         runner.add_variable(name="project_path", value=str(fixture.source_root))
-        runner.add_task(
-            name="dependency_information",
-            worker_builder=swe_builder,
-            iterations=1, max_attempts=2, max_steps=20,
-            namespace="dependency_information", model=eval_model,
-        )
-        runner.add_task(
-            name="project_information",
-            worker_builder=swe_builder,
-            iterations=1, max_attempts=2, max_steps=20,
-            artifacts=["dependency_information/result"],
-            namespace="project_information", model=eval_model,
-        )
+
+        if precomputed is None:
+            swe_builder = partial(
+                build_swe_agent,
+                name="swe_agent",
+                fs=fs,
+                model=eval_model,
+                max_tokens=100_000,
+            )
+            runner.add_task(
+                name="dependency_information",
+                worker_builder=swe_builder,
+                iterations=1, max_attempts=2, max_steps=20,
+                namespace="dependency_information", model=eval_model,
+            )
+            runner.add_task(
+                name="project_information",
+                worker_builder=swe_builder,
+                iterations=1, max_attempts=2, max_steps=20,
+                artifacts=["dependency_information/result"],
+                namespace="project_information", model=eval_model,
+            )
+
         runner.add_task(
             name="likec4_build",
             worker_builder=likec4_builder,
@@ -128,42 +131,21 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
             ],
             namespace="likec4-building", model=eval_model,
         )
-        runner.add_task(
-            name="likec4_validate",
-            worker_builder=likec4_builder,
-            iterations=1, max_attempts=2, max_steps=20,
-            artifacts=[
-                "dependency_information/result",
-                "project_information/result",
-                "likec4_build/result",
-            ],
-            namespace="likec4-building", model=eval_model,
-        )
 
     run = await run_task_pipeline(
         queue_fn=queue,
-        artifact_keys=[
-            "dependency_information/result",
-            "project_information/result",
-            "likec4_build/result",
-            "likec4_validate/result",
-        ],
+        artifact_keys=["likec4_build/result"],
         namespace=f"task-eval-{fixture.slug}-{case['id']}",
         timeout_s=float(case.get("timeout_s", 2400.0)),
         runner_name=f"likec4-{fixture.slug}",
+        preloaded_artifacts=precomputed,
     )
 
-    # Prefer validate's output (the repair pass) when it published, fall
-    # back to build. Either way we score the actual DSL committed to the
-    # overlay — the result-text fences may quote an older draft.
     if overlay_fs.exists(DEFAULT_LIKEC4_PATH):
         dsl = overlay_fs.read_text(DEFAULT_LIKEC4_PATH, encoding="utf-8")
         source_origin = "overlay"
     else:
-        result_text = (
-            run.result_text("likec4_validate")
-            or run.result_text("likec4_build")
-        )
+        result_text = run.result_text("likec4_build")
         assert result_text, (
             "no LikeC4 artifact produced\n"
             + render_metrics_table(run.metrics)

@@ -31,7 +31,7 @@ from typing import Awaitable, Callable, Optional
 from google.adk.artifacts import FileArtifactService
 
 from contractor.runners.agio import AgioEventType
-from contractor.runners.artifacts import artifact_filename
+from contractor.runners.artifacts import artifact_filename, save_result_artifacts
 from contractor.runners.models import TaskResult, TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunner
 from contractor.utils import observability
@@ -129,6 +129,7 @@ async def run_task_pipeline(
     user_id: str = "eval-user",
     runner_name: str = "eval-task-runner",
     observability_tags: Optional[list[str]] = None,
+    preloaded_artifacts: Optional[dict[str, str]] = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
     and return everything the caller needs to score and analyse the run.
@@ -162,6 +163,18 @@ async def run_task_pipeline(
         maybe_coro = queue_fn(runner)
         if maybe_coro is not None and hasattr(maybe_coro, "__await__"):
             await maybe_coro
+
+        if preloaded_artifacts:
+            for art_filename, text in preloaded_artifacts.items():
+                key, _, kind = art_filename.rpartition("/")
+                if kind == "result":
+                    await save_result_artifacts(
+                        artifact_service=artifact_service,
+                        app_name=runner_name,
+                        user_id=user_id,
+                        key=key,
+                        result=text,
+                    )
 
         events: list[TaskRunnerEvent] = []
 

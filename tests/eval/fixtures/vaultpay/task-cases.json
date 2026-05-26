@@ -1,0 +1,37 @@
+[
+  {
+    "id": "project_information-basic",
+    "task": "project_information",
+    "expected_sections": [
+      "Project Structure",
+      "Overview",
+      "Configuration",
+      "Tests",
+      "Business",
+      "Data Models",
+      "Security Functions",
+      "External-System",
+      "Documentation"
+    ],
+    "expected_phrases_any": [
+      "express",
+      "typescript"
+    ],
+    "min_section_recall": 0.7,
+    "min_phrase_recall": 0.5,
+    "timeout_s": 1800
+  },
+  {
+    "id": "likec4_build-basic",
+    "task": "likec4_build",
+    "must_validate": true,
+    "max_validation_errors": 0,
+    "expected_keywords": [
+      "specification",
+      "model",
+      "views"
+    ],
+    "min_keyword_recall": 1.0,
+    "timeout_s": 2400
+  }
+]

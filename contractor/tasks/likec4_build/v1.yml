@@ -10,13 +10,13 @@ task:
     authentication and authorization touch points, data stores and the classes
     of data they hold, secrets handling, and outbound integrations.
 
-    The canonical LikeC4 source MUST be maintained in the memory note
-    `likec4_source`. Read it before every modeling iteration, overwrite it with
-    the full updated source after every meaningful edit, and validate it through
-    the LikeC4 validation capability before continuing.
+    The canonical LikeC4 source MUST be maintained in the overlay-backed file
+    `/architecture.c4`. Write to it via write_file/edit/replace_range and
+    validate it through validate_likec4(path="/architecture.c4") before
+    continuing.
 
     The final task result MUST include the full validated content of
-    `likec4_source`.
+    `/architecture.c4` (read it back with read_file and emit verbatim).
 
     Inputs to consume before exploring code:
       - Project information: project_information/result
@@ -44,11 +44,13 @@ task:
     - The model is security-first. Treat every external system, inbound entry
       point, outbound call, data store, identity boundary, and privileged tool as
       a potential attack surface.
-    - The LikeC4 source lives in a single memory note named `likec4_source`.
-      Always read the current note before editing, then write the full updated
-      source back after each meaningful edit.
-    - Validate the full LikeC4 source after every meaningful edit. Do not add
-      more model content while validation errors remain.
+    - The LikeC4 source lives in a single overlay-backed file at
+      `/architecture.c4`. Write to it via write_file/edit/replace_range.
+      The overlay ensures your writes are visible to validate_likec4 calls
+      but do not touch the real project filesystem.
+    - Validate after every meaningful edit via
+      validate_likec4(path="/architecture.c4"). Do not add more model content
+      while validation errors remain.
 
     ## Required Coverage
 
@@ -176,8 +178,8 @@ task:
 
     ## Workflow
 
-    1. Read current memory:
-         - `likec4_source`, if present
+    1. Read current state:
+         - `/architecture.c4` via read_file, if it exists
          - any prior `likec4_*` memories
          - `likec4_uncertainties`, if present
 
@@ -185,32 +187,35 @@ task:
          - `project_information/result`
          - `dependency_information/result`
 
-    3. Build or extend the model in this order:
-         a. specification block
-              - element kinds
-              - deployment kinds, if needed
-              - relationship kinds, if needed
-              - tags
-              - colors / styles needed for security emphasis
+    3. Build or extend the model in THREE PHASES. After EACH phase,
+       write the file and validate before proceeding to the next:
 
-         b. model block
+         PHASE 1 — specification block (write → validate → fix ALL errors)
+              - element kinds (actor, system, container, service, database,
+                queue, external — declare every kind before using it)
+              - relationship kinds, if needed
+              - tags (pii, secrets, tokens, credentials, audit, business,
+                external, public, internal, admin, identity)
+              - colors / styles needed for security emphasis
+              Do NOT proceed to model until specification validates cleanly.
+
+         PHASE 2 — model block (write → validate after each group → fix)
               - external actors
               - system boundary
-              - trust-zone groupings
               - internal containers
               - data stores
               - external systems
-              - relationships
+              - relationships (add last; validate after adding them)
 
-         c. views block
-              - systemLandscape
+         PHASE 3 — views block (add one view at a time → validate each)
+              - systemLandscape (simplest view first)
               - containers
               - security or external_surface
               - any additional evidence-backed views
 
     4. After every meaningful edit:
-         - write the complete updated LikeC4 source to `likec4_source`
-         - run LikeC4 validation against the complete source
+         - write to `/architecture.c4` via write_file / edit / replace_range
+         - run validate_likec4(path="/architecture.c4")
          - fix validation errors before making further model additions
 
     5. Use the `likec4` skill memory, including index and references, to confirm
@@ -267,9 +272,9 @@ task:
         outbound client usage.
 
     - Memory:
-        Read existing entries before writing. Maintain exactly one canonical
-        `likec4_source` note by overwriting it with the full current source.
-        Do not append duplicate source notes.
+        Read existing entries before writing. Use memory for findings,
+        uncertainties, and coverage tracking — NOT for the DSL source.
+        The canonical source is `/architecture.c4` (overlay-backed file).
 
     - LikeC4:
         Validate after every meaningful edit. Do not continue building while
@@ -295,7 +300,7 @@ task:
       surfaces.
     - Do NOT include speculative views or placeholder elements.
     - Do NOT output the full DSL in intermediate chat messages. During the task,
-      the canonical source lives only in `likec4_source`. The full DSL is
+      the canonical source lives only in `/architecture.c4`. The full DSL is
       included only in the final task result as required by `output_format`.
 
     ## Failure Handling
@@ -322,8 +327,7 @@ task:
 
   output_format: >
     The final task result MUST be a single response containing a short Markdown
-    summary followed by the full validated content of the `likec4_source` memory
-    note.
+    summary followed by the full validated content of `/architecture.c4`.
 
     Use exactly this structure:
 
@@ -344,10 +348,9 @@ task:
     ## LikeC4 Source
 
     ```likec4
-    <full likec4_source content>
+    <full /architecture.c4 content>
     ```
 
     Do NOT paste the source twice.
     Do NOT include code excerpts beyond the LikeC4 block.
-    Do NOT claim validation passed unless the LikeC4 validation capability
-    reported success.
+    Do NOT claim validation passed unless validate_likec4 reported success.

@@ -1,0 +1,27 @@
+# External-Service Dependency Inventory
+
+## Detected Stack and Dependency Sources
+- **Primary languages / frameworks:** TypeScript / Node.js (confirmed by `package.json` and `tsconfig.json`), Express ^4.21.0 (web framework), SQLite (via better-sqlite3), Zod (schema validation)
+- **Manifest files analyzed:** `package.json`, `tsconfig.json`, `src/db/schema.sql`
+- **Lock files analyzed:** none found (no `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml` present)
+
+## External-Service Dependencies
+| Dependency | Version | Ecosystem | Tags | Why included | Evidence |
+|------------|---------|-----------|------|--------------|----------|
+| axios | ^1.7.7 | npm | http | HTTP client for external API calls (FX rates) | package.json: "axios": "^1.7.7"; import + axios.get() in src/services/fx.ts:11 |
+| bcryptjs | ^2.4.3 | npm | cryptography, security | Password hashing at trust boundary | package.json: "bcryptjs": "^2.4.3"; import in src/services/auth.ts:0 |
+| better-sqlite3 | ^11.3.0 | npm | database | SQLite database driver for persistent storage | package.json: "better-sqlite3": "^11.3.0"; import Database in src/db/connection.ts:0 |
+| jsonwebtoken | ^9.0.2 | npm | authentication, security | JWT token creation/verification for auth flow | package.json: "jsonwebtoken": "^9.0.2"; import jwt in src/services/auth.ts:1 |
+| otplib | ^12.0.1 | npm | authentication | TOTP/HOTP library for two-factor authentication | package.json: "otplib": "^12.0.1"; import authenticator in src/services/auth.ts:2 |
+
+## Summary by Tag
+- **http:** axios
+- **authentication:** jsonwebtoken, otplib
+- **security:** bcryptjs, jsonwebtoken, otplib
+- **cryptography:** bcryptjs
+- **database:** better-sqlite3
+
+## Gaps and Follow-ups
+- **Suspected (low-confidence) dependencies:** None — all 5 kept dependencies have confirmed runtime import evidence.
+- **Missing inputs:** No lock files (package-lock.json, yarn.lock, pnpm-lock.yaml) — dependency versions are not pinned; no Dockerfile/docker-compose.yml for infrastructure dependencies; no .env files (secrets like JWT_SECRET, WEBHOOK_SECRET are hardcoded in source); no test config, linting, or formatting config files found.
+- **Assumptions made:** Express and zod are excluded as they are general-purpose frameworks (web framework and schema validation respectively), not external-service connectors. All 5 kept dependencies were confirmed via both package.json entries and runtime import evidence in the codebase.
