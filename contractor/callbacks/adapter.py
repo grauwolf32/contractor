@@ -40,9 +40,7 @@ class CallbackChain:
 
 @dataclass(slots=True)
 class CallbackAdapter:
-    """
-    CallbackAdapter хранит цепочки callback'ов по типам.
-    """
+    """Stores callback chains keyed by callback type."""
 
     chains: dict[CallbackTypes, CallbackChain] = field(default_factory=dict)
     registry: dict[str, BaseCallback] = field(default_factory=dict)

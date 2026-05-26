@@ -1,152 +1,111 @@
+<p align="center">
+  <img src="docs/logo.jpg" alt="Contractor" width="280" />
+</p>
+
+<h1 align="center">Contractor</h1>
+
+<p align="center">
+  <strong>AI-powered OpenAPI generation, enrichment, and vulnerability tracing from your codebase</strong>
+</p>
+
+<p align="center">
+  <code>build</code> &nbsp;·&nbsp; <code>enrich</code> &nbsp;·&nbsp; <code>trace</code> &nbsp;·&nbsp; <code>router</code>
+</p>
 
 ---
 
-# Contractor
+Contractor is a CLI tool that drives a pipeline of LLM agents over your project's source code to **generate**, **improve**, and **trace** OpenAPI specifications — no manual writing required.
 
-**Contractor** is a CLI tool that uses LLM agents to **generate and improve OpenAPI specs from your codebase**.
-
-Instead of manually writing or updating API docs, Contractor analyzes your project and produces structured OpenAPI artifacts for you.
-
----
-
-## ✨ What you can do with it
-
-* Generate an OpenAPI spec from an existing codebase
-* Improve an existing OpenAPI file using real code context
-* Trace how the system thinks and behaves (for debugging and tuning)
-
----
-
-## 🚀 Quick start
+## Quick Start
 
 ```bash
 poetry install
 poetry run contractor --help
 ```
 
-Run your first pipeline:
-
 ```bash
 poetry run contractor \
   --pipeline build \
-  --project-path ./your-project
-  --folder-name src-folder
+  --project-path ./your-project \
+  --folder-name src
 ```
 
-It is better to place the project in a separate isolated folder so the agent does not accidentally wander into neighboring projects.
+> Place the target project in a separate isolated folder so the agent does not accidentally wander into neighboring projects.
 
----
+## Pipelines
 
-## 🧠 How it works (in plain terms)
+| Pipeline | Purpose | Key flags |
+|----------|---------|-----------|
+| **`build`** | Generate an OpenAPI spec from code | `--project-path`, `--folder-name` |
+| **`enrich`** | Improve an existing spec using code context | `--artifact openapi.yaml` |
+| **`trace`** | Trace execution paths & find vulnerabilities | `--artifact openapi.yaml` |
+| **`trace-graph`** | Graph-based trace with cross-layer analysis | `--artifact openapi.yaml` |
+| **`trace-direct`** | Single-pass trace (no planner) | `--artifact openapi.yaml` |
+| **`trace-verify`** | Verify trace results | `--artifact openapi.yaml` |
+| **`likec4`** | Generate LikeC4 architecture model | `--project-path` |
+| **`router`** | Prompt-driven agent (interactive if `--prompt` omitted) | `--prompt "..."` |
 
-Contractor runs a **pipeline of AI agents** over your project:
-
-1. It scans your codebase
-2. Extracts structure and dependencies
-3. Uses LLMs to infer API behavior
-4. Produces or updates an OpenAPI spec
-5. Saves everything in artifact storage
-
-Each run also records metrics and intermediate results so you can inspect what happened.
-
----
-
-## 🔌 Pipelines
-
-Think of pipelines as “modes” of operation.
-
-### `build` — generate OpenAPI from code
-
-Use this when you **don’t have an OpenAPI spec yet**.
+### Typical workflow
 
 ```bash
-contractor \
-  --pipeline build \
-  --project-path ./project \
-  --folder-name src \
-  --model lm-studio-qwen3.6
+# 1. Generate spec from code
+contractor --pipeline build --project-path . --folder-name src --model lm-studio-qwen3.6
+
+# 2. Enrich it with deeper analysis
+contractor --pipeline enrich --project-path . --artifact .contractor/openapi.yaml --model lm-studio-qwen3.6
+
+# 3. Trace execution paths & find vulnerabilities
+contractor --pipeline trace --project-path . --artifact .contractor/openapi.yaml --model lm-studio-qwen3.6
 ```
 
----
+## How It Works
 
-### `enrich` — improve an existing spec
+Contractor runs a **pipeline of AI agents** coordinated by a planning agent:
 
-Use this when you **already have an OpenAPI file** and want to refine it.
+```
+Source Code  ──►  Planner Agent  ──►  Worker Agents  ──►  OpenAPI Artifacts
+                     │                    │
+                     ▼                    ▼
+               Subtask decomposition   Code analysis, API inference,
+               Progress tracking       Spec generation, Vuln tracing
+```
+
+1. **Scan** — reads your codebase through a sandboxed filesystem
+2. **Plan** — a planner agent decomposes the work into subtasks
+3. **Execute** — specialized worker agents process each subtask
+4. **Produce** — results are assembled into OpenAPI specs and saved as artifacts
+
+Each run records metrics and intermediate results to `<project>/.contractor/metrics.jsonl`.
+
+## Configuration
+
+### Environment
 
 ```bash
-contractor \
-  --pipeline enrich \
-  --project-path ./project \
-  --artifact openapi.yaml \
-  --model lm-studio-qwen3.6
+cp cli/.env.example cli/.env
 ```
-
----
-
-### `trace` — understand what’s happening internally
-
-The trace pipeline inspects how your API behaves based on the OpenAPI schema and project code, then reconstructs execution flows.
-
-```bash
-contractor \
-  --pipeline trace \
-  --project-path ./project \
-  --artifact openapi.yaml \
-  --model lm-studio-qwen3.6
-```
-
-What it’s useful for
-🔍 Tracing execution paths from OpenAPI endpoints into your code
-🧩 Understanding system behavior across layers (handlers → services → dependencies)
-⚠️ Finding potential vulnerabilities, such as:
-  - missing validation
-  - unsafe input handling
-  - unexpected code paths
-🛠 Debugging agent output when build/enrich results look incorrect
-
----
-
-## ⚙️ Configuration
-
-### `.env` setup
-
-Contractor reads configuration from:
-
-```
-contractor/cli/.env
-```
-
-Start from the example:
-
-```bash
-cp contractor/cli/.env.example contractor/cli/.env
-```
-
----
-
-### Typical `.env` values
 
 ```env
-# Enable tracing (optional)
-USE_LANGFUSE=true
+# LiteLLM proxy (required)
+LITELLM_API_BASE=http://localhost:4000
+LITELLM_API_KEY=sk-litellm-changeme
 
-# Langfuse (optional)
+# Langfuse observability (optional)
+USE_LANGFUSE=true
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_SECRET_KEY=...
 LANGFUSE_HOST=http://localhost:3000
-
-# LiteLLM
-LITELLM_API_BASE=http://localhost:4000
-LITELLM_API_KEY=sk-litellm-changeme
 ```
 
----
+### Model Setup (LiteLLM)
 
-## 🤖 Model setup (LiteLLM)
+`--model` is an alias from `deploy/litellm/litellm_config.yaml`, resolved by a LiteLLM proxy. Start the proxy before running any pipeline:
 
-Contractor uses **LiteLLM** to talk to models.
+```bash
+cd deploy/litellm && bash run.sh   # requires Podman
+```
 
-Your `--model` must match a configured alias:
+Example alias config:
 
 ```yaml
 model_list:
@@ -157,66 +116,35 @@ model_list:
       api_key: lm-studio
 ```
 
+## CLI Reference
 
-## 🧾 CLI options (simple version)
+| Option | Description |
+|--------|-------------|
+| `--pipeline` | Pipeline mode (see table above) |
+| `--project-path` | Path to target codebase |
+| `--folder-name` | Subfolder scope within project |
+| `--artifact` | Input artifact (required for `enrich`, `trace*`) |
+| `--prompt` | Prompt for `router` (interactive if omitted) |
+| `--model` | LiteLLM model alias |
+| `--output` | Output directory (default: `<project>/.contractor`) |
+| `--rm` | Clean temp files after run |
 
-| Option           | What it does                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| `--pipeline`     | `build` / `enrich` / `likec4` / `trace` / `trace-direct` / `trace-graph` / `trace-verify` / `router` |
-| `--project-path` | your codebase                                                                      |
-| `--folder-name`  | optional subfolder scope                                                           |
-| `--artifact`     | required for `enrich` and `trace*`                                                 |
-| `--prompt`       | required for `router` (interactive prompt opens if omitted)                        |
-| `--model`        | LiteLLM alias from `deploy/litellm/litellm_config.yaml`                            |
-| `--output`       | where results go                                                                   |
-| `--rm`           | clean temp files                                                                   |
-
----
-
-## 📁 Output
-
-By default, everything goes to:
+## Project Structure
 
 ```
-<project>/.contractor
-```
-
-You’ll find:
-
-* generated OpenAPI files
-* intermediate artifacts
-* `metrics.jsonl` (run logs)
-
----
-
-## 🧪 Example workflow
-
-Generate → improve → trace:
-
-```bash
-# 1. Generate spec
-contractor --pipeline build --project-path . ...
-
-# 2. Improve it
-contractor --pipeline enrich \
-  --project-path . \
-  --artifact .contractor/openapi.yaml
-  ...
-
-# 3. Trace execution
-contractor --pipeline trace --project-path . ...
-```
-
----
-
-## 🏗 Project structure (simplified)
-
-```
-cli/                 # CLI interface
+cli/                          CLI entrypoint & pipeline assemblers
 contractor/
-  agents/            # LLM agents
-  runners/           # pipeline execution
-  tools/             # code + filesystem tools
-  utils/             # helpers
-deploy/litellm/      # model setup
+  agents/                     LLM agents (planner, swe, trace, router, ...)
+  runners/                    Pipeline execution engine
+  tools/                      Sandboxed tools (fs, code, memory, openapi, http, vuln)
+  tasks/                      YAML task templates
+  skills/                     Markdown reference bundles injected per task
+  callbacks/                  Token usage, guardrails, rate limits
+  utils/                      Settings, observability, helpers
+deploy/litellm/               LiteLLM proxy config
+docs/                         Architecture docs & diagrams
 ```
+
+## Documentation
+
+See [docs/README.md](docs/README.md) for the deep dive on planner/worker internals, the streamline subtask state machine, and the memory/artifact contract.

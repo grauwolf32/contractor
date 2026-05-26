@@ -176,24 +176,75 @@ task:
 
     Do not pad the model with speculative or low-value views.
 
-    ## Workflow
+    ## Subtask Decomposition
 
-    1. Read current state:
-         - `/architecture.c4` via read_file, if it exists
-         - any prior `likec4_*` memories
-         - `likec4_uncertainties`, if present
+    Decompose the work into SEPARATE subtasks — one per phase. Do NOT
+    combine building and verification into one subtask. Each subtask must
+    do ONE thing and validate before the next starts.
 
-    2. Read upstream inputs:
+    IF `/architecture.c4` does not exist (first iteration):
+
+      Subtask 1: "Write specification block"
+        Write spec with all element kinds, relationship kinds, tags, colors.
+        Run validate_likec4. Fix errors until clean. STOP.
+
+      Subtask 2: "Write model — actors, system, containers"
+        Add model block with actors, system boundary, containers, services,
+        data stores, external systems. Run validate_likec4. Fix errors. STOP.
+
+      Subtask 3: "Write model — relationships"
+        Add all relationships (inbound entry points, internal delegation,
+        data store access, outbound calls, crypto dependencies).
+        Run validate_likec4. Fix errors. STOP.
+
+      Subtask 4: "Write views"
+        Add systemLandscape, containers, security views (one at a time,
+        validate after each). Add dynamic/data-flow views if evidence
+        supports them. STOP.
+
+      Subtask 5: "Verify coverage and emit result"
+        Run validate_likec4 one final time. Read /architecture.c4 verbatim.
+        Produce the output in the required format.
+
+    IF `/architecture.c4` already exists (subsequent iterations):
+
+      Subtask 1: "Gap analysis"
+        Read /architecture.c4 and run validate_likec4. Compare the model
+        against the required coverage checklist. List SPECIFIC gaps (not
+        just "PASS" — name what is missing). STOP.
+
+      Subtask 2..N: One subtask per gap found
+        Each subtask fixes ONE gap: add missing element, fix broken
+        relationship, add missing view. Validate after each. STOP.
+
+      Final subtask: "Verify and emit result"
+        Validate. Read /architecture.c4 verbatim. Produce the output.
+
+    RULES for subtask design:
+      - NEVER create a subtask that only reads the file without changing it
+        (unless it is the final "emit result" subtask).
+      - NEVER create a subtask that re-reads content already available from
+        a previous subtask's output — use records to pass data forward.
+      - NEVER combine "write spec + write model + write views" into one
+        subtask. Each phase must be a separate subtask with its own
+        validation step.
+      - If the gap analysis finds no gaps and validation is clean, go
+        directly to the "emit result" subtask. Do NOT create filler
+        subtasks that just re-verify what was already checked.
+
+    ## Workflow Details
+
+    1. Read upstream inputs:
          - `project_information/result`
          - `dependency_information/result`
 
-    3. Build or extend the model in THREE PHASES. After EACH phase,
-       write the file and validate before proceeding to the next:
+    2. Build or extend the model in THREE PHASES. After EACH phase,
+       validate before proceeding to the next:
 
          PHASE 1 — specification block (write → validate → fix ALL errors)
               - element kinds (actor, system, container, service, database,
-                queue, external — declare every kind before using it)
-              - relationship kinds, if needed
+                queue, storage, external — declare every kind before using it)
+              - relationship kinds (authenticates, calls, reads, stores, etc.)
               - tags (pii, secrets, tokens, credentials, audit, business,
                 external, public, internal, admin, identity)
               - colors / styles needed for security emphasis
@@ -202,62 +253,38 @@ task:
          PHASE 2 — model block (write → validate after each group → fix)
               - external actors
               - system boundary
-              - internal containers
-              - data stores
-              - external systems
+              - internal containers (one per distinct code module / router
+                that has its own security surface)
+              - data stores and external systems
+              - cryptographic dependencies (JWT secrets, password hashing)
               - relationships (add last; validate after adding them)
 
          PHASE 3 — views block (add one view at a time → validate each)
               - systemLandscape (simplest view first)
               - containers
               - security or external_surface
-              - any additional evidence-backed views
+              - dynamic auth-flow view (if auth patterns exist)
+              - additional evidence-backed views
 
-    4. After every meaningful edit:
-         - write to `/architecture.c4` via write_file / edit / replace_range
-         - run validate_likec4(path="/architecture.c4")
-         - fix validation errors before making further model additions
+    3. Validate after every meaningful edit via
+       validate_likec4(path="/architecture.c4"). Do not add more model content
+       while validation errors remain.
 
-    5. Use the `likec4` skill memory, including index and references, to confirm
-       exact DSL syntax for:
-         - specification syntax
-         - element declarations
-         - relationship syntax
-         - tags
-         - style rules
-         - predicates
-         - identifier rules
-         - scoping
-         - view syntax
-         - autoLayout options
+    4. Use the `likec4` skill memory for exact DSL syntax. Do NOT guess.
 
-       Do NOT guess LikeC4 syntax.
-
-    6. Explore code evidence using targeted inspection:
+    5. Explore code evidence using targeted inspection:
          - Use symbol / definition lookup for handlers, clients, adapters,
            services, repositories, middleware, auth modules, jobs, and workers.
-         - Use literal text search for:
-             - route decorators and registrations
-             - framework entry points
-             - queue subscribers
-             - event handlers
-             - cron / scheduler definitions
-             - env-var lookups
-             - config keys
-             - HTTP, gRPC, database, queue, cache, storage, KMS, and secret-store
-               clients
-             - authentication and authorization middleware
-             - token, credential, session, role, tenant, permission, and policy
-               handling
+         - Use literal text search for route decorators, framework entry points,
+           queue subscribers, event handlers, cron definitions, env-var lookups,
+           config keys, outbound clients, auth middleware, and token/credential
+           handling.
 
-    7. Track coverage:
+    6. Track coverage:
          - Record explored and unexplored areas in `likec4_uncertainties`.
-         - Use coverage inspection capabilities to verify that handlers, jobs,
-           workers, integration adapters, and data access layers have actually
-           been read.
          - Record uncertainty instead of inventing missing facts.
 
-    8. Stop only when:
+    7. Stop only when:
          - LikeC4 validation reports no errors
          - required coverage is satisfied
          - unresolved uncertainty has been recorded in `likec4_uncertainties`

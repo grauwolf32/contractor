@@ -57,6 +57,7 @@ class Pipeline(ABC):
             ok = True
             return result
         finally:
+            await self._cleanup(user_id=user_id)
             await self._emit(
                 on_event,
                 "pipeline_finished",
@@ -70,6 +71,13 @@ class Pipeline(ABC):
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler],
     ) -> Any: ...
+
+    async def _cleanup(self, *, user_id: str) -> None:
+        """Hook for subclasses to persist supplementary state (overlay FS, etc.).
+
+        Called in ``run()``'s finally block, before the ``pipeline_finished``
+        event. The default implementation is a no-op.
+        """
 
     async def _emit(
         self,

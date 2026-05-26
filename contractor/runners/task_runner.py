@@ -183,10 +183,10 @@ class TaskRunner(BaseModel):
                     task_id=task_id,
                     template_key=item.template_key,
                     template_version=item.template_version,
-                    session_id=result["session_id"],
-                    status=result["status"],
-                    result=result["result"],
-                    summary=result["summary"],
+                    session_id=result.session_id,
+                    status=result.status,
+                    result=result.result,
+                    summary=result.summary,
                     total_tasks=total_tasks,
                     completed_tasks=task_id + 1,
                 )
@@ -234,7 +234,7 @@ class TaskRunner(BaseModel):
                 ref=item.ref,
                 template_key=item.template_key,
                 template_version=item.template_version,
-                published_artifacts=dict(result["published_artifacts"]),
+                published_artifacts=dict(result.published_artifacts),
             )
         )
         checkpoint.save(self.checkpoint_path)
@@ -314,7 +314,7 @@ class TaskRunner(BaseModel):
             template_version=item.template_version,
             session_id="",
             status=TaskStatus.DONE,
-            result=result["result"],
+            result=result.result,
             summary="",
             records=[],
             published_artifacts=entry.published_artifacts,
@@ -331,7 +331,7 @@ class TaskRunner(BaseModel):
             template_version=item.template_version,
             session_id="",
             status=TaskStatus.DONE,
-            result=result["result"],
+            result=result.result,
             summary="",
             total_tasks=total_tasks,
             completed_tasks=task_id + 1,
@@ -460,9 +460,9 @@ class TaskRunner(BaseModel):
             app_name=self.name,
             user_id=user_id,
             key=template_key,
-            result=result.get("result", "") or "",
-            summary=result.get("summary", "") or "",
-            records=result.get("records", []),
+            result=result.result or "",
+            summary=result.summary or "",
+            records=result.records or [],
         )
 
     async def _inject_artifacts(
@@ -751,7 +751,7 @@ class TaskRunner(BaseModel):
             )
 
             last_result = result
-            completed = self._is_task_completed(task_id, result["state"])
+            completed = self._is_task_completed(task_id, result.state)
 
             next_successful_runs = successful_runs + (1 if completed else 0)
 
@@ -760,10 +760,10 @@ class TaskRunner(BaseModel):
                 task_name=item.ref,
                 task_id=task_id,
                 iteration=iteration,
-                session_id=result["session_id"],
-                status=result["status"],
-                result=result["result"],
-                summary=result["summary"],
+                session_id=result.session_id,
+                status=result.status,
+                result=result.result,
+                summary=result.summary,
                 completed=completed,
                 iterations_required=item.iterations,
                 max_attempts=item.max_attempts,
@@ -785,18 +785,18 @@ class TaskRunner(BaseModel):
                         task_id=task_id,
                         template_key=item.template_key,
                         template_version=item.template_version,
-                        session_id=result["session_id"],
-                        status=result["status"],
-                        result=result["result"],
-                        summary=result["summary"],
-                        records=result["records"],
-                        published_artifacts=result["published_artifacts"],
+                        session_id=result.session_id,
+                        status=result.status,
+                        result=result.result,
+                        summary=result.summary,
+                        records=result.records,
+                        published_artifacts=result.published_artifacts,
                         total_tasks=total_tasks,
                         completed_tasks=task_id,
                     )
                     return result
 
-            carry_state = result["carry_state"]
+            carry_state = result.carry_state
 
         await self._emit(
             EventType.TASK_FAILED,

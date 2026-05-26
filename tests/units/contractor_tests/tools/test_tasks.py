@@ -64,8 +64,10 @@ def _mk_tools(
     use_skip=False,
     use_summarization=False,
 ):
-    monkeypatch.setattr(m, "AgentTool", MockAgentTool)
-    monkeypatch.setattr(m, "instrument_worker", lambda w, *a, **k: w)
+    from contractor.tools.tasks import tools as _tools_mod
+
+    monkeypatch.setattr(_tools_mod, "AgentTool", MockAgentTool)
+    monkeypatch.setattr(_tools_mod, "instrument_worker", lambda w, *a, **k: w)
 
     fmt = m.SubtaskFormatter(_format="json")
     tools = m.task_tools(

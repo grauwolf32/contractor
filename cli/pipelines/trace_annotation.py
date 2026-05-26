@@ -132,17 +132,14 @@ class TraceAnnotationPipeline(Pipeline):
         if fs_state_artifact:
             self.overlayfs.load(json.loads(fs_state_artifact.text))
 
-        try:
-            for api_path in self.paths:
-                await self._run_path_analysis(
-                    api_path,
-                    user_id=user_id,
-                    on_event=on_event,
-                )
-        finally:
-            await self._persist_overlay(user_id=user_id)
+        for api_path in self.paths:
+            await self._run_path_analysis(
+                api_path,
+                user_id=user_id,
+                on_event=on_event,
+            )
 
-    async def _persist_overlay(self, *, user_id: str) -> None:
+    async def _cleanup(self, *, user_id: str) -> None:
         ctx = self.ctx
         await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,

@@ -141,9 +141,9 @@ class PlanStructure:
 # ── Extraction helpers ─────────────────────────────────────────────────
 
 
-def extract_subtask_records(result: dict[str, Any]) -> list[SubtaskRecord]:
+def extract_subtask_records(result: Any) -> list[SubtaskRecord]:
     """Parse ``SubtaskRecord`` list from a ``TaskResult``'s records field."""
-    raw_records = result.get("records", [])
+    raw_records = getattr(result, "records", None) or []
     out: list[SubtaskRecord] = []
     for rec in raw_records:
         if not isinstance(rec, dict) or "task_id" not in rec:
@@ -180,9 +180,9 @@ def extract_plan_structure(
     task_key: str,
 ) -> PlanStructure:
     """Build a ``PlanStructure`` for *task_key* from a ``TaskAgentRun``."""
-    result: Optional[dict[str, Any]] = None
+    result = None
     for r in run.results:
-        if r["template_key"] == task_key:
+        if r.template_key == task_key:
             result = r
             break
 
@@ -202,7 +202,7 @@ def extract_plan_structure(
     tool_counts = (
         extract_planner_tool_counts(metrics) if metrics else PlannerToolCounts()
     )
-    task_completed = result.get("status") == "done"
+    task_completed = result.status == "done"
 
     return PlanStructure(
         subtasks=subtasks,

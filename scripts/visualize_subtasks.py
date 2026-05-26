@@ -307,26 +307,26 @@ def _wrap(text: str, width: int = 24, max_lines: int = 3) -> str:
     return "\n".join(lines)
 
 
-_ARROW_KW: dict[str, Any] = {
-    "arrowstyle": "->,head_width=0.25,head_length=0.15",
-    "connectionstyle": "arc3,rad=0",
-    "color": "#555555",
-    "linewidth": 1.2,
-    "zorder": 1,
-    "shrinkA": 18,
-    "shrinkB": 18,
-}
-
-_ORDER_ARROW_KW: dict[str, Any] = {
-    "arrowstyle": "->,head_width=0.2,head_length=0.12",
-    "connectionstyle": "arc3,rad=0",
-    "color": "#999999",
-    "linewidth": 1.0,
-    "linestyle": "dashed",
-    "zorder": 1,
-    "shrinkA": 18,
-    "shrinkB": 18,
-}
+def _add_arrow(
+    ax: Any,
+    src_patch: Any,
+    dst_patch: Any,
+    src_xy: tuple[float, float],
+    dst_xy: tuple[float, float],
+    *,
+    dashed: bool = False,
+) -> None:
+    props: dict[str, Any] = {
+        "arrowstyle": "->,head_width=0.4,head_length=0.25",
+        "connectionstyle": "arc3,rad=0",
+        "color": "#999999" if dashed else "#555555",
+        "linewidth": 1.0 if dashed else 1.2,
+        "patchA": src_patch,
+        "patchB": dst_patch,
+    }
+    if dashed:
+        props["linestyle"] = "dashed"
+    ax.annotate("", xy=dst_xy, xytext=src_xy, arrowprops=props, zorder=2)
 
 
 def render_tree(
@@ -350,32 +350,8 @@ def render_tree(
 
     fig, ax = plt.subplots(figsize=(width, height))
 
-    # Parent → child arrows.
-    for node in nodes.values():
-        for child_id in node.children:
-            child = nodes[child_id]
-            ax.annotate(
-                "",
-                xy=(child.x, child.y),
-                xytext=(node.x, node.y),
-                arrowprops=_ARROW_KW,
-                zorder=1,
-            )
-
-    # Order arrows between consecutive siblings (dashed).
-    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
-    for siblings in all_child_lists:
-        for i in range(len(siblings) - 1):
-            a, b = nodes[siblings[i]], nodes[siblings[i + 1]]
-            ax.annotate(
-                "",
-                xy=(b.x, b.y),
-                xytext=(a.x, a.y),
-                arrowprops=_ORDER_ARROW_KW,
-                zorder=1,
-            )
-
-    # Node boxes.
+    # Draw node boxes first so we can grab their bbox patches.
+    text_artists: dict[str, Any] = {}
     for node in nodes.values():
         colour = STATUS_COLOURS.get(node.status, STATUS_COLOURS["unknown"])
         label_lines = [f"#{node.task_id}"]
@@ -384,7 +360,7 @@ def render_tree(
             label_lines.append(wrapped_title)
         label_lines.append(f"[{node.status}]")
         label = "\n".join(label_lines)
-        ax.text(
+        text_artists[node.task_id] = ax.text(
             node.x,
             node.y,
             label,
@@ -400,6 +376,35 @@ def render_tree(
                 "linewidth": 0.8,
             },
         )
+
+    # Force a draw so text bbox patches are materialised.
+    fig.canvas.draw()
+
+    # Parent → child arrows (solid, clipped to box edges).
+    for node in nodes.values():
+        for child_id in node.children:
+            child = nodes[child_id]
+            _add_arrow(
+                ax,
+                text_artists[node.task_id].get_bbox_patch(),
+                text_artists[child_id].get_bbox_patch(),
+                (node.x, node.y),
+                (child.x, child.y),
+            )
+
+    # Order arrows between consecutive siblings (dashed).
+    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
+    for siblings in all_child_lists:
+        for i in range(len(siblings) - 1):
+            a, b = nodes[siblings[i]], nodes[siblings[i + 1]]
+            _add_arrow(
+                ax,
+                text_artists[a.task_id].get_bbox_patch(),
+                text_artists[b.task_id].get_bbox_patch(),
+                (a.x, a.y),
+                (b.x, b.y),
+                dashed=True,
+            )
 
     statuses_present = sorted({n.status for n in nodes.values()})
     legend_handles = [
