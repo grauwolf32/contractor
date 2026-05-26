@@ -5,6 +5,8 @@ import pytest
 from google.adk.artifacts import BaseArtifactService
 
 from contractor.runners.models import (
+    Checkpoint,
+    CheckpointEntry,
     RenderedTask,
     TaskInvocation,
     TaskResult,
@@ -179,17 +181,23 @@ def _make_invocation(
     )
 
 
-def _result_for(template_key: str, completed: bool, idx: int) -> TaskResult:
+def _result_for(
+    template_key: str, completed: bool, idx: int, *, task_id: int = 1,
+) -> TaskResult:
     return TaskResult(
         invocation_id=f"inv-{idx}",
         task_ref="task-a",
         task_key=template_key,
         task_title="t",
         template_key=template_key,
-        task_id=1,
+        task_id=task_id,
         session_id=f"s{idx}",
         final_response="",
-        state={"task::1::status": TaskStatus.DONE if completed else TaskStatus.RUNNING},
+        state={
+            f"task::{task_id}::status": (
+                TaskStatus.DONE if completed else TaskStatus.RUNNING
+            ),
+        },
         carry_state={},
         status="done" if completed else "running",
         result="R",
@@ -197,7 +205,7 @@ def _result_for(template_key: str, completed: bool, idx: int) -> TaskResult:
         records=[],
         params={},
         input_artifacts={},
-        published_artifacts={},
+        published_artifacts={"result": "t/result", "summary": "t/summary", "records": "t/records"},
     )
 
 
@@ -328,3 +336,128 @@ class TestRetryLoop:
             item=invocation, task_id=1, user_id="u", total_tasks=1,
         )
         assert single.await_count == 2
+
+
+# ─── Checkpoint integration ─────────────────────────────────────────────────
+
+
+def _checkpoint_runner(tmp_path, monkeypatch) -> TaskRunner:
+    """TaskRunner wired for checkpoint tests."""
+    r = TaskRunner(
+        name="test",
+        artifact_service=MagicMock(spec=BaseArtifactService),
+        checkpoint_path=tmp_path / "checkpoint.json",
+    )
+    template = _make_template(default_iterations=1)
+    r.templates[("t", "v1")] = template
+
+    rendered = RenderedTask(
+        key="t", title="T", objective="", instructions="",
+        output_format="", format="json",
+    )
+    monkeypatch.setattr(r, "_render_task", MagicMock(return_value=rendered))
+    monkeypatch.setattr(r, "_publish_task_artifacts", AsyncMock())
+    monkeypatch.setattr(r, "_emit", AsyncMock())
+    return r
+
+
+class TestCheckpointIntegration:
+    @pytest.mark.asyncio
+    async def test_checkpoint_written_after_task_success(self, tmp_path, monkeypatch):
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        await r.run(user_id="u")
+
+        cp = Checkpoint.load(tmp_path / "checkpoint.json")
+        assert cp is not None
+        assert cp.get("a:0") is not None
+
+    @pytest.mark.asyncio
+    async def test_checkpoint_skips_completed_task(self, tmp_path, monkeypatch):
+        # Seed a checkpoint with task "a:0" already done.
+        cp = Checkpoint(pipeline="test")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="t", template_version="v1",
+            published_artifacts={"result": "t/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        # _load_artifact_text must return non-empty to confirm artifact exists
+        monkeypatch.setattr(
+            r, "_load_artifact_text", AsyncMock(return_value="content"),
+        )
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        results = await r.run(user_id="u")
+
+        # Task should be skipped — _run_single_iteration never called.
+        single.assert_not_awaited()
+        assert len(results) == 1
+        assert results[0]["status"] == TaskStatus.DONE
+
+    @pytest.mark.asyncio
+    async def test_checkpoint_reruns_if_artifact_missing(self, tmp_path, monkeypatch):
+        # Checkpoint says done, but artifact returns empty → re-run.
+        cp = Checkpoint(pipeline="test")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="t", template_version="v1",
+            published_artifacts={"result": "t/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            r, "_load_artifact_text", AsyncMock(return_value=""),
+        )
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        await r.run(user_id="u")
+
+        # Artifact missing → task was re-executed.
+        single.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_no_checkpoint_path_runs_normally(self, tmp_path, monkeypatch):
+        r = TaskRunner(
+            name="test",
+            artifact_service=MagicMock(spec=BaseArtifactService),
+        )
+        template = _make_template(default_iterations=1)
+        r.templates[("t", "v1")] = template
+
+        rendered = RenderedTask(
+            key="t", title="T", objective="", instructions="",
+            output_format="", format="json",
+        )
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+        monkeypatch.setattr(r, "_render_task", MagicMock(return_value=rendered))
+        monkeypatch.setattr(r, "_publish_task_artifacts", AsyncMock())
+        monkeypatch.setattr(r, "_emit", AsyncMock())
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        results = await r.run(user_id="u")
+
+        assert len(results) == 1
+        single.assert_awaited_once()
+        assert not (tmp_path / "checkpoint.json").exists()

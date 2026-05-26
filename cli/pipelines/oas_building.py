@@ -21,6 +21,7 @@ class OasBuildingPipeline(Pipeline):
         runner = TaskRunner(
             name="oas_builder",
             artifact_service=ctx.artifact_service,
+            checkpoint_path=ctx.checkpoint_path,
         )
 
         llm = LiteLlm(model=ctx.model)

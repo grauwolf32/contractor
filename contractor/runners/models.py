@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum, unique
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, Mapping, TypedDict
@@ -10,6 +13,8 @@ import yaml
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import AgentTool
+
+_checkpoint_logger = logging.getLogger(__name__ + ".checkpoint")
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -364,3 +369,88 @@ class RenderedTask:
         if self.artifacts:
             task += f"INBOX:\n{self._format_artifacts()}"
         return task
+
+
+# ─── Checkpoint ──────────────────────────────────────────────────────────────
+
+
+_CHECKPOINT_VERSION = 1
+
+
+@dataclass(slots=True)
+class CheckpointEntry:
+    task_id: int
+    ref: str
+    template_key: str
+    template_version: str
+    published_artifacts: dict[str, str]
+
+
+@dataclass
+class Checkpoint:
+    pipeline: str
+    entries: list[CheckpointEntry] = field(default_factory=list)
+
+    def get(self, ref: str) -> CheckpointEntry | None:
+        for e in self.entries:
+            if e.ref == ref:
+                return e
+        return None
+
+    def mark_done(self, entry: CheckpointEntry) -> None:
+        self.entries = [e for e in self.entries if e.ref != entry.ref]
+        self.entries.append(entry)
+
+    def save(self, path: Path) -> None:
+        data = {
+            "version": _CHECKPOINT_VERSION,
+            "pipeline": self.pipeline,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "tasks": [
+                {
+                    "task_id": e.task_id,
+                    "ref": e.ref,
+                    "template_key": e.template_key,
+                    "template_version": e.template_version,
+                    "published_artifacts": e.published_artifacts,
+                }
+                for e in self.entries
+            ],
+        }
+        tmp = path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        tmp.replace(path)
+
+    @classmethod
+    def load(cls, path: Path) -> Checkpoint | None:
+        if not path.is_file():
+            return None
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            _checkpoint_logger.warning("ignoring corrupt checkpoint %s: %s", path, exc)
+            return None
+
+        if data.get("version") != _CHECKPOINT_VERSION:
+            _checkpoint_logger.warning(
+                "ignoring checkpoint %s with unsupported version %s",
+                path,
+                data.get("version"),
+            )
+            return None
+
+        return cls(
+            pipeline=data.get("pipeline", ""),
+            entries=[
+                CheckpointEntry(
+                    task_id=t["task_id"],
+                    ref=t["ref"],
+                    template_key=t["template_key"],
+                    template_version=t["template_version"],
+                    published_artifacts=t.get("published_artifacts", {}),
+                )
+                for t in data.get("tasks", [])
+            ],
+        )

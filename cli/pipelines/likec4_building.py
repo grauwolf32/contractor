@@ -49,6 +49,7 @@ class LikeC4BuildingPipeline(Pipeline):
         runner = TaskRunner(
             name="likec4_builder",
             artifact_service=ctx.artifact_service,
+            checkpoint_path=ctx.checkpoint_path,
         )
 
         llm = LiteLlm(model=ctx.model)

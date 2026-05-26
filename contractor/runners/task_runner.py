@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -19,7 +20,8 @@ from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
 from contractor.runners.artifacts import (artifact_names_for_key,
                                           save_result_artifacts)
-from contractor.runners.models import (EventType, RenderedTask, TaskInvocation,
+from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
+                                       RenderedTask, TaskInvocation,
                                        TaskResult, TaskRunnerEvent,
                                        TaskRunnerEventHandler, TaskScopedKeys,
                                        TaskStatus, TaskTemplate, WorkerBuilder,
@@ -58,6 +60,7 @@ class TaskRunner(BaseModel):
 
     name: str = Field(description="Runner name")
     artifact_service: BaseArtifactService
+    checkpoint_path: Optional[Path] = Field(default=None)
 
     templates: dict[tuple[str, str], TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
@@ -132,6 +135,8 @@ class TaskRunner(BaseModel):
         on_event: Optional[TaskRunnerEventHandler] = None,
     ) -> list[TaskResult]:
         self._on_event = on_event
+        checkpoint = self._load_checkpoint()
+
         try:
             results: list[TaskResult] = []
             total_tasks = len(self.queue)
@@ -155,6 +160,13 @@ class TaskRunner(BaseModel):
             )
 
             for task_id, item in enumerate(self.queue):
+                restored = await self._try_restore_from_checkpoint(
+                    checkpoint, item, task_id, user_id, total_tasks,
+                )
+                if restored is not None:
+                    results.append(restored)
+                    continue
+
                 result = await self._run_task_with_retries(
                     item=item,
                     task_id=task_id,
@@ -163,6 +175,7 @@ class TaskRunner(BaseModel):
                 )
 
                 results.append(result)
+                self._save_checkpoint(checkpoint, item, result, task_id)
 
                 await self._emit(
                     EventType.GLOBAL_TASK_FINISHED,
@@ -198,6 +211,135 @@ class TaskRunner(BaseModel):
     def _assert_unique_ref(self, ref: str) -> None:
         if any(item.ref == ref for item in self.queue):
             raise ValueError(f"Queued task ref '{ref}' already exists")
+
+    # ── Checkpoint helpers ──────────────────────────────────────────────
+
+    def _load_checkpoint(self) -> Checkpoint | None:
+        if self.checkpoint_path is None:
+            return None
+        return Checkpoint.load(self.checkpoint_path) or Checkpoint(pipeline=self.name)
+
+    def _save_checkpoint(
+        self,
+        checkpoint: Checkpoint | None,
+        item: TaskInvocation,
+        result: TaskResult,
+        task_id: int,
+    ) -> None:
+        if checkpoint is None or self.checkpoint_path is None:
+            return
+        checkpoint.mark_done(
+            CheckpointEntry(
+                task_id=task_id,
+                ref=item.ref,
+                template_key=item.template_key,
+                template_version=item.template_version,
+                published_artifacts=dict(result["published_artifacts"]),
+            )
+        )
+        checkpoint.save(self.checkpoint_path)
+
+    async def _try_restore_from_checkpoint(
+        self,
+        checkpoint: Checkpoint | None,
+        item: TaskInvocation,
+        task_id: int,
+        user_id: str,
+        total_tasks: int,
+    ) -> TaskResult | None:
+        if checkpoint is None:
+            return None
+        entry = checkpoint.get(item.ref)
+        if entry is None:
+            return None
+
+        for artifact_name in entry.published_artifacts.values():
+            text = await self._load_artifact_text(user_id, artifact_name)
+            if not text:
+                logger.info(
+                    "checkpoint entry %s missing artifact %s — re-running",
+                    item.ref,
+                    artifact_name,
+                )
+                return None
+
+        template = self.templates.get(item.template_cache_key)
+        if template is None:
+            template = self._ensure_template(
+                item.template_key, version=item.template_version,
+            )
+
+        await self._emit(
+            EventType.TASK_STARTED,
+            task_name=item.ref,
+            task_id=task_id,
+            template_key=item.template_key,
+            template_version=item.template_version,
+            task_title=template.title,
+            iterations=item.iterations,
+            max_attempts=item.max_attempts,
+            params=item.params,
+            artifacts=item.artifacts,
+            published_artifacts=entry.published_artifacts,
+            total_tasks=total_tasks,
+            completed_tasks=task_id,
+            restored=True,
+        )
+
+        result = TaskResult(
+            invocation_id=item.id,
+            task_ref=item.ref,
+            task_key=item.template_key,
+            task_title=template.title,
+            template_key=item.template_key,
+            task_id=task_id,
+            session_id="",
+            final_response="",
+            state={},
+            carry_state={},
+            status=TaskStatus.DONE,
+            result="(restored from checkpoint)",
+            summary="",
+            records=[],
+            params=copy.deepcopy(item.params),
+            input_artifacts={},
+            published_artifacts=entry.published_artifacts,
+        )
+
+        await self._emit(
+            EventType.TASK_FINISHED,
+            task_name=item.ref,
+            task_id=task_id,
+            template_key=item.template_key,
+            template_version=item.template_version,
+            session_id="",
+            status=TaskStatus.DONE,
+            result=result["result"],
+            summary="",
+            records=[],
+            published_artifacts=entry.published_artifacts,
+            total_tasks=total_tasks,
+            completed_tasks=task_id,
+            restored=True,
+        )
+
+        await self._emit(
+            EventType.GLOBAL_TASK_FINISHED,
+            task_name=item.ref,
+            task_id=task_id,
+            template_key=item.template_key,
+            template_version=item.template_version,
+            session_id="",
+            status=TaskStatus.DONE,
+            result=result["result"],
+            summary="",
+            total_tasks=total_tasks,
+            completed_tasks=task_id + 1,
+            restored=True,
+        )
+
+        logger.info("restored task %s from checkpoint", item.ref)
+        return result
 
     @staticmethod
     def _resolve_retry_params(
