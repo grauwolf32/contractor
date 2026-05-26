@@ -73,6 +73,7 @@ def build_threat_model_agent(
     with_openapi: bool = True,
     elide_tool_results: Optional[Iterable[str]] = None,
     elide_keep_last_n: int = 15,
+    elide_budget_chars: int = 0,
     with_graph_tools: bool = False,
 ) -> LlmAgent:
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
@@ -107,6 +108,7 @@ def build_threat_model_agent(
         callback_adapter.register(
             FunctionResultsRemovalCallback(
                 keep_last_n=elide_keep_last_n,
+                keep_budget_chars=elide_budget_chars,
                 target_tools=elide_targets,
             )
         )

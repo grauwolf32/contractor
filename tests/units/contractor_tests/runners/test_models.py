@@ -300,3 +300,71 @@ class TestSafeIdentifier:
 
         for value in ["plain", "Mixed Case", "weird!chars", "", "/", "__a__"]:
             assert _safe_identifier(value) == _normalize_name(value)
+
+
+# ─── Checkpoint ─────────────────────────────────────────────────────────────
+
+from contractor.runners.models import Checkpoint, CheckpointEntry
+
+
+class TestCheckpoint:
+    def _entry(self, ref: str = "task:0", task_id: int = 0) -> CheckpointEntry:
+        return CheckpointEntry(
+            task_id=task_id,
+            ref=ref,
+            template_key="t",
+            template_version="v1",
+            published_artifacts={"result": "t/result", "summary": "t/summary"},
+        )
+
+    def test_get_returns_matching_entry(self):
+        cp = Checkpoint(pipeline="test", entries=[self._entry("a:0")])
+        assert cp.get("a:0") is not None
+        assert cp.get("b:0") is None
+
+    def test_mark_done_adds_entry(self):
+        cp = Checkpoint(pipeline="test")
+        cp.mark_done(self._entry("a:0"))
+        assert len(cp.entries) == 1
+        assert cp.get("a:0") is not None
+
+    def test_mark_done_replaces_existing(self):
+        cp = Checkpoint(pipeline="test", entries=[self._entry("a:0", task_id=0)])
+        cp.mark_done(self._entry("a:0", task_id=5))
+        assert len(cp.entries) == 1
+        assert cp.get("a:0").task_id == 5
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        cp = Checkpoint(pipeline="my_pipe", entries=[self._entry("a:0")])
+        path = tmp_path / "checkpoint.json"
+        cp.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert loaded.pipeline == "my_pipe"
+        assert len(loaded.entries) == 1
+        assert loaded.get("a:0").published_artifacts == {
+            "result": "t/result",
+            "summary": "t/summary",
+        }
+
+    def test_load_returns_none_for_missing_file(self, tmp_path):
+        assert Checkpoint.load(tmp_path / "nope.json") is None
+
+    def test_load_returns_none_for_corrupt_json(self, tmp_path):
+        path = tmp_path / "bad.json"
+        path.write_text("not json", encoding="utf-8")
+        assert Checkpoint.load(path) is None
+
+    def test_load_returns_none_for_wrong_version(self, tmp_path):
+        import json
+        path = tmp_path / "old.json"
+        path.write_text(json.dumps({"version": 999, "tasks": []}), encoding="utf-8")
+        assert Checkpoint.load(path) is None
+
+    def test_save_is_atomic(self, tmp_path):
+        path = tmp_path / "checkpoint.json"
+        cp = Checkpoint(pipeline="test", entries=[self._entry()])
+        cp.save(path)
+        assert path.exists()
+        assert not path.with_suffix(".tmp").exists()

@@ -23,15 +23,18 @@ A single event list therefore contains both runner-lifecycle events
 
 from __future__ import annotations
 
+import json
 import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 from google.adk.artifacts import FileArtifactService
 
 from contractor.runners.agio import AgioEventType
-from contractor.runners.artifacts import artifact_filename
+from contractor.runners.artifacts import (ARTIFACT_KINDS, artifact_filename,
+                                          save_result_artifacts)
 from contractor.runners.models import TaskResult, TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunner
 from contractor.utils import observability
@@ -129,6 +132,8 @@ async def run_task_pipeline(
     user_id: str = "eval-user",
     runner_name: str = "eval-task-runner",
     observability_tags: Optional[list[str]] = None,
+    preloaded_artifacts: Optional[dict[str, str]] = None,
+    output_dir: Optional[Path] = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
     and return everything the caller needs to score and analyse the run.
@@ -163,6 +168,18 @@ async def run_task_pipeline(
         if maybe_coro is not None and hasattr(maybe_coro, "__await__"):
             await maybe_coro
 
+        if preloaded_artifacts:
+            for art_filename, text in preloaded_artifacts.items():
+                key, _, kind = art_filename.rpartition("/")
+                if kind == "result":
+                    await save_result_artifacts(
+                        artifact_service=artifact_service,
+                        app_name=runner_name,
+                        user_id=user_id,
+                        key=key,
+                        result=text,
+                    )
+
         events: list[TaskRunnerEvent] = []
 
         async def _on_event(event: TaskRunnerEvent) -> None:
@@ -188,21 +205,66 @@ async def run_task_pipeline(
             )
 
         artifacts: dict[str, str] = {}
-        for key in artifact_keys:
-            part = await artifact_service.load_artifact(
-                app_name=runner_name,
-                user_id=user_id,
-                session_id=None,
-                filename=key,
-            )
-            if part is not None and getattr(part, "text", None):
-                artifacts[key] = part.text
+        template_keys = {
+            k.rpartition("/")[0] for k in artifact_keys if "/" in k
+        }
+        for tkey in template_keys:
+            for kind in ARTIFACT_KINDS:
+                fname = artifact_filename(tkey, kind)
+                part = await artifact_service.load_artifact(
+                    app_name=runner_name,
+                    user_id=user_id,
+                    session_id=None,
+                    filename=fname,
+                )
+                if part is not None and getattr(part, "text", None):
+                    artifacts[fname] = part.text
 
-    return TaskAgentRun(
+    run = TaskAgentRun(
         results=results,
         events=events,
         artifacts=artifacts,
         metrics=_aggregate_metrics(events),
+    )
+
+    if output_dir is not None:
+        _save_run(run, output_dir)
+
+    return run
+
+
+def _save_run(run: TaskAgentRun, output_dir: Path) -> None:
+    """Persist artifacts, metrics, and results to *output_dir*."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for fname, text in run.artifacts.items():
+        safe = fname.replace("/", "_")
+        (output_dir / safe).write_text(text, encoding="utf-8")
+
+    (output_dir / "metrics.txt").write_text(
+        render_metrics_table(run.metrics), encoding="utf-8",
+    )
+
+    metrics_json = []
+    for m in sorted(run.metrics.values(), key=lambda x: x.task_ref):
+        metrics_json.append({
+            "task_ref": m.task_ref,
+            "total_tool_calls": m.total_tool_calls,
+            "llm_calls": m.llm_calls,
+            "input_tokens": m.input_tokens,
+            "output_tokens": m.output_tokens,
+            "total_tokens": m.total_tokens,
+            "tool_time_ms": m.tool_time_ms,
+            "tool_counts": dict(m.tool_counts),
+        })
+    (output_dir / "metrics.json").write_text(
+        json.dumps(metrics_json, indent=2, ensure_ascii=False), encoding="utf-8",
+    )
+
+    results_json = [dict(r) if isinstance(r, dict) else r for r in run.results]
+    (output_dir / "results.json").write_text(
+        json.dumps(results_json, indent=2, ensure_ascii=False, default=str),
+        encoding="utf-8",
     )
 
 

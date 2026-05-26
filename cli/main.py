@@ -62,7 +62,6 @@ _UI_SKIP_EVENT_TYPES = frozenset(
         "adk_tool_result",
         "adk_tool_error",
         "fs_coverage",
-        "llm_usage",
         "run_summary",
     }
 )
@@ -148,6 +147,7 @@ async def async_main(
     output_dir: Path,
     rm_artifacts: bool,
     enable_ui: bool,
+    checkpoint_path: Optional[Path] = None,
 ) -> None:
     ts_pack.init({"cache_dir": ts_pack.cache_dir()})
 
@@ -173,6 +173,7 @@ async def async_main(
         fs=fs,
         artifact=artifact,
         prompt=prompt,
+        checkpoint_path=checkpoint_path,
     )
 
     runner = pipeline_cls(ctx)
@@ -252,6 +253,7 @@ async def async_main(
     ),
 )
 @click.option("--rm", is_flag=True, help="Remove previous artifacts")
+@click.option("--resume", is_flag=True, help="Resume from last checkpoint (skip completed tasks)")
 @click.option(
     "-o",
     "--output",
@@ -270,17 +272,23 @@ def main(
     user_id: str,
     model: str,
     rm: bool,
+    resume: bool,
     no_ui: bool,
 ) -> None:
     """Run contractor task pipeline for a project."""
     _setup_logging()
     observability.init()
 
+    if rm and resume:
+        raise click.UsageError("--rm and --resume are mutually exclusive")
+
     pipeline = pipeline.lower()
     project_path = validate_project_path(project_path)
     folder_name = validate_folder_name(project_path, folder_name)
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    checkpoint_path = (output_dir / "checkpoint.json") if resume else None
 
     if pipeline in PROMPT_REQUIRED_PIPELINES and not prompt:
         if no_ui:
@@ -301,6 +309,7 @@ def main(
             rm_artifacts=rm,
             output_dir=output_dir,
             enable_ui=not no_ui,
+            checkpoint_path=checkpoint_path,
         )
     )
 

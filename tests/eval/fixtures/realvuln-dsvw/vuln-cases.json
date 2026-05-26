@@ -1,0 +1,507 @@
+[
+  {
+    "id": "dsvw-001",
+    "is_vulnerable": true,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-564",
+      "CWE-943"
+    ],
+    "file": "dsvw.py",
+    "start_line": 30,
+    "end_line": 30,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "SQL injection via id parameter directly concatenated into SELECT query without sanitization"
+  },
+  {
+    "id": "dsvw-002",
+    "is_vulnerable": true,
+    "vulnerability_class": "reflected_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "dsvw.py",
+    "start_line": 33,
+    "end_line": 33,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Reflected XSS via v parameter injected into HTML response via re.sub without escaping"
+  },
+  {
+    "id": "dsvw-003",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_deserialization",
+    "primary_cwe": "CWE-502",
+    "acceptable_cwes": [
+      "CWE-502",
+      "CWE-94"
+    ],
+    "file": "dsvw.py",
+    "start_line": 35,
+    "end_line": 35,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "Arbitrary code execution via pickle.loads on user-controlled object parameter"
+  },
+  {
+    "id": "dsvw-004",
+    "is_vulnerable": true,
+    "vulnerability_class": "path_traversal",
+    "primary_cwe": "CWE-22",
+    "acceptable_cwes": [
+      "CWE-22",
+      "CWE-23",
+      "CWE-36",
+      "CWE-73"
+    ],
+    "file": "dsvw.py",
+    "start_line": 37,
+    "end_line": 37,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Path traversal via path parameter passed to open() with os.path.abspath but no path restriction"
+  },
+  {
+    "id": "dsvw-005",
+    "is_vulnerable": true,
+    "vulnerability_class": "ssrf",
+    "primary_cwe": "CWE-918",
+    "acceptable_cwes": [
+      "CWE-918",
+      "CWE-441"
+    ],
+    "file": "dsvw.py",
+    "start_line": 37,
+    "end_line": 37,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "SSRF via path parameter passed to urllib.request.urlopen when URL scheme is detected"
+  },
+  {
+    "id": "dsvw-006",
+    "is_vulnerable": true,
+    "vulnerability_class": "command_injection",
+    "primary_cwe": "CWE-78",
+    "acceptable_cwes": [
+      "CWE-78",
+      "CWE-77",
+      "CWE-88"
+    ],
+    "file": "dsvw.py",
+    "start_line": 39,
+    "end_line": 39,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "OS command injection via domain parameter concatenated into nslookup command with shell=True"
+  },
+  {
+    "id": "dsvw-007",
+    "is_vulnerable": true,
+    "vulnerability_class": "xxe",
+    "primary_cwe": "CWE-611",
+    "acceptable_cwes": [
+      "CWE-611",
+      "CWE-776",
+      "CWE-827"
+    ],
+    "file": "dsvw.py",
+    "start_line": 41,
+    "end_line": 41,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "XXE via xml parameter parsed by lxml with load_dtd=True, resolve_entities=True, no_network=False"
+  },
+  {
+    "id": "dsvw-008",
+    "is_vulnerable": true,
+    "vulnerability_class": "xpath_injection",
+    "primary_cwe": "CWE-643",
+    "acceptable_cwes": [
+      "CWE-643",
+      "CWE-91",
+      "CWE-116"
+    ],
+    "file": "dsvw.py",
+    "start_line": 43,
+    "end_line": 43,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "XPath injection via name parameter directly interpolated into XPath query string"
+  },
+  {
+    "id": "dsvw-009",
+    "is_vulnerable": true,
+    "vulnerability_class": "denial_of_service",
+    "primary_cwe": "CWE-400",
+    "acceptable_cwes": [
+      "CWE-400",
+      "CWE-770",
+      "CWE-789"
+    ],
+    "file": "dsvw.py",
+    "start_line": 46,
+    "end_line": 47,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Memory-based DoS via size parameter controlling O(n^2) string allocation with no upper bound"
+  },
+  {
+    "id": "dsvw-010",
+    "is_vulnerable": true,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-943"
+    ],
+    "file": "dsvw.py",
+    "start_line": 50,
+    "end_line": 50,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "SQL injection via comment parameter directly interpolated into INSERT statement with string formatting"
+  },
+  {
+    "id": "dsvw-011",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "dsvw.py",
+    "start_line": 54,
+    "end_line": 54,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "Stored XSS via comments rendered from database into HTML without any output encoding"
+  },
+  {
+    "id": "dsvw-012",
+    "is_vulnerable": true,
+    "vulnerability_class": "remote_file_inclusion",
+    "primary_cwe": "CWE-94",
+    "acceptable_cwes": [
+      "CWE-94",
+      "CWE-95",
+      "CWE-98",
+      "CWE-829"
+    ],
+    "file": "dsvw.py",
+    "start_line": 56,
+    "end_line": 57,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "Remote code execution via include parameter: fetches arbitrary local/remote file and passes it to exec()"
+  },
+  {
+    "id": "dsvw-013",
+    "is_vulnerable": true,
+    "vulnerability_class": "open_redirect",
+    "primary_cwe": "CWE-601",
+    "acceptable_cwes": [
+      "CWE-601"
+    ],
+    "file": "dsvw.py",
+    "start_line": 61,
+    "end_line": 61,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Open redirect via redir parameter injected into meta refresh URL without validation"
+  },
+  {
+    "id": "dsvw-014",
+    "is_vulnerable": true,
+    "vulnerability_class": "reflected_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79"
+    ],
+    "file": "dsvw.py",
+    "start_line": 65,
+    "end_line": 65,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Reflected XSS via unsanitized JSONP callback parameter allowing arbitrary JavaScript execution"
+  },
+  {
+    "id": "dsvw-015",
+    "is_vulnerable": true,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-564",
+      "CWE-943"
+    ],
+    "file": "dsvw.py",
+    "start_line": 67,
+    "end_line": 67,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "SQL injection via password parameter in login query concatenated without sanitization, enabling authentication bypass"
+  },
+  {
+    "id": "dsvw-016",
+    "is_vulnerable": true,
+    "vulnerability_class": "http_header_injection",
+    "primary_cwe": "CWE-113",
+    "acceptable_cwes": [
+      "CWE-113",
+      "CWE-644",
+      "CWE-74"
+    ],
+    "file": "dsvw.py",
+    "start_line": 78,
+    "end_line": 78,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "HTTP header injection via charset parameter injected into Content-Type header without CRLF filtering"
+  },
+  {
+    "id": "dsvw-017",
+    "is_vulnerable": true,
+    "vulnerability_class": "hardcoded_credentials",
+    "primary_cwe": "CWE-798",
+    "acceptable_cwes": [
+      "CWE-798",
+      "CWE-259",
+      "CWE-321"
+    ],
+    "file": "dsvw.py",
+    "start_line": 11,
+    "end_line": 11,
+    "function": null,
+    "severity": "high",
+    "description": "Plaintext hardcoded passwords in USERS_XML constant including admin password '7en8aiDoh!'"
+  },
+  {
+    "id": "dsvw-018",
+    "is_vulnerable": true,
+    "vulnerability_class": "sensitive_data_exposure",
+    "primary_cwe": "CWE-209",
+    "acceptable_cwes": [
+      "CWE-209",
+      "CWE-200",
+      "CWE-497"
+    ],
+    "file": "dsvw.py",
+    "start_line": 72,
+    "end_line": 72,
+    "function": "do_GET",
+    "severity": "low",
+    "description": "Full stack trace returned to client via traceback.format_exc() on any unhandled exception"
+  },
+  {
+    "id": "dsvw-019",
+    "is_vulnerable": true,
+    "vulnerability_class": "dom_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79"
+    ],
+    "file": "dsvw.py",
+    "start_line": 10,
+    "end_line": 10,
+    "function": null,
+    "severity": "medium",
+    "description": "DOM-based XSS via document.write with decodeURIComponent of location.hash fragment in inline JavaScript"
+  },
+  {
+    "id": "dsvw-020",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "dsvw.py",
+    "start_line": 50,
+    "end_line": 54,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Cross-Site Request Forgery on comment submission endpoint \u2014 state-changing operation via GET request with no CSRF token, allowing attackers to forge requests that insert comments on behalf of victims"
+  },
+  {
+    "id": "dsvw-021",
+    "is_vulnerable": true,
+    "vulnerability_class": "missing_rate_limiting",
+    "primary_cwe": "CWE-307",
+    "acceptable_cwes": [
+      "CWE-307",
+      "CWE-799"
+    ],
+    "file": "dsvw.py",
+    "start_line": 66,
+    "end_line": 68,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "Login endpoint at /login has no rate limiting or account lockout mechanism, allowing unlimited brute-force credential guessing attempts"
+  },
+  {
+    "id": "dsvw-022",
+    "is_vulnerable": true,
+    "vulnerability_class": "plaintext_password_storage",
+    "primary_cwe": "CWE-312",
+    "acceptable_cwes": [
+      "CWE-312",
+      "CWE-256",
+      "CWE-916"
+    ],
+    "file": "dsvw.py",
+    "start_line": 19,
+    "end_line": 20,
+    "function": "init",
+    "severity": "high",
+    "description": "User passwords from USERS_XML are inserted into SQLite database in plaintext without any hashing via cursor.executemany \u2014 extractable via SQL injection"
+  },
+  {
+    "id": "dsvw-023",
+    "is_vulnerable": true,
+    "vulnerability_class": "weak_prng",
+    "primary_cwe": "CWE-330",
+    "acceptable_cwes": [
+      "CWE-330",
+      "CWE-338",
+      "CWE-337"
+    ],
+    "file": "dsvw.py",
+    "start_line": 68,
+    "end_line": 68,
+    "function": "do_GET",
+    "severity": "high",
+    "description": "Session IDs generated using random.sample() with Python's Mersenne Twister PRNG which is not cryptographically secure \u2014 PRNG state is predictable after observing enough outputs, enabling session ID prediction and session hijacking"
+  },
+  {
+    "id": "dsvw-024",
+    "is_vulnerable": true,
+    "vulnerability_class": "http_parameter_pollution",
+    "primary_cwe": "CWE-235",
+    "acceptable_cwes": [
+      "CWE-235"
+    ],
+    "file": "dsvw.py",
+    "start_line": 26,
+    "end_line": 26,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "Parameter parsing concatenates multiple values for the same parameter name with commas via re.findall and join, enabling HTTP Parameter Pollution to bypass SQL injection sanitization on the login endpoint by splitting payloads across multiple password parameters"
+  },
+  {
+    "id": "dsvw-025",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_cookie",
+    "primary_cwe": "CWE-1004",
+    "acceptable_cwes": [
+      "CWE-1004",
+      "CWE-614"
+    ],
+    "file": "dsvw.py",
+    "start_line": 68,
+    "end_line": 68,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "SESSIONID cookie set via meta http-equiv tag without HttpOnly or Secure flags \u2014 accessible to JavaScript (enabling theft via XSS) and transmittable over unencrypted connections"
+  },
+  {
+    "id": "dsvw-026",
+    "is_vulnerable": true,
+    "vulnerability_class": "security_misconfiguration",
+    "primary_cwe": "CWE-16",
+    "acceptable_cwes": [
+      "CWE-16",
+      "CWE-693"
+    ],
+    "file": "dsvw.py",
+    "start_line": 77,
+    "end_line": 77,
+    "function": "do_GET",
+    "severity": "low",
+    "description": "X-XSS-Protection header explicitly set to '0' on all responses, disabling the browser's built-in XSS filter and making reflected XSS attacks more likely to succeed"
+  },
+  {
+    "id": "dsvw-027",
+    "is_vulnerable": true,
+    "vulnerability_class": "sensitive_data_exposure",
+    "primary_cwe": "CWE-200",
+    "acceptable_cwes": [
+      "CWE-200",
+      "CWE-862"
+    ],
+    "file": "dsvw.py",
+    "start_line": 65,
+    "end_line": 65,
+    "function": "do_GET",
+    "severity": "medium",
+    "description": "The /users.json endpoint returns all usernames and surnames from USERS_XML to any unauthenticated caller without any access control or authentication check. This is a distinct vulnerability from the JSONP callback XSS (dsvw-014) \u2014 fixing the XSS by sanitizing the callback does not address the unauthenticated data exposure, and vice versa. Any anonymous HTTP client can enumerate every user in the system by simply requesting /users.json."
+  },
+  {
+    "id": "dsvw-fp-001",
+    "is_vulnerable": false,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-943"
+    ],
+    "file": "dsvw.py",
+    "start_line": 67,
+    "end_line": 67,
+    "function": "do_GET",
+    "severity": "critical",
+    "description": "Username parameter in login query is sanitized with re.sub(r'[^\\w]', '', ...) stripping all non-word characters before concatenation, preventing SQL injection through the username field"
+  },
+  {
+    "id": "dsvw-fp-002",
+    "is_vulnerable": false,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-943"
+    ],
+    "file": "dsvw.py",
+    "start_line": 20,
+    "end_line": 20,
+    "function": "init",
+    "severity": "high",
+    "description": "cursor.executemany uses parameterized query with ? placeholders \u2014 not vulnerable despite dynamic data insertion"
+  },
+  {
+    "id": "dsvw-fp-003",
+    "is_vulnerable": false,
+    "vulnerability_class": "xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "dsvw.py",
+    "start_line": 10,
+    "end_line": 10,
+    "function": null,
+    "severity": "medium",
+    "description": "NAME variable is passed through html.escape() before insertion into HTML title via %s formatting \u2014 properly sanitized"
+  },
+  {
+    "id": "dsvw-fp-004",
+    "is_vulnerable": false,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89"
+    ],
+    "file": "dsvw.py",
+    "start_line": 19,
+    "end_line": 19,
+    "function": "init",
+    "severity": "high",
+    "description": "CREATE TABLE statement is a static string literal with no user input \u2014 not vulnerable despite cursor.execute usage"
+  }
+]

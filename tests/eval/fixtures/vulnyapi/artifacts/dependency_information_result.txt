@@ -1,0 +1,43 @@
+# External-Service Dependency Inventory
+
+## Detected Stack and Dependency Sources
+- **Primary languages / frameworks:** Python >= 3.11, FastAPI >= 0.116.1, uvicorn >= 0.35.0, SQLModel >= 0.0.24, Pydantic >= 2.11.7, Poetry (poetry-core) >= 2.0.0
+- **Manifest files analyzed:** pyproject.toml
+- **Lock files analyzed:** none found (poetry.lock not generated)
+
+## External-Service Dependencies
+Not found. All 7 manifest dependencies are local libraries with no outbound network connectivity:
+
+| Dependency | Version | Ecosystem | Tags | Why included | Evidence |
+|------------|---------|-----------|------|--------------|----------|
+| fastapi | >=0.116.1,<0.117.0 | PyPI | http | Web framework (HTTP server) — included for completeness but excluded from external-service list as it is the application server itself | app.py:3, routers/auth.py:1, routers/admin.py:1, routers/files.py:1, routers/notes.py:1, routers/users.py:1, routers/webhooks.py:1, adapters/db.py:5 |
+| uvicorn | >=0.35.0,<0.36.0 | PyPI | — | ASGI server runtime — local code, not an external service | app.py:4 |
+| sqlmodel | >=0.0.24,<0.0.25 | PyPI | database | ORM — uses local SQLite file (data/base.db), not an external database service | adapters/db.py:6, models/domain.py:4, utils/security.py:9 |
+| pydantic | >=2.11.7,<3.0.0 | PyPI | — | Data validation library — local code | models/requests.py:3, models/responses.py:3 |
+| python-jose[cryptography] | >=3.3.0,<4.0.0 | PyPI | authentication, cryptography | JWT token creation/verification — local cryptographic operations, no external auth provider calls | utils/security.py:7 |
+| passlib[bcrypt] | >=1.7.4,<1.8.0 | PyPI | — | Password hashing — local computation | utils/security.py:8 |
+| bcrypt | >=1.7.4,<1.8.0 | PyPI | — | Listed in pyproject.toml but never imported in any source file | pyproject.toml:21 (never imported) |
+
+**Note:** httpx (>=0.27.0,<1.0.0) is listed as a dependency in pyproject.toml but is not imported in any source file. No HTTP client calls exist in the codebase.
+
+## Summary by Tag
+- **http:** fastapi (web framework, not an external-service dependency)
+- **database:** sqlmodel (ORM — local SQLite only)
+- **authentication:** python-jose (JWT library — local token operations)
+- **cryptography:** python-jose (JWT library — local crypto)
+- **All other tags:** Not found. No dependencies match these tags.
+
+## Gaps and Follow-ups
+- **Suspected (low-confidence) dependencies:** None identified. All manifest dependencies were confirmed as local libraries through code inspection.
+- **Missing inputs:** 
+  - `poetry.lock` — not generated (Poetry has not been run to lock dependencies)
+  - `Dockerfile` — not present in the project
+  - `docker-compose.yml` — not present
+  - `.env` files — none found
+  - Config files with external URLs — none found
+- **Assumptions made:**
+  - `httpx` listed but unused — no import found in any source file
+  - `bcrypt` listed but unused — no import found in any source file
+  - SMS gateway in `services/sms.py` is a mock placeholder — comment at line 1: "Mock SMS gateway. Real deployments swap this for Twilio/etc."
+  - SQLite via `sqlmodel` is local file-based — `adapters/db.py:10`: `DB_PATH = Path(__file__).parent.parent / "data" / "base.db"`
+  - No outbound network calls — no HTTP client libraries imported; no external URLs in any config file

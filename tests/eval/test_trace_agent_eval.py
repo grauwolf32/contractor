@@ -18,6 +18,7 @@ import os
 
 import pytest
 
+from tests.eval.adk_evals import score_tool_trajectory
 from tests.eval.scoring import _score_sets
 from tests.eval.trace_harness import Annotation, run_trace_agent
 
@@ -81,12 +82,27 @@ async def test_trace_agent_cases(fixture, eval_model):
         min_precision = float(case.get("min_precision", 0.5))
         min_recall = float(case.get("min_recall", 0.5))
 
-        if not score.passes(min_precision=min_precision, min_recall=min_recall):
+        trajectory_failed = False
+        trajectory_info = ""
+        expected_trajectory = case.get("expected_tool_trajectory")
+        if expected_trajectory:
+            ordered = bool(case.get("trajectory_ordered", True))
+            traj = score_tool_trajectory(
+                run.agent_run, expected_trajectory, ordered=ordered,
+            )
+            trajectory_failed = not traj.matched
+            trajectory_info = f"\n  {traj.explain()}"
+
+        if (
+            not score.passes(min_precision=min_precision, min_recall=min_recall)
+            or trajectory_failed
+        ):
             failures.append(
                 f"case={case['id']} prompt_version={run.prompt_version}\n"
                 f"  modified_files={sorted(run.modified_files)}\n"
                 f"  {score.explain('annotations')}\n"
                 f"  tools_used={sorted(set(run.agent_run.tool_names()))}"
+                f"{trajectory_info}"
             )
 
     assert not failures, "trace_agent eval failures:\n\n" + "\n\n".join(failures)

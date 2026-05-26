@@ -156,14 +156,25 @@ class Likec4Linter:
                 details=stderr or f"exit code {process.returncode}",
             )
 
-        try:
-            parsed = json.loads(stdout)
-        except json.JSONDecodeError as exc:
+        # npx/bunx may prepend banners (e.g. "Update available") before the
+        # JSON payload. Try each '{' or '[' offset until one parses.
+        parsed = None
+        last_exc: json.JSONDecodeError | None = None
+        for i, ch in enumerate(stdout):
+            if ch in ('{', '['):
+                try:
+                    parsed = json.loads(stdout[i:])
+                    break
+                except json.JSONDecodeError as exc:
+                    last_exc = exc
+                    continue
+
+        if parsed is None:
             raise Likec4OutputError(
                 "failed to parse likec4 output",
-                details=str(exc),
+                details=str(last_exc) if last_exc else "no JSON found",
                 raw_output=stdout,
-            ) from exc
+            )
 
         # `likec4 validate --json` emits {"valid": bool, "errors": [...], "stats": {...}}.
         # Older/alternate builds emit a bare issue list. Accept both.

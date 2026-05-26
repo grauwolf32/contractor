@@ -13,6 +13,8 @@
     ],
     "expected_tools_any": ["ls", "glob", "grep", "search_def"],
     "expected_tools_all": ["read_file"],
+    "expected_tool_trajectory": ["grep", "read_file"],
+    "trajectory_ordered": true,
     "min_phrase_recall": 0.8
   },
   {

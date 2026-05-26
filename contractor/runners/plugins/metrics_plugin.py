@@ -517,6 +517,19 @@ class AdkMetricsPlugin(BaseAdkPlugin):
 
     # ── Run end ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _extract_callback_state(invocation_context: Any) -> dict[str, Any] | None:
+        session = getattr(invocation_context, "session", None)
+        if session is None:
+            return None
+        state = getattr(session, "state", None)
+        if not isinstance(state, dict):
+            return None
+        cb_state = state.get("callbacks")
+        if isinstance(cb_state, dict) and cb_state:
+            return dict(cb_state)
+        return None
+
     async def after_run_callback(self, *, invocation_context: Any) -> None:
         raw_inv, _ = self._identity(invocation_context)
         inv = raw_inv or _UNKNOWN_INVOCATION
@@ -554,5 +567,13 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             agents={name: m.as_dict() for name, m in by_agent.items()},
             callback_imbalances=imbalances,
         )
+
+        cb_state = self._extract_callback_state(invocation_context)
+        if cb_state:
+            await self._emit(
+                AgioEventType.CALLBACK_SUMMARY,
+                invocation_id=inv,
+                callbacks=cb_state,
+            )
 
         self._tracker.cleanup_invocation(inv)

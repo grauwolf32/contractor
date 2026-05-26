@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -84,20 +85,62 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _extract_records(event: dict[str, Any]) -> list[dict[str, Any]]:
-    """Pull the subtask records list out of a task_(finished|failed) event."""
-    records = event.get("records")
-    if isinstance(records, list):
-        return [r for r in records if isinstance(r, dict)]
+def _parse_xml_record(text: str) -> dict[str, Any] | None:
+    """Extract task_id, title, status from an XML ``<task>`` record string."""
+    try:
+        wrapped = f"<root>{text}</root>"
+        root = ET.fromstring(wrapped)
+    except ET.ParseError:
+        return None
 
-    # task_failed nests the iteration's records under last_result.records,
-    # and iteration_finished does the same under result.records.
+    task_el = root.find("task")
+    if task_el is None:
+        return None
+
+    task_id = task_el.get("id")
+    if task_id is None:
+        return None
+
+    title = (task_el.findtext("title") or "").strip()
+    status = (task_el.findtext("status") or "unknown").strip()
+    return {"task_id": task_id, "title": title, "status": status}
+
+
+def _coerce_records(raw: list[Any]) -> list[dict[str, Any]]:
+    """Normalise a mixed list of dicts and XML strings into dicts."""
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, str):
+            parsed = _parse_xml_record(item)
+            if parsed is not None:
+                out.append(parsed)
+    return out
+
+
+def _extract_records(event: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pull the subtask records list out of a task_(finished|failed) event.
+
+    Handles two serialisation formats:
+    - Flat (new ``_event_to_record``): records at the event top level.
+    - Nested (old format): records inside ``event["payload"]``.
+    Records themselves may be dicts (json format) or XML strings.
+    """
+    source = event
+    if "records" not in event and isinstance(event.get("payload"), dict):
+        source = event["payload"]
+
+    records = source.get("records")
+    if isinstance(records, list) and records:
+        return _coerce_records(records)
+
     for wrapper_key in ("last_result", "result"):
-        nested = event.get(wrapper_key)
+        nested = source.get(wrapper_key)
         if isinstance(nested, dict):
             nested_records = nested.get("records")
-            if isinstance(nested_records, list):
-                return [r for r in nested_records if isinstance(r, dict)]
+            if isinstance(nested_records, list) and nested_records:
+                return _coerce_records(nested_records)
     return []
 
 
@@ -122,11 +165,14 @@ def extract_runs(events: Iterable[dict[str, Any]]) -> list[SubtaskRun]:
         task_id = event.get("task_id")
         key = (task_name, task_id)
 
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        template_key = event.get("template_key") or payload.get("template_key")
+
         new_run = SubtaskRun(
             event_type=etype,
             task_name=task_name,
             task_id=task_id,
-            template_key=event.get("template_key"),
+            template_key=template_key,
             records=records,
         )
 
@@ -204,6 +250,10 @@ def build_tree(records: list[dict[str, Any]]) -> tuple[dict[str, Node], list[str
     return nodes, roots
 
 
+_X_SLOT = 2.4
+_Y_SLOT = 1.6
+
+
 def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
     """Assign x/y coordinates via a simple leaf-packing tree layout.
 
@@ -214,9 +264,9 @@ def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
 
     def _assign(tid: str, depth: int) -> float:
         node = nodes[tid]
-        node.y = float(-depth)
+        node.y = float(-depth) * _Y_SLOT
         if not node.children:
-            x = float(counter["x"])
+            x = float(counter["x"]) * _X_SLOT
             counter["x"] += 1
             node.x = x
             return x
@@ -232,7 +282,7 @@ def layout_tree(nodes: dict[str, Node], roots: list[str]) -> None:
 # ─── Rendering ───────────────────────────────────────────────────────────────
 
 
-def _wrap(text: str, width: int = 28, max_lines: int = 3) -> str:
+def _wrap(text: str, width: int = 24, max_lines: int = 3) -> str:
     text = text.strip()
     if not text:
         return ""
@@ -257,6 +307,28 @@ def _wrap(text: str, width: int = 28, max_lines: int = 3) -> str:
     return "\n".join(lines)
 
 
+_ARROW_KW: dict[str, Any] = {
+    "arrowstyle": "->,head_width=0.25,head_length=0.15",
+    "connectionstyle": "arc3,rad=0",
+    "color": "#555555",
+    "linewidth": 1.2,
+    "zorder": 1,
+    "shrinkA": 18,
+    "shrinkB": 18,
+}
+
+_ORDER_ARROW_KW: dict[str, Any] = {
+    "arrowstyle": "->,head_width=0.2,head_length=0.12",
+    "connectionstyle": "arc3,rad=0",
+    "color": "#999999",
+    "linewidth": 1.0,
+    "linestyle": "dashed",
+    "zorder": 1,
+    "shrinkA": 18,
+    "shrinkB": 18,
+}
+
+
 def render_tree(
     nodes: dict[str, Node],
     roots: list[str],
@@ -271,23 +343,39 @@ def render_tree(
 
     xs = [n.x for n in nodes.values()]
     ys = [n.y for n in nodes.values()]
-    width = max(8.0, (max(xs) - min(xs) + 2) * 1.6)
-    height = max(4.0, (max(ys) - min(ys) + 2) * 1.4)
+    x_span = max(xs) - min(xs) if len(xs) > 1 else _X_SLOT
+    y_span = max(ys) - min(ys) if len(ys) > 1 else _Y_SLOT
+    width = max(8.0, x_span + 2 * _X_SLOT)
+    height = max(4.0, y_span + 2 * _Y_SLOT)
 
     fig, ax = plt.subplots(figsize=(width, height))
 
-    # Edges first so node boxes draw on top.
+    # Parent → child arrows.
     for node in nodes.values():
         for child_id in node.children:
             child = nodes[child_id]
-            ax.plot(
-                [node.x, child.x],
-                [node.y, child.y],
-                color="#555555",
-                linewidth=1.0,
+            ax.annotate(
+                "",
+                xy=(child.x, child.y),
+                xytext=(node.x, node.y),
+                arrowprops=_ARROW_KW,
                 zorder=1,
             )
 
+    # Order arrows between consecutive siblings (dashed).
+    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
+    for siblings in all_child_lists:
+        for i in range(len(siblings) - 1):
+            a, b = nodes[siblings[i]], nodes[siblings[i + 1]]
+            ax.annotate(
+                "",
+                xy=(b.x, b.y),
+                xytext=(a.x, a.y),
+                arrowprops=_ORDER_ARROW_KW,
+                zorder=1,
+            )
+
+    # Node boxes.
     for node in nodes.values():
         colour = STATUS_COLOURS.get(node.status, STATUS_COLOURS["unknown"])
         label_lines = [f"#{node.task_id}"]
@@ -302,10 +390,11 @@ def render_tree(
             label,
             ha="center",
             va="center",
-            fontsize=7,
+            fontsize=8,
+            fontfamily="monospace",
             zorder=3,
             bbox={
-                "boxstyle": "round,pad=0.4",
+                "boxstyle": "round,pad=0.5",
                 "facecolor": colour,
                 "edgecolor": "#222222",
                 "linewidth": 0.8,
@@ -322,9 +411,9 @@ def render_tree(
     ]
     ax.legend(handles=legend_handles, loc="lower right", fontsize=8, framealpha=0.9)
 
-    ax.set_title(title)
-    ax.set_xlim(min(xs) - 1, max(xs) + 1)
-    ax.set_ylim(min(ys) - 0.8, max(ys) + 0.8)
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    ax.set_xlim(min(xs) - _X_SLOT, max(xs) + _X_SLOT)
+    ax.set_ylim(min(ys) - _Y_SLOT * 0.8, max(ys) + _Y_SLOT * 0.8)
     ax.set_axis_off()
 
     fig.tight_layout()
@@ -335,11 +424,16 @@ def render_tree(
 
 def render_dot(
     nodes: dict[str, Node],
+    roots: list[str],
     title: str,
     output_path: Path,
 ) -> None:
     """Write a Graphviz DOT file alongside the PNG for editable rendering."""
-    lines = [f'digraph "{title}" {{', "  rankdir=TB;", '  node [shape=box, style="rounded,filled", fontname="Helvetica"];']
+    lines = [
+        f'digraph "{title}" {{',
+        "  rankdir=TB;",
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica"];',
+    ]
     for node in nodes.values():
         colour = STATUS_COLOURS.get(node.status, STATUS_COLOURS["unknown"])
         title_part = node.title.replace('"', '\\"')
@@ -350,6 +444,14 @@ def render_dot(
     for node in nodes.values():
         for child_id in node.children:
             lines.append(f'  "{node.task_id}" -> "{child_id}";')
+    # Order edges between consecutive siblings.
+    all_child_lists = [roots] + [n.children for n in nodes.values() if n.children]
+    for siblings in all_child_lists:
+        for i in range(len(siblings) - 1):
+            lines.append(
+                f'  "{siblings[i]}" -> "{siblings[i + 1]}" '
+                f'[style=dashed, color="#999999", constraint=false];'
+            )
     lines.append("}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -424,7 +526,7 @@ def main() -> None:
         png_path = output_dir / f"{slug}.png"
         render_tree(nodes, roots, title, png_path)
         if not args.no_dot:
-            render_dot(nodes, title, output_dir / f"{slug}.dot")
+            render_dot(nodes, roots, title, output_dir / f"{slug}.dot")
 
         logger.info("Wrote %s (%d subtasks)", png_path, len(nodes))
 

@@ -24,6 +24,7 @@ class PipelineContext:
     fs: AbstractFileSystem
     artifact: Optional[str] = None
     prompt: Optional[str] = None
+    checkpoint_path: Optional[Path] = None
 
 
 class Pipeline(ABC):

@@ -67,6 +67,73 @@ def test_extract_runs_unwraps_task_failed_last_result(vs):
     assert runs[0].records[0]["status"] == "incomplete"
 
 
+def test_extract_runs_unwraps_payload_wrapper(vs):
+    events = [
+        {
+            "type": "task_finished",
+            "task_name": "build",
+            "task_id": 0,
+            "payload": {
+                "template_key": "build",
+                "records": [{"task_id": "1", "title": "nested", "status": "done"}],
+            },
+        },
+    ]
+    runs = vs.extract_runs(events)
+    assert len(runs) == 1
+    assert runs[0].records[0]["title"] == "nested"
+    assert runs[0].template_key == "build"
+
+
+def test_extract_runs_parses_xml_string_records(vs):
+    xml_record = (
+        '<task id="1">\n'
+        "    <title>Do the thing</title>\n"
+        "    <description>Details</description>\n"
+        "    <status>done</status>\n"
+        "</task>"
+    )
+    events = [
+        {
+            "type": "task_finished",
+            "task_name": "build",
+            "task_id": 0,
+            "records": [xml_record],
+        },
+    ]
+    runs = vs.extract_runs(events)
+    assert len(runs) == 1
+    assert runs[0].records[0]["task_id"] == "1"
+    assert runs[0].records[0]["title"] == "Do the thing"
+    assert runs[0].records[0]["status"] == "done"
+
+
+def test_extract_runs_parses_xml_with_result_block(vs):
+    xml_record = (
+        '<task id="2">\n'
+        "    <title>Check API</title>\n"
+        "    <description>Desc</description>\n"
+        "    <status>done</status>\n"
+        '</task><result task_id="2">\n'
+        "    <status>done</status>\n"
+        "    <output>OK</output>\n"
+        "    <summary>Done</summary>\n"
+        "</result>"
+    )
+    events = [
+        {
+            "type": "task_finished",
+            "task_name": "trace",
+            "task_id": 0,
+            "payload": {"records": [xml_record]},
+        },
+    ]
+    runs = vs.extract_runs(events)
+    assert len(runs) == 1
+    assert runs[0].records[0]["task_id"] == "2"
+    assert runs[0].records[0]["status"] == "done"
+
+
 def test_extract_runs_skips_events_without_records(vs):
     events = [
         {"type": "task_started", "task_name": "x", "task_id": 0},
@@ -132,9 +199,9 @@ def test_render_dot_writes_expected_content(vs, tmp_path: Path):
         {"task_id": "1", "title": "root", "status": "decomposed"},
         {"task_id": "1.1", "title": "child", "status": "done"},
     ]
-    nodes, _ = vs.build_tree(records)
+    nodes, roots = vs.build_tree(records)
     out = tmp_path / "graph.dot"
-    vs.render_dot(nodes, "test", out)
+    vs.render_dot(nodes, roots, "test", out)
     text = out.read_text(encoding="utf-8")
     assert 'digraph "test"' in text
     assert '"1" -> "1.1";' in text

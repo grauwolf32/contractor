@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import textwrap
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +19,7 @@ from rich.text import Text
 
 from cli import EventView
 
-TOP_PANEL_HEIGHT = 6
+TOP_PANEL_HEIGHT = 9
 EVENT_HISTORY_LIMIT = 200
 
 
@@ -128,7 +129,16 @@ class UiState:
     current_iteration: Optional[int] = None
     current_max_attempts: Optional[int] = None
 
+    current_subtask: Optional[str] = None
+    subtasks_done: int = 0
+    subtasks_total: int = 0
+
     pipeline_phase: Optional[str] = None
+    pipeline_started_mono: Optional[float] = None
+    task_started_mono: Optional[float] = None
+
+    input_tokens: int = 0
+    output_tokens: int = 0
 
     events: Deque[EventView] = field(
         default_factory=lambda: deque(maxlen=EVENT_HISTORY_LIMIT)
@@ -161,10 +171,18 @@ class LiveRenderer:
 
         view = _normalize_event(event)
         if view is not None:
-            self.state.events.append(view)
+            self._append_event(view)
 
         if self.live is not None:
             self.live.update(self.render(), refresh=True)
+
+    def _append_event(self, view: EventView) -> None:
+        if view.event_type in ("tool_result", "tool_result_error") and self.state.events:
+            prev = self.state.events[-1]
+            if prev.event_type == "tool_call" and _same_tool(prev, view):
+                self.state.events[-1] = _merge_tool_events(prev, view)
+                return
+        self.state.events.append(view)
 
     def render(self) -> Layout:
         layout = Layout()
@@ -183,6 +201,7 @@ class LiveRenderer:
         if event_type == "pipeline_started":
             self.state.pipeline_phase = str(payload.get("phase") or "initializing")
             self.state.current_task_name = "initializing pipeline…"
+            self.state.pipeline_started_mono = time.monotonic()
             return
 
         if event_type == "pipeline_finished":
@@ -206,6 +225,10 @@ class LiveRenderer:
             )
             self.state.current_iteration = None
             self.state.current_max_attempts = payload.get("max_attempts")
+            self.state.current_subtask = None
+            self.state.subtasks_done = 0
+            self.state.subtasks_total = 0
+            self.state.task_started_mono = time.monotonic()
             return
 
         if event_type == "iteration_started":
@@ -223,6 +246,20 @@ class LiveRenderer:
             )
             return
 
+        if event_type == "llm_usage":
+            usage = payload.get("usage") or {}
+            self.state.input_tokens += usage.get("input", 0)
+            self.state.output_tokens += usage.get("output", 0)
+            return
+
+        if event_type == "tool_call":
+            self._apply_subtask_from_tool_call(payload)
+            return
+
+        if event_type == "tool_result":
+            self._apply_subtask_from_tool_result(payload)
+            return
+
         if event_type == "global_task_finished":
             self.state.total_tasks = int(
                 payload.get("total_tasks") or self.state.total_tasks
@@ -230,6 +267,74 @@ class LiveRenderer:
             self.state.completed_tasks = int(
                 payload.get("completed_tasks") or self.state.completed_tasks
             )
+
+    _SUBTASK_TOOLS = frozenset({
+        "add_subtask",
+        "execute_current_subtask",
+        "get_current_subtask",
+        "decompose_subtask",
+        "skip_current_subtask",
+    })
+
+    def _apply_subtask_from_tool_call(self, payload: dict[str, Any]) -> None:
+        tool_name = payload.get("tool_name", "")
+        if tool_name not in self._SUBTASK_TOOLS:
+            return
+        args = (
+            payload.get("arguments")
+            or payload.get("args")
+            or payload.get("tool_args")
+            or payload.get("input")
+            or {}
+        )
+        if tool_name == "add_subtask" and isinstance(args, dict):
+            title = args.get("title")
+            if title:
+                self.state.current_subtask = title
+                self.state.subtasks_total += 1
+
+    def _apply_subtask_from_tool_result(self, payload: dict[str, Any]) -> None:
+        tool_name = payload.get("tool_name", "")
+        if tool_name not in self._SUBTASK_TOOLS:
+            return
+        result = (
+            payload.get("result")
+            or payload.get("output")
+            or payload.get("response")
+            or payload.get("data")
+        )
+        if not isinstance(result, dict):
+            result = _try_parse_json_like(result)
+        if not isinstance(result, dict):
+            return
+
+        if tool_name == "execute_current_subtask":
+            record = result.get("record")
+            if isinstance(record, str):
+                record = _try_parse_json_like(record)
+            if isinstance(record, dict) and record.get("status") == "done":
+                self.state.subtasks_done += 1
+
+        subtask = result.get("result")
+        if isinstance(subtask, str):
+            subtask = _try_parse_json_like(subtask)
+        if isinstance(subtask, dict):
+            title = subtask.get("title")
+            if title:
+                self.state.current_subtask = title
+
+    @staticmethod
+    def _format_elapsed(started_mono: Optional[float]) -> str:
+        if started_mono is None:
+            return "—"
+        secs = int(time.monotonic() - started_mono)
+        if secs < 60:
+            return f"{secs}s"
+        mins, secs = divmod(secs, 60)
+        if mins < 60:
+            return f"{mins}m {secs:02d}s"
+        hours, mins = divmod(mins, 60)
+        return f"{hours}h {mins:02d}m"
 
     def _render_status(self) -> Panel:
         progress = Progress(
@@ -269,6 +374,17 @@ class LiveRenderer:
         if self.state.pipeline_phase:
             pipeline_text += f" [{self.state.pipeline_phase}]"
 
+        subtask_label = self.state.current_subtask or "—"
+        if self.state.subtasks_total > 0:
+            subtask_label = (
+                f"[{self.state.subtasks_done}/{self.state.subtasks_total}] "
+                f"{subtask_label}"
+            )
+
+        elapsed = self._format_elapsed(self.state.task_started_mono)
+        pipeline_elapsed = self._format_elapsed(self.state.pipeline_started_mono)
+        tokens = _format_tokens(self.state.input_tokens, self.state.output_tokens)
+
         left = Group(
             Text(
                 pipeline_text,
@@ -282,17 +398,29 @@ class LiveRenderer:
                 no_wrap=False,
                 overflow="fold",
             ),
+            Text(
+                f"Subtask: {subtask_label}",
+                style="white",
+                no_wrap=False,
+                overflow="fold",
+            ),
         )
         right = Group(
             Text(
-                f"Task position: {task_position}",
+                f"Task: {task_position}  Attempt: {attempts}",
                 style="yellow",
                 no_wrap=False,
                 overflow="fold",
             ),
             Text(
-                f"Attempts: {attempts}",
+                f"Elapsed: {elapsed} (total {pipeline_elapsed})",
                 style="magenta",
+                no_wrap=False,
+                overflow="fold",
+            ),
+            Text(
+                f"Tokens: {tokens}",
+                style="dim",
                 no_wrap=False,
                 overflow="fold",
             ),
@@ -432,6 +560,35 @@ class LiveRenderer:
             total += max(1, len(_wrap_text(line, width)))
 
         return total
+
+
+def _extract_tool_name(event: EventView) -> str:
+    prefix = event.title.split(": ", 1)
+    return prefix[1] if len(prefix) > 1 else ""
+
+
+def _same_tool(call: EventView, result: EventView) -> bool:
+    return _extract_tool_name(call) == _extract_tool_name(result)
+
+
+def _merge_tool_events(call: EventView, result: EventView) -> EventView:
+    tool_name = _extract_tool_name(call)
+    is_error = result.event_type == "tool_result_error"
+    tone = "warning" if is_error else "success"
+    title = f"Tool: {tool_name}"
+    body = result.body
+    return EventView(event_type="tool_merged", title=title, body=body, tone=tone)
+
+
+def _format_tokens(input_tokens: int, output_tokens: int) -> str:
+    def _compact(n: int) -> str:
+        if n < 1000:
+            return str(n)
+        if n < 100_000:
+            return f"{n / 1000:.1f}k"
+        return f"{n // 1000}k"
+
+    return f"{_compact(input_tokens)} in / {_compact(output_tokens)} out"
 
 
 def _normalize_event(event: Any) -> Optional[EventView]:

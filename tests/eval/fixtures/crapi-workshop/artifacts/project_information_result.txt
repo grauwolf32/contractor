@@ -1,0 +1,153 @@
+# Project Structure & Security-Relevant Inventory
+
+## Overview
+- **Repository root:** /home/ruslan/src/contractor/tests/playground/crapi/services/workshop
+- **Suspected tech stack:** Python 3.11, Django 4.1.13, Django REST Framework 3.14.0, PostgreSQL (via djongo), MongoDB (via pymongo/djongo), PyJWT 2.7.0, bcrypt 4.1.2, gunicorn 21.2.0
+- **Main entry points:** manage.py (Django CLI), crapi_site/wsgi.py (WSGI app), runner.sh (Docker CMD entrypoint)
+- **Build / runtime tooling:** Docker multi-stage build (Dockerfile), build-image.sh, setup.py (setuptools), requirements.txt, Gunicorn (WSGI server)
+
+## 1. Configuration & Environment Settings
+| Path | Responsibility | Risk note |
+|------|---------------|-----------|
+| `/.env` | Local environment variables: DB connection (PostgreSQL), MongoDB, SECRET_KEY, API_GATEWAY_URL, TLS_ENABLED | **HIGH** — Contains plaintext DB passwords (`crapisecretpassword`) and SECRET_KEY; should never be committed to VCS |
+| `/crapi_site/settings.py` | Django project settings: DATABASES (PostgreSQL + MongoDB via djongo), SECRET_KEY (env), API gateway credentials, TLS toggle, CORS, logging, REST framework | **HIGH** — Hardcoded API gateway username/password (`vendorcrapi` / `Pa$$4Vendor_1`); `ALLOWED_HOSTS = ["*"]` and `CORS_ORIGIN_ALLOW_ALL = True` weaken security |
+| `/Dockerfile` | Multi-stage Docker build: installs Python deps, copies source + `/certs`, exposes SERVER_PORT, runs `runner.sh` | **MEDIUM** — Copies TLS certs into image; `.env` not excluded from Docker context |
+| `/.dockerignore` | Excludes `debug.log` and `Dockerfile` from Docker build context | **LOW** — Does not exclude `.env` or `certs/`; sensitive files may leak into Docker context |
+| `/requirements.txt` | Production Python dependency list (Django 4.1.13, djongo, psycopg2, PyJWT, pymongo, gunicorn, etc.) | **LOW** — No pinned CVE-safe versions; `djongo` noted as "max version for django 4.1.13" |
+| `/dev-requirements.txt` | Development-only dependencies (coverage, unittest-xml-reporting) | **LOW** — Dev-only; minor risk |
+| `/setup.py` | Python package metadata: name `crapi_site`, version `1.0`, reads `requirements.txt` as install_requires | **LOW** — Packaging config; no secrets |
+| `/runner.sh` | Container entrypoint: runs Django migrations, health check, database seeding, starts gunicorn with optional TLS via `$TLS_CERTIFICATE` / `$TLS_KEY` | **MEDIUM** — Falls back to `certs/server.crt` / `certs/server.key` if TLS env vars unset; TLS enforcement depends on `$TLS_ENABLED` env var |
+| `/health.sh` | Health check script: curls `/workshop/health_check/` with http or https based on `$TLS_ENABLED` | **LOW** — Uses `curl -k` (insecure skip verify) |
+| `/certs/server.crt` | TLS server certificate (self-signed, CN=CompanyName, valid 2025-2027) | **MEDIUM** — Self-signed cert for TLS; not a CA-trusted cert |
+| `/certs/server.key` | TLS server private key (RSA, paired with server.crt) | **HIGH** — Private key in repo; should be excluded from VCS and managed via secrets manager |
+| `/manage.py` | Django CLI entrypoint; sets `DJANGO_SETTINGS_MODULE=crapi_site.settings` | **LOW** — Standard Django bootstrap; no config values |
+
+**Example files:**
+- `/.env` — Local environment configuration with DB credentials and secrets
+- `/crapi_site/settings.py` — Django project configuration with database, security, and CORS settings
+- `/certs/server.key` — TLS private key stored in repository
+
+**Notes:**
+- No README, README.md, SECURITY.md, or SECURITY.txt files exist in the repository.
+- No K8s/Helm manifests, config.yaml, application.properties, or XML config templates found.
+- `.dockerignore` does not exclude `.env` or `certs/`, risking credential leakage into Docker build context.
+
+## 2. Tests
+| Path | Type (unit/integration/E2E) | Notes |
+|------|---------------------------|-------|
+| `/crapi/tests.py` | Unit | Root-level Django test file; small size suggests minimal or placeholder tests |
+| `/crapi/user/tests.py` | Unit | Django app-level tests for the `user` module (User model, views, serializers) |
+| `/crapi/merchant/tests.py` | Unit | Largest test file; Django app-level tests for the `merchant` module (merchant views, serializers, URL routing) |
+| `/crapi/mechanic/tests.py` | Unit | Django app-level tests for the `mechanic` module (mechanic views, serializers, URL routing) |
+| `/crapi/shop/tests.py` | Unit | Django app-level tests for the `shop` module (shop views, serializers, models, URL routing) |
+
+**Notes:**
+- All tests follow Django's `tests.py` convention (one test file per Django app), not pytest's `test_*.py` naming.
+- No `conftest.py`, `pytest.ini`, `tox.ini`, or `setup.cfg` test configuration found — tests are run via Django's `manage.py test`.
+- No `test/` or `tests/` directories exist; all test files are co-located with their respective Django app modules.
+- No E2E test infrastructure (e.g., Selenium, Cypress, Playwright) or separate E2E test directories were found.
+- `/utils/mock_methods.py` provides shared test fixtures: `get_sample_mechanic_data()`, `get_sample_user_data()`, `get_sample_users()`, `get_sample_admin_user()`, `fake_phone_number()`, and `mock_jwt_auth_required` decorator.
+
+## 3. Business / Domain Logic
+| Path | Responsibility |
+|------|---------------|
+| `crapi/user/models.py` | Core identity and vehicle management: User, UserDetails, VehicleCompany, VehicleModel, Vehicle (5 ORM models) |
+| `crapi/user/views.py` | AdminUserView — JWT-protected API endpoint for fetching paginated UserDetails records for admin users |
+| `crapi/user/serializers.py` | DRF serializers: UserSerializer, UserDetailsSerializer, VehicleSerializer |
+| `crapi/merchant/views.py` | ContactMechanicView (POST to forward contact requests), UserServiceCommentView (GET comments), UserServiceRequestsView (GET service requests by VIN) |
+| `crapi/merchant/serializers.py` | DRF serializers: ContactMechanicSerializer, MechanicPublicSerializer, UserServiceRequestSerializer |
+| `crapi/merchant/urls.py` | URL routing for merchant endpoints |
+| `crapi/mechanic/models.py` | Mechanic, ServiceRequest, ServiceComment (3 domain models for service lifecycle) |
+| `crapi/mechanic/views.py` | 7 API views + 2 helpers: SignUpView, MechanicView, ReceiveReportView, GetReportView, MechanicServiceRequestsView, ServiceCommentView, ServiceRequestView, DownloadReportView, service_report_pdf(), manage_reports_directory() |
+| `crapi/mechanic/serializers.py` | 7 DRF serializers: MechanicSerializer, ServiceRequestSerializer, ReceiveReportSerializer, SignUpSerializer, ServiceCommentViewSerializer, ServiceCommentCreateSerializer, ServiceRequestStatusUpdateSerializer |
+| `crapi/mechanic/urls.py` | URL routing for 9 mechanic endpoints |
+| `crapi/shop/models.py` | Product, Order, Coupon, AppliedCoupon (e-commerce domain models) |
+| `crapi/shop/views.py` | ProductView, OrderControlView, OrderDetailsView, ReturnOrder, ReturnQRCodeView, ApplyCouponView — product catalog, order lifecycle, credit management, coupon application |
+| `crapi/shop/serializers.py` | DRF serializers: ProductSerializer, OrderSerializer, CouponSerializer, ProductQuantitySerializer |
+
+## 4. Data Models & Schemas
+| Path | Format / Type | Responsibility |
+|------|--------------|---------------|
+| `crapi/user/models.py` | Django ORM (Python) | User, UserDetails, VehicleCompany, VehicleModel, Vehicle — core identity and vehicle management |
+| `crapi/mechanic/models.py` | Django ORM (Python) | Mechanic, ServiceRequest, ServiceComment — mechanic assignment and service request lifecycle |
+| `crapi/shop/models.py` | Django ORM (Python) | Order, Product, Coupon, AppliedCoupon — e-commerce shop domain models |
+| `crapi/models.py` | Django ORM (Python) | Placeholder; license header only, no models defined |
+| `crapi/user/serializers.py` | DRF Serializer (DTO) | UserSerializer, UserDetailsSerializer, VehicleSerializer |
+| `crapi/mechanic/serializers.py` | DRF Serializer (DTO) | MechanicSerializer, ServiceRequestSerializer, and related |
+| `crapi/shop/serializers.py` | DRF Serializer (DTO) | OrderSerializer, ProductSerializer, AppliedCouponSerializer |
+| `crapi/merchant/serializers.py` | DRF Serializer (DTO) | MerchantSerializer and related |
+| `crapi/migrations/0001_initial.py` | Django Migration (Python) | Initial schema: creates tables for Order, User, Product, AppliedCoupon, Mechanic, ServiceRequest, UserDetails, Vehicle |
+| `crapi/migrations/0002_order_transaction_id.py` | Django Migration (Python) | Adds transaction_id field to Order model |
+| `crapi/migrations/0003_alter_appliedcoupon_id_alter_mechanic_id_and_more.py` | Django Migration (Python) | Schema alterations for AppliedCoupon, Mechanic, and related fields |
+| `crapi/migrations/0004_alter_servicerequest_status_servicecomment.py` | Django Migration (Python) | Alters ServiceRequest.status and introduces ServiceComment model |
+| `crapi/admin.py` | Django Admin registration (Python) | Registers Order, User, Product, AppliedCoupon, Mechanic, ServiceRequest, UserDetails, Vehicle with Django Admin |
+| `crapi_site/settings.py` | Django Settings (Python) | Dual database config: PostgreSQL (default) and MongoDB (via djongo, named `mongodb`) |
+
+> Not found. Searched for: Protobuf (*.proto), GraphQL (*.graphql), XSD (*.xsd), Avro (*.avsc), Pydantic models, SQLAlchemy models.
+
+## 5. Cryptographic Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `utils/jwt.py` | `jwt_auth_required` decorator — validates JWT from Authorization header, decodes token, injects user identity | **HIGH** — Uses `jwt.decode` with `options={"verify_signature": False}`; signature verification disabled, allowing token forgery |
+| `utils/mock_methods.py` | `mock_jwt_auth_required` decorator — bypasses JWT validation entirely, injects hardcoded mock user | **CRITICAL** — If accidentally enabled in production, all protected endpoints become fully unauthenticated |
+| `crapi/user/views.py` | `AdminUserView.create_token` — generates JWT via `jwt.encode(payload, secret, algorithm='HS256')` | **HIGH** — Symmetric signing (HS256); weak secret allows token forgery |
+| `crapi/user/views.py` | `AdminUserView.verify_token` — validates JWT via `jwt.decode` with HS256 | **HIGH** — Vulnerable if secret is compromised; no expiration check visible |
+| `runner.sh` | TLS enablement & cert/key passthrough to gunicorn; defaults to `certs/server.crt` / `certs/server.key` | **MEDIUM** — Cert/key paths configurable via env vars; no validation before gunicorn starts |
+| `Dockerfile` | `COPY ./certs /app/certs` — copies host-side certs into container image | **LOW** — Standard build step; depends on host-side certs being present |
+| `crapi_site/settings.py` | No `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, or `CSRF_COOKIE_SECURE` settings | **MEDIUM** — Django TLS hardening settings absent; app may not enforce HTTPS-only cookies |
+| `crapi/mechanic/views.py` | `MechanicCreateView.post()` — password hashing via `bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()` | **MEDIUM** — Production-facing password hashing; correct use of bcrypt with gensalt |
+| `/core/management/commands/seed_database.py` | `seed_database()` — password hashing via `bcrypt.hashpw()` for DB seeding | **LOW** — Management command only; not exposed to end users |
+| `/crapi/apps.py` | `SeedDataCommand.handle()` — password hashing via `bcrypt.hashpw()` on startup | **LOW** — Django management command; not production-facing |
+| `/utils/helper.py` | `basic_auth(username, password)` — base64 encodes `username:password` for HTTP Basic Auth header | **HIGH** — NOT password hashing; base64 encoding of credentials is trivially reversible |
+
+## 6. Security Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `utils/jwt.py` | `jwt_auth_required` decorator — JWT-based authentication for API endpoints | **HIGH** — Signature verification disabled; all 16 decorated views are vulnerable to token forgery |
+| `utils/mock_methods.py` | `mock_jwt_auth_required` decorator — test-only auth bypass | **CRITICAL** — If enabled in production, completely bypasses authentication |
+| `crapi_site/settings.py` | `ALLOWED_HOSTS = ["*"]` — accepts any Host header | **HIGH** — Enables host header injection, cache poisoning, password reset link hijacking |
+| `crapi_site/settings.py` | `CORS_ORIGIN_ALLOW_ALL = True` — allows all cross-origin requests | **HIGH** — Facilitates CSRF and data exfiltration from malicious websites |
+| `crapi_site/settings.py` | `DEBUG = os.environ.get("DEBUG", False)` — debug mode configurable via env | **MEDIUM** — Can be enabled at runtime, exposing stack traces and sensitive data |
+| `crapi_site/settings.py` | `API_GATEWAY_USERNAME` / `API_GATEWAY_PASSWORD` — hardcoded API gateway credentials | **HIGH** — Plaintext credentials in source code; credential exposure in VCS or container images |
+| `crapi/merchant/views.py` | `ContactMechanicView` — user-supplied URL passed to `requests.get()` without validation | **MEDIUM** — Potential SSRF if user controls the mechanic_api URL |
+| `crapi/shop/views.py` | `ApplyCouponView` — raw SQL with string concatenation for coupon lookup | **HIGH** — SQL injection vulnerability via attacker-controlled `coupon_code` parameter |
+| `crapi/mechanic/views.py` | `DownloadReportView` — constructs file path from user input | **MEDIUM** — Potential path traversal; `validate_filename` restricts characters but may not be sufficient |
+
+## 7. External-System Integration
+| Path | Integration type | Target system |
+|------|-----------------|---------------|
+| `utils/jwt.py:54` | HTTP POST (requests) with `verify=False` | Identity Service (`IDENTITY_VERIFY` URL from env) — JWT token verification |
+| `crapi/shop/views.py:134-138` | HTTP POST (requests) with `verify=False` | API Gateway (`settings.API_GATEWAY_URL + "/v1/payment"`) — payment processing |
+| `crapi/merchant/views.py:80-84` | HTTP GET (requests) with `verify=False` | Mechanic API (user-supplied URL from `mechanic_api` field) — contact forwarding |
+| `crapi_site/settings.py:173-210` | Django database backend config | PostgreSQL (default, via psycopg2) and MongoDB (via djongo, named `mongodb`) |
+| `crapi/migrations/` | Django ORM migrations | PostgreSQL schema (user_login, user_details, vehicle_company, vehicle_model, vehicle_details, mechanic, service_request, service_comment, product, order, coupons, applied_coupon) |
+| `crapi/urls.py` | Django URL routing | `api/mechanic/` → crapi.mechanic.urls, `api/merchant/` → crapi.merchant.urls, `api/shop/` → crapi.shop.urls, `api/management/` → crapi.user.urls |
+| `crapi/mechanic/views.py:367-378` | PDF generation (xhtml2pdf) | Django template → PDF service report generation |
+
+## 8. Documentation
+> Not found. Searched for: README, README.md, SECURITY.md, SECURITY.txt, docs/, ADRs, wiki, man pages, developer notes. No documentation files or directories exist in the project.
+
+## 9. API Specifications
+> Not found. Searched for: OpenAPI/Swagger files (*.yaml, *.yml, *.json), GraphQL schema definitions (*.graphql), WSDL files. No API specification files exist in the project.
+
+## Security Risk Summary
+| Risk level | Paths | Rationale |
+|-----------|-------|-----------|
+| CRITICAL | `utils/jwt.py:58` | JWT signature verification disabled (`verify_signature: False`); any forged token is accepted — complete authentication bypass |
+| CRITICAL | `utils/mock_methods.py` | `mock_jwt_auth_required` decorator bypasses all authentication; if enabled in production, all protected endpoints are unauthenticated |
+| HIGH | `crapi_site/settings.py:62` | `ALLOWED_HOSTS = ["*"]` — accepts any Host header; enables host header injection and cache poisoning |
+| HIGH | `crapi_site/settings.py:63-64` | Hardcoded API gateway credentials (`vendorcrapi` / `Pa$$4Vendor_1`) in source code |
+| HIGH | `crapi_site/settings.py:99` | `CORS_ORIGIN_ALLOW_ALL = True` — any origin can make cross-origin requests; facilitates CSRF and data exfiltration |
+| HIGH | `crapi/shop/views.py:328-333` | SQL injection in ApplyCouponView via raw SQL with string concatenation on `coupon_code` |
+| HIGH | `/utils/helper.py` | `basic_auth()` base64-encodes credentials (not hashing); trivially reversible |
+| HIGH | `/certs/server.key` | TLS private key stored in repository; should be excluded from VCS |
+| HIGH | `/.env` | Contains plaintext DB passwords and SECRET_KEY |
+| MEDIUM | `crapi/merchant/views.py:80-84` | User-supplied URL passed to `requests.get()` without validation — potential SSRF |
+| MEDIUM | `crapi/mechanic/views.py:357-358` | `DownloadReportView` constructs file path from user input — potential path traversal |
+| MEDIUM | `runner.sh` | TLS cert/key defaults to `certs/server.crt` / `certs/server.key` if env vars unset |
+| MEDIUM | `crapi_site/settings.py:55` | `DEBUG` configurable via environment — can be enabled at runtime |
+| MEDIUM | `/certs/server.crt` | Self-signed TLS certificate; not CA-trusted |
+| MEDIUM | `crapi/mechanic/views.py:18` | Password hashing via bcrypt in production-facing view |
+| LOW | `/requirements.txt` | No pinned CVE-safe versions |
+| LOW | `/.dockerignore` | Does not exclude `.env` or `certs/`; sensitive files may leak into Docker context |
+| LOW | `/health.sh` | Uses `curl -k` (insecure skip verify) |

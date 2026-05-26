@@ -13,6 +13,8 @@
       { "file": "/src/main/java/app/service/MessageService.java", "function": "send" },
       { "file": "/src/main/java/app/security/SessionFilter.java", "function": "doFilter" }
     ],
+    "expected_tool_trajectory": ["read_file", "insert_line"],
+    "trajectory_ordered": true,
     "min_precision": 0.5,
     "min_recall": 0.5
   }

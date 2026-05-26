@@ -183,6 +183,7 @@ class TraceAnnotationPipeline(Pipeline):
         runner = TaskRunner(
             name="contractor",
             artifact_service=ctx.artifact_service,
+            checkpoint_path=ctx.checkpoint_path,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)

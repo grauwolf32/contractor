@@ -1,0 +1,9 @@
+slug: realvuln-vampi
+language: python
+framework: flask
+source_root: tests/playground/realvuln-repos/realvuln-vampi
+benchmark: realvuln
+repo_url: https://github.com/erev0s/VAmPI
+commit_sha: 1713b54b601ad29582581eeda4b31fceb1319874
+description: 'RealVuln benchmark: vampi — python/flask app with 15 known vulnerabilities
+  and 4 FP traps.'

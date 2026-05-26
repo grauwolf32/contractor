@@ -1,0 +1,126 @@
+# Project Structure & Security-Relevant Inventory
+
+## Overview
+- **Repository root:** /home/ruslan/src/contractor/tests/playground/python/vulnyapi
+- **Suspected tech stack:** Python ≥ 3.11, FastAPI ≥ 0.116.1, uvicorn ≥ 0.35.0, SQLModel ≥ 0.0.24, Pydantic ≥ 2.11.7, python-jose[cryptography] ≥ 3.3.0, passlib[bcrypt] ≥ 1.7.4, httpx ≥ 0.27.0, Poetry
+- **Main entry points:** `app.py:27` (build_app factory), `app.py:37` (uvicorn entry point on 0.0.0.0:4444)
+- **Build / runtime tooling:** Poetry (pyproject.toml only); no poetry.lock, Dockerfile, docker-compose.yml, Makefile, or requirements.txt
+
+## 1. Configuration & Environment Settings
+| Path | Responsibility | Risk note |
+|------|---------------|-----------|
+| `/pyproject.toml` | Poetry dependency manifest | — |
+| `/app.py:30` | Server bind: host="0.0.0.0", port=4444 | Binds all interfaces, no TLS |
+| `/app.py:39` | Uvicorn entry point | Hardcoded port 4444 |
+| `/adapters/db.py:6` | SQLite path: sqlite:///data/base.db | Relative path, no encryption at rest |
+| `/utils/security.py:11` | JWT_SECRET: defaults to "dev-secret-change-me" | **Hardcoded plaintext secret** |
+| `/routers/webhooks.py:9` | WEBHOOK_TIMEOUT_S = 5.0 | Hardcoded timeout |
+| `/helpers/auth.py` | Dual auth: Bearer JWT or pg_session_id cookie | Cookie auth alongside JWT increases CSRF risk |
+| `/models/requests.py` | Password min_length=6, max_length=128 | Weak password policy |
+| `/models/responses.py` | RegisteredUser/AdminUserRow include password_hash | **Password hashes returned in API responses** |
+| `/services/sms.py:1` | Mock SMS gateway | No real SMS integration for password reset |
+
+**Example files:**
+- `/pyproject.toml` — Poetry dependency manifest (7 dependencies)
+- `/app.py` — FastAPI app factory + uvicorn server
+- `/utils/security.py` — JWT secret and crypto configuration
+
+**Notes:**
+- Zero `.env`, `config.yaml`, `application.properties`, K8s/Helm manifests, `Dockerfile`, `docker-compose.yml`, `Makefile`, or `.gitignore` files exist.
+- No `os.environ` or `os.getenv` calls anywhere in the codebase — all configuration is hardcoded in Python source.
+
+## 2. Tests
+> Not found. Searched for: test_*.py, *_test.py, tests/, test/, fixtures/, conftest.py, pytest.ini, tox.ini, unittest imports, pytest imports. Zero test files exist across all 23 Python files in the project.
+
+## 3. Business / Domain Logic
+| Path | Responsibility |
+|------|---------------|
+| `/services/auth.py` | AuthService: registration, login, JWT issuance, session cookies, SMS OTP password reset |
+| `/services/notes.py` | NoteService: note CRUD, owner-scoped listing, raw-SQL search |
+| `/services/users.py` | UserService: user CRUD, lookup by username/phone, password hash update |
+| `/services/sms.py` | SmsGateway: mock SMS sender (logs only; placeholder for Twilio) |
+| `/models/domain.py` | SQLModel table definitions: User, Note, ResetCode, Session, UploadedFile |
+| `/models/requests.py` | 7 Pydantic request DTOs |
+| `/models/responses.py` | 7 Pydantic response DTOs |
+| `/routers/auth.py` | Auth endpoints (register, login, password reset) |
+| `/routers/notes.py` | Notes CRUD endpoints |
+| `/routers/users.py` | User endpoints |
+| `/routers/admin.py` | Admin endpoint (list all users) |
+| `/routers/files.py` | File upload endpoint |
+| `/routers/webhooks.py` | Webhook test endpoint |
+| `/utils/security.py` | Security primitives: bcrypt, JWT, raw SQL |
+| `/helpers/auth.py` | Request auth: current_user (JWT or cookie) |
+
+## 4. Data Models & Schemas
+| Path | Format / Type | Responsibility |
+|------|--------------|---------------|
+| `/models/domain.py` | SQLModel ORM | User, Note, ResetCode, Session, UploadedFile table definitions |
+| `/models/requests.py` | Pydantic BaseModel | 7 request DTOs: RegisterRequest, LoginRequest, PasswordResetRequest, PasswordResetConfirm, CreateNoteRequest, WebhookTestRequest, FileUploadMeta |
+| `/models/responses.py` | Pydantic BaseModel | 7 response DTOs: TokenResponse, UserResponse, RegisteredUser, NoteResponse, WebhookResult, UploadResponse, AdminUserRow |
+
+> Not found. Searched for: .proto, .xsd, .avsc, .avro, .graphql, .gql, .thrift schema files. None exist.
+
+## 5. Cryptographic Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `/utils/security.py:15` | hash_password() — bcrypt via passlib | Uses bcrypt (acceptable); no configurable work factor |
+| `/utils/security.py:22` | verify_password() — bcrypt verification | Timing-safe via passlib |
+| `/utils/security.py:29` | issue_token() — JWT encode (HS256) | **Hardcoded secret default "dev-secret-change-me"** |
+| `/utils/security.py:39` | decode_token() — JWT decode/verify | Validates signature with hardcoded secret |
+| `/services/auth.py:46` | Session cookie generation via uuid4 | **Not CSPRNG** — should use secrets.token_hex() |
+| `/services/auth.py:65` | OTP generation via secrets.randbelow(1_000_000) | Only 6 digits (~20 bits entropy) |
+
+## 6. Security Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `/helpers/auth.py:38` | current_user() — dual JWT/cookie auth | **No CSRF protection** on cookie-based auth |
+| `/helpers/auth.py:18` | _user_from_jwt() — Bearer token extraction | Accepts Authorization: Bearer header |
+| `/helpers/auth.py:27` | _user_from_cookie() — session cookie lookup | Accepts pg_session_id cookie |
+| `/services/auth.py:23` | register() — password hashing | Delegates to bcrypt |
+| `/services/auth.py:34` | authenticate() — password verification | Delegates to passlib |
+| `/services/auth.py:61` | request_password_reset() — 6-digit OTP | Low-entropy OTP (~20 bits) |
+| `/routers/admin.py` | Admin endpoints (list_users, update_role, delete_user) | **No RBAC** — accessible to any authenticated user |
+| `/routers/notes.py` | delete_note() | **No ownership verification** — any user can delete any note |
+
+> Not found. Searched for: CSP headers, CSRF tokens, rate limiting, sandboxing/jail/chroot, RBAC, input sanitization, security middleware, HTTP security headers (X-Frame-Options, X-XSS-Protection, HSTS). All absent.
+
+## 7. External-System Integration
+| Path | Integration type | Target system |
+|------|-----------------|---------------|
+| `/routers/webhooks.py:1` | HTTP Client (httpx) | External URL (user-supplied via req.url) |
+| `/services/sms.py:1` | SMS Gateway (Mock) | Twilio / external (placeholder — logs only) |
+| `/adapters/db.py` | Database (SQLite) | Local `data/base.db` |
+| `/utils/security.py` | JWT Token Service (python-jose) | Local (HS256, no external auth provider) |
+| `/utils/security.py` | Password Hashing (passlib/bcrypt) | Local (no external auth provider) |
+| `/routers/files.py` | File Storage (Local FS) | Local `data/uploads/` directory |
+
+## 8. Documentation
+| Path | Content |
+|------|---------|
+| `/README.md` | Project overview and API endpoint reference (12 endpoints across auth, users, notes, webhooks, admin, file upload) |
+
+> Not found. Searched for: docs/, ADR/, wiki/, man/ directories, SECURITY.md, CHANGELOG.md, LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, DEVELOPER*, HACKING*, NOTES*, TODO* files. All absent.
+
+## 9. API Specifications
+> Not found. Searched for: OpenAPI/Swagger (.yaml, .yml, .json), GraphQL (.graphql, .gql), WSDL (.wsdl), Protocol Buffers (.proto) files. None exist. FastAPI auto-generates OpenAPI specs at runtime (/docs, /openapi.json).
+
+## Security Risk Summary
+| Risk level | Paths | Rationale |
+|-----------|-------|-----------|
+| **CRITICAL** | `utils/security.py:11` | Hardcoded JWT secret "dev-secret-change-me" — anyone with repo access can forge valid tokens |
+| **CRITICAL** | `routers/auth.py:24`, `models/responses.py:27,58` | Password hashes returned in API responses (RegisteredUser, AdminUserRow schemas) |
+| **HIGH** | `routers/admin.py` | No RBAC — admin endpoints accessible to any authenticated user |
+| **HIGH** | `routers/notes.py:delete_note()` | No ownership verification — any user can delete any note |
+| **HIGH** | `utils/security.py:raw_query()`, `services/notes.py` | Raw SQL with unsanitized user input (LIKE '%{query}%') — SQL injection risk |
+| **HIGH** | `helpers/auth.py` | No CSRF protection on cookie-based session auth |
+| **HIGH** | `models/requests.py` | Weak password policy (min 6 characters) |
+| **MEDIUM** | `app.py:30` | Server binds to 0.0.0.0 (all interfaces) with no TLS |
+| **MEDIUM** | `app.py:30` | Non-standard port 4444 may bypass firewall rules |
+| **MEDIUM** | `adapters/db.py:6` | Relative SQLite path, no encryption at rest |
+| **MEDIUM** | `helpers/auth.py` | Dual auth mechanism (JWT + cookie) increases attack surface |
+| **MEDIUM** | `services/sms.py:1` | Mock SMS gateway — no real password reset delivery |
+| **MEDIUM** | `services/auth.py:46` | Session tokens use uuid4 instead of secrets.token_hex() |
+| **MEDIUM** | `services/auth.py:65` | 6-digit OTP provides only ~20 bits entropy |
+| **LOW** | `app.py:39` | Hardcoded server port 4444 |
+| **LOW** | `utils/security.py:15` | bcrypt work factor relies on passlib defaults |
+| **LOW** | `pyproject.toml` | httpx and bcrypt listed but bcrypt direct import never found |

@@ -1,0 +1,140 @@
+# Project Structure & Security-Relevant Inventory
+
+## Overview
+- **Repository root:** /home/ruslan/src/contractor/tests/playground/typescript/vault-pay
+- **Suspected tech stack:** TypeScript (ES2022, CommonJS), Express.js ^4.21.0, SQLite (better-sqlite3 ^11.3.0), jsonwebtoken ^9.0.2, bcryptjs ^2.4.3, otplib ^12.0.1, Zod ^3.23.8, axios ^1.7.7
+- **Main entry points:** `src/index.ts` (Express app wiring, 1226 bytes)
+- **Build / runtime tooling:** tsc ^5.6.2 (build), ts-node ^10.9.2 (dev), no Docker/CI/CD configs, no lock files
+
+## 1. Configuration & Environment Settings
+| Path | Responsibility | Risk note |
+|------|---------------|-----------|
+| `src/services/auth.ts:7` | JWT signing secret (`JWT_SECRET`) | **HIGH** — fallback `"vault-pay-dev-jwt-secret"` hardcoded; JWTs forgeable if env unset |
+| `src/services/auth.ts:11` | 2FA challenge token secret (`TWO_FACTOR_CHALLENGE_SECRET`) | **HIGH** — fallback `"vault-pay-2fa-challenge"` hardcoded; predictable challenge tokens |
+| `src/routes/webhooks.ts:8` | Payment webhook HMAC secret (`PAYMENT_WEBHOOK_SECRET`) | **HIGH** — fallback `"vault-pay-payment-webhook-dev-secret"` hardcoded; signature verification bypassable |
+| `src/services/crypto.ts:3,6` | Card PAN encryption key (`CARD_ENC_KEY`) | **CRITICAL** — fallback `"vault-pay-default-card-encryption-key-change-me-32"` hardcoded; all PANs decryptable if env unset |
+| `src/services/fx.ts:6` | FX provider URL (`FX_PROVIDER_URL`) | **LOW** — internal URL fallback; no secret exposed |
+| `src/index.ts:35` | Server port (`PORT`) | **NONE** — fallback 4444, non-privileged |
+| `src/db/connection.ts` | SQLite DB path (`data/vault-pay.db`) | **LOW** — local DB, no encryption at rest |
+| `src/db/schema.sql` | Database schema (6 tables) | **MEDIUM** — `password_hash`, `totp_secret`, `pan_encrypted` stored in plaintext |
+
+**Example files:**
+- `package.json` — Node.js project metadata (Express service)
+- `tsconfig.json` — TypeScript compiler config
+- `README.md` — API documentation (9 endpoints listed)
+
+**Notes:**
+- No `.env` files, `config.yaml`, `config.yml`, `application.properties`, K8s/Helm manifests, Docker configs, or XML config templates exist in this repo.
+- All 6 configuration variables have hardcoded fallback defaults — 4 of them are secrets/keys.
+- No `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml` — dependency versions not pinned.
+
+## 2. Tests
+> Not found. Searched for: test directories (test/, tests/, __tests__/), test files (*.test.ts, *.spec.ts, *.test.js, *.spec.js), test config files (jest.config.*, vitest.config.*, .mocharc.*), test scripts in package.json, test devDependencies. Zero test files or test infrastructure exist in the vault-pay project (29 files total, all under src/).
+
+## 3. Business / Domain Logic
+| Path | Responsibility |
+|------|---------------|
+| `src/services/transfers.ts` | Transfer domain logic: initiate transfers (debit/credit), cancel transfers, idempotency key handling, currency validation, balance checks |
+| `src/services/auth.ts` | Authentication: password hashing/verification (bcrypt), JWT access & challenge token issuance/decoding, TOTP 2FA verification |
+| `src/services/crypto.ts` | Card PAN encryption/decryption (AES-256-CBC), last4 extraction |
+| `src/services/fx.ts` | Foreign exchange quoting: calls external FX provider, computes converted amounts |
+| `src/services/promos.ts` | Promo code redemption: code validation, auto-account creation, bonus application, audit logging |
+| `src/routes/transfers.ts` | Transfer CRUD: POST initiate, GET by ID, POST cancel |
+| `src/routes/auth.ts` | Auth endpoints: POST register, POST login, POST 2FA verify |
+| `src/routes/fx.ts` | FX quote endpoint: POST /quote |
+| `src/routes/promos.ts` | Promo redemption endpoint: POST /redeem |
+| `src/routes/webhooks.ts` | Payment webhook receiver: HMAC signature verification, audit logging |
+| `src/routes/cards.ts` | Card management: POST create (PAN encrypt), GET full (PAN decrypt) |
+| `src/routes/accounts.ts` | Account info: GET account details, GET transaction history |
+| `src/routes/me.ts` | Current user profile endpoint |
+| `src/routes/admin.ts` | Admin endpoints: audit log retrieval, user listing |
+
+## 4. Data Models & Schemas
+| Path | Format / Type | Responsibility |
+|------|--------------|---------------|
+| `src/types/models.ts` | TypeScript interfaces | Core domain models: `User`, `Account`, `Transfer`, `Card`, `Promo`, `AuditEntry` + `TransferStatus` union |
+| `src/types/requests.ts` | Zod schemas (validated DTOs) | Request DTOs: `RegisterRequest`, `LoginRequest`, `TwoFactorVerifyRequest`, `TransferRequest`, `CardCreateRequest`, `PromoRedeemRequest`, `FxQuoteRequest` |
+| `src/types/responses.ts` | TypeScript interfaces | Response DTOs: `UserDto`, `AccountDto`, `TransferDto`, `CardSummaryDto`, `CardFullDto`, `FxQuoteDto`, `LoginInitiatedDto`, `LoginCompletedDto`, `LoginResponse` |
+| `src/db/schema.sql` | SQLite DDL | Physical schema: tables `users`, `accounts`, `transfers`, `cards`, `promos`, `audit_entries` with indexes |
+
+## 5. Cryptographic Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `src/services/crypto.ts` | `getKey()` — SHA-256 of `CARD_ENC_KEY`; `encryptPan()` — AES-256-CBC; `decryptPan()` — AES-256-CBC; `last4()` | **HIGH**: `KEY_FALLBACK` is hardcoded (`"vault-pay-default-card-encryption-key-change-me-32"`). If `CARD_ENC_KEY` is unset, all PAN encryption uses this known key. No key rotation mechanism. |
+| `src/services/auth.ts` | `hashPassword()` — bcrypt (cost 10); `verifyPassword()` — bcrypt compare; `issueAccessToken()` — JWT sign; `decodeAccessToken()` — JWT verify; `issueChallengeToken()` — JWT sign; `decodeChallengeToken()` — JWT verify; `verifyTotp()` — TOTP via `otplib` | **MEDIUM**: `JWT_SECRET` and `CHALLENGE_SECRET` have hardcoded fallback defaults. JWT TTL: 24h access, 5m challenge. bcrypt cost 10 is acceptable but could be higher. |
+| `src/routes/webhooks.ts` | `expectedSignature()` — HMAC-SHA256 using `WEBHOOK_SECRET` | **MEDIUM**: `WEBHOOK_SECRET` has hardcoded fallback. In dev mode, unsigned webhooks are accepted. |
+| `src/routes/cards.ts` | Imports `encryptPan`, `decryptPan`, `last4` from crypto.ts | **LOW**: PAN exposed in response body on GET `/full` endpoint. |
+
+## 6. Security Functions
+| Path | Function | Risk note |
+|------|----------|-----------|
+| `src/middleware/auth.ts` | `requireAuth` — extracts user from `Authorization` header via `authService.userFromAuthHeader()` | **Medium** — Relies on `authService` for token validation. No rate limiting or brute-force protection. |
+| `src/middleware/errors.ts` | `errorHandler` — sanitizes internal details, returns generic `{ error: message }` JSON | **Low** — Good practice of not leaking stack traces. However, `console.error(err)` dumps full error objects to stdout, potentially leaking sensitive data. |
+| `src/middleware/requireAdmin.ts` | `requireAdmin` — checks `X-Admin: 1` header | **High** — Admin check is header-based with no cryptographic verification. A client can spoof `X-Admin: 1` to bypass admin checks. |
+| `src/routes/auth.ts` | Auth routes: `/register`, `/login`, `/2fa/verify` | **Medium** — bcrypt salt=10 is acceptable but on the low side (12+ recommended). No account lockout or rate limiting on login. TOTP 2FA is opt-in, not enforced. |
+
+**Missing security features:** No CSP headers, no rate limiting, no CSRF protection, no HTTPS enforcement in app code, no sandboxing middleware.
+
+## 7. External-System Integration
+| Path | Integration type | Target system |
+|------|-----------------|---------------|
+| `src/services/fx.ts` | HTTP Client (REST) — axios | External FX rate provider (URL from env) |
+| `src/routes/webhooks.ts` | Webhook Handler (incoming) | External payment provider (HMAC-SHA256 signature verification) |
+| `src/db/connection.ts` | DB Access — SQLite via better-sqlite3 | Local SQLite database (`data/vault-pay.db`) |
+| `src/db/schema.sql` | DB Migration (DDL) | SQLite schema (6 tables) |
+| `src/db/repos/accounts.ts` | DB Repository (DAO) | `accounts` table CRUD |
+| `src/db/repos/transfers.ts` | DB Repository (DAO) | `transfers` table CRUD |
+| `src/db/repos/users.ts` | DB Repository (DAO) | `users` table CRUD |
+| `src/db/repos/cards.ts` | DB Repository (DAO) | `cards` table CRUD |
+| `src/db/repos/promos.ts` | DB Repository (DAO) | `promos` table CRUD |
+| `src/db/repos/audit.ts` | DB Repository (DAO) | `audit_entries` table CRUD |
+| `src/routes/auth.ts` | HTTP Controller (Express Router) | `/auth` routes |
+| `src/routes/accounts.ts` | HTTP Controller (Express Router) | `/accounts` routes |
+| `src/routes/transfers.ts` | HTTP Controller (Express Router) | `/transfers` routes |
+| `src/routes/cards.ts` | HTTP Controller (Express Router) | `/cards` routes |
+| `src/routes/fx.ts` | HTTP Controller (Express Router) | `/fx` routes |
+| `src/routes/promos.ts` | HTTP Controller (Express Router) | `/promos` routes |
+| `src/routes/admin.ts` | HTTP Controller (Express Router) | `/admin` routes |
+| `src/routes/me.ts` | HTTP Controller (Express Router) | `/me` routes |
+| `src/routes/webhooks.ts` | HTTP Controller (Express Router) | `/webhooks` routes |
+| `src/index.ts` | App Entry / Router Wiring | Express app setup, registers all routers |
+
+**External Service Dependencies:**
+| Dependency | Version | Ecosystem | Tags |
+|------------|---------|-----------|------|
+| axios | ^1.7.7 | npm | http |
+| bcryptjs | ^2.4.3 | npm | cryptography, security |
+| better-sqlite3 | ^11.3.0 | npm | database |
+| jsonwebtoken | ^9.0.2 | npm | authentication, security |
+| otplib | ^12.0.1 | npm | authentication |
+
+## 8. Documentation
+| Path | Content |
+|------|---------|
+| `/vault-pay/README.md` | Project description: "Mid-sized TypeScript/Express finance API fixture" for P2P money transfer / ledger API. Lists all 17 API endpoints. |
+
+> Not found. Searched for: docs/ directory, ADRs, wiki, man pages, CHANGELOG, CONTRIBUTING, developer notes, guides/tutorials, LICENSE, AUTHORS/CITATION/CODEOWNERS, .github/.gitlab CI/CD docs, scripts/tools directories, Makefile/Dockerfile/docker-compose, .editorconfig/.gitignore/.npmignore, documentation tooling (typedoc/jsdoc/tsdoc), JSDoc/TSDoc comments in source. Comprehensive negative findings across all categories.
+
+## 9. API Specifications
+> Not found. Searched for: OpenAPI/Swagger files (openapi.yaml, swagger.json, etc.), GraphQL schema definitions (*.graphql), WSDL files, *api*spec* patterns, *.yaml/*.yml files. No API specification files exist in this codebase. API endpoints are documented only in README.md as a plain text list.
+
+## Security Risk Summary
+| Risk level | Paths | Rationale |
+|-----------|-------|-----------|
+| CRITICAL | `src/services/crypto.ts:3,6` | Card PAN encryption key (`CARD_ENC_KEY`) falls back to hardcoded default `"vault-pay-default-card-encryption-key-change-me-32"`. If not set in production, all card PAN data is encrypted with a known key, allowing decryption of every stored card number. |
+| HIGH | `src/services/auth.ts:7` | JWT signing secret (`JWT_SECRET`) falls back to `"vault-pay-dev-jwt-secret"`. Attackers can forge valid JWT tokens. |
+| HIGH | `src/services/auth.ts:11` | 2FA challenge secret (`TWO_FACTOR_CHALLENGE_SECRET`) falls back to `"vault-pay-2fa-challenge"`. Predictable 2FA challenge tokens. |
+| HIGH | `src/routes/webhooks.ts:8` | Webhook HMAC secret (`PAYMENT_WEBHOOK_SECRET`) falls back to `"vault-pay-payment-webhook-dev-secret"`. Webhook signature verification bypassable. |
+| HIGH | `src/middleware/requireAdmin.ts` | Admin authorization uses `X-Admin: 1` header with no cryptographic verification. Any client can spoof admin access. |
+| MEDIUM | `src/db/schema.sql` | Plaintext storage of `password_hash`, `totp_secret`, and `pan_encrypted` in SQLite. |
+| MEDIUM | `src/services/auth.ts` | bcrypt cost factor 10 is on the low side (12+ recommended). |
+| MEDIUM | `src/routes/auth.ts` | No rate limiting on registration, login, or 2FA endpoints — vulnerable to brute-force attacks. |
+| MEDIUM | `src/routes/auth.ts` | TOTP 2FA is opt-in, not enforced for all users. |
+| MEDIUM | Entire app | No Content-Security-Policy (CSP) headers configured. |
+| MEDIUM | `src/middleware/errors.ts` | `console.error(err)` dumps full error objects to stdout, potentially leaking sensitive data. |
+| MEDIUM | `src/services/auth.ts` | Both `JWT_SECRET` and `CHALLENGE_SECRET` have hardcoded fallback defaults. |
+| MEDIUM | `src/routes/webhooks.ts` | `WEBHOOK_SECRET` has hardcoded fallback; unsigned webhooks accepted in dev mode. |
+| LOW | `src/db/connection.ts` | SQLite DB in `data/vault-pay.db` with no encryption at rest configured. |
+| LOW | `src/routes/cards.ts` | Full card PAN decrypted and exposed in response body on `/full` endpoint. |
+| LOW | Root | No lock files for dependency pinning — dependency versions not pinned. |
+| LOW | Entire app | No HTTPS enforcement in application code (should be handled by gateway). |

@@ -1,0 +1,43 @@
+# External-Service Dependency Inventory
+
+## Detected Stack and Dependency Sources
+- **Primary languages / frameworks:** Java (JDK 17), Gradle 8.1 (Kotlin DSL), Spring Boot 3.2.2
+- **Manifest files analyzed:** `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, `gradle/wrapper/gradle-wrapper.properties`
+- **Lock files analyzed:** none found
+
+## External-Service Dependencies
+| Dependency | Version | Ecosystem | Tags | Why included | Evidence |
+|------------|---------|-----------|------|--------------|----------|
+| spring-boot-starter-web | 3.2.2 | Maven | http | HTTP server framework (Spring MVC/Servlet) — enables REST API endpoints | manifest:build.gradle.kts (implementation) |
+| spring-boot-starter-security | 3.2.2 | Maven | authentication | Security auto-configuration and filters for authentication/authorization | manifest:build.gradle.kts (implementation) |
+| spring-boot-starter-data-jpa | 3.2.2 | Maven | database | ORM starter providing Hibernate/JPA for database persistence | manifest:build.gradle.kts (implementation) |
+| spring-boot-starter-mail | 3.2.2 | Maven | http, email | Email sending abstraction (SMTP client) for external mail delivery | manifest:build.gradle.kts (implementation); application.properties:20-27 (SMTP config) |
+| spring-security-config | 6.0.3 | Maven | authentication | Security configuration module — defines auth beans, filters, and rules | manifest:build.gradle.kts (implementation); WebSecurityConfig.java (SecurityFilterChain bean) |
+| jjwt (io.jsonwebtoken:jjwt) | 0.12.5 | Maven | authentication, cryptography | JWT token creation/validation library for identity service auth flows | manifest:build.gradle.kts (implementation); JwtProvider.java (Jwts.builder, JWTParser) |
+| nimbus-jose-jwt | 9.37.3 | Maven | authentication, cryptography | JOSE/JWT/JWS/JWE library — used for JWK/JWKS handling (key rotation) | manifest:build.gradle.kts (implementation); JwtProvider.java (JWKSet, SignedJWT) |
+| postgresql | 42.4.0 | Maven | database | PostgreSQL JDBC driver — runtime DB connection to external database | manifest:build.gradle.kts (implementation); application.properties:7 (spring.datasource.url) |
+| google-cloud-storage | 2.10.0 | Maven | http, storage | Google Cloud Storage client — HTTP-based API for object storage | manifest:build.gradle.kts (implementation) — Suspected: no direct source code imports of `com.google.cloud.storage` found |
+| httpclient (Apache HttpClient 4.x) | 4.5.13 | Maven | http | Low-level HTTP client for external service calls | manifest:build.gradle.kts (implementation); VehicleOwnershipServiceImpl.java:32-33 (CloseableHttpClient, HttpClients) |
+| httpclient5 (Apache HttpClient 5) | 5.3 | Maven | http | Modern HTTP client for external service calls | manifest:build.gradle.kts (implementation); VehicleOwnershipServiceImpl.java:27 (org.apache.hc.client5.http.classic.HttpClient) |
+
+## Summary by Tag
+- **http:** spring-boot-starter-web, spring-boot-starter-mail, google-cloud-storage, httpclient, httpclient5
+- **authentication:** spring-boot-starter-security, spring-security-config, jjwt, nimbus-jose-jwt
+- **database:** spring-boot-starter-data-jpa, postgresql
+- **cryptography:** jjwt, nimbus-jose-jwt
+- **email:** spring-boot-starter-mail
+- **storage:** google-cloud-storage
+
+## Gaps and Follow-ups
+- **Suspected (low-confidence) dependencies:** google-cloud-storage — declared in build.gradle.kts but no direct source code imports of `com.google.cloud.storage` found across src/main/java and src/main/resources; may be unused or conditionally loaded.
+- **Missing inputs:** No lock files found (no gradle.lockfile or other dependency lock files); dependency versions are not pinned, so reproducible builds are not guaranteed.
+- **Assumptions made:**
+  1. All dependencies declared in `implementation` configuration are runtime dependencies.
+  2. `spring-boot-starter-security` and `spring-security-config` are tagged `authentication` (they provide auth infrastructure, not just authorization).
+  3. `spring-boot-starter-mail` is tagged `http` and `email` (SMTP is an external network protocol).
+  4. `google-cloud-storage` is tagged `http` and `storage` (GCS client uses HTTP/HTTPS under the hood).
+  5. `jjwt` and `nimbus-jose-jwt` are tagged both `authentication` and `cryptography` (they serve both roles at trust boundaries).
+  6. `spring-boot-starter-data-jpa` is tagged `database` (it pulls in Hibernate/JPA which talk to external databases).
+  7. The `libraries-bom` BOM is excluded as it is a build/publish tool, not a runtime dependency.
+  8. `org.postgresql:postgresql:runtime` (with version "runtime") in build.gradle.kts is treated as a typo; the correct driver is `postgresql:42.4.0` on the next line.
+  9. `google-cloud-storage` is declared twice in the implementation block (duplicate entry); only one row is shown.
