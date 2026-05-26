@@ -1,0 +1,9 @@
+slug: realvuln-vulnerable-tornado-app
+language: python
+framework: tornado
+source_root: tests/playground/realvuln-repos/realvuln-vulnerable-tornado-app
+benchmark: realvuln
+repo_url: https://github.com/kolega-ai/realvuln-Vulnerable_Tornado_App
+commit_sha: 7aca8b78ba948c841d6cb1cc2a244922a27e842b
+description: 'RealVuln benchmark: vulnerable-tornado-app — python/tornado app with
+  14 known vulnerabilities and 3 FP traps.'

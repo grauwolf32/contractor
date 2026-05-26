@@ -1,0 +1,9 @@
+slug: realvuln-pythonssti
+language: python
+framework: fastapi
+source_root: tests/playground/realvuln-repos/realvuln-pythonssti
+benchmark: realvuln
+repo_url: https://github.com/TheWation/PythonSSTI
+commit_sha: 76339c27d5a870c0a81bad6aee5f9bd516592145
+description: 'RealVuln benchmark: python-ssti — python/fastapi app with 2 known vulnerabilities
+  and 1 FP traps.'

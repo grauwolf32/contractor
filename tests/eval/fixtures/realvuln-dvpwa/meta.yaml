@@ -1,0 +1,9 @@
+slug: realvuln-dvpwa
+language: python
+framework: aiohttp
+source_root: tests/playground/realvuln-repos/realvuln-dvpwa
+benchmark: realvuln
+repo_url: https://github.com/anxolerd/dvpwa
+commit_sha: a1d8f89fac2e57093189853c6527c2b01fc1d9c1
+description: 'RealVuln benchmark: dvpwa — python/aiohttp app with 22 known vulnerabilities
+  and 4 FP traps.'
