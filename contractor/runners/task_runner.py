@@ -13,6 +13,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel, Field, PrivateAttr
 
+from google.adk.plugins import ReflectAndRetryToolPlugin
+
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
 from contractor.runners.artifacts import (artifact_names_for_key,
@@ -264,24 +266,6 @@ class TaskRunner(BaseModel):
 
     # ── Session management ────────────────────────────────────────────────
 
-    async def _ensure_session(
-        self,
-        user_id: str,
-        session_id: str,
-        initial_state: dict[str, Any] | None = None,
-    ):
-        existing = await self.session_service.get_session(
-            app_name=self.name, user_id=user_id, session_id=session_id
-        )
-        if existing is not None:
-            return existing
-        return await self.session_service.create_session(
-            app_name=self.name,
-            user_id=user_id,
-            session_id=session_id,
-            state=initial_state or {},
-        )
-
     async def _get_session_state(self, user_id: str, session_id: str) -> dict[str, Any]:
         session = await self.session_service.get_session(
             app_name=self.name, user_id=user_id, session_id=session_id
@@ -453,8 +437,6 @@ class TaskRunner(BaseModel):
             carry_state=carry_state,
         )
 
-        await self._ensure_session(user_id, session_id, initial_state)
-
         await self._emit(
             EventType.ITERATION_STARTED,
             task_name=item.ref,
@@ -473,6 +455,7 @@ class TaskRunner(BaseModel):
             session_service=self.session_service,
             artifact_service=self.artifact_service,
             plugins=self._build_plugins(item, task_id, iteration, session_id),
+            auto_create_session=True,
         )
 
         message = types.Content(
@@ -485,6 +468,7 @@ class TaskRunner(BaseModel):
             user_id=user_id,
             session_id=session_id,
             message=message,
+            initial_state=initial_state,
             item=item,
             task_id=task_id,
             iteration=iteration,
@@ -535,6 +519,7 @@ class TaskRunner(BaseModel):
                 session_id=session_id,
                 emit=self._emit,
             ),
+            ReflectAndRetryToolPlugin(),
         ]
 
     async def _consume_events(
@@ -544,6 +529,7 @@ class TaskRunner(BaseModel):
         user_id: str,
         session_id: str,
         message: types.Content,
+        initial_state: dict[str, Any],
         item: TaskInvocation,
         task_id: int,
         iteration: int,
@@ -554,6 +540,7 @@ class TaskRunner(BaseModel):
             user_id=user_id,
             session_id=session_id,
             new_message=message,
+            state_delta=initial_state,
         ):
             event_final = _extract_final_text(event)
             if not event_final:

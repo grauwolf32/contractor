@@ -106,19 +106,13 @@ async def run_agent(
     if setup is not None:
         await setup(artifact_service, app_name, user_id)
 
-    await session_service.create_session(
-        app_name=app_name,
-        user_id=user_id,
-        session_id=session_id,
-        state=initial_state or {},
-    )
-
     runner = Runner(
         agent=agent,
         app_name=app_name,
         session_service=session_service,
         artifact_service=artifact_service,
         plugins=plugins or [],
+        auto_create_session=True,
     )
 
     message = types.Content(role="user", parts=[types.Part(text=user_message)])
@@ -130,7 +124,10 @@ async def run_agent(
     async def _consume() -> None:
         nonlocal final_text
         async for event in runner.run_async(
-            user_id=user_id, session_id=session_id, new_message=message
+            user_id=user_id,
+            session_id=session_id,
+            new_message=message,
+            state_delta=initial_state or None,
         ):
             parts = getattr(getattr(event, "content", None), "parts", None) or []
             for part in parts:

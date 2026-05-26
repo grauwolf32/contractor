@@ -71,7 +71,6 @@ class AgentRunner(BaseModel):
         emit_name = event_name or agent.name
         try:
             session_id = session_id or uuid4().hex
-            await self._ensure_session(user_id, session_id, initial_state or {})
 
             content = (
                 types.Content(role="user", parts=[types.Part(text=message)])
@@ -92,6 +91,7 @@ class AgentRunner(BaseModel):
                 session_service=self.session_service,
                 artifact_service=self.artifact_service,
                 plugins=plugins or [],
+                auto_create_session=True,
             )
 
             final_text = ""
@@ -99,6 +99,7 @@ class AgentRunner(BaseModel):
                 user_id=user_id,
                 session_id=session_id,
                 new_message=content,
+                state_delta=initial_state or None,
             ):
                 event_text = _extract_final_text(event)
                 if not event_text:
@@ -163,24 +164,6 @@ class AgentRunner(BaseModel):
         return artifact_names_for_key(key)
 
     # ── Session management ────────────────────────────────────────────────
-
-    async def _ensure_session(
-        self,
-        user_id: str,
-        session_id: str,
-        initial_state: dict[str, Any],
-    ):
-        existing = await self.session_service.get_session(
-            app_name=self.name, user_id=user_id, session_id=session_id
-        )
-        if existing is not None:
-            return existing
-        return await self.session_service.create_session(
-            app_name=self.name,
-            user_id=user_id,
-            session_id=session_id,
-            state=initial_state,
-        )
 
     async def _get_session_state(self, user_id: str, session_id: str) -> dict[str, Any]:
         session = await self.session_service.get_session(
