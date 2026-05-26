@@ -103,6 +103,7 @@ class TraceAnnotationPipeline(Pipeline):
         self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []
+        self._overlay_seeded = False
 
     async def _run_impl(
         self,
@@ -131,6 +132,7 @@ class TraceAnnotationPipeline(Pipeline):
         )
         if fs_state_artifact:
             self.overlayfs.load(json.loads(fs_state_artifact.text))
+        self._overlay_seeded = True
 
         for api_path in self.paths:
             await self._run_path_analysis(
@@ -140,6 +142,8 @@ class TraceAnnotationPipeline(Pipeline):
             )
 
     async def _cleanup(self, *, user_id: str) -> None:
+        if not self._overlay_seeded:
+            return
         ctx = self.ctx
         await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,

@@ -409,7 +409,7 @@ class TestCheckpointIntegration:
 
     @pytest.mark.asyncio
     async def test_checkpoint_reruns_if_artifact_missing(self, tmp_path, monkeypatch):
-        # Checkpoint says done, but artifact returns empty → re-run.
+        # Checkpoint says done, but artifact returns None → re-run.
         cp = Checkpoint(pipeline="test")
         cp.mark_done(CheckpointEntry(
             task_id=0, ref="a:0", template_key="t", template_version="v1",
@@ -418,9 +418,7 @@ class TestCheckpointIntegration:
         cp.save(tmp_path / "checkpoint.json")
 
         r = _checkpoint_runner(tmp_path, monkeypatch)
-        monkeypatch.setattr(
-            r, "_load_artifact_text", AsyncMock(return_value=""),
-        )
+        r.artifact_service.load_artifact = AsyncMock(return_value=None)
         monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
 
         inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)

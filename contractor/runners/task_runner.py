@@ -254,8 +254,13 @@ class TaskRunner(BaseModel):
             return None
 
         for artifact_name in entry.published_artifacts.values():
-            text = await self._load_artifact_text(user_id, artifact_name)
-            if not text:
+            part = await self.artifact_service.load_artifact(
+                app_name=self.name,
+                user_id=user_id,
+                session_id=None,
+                filename=artifact_name,
+            )
+            if part is None:
                 logger.info(
                     "checkpoint entry %s missing artifact %s — re-running",
                     item.ref,
