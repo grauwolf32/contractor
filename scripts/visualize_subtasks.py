@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -84,20 +85,62 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _extract_records(event: dict[str, Any]) -> list[dict[str, Any]]:
-    """Pull the subtask records list out of a task_(finished|failed) event."""
-    records = event.get("records")
-    if isinstance(records, list):
-        return [r for r in records if isinstance(r, dict)]
+def _parse_xml_record(text: str) -> dict[str, Any] | None:
+    """Extract task_id, title, status from an XML ``<task>`` record string."""
+    try:
+        wrapped = f"<root>{text}</root>"
+        root = ET.fromstring(wrapped)
+    except ET.ParseError:
+        return None
 
-    # task_failed nests the iteration's records under last_result.records,
-    # and iteration_finished does the same under result.records.
+    task_el = root.find("task")
+    if task_el is None:
+        return None
+
+    task_id = task_el.get("id")
+    if task_id is None:
+        return None
+
+    title = (task_el.findtext("title") or "").strip()
+    status = (task_el.findtext("status") or "unknown").strip()
+    return {"task_id": task_id, "title": title, "status": status}
+
+
+def _coerce_records(raw: list[Any]) -> list[dict[str, Any]]:
+    """Normalise a mixed list of dicts and XML strings into dicts."""
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, str):
+            parsed = _parse_xml_record(item)
+            if parsed is not None:
+                out.append(parsed)
+    return out
+
+
+def _extract_records(event: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pull the subtask records list out of a task_(finished|failed) event.
+
+    Handles two serialisation formats:
+    - Flat (new ``_event_to_record``): records at the event top level.
+    - Nested (old format): records inside ``event["payload"]``.
+    Records themselves may be dicts (json format) or XML strings.
+    """
+    source = event
+    if "records" not in event and isinstance(event.get("payload"), dict):
+        source = event["payload"]
+
+    records = source.get("records")
+    if isinstance(records, list) and records:
+        return _coerce_records(records)
+
     for wrapper_key in ("last_result", "result"):
-        nested = event.get(wrapper_key)
+        nested = source.get(wrapper_key)
         if isinstance(nested, dict):
             nested_records = nested.get("records")
-            if isinstance(nested_records, list):
-                return [r for r in nested_records if isinstance(r, dict)]
+            if isinstance(nested_records, list) and nested_records:
+                return _coerce_records(nested_records)
     return []
 
 
@@ -122,11 +165,14 @@ def extract_runs(events: Iterable[dict[str, Any]]) -> list[SubtaskRun]:
         task_id = event.get("task_id")
         key = (task_name, task_id)
 
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        template_key = event.get("template_key") or payload.get("template_key")
+
         new_run = SubtaskRun(
             event_type=etype,
             task_name=task_name,
             task_id=task_id,
-            template_key=event.get("template_key"),
+            template_key=template_key,
             records=records,
         )
 
