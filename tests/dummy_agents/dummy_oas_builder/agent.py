@@ -3,26 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from google.adk.agents import LlmAgent
-
-from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.context import SummarizationLimitCallback
-from contractor.callbacks.guardrails import (
-    InvalidToolCallGuardrailCallback,
-    RepeatedToolCallCallback,
-)
-from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.callbacks import default_tool
 from cli.fs import RootedLocalFileSystem
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
-from contractor.tools.tasks import (
-    SubtaskFormatter,
-    _prepare_worker_instructions,
-)
 from contractor.utils.settings import DEFAULT_MODEL
+
+from contractor.agents.worker_factory import build_worker
 
 DUMMY_SWE_PROMPT: Final[str] = (
     "You are a professional, helpful Software Engineer (SWE) agent.\n"
@@ -67,9 +56,8 @@ DUMMY_SWE_DESCRIPTION: Final[str] = (
     "Professional software engineer focused on implementing and validating assigned subtasks."
 )
 
-DUMMY_SUMMARIZATION_MESSAGE: Final[str] = (
+_SUMMARIZATION_BULLETS: Final[str] = (
     "You have reached context limit.Summarize your progress and call report tool."
-    + _prepare_worker_instructions(SubtaskFormatter("xml"))
 )
 
 DUMMY_PLANNER_DESCRIPTION: Final[str] = "Helpful asistant. Professional task manager."
@@ -93,25 +81,16 @@ oas_tools = openapi_tools("playground", fs)
 
 tools = [default_tool, *fs_tools, *mem_tools, *oas_tools]
 
-callback_adapter = CallbackAdapter(agent_name="dummy_swe")
-callback_adapter.register(TokenUsageCallback())
-callback_adapter.register(
-    SummarizationLimitCallback(max_tokens=80000, message=DUMMY_SUMMARIZATION_MESSAGE)
-)
-callback_adapter.register(
-    InvalidToolCallGuardrailCallback(
-        tools=tools, default_tool_name="default_tool", default_tool_arg="meta"
-    )
-)
-callback_adapter.register(RepeatedToolCallCallback(threshold=5))
-
-dummy_oas_builder = LlmAgent(
+dummy_oas_builder = build_worker(
     name="dummy_oas_builder",
-    description=DUMMY_SWE_DESCRIPTION,
     instruction=DUMMY_SWE_PROMPT,
-    model=DEFAULT_MODEL,
+    description=DUMMY_SWE_DESCRIPTION,
     tools=tools,
-    **callback_adapter(),
+    _format="xml",
+    summarization_bullets=_SUMMARIZATION_BULLETS,
+    max_tokens=80000,
+    model=DEFAULT_MODEL,
+    with_elide=False,
 )
 
 root_agent = dummy_oas_builder
