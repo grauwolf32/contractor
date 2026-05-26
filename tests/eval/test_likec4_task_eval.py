@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import re
 import shutil
+from datetime import datetime, timezone
 from functools import partial
+from pathlib import Path
 
 import pytest
 from google.adk.models.lite_llm import LiteLlm
@@ -32,6 +34,7 @@ from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import (DEFAULT_LIKEC4_PATH, Likec4Error,
                                      Likec4NotFoundError, Likec4Linter)
+from contractor.utils.prompt import load_prompt_with_version
 
 from tests.eval.conftest import FIXTURES_ROOT
 from tests.eval.scoring import score_phrases
@@ -88,6 +91,12 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
 
     precomputed = _load_precomputed(fixture.slug)
 
+    _, prompt_version = load_prompt_with_version("likec4_builder_agent")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    run_dir = (
+        FIXTURES_ROOT / fixture.slug / "runs" / f"{prompt_version}_{ts}"
+    )
+
     def queue(runner) -> None:
         likec4_builder = partial(
             build_likec4_builder_agent,
@@ -139,6 +148,7 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
         timeout_s=float(case.get("timeout_s", 2400.0)),
         runner_name=f"likec4-{fixture.slug}",
         preloaded_artifacts=precomputed,
+        output_dir=run_dir,
     )
 
     if overlay_fs.exists(DEFAULT_LIKEC4_PATH):
@@ -152,6 +162,8 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
         )
         dsl = _extract_likec4_source(result_text)
         source_origin = "result-fence"
+
+    (run_dir / "architecture.c4").write_text(dsl, encoding="utf-8")
 
     keyword_score = score_phrases(dsl, case.get("expected_keywords", []))
     min_keyword_recall = float(case.get("min_keyword_recall", 1.0))
@@ -173,13 +185,18 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
     failed_validation = len(validation_errors) > max_errors
     failed_keywords = keyword_score.recall < min_keyword_recall
 
+    summary = (
+        f"fixture={fixture.slug} case={case['id']}\n"
+        f"  source_origin={source_origin} dsl_chars={len(dsl)}\n"
+        f"  validation_errors={len(validation_errors)} (max={max_errors})\n"
+        f"  {keyword_score.explain('keywords')}\n"
+        f"  precomputed={'yes' if precomputed else 'no'}\n\n"
+        f"metrics:\n{render_metrics_table(run.metrics)}"
+    )
+    print(f"\n{'='*60}\n{summary}\n{'='*60}")
+
     if failed_validation or failed_keywords:
         pytest.fail(
-            "likec4 eval failed for "
-            f"fixture={fixture.slug} case={case['id']}\n"
-            f"  source_origin={source_origin} dsl_chars={len(dsl)}\n"
-            f"  validation_errors={len(validation_errors)} (max={max_errors})\n"
-            f"  {keyword_score.explain('keywords')}\n\n"
-            f"first_errors:\n{validation_errors[:5]}\n\n"
-            f"metrics:\n{render_metrics_table(run.metrics)}"
+            f"likec4 eval failed\n{summary}\n\n"
+            f"first_errors:\n{validation_errors[:5]}"
         )
