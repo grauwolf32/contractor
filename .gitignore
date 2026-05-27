@@ -15,6 +15,7 @@ old/*
 __pycache__/*
 *.env
 eval_runs/*
+tests/eval/fixtures/*/runs/
 scripts/output/*
 .research/
 # Byte-compiled / optimized / DLL files
