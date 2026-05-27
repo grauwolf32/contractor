@@ -96,9 +96,11 @@ async def test_oas_build_task(fixture, fixture_fs, eval_model: LiteLlm):
             namespace="openapi-building", model=eval_model,
         )
 
+    oas_artifact_key = "user:oas-openapi-building"
+
     run = await run_task_pipeline(
         queue_fn=queue,
-        artifact_keys=["oas_update/result"],
+        artifact_keys=["oas_update/result", oas_artifact_key],
         namespace=f"task-eval-{fixture.slug}-oas_build",
         timeout_s=2400.0,
         runner_name=f"oas-build-{fixture.slug}",
@@ -106,7 +108,9 @@ async def test_oas_build_task(fixture, fixture_fs, eval_model: LiteLlm):
         output_dir=run_dir,
     )
 
-    result_text = run.result_text("oas_update")
+    result_text = run.artifacts.get(oas_artifact_key, "")
+    if not result_text:
+        result_text = run.result_text("oas_update")
     assert result_text, (
         "oas_update produced no result artifact\n"
         + render_metrics_table(run.metrics)

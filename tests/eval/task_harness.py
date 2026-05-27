@@ -220,6 +220,18 @@ async def run_task_pipeline(
                 if part is not None and getattr(part, "text", None):
                     artifacts[fname] = part.text
 
+        for raw_key in artifact_keys:
+            if "/" in raw_key:
+                continue
+            part = await artifact_service.load_artifact(
+                app_name=runner_name,
+                user_id=user_id,
+                session_id=None,
+                filename=raw_key,
+            )
+            if part is not None and getattr(part, "text", None):
+                artifacts[raw_key] = part.text
+
     run = TaskAgentRun(
         results=results,
         events=events,
