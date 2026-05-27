@@ -235,6 +235,8 @@ def openapi_tools(
         if not ok:
             return {"error": err}
 
+        if not isinstance(path_def, dict):
+            path_def = path_def.model_dump(by_alias=True, exclude_none=True)
         path_def.update({"x-path-files": path_files})
 
         diff = {"paths": {path.strip(): path_def}}
