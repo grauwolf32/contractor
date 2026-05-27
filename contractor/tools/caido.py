@@ -14,9 +14,7 @@ import asyncio
 import base64
 import json
 import logging
-import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Literal
 
 import httpx
@@ -252,208 +250,32 @@ query ReplayEntry($id: ID!) {
 """
 
 
-_CAIDO_CLOUD_API = "https://api.caido.io"
-_TOKEN_CACHE_FILENAME = ".caido_token_cache.json"
-_AUTH_SCOPES = "profile:read,offline"
-
-_START_AUTH_FLOW = """
-mutation {
-  startAuthenticationFlow {
-    error {
-      ... on AuthenticationUserError { code reason }
-      ... on CloudUserError { code }
-      ... on OtherUserError { code }
-    }
-    request { id userCode verificationUrl expiresAt }
-  }
-}
-"""
-
-_CREATED_AUTH_TOKEN_SUB = """
-subscription CreatedAuthenticationToken($requestId: ID!) {
-  createdAuthenticationToken(requestId: $requestId) {
-    token {
-      accessToken
-      expiresAt
-      refreshToken
-      scopes
-    }
-  }
-}
-"""
-
-
 class CaidoError(Exception):
     pass
 
 
-def _token_cache_path() -> Path:
-    return Path.home() / ".claude" / _TOKEN_CACHE_FILENAME
-
-
-def _load_cached_token() -> str | None:
-    path = _token_cache_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text())
-        return data.get("access_token")
-    except (json.JSONDecodeError, OSError):
-        return None
-
-
-def _save_cached_token(access_token: str, refresh_token: str | None = None) -> None:
-    path = _token_cache_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-    }))
-
-
-async def _exchange_pat_for_token(
-    instance_url: str,
-    pat: str,
-    timeout: float = 30.0,
-) -> str:
-    """Exchange a Caido PAT for an access token via the device code flow.
-
-    Steps:
-    1. Start auth flow on local instance → get requestId + userCode
-    2. Approve via Caido cloud API with the PAT
-    3. Subscribe via WebSocket to receive the access token
-    """
-    import websockets
-
-    graphql_url = f"{instance_url.rstrip('/')}/graphql"
-    ws_url = f"{instance_url.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://')}/ws/graphql"
-
-    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), verify=False) as client:
-        # Step 1: Start auth flow
-        resp = await client.post(graphql_url, json={"query": _START_AUTH_FLOW})
-        resp.raise_for_status()
-        body = resp.json()
-        flow = body.get("data", {}).get("startAuthenticationFlow", {})
-        if flow.get("error"):
-            raise CaidoError(f"Failed to start auth flow: {flow['error']}")
-        request = flow.get("request")
-        if not request:
-            raise CaidoError("No auth request returned from startAuthenticationFlow")
-        request_id = request["id"]
-        user_code = request["userCode"]
-        logger.info("Caido auth flow started: requestId=%s userCode=%s", request_id, user_code)
-
-        # Step 2: Approve via cloud API
-        approve_url = (
-            f"{_CAIDO_CLOUD_API}/oauth2/device/approve"
-            f"?user_code={user_code}&scope={_AUTH_SCOPES}"
-        )
-        approve_resp = await client.post(
-            approve_url,
-            headers={"Authorization": f"Bearer {pat}"},
-        )
-        if approve_resp.status_code >= 400:
-            raise CaidoError(
-                f"Cloud API rejected PAT (status {approve_resp.status_code}): "
-                f"{approve_resp.text[:200]}"
-            )
-        logger.info("Caido device code approved via cloud API")
-
-    # Step 3: Subscribe via WebSocket for the token
-    sub_payload = {
-        "id": str(uuid.uuid4()),
-        "type": "subscribe",
-        "payload": {
-            "query": _CREATED_AUTH_TOKEN_SUB,
-            "variables": {"requestId": request_id},
-        },
-    }
-
-    async with websockets.connect(
-        ws_url,
-        subprotocols=["graphql-transport-ws"],
-        additional_headers={},
-    ) as ws:
-        await ws.send(json.dumps({"type": "connection_init"}))
-        init_ack = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
-        if init_ack.get("type") != "connection_ack":
-            raise CaidoError(f"WebSocket init failed: {init_ack}")
-
-        await ws.send(json.dumps(sub_payload))
-
-        deadline = asyncio.get_event_loop().time() + timeout
-        while asyncio.get_event_loop().time() < deadline:
-            try:
-                raw = await asyncio.wait_for(ws.recv(), timeout=5)
-            except asyncio.TimeoutError:
-                continue
-            msg = json.loads(raw)
-            if msg.get("type") == "next":
-                token_data = (
-                    msg.get("payload", {})
-                    .get("data", {})
-                    .get("createdAuthenticationToken", {})
-                    .get("token")
-                )
-                if token_data and token_data.get("accessToken"):
-                    access_token = token_data["accessToken"]
-                    refresh_token = token_data.get("refreshToken")
-                    _save_cached_token(access_token, refresh_token)
-                    logger.info("Caido access token obtained and cached")
-                    return access_token
-            elif msg.get("type") == "error":
-                raise CaidoError(f"Subscription error: {msg.get('payload')}")
-
-    raise CaidoError("Timed out waiting for authentication token from Caido")
-
-
 @dataclass
 class CaidoClient:
+    """Thin GraphQL client for a local Caido instance.
+
+    ``auth_token`` is a bearer access token (not a PAT).  Use
+    ``scripts/caido_auth.py`` to exchange a PAT for an access token,
+    or enable guest access on the instance to skip auth entirely.
+    """
     url: str
     auth_token: str | None = None
     timeout: float = 30.0
     _http: httpx.AsyncClient | None = field(default=None, repr=False, init=False)
-    _resolved_token: str | None = field(default=None, repr=False, init=False)
 
     @property
     def graphql_url(self) -> str:
         return f"{self.url.rstrip('/')}/graphql"
 
-    async def _resolve_token(self) -> str | None:
-        """Resolve auth_token to a usable bearer token.
-
-        If auth_token is a PAT (starts with ``caido_``), exchange it for
-        an access token via the device code flow and cache the result.
-        """
-        if self._resolved_token:
-            return self._resolved_token
-
-        if not self.auth_token:
-            return None
-
-        if not self.auth_token.startswith("caido_"):
-            self._resolved_token = self.auth_token
-            return self._resolved_token
-
-        cached = _load_cached_token()
-        if cached:
-            self._resolved_token = cached
-            return self._resolved_token
-
-        logger.info("Exchanging Caido PAT for access token…")
-        self._resolved_token = await _exchange_pat_for_token(
-            instance_url=self.url,
-            pat=self.auth_token,
-            timeout=self.timeout,
-        )
-        return self._resolved_token
-
     async def _client(self) -> httpx.AsyncClient:
         if self._http is None or self._http.is_closed:
-            token = await self._resolve_token()
             headers: dict[str, str] = {}
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
+            if self.auth_token:
+                headers["Authorization"] = f"Bearer {self.auth_token}"
             self._http = httpx.AsyncClient(
                 headers=headers,
                 timeout=httpx.Timeout(self.timeout),
@@ -461,21 +283,10 @@ class CaidoClient:
             )
         return self._http
 
-    async def _invalidate_token(self) -> None:
-        """Clear cached token so next request re-authenticates."""
-        self._resolved_token = None
-        path = _token_cache_path()
-        if path.exists():
-            path.unlink(missing_ok=True)
-        if self._http and not self._http.is_closed:
-            await self._http.aclose()
-            self._http = None
-
     async def execute(
         self,
         query: str,
         variables: dict[str, Any] | None = None,
-        _auth_retry: bool = True,
     ) -> dict[str, Any]:
         client = await self._client()
         payload: dict[str, Any] = {"query": query}
@@ -488,13 +299,6 @@ class CaidoClient:
             raise CaidoError(f"HTTP error talking to Caido at {self.graphql_url}: {exc}") from exc
         body = resp.json()
         if "errors" in body and body["errors"]:
-            if _auth_retry and self.auth_token:
-                for err in body["errors"]:
-                    ext = err.get("extensions", {}).get("CAIDO", {})
-                    if ext.get("code") == "AUTHORIZATION":
-                        logger.warning("Caido auth token expired, re-authenticating…")
-                        await self._invalidate_token()
-                        return await self.execute(query, variables, _auth_retry=False)
             msgs = "; ".join(e.get("message", str(e)) for e in body["errors"])
             raise CaidoError(f"GraphQL error: {msgs}")
         return body.get("data", {})
