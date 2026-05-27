@@ -134,6 +134,8 @@ The `report_vulnerability` tool stores: `name`, `place_type`, `place`,
   severity    — see heuristics above.
   confidence  — see heuristics above.
   details     — markdown; pack the §7 structured fields here:
+                  - **CWE ID** (e.g. CWE-89 for SQL injection; load
+                    `cwe-mapping` reference if unsure)
                   - shape, control_missing, exploit_precondition
                   - evidence_lines (every cited file:line)
                   - source / path / sink (Shape A only)
