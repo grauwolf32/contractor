@@ -1,0 +1,18 @@
+bola-vehicle-location:
+  name: bola-vehicle-location
+  place_type: file
+  place: src/main/java/com/crapi/controller/VehicleController.java
+  title: "BOLA — any authenticated user can access any vehicle's location"
+  summary: GET /identity/api/v2/vehicle/{vehicleId}/location does not verify the authenticated
+    user owns the vehicle.
+  severity: high
+  confidence: high
+  details: Broken Object Level Authorization in VehicleController. The getVehicleLocation
+    handler retrieves the vehicle by vehicleId from the path without checking that
+    the authenticated user (from JWT) is the vehicle's owner. Any authenticated user
+    can read any vehicle's real-time location by guessing or enumerating vehicle UUIDs.
+    The endpoint is GET /identity/api/v2/vehicle/{vehicleId}/location with a valid
+    JWT Bearer token.
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
