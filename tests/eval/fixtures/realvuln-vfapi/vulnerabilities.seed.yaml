@@ -1,0 +1,185 @@
+sqli-select-username:
+  name: sqli-select-username
+  place_type: file
+  place: main.py
+  title: SQL injection via username parameter in GET /select endpoint
+  summary: The username query parameter is interpolated directly into a SQL SELECT query
+    using an f-string without parameterization or sanitization.
+  severity: high
+  confidence: high
+  details: 'SQL injection at main.py:182. The GET /select endpoint accepts a username
+    query parameter and interpolates it directly into the query: f''SELECT * FROM users
+    WHERE username = "{username}";''. An attacker can inject SQL via the username parameter,
+    e.g. GET /select?username=" OR 1=1 -- to dump all users. The response returns JSON
+    with user data. No authentication required.'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+sqli-put-user-insert:
+  name: sqli-put-user-insert
+  place_type: file
+  place: main.py
+  title: SQL injection via User model fields in PUT /user endpoint
+  summary: All fields from the JSON request body (name, username, password, address,
+    email, contact) are interpolated into an INSERT SQL query via f-string without
+    parameterization.
+  severity: high
+  confidence: high
+  details: 'SQL injection at main.py:188-205. The PUT /user endpoint accepts a JSON
+    body with fields: name, username, password, address, email, contact (all strings).
+    Every field is directly interpolated into an INSERT INTO users query using an f-string.
+    An attacker can inject SQL via any field. Example: PUT /user with JSON body {"name":
+    "test", "username": "test\", \"injected\"); DROP TABLE users; --", "password": "pass",
+    "address": "addr", "email": "e@e.com", "contact": "123"}. The password field is
+    MD5-hashed before interpolation so it is not injectable, but all other fields are.
+    No authentication required.'
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+sqli-delete-user-username:
+  name: sqli-delete-user-username
+  place_type: file
+  place: main.py
+  title: SQL injection via username parameter in DELETE /user endpoint
+  summary: The username query parameter is interpolated directly into a DELETE SQL
+    query using an f-string without parameterization.
+  severity: high
+  confidence: high
+  details: 'SQL injection at main.py:231. The DELETE /user endpoint accepts an optional
+    username query parameter. When provided, it is interpolated directly into: f''DELETE
+    FROM users WHERE username = "{username}";''. An attacker can inject SQL via the
+    username parameter. Example: DELETE /user?username=" OR 1=1 -- to delete all users.
+    No authentication required.'
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+sqli-delete-user-address:
+  name: sqli-delete-user-address
+  place_type: file
+  place: main.py
+  title: SQL injection via address field in DELETE /user endpoint body
+  summary: The user.address field from the JSON request body is interpolated into a
+    DELETE SQL query without quotes, making exploitation trivial.
+  severity: high
+  confidence: high
+  details: 'SQL injection at main.py:235. The DELETE /user endpoint accepts an optional
+    JSON body with the User model (name, username, password, address, email, contact).
+    When a body is provided and username query param is empty, user.address is interpolated
+    into: f''DELETE FROM users WHERE address = {user.address};'' -- note the lack of
+    surrounding quotes, which makes exploitation trivial. Example: DELETE /user with
+    JSON body {"name": "x", "username": "x", "password": "x", "address": "1 OR 1=1",
+    "email": "x@x.com", "contact": "x"}. No authentication required.'
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+nosqli-post-find:
+  name: nosqli-post-find
+  place_type: file
+  place: main.py
+  title: NoSQL injection via raw JSON body in POST /find endpoint
+  summary: The POST /find endpoint passes the raw JSON request body directly as a
+    MontyDB/MongoDB query with no validation of query operators.
+  severity: high
+  confidence: high
+  details: 'NoSQL injection at main.py:224-225. The POST /find endpoint reads the
+    raw JSON body via request.json() and passes it directly to get_nosql_users() as
+    a MontyDB query filter. An attacker can use MongoDB query operators to exfiltrate
+    data. Example: POST /find with JSON body {"username": {"$ne": ""}} to dump all
+    users, or {"$or": [{"username": {"$ne": ""}}, {"name": {"$ne": ""}}]} to match
+    all records. The Content-Type header must be application/json. No authentication
+    required.'
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+sensitive-data-exposure-password-hash:
+  name: sensitive-data-exposure-password-hash
+  place_type: file
+  place: main.py
+  title: Password hash exposure in GET /select multi-user response
+  summary: When a SQL query returns multiple users, the response includes raw tuples
+    containing MD5 password hashes at index 3.
+  severity: medium
+  confidence: high
+  details: 'Sensitive data exposure at main.py:162. The run_sql_query function handles
+    single-user results by extracting specific fields and skipping the password (index
+    3), but when multiple rows are returned (line 162), it returns all raw tuples including
+    the password hash. Exploitable via the GET /select endpoint with a SQL injection
+    that returns multiple rows: GET /select?username=" OR 1=1 -- returns all users
+    with their MD5 password hashes visible as the 4th element in each tuple. No authentication
+    required.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+missing-auth-reset-database:
+  name: missing-auth-reset-database
+  place_type: file
+  place: main.py
+  title: Unauthenticated database reset via POST /reset endpoint
+  summary: The POST /reset endpoint deletes and reinitializes the entire database
+    with no authentication or authorization checks.
+  severity: critical
+  confidence: high
+  details: 'Missing authentication at main.py:242-247. The POST /reset endpoint deletes
+    both the SQL and NoSQL database files and reinitializes them with fresh random
+    data. No authentication, authorization, or confirmation is required. Any unauthenticated
+    user can wipe all data by sending: POST /reset with an empty body. The endpoint
+    returns {"resp": "done"} on success. No authentication required.'
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+missing-auth-delete-user:
+  name: missing-auth-delete-user
+  place_type: file
+  place: main.py
+  title: Unauthenticated arbitrary user deletion via DELETE /user endpoint
+  summary: The DELETE /user endpoint allows any unauthenticated user to delete arbitrary
+    users from both SQL and NoSQL databases without any authorization checks.
+  severity: high
+  confidence: high
+  details: 'Missing authentication at main.py:227-236. The DELETE /user endpoint allows
+    deleting any user by providing either a username query parameter or a User JSON
+    body. No authentication or ownership verification is performed. Example: DELETE
+    /user?username=admin to delete the admin user from both SQL and NoSQL databases.
+    The endpoint returns {"resp": "done"} on success. No authentication required.'
+  ordinal: 8
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+fp-nosqli-get-find:
+  name: fp-nosqli-get-find
+  place_type: file
+  place: main.py
+  title: "False positive: NoSQL injection in GET /find endpoint"
+  summary: The GET /find endpoint uses the username query parameter as a plain string
+    value in a hardcoded query structure, not as a query operator key.
+  severity: high
+  confidence: medium
+  details: 'Suspected NoSQL injection at main.py:220. The GET /find endpoint takes
+    a username query parameter and constructs the query as {"username": username}.
+    While it superficially resembles the vulnerable POST /find endpoint, the query
+    structure is hardcoded server-side: the attacker-controlled value is always used
+    as the value for the "username" key. MongoDB/MontyDB operators like $ne require
+    being in the key position of a nested dict, which is not possible here. Example:
+    GET /find?username=admin performs an exact match lookup. Not exploitable via query
+    operator injection. No authentication required.'
+  ordinal: 9
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+fp-sqli-init-db-faker:
+  name: fp-sqli-init-db-faker
+  place_type: file
+  place: main.py
+  title: "False positive: SQL injection in database initialization with Faker data"
+  summary: The init_sql_db function uses f-string interpolation for SQL INSERT queries,
+    but the data comes exclusively from the Faker library, not from user input.
+  severity: high
+  confidence: medium
+  details: 'Suspected SQL injection at main.py:102-119. The init_sql_db function builds
+    INSERT queries using f-string interpolation with values from fake.name(), fake.user_name(),
+    fake.password(), etc. While the pattern looks identical to the vulnerable PUT /user
+    handler, all values are generated server-side by the Faker library. No external
+    attacker can control the values inserted into these queries. This function is only
+    called during database initialization (POST /reset or application startup), and
+    the interpolated values are never derived from HTTP request data. Not exploitable.'
+  ordinal: 10
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

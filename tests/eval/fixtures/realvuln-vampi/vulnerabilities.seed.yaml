@@ -137,3 +137,79 @@ user-list-no-auth:
   ordinal: 8
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+redos-update-email:
+  name: redos-update-email
+  place_type: file
+  place: api_views/users.py
+  title: Regular Expression Denial of Service (ReDoS) in email validation
+  summary: PUT /users/v1/{username}/email uses a regex with nested quantifiers that
+    causes catastrophic backtracking on crafted input.
+  severity: medium
+  confidence: high
+  details: 'ReDoS vulnerability in update_email at api_views/users.py:144-146. When
+    the application runs in vulnerable mode, the email validation regex r"^([0-9a-zA-Z]([-.\w]*[0-9a-zA-Z])*@{1}([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,9})$"
+    contains nested quantifiers ([-.\w]*[0-9a-zA-Z])* that cause catastrophic backtracking
+    with crafted input. An attacker can cause the server to hang by sending a specially
+    crafted email string. Endpoint: PUT /users/v1/{username}/email with JSON body
+    {"email": "..."} and a valid JWT Bearer token in the Authorization header.'
+  ordinal: 9
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+jwt-weak-secret:
+  name: jwt-weak-secret
+  place_type: file
+  place: config.py
+  title: JWT authentication bypass via hardcoded weak SECRET_KEY
+  summary: The JWT signing key is hardcoded as the string 'random', allowing token
+    forgery.
+  severity: critical
+  confidence: high
+  details: "JWT authentication bypass via weak/hardcoded signing key. The SECRET_KEY\
+    \ used for signing and verifying JWT tokens is hardcoded as the string 'random'\
+    \ in config.py line 13. An attacker who knows this key can forge valid JWT tokens\
+    \ for any user, including admin accounts, achieving complete authentication bypass.\
+    \ To exploit: craft a JWT with header {\"typ\": \"JWT\", \"alg\": \"HS256\"} and\
+    \ payload {\"exp\": <future_timestamp>, \"iat\": <now>, \"sub\": \"admin\"}, sign\
+    \ with HMAC-SHA256 using the secret 'random', and use the resulting token in the\
+    \ Authorization: Bearer header on any authenticated endpoint."
+  ordinal: 10
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+hardcoded-default-creds:
+  name: hardcoded-default-creds
+  place_type: file
+  place: models/user_model.py
+  title: Hardcoded default credentials allow login as any seeded user including admin
+  summary: The database is seeded with publicly known trivial credentials (name1/pass1,
+    name2/pass2, admin/pass1).
+  severity: medium
+  confidence: high
+  details: 'Hardcoded default credentials in init_db_users at models/user_model.py:98-101.
+    After any database reset via GET /createdb, the application seeds three users with
+    trivially guessable credentials: username "name1" password "pass1", username "name2"
+    password "pass2", and username "admin" password "pass1". An attacker can log in
+    as admin by sending POST /users/v1/login with JSON body {"username": "admin", "password":
+    "pass1"} and receive a valid JWT auth token with full admin privileges.'
+  ordinal: 11
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+jsonschema-error-leak:
+  name: jsonschema-error-leak
+  place_type: file
+  place: api_views/users.py
+  title: Internal validation error details leaked in registration error response
+  summary: POST /users/v1/register returns jsonschema exception messages verbatim,
+    exposing internal validation structure.
+  severity: low
+  confidence: high
+  details: 'Information leakage in register_user at api_views/users.py:79-80. When
+    the JSON body fails schema validation, the except handler returns error_message_helper(exc.message)
+    which passes the raw jsonschema.exceptions.ValidationError message directly into
+    the HTTP 400 response. This reveals internal schema field names, expected types,
+    and validator path details to unauthenticated callers. To trigger: send POST /users/v1/register
+    with Content-Type: application/json and a malformed body such as {"username": 123,
+    "password": "x", "email": "y"} (integer instead of string for username). The response
+    will contain the internal validator error message instead of a generic error.'
+  ordinal: 12
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
