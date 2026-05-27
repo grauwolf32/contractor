@@ -1,0 +1,66 @@
+task:
+  name: "vuln_scan_fast"
+
+  objective: >
+    Perform a high-recall breadth-first vulnerability scan of the
+    project codebase. Prioritize FINDING every potential vulnerability
+    over precision — a downstream verification stage will filter false
+    positives. Under-reporting is worse than over-reporting.
+
+    Project root: {project_path}
+    Scan scope: all source files under the project root.
+
+  instructions: >
+    You are the first stage of a multi-stage vulnerability pipeline.
+    Your job is to MAXIMIZE RECALL: report every plausible
+    vulnerability, even at low confidence. A later stage will verify
+    and filter. Missing a real vulnerability here means it is lost
+    forever.
+
+    Execute a four-pass scan:
+
+    Pass 1 — ENTRY POINT ENUMERATION: List all route handlers, API
+    endpoints, CLI entry points, and scheduled tasks. Use grep for
+    framework decorators (@app.route, @router.get, @RequestMapping,
+    express.Router, etc.) and ls/find for routing files.
+
+    Pass 2 — PATTERN SWEEP: Grep for dangerous patterns across ALL
+    source files. Cover every category: raw SQL (execute, cursor,
+    query), OS commands (subprocess, exec, system, popen), file ops
+    (open, readFile, path join with user input), template rendering
+    (render_template_string, Jinja2, format), deserialization (pickle,
+    yaml.load, eval, exec), crypto (md5, sha1, random without secrets),
+    auth (hardcoded passwords, SECRET_KEY, JWT without verify), HTTP
+    (requests.get, redirect, SSRF patterns), and access control
+    (missing decorators, no ownership check).
+
+    Pass 3 — CONTEXTUAL TRIAGE: For each grep hit, read 30 lines of
+    surrounding code. Report the finding via report_vulnerability if
+    ANY of these apply:
+    - User input may reach the sink (even if you are not certain)
+    - A security control appears absent (even if it might be elsewhere)
+    - A sensitive value is exposed (even at low severity)
+    Set confidence="low" when uncertain, but STILL REPORT IT.
+
+    Pass 4 — CROSS-CUTTING AUDIT: Check for issues that span
+    individual handlers: hardcoded secrets/keys, debug mode enabled,
+    missing CORS/CSRF middleware, weak session config, verbose error
+    pages, missing rate limiting on auth endpoints.
+
+    REPORTING RULES:
+    - Use report_vulnerability for EVERY finding, even low-confidence ones
+    - Include the CWE ID in the details field (e.g. CWE-89)
+    - Set severity and confidence honestly, but DO NOT skip low-confidence
+    - Load cwe-mapping reference via skills_read before classifying
+    - After all passes, call list_vulnerabilities to verify completeness
+
+  output_format: >
+    Return the total count of vulnerabilities reported, grouped by
+    severity and confidence, with a list of (name, severity, confidence,
+    file, title) for each.
+
+  skills:
+    - vuln_scan
+
+  iterations: 1
+  format: json

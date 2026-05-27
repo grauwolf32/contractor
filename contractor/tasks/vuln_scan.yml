@@ -1,4 +1,6 @@
-active: v1
+active: v2
 versions:
   v1:
     file: vuln_scan/v1.yml
+  v2:
+    file: vuln_scan/v2.yml

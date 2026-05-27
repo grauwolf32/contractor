@@ -61,7 +61,7 @@ class VulnScanPipeline(Pipeline):
             worker_builder=agent_builder,
             iterations=1,
             max_attempts=2,
-            max_steps=50,
+            max_steps=75,
             namespace=self.namespace,
             skills=["vuln_scan"],
             model=self.llm,

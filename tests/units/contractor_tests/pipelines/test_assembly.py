@@ -45,6 +45,9 @@ class TestRegistry:
             "trace-graph",
             "trace-graph-pathpar",
             "trace-verify",
+            "vuln-assess",
+            "vuln-scan",
+            "vuln-scan-fast",
             "router",
         }
 
