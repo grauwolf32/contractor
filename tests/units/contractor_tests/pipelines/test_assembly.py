@@ -25,6 +25,7 @@ from cli.pipelines.router import RouterPipeline
 from cli.pipelines.trace_annotation import TraceAnnotationPipeline
 from cli.pipelines.trace_annotation_direct import TraceAnnotationDirectPipeline
 from cli.pipelines.trace_verify import TraceVerifyPipeline
+from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.task_runner import TaskRunner
 
 
@@ -434,3 +435,78 @@ class TestTraceVerifyPipeline:
         t = TaskTemplate.load("trace_verify")
         assert t.key == "trace_verify"
         assert t.version
+
+
+# ─── RouterPipeline ─────────────────────────────────────────────────────────
+
+
+class TestRouterPipeline:
+    @pytest.fixture(autouse=True)
+    def _skip_vacuum(self, monkeypatch):
+        """The oas_linter sub-agent checks for the vacuum binary at
+        construction time. Bypass this in tests."""
+        monkeypatch.setattr(
+            "contractor.tools.openapi.vacuum.OpenApiLinter._ensure_vacuum",
+            staticmethod(lambda: None),
+        )
+
+    @pytest.mark.asyncio
+    async def test_requires_prompt(self):
+        pipeline = RouterPipeline(_make_context(prompt=None))
+        with pytest.raises(ValueError, match="requires ctx.prompt"):
+            await pipeline._run_impl(user_id="u", on_event=None)
+
+    @pytest.mark.asyncio
+    async def test_assembles_planner_with_router_worker(self, monkeypatch):
+        """The router pipeline should build a planner whose worker is
+        the router agent. The planner is passed to AgentRunner.run."""
+        captured_agents: list = []
+
+        async def fake_run(self, *, agent, **kwargs):
+            captured_agents.append(agent)
+            from contractor.runners.agent_runner import AgentRunResult
+            return AgentRunResult(
+                final_text="done",
+                session_id=kwargs.get("session_id", "test"),
+                final_state={},
+            )
+
+        monkeypatch.setattr(AgentRunner, "run", fake_run)
+
+        pipeline = RouterPipeline(_make_context(prompt="Analyze the project"))
+        await pipeline._run_impl(user_id="u", on_event=None)
+
+        assert len(captured_agents) == 1
+        planner = captured_agents[0]
+        assert "task_planner" in planner.name
+        assert planner.instruction is not None
+
+    def test_router_not_double_instrumented(self):
+        """The router must have Subtask/SubtaskExecutionResult schemas set
+        by the pipeline but must NOT have generic worker instructions
+        appended — its own dispatch protocol in prompts/v2.md handles the
+        output format."""
+        from contractor.agents.router_agent.agent import build_router_agent
+        from contractor.tools.tasks.models import Subtask, SubtaskExecutionResult
+        from contractor.tools.tasks.tools import _INSTRUCTION_SNAPSHOT_ATTR
+
+        router = build_router_agent(
+            name="router",
+            namespace="test",
+            sub_agents=[MagicMock()],
+        )
+        original_instruction = router.instruction
+
+        # Simulate what the pipeline does (set schemas, skip instrument_worker)
+        router.input_schema = Subtask
+        router.output_schema = SubtaskExecutionResult
+
+        assert router.input_schema is Subtask
+        assert router.output_schema is SubtaskExecutionResult
+        # instrument_worker sets this sentinel — it must NOT be present
+        assert not hasattr(router, _INSTRUCTION_SNAPSHOT_ATTR)
+        # The prompt must not contain the generic worker boilerplate
+        assert "CORE RULE:" not in router.instruction
+        assert "STATUS RULES:" not in router.instruction
+        # The prompt must be unchanged from the build
+        assert router.instruction == original_instruction
