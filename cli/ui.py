@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import textwrap
 import time
 from collections import deque
@@ -311,13 +312,23 @@ class LiveRenderer:
         if tool_name == "execute_current_subtask":
             record = result.get("record")
             if isinstance(record, str):
-                record = _try_parse_json_like(record)
-            if isinstance(record, dict) and record.get("status") == "done":
-                self.state.subtasks_done += 1
+                parsed = _try_parse_json_like(record)
+                if isinstance(parsed, dict):
+                    if parsed.get("status") == "done":
+                        self.state.subtasks_done += 1
+                elif _extract_result_status(record) == "done":
+                    self.state.subtasks_done += 1
 
         subtask = result.get("result")
         if isinstance(subtask, str):
-            subtask = _try_parse_json_like(subtask)
+            parsed = _try_parse_json_like(subtask)
+            if isinstance(parsed, dict):
+                subtask = parsed
+            else:
+                title = _extract_xml_tag(subtask, "title")
+                if title:
+                    self.state.current_subtask = title
+                return
         if isinstance(subtask, dict):
             title = subtask.get("title")
             if title:
@@ -865,6 +876,23 @@ def _try_parse_json_like(value: Any) -> Any:
         return json.loads(text)
     except Exception:
         return value
+
+
+def _extract_xml_tag(xml: str, tag: str) -> str | None:
+    """Extract first occurrence of <tag>value</tag> from an XML string."""
+    m = re.search(rf"<{re.escape(tag)}>([^<]*)</{re.escape(tag)}>", xml)
+    return m.group(1).strip() if m else None
+
+
+_RESULT_STATUS_RE = re.compile(
+    r"<result[^>]*>.*?<status>([^<]*)</status>", re.DOTALL
+)
+
+
+def _extract_result_status(xml: str) -> str | None:
+    """Extract <status> nested inside a <result> block."""
+    m = _RESULT_STATUS_RE.search(xml)
+    return m.group(1).strip() if m else None
 
 
 def _fmt_dict(data: dict[str, Any], max_lines: int = 8, max_width: int = 100) -> str:

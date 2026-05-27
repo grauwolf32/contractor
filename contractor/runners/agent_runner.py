@@ -85,13 +85,22 @@ class AgentRunner(BaseModel):
                 session_id=session_id,
             )
 
+            has_initial_state = bool(initial_state)
+            if has_initial_state:
+                await self.session_service.create_session(
+                    app_name=self.name,
+                    user_id=user_id,
+                    state=initial_state,
+                    session_id=session_id,
+                )
+
             runner = Runner(
                 agent=agent,
                 app_name=self.name,
                 session_service=self.session_service,
                 artifact_service=self.artifact_service,
                 plugins=plugins or [],
-                auto_create_session=True,
+                auto_create_session=not has_initial_state,
             )
 
             final_text = ""
@@ -99,7 +108,6 @@ class AgentRunner(BaseModel):
                 user_id=user_id,
                 session_id=session_id,
                 new_message=content,
-                state_delta=initial_state or None,
             ):
                 event_text = _extract_final_text(event)
                 if not event_text:
