@@ -111,5 +111,94 @@
     ],
     "min_precision": 0.3,
     "min_recall": 1.0
+  },
+  {
+    "id": "auth-check-otp-no-rate-limit",
+    "intent": "Trace POST /identity/api/auth/v2/check-otp. Follow OtpForm from AuthController.checkOtp into OtpServiceImpl.validateOtp. Note there is no rate-limiting or attempt-counting — the OTP is 4 digits and the endpoint allows unlimited retries. Annotate the controller entrypoint and the service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "checkOtp",
+      "route": "POST /identity/api/auth/v2/check-otp"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "checkOtp" },
+      { "file": "/src/main/java/com/crapi/service/Impl/OtpServiceImpl.java", "function": "validateOtp" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "auth-login-with-token-broken-auth",
+    "intent": "Trace POST /identity/api/auth/v2.7/user/login-with-token. Follow LoginWithEmailToken from AuthController into UserServiceImpl.loginWithEmailTokenV2. The token is derived deterministically from the email without a cryptographic secret. Annotate the controller and service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "loginWithEmailTokenV2",
+      "route": "POST /identity/api/auth/v2.7/user/login-with-token"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "loginWithEmailTokenV2" },
+      { "file": "/src/main/java/com/crapi/service/Impl/UserServiceImpl.java", "function": "loginWithEmailTokenV2" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "auth-forget-password-user-enum",
+    "intent": "Trace POST /identity/api/auth/forget-password. Follow ForgetPassword from AuthController.forgetPassword into OtpServiceImpl.generateOtp. The service returns different HTTP status codes (200 vs 404) and messages depending on whether the email is registered, enabling user enumeration. Annotate the controller and service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/AuthController.java",
+      "function": "forgetPassword",
+      "route": "POST /identity/api/auth/forget-password"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/AuthController.java", "function": "forgetPassword" },
+      { "file": "/src/main/java/com/crapi/service/Impl/OtpServiceImpl.java", "function": "generateOtp" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "jwt-validate-alg-none-bypass",
+    "intent": "Trace the JWT validation path in JwtProvider.validateJwtToken. When SignedJWT.parse throws ParseException, the code falls through to PlainJWT.parse and returns true — accepting unsigned tokens with alg:none. Annotate the validateJwtToken method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/config/JwtProvider.java",
+      "function": "validateJwtToken",
+      "route": "POST /identity/api/auth/verify"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/config/JwtProvider.java", "function": "validateJwtToken" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "user-dashboard-no-jwt-validation",
+    "intent": "Trace GET /identity/api/v2/user/dashboard. The endpoint is marked permitAll() in WebSecurityConfig. The handler at UserServiceImpl calls getUserFromTokenWithoutValidation which parses the JWT claims without verifying the signature. Annotate the controller entrypoint and the service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/UserController.java",
+      "function": "dashboard",
+      "route": "GET /identity/api/v2/user/dashboard"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/UserController.java", "function": "dashboard" },
+      { "file": "/src/main/java/com/crapi/service/Impl/UserServiceImpl.java", "function": "getUserFromTokenWithoutValidation" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "change-email-no-password-verification",
+    "intent": "Trace POST /identity/api/v2/user/change-email. Follow ChangeEmailForm from ChangeEmailController.changesEmail into UserServiceImpl.changeEmailRequest. The form only requires old_email and new_email — no password verification. Annotate the controller and service method.",
+    "entrypoint": {
+      "file": "/src/main/java/com/crapi/controller/ChangeEmailController.java",
+      "function": "changesEmail",
+      "route": "POST /identity/api/v2/user/change-email"
+    },
+    "expected_annotated": [
+      { "file": "/src/main/java/com/crapi/controller/ChangeEmailController.java", "function": "changesEmail" },
+      { "file": "/src/main/java/com/crapi/service/Impl/UserServiceImpl.java", "function": "changeEmailRequest" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
   }
 ]

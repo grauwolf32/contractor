@@ -1,0 +1,47 @@
+[
+  {
+    "id": "coupon-validate-nosqli",
+    "intent": "Trace POST /community/api/v2/coupon/validate-coupon. The handler in ValidateCoupon unmarshals the request body directly into a bson.M map and passes it to models.ValidateCode as the MongoDB query filter. Any MongoDB operator ($ne, $regex, $gt) in the request body is passed through unfiltered. Annotate the controller handler and the model function.",
+    "entrypoint": {
+      "file": "/api/controllers/coupon_controller.go",
+      "function": "ValidateCoupon",
+      "route": "POST /community/api/v2/coupon/validate-coupon"
+    },
+    "expected_annotated": [
+      { "file": "/api/controllers/coupon_controller.go", "function": "ValidateCoupon" },
+      { "file": "/api/models/coupon.go", "function": "ValidateCode" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "coupon-create-no-admin-check",
+    "intent": "Trace POST /community/api/v2/coupon/new-coupon. The handler AddNewCoupon only checks JWT authentication via middleware but performs no role or admin check. Any authenticated user can create coupon codes with arbitrary amounts. Annotate the controller handler and the model save function.",
+    "entrypoint": {
+      "file": "/api/controllers/coupon_controller.go",
+      "function": "AddNewCoupon",
+      "route": "POST /community/api/v2/coupon/new-coupon"
+    },
+    "expected_annotated": [
+      { "file": "/api/controllers/coupon_controller.go", "function": "AddNewCoupon" },
+      { "file": "/api/models/coupon.go", "function": "SaveCoupon" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "posts-recent-author-pii-leak",
+    "intent": "Trace GET /community/api/v2/community/posts/recent. The GetPost handler calls FindAllPost which returns Post objects with an embedded Author struct containing email, nickname, and vehicleID. Any authenticated user can enumerate all users' PII by browsing posts. Annotate the controller and model function.",
+    "entrypoint": {
+      "file": "/api/controllers/post_controller.go",
+      "function": "GetPost",
+      "route": "GET /community/api/v2/community/posts/recent"
+    },
+    "expected_annotated": [
+      { "file": "/api/controllers/post_controller.go", "function": "GetPost" },
+      { "file": "/api/models/post.go", "function": "FindAllPost" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  }
+]

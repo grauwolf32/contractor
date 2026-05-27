@@ -172,3 +172,21 @@ no-admin-check-user-list:
   ordinal: 9
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+no-auth-service-requests-by-vin:
+  name: no-auth-service-requests-by-vin
+  place_type: file
+  place: crapi/merchant/views.py
+  title: Missing authentication on merchant service requests by VIN — info disclosure
+  summary: GET /workshop/api/merchant/service_requests/{vin} has no @jwt_auth_required
+    decorator.
+  severity: high
+  confidence: high
+  details: 'Missing authentication on UserServiceRequestsView.get() at crapi/merchant/views.py:166.
+    The endpoint has no @jwt_auth_required decorator. Given any VIN, returns all
+    service requests for that vehicle including mechanic details, vehicle owner info,
+    and problem descriptions. No authentication required. Try GET
+    /workshop/api/merchant/service_requests/0 without any Authorization header —
+    even an invalid VIN should return 200 with an empty list rather than 401.'
+  ordinal: 10
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

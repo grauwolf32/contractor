@@ -38,3 +38,23 @@ bfla-coupon-creation:
   ordinal: 2
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+info-disclosure-posts-author:
+  name: info-disclosure-posts-author
+  place_type: file
+  place: api/models/post.go
+  title: Excessive data exposure — author email and vehicle ID leaked in community posts
+  summary: GET /community/api/v2/community/posts/recent returns author PII (email,
+    vehicleID) in every post.
+  severity: medium
+  confidence: high
+  details: 'Excessive data exposure in the Post model at post.go:36. The Author struct
+    embedded in each post contains email, nickname, vehicleID, and profile picture URL.
+    The GetPost/FindAllPost endpoints return all posts with full author details. Any
+    authenticated user can enumerate all other users'' emails and vehicle IDs by
+    browsing posts. Requires JWT authentication. The endpoint is GET
+    /community/api/v2/community/posts/recent. Authenticate via POST
+    /identity/api/auth/login with {"email":"adam007@example.com","password":"adam007!123"}
+    to obtain a Bearer token (field: "token" in response).'
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

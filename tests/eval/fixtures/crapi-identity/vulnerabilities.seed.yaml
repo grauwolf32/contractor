@@ -101,3 +101,66 @@ bfla-admin-video-delete:
   ordinal: 5
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+jwt-alg-none:
+  name: jwt-alg-none
+  place_type: file
+  place: src/main/java/com/crapi/config/JwtProvider.java
+  title: JWT algorithm confusion — unsigned tokens (alg:none) accepted as valid
+  summary: JwtProvider.validateJwtToken accepts PlainJWT (alg:none) when SignedJWT
+    parsing fails.
+  severity: critical
+  confidence: high
+  details: 'JWT algorithm confusion in JwtProvider.validateJwtToken() at JwtProvider.java:190-200.
+    When SignedJWT.parse() throws ParseException, the code falls through to PlainJWT.parse()
+    and returns true — accepting an unsigned JWT as valid. An attacker can craft a
+    token with {"alg":"none","typ":"JWT"} header and any claims (e.g.,
+    {"sub":"adam007@example.com"}) with an empty signature, and it will be accepted.
+    To test: craft base64url({"alg":"none","typ":"JWT"}).base64url({"sub":"adam007@example.com"}).
+    (trailing dot, no signature). Send GET /identity/api/v2/user/dashboard with
+    Authorization: Bearer <forged_token> and observe 200 with user data instead of 401.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-dashboard:
+  name: no-auth-dashboard
+  place_type: file
+  place: src/main/java/com/crapi/service/Impl/UserServiceImpl.java
+  title: Dashboard accessible with invalid/expired JWT — no signature validation
+  summary: GET /identity/api/v2/user/dashboard is permitAll and parses JWT without
+    verification.
+  severity: high
+  confidence: high
+  details: 'Broken authentication on the dashboard endpoint. WebSecurityConfig.java:85
+    marks /identity/api/v2/user/dashboard as permitAll(). The handler at
+    UserServiceImpl.java:212 calls getUserFromTokenWithoutValidation() which extracts
+    the subject claim from the JWT without verifying the signature or expiration.
+    Any JWT — expired, self-signed, or with wrong signature — will be accepted if
+    it contains a valid email as the sub claim. To test: first obtain a valid JWT
+    by logging in with POST /identity/api/auth/login body
+    {"email":"adam007@example.com","password":"adam007!123"}, then modify the JWT
+    payload (e.g., change a character in the signature) and send GET
+    /identity/api/v2/user/dashboard with the tampered token. Observe 200 with full
+    user data (name, email, phone, role, credit, video) instead of 401.'
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+change-email-no-password:
+  name: change-email-no-password
+  place_type: file
+  place: src/main/java/com/crapi/controller/ChangeEmailController.java
+  title: Email change requires no password verification — account takeover via email change
+  summary: POST /identity/api/v2/user/change-email accepts old_email and new_email
+    without password.
+  severity: high
+  confidence: high
+  details: 'Missing password verification on email change at ChangeEmailController.java:41.
+    The ChangeEmailForm only requires old_email and new_email fields — no password.
+    An attacker with a valid JWT can change any account''s email to their own, then
+    reset the password. Requires JWT authentication. The endpoint is POST
+    /identity/api/v2/user/change-email with JSON body
+    {"old_email":"adam007@example.com","new_email":"attacker@evil.com"}. Authenticate
+    via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response).'
+  ordinal: 8
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
