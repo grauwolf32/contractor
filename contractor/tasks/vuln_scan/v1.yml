@@ -1,0 +1,47 @@
+task:
+  name: "vuln_scan"
+
+  objective: >
+    Scan the project codebase for security vulnerabilities using
+    pattern-based discovery. Find the maximum number of real
+    vulnerabilities with confirmed code evidence.
+
+    Project root: {project_path}
+    Scan scope: all source files under the project root.
+
+  instructions: >
+    Execute a breadth-first vulnerability scan in three passes:
+
+    Pass 1 — STRUCTURAL SCAN: Use grep to sweep for dangerous
+    code patterns across the codebase. Cover all OWASP Top 10
+    categories: injection (SQL, NoSQL, OS command), broken auth,
+    sensitive data exposure, XXE, broken access control, security
+    misconfiguration, XSS, insecure deserialization, known
+    vulnerable components, insufficient logging.
+
+    Pass 2 — CONFIRM LEADS: For each grep hit, read the surrounding
+    code (20-30 lines) to confirm the vulnerability. Check if user
+    input actually reaches the sink, if there is validation, and if
+    there is authentication/authorization.
+
+    Pass 3 — AUTH/AUTHZ AUDIT: Compare auth decorators across
+    handlers in the same file. Flag missing auth on sensitive
+    endpoints, missing role checks, missing ownership checks,
+    and missing rate limiting.
+
+    Report each confirmed finding via report_vulnerability with:
+    name (kebab-case slug), place_type ("file"), place (file path),
+    title, summary, severity, confidence, and detailed evidence.
+
+    After all passes, write a final summary with total findings
+    by severity.
+
+  output_format: >
+    Return the total count of vulnerabilities reported, grouped by
+    severity, with a list of (name, severity, file, title) for each.
+
+  skills:
+    - vuln_scan
+
+  iterations: 1
+  format: json

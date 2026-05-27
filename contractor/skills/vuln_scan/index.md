@@ -13,5 +13,6 @@ description: Vulnerability scanning skill — workflow overview, checklist refer
 
 ## References (load on demand)
 
+- `vuln_scan/references/grep-patterns` — ready-to-use grep patterns organized by severity; run these FIRST
 - `vuln_scan/references/checklist` — per-endpoint control checklist (auth, authz, ownership, validation, output filtering, rate limiting)
 - `vuln_scan/references/miss-patterns` — commonly missed vulnerability patterns with examples
