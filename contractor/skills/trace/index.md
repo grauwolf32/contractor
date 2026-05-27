@@ -179,6 +179,7 @@ ONCE, the first time its topic becomes the current step.
 | Comment form unclear, or mixed-language source on the path     | `references/annotations`      |
 | About to compose §7 — need control checklist rows              | `references/controls`         |
 | About to report — need shape, fields, severity, slug rules     | `references/finding-shapes`   |
+| Tracing a Spring/Django/Go app; need routing or DI patterns    | `references/frameworks`       |
 
 ## Common false-positive traps
 
@@ -204,3 +205,4 @@ ONCE, the first time its topic becomes the current step.
 | `references/finding-shapes`   | Reporting a finding; need shape mechanics, fields, tool-field mapping |
 | `references/controls`         | Walking the per-handler control checklist before reporting           |
 | `references/annotations`      | Placing annotations; resolving comment syntax / format ambiguity     |
+| `references/frameworks`       | Spring/Django/Go routing, DI, and service-layer patterns             |
