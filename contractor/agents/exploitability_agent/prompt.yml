@@ -1,6 +1,8 @@
-active: v2
+active: v3
 versions:
   v1:
     file: prompts/v1.md
   v2:
     file: prompts/v2.md
+  v3:
+    file: prompts/v3.md
