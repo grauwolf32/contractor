@@ -20,6 +20,8 @@ class PodmanService:
     project_name: str
     service_ports: dict[str, int] = field(default_factory=dict)
 
+    init_urls: list[str] = field(default_factory=list)
+
     def up(self, *, build: bool = True, timeout: float = 60.0) -> None:
         cmd = [
             "podman-compose",
@@ -37,6 +39,14 @@ class PodmanService:
             url = f"http://localhost:{port}/"
             logger.info("waiting for %s at %s", service, url)
             self.wait_healthy(url, timeout=timeout)
+
+        for url in self.init_urls:
+            logger.info("init request: %s", url)
+            try:
+                resp = httpx.get(url, timeout=10.0)
+                logger.info("init %s -> %d", url, resp.status_code)
+            except httpx.HTTPError as exc:
+                logger.warning("init %s failed: %s", url, exc)
 
     def down(self) -> None:
         cmd = [
