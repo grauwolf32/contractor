@@ -1,0 +1,40 @@
+nosqli-validate-coupon:
+  name: nosqli-validate-coupon
+  place_type: file
+  place: api/controllers/coupon_controller.go
+  title: NoSQL injection in coupon validation — MongoDB operator injection via raw bson.M
+  summary: POST /community/api/v2/coupon/validate-coupon unmarshals user input directly
+    into a bson.M query filter.
+  severity: critical
+  confidence: high
+  details: 'NoSQL injection in ValidateCoupon() at coupon_controller.go:72-102.
+    The handler reads the request body, unmarshals it directly into a bson.M map,
+    and passes it to models.ValidateCode() which uses it as the MongoDB query
+    filter in collection.FindOne(). An attacker can inject MongoDB query operators
+    to bypass validation or extract data. Requires JWT authentication. The endpoint
+    is POST /community/api/v2/coupon/validate-coupon. To exploit, send a body
+    containing MongoDB operators like {"coupon_code":{"$ne":"invalid"}} or
+    {"coupon_code":{"$regex":".*"}} to match any coupon. Authenticate via POST
+    /identity/api/auth/login with {"email":"adam007@example.com","password":"adam007!123"}
+    to obtain a Bearer token (field: "token" in response).'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bfla-coupon-creation:
+  name: bfla-coupon-creation
+  place_type: file
+  place: api/controllers/coupon_controller.go
+  title: BFLA — any authenticated user can create coupons without admin role
+  summary: POST /community/api/v2/coupon/new-coupon has no admin/role check.
+  severity: high
+  confidence: high
+  details: 'Broken Function Level Authorization in AddNewCoupon() at coupon_controller.go:32-65.
+    The endpoint only checks JWT authentication but performs no role/admin check.
+    Any authenticated user can create new coupon codes with arbitrary amounts.
+    Requires any valid JWT. The endpoint is POST /community/api/v2/coupon/new-coupon
+    with JSON body {"coupon_code":"FREEMONEY","amount":"1000"}. Authenticate via
+    POST /identity/api/auth/login with {"email":"adam007@example.com","password":"adam007!123"}
+    to obtain a Bearer token (field: "token" in response).'
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

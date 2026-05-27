@@ -64,3 +64,40 @@ broken-auth-login-token:
   ordinal: 3
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+user-enum-forget-password:
+  name: user-enum-forget-password
+  place_type: file
+  place: src/main/java/com/crapi/service/Impl/OtpServiceImpl.java
+  title: User enumeration via forget-password error messages
+  summary: POST /identity/api/auth/forget-password returns different messages for registered
+    vs unregistered emails.
+  severity: medium
+  confidence: high
+  details: 'User enumeration in OtpServiceImpl.generateOtp() at OtpServiceImpl.java:135-165.
+    The endpoint returns 200 with ''OTP sent to email'' for registered users and 404
+    with ''Email not registered'' for unregistered emails. No authentication required.
+    To confirm: send POST /identity/api/auth/forget-password with {"email":"adam007@example.com"}
+    (registered) and compare with {"email":"nonexistent@nowhere.com"} (unregistered)
+    — observe different status codes and messages.'
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bfla-admin-video-delete:
+  name: bfla-admin-video-delete
+  place_type: file
+  place: src/main/java/com/crapi/controller/ProfileController.java
+  title: BFLA — any authenticated user can delete admin videos without admin role
+  summary: DELETE /identity/api/v2/admin/videos/{video_id} has no admin role check.
+  severity: high
+  confidence: high
+  details: 'Broken Function Level Authorization in ProfileController at ProfileController.java:128-136.
+    The endpoint DELETE /identity/api/v2/admin/videos/{video_id} is accessible to any
+    authenticated user. WebSecurityConfig marks it as anyRequest().authenticated() but
+    never checks for ADMIN role. The implementation at ProfileServiceImpl.deleteAdminProfileVideo()
+    deletes the video by ID regardless of ownership or role. Requires any valid JWT.
+    Authenticate via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response),
+    then send DELETE /identity/api/v2/admin/videos/1.'
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

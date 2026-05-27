@@ -1,0 +1,10 @@
+slug: crapi-community
+language: go
+framework: gorilla/mux
+source_root: tests/playground/crapi/services/community
+description: >
+  OWASP crAPI "community" service — Go micro-service handling
+  community posts, coupon validation/creation, and user comments.
+  Uses MongoDB for data storage. URL prefixes mounted under
+  `/community/api/v2/`. Shares the crAPI compose stack with
+  identity and workshop services.
