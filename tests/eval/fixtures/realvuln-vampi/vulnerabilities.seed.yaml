@@ -1,0 +1,70 @@
+sqli-get-user:
+  name: sqli-get-user
+  place_type: file
+  place: models/user_model.py
+  title: SQL Injection via username in GET /users/v1/{username}
+  summary: Unsanitized f-string interpolation of username path parameter into raw
+    SQL query.
+  severity: high
+  confidence: high
+  details: 'SQL injection via f-string interpolation: user_query = f"SELECT * FROM
+    users WHERE username = ''{username}''" followed by db.session.execute(text(user_query)).
+    The username path parameter from GET /users/v1/{username} is interpolated directly
+    without sanitization. No authentication required. Sink at models/user_model.py:72-73,
+    function get_user().'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+idor-update-password:
+  name: idor-update-password
+  place_type: file
+  place: api_views/users.py
+  title: "IDOR — any authenticated user can change another user’s password"
+  summary: PUT /users/v1/{username}/password uses the URL path username instead of
+    the JWT subject to identify whose password to change.
+  severity: high
+  confidence: high
+  details: Broken access control (IDOR) in update_password at api_views/users.py:187-190.
+    The function retrieves the target user from the URL path parameter (username) rather
+    than from the JWT token (resp['sub']). Any authenticated user can change any other
+    user's password by sending PUT /users/v1/{victim_username}/password with a valid
+    JWT and a new password in the JSON body. Authentication is required (JWT) but
+    authorization to the target resource is not checked.
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+mass-assignment-register:
+  name: mass-assignment-register
+  place_type: file
+  place: api_views/users.py
+  title: Mass assignment allows self-registration as admin
+  summary: POST /users/v1/register accepts an 'admin' field in the JSON body, allowing
+    privilege escalation.
+  severity: high
+  confidence: high
+  details: Mass assignment vulnerability in register_user at api_views/users.py:60-66.
+    When the application runs in vulnerable mode, the function checks if 'admin' is
+    present in the user-supplied JSON body and passes it to User(). An attacker can
+    register as admin by including '"admin"':' true' in the POST /users/v1/register
+    request body alongside the normal username, password, and email fields. No authentication
+    required.
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+debug-data-exposure:
+  name: debug-data-exposure
+  place_type: file
+  place: api_views/users.py
+  title: Unauthenticated debug endpoint exposes all user data including passwords
+  summary: GET /users/v1/_debug returns all user details including plaintext passwords
+    without authentication.
+  severity: high
+  confidence: high
+  details: Excessive data exposure via unauthenticated debug endpoint. The debug()
+    function at api_views/users.py:24-26 calls User.get_all_users_debug() and returns
+    the result directly. The response includes usernames, plaintext passwords, email
+    addresses, and admin status for every user in the database. GET /users/v1/_debug
+    requires no authentication or authorization.
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

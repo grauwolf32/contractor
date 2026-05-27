@@ -204,6 +204,7 @@ _CASE_PARAM_MAP = {
     "trace_case": "trace",
     "swe_case": "swe",
     "planner_case": "planner",
+    "exploitability_case": "exploitability",
 }
 
 
@@ -304,6 +305,14 @@ def planner_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, dict]:
     slug, case_id = request.param
     fix = _load_fixture(slug)
     case = next(c for c in fix.planner_cases if c["id"] == case_id)
+    return fix, case
+
+
+@pytest.fixture(scope="session")
+def exploitability_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, dict]:
+    slug, case_id = request.param
+    fix = _load_fixture(slug)
+    case = next(c for c in fix.load_cases("exploitability") if c["id"] == case_id)
     return fix, case
 
 

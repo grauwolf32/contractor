@@ -252,6 +252,65 @@ def score_project_info(result_text: str, case: dict) -> EvalResult:
 # ---------------------------------------------------------------------------
 
 
+def score_exploitability_run(run, case: dict) -> EvalResult:
+    """Score an ``ExploitabilityRun`` against an exploitability case.
+
+    Checks verdict presence, verdict correctness (with tolerance for
+    ``exploitable_unverified`` when ``exploitable`` is expected), and
+    evidence quality.
+    """
+    expected_verdict = case["expected_verdict"]
+    finding_name = case["vulnerability_name"]
+
+    verdict_obj = run.verdicts.get(finding_name)
+
+    checks: list[EvalCheck] = []
+
+    checks.append(EvalCheck(
+        name="verdict_present",
+        passed=verdict_obj is not None,
+        details=f"verdict={'present' if verdict_obj else 'missing'} for {finding_name}",
+    ))
+
+    if verdict_obj is not None:
+        actual = verdict_obj.get("verdict", "")
+
+        if expected_verdict == "exploitable":
+            verdict_match = actual in ("exploitable", "exploitable_unverified")
+        else:
+            verdict_match = actual == expected_verdict
+
+        checks.append(EvalCheck(
+            name="verdict_correct",
+            passed=verdict_match,
+            details=f"expected={expected_verdict} actual={actual}",
+        ))
+
+        has_evidence = bool(verdict_obj.get("entry_point")) and bool(verdict_obj.get("summary"))
+        checks.append(EvalCheck(
+            name="evidence_present",
+            passed=has_evidence,
+            details=(
+                f"entry_point={bool(verdict_obj.get('entry_point'))} "
+                f"summary={bool(verdict_obj.get('summary'))}"
+            ),
+        ))
+
+    return EvalResult(
+        checks=checks,
+        meta={
+            "prompt_version": getattr(run, "prompt_version", None),
+            "tools_used": sorted(set(run.agent_run.tool_names())),
+            "verdict": verdict_obj.get("verdict") if verdict_obj else None,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# LikeC4 build task
+# ---------------------------------------------------------------------------
+
+
 def score_likec4_build(
     dsl: str,
     case: dict,

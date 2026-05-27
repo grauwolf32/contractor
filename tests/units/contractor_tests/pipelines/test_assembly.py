@@ -37,6 +37,7 @@ class TestRegistry:
         assert set(registry.keys()) == {
             "build",
             "enrich",
+            "exploit",
             "likec4",
             "trace",
             "trace-direct",
