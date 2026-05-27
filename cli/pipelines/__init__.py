@@ -165,6 +165,7 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
     from .vuln_assess import VulnAssessPipeline
     from .vuln_scan import VulnScanPipeline
     from .vuln_scan_fast import VulnScanFastPipeline
+    from .vuln_scan_trace import VulnScanTracePipeline
 
     return {
         "build": OasBuildingPipeline,
@@ -179,6 +180,7 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
         "vuln-assess": VulnAssessPipeline,
         "vuln-scan": VulnScanPipeline,
         "vuln-scan-fast": VulnScanFastPipeline,
+        "vuln-scan-trace": VulnScanTracePipeline,
         "router": RouterPipeline,
     }
 
