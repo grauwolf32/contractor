@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     langfuse_public_key: Optional[str] = Field(default=None)
     langfuse_secret_key: Optional[str] = Field(default=None)
 
+    # ── Caido proxy ─────────────────────────────────────────────────────
+    caido_url: Optional[str] = Field(default=None)
+    caido_auth_token: Optional[str] = Field(default=None)
+
     # ── GitLab fs auth ───────────────────────────────────────────────────
     gitlab_private_token: Optional[str] = Field(default=None)
     gitlab_oauth_token: Optional[str] = Field(default=None)
