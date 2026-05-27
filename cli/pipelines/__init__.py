@@ -162,7 +162,9 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
     from .trace_graph import TraceGraphPipeline
     from .trace_graph_pathpar import TraceGraphPathParPipeline
     from .trace_verify import TraceVerifyPipeline
+    from .vuln_assess import VulnAssessPipeline
     from .vuln_scan import VulnScanPipeline
+    from .vuln_scan_fast import VulnScanFastPipeline
 
     return {
         "build": OasBuildingPipeline,
@@ -174,7 +176,9 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
         "trace-graph": TraceGraphPipeline,
         "trace-graph-pathpar": TraceGraphPathParPipeline,
         "trace-verify": TraceVerifyPipeline,
+        "vuln-assess": VulnAssessPipeline,
         "vuln-scan": VulnScanPipeline,
+        "vuln-scan-fast": VulnScanFastPipeline,
         "router": RouterPipeline,
     }
 
