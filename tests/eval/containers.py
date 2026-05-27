@@ -22,7 +22,7 @@ class PodmanService:
 
     init_urls: list[str] = field(default_factory=list)
 
-    def up(self, *, build: bool = True, timeout: float = 60.0) -> None:
+    def up(self, *, build: bool = True, timeout: float = 60.0, quiet: bool = False) -> None:
         cmd = [
             "podman-compose",
             "-f", str(self.compose_file),
@@ -33,7 +33,10 @@ class PodmanService:
             cmd.append("--build")
 
         logger.info("starting containers: %s", " ".join(cmd))
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        run_kwargs: dict = {"check": True, "text": True}
+        if quiet:
+            run_kwargs["capture_output"] = True
+        subprocess.run(cmd, **run_kwargs)
 
         for service, port in self.service_ports.items():
             url = f"http://localhost:{port}/"
