@@ -751,7 +751,6 @@ def caido_tools(
                         "preprocessors": [],
                     }
                 ],
-                "extractors": [],
                 "redirect": {"strategy": "NEVER", "max": 0},
                 "retryOnFailure": {"maximumRetries": 0, "backoff": 0},
             }
@@ -869,7 +868,7 @@ def caido_tools(
                 req = node.get("request", {})
                 resp = (req.get("response") or {})
                 payload_values = [
-                    p.get("raw", "") for p in node.get("payloads", [])
+                    _decode_blob(p.get("raw")) for p in node.get("payloads", [])
                 ]
                 results.append({
                     "sequence_id": node.get("sequenceId"),
@@ -901,7 +900,7 @@ def caido_tools(
     async def caido_sitemap(
         parent_id: str = "",
         scope_id: str = "",
-        depth: str = "DIRECT_CHILDREN",
+        depth: str = "DIRECT",
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Browse Caido's passive sitemap built from proxied traffic.
@@ -917,7 +916,7 @@ def caido_tools(
         Args:
             parent_id: ID of a parent entry to expand (empty = root).
             scope_id: limit to a specific scope (empty = all).
-            depth: "DIRECT_CHILDREN" or "ALL_DESCENDANTS".
+            depth: "DIRECT" or "ALL".
 
         Returns:
             {"entries": [{id, label, kind, has_children}, ...]}.
