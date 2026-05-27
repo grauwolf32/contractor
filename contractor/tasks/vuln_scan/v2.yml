@@ -1,0 +1,43 @@
+task:
+  name: "vuln_scan"
+
+  objective: >
+    Scan the project codebase for security vulnerabilities using
+    both pattern detection AND absence detection. Find the maximum
+    number of real vulnerabilities with confirmed code evidence.
+
+    Project root: {project_path}
+
+  instructions: >
+    Execute a two-phase vulnerability scan:
+
+    PHASE 1 — PATTERN DETECTION (dangerous code):
+    Use grep to find sinks (raw SQL, os.system, requests.get with
+    user input, pickle.loads, etc.). For each hit, read surrounding
+    code to confirm user input reaches the sink. Report immediately.
+
+    PHASE 2 — ABSENCE DETECTION (missing controls):
+    For each handler file, inventory all route methods and check:
+    - Missing authentication (sibling methods have auth, this one doesn't)
+    - Missing ownership check (fetches by ID without owner filter = BOLA)
+    - Missing role check (admin endpoint accessible to any user = BFLA)
+    - Missing rate limiting on auth endpoints
+    - Mass assignment (request body passed to model without filtering)
+    - User enumeration (different errors for valid vs invalid users)
+    - Missing path confinement (file paths from user input)
+
+    Both phases are equally important. Phase 2 typically finds MORE
+    real vulnerabilities than Phase 1.
+
+    Report each finding via report_vulnerability with: name, place_type,
+    place, title, summary, severity, confidence, details.
+
+  output_format: >
+    Return the total count of vulnerabilities reported, grouped by
+    severity, with a list of (name, severity, file, title) for each.
+
+  skills:
+    - vuln_scan
+
+  iterations: 1
+  format: json
