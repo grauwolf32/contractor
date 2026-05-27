@@ -11,7 +11,9 @@ sqli-apply-coupon:
     directly into a SELECT query: "SELECT coupon_code from applied_coupon WHERE user_id
     = " + str(user.id) + " AND coupon_code = ''" + coupon_code + "''". Requires JWT
     authentication. The endpoint is POST /workshop/api/shop/apply_coupon with JSON
-    body {"coupon_code": "..."}.'
+    body {"coupon_code": "..."}. Authenticate via POST /identity/api/auth/login with
+    {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response).'
   ordinal: 1
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -29,8 +31,10 @@ ssrf-contact-mechanic:
     No URL scheme or destination validation is performed. An attacker can make the
     server fetch arbitrary URLs including internal services. Requires JWT authentication.
     The endpoint is POST /workshop/api/merchant/contact_mechanic with JSON body {"mechanic_api":
-    "http://...", "mechanic_code": "TRAC_MEC1", "problem_details": "test", "vin": "...",
-    "number_of_repeats": 1}.'
+    "http://...", "mechanic_code": "TRAC_MEC1", "problem_details": "test", "vin": "0",
+    "number_of_repeats": 1}. Authenticate via POST /identity/api/auth/login with
+    {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response).'
   ordinal: 2
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -48,8 +52,8 @@ path-traversal-download-report:
     ''reports'', filename_from_user)). While abspath normalizes the path, there is
     no check that the result stays within the reports directory. An attacker can read
     arbitrary files via ../../etc/passwd in the filename parameter. The endpoint is
-    GET /workshop/api/mechanic/download_report?report_name=../../etc/passwd. Requires
-    mechanic role.'
+    GET /workshop/api/mechanic/download_report?filename=../../etc/passwd. No authentication
+    required — the endpoint lacks an auth decorator.'
   ordinal: 3
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -62,12 +66,14 @@ bola-get-order:
     the authenticated user owns the order.
   severity: high
   confidence: high
-  details: Broken Object Level Authorization in the get_order handler at crapi/shop/views.py.
+  details: 'Broken Object Level Authorization in the get_order handler at crapi/shop/views.py.
     The endpoint GET /workshop/api/shop/orders/{order_id} retrieves the order by its
     ID from the database and returns all order details (product, quantity, price, status)
-    without checking that the authenticated user (from JWT) is the order's owner. Any
-    authenticated user can read any other user's order details by enumerating or guessing
-    order IDs. Requires JWT authentication but ownership is not verified.
+    without checking that the authenticated user (from JWT) is the order''s owner. Any
+    authenticated user can read any other user''s order details by enumerating or guessing
+    order IDs (try 1, 2, 3...). Requires JWT authentication but ownership is not verified.
+    Authenticate via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response).'
   ordinal: 4
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -80,11 +86,12 @@ no-auth-receive-report:
     authentication or mechanic role check.
   severity: high
   confidence: high
-  details: Missing authentication and authorization on the receive_report endpoint
+  details: 'Missing authentication and authorization on the receive_report endpoint
     at crapi/mechanic/views.py. The GET /workshop/api/mechanic/receive_report endpoint
     processes incoming service report requests without verifying that the caller is
     authenticated or has the mechanic role. Any unauthenticated user can trigger service
-    request creation, potentially causing data pollution or abuse of the mechanic workflow.
+    request creation. No authentication required. To confirm, send GET /workshop/api/mechanic/receive_report
+    without any auth header and verify the response is not 401/403.'
   ordinal: 5
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'

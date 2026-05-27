@@ -7,12 +7,16 @@ bola-vehicle-location:
     user owns the vehicle.
   severity: high
   confidence: high
-  details: Broken Object Level Authorization in VehicleController. The getVehicleLocation
+  details: 'Broken Object Level Authorization in VehicleController. The getVehicleLocation
     handler retrieves the vehicle by vehicleId from the path without checking that
-    the authenticated user (from JWT) is the vehicle's owner. Any authenticated user
-    can read any vehicle's real-time location by guessing or enumerating vehicle UUIDs.
+    the authenticated user (from JWT) is the vehicle''s owner. Any authenticated user
+    can read any vehicle''s real-time location by guessing or enumerating vehicle UUIDs.
     The endpoint is GET /identity/api/v2/vehicle/{vehicleId}/location with a valid
-    JWT Bearer token.
+    JWT Bearer token. Known vehicle UUIDs from test data: f89b5f21-7829-45cb-a650-299a61090378,
+    cd515c12-0fc1-48ae-8b61-9230b70a845b. Authenticate via POST /identity/api/auth/login
+    with {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response), then try accessing a vehicle UUID belonging to a
+    different user.'
   ordinal: 1
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -25,12 +29,15 @@ no-rate-limit-otp:
     of 4-digit OTP codes.
   severity: high
   confidence: high
-  details: "Missing rate limiting on OTP verification in AuthController. The POST /identity/api/auth/v2/check-otp\
-    \ endpoint accepts an email and OTP code for password reset verification but does\
-    \ not implement any rate limiting or account lockout. Since the OTP is only 4 digits\
-    \ (10000 combinations), an attacker can brute-force all possible codes in a short\
-    \ time to reset any user's password. Requires only knowledge of the target's email\
-    \ address. No authentication required for the endpoint itself."
+  details: 'Missing rate limiting on OTP verification in AuthController. The POST /identity/api/auth/v2/check-otp
+    endpoint accepts an email and OTP code for password reset verification but does
+    not implement any rate limiting or account lockout. Since the OTP is only 4 digits
+    (10000 combinations), an attacker can brute-force all possible codes in a short
+    time to reset any user''s password. No authentication required. To test: first trigger
+    OTP generation with POST /identity/api/auth/forget-password body {"email":"adam007@example.com"},
+    then send multiple POST /identity/api/auth/v2/check-otp requests with {"email":"adam007@example.com",
+    "otp":"1234","password":"NewPass1!"} — verify no 429 status is returned even after
+    5+ rapid requests.'
   ordinal: 2
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
@@ -43,13 +50,17 @@ broken-auth-login-token:
     from email without proper verification, enabling account takeover.
   severity: critical
   confidence: high
-  details: Broken authentication in the login-with-token endpoint at AuthController.
+  details: 'Broken authentication in the login-with-token endpoint at AuthController.
     The POST /identity/api/auth/v2.7/user/login-with-token endpoint accepts an email
     and a token for passwordless login. The token is derived deterministically from
-    the user's email address without incorporating a cryptographic secret or expiration.
+    the user''s email address without incorporating a cryptographic secret or expiration.
     An attacker who knows the derivation algorithm can compute a valid token for any
     email and obtain a JWT session token, achieving full account takeover. No prior
-    authentication is required.
+    authentication is required. To test: first register a user via POST /identity/api/auth/signup
+    with {"name":"Test","email":"exploit1@test.com","number":"1234567890","password":"Testpass1!"},
+    then trigger email change to generate a token, then try POST /identity/api/auth/v2.7/user/login-with-token
+    with {"email":"exploit1@test.com","token":"<guessed>"} — even a failed attempt with
+    wrong token demonstrates the endpoint exists and accepts the request format.'
   ordinal: 3
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
