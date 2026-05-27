@@ -428,33 +428,38 @@ class HTTPClient:
         follow_redirects: bool,
         timeout: float | None,
     ) -> httpx.Response:
-        send_kwargs: dict[str, Any] = {"follow_redirects": follow_redirects}
+        saved_timeout = self._client.timeout
         if timeout is not None:
-            send_kwargs["timeout"] = httpx.Timeout(timeout)
+            self._client.timeout = httpx.Timeout(timeout)
 
         last_error: BaseException | None = None
-        for attempt in range(1, self.retry_config.attempts + 1):
-            try:
-                response = await self._client.send(request, **send_kwargs)
-                if response.status_code not in self.retry_config.retry_on_statuses:
-                    return response
-                last_error = HTTPClientError(
-                    f"Retryable HTTP status {response.status_code} "
-                    f"for {request.method} {request.url}"
-                )
-            except (
-                httpx.TimeoutException,
-                httpx.NetworkError,
-                httpx.RemoteProtocolError,
-            ) as exc:
-                last_error = exc
+        try:
+            for attempt in range(1, self.retry_config.attempts + 1):
+                try:
+                    response = await self._client.send(
+                        request, follow_redirects=follow_redirects
+                    )
+                    if response.status_code not in self.retry_config.retry_on_statuses:
+                        return response
+                    last_error = HTTPClientError(
+                        f"Retryable HTTP status {response.status_code} "
+                        f"for {request.method} {request.url}"
+                    )
+                except (
+                    httpx.TimeoutException,
+                    httpx.NetworkError,
+                    httpx.RemoteProtocolError,
+                ) as exc:
+                    last_error = exc
 
-            if attempt < self.retry_config.attempts:
-                delay = min(
-                    self.retry_config.base_delay * (2 ** (attempt - 1)),
-                    self.retry_config.max_delay,
-                )
-                await asyncio.sleep(delay)
+                if attempt < self.retry_config.attempts:
+                    delay = min(
+                        self.retry_config.base_delay * (2 ** (attempt - 1)),
+                        self.retry_config.max_delay,
+                    )
+                    await asyncio.sleep(delay)
+        finally:
+            self._client.timeout = saved_timeout
 
         if last_error is None:
             raise HTTPClientError("Request failed for an unknown reason")
