@@ -159,6 +159,7 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
     from .trace_annotation import TraceAnnotationPipeline
     from .trace_annotation_direct import TraceAnnotationDirectPipeline
     from .trace_graph import TraceGraphPipeline
+    from .trace_graph_pathpar import TraceGraphPathParPipeline
     from .trace_verify import TraceVerifyPipeline
 
     return {
@@ -168,6 +169,7 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
         "trace": TraceAnnotationPipeline,
         "trace-direct": TraceAnnotationDirectPipeline,
         "trace-graph": TraceGraphPipeline,
+        "trace-graph-pathpar": TraceGraphPathParPipeline,
         "trace-verify": TraceVerifyPipeline,
         "router": RouterPipeline,
     }

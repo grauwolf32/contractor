@@ -41,6 +41,7 @@ class TestRegistry:
             "trace",
             "trace-direct",
             "trace-graph",
+            "trace-graph-pathpar",
             "trace-verify",
             "router",
         }
