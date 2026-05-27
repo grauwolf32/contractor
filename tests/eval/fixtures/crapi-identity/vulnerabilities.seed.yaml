@@ -16,3 +16,40 @@ bola-vehicle-location:
   ordinal: 1
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
+no-rate-limit-otp:
+  name: no-rate-limit-otp
+  place_type: file
+  place: src/main/java/com/crapi/controller/AuthController.java
+  title: No rate limiting on OTP verification allows brute-force password reset
+  summary: POST /identity/api/auth/v2/check-otp has no rate limiting, allowing brute-force
+    of 4-digit OTP codes.
+  severity: high
+  confidence: high
+  details: "Missing rate limiting on OTP verification in AuthController. The POST /identity/api/auth/v2/check-otp\
+    \ endpoint accepts an email and OTP code for password reset verification but does\
+    \ not implement any rate limiting or account lockout. Since the OTP is only 4 digits\
+    \ (10000 combinations), an attacker can brute-force all possible codes in a short\
+    \ time to reset any user's password. Requires only knowledge of the target's email\
+    \ address. No authentication required for the endpoint itself."
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+broken-auth-login-token:
+  name: broken-auth-login-token
+  place_type: file
+  place: src/main/java/com/crapi/controller/AuthController.java
+  title: Broken authentication via predictable login token derived from email
+  summary: POST /identity/api/auth/v2.7/user/login-with-token uses a token derived
+    from email without proper verification, enabling account takeover.
+  severity: critical
+  confidence: high
+  details: Broken authentication in the login-with-token endpoint at AuthController.
+    The POST /identity/api/auth/v2.7/user/login-with-token endpoint accepts an email
+    and a token for passwordless login. The token is derived deterministically from
+    the user's email address without incorporating a cryptographic secret or expiration.
+    An attacker who knows the derivation algorithm can compute a valid token for any
+    email and obtain a JWT session token, achieving full account takeover. No prior
+    authentication is required.
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

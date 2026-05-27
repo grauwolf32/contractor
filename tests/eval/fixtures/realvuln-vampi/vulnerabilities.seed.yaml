@@ -19,7 +19,7 @@ idor-update-password:
   name: idor-update-password
   place_type: file
   place: api_views/users.py
-  title: "IDOR — any authenticated user can change another user’s password"
+  title: "IDOR — any authenticated user can change another user's password"
   summary: PUT /users/v1/{username}/password uses the URL path username instead of
     the JWT subject to identify whose password to change.
   severity: high
@@ -66,5 +66,74 @@ debug-data-exposure:
     addresses, and admin status for every user in the database. GET /users/v1/_debug
     requires no authentication or authorization.
   ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bola-get-book:
+  name: bola-get-book
+  place_type: file
+  place: api_views/books.py
+  title: "BOLA — any authenticated user can read any book's secret content"
+  summary: GET /books/v1/{book_title} returns the book's secret_content without verifying
+    the requester is the owner.
+  severity: high
+  confidence: high
+  details: Broken Object Level Authorization in get_by_title at api_views/books.py:51.
+    The function retrieves the book by title and returns all fields including secret_content
+    without checking that the authenticated user is the book's owner. Any authenticated
+    user can read any other user's book secrets by requesting GET /books/v1/{book_title}
+    with a valid JWT. Authentication is required but ownership is not verified.
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+user-enumeration-login:
+  name: user-enumeration-login
+  place_type: file
+  place: api_views/users.py
+  title: User enumeration via differential error messages on login
+  summary: POST /users/v1/login returns distinct error messages for invalid username
+    vs invalid password, enabling username enumeration.
+  severity: medium
+  confidence: high
+  details: 'User enumeration via differential error responses in login_user at api_views/users.py:101-106.
+    The endpoint returns ''Password is not correct'' when the username exists but the
+    password is wrong, and ''Username does not exist'' when the username is invalid.
+    An attacker can enumerate valid usernames by observing the error message difference.
+    No authentication required. The endpoint is POST /users/v1/login with JSON body
+    {"username": "...", "password": "..."}.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+missing-auth-createdb:
+  name: missing-auth-createdb
+  place_type: file
+  place: api_views/main.py
+  title: Unauthenticated /createdb endpoint drops and recreates all database tables
+  summary: GET /createdb destroys and reinitializes the entire database without any
+    authentication or authorization.
+  severity: critical
+  confidence: high
+  details: Missing authentication on destructive endpoint at api_views/main.py:6-12,
+    function populate_db. The /createdb route calls db.drop_all() followed by db.create_all()
+    and re-seeds the database, effectively wiping all user data. No authentication
+    or authorization is required. An attacker can cause denial of service and data
+    loss by simply requesting GET /createdb.
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+user-list-no-auth:
+  name: user-list-no-auth
+  place_type: file
+  place: api_views/users.py
+  title: Unauthenticated user listing exposes all usernames and emails
+  summary: GET /users/v1/ returns all registered usernames and email addresses without
+    requiring authentication.
+  severity: medium
+  confidence: high
+  details: Information disclosure via unauthenticated endpoint at api_views/users.py:19-21,
+    function get_all_users. The GET /users/v1/ endpoint returns a JSON array of all
+    users with their usernames and email addresses. No authentication or authorization
+    is required. This enables user enumeration and can be chained with other attacks
+    such as password brute-force or IDOR.
+  ordinal: 8
   created_at: '2026-01-01T00:00:00Z'
   updated_at: '2026-01-01T00:00:00Z'
