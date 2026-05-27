@@ -182,5 +182,33 @@
     ],
     "min_precision": 0.3,
     "min_recall": 0.5
+  },
+  {
+    "id": "merchant-service-requests-by-vin-no-auth",
+    "intent": "Trace GET workshop/api/merchant/service_requests/{vin}. The handler at UserServiceRequestsView.get lacks @jwt_auth_required — any unauthenticated caller can query service requests for any VIN. Annotate the entrypoint.",
+    "entrypoint": {
+      "file": "/crapi/merchant/views.py",
+      "function": "get",
+      "route": "GET /workshop/api/merchant/service_requests/{vin}"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/merchant/views.py", "function": "get" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "shop-apply-coupon-mass-assignment",
+    "intent": "Trace POST workshop/api/shop/apply_coupon focusing on the credit assignment. After coupon lookup in MongoDB, the handler uses coupon_request_body['amount'] (user-supplied) instead of the coupon object's actual amount to credit the user. Annotate the entrypoint where the assignment happens.",
+    "entrypoint": {
+      "file": "/crapi/shop/views.py",
+      "function": "post",
+      "route": "POST /workshop/api/shop/apply_coupon"
+    },
+    "expected_annotated": [
+      { "file": "/crapi/shop/views.py", "function": "post" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
   }
 ]

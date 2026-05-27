@@ -1,0 +1,4 @@
+active: v1
+versions:
+  v1:
+    file: vuln_scan/v1.yml

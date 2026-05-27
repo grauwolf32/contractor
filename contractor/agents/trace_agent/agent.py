@@ -63,6 +63,7 @@ def build_trace_agent(
     elide_keep_last_n: int = 15,
     prompt: Optional[str] = None,
     with_graph_tools: bool = False,
+    graph_tools: Optional[list] = None,
 ) -> LlmAgent:
     instruction = prompt if prompt is not None else TRACE_AGENT_PROMPT
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
@@ -74,7 +75,12 @@ def build_trace_agent(
 
     ctools = code_tools(fs)
     atools = annotation_tools(fs)
-    gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
+    if graph_tools is not None:
+        gtools = graph_tools
+    elif with_graph_tools:
+        gtools = attach_graph_tools_if_local(fs)
+    else:
+        gtools = []
     fs_tools = [
         t for t in fs_tools
         if getattr(t, "__name__", "") not in _TRACE_DISALLOWED_FS_TOOLS

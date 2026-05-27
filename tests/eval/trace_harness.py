@@ -113,6 +113,15 @@ _LANG_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         ),
         re.compile(r"^\s*(?:trait|interface)\s+(\w+)\b", re.MULTILINE),
     ],
+    ".go": [
+        # func FuncName(args)
+        re.compile(r"^\s*func\s+(\w+)\s*\(", re.MULTILINE),
+        # method: func (r *Receiver) MethodName(args)
+        re.compile(
+            r"^\s*func\s+\([^)]+\)\s+(\w+)\s*\(",
+            re.MULTILINE,
+        ),
+    ],
 }
 
 ANNOTATION_LOOKAHEAD_LINES = 6

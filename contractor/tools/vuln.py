@@ -860,7 +860,47 @@ def verification_tools(
         findings = await vt.list_findings(tool_context)
         return {"result": vt.fmt.format_findings(findings, preview=True)}
 
+    async def submit_verdict(
+        name: str,
+        verdict: Verdict,
+        summary: str,
+        entry_point: str,
+        evidence: str,
+        tool_context: ToolContext,
+        sink_reached: bool = True,
+        attacker_control: AttackerControl = "full",
+    ) -> dict[str, Any]:
+        """Simplified verdict submission — use this instead of report_verification.
+
+        Args:
+            name:               Finding name (from get_vulnerability).
+            verdict:            "exploitable", "exploitable_unverified",
+                                "not_exploitable", or "inconclusive".
+            summary:            One-sentence verdict rationale.
+            entry_point:        The URL or function:line you probed.
+            evidence:           Full evidence: HTTP requests/responses sent,
+                                observed behavior, code references.
+            sink_reached:       True if attacker data reaches the sink.
+            attacker_control:   "full", "partial", or "none".
+        """
+        finding = await vt.write_finding(
+            name=name,
+            source_namespace=vt.name,
+            verdict=verdict,
+            summary=summary,
+            attacker_control_at_sink=attacker_control,
+            sink_reached=sink_reached,
+            entry_point=entry_point,
+            data_flow=[],
+            path_broken_at=None,
+            impact=summary if verdict in ("exploitable", "exploitable_unverified") else "",
+            notes=evidence,
+            ctx=tool_context,
+        )
+        return {"result": vt.fmt.format_finding(finding)}
+
     return [
+        submit_verdict,
         report_verification,
         get_verification,
         list_verifications,

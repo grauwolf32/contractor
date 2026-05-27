@@ -213,6 +213,89 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         return llm_response
 
 
+MANDATORY_TOOL_DEFAULT_MESSAGE: Final[str] = (
+    "You MUST call {tool_name} before finishing. "
+    "You have used {step_count} tool calls so far. "
+    "Call {tool_name} now with your verdict."
+)
+
+
+class MandatoryToolCallback(BaseCallback):
+    """Intercepts the model's final response and redirects it if a
+    required tool hasn't been called yet.
+
+    Uses ``after_model_callback``: when the model produces a text-only
+    response (no function_call parts) and the mandatory tool hasn't
+    been observed, replaces the response with a nudge message.
+    """
+
+    cb_type: CallbackTypes = CallbackTypes.after_model_callback
+    deps: list[str] = []
+
+    def __init__(
+        self,
+        tool_names: list[str],
+        message: Optional[str] = None,
+        max_nudges: int = 2,
+    ):
+        self.tool_names = set(tool_names)
+        self.message_template = message or MANDATORY_TOOL_DEFAULT_MESSAGE
+        self.called: set[str] = set()
+        self.step_count: int = 0
+        self.nudge_count: int = 0
+        self.max_nudges = max_nudges
+
+    def to_state(self) -> dict[str, Any]:
+        return {
+            "tool_names": sorted(self.tool_names),
+            "called": sorted(self.called),
+            "step_count": self.step_count,
+            "nudge_count": self.nudge_count,
+        }
+
+    def __call__(
+        self,
+        callback_context: CallbackContext,
+        llm_response: LlmResponse,
+    ) -> Optional[LlmResponse]:
+        content = llm_response.content
+        if not content or not content.parts:
+            return None
+
+        has_function_call = any(
+            getattr(p, "function_call", None) is not None
+            for p in content.parts
+        )
+
+        if has_function_call:
+            for part in content.parts:
+                fc = getattr(part, "function_call", None)
+                if fc and fc.name in self.tool_names:
+                    self.called.add(fc.name)
+            self.step_count += 1
+            self.save_to_state(callback_context)
+            return None
+
+        missing = self.tool_names - self.called
+        if not missing:
+            self.save_to_state(callback_context)
+            return None
+
+        if self.nudge_count >= self.max_nudges:
+            self.save_to_state(callback_context)
+            return None
+
+        self.nudge_count += 1
+        self.save_to_state(callback_context)
+
+        tool_name = sorted(missing)[0]
+        msg = self.message_template.format(
+            tool_name=tool_name,
+            step_count=self.step_count,
+        )
+        return _format_llm_response("user", msg)
+
+
 class RepeatedToolCallCallback(BaseCallback):
     """Detects when the agent calls the same tool with the same args repeatedly.
 

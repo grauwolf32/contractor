@@ -152,6 +152,7 @@ async def persist_seed_artifact(ctx: PipelineContext, filename: str) -> None:
 
 
 def get_pipelines() -> dict[str, type[Pipeline]]:
+    from .exploitability import ExploitabilityPipeline
     from .likec4_building import LikeC4BuildingPipeline
     from .oas_building import OasBuildingPipeline
     from .oas_enrichment import OasEnrichmentPipeline
@@ -159,16 +160,21 @@ def get_pipelines() -> dict[str, type[Pipeline]]:
     from .trace_annotation import TraceAnnotationPipeline
     from .trace_annotation_direct import TraceAnnotationDirectPipeline
     from .trace_graph import TraceGraphPipeline
+    from .trace_graph_pathpar import TraceGraphPathParPipeline
     from .trace_verify import TraceVerifyPipeline
+    from .vuln_scan import VulnScanPipeline
 
     return {
         "build": OasBuildingPipeline,
         "enrich": OasEnrichmentPipeline,
+        "exploit": ExploitabilityPipeline,
         "likec4": LikeC4BuildingPipeline,
         "trace": TraceAnnotationPipeline,
         "trace-direct": TraceAnnotationDirectPipeline,
         "trace-graph": TraceGraphPipeline,
+        "trace-graph-pathpar": TraceGraphPathParPipeline,
         "trace-verify": TraceVerifyPipeline,
+        "vuln-scan": VulnScanPipeline,
         "router": RouterPipeline,
     }
 

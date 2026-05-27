@@ -1,0 +1,215 @@
+sqli-get-user:
+  name: sqli-get-user
+  place_type: file
+  place: models/user_model.py
+  title: SQL Injection via username in GET /users/v1/{username}
+  summary: Unsanitized f-string interpolation of username path parameter into raw
+    SQL query.
+  severity: high
+  confidence: high
+  details: 'SQL injection via f-string interpolation: user_query = f"SELECT * FROM
+    users WHERE username = ''{username}''" followed by db.session.execute(text(user_query)).
+    The username path parameter from GET /users/v1/{username} is interpolated directly
+    without sanitization. No authentication required. Sink at models/user_model.py:72-73,
+    function get_user().'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+idor-update-password:
+  name: idor-update-password
+  place_type: file
+  place: api_views/users.py
+  title: "IDOR — any authenticated user can change another user's password"
+  summary: PUT /users/v1/{username}/password uses the URL path username instead of
+    the JWT subject to identify whose password to change.
+  severity: high
+  confidence: high
+  details: Broken access control (IDOR) in update_password at api_views/users.py:187-190.
+    The function retrieves the target user from the URL path parameter (username) rather
+    than from the JWT token (resp['sub']). Any authenticated user can change any other
+    user's password by sending PUT /users/v1/{victim_username}/password with a valid
+    JWT and a new password in the JSON body. Authentication is required (JWT) but
+    authorization to the target resource is not checked.
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+mass-assignment-register:
+  name: mass-assignment-register
+  place_type: file
+  place: api_views/users.py
+  title: Mass assignment allows self-registration as admin
+  summary: POST /users/v1/register accepts an 'admin' field in the JSON body, allowing
+    privilege escalation.
+  severity: high
+  confidence: high
+  details: Mass assignment vulnerability in register_user at api_views/users.py:60-66.
+    When the application runs in vulnerable mode, the function checks if 'admin' is
+    present in the user-supplied JSON body and passes it to User(). An attacker can
+    register as admin by including '"admin"':' true' in the POST /users/v1/register
+    request body alongside the normal username, password, and email fields. No authentication
+    required.
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+debug-data-exposure:
+  name: debug-data-exposure
+  place_type: file
+  place: api_views/users.py
+  title: Unauthenticated debug endpoint exposes all user data including passwords
+  summary: GET /users/v1/_debug returns all user details including plaintext passwords
+    without authentication.
+  severity: high
+  confidence: high
+  details: Excessive data exposure via unauthenticated debug endpoint. The debug()
+    function at api_views/users.py:24-26 calls User.get_all_users_debug() and returns
+    the result directly. The response includes usernames, plaintext passwords, email
+    addresses, and admin status for every user in the database. GET /users/v1/_debug
+    requires no authentication or authorization.
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bola-get-book:
+  name: bola-get-book
+  place_type: file
+  place: api_views/books.py
+  title: "BOLA — any authenticated user can read any book's secret content"
+  summary: GET /books/v1/{book_title} returns the book's secret_content without verifying
+    the requester is the owner.
+  severity: high
+  confidence: high
+  details: Broken Object Level Authorization in get_by_title at api_views/books.py:51.
+    The function retrieves the book by title and returns all fields including secret_content
+    without checking that the authenticated user is the book's owner. Any authenticated
+    user can read any other user's book secrets by requesting GET /books/v1/{book_title}
+    with a valid JWT. Authentication is required but ownership is not verified.
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+user-enumeration-login:
+  name: user-enumeration-login
+  place_type: file
+  place: api_views/users.py
+  title: User enumeration via differential error messages on login
+  summary: POST /users/v1/login returns distinct error messages for invalid username
+    vs invalid password, enabling username enumeration.
+  severity: medium
+  confidence: high
+  details: 'User enumeration via differential error responses in login_user at api_views/users.py:101-106.
+    The endpoint returns ''Password is not correct'' when the username exists but the
+    password is wrong, and ''Username does not exist'' when the username is invalid.
+    An attacker can enumerate valid usernames by observing the error message difference.
+    No authentication required. The endpoint is POST /users/v1/login with JSON body
+    {"username": "...", "password": "..."}.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+missing-auth-createdb:
+  name: missing-auth-createdb
+  place_type: file
+  place: api_views/main.py
+  title: Unauthenticated /createdb endpoint drops and recreates all database tables
+  summary: GET /createdb destroys and reinitializes the entire database without any
+    authentication or authorization.
+  severity: critical
+  confidence: high
+  details: Missing authentication on destructive endpoint at api_views/main.py:6-12,
+    function populate_db. The /createdb route calls db.drop_all() followed by db.create_all()
+    and re-seeds the database, effectively wiping all user data. No authentication
+    or authorization is required. An attacker can cause denial of service and data
+    loss by simply requesting GET /createdb.
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+user-list-no-auth:
+  name: user-list-no-auth
+  place_type: file
+  place: api_views/users.py
+  title: Unauthenticated user listing exposes all usernames and emails
+  summary: GET /users/v1/ returns all registered usernames and email addresses without
+    requiring authentication.
+  severity: medium
+  confidence: high
+  details: Information disclosure via unauthenticated endpoint at api_views/users.py:19-21,
+    function get_all_users. The GET /users/v1/ endpoint returns a JSON array of all
+    users with their usernames and email addresses. No authentication or authorization
+    is required. This enables user enumeration and can be chained with other attacks
+    such as password brute-force or IDOR.
+  ordinal: 8
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+redos-update-email:
+  name: redos-update-email
+  place_type: file
+  place: api_views/users.py
+  title: Regular Expression Denial of Service (ReDoS) in email validation
+  summary: PUT /users/v1/{username}/email uses a regex with nested quantifiers that
+    causes catastrophic backtracking on crafted input.
+  severity: medium
+  confidence: high
+  details: 'ReDoS vulnerability in update_email at api_views/users.py:144-146. When
+    the application runs in vulnerable mode, the email validation regex r"^([0-9a-zA-Z]([-.\w]*[0-9a-zA-Z])*@{1}([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,9})$"
+    contains nested quantifiers ([-.\w]*[0-9a-zA-Z])* that cause catastrophic backtracking
+    with crafted input. An attacker can cause the server to hang by sending a specially
+    crafted email string. Endpoint: PUT /users/v1/{username}/email with JSON body
+    {"email": "..."} and a valid JWT Bearer token in the Authorization header.'
+  ordinal: 9
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+jwt-weak-secret:
+  name: jwt-weak-secret
+  place_type: file
+  place: config.py
+  title: JWT authentication bypass via hardcoded weak SECRET_KEY
+  summary: The JWT signing key is hardcoded as the string 'random', allowing token
+    forgery.
+  severity: critical
+  confidence: high
+  details: "JWT authentication bypass via weak/hardcoded signing key. The SECRET_KEY\
+    \ used for signing and verifying JWT tokens is hardcoded as the string 'random'\
+    \ in config.py line 13. An attacker who knows this key can forge valid JWT tokens\
+    \ for any user, including admin accounts, achieving complete authentication bypass.\
+    \ To exploit: craft a JWT with header {\"typ\": \"JWT\", \"alg\": \"HS256\"} and\
+    \ payload {\"exp\": <future_timestamp>, \"iat\": <now>, \"sub\": \"admin\"}, sign\
+    \ with HMAC-SHA256 using the secret 'random', and use the resulting token in the\
+    \ Authorization: Bearer header on any authenticated endpoint."
+  ordinal: 10
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+hardcoded-default-creds:
+  name: hardcoded-default-creds
+  place_type: file
+  place: models/user_model.py
+  title: Hardcoded default credentials allow login as any seeded user including admin
+  summary: The database is seeded with publicly known trivial credentials (name1/pass1,
+    name2/pass2, admin/pass1).
+  severity: medium
+  confidence: high
+  details: 'Hardcoded default credentials in init_db_users at models/user_model.py:98-101.
+    After any database reset via GET /createdb, the application seeds three users with
+    trivially guessable credentials: username "name1" password "pass1", username "name2"
+    password "pass2", and username "admin" password "pass1". An attacker can log in
+    as admin by sending POST /users/v1/login with JSON body {"username": "admin", "password":
+    "pass1"} and receive a valid JWT auth token with full admin privileges.'
+  ordinal: 11
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+jsonschema-error-leak:
+  name: jsonschema-error-leak
+  place_type: file
+  place: api_views/users.py
+  title: Internal validation error details leaked in registration error response
+  summary: POST /users/v1/register returns jsonschema exception messages verbatim,
+    exposing internal validation structure.
+  severity: low
+  confidence: high
+  details: 'Information leakage in register_user at api_views/users.py:79-80. When
+    the JSON body fails schema validation, the except handler returns error_message_helper(exc.message)
+    which passes the raw jsonschema.exceptions.ValidationError message directly into
+    the HTTP 400 response. This reveals internal schema field names, expected types,
+    and validator path details to unauthenticated callers. To trigger: send POST /users/v1/register
+    with Content-Type: application/json and a malformed body such as {"username": 123,
+    "password": "x", "email": "y"} (integer instead of string for username). The response
+    will contain the internal validator error message instead of a generic error.'
+  ordinal: 12
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

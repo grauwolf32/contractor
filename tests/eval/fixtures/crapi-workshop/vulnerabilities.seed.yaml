@@ -1,0 +1,192 @@
+sqli-apply-coupon:
+  name: sqli-apply-coupon
+  place_type: file
+  place: crapi/shop/views.py
+  title: SQL Injection via coupon_code in POST /workshop/api/shop/apply_coupon
+  summary: The coupon_code field is concatenated into a raw SQL query without parameterization.
+  severity: critical
+  confidence: high
+  details: 'SQL injection at crapi/shop/views.py:386-395. The apply_coupon handler
+    uses connection.cursor() and concatenates coupon_request_body[''coupon_code'']
+    directly into a SELECT query: "SELECT coupon_code from applied_coupon WHERE user_id
+    = " + str(user.id) + " AND coupon_code = ''" + coupon_code + "''". Requires JWT
+    authentication. The endpoint is POST /workshop/api/shop/apply_coupon with JSON
+    body {"coupon_code": "..."}. Authenticate via POST /identity/api/auth/login with
+    {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response).'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+ssrf-contact-mechanic:
+  name: ssrf-contact-mechanic
+  place_type: file
+  place: crapi/merchant/views.py
+  title: SSRF via mechanic_api URL in POST /workshop/api/merchant/contact_mechanic
+  summary: The mechanic_api field is passed directly to requests.get() without URL
+    validation.
+  severity: high
+  confidence: high
+  details: 'Server-side request forgery at crapi/merchant/views.py:84-87. The contact_mechanic
+    handler reads request_data[''mechanic_api''] and passes it directly to requests.get(request_url).
+    No URL scheme or destination validation is performed. An attacker can make the
+    server fetch arbitrary URLs including internal services. Requires JWT authentication.
+    The endpoint is POST /workshop/api/merchant/contact_mechanic with JSON body {"mechanic_api":
+    "http://...", "mechanic_code": "TRAC_MEC1", "problem_details": "test", "vin": "0",
+    "number_of_repeats": 1}. Authenticate via POST /identity/api/auth/login with
+    {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response).'
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+path-traversal-download-report:
+  name: path-traversal-download-report
+  place_type: file
+  place: crapi/mechanic/views.py
+  title: Path traversal via report filename in GET /workshop/api/mechanic/download_report
+  summary: The report filename parameter is joined with the reports directory but no
+    path restriction prevents traversal.
+  severity: medium
+  confidence: high
+  details: 'Path traversal at crapi/mechanic/views.py:396-398. The download_report
+    handler constructs the path with os.path.abspath(os.path.join(settings.BASE_DIR,
+    ''reports'', filename_from_user)). While abspath normalizes the path, there is
+    no check that the result stays within the reports directory. An attacker can read
+    arbitrary files via ../../etc/passwd in the filename parameter. The endpoint is
+    GET /workshop/api/mechanic/download_report?filename=../../etc/passwd. No authentication
+    required — the endpoint lacks an auth decorator.'
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bola-get-order:
+  name: bola-get-order
+  place_type: file
+  place: crapi/shop/views.py
+  title: "BOLA — any authenticated user can read any order by ID enumeration"
+  summary: GET /workshop/api/shop/orders/{order_id} returns order details without verifying
+    the authenticated user owns the order.
+  severity: high
+  confidence: high
+  details: 'Broken Object Level Authorization in the get_order handler at crapi/shop/views.py.
+    The endpoint GET /workshop/api/shop/orders/{order_id} retrieves the order by its
+    ID from the database and returns all order details (product, quantity, price, status)
+    without checking that the authenticated user (from JWT) is the order''s owner. Any
+    authenticated user can read any other user''s order details by enumerating or guessing
+    order IDs (try 1, 2, 3...). Requires JWT authentication but ownership is not verified.
+    Authenticate via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response).'
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-receive-report:
+  name: no-auth-receive-report
+  place_type: file
+  place: crapi/mechanic/views.py
+  title: Missing authentication on mechanic receive_report endpoint
+  summary: GET /workshop/api/mechanic/receive_report creates service requests without
+    authentication or mechanic role check.
+  severity: high
+  confidence: high
+  details: 'Missing authentication and authorization on the receive_report endpoint
+    at crapi/mechanic/views.py. The GET /workshop/api/mechanic/receive_report endpoint
+    processes incoming service report requests without verifying that the caller is
+    authenticated or has the mechanic role. Any unauthenticated user can trigger service
+    request creation. No authentication required. To confirm, send GET /workshop/api/mechanic/receive_report
+    without any auth header and verify the response is not 401/403.'
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-get-order:
+  name: no-auth-get-order
+  place_type: file
+  place: crapi/shop/views.py
+  title: Missing authentication on order GET endpoint — any order readable without auth
+  summary: GET /workshop/api/shop/orders/{order_id} has no @jwt_auth_required decorator,
+    allowing unauthenticated access to any order.
+  severity: high
+  confidence: high
+  details: 'Missing authentication on the GET method of OrderControlView at crapi/shop/views.py:109.
+    The post() and put() methods have @jwt_auth_required but get() does not. Any
+    unauthenticated user can read any order''s full details including product, quantity,
+    price, status, and user email by accessing GET /workshop/api/shop/orders/{order_id}.
+    No authentication required. Try GET /workshop/api/shop/orders/1 without any
+    Authorization header.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-service-request:
+  name: no-auth-service-request
+  place_type: file
+  place: crapi/mechanic/views.py
+  title: Missing authentication on service request GET — any service request readable
+    without auth
+  summary: GET /workshop/api/mechanic/service_request/{id} has no @jwt_auth_required
+    decorator.
+  severity: high
+  confidence: high
+  details: 'Missing authentication on ServiceRequestView.get() at crapi/mechanic/views.py:368.
+    The put() method at line 347 has @jwt_auth_required but get() does not. Any
+    unauthenticated user can read any service request details including vehicle VIN,
+    owner info, and problem details. No authentication required. Try GET
+    /workshop/api/mechanic/service_request/1 without any Authorization header.'
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+mass-assignment-coupon-amount:
+  name: mass-assignment-coupon-amount
+  place_type: file
+  place: crapi/shop/views.py
+  title: Mass assignment — user-supplied amount field in coupon apply credits arbitrary
+    amount
+  summary: POST /workshop/api/shop/apply_coupon uses the user-supplied 'amount' field
+    instead of the coupon's actual value.
+  severity: critical
+  confidence: high
+  details: 'Mass assignment at crapi/shop/views.py:427. The apply_coupon handler credits
+    user_details.available_credit += coupon_request_body[''amount''] — taking the
+    amount from the POST body rather than from the coupon object in MongoDB. An attacker
+    can supply any arbitrary amount to add unlimited credit. Requires JWT authentication.
+    The endpoint is POST /workshop/api/shop/apply_coupon with JSON body {"coupon_code":
+    "TRAC_1234", "amount": 999999}. Authenticate via POST /identity/api/auth/login
+    with {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer
+    token (field: "token" in response). Note: the coupon code must be valid and not
+    already applied.'
+  ordinal: 8
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-admin-check-user-list:
+  name: no-admin-check-user-list
+  place_type: file
+  place: crapi/user/views.py
+  title: Missing admin role check — any authenticated user can list all users
+  summary: GET /workshop/api/management/users/all requires JWT but does not check admin
+    role.
+  severity: high
+  confidence: high
+  details: 'Missing admin role check in AdminUserView.get() at crapi/user/views.py:40-41.
+    The endpoint uses @jwt_auth_required but does not verify user.role == ADMIN.
+    Any authenticated user can list all users including their emails, phone numbers,
+    and available credit. Requires any valid JWT. The endpoint is GET
+    /workshop/api/management/users/all. Authenticate via POST /identity/api/auth/login
+    with {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer
+    token (field: "token" in response).'
+  ordinal: 9
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-service-requests-by-vin:
+  name: no-auth-service-requests-by-vin
+  place_type: file
+  place: crapi/merchant/views.py
+  title: Missing authentication on merchant service requests by VIN — info disclosure
+  summary: GET /workshop/api/merchant/service_requests/{vin} has no @jwt_auth_required
+    decorator.
+  severity: high
+  confidence: high
+  details: 'Missing authentication on UserServiceRequestsView.get() at crapi/merchant/views.py:166.
+    The endpoint has no @jwt_auth_required decorator. Given any VIN, returns all
+    service requests for that vehicle including mechanic details, vehicle owner info,
+    and problem descriptions. No authentication required. Try GET
+    /workshop/api/merchant/service_requests/0 without any Authorization header —
+    even an invalid VIN should return 200 with an empty list rather than 401.'
+  ordinal: 10
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'

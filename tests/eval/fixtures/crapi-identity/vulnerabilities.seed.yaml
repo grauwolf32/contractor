@@ -1,0 +1,166 @@
+bola-vehicle-location:
+  name: bola-vehicle-location
+  place_type: file
+  place: src/main/java/com/crapi/controller/VehicleController.java
+  title: "BOLA — any authenticated user can access any vehicle's location"
+  summary: GET /identity/api/v2/vehicle/{vehicleId}/location does not verify the authenticated
+    user owns the vehicle.
+  severity: high
+  confidence: high
+  details: 'Broken Object Level Authorization in VehicleController. The getVehicleLocation
+    handler retrieves the vehicle by vehicleId from the path without checking that
+    the authenticated user (from JWT) is the vehicle''s owner. Any authenticated user
+    can read any vehicle''s real-time location by guessing or enumerating vehicle UUIDs.
+    The endpoint is GET /identity/api/v2/vehicle/{vehicleId}/location with a valid
+    JWT Bearer token. Known vehicle UUIDs from test data: f89b5f21-7829-45cb-a650-299a61090378,
+    cd515c12-0fc1-48ae-8b61-9230b70a845b. Authenticate via POST /identity/api/auth/login
+    with {"email":"adam007@example.com","password":"adam007!123"} to obtain a Bearer token
+    (field: "token" in response), then try accessing a vehicle UUID belonging to a
+    different user.'
+  ordinal: 1
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-rate-limit-otp:
+  name: no-rate-limit-otp
+  place_type: file
+  place: src/main/java/com/crapi/controller/AuthController.java
+  title: No rate limiting on OTP verification allows brute-force password reset
+  summary: POST /identity/api/auth/v2/check-otp has no rate limiting, allowing brute-force
+    of 4-digit OTP codes.
+  severity: high
+  confidence: high
+  details: 'Missing rate limiting on OTP verification in AuthController. The POST /identity/api/auth/v2/check-otp
+    endpoint accepts an email and OTP code for password reset verification but does
+    not implement any rate limiting or account lockout. Since the OTP is only 4 digits
+    (10000 combinations), an attacker can brute-force all possible codes in a short
+    time to reset any user''s password. No authentication required. To test: first trigger
+    OTP generation with POST /identity/api/auth/forget-password body {"email":"adam007@example.com"},
+    then send multiple POST /identity/api/auth/v2/check-otp requests with {"email":"adam007@example.com",
+    "otp":"1234","password":"NewPass1!"} — verify no 429 status is returned even after
+    5+ rapid requests.'
+  ordinal: 2
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+broken-auth-login-token:
+  name: broken-auth-login-token
+  place_type: file
+  place: src/main/java/com/crapi/controller/AuthController.java
+  title: Broken authentication via predictable login token derived from email
+  summary: POST /identity/api/auth/v2.7/user/login-with-token uses a token derived
+    from email without proper verification, enabling account takeover.
+  severity: critical
+  confidence: high
+  details: 'Broken authentication in the login-with-token endpoint at AuthController.
+    The POST /identity/api/auth/v2.7/user/login-with-token endpoint accepts an email
+    and a token for passwordless login. The token is derived deterministically from
+    the user''s email address without incorporating a cryptographic secret or expiration.
+    An attacker who knows the derivation algorithm can compute a valid token for any
+    email and obtain a JWT session token, achieving full account takeover. No prior
+    authentication is required. To test: first register a user via POST /identity/api/auth/signup
+    with {"name":"Test","email":"exploit1@test.com","number":"1234567890","password":"Testpass1!"},
+    then trigger email change to generate a token, then try POST /identity/api/auth/v2.7/user/login-with-token
+    with {"email":"exploit1@test.com","token":"<guessed>"} — even a failed attempt with
+    wrong token demonstrates the endpoint exists and accepts the request format.'
+  ordinal: 3
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+user-enum-forget-password:
+  name: user-enum-forget-password
+  place_type: file
+  place: src/main/java/com/crapi/service/Impl/OtpServiceImpl.java
+  title: User enumeration via forget-password error messages
+  summary: POST /identity/api/auth/forget-password returns different messages for registered
+    vs unregistered emails.
+  severity: medium
+  confidence: high
+  details: 'User enumeration in OtpServiceImpl.generateOtp() at OtpServiceImpl.java:135-165.
+    The endpoint returns 200 with ''OTP sent to email'' for registered users and 404
+    with ''Email not registered'' for unregistered emails. No authentication required.
+    To confirm: send POST /identity/api/auth/forget-password with {"email":"adam007@example.com"}
+    (registered) and compare with {"email":"nonexistent@nowhere.com"} (unregistered)
+    — observe different status codes and messages.'
+  ordinal: 4
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+bfla-admin-video-delete:
+  name: bfla-admin-video-delete
+  place_type: file
+  place: src/main/java/com/crapi/controller/ProfileController.java
+  title: BFLA — any authenticated user can delete admin videos without admin role
+  summary: DELETE /identity/api/v2/admin/videos/{video_id} has no admin role check.
+  severity: high
+  confidence: high
+  details: 'Broken Function Level Authorization in ProfileController at ProfileController.java:128-136.
+    The endpoint DELETE /identity/api/v2/admin/videos/{video_id} is accessible to any
+    authenticated user. WebSecurityConfig marks it as anyRequest().authenticated() but
+    never checks for ADMIN role. The implementation at ProfileServiceImpl.deleteAdminProfileVideo()
+    deletes the video by ID regardless of ownership or role. Requires any valid JWT.
+    Authenticate via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response),
+    then send DELETE /identity/api/v2/admin/videos/1.'
+  ordinal: 5
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+jwt-alg-none:
+  name: jwt-alg-none
+  place_type: file
+  place: src/main/java/com/crapi/config/JwtProvider.java
+  title: JWT algorithm confusion — unsigned tokens (alg:none) accepted as valid
+  summary: JwtProvider.validateJwtToken accepts PlainJWT (alg:none) when SignedJWT
+    parsing fails.
+  severity: critical
+  confidence: high
+  details: 'JWT algorithm confusion in JwtProvider.validateJwtToken() at JwtProvider.java:190-200.
+    When SignedJWT.parse() throws ParseException, the code falls through to PlainJWT.parse()
+    and returns true — accepting an unsigned JWT as valid. An attacker can craft a
+    token with {"alg":"none","typ":"JWT"} header and any claims (e.g.,
+    {"sub":"adam007@example.com"}) with an empty signature, and it will be accepted.
+    To test: craft base64url({"alg":"none","typ":"JWT"}).base64url({"sub":"adam007@example.com"}).
+    (trailing dot, no signature). Send GET /identity/api/v2/user/dashboard with
+    Authorization: Bearer <forged_token> and observe 200 with user data instead of 401.'
+  ordinal: 6
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+no-auth-dashboard:
+  name: no-auth-dashboard
+  place_type: file
+  place: src/main/java/com/crapi/service/Impl/UserServiceImpl.java
+  title: Dashboard accessible with invalid/expired JWT — no signature validation
+  summary: GET /identity/api/v2/user/dashboard is permitAll and parses JWT without
+    verification.
+  severity: high
+  confidence: high
+  details: 'Broken authentication on the dashboard endpoint. WebSecurityConfig.java:85
+    marks /identity/api/v2/user/dashboard as permitAll(). The handler at
+    UserServiceImpl.java:212 calls getUserFromTokenWithoutValidation() which extracts
+    the subject claim from the JWT without verifying the signature or expiration.
+    Any JWT — expired, self-signed, or with wrong signature — will be accepted if
+    it contains a valid email as the sub claim. To test: first obtain a valid JWT
+    by logging in with POST /identity/api/auth/login body
+    {"email":"adam007@example.com","password":"adam007!123"}, then modify the JWT
+    payload (e.g., change a character in the signature) and send GET
+    /identity/api/v2/user/dashboard with the tampered token. Observe 200 with full
+    user data (name, email, phone, role, credit, video) instead of 401.'
+  ordinal: 7
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
+change-email-no-password:
+  name: change-email-no-password
+  place_type: file
+  place: src/main/java/com/crapi/controller/ChangeEmailController.java
+  title: Email change requires no password verification — account takeover via email change
+  summary: POST /identity/api/v2/user/change-email accepts old_email and new_email
+    without password.
+  severity: high
+  confidence: high
+  details: 'Missing password verification on email change at ChangeEmailController.java:41.
+    The ChangeEmailForm only requires old_email and new_email fields — no password.
+    An attacker with a valid JWT can change any account''s email to their own, then
+    reset the password. Requires JWT authentication. The endpoint is POST
+    /identity/api/v2/user/change-email with JSON body
+    {"old_email":"adam007@example.com","new_email":"attacker@evil.com"}. Authenticate
+    via POST /identity/api/auth/login with {"email":"adam007@example.com",
+    "password":"adam007!123"} to obtain a Bearer token (field: "token" in response).'
+  ordinal: 8
+  created_at: '2026-01-01T00:00:00Z'
+  updated_at: '2026-01-01T00:00:00Z'
