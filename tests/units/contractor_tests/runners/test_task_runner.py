@@ -509,3 +509,84 @@ class TestRunLifecycleEvents:
         ]
         assert len(finished) == 1
         assert finished[0].kwargs["ok"] is False
+
+
+# ─── Per-task event payloads (characterization) ──────────────────────────────
+
+
+def _capturing_runner(monkeypatch):
+    """A TaskRunner with I/O stubbed but a REAL _emit feeding a capture list,
+    so tests can assert the exact event sequence + payload fields."""
+    r = TaskRunner(name="test", artifact_service=MagicMock(spec=BaseArtifactService))
+    r.templates[("t", "v1")] = _make_template(default_iterations=1)
+    rendered = RenderedTask(
+        key="t", title="T", objective="", instructions="",
+        output_format="", format="json",
+    )
+    monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+    monkeypatch.setattr(r, "_render_task", MagicMock(return_value=rendered))
+    monkeypatch.setattr(r, "_publish_task_artifacts", AsyncMock())
+
+    events: list = []
+
+    async def on_event(ev):
+        events.append(ev)
+
+    r._on_event = on_event
+    return r, events
+
+
+class TestTaskEventPayloads:
+    @pytest.mark.asyncio
+    async def test_success_emits_started_iteration_finished(self, monkeypatch):
+        r, events = _capturing_runner(monkeypatch)
+        monkeypatch.setattr(
+            r, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", True, 1, task_id=1)),
+        )
+        inv = _make_invocation(iterations=1, max_attempts=1)
+
+        await r._run_task_with_retries(
+            item=inv, task_id=1, user_id="u", total_tasks=3,
+        )
+
+        assert [e.type for e in events] == [
+            EventType.TASK_STARTED,
+            EventType.ITERATION_RESULT,
+            EventType.TASK_FINISHED,
+        ]
+        # Common scoped fields must appear on every per-task event.
+        for e in events:
+            assert e.task_name == inv.ref
+            assert e.task_id == 1
+            assert e.payload["template_key"] == inv.template_key
+            assert e.payload["template_version"] == inv.template_version
+            assert e.payload["total_tasks"] == 3
+            assert e.payload["completed_tasks"] == 1
+        assert events[-1].payload["status"] == "done"
+        assert events[0].payload["task_title"] == "T"
+
+    @pytest.mark.asyncio
+    async def test_failure_emits_task_failed_after_attempts(self, monkeypatch):
+        r, events = _capturing_runner(monkeypatch)
+        monkeypatch.setattr(
+            r, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", False, 1, task_id=1)),
+        )
+        inv = _make_invocation(iterations=1, max_attempts=2)
+
+        with pytest.raises(TaskNotCompletedError):
+            await r._run_task_with_retries(
+                item=inv, task_id=1, user_id="u", total_tasks=1,
+            )
+
+        assert [e.type for e in events] == [
+            EventType.TASK_STARTED,
+            EventType.ITERATION_RESULT,
+            EventType.ITERATION_RESULT,
+            EventType.TASK_FAILED,
+        ]
+        failed = events[-1]
+        assert failed.payload["max_attempts"] == 2
+        assert failed.payload["template_version"] == inv.template_version
+        assert failed.payload["total_tasks"] == 1

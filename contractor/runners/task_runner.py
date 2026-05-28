@@ -745,20 +745,28 @@ class TaskRunner(BaseModel):
             input_artifacts,
         )
 
-        await self._emit(
+        # Every per-task event carries the same six scoping fields. Bind them
+        # once so each call site lists only its event-specific payload.
+        async def emit(event_type: EventType, **extra: Any) -> None:
+            await self._emit(
+                event_type,
+                task_name=item.ref,
+                task_id=task_id,
+                template_key=item.template_key,
+                template_version=item.template_version,
+                total_tasks=total_tasks,
+                completed_tasks=task_id,
+                **extra,
+            )
+
+        await emit(
             EventType.TASK_STARTED,
-            task_name=item.ref,
-            task_id=task_id,
-            template_key=item.template_key,
-            template_version=item.template_version,
             task_title=template.title,
             iterations=item.iterations,
             max_attempts=item.max_attempts,
             params=item.params,
             artifacts=item.artifacts,
             published_artifacts=artifact_names_for_key(template.key),
-            total_tasks=total_tasks,
-            completed_tasks=task_id,
         )
 
         carry_state: dict[str, Any] = {}
@@ -781,10 +789,8 @@ class TaskRunner(BaseModel):
 
             next_successful_runs = successful_runs + (1 if completed else 0)
 
-            await self._emit(
+            await emit(
                 EventType.ITERATION_RESULT,
-                task_name=item.ref,
-                task_id=task_id,
                 iteration=iteration,
                 session_id=result.session_id,
                 status=result.status,
@@ -794,10 +800,6 @@ class TaskRunner(BaseModel):
                 iterations_required=item.iterations,
                 max_attempts=item.max_attempts,
                 successful_runs=next_successful_runs,
-                total_tasks=total_tasks,
-                completed_tasks=task_id,
-                template_key=item.template_key,
-                template_version=item.template_version,
             )
 
             if completed:
@@ -805,35 +807,23 @@ class TaskRunner(BaseModel):
                 await self._publish_task_artifacts(user_id, template.key, result)
 
                 if successful_runs >= item.iterations:
-                    await self._emit(
+                    await emit(
                         EventType.TASK_FINISHED,
-                        task_name=item.ref,
-                        task_id=task_id,
-                        template_key=item.template_key,
-                        template_version=item.template_version,
                         session_id=result.session_id,
                         status=result.status,
                         result=result.result,
                         summary=result.summary,
                         records=result.records,
                         published_artifacts=result.published_artifacts,
-                        total_tasks=total_tasks,
-                        completed_tasks=task_id,
                     )
                     return result
 
             carry_state = result.carry_state
 
-        await self._emit(
+        await emit(
             EventType.TASK_FAILED,
-            task_name=item.ref,
-            task_id=task_id,
-            template_key=item.template_key,
-            template_version=item.template_version,
             max_attempts=item.max_attempts,
             last_result=last_result,
-            total_tasks=total_tasks,
-            completed_tasks=task_id,
         )
 
         raise TaskNotCompletedError(
