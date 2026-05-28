@@ -938,6 +938,10 @@ class TestCodeToolsFactory:
         result_page = list_syms(offset=0, limit=1)
         assert len(result_page["result"]) == min(1, total)
         assert result_page["total_items"] == total
+        # honest truncation flag reflects whether the page is the whole set
+        assert result_page["returned"] == len(result_page["result"])
+        assert result_page["truncated"] == (total > result_page["returned"])
+        assert result_all["truncated"] is False
 
     def test_list_symbols_offset(self):
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})

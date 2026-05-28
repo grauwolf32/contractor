@@ -36,23 +36,33 @@ def ok(result: Any = None, **meta: Any) -> dict[str, Any]:
     return {"result": result, **meta}
 
 
-def ok_page(items: list[Any], total: int, **meta: Any) -> dict[str, Any]:
+def ok_page(
+    items: Any,
+    total: int,
+    *,
+    returned: int | None = None,
+    **meta: Any,
+) -> dict[str, Any]:
     """Build a success envelope for a (possibly truncated) list page.
 
     Use this for any tool that caps, slices, or paginates a result list — it
     makes truncation *honest* so the model never mistakes a capped page for
     the whole set:
 
-    - ``items``: the rows actually returned (already capped/sliced).
-    - ``total``: the TRUE number of matches available — NOT ``len(items)``.
+    - ``items``: what goes under ``result`` — the page actually returned.
+    - ``total``: the TRUE number of matches available — NOT the page length.
       Reporting the capped count here is the dishonest-truncation bug this
       helper exists to prevent.
+    - ``returned``: the page's item count. Defaults to ``len(items)``; pass it
+      explicitly when ``items`` is a formatted value (e.g. a markdown/XML
+      string) whose length is not the row count.
 
-    Adds ``returned`` (len of the page) and ``truncated`` (``total`` exceeds
-    what was returned) so a caller can tell "this is everything" from "there
-    is more — narrow the query or page further".
+    Adds ``returned`` and ``truncated`` (``total`` exceeds what was returned)
+    so a caller can tell "this is everything" from "there is more — narrow the
+    query or page further".
     """
-    returned = len(items)
+    if returned is None:
+        returned = len(items)
     return {
         "result": items,
         "total_items": total,

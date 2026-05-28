@@ -15,7 +15,7 @@ from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
                                         InteractionFilter, InteractionKind)
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
 from contractor.tools.fs.validation import PathValidationMixin
-from contractor.tools.result import guard
+from contractor.tools.result import guard, ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
@@ -279,12 +279,9 @@ class FsspecInteractionFileTools(PathValidationMixin):
         normalized_pattern = norm_unicode(pattern)
 
         if normalized_pattern is None:
-            return {
-                "result": [],
-                "offset": offset,
-                "total_items": 0,
-                "limit": self.max_items,
-            }
+            return ok_page(
+                [], 0, returned=0, offset=offset, limit=self.max_items
+            )
 
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -318,12 +315,13 @@ class FsspecInteractionFileTools(PathValidationMixin):
         total = len(entries)
         paged = entries[offset : offset + self.max_items]
 
-        return {
-            "result": self.fmt.format_file_list(paged),
-            "offset": offset,
-            "total_items": total,
-            "limit": self.max_items,
-        }
+        return ok_page(
+            self.fmt.format_file_list(paged),
+            total,
+            returned=len(paged),
+            offset=offset,
+            limit=self.max_items,
+        )
 
     def read_file(
         self,
@@ -426,12 +424,13 @@ class FsspecInteractionFileTools(PathValidationMixin):
             total = len(entries)
             paged = entries[offset : offset + self.max_items]
 
-            return {
-                "result": self.fmt.format_file_list(paged),
-                "offset": offset,
-                "total_items": total,
-                "limit": self.max_items,
-            }
+            return ok_page(
+                self.fmt.format_file_list(paged),
+                total,
+                returned=len(paged),
+                offset=offset,
+                limit=self.max_items,
+            )
 
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
@@ -443,12 +442,13 @@ class FsspecInteractionFileTools(PathValidationMixin):
         total = len(results)
         paged = results[offset : offset + self.max_items]
 
-        return {
-            "result": self.fmt.format_file_list(paged),
-            "offset": offset,
-            "total_items": total,
-            "limit": self.max_items,
-        }
+        return ok_page(
+            self.fmt.format_file_list(paged),
+            total,
+            returned=len(paged),
+            offset=offset,
+            limit=self.max_items,
+        )
 
     def interaction_stats(
         self,
@@ -506,13 +506,14 @@ class FsspecInteractionFileTools(PathValidationMixin):
             selected, offset=offset, limit=limit
         )
 
-        return {
-            "result": [self._serialize_interaction_entry(p) for p in page],
-            "offset": resolved_offset,
-            "total_items": len(selected),
-            "limit": resolved_limit,
-            "interaction": interaction.value,
-        }
+        return ok_page(
+            [self._serialize_interaction_entry(p) for p in page],
+            len(selected),
+            returned=len(page),
+            offset=resolved_offset,
+            limit=resolved_limit,
+            interaction=interaction.value,
+        )
 
     def touched_files(
         self,
@@ -550,12 +551,13 @@ class FsspecInteractionFileTools(PathValidationMixin):
             selected, offset=offset, limit=limit
         )
 
-        return {
-            "result": [{"path": p} for p in page],
-            "offset": resolved_offset,
-            "total_items": len(selected),
-            "limit": resolved_limit,
-        }
+        return ok_page(
+            [{"path": p} for p in page],
+            len(selected),
+            returned=len(page),
+            offset=resolved_offset,
+            limit=resolved_limit,
+        )
 
 
 def ro_file_tools(

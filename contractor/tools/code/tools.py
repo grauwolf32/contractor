@@ -11,6 +11,7 @@ from fsspec import AbstractFileSystem
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_parser
 
+from contractor.tools.result import ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
@@ -1134,8 +1135,8 @@ def code_tools(
         total = len(symbols)
         resolved_limit = limit if limit is not None else 300
         page = symbols[offset : offset + resolved_limit]
-        return {
-            "result": [
+        return ok_page(
+            [
                 {
                     "name": s.name,
                     "file": s.file,
@@ -1146,9 +1147,9 @@ def code_tools(
                 }
                 for s in page
             ],
-            "offset": offset,
-            "total_items": total,
-            "limit": resolved_limit,
-        }
+            total,
+            offset=offset,
+            limit=resolved_limit,
+        )
 
     return [search_def, list_symbols]
