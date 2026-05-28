@@ -22,6 +22,9 @@ from fsspec.implementations.memory import MemoryFileSystem
 
 from contractor.tools.code.graph import code_graph_tools
 from contractor.tools.code.tools import code_tools
+from contractor.tools.fs.format import FileFormat
+from contractor.tools.fs.read_tools import ro_file_tools
+from contractor.tools.fs.write_tools import rw_file_tools
 from contractor.tools.result import err, guard, is_envelope, ok
 
 # Params ADK injects itself and strips from the model-facing declaration.
@@ -33,6 +36,8 @@ def _build_registries(tmp_path):
     return [
         ("code_graph", code_graph_tools(tmp_path)),
         ("code", code_tools(MemoryFileSystem())),
+        ("fs_ro", ro_file_tools(MemoryFileSystem(), FileFormat(_format="json"))),
+        ("fs_rw", rw_file_tools(MemoryFileSystem(), wrap_overlay=False)),
     ]
 
 

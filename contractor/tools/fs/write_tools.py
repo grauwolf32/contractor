@@ -16,6 +16,7 @@ from contractor.tools.fs.utils import (_ensure_int_or_none,
                                        _line_ending_for_text, _is_ignored,
                                        _parse_bool, _split_lines_keepends)
 from contractor.tools.fs.validation import PathValidationMixin
+from contractor.tools.result import guard
 
 
 class FsspecWriteTools(PathValidationMixin):
@@ -824,7 +825,7 @@ def rw_file_tools(
         Returns the directory entries, or an error if the path does not exist
         or is not a directory.
         """
-        return tools.ls(path=path)
+        return guard(lambda: tools.ls(path=path))
 
     def glob(
         pattern: str,
@@ -837,8 +838,8 @@ def rw_file_tools(
         Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
         Absolute patterns are matched as-is and post-filtered by ``path``.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        return tools.glob(pattern=pattern, path=path, offset=offset)
+        off = _ensure_int_or_none(offset) or 0
+        return guard(lambda: tools.glob(pattern=pattern, path=path, offset=off))
 
     def read_file(
         file: str,
@@ -878,16 +879,17 @@ def rw_file_tools(
             - Use raw text (without numbers) for edit.old_string
         """
 
-        offset = _ensure_int_or_none(offset)
-        limit = _ensure_int_or_none(limit)
-        result = tools.read_file(
-            file_path=file,
-            offset=offset,
-            limit=limit,
-            with_line_numbers=bool(with_line_numbers),
-        )
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+        def _impl() -> dict[str, Any]:
+            result = tools.read_file(
+                file_path=file,
+                offset=_ensure_int_or_none(offset),
+                limit=_ensure_int_or_none(limit),
+                with_line_numbers=bool(with_line_numbers),
+            )
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def grep(
         pattern: str,
@@ -901,10 +903,14 @@ def rw_file_tools(
         Usage:
          - be more specific, avoid too general patterns like .*
         """
-        offset = _ensure_int_or_none(offset) or 0
-        result = tools.grep(pattern=pattern, path=path, offset=offset)
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            off = _ensure_int_or_none(offset) or 0
+            result = tools.grep(pattern=pattern, path=path, offset=off)
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def write_file(
         path: str,
@@ -926,7 +932,9 @@ def rw_file_tools(
         Returns confirmation of the write, or an error if the path is invalid
         or escapes the sandbox.
         """
-        return tools.write_file(path=path, content=content, encoding=encoding)
+        return guard(
+            lambda: tools.write_file(path=path, content=content, encoding=encoding)
+        )
 
     def append_file(
         path: str,
@@ -945,7 +953,9 @@ def rw_file_tools(
 
         Returns confirmation of the append, or an error if the path is invalid.
         """
-        return tools.append_file(path=path, content=content, encoding=encoding)
+        return guard(
+            lambda: tools.append_file(path=path, content=content, encoding=encoding)
+        )
 
     def mkdir(
         path: str,
@@ -965,10 +975,12 @@ def rw_file_tools(
         Returns confirmation of the created directory, or an error if the
         path is invalid.
         """
-        return tools.mkdir(
-            path=path,
-            create_parents=_parse_bool(create_parents, True),
-            exist_ok=_parse_bool(exist_ok, True),
+        return guard(
+            lambda: tools.mkdir(
+                path=path,
+                create_parents=_parse_bool(create_parents, True),
+                exist_ok=_parse_bool(exist_ok, True),
+            )
         )
 
     def rm(
@@ -986,7 +998,9 @@ def rw_file_tools(
         Returns confirmation of the removal, or an error if the path does not
         exist or a non-empty directory is removed without recursive=True.
         """
-        return tools.rm(path=path, recursive=_parse_bool(recursive, False))
+        return guard(
+            lambda: tools.rm(path=path, recursive=_parse_bool(recursive, False))
+        )
 
     def cp(
         src: str,
@@ -1004,7 +1018,9 @@ def rw_file_tools(
         Returns confirmation of the copy, or an error if the source is missing
         or a directory is copied without recursive=True.
         """
-        return tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        return guard(
+            lambda: tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        )
 
     def mv(
         src: str,
@@ -1022,7 +1038,9 @@ def rw_file_tools(
         Returns confirmation of the move, or an error if the source is missing
         or a directory is moved without recursive=True.
         """
-        return tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        return guard(
+            lambda: tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        )
 
     def insert_line(
         path: str,
@@ -1051,12 +1069,14 @@ def rw_file_tools(
         changed), or an error if the anchor is not found or the path is
         invalid.
         """
-        return tools.insert_line(
-            path=path,
-            content=content,
-            anchor=anchor,
-            where=where,
-            occurrence=int(occurrence),
+        return guard(
+            lambda: tools.insert_line(
+                path=path,
+                content=content,
+                anchor=anchor,
+                where=where,
+                occurrence=int(occurrence),
+            )
         )
 
     def replace_range(
@@ -1120,12 +1140,14 @@ def rw_file_tools(
 
         This tool is best used as a fallback when text-based matching is not reliable.
         """
-        return tools.replace_range(
-            path=path,
-            start_line=int(start_line),
-            end_line=int(end_line),
-            content=content,
-            preserve_trailing_newline=_parse_bool(preserve_trailing_newline, True),
+        return guard(
+            lambda: tools.replace_range(
+                path=path,
+                start_line=int(start_line),
+                end_line=int(end_line),
+                content=content,
+                preserve_trailing_newline=_parse_bool(preserve_trailing_newline, True),
+            )
         )
 
     def edit(
@@ -1202,12 +1224,14 @@ def rw_file_tools(
 
         This tool is robust to file changes and should be used for most edits.
         """
-        return tools.edit(
-            path=path,
-            old_string=old_string,
-            new_string=new_string,
-            replace_all=_parse_bool(replace_all, False),
-            encoding=encoding,
+        return guard(
+            lambda: tools.edit(
+                path=path,
+                old_string=old_string,
+                new_string=new_string,
+                replace_all=_parse_bool(replace_all, False),
+                encoding=encoding,
+            )
         )
 
     def interaction_stats(
@@ -1217,7 +1241,7 @@ def rw_file_tools(
         """
         Summarize overlay-visible filesystem interaction progress.
         """
-        return tools.interaction_stats(path=path, pattern=pattern)
+        return guard(lambda: tools.interaction_stats(path=path, pattern=pattern))
 
     def list_touched_files(
         path: str = "/",
@@ -1228,13 +1252,15 @@ def rw_file_tools(
         """
         List files that had at least one recorded interaction.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.touched_files(
-            path=path,
-            pattern=pattern,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.touched_files(
+                path=path,
+                pattern=pattern,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def list_untouched_files(
@@ -1246,13 +1272,15 @@ def rw_file_tools(
         """
         List files that have not been read and did not match grep().
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(
-            path=path,
-            pattern=pattern,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.untouched_files(
+                path=path,
+                pattern=pattern,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def restore(
@@ -1272,7 +1300,9 @@ def rw_file_tools(
         Returns confirmation of the restore, or an error if the path is
         invalid.
         """
-        return tools.restore(path=path, recursive=_parse_bool(recursive, True))
+        return guard(
+            lambda: tools.restore(path=path, recursive=_parse_bool(recursive, True))
+        )
 
     def changed_paths() -> dict[str, Any]:
         """
@@ -1284,7 +1314,7 @@ def rw_file_tools(
             Files whose overlay content matches the base content are not
             reported as modified.
         """
-        return tools.changed_paths()
+        return guard(lambda: tools.changed_paths())
 
     def diff(
         root: str = "/",
@@ -1300,9 +1330,11 @@ def rw_file_tools(
         Output may be truncated when very large; the truncation marker
         notes how many lines were dropped.
         """
-        return tools.diff(
-            root=root,
-            context_lines=_ensure_int_or_none(context_lines) or 0,
+        return guard(
+            lambda: tools.diff(
+                root=root,
+                context_lines=_ensure_int_or_none(context_lines) or 0,
+            )
         )
 
     def list_match_only_files(
@@ -1314,21 +1346,23 @@ def rw_file_tools(
         """
         List files that were matched but never read.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.files_with_interactions(
-            path=path,
-            pattern=pattern,
-            interaction=InteractionFilter.MATCH_ONLY,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.files_with_interactions(
+                path=path,
+                pattern=pattern,
+                interaction=InteractionFilter.MATCH_ONLY,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def reset_interaction_tracking() -> dict[str, Any]:
         """
         Reset interaction tracking for the overlay-visible read tools.
         """
-        return tools.reset_interactions()
+        return guard(lambda: tools.reset_interactions())
 
     registry = [
         ls,

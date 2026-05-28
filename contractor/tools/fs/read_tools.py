@@ -15,6 +15,7 @@ from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
                                         InteractionFilter, InteractionKind)
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
 from contractor.tools.fs.validation import PathValidationMixin
+from contractor.tools.result import guard
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
@@ -588,7 +589,7 @@ def ro_file_tools(
         Returns the directory entries, or an error if the path does not exist
         or is not a directory.
         """
-        return tools.ls(path=path)
+        return guard(lambda: tools.ls(path=path))
 
     def glob(
         pattern: str,
@@ -601,8 +602,8 @@ def ro_file_tools(
         Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
         Absolute patterns are matched as-is and post-filtered by ``path``.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        return tools.glob(pattern=pattern, path=path, offset=offset)
+        off = _ensure_int_or_none(offset) or 0
+        return guard(lambda: tools.glob(pattern=pattern, path=path, offset=off))
 
     def read_file(
         file: str,
@@ -623,16 +624,18 @@ def ro_file_tools(
                 its 1-based line number (e.g. ``10 | def hello():``). Line
                 numbers are NOT part of the file content.
         """
-        offset = _ensure_int_or_none(offset)
-        limit = _ensure_int_or_none(limit)
-        result = tools.read_file(
-            file_path=file,
-            offset=offset,
-            limit=limit,
-            with_line_numbers=bool(with_line_numbers),
-        )
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            result = tools.read_file(
+                file_path=file,
+                offset=_ensure_int_or_none(offset),
+                limit=_ensure_int_or_none(limit),
+                with_line_numbers=bool(with_line_numbers),
+            )
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def grep(
         pattern: str,
@@ -646,10 +649,14 @@ def ro_file_tools(
         Usage:
          - be more specific, avoid too general patterns like .*
         """
-        offset = _ensure_int_or_none(offset) or 0
-        result = tools.grep(pattern=pattern, path=path, offset=offset)
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            off = _ensure_int_or_none(offset) or 0
+            result = tools.grep(pattern=pattern, path=path, offset=off)
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def interaction_stats(
         path: str = "/",
@@ -662,7 +669,7 @@ def ro_file_tools(
             - "touched" means the file was either read or matched by grep()
             - "untouched" means the file had no recorded interaction
         """
-        return tools.interaction_stats(path=path, pattern=pattern)
+        return guard(lambda: tools.interaction_stats(path=path, pattern=pattern))
 
     def list_touched_files(
         path: str = "/",
@@ -683,10 +690,12 @@ def ro_file_tools(
         Returns the matching files (paginated), or an error if the path is
         invalid.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.touched_files(
-            path=path, pattern=pattern, offset=offset, limit=limit
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.touched_files(
+                path=path, pattern=pattern, offset=off, limit=lim
+            )
         )
 
     def list_untouched_files(
@@ -708,10 +717,12 @@ def ro_file_tools(
         Returns the matching files (paginated), or an error if the path is
         invalid.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(
-            path=path, pattern=pattern, offset=offset, limit=limit
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.untouched_files(
+                path=path, pattern=pattern, offset=off, limit=lim
+            )
         )
 
     def list_match_only_files(
@@ -758,23 +769,29 @@ def ro_file_tools(
             - Equivalent to InteractionFilter.MATCH_ONLY
             - Files never seen (no grep, no read) are NOT included
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
 
-        return tools.files_with_interactions(
-            path=path,
-            pattern=pattern,
-            interaction=InteractionFilter.MATCH_ONLY,
-            offset=offset,
-            limit=limit,
+        return guard(
+            lambda: tools.files_with_interactions(
+                path=path,
+                pattern=pattern,
+                interaction=InteractionFilter.MATCH_ONLY,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def reset_interaction_tracking() -> dict[str, Any]:
         """
         Reset interaction tracking.
         """
-        tools.reset_interactions()
-        return {"result": "ok"}
+
+        def _impl() -> dict[str, Any]:
+            tools.reset_interactions()
+            return {"result": "ok"}
+
+        return guard(_impl)
 
     registry = [ls, glob, read_file, grep]
 
