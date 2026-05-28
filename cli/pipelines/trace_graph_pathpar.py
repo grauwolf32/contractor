@@ -88,7 +88,7 @@ class TraceGraphPathParPipeline(Pipeline):
         if not raw:
             raise ValueError("No OpenAPI artifact found")
 
-        openapi = yaml.safe_load(raw.text)
+        openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
         # Resume: load existing overlay state if present.
@@ -98,7 +98,7 @@ class TraceGraphPathParPipeline(Pipeline):
             filename=f"trace-{self.namespace}-fs",
         )
         if fs_state_artifact:
-            self.overlayfs.load(json.loads(fs_state_artifact.text))
+            self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
 
         # Build graph tools once — trailmark parses the base FS (read-only),
         # so the tool closures are safe to share across parallel forks.

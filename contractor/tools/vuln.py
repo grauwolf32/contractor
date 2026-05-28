@@ -303,7 +303,7 @@ class VulnerabilityReportTools:
                 self.reports = {}
                 return
 
-            raw: dict[str, Any] = yaml.safe_load(artifact.text) or {}
+            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
             self.reports = {
                 report.name: report
                 for index, (name, item) in enumerate(raw.items(), start=1)
@@ -708,7 +708,7 @@ class VerifiedFindingsTools:
             if artifact is None:
                 self.findings = {}
                 return
-            raw: dict[str, Any] = yaml.safe_load(artifact.text) or {}
+            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
             self.findings = {
                 f.name: f
                 for name, item in raw.items()

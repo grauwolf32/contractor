@@ -185,7 +185,7 @@ class VulnScanTracePipeline(Pipeline):
             return []
 
         try:
-            raw = yaml.safe_load(part.text) or {}
+            raw = yaml.safe_load(part.text or "") or {}
         except yaml.YAMLError as exc:
             logger.warning("could not parse scan results: %s", exc)
             return []

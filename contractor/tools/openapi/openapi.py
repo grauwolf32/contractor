@@ -113,7 +113,7 @@ class OpenApiArtifact:
             self.schema = copy.deepcopy(openapi_base_schema)
             return self.schema
 
-        self.schema = yaml.safe_load(artifact.text)
+        self.schema = yaml.safe_load(artifact.text or "")
         return self.schema
 
     async def save_schema(self, ctx: ToolContext) -> int:

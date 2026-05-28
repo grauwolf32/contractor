@@ -308,7 +308,7 @@ class MemoryTools:
         )
         raw: dict[str, Any] = {}
         if artifact is not None:
-            raw = yaml.safe_load(artifact.text) or {}
+            raw = yaml.safe_load(artifact.text or "") or {}
 
         next_ordinal = 1
         if raw:
@@ -358,7 +358,7 @@ class MemoryTools:
                 self.notes = {}
                 return
 
-            raw = yaml.safe_load(artifact.text) or {}
+            raw = yaml.safe_load(artifact.text or "") or {}
             notes: dict[str, MemoryNote] = {}
             for index, (name, item) in enumerate(raw.items(), start=1):
                 if not isinstance(item, dict):

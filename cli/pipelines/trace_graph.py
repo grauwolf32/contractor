@@ -79,7 +79,7 @@ class TraceGraphPipeline(Pipeline):
         if not raw:
             raise ValueError("No OpenAPI artifact found")
 
-        openapi = yaml.safe_load(raw.text)
+        openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
         for api_path in self.paths:
@@ -89,7 +89,7 @@ class TraceGraphPipeline(Pipeline):
                 filename=f"trace-{self.namespace}-fs",
             )
             if fs_state_artifact:
-                self.overlayfs.load(json.loads(fs_state_artifact.text))
+                self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
 
             await self._run_path_analysis(
                 api_path,

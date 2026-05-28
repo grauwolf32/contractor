@@ -122,7 +122,7 @@ class TraceAnnotationPipeline(Pipeline):
         if not raw:
             raise ValueError("No OpenAPI artifact found")
 
-        openapi = yaml.safe_load(raw.text)
+        openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
         fs_state_artifact = await ctx.artifact_service.load_artifact(
@@ -131,7 +131,7 @@ class TraceAnnotationPipeline(Pipeline):
             filename=f"trace-{self.namespace}-fs",
         )
         if fs_state_artifact:
-            self.overlayfs.load(json.loads(fs_state_artifact.text))
+            self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
         self._overlay_seeded = True
 
         for api_path in self.paths:

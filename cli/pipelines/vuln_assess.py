@@ -271,7 +271,7 @@ class VulnAssessPipeline(Pipeline):
             if not oas_part:
                 continue
             try:
-                openapi = yaml.safe_load(oas_part.text) or {}
+                openapi = yaml.safe_load(oas_part.text or "") or {}
             except yaml.YAMLError:
                 continue
             paths = extract_openapi_paths(openapi=openapi)
