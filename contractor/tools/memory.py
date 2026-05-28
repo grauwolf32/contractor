@@ -11,6 +11,7 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
 
 # Passthrough type for _type_hint: non-str payloads return unchanged, a str may
@@ -575,8 +576,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Ensure the description adds context, not just repetition of the name.
             - The tags "skill" and "inbox" are reserved for system use.
         """
-        await m.write_memory(name, memory, description, tags, tool_context)
-        return {"result": "ok"}
+
+        async def _impl() -> Any:
+            await m.write_memory(name, memory, description, tags, tool_context)
+            return "ok"
+
+        return await aguard(_impl)
 
     async def append_memory(
         name: str,
@@ -593,11 +598,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             name: The name of the memory to append to.
             text: The text to append to the memory.
         """
-        memory = await m.append_memory(name, text, tool_context)
-        if memory is None:
-            return {"error": f"memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.append_memory(name, text, tool_context)
+            if memory is None:
+                return err(f"memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     async def read_memory(
         name: str,
@@ -620,11 +628,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Behavior:
             - Prefer skills_read or inbox_read when the memory must belong to a specific category.
         """
-        memory = await m.read_memory(name, tool_context)
-        if memory is None:
-            return {"error": f"memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.read_memory(name, tool_context)
+            if memory is None:
+                return err(f"memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     async def search_memory(
         tags: list[str],
@@ -644,8 +655,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A preview list of matching memories.
         """
-        memories = await m.search_memory(tags, tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.search_memory(tags, tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def list_tags(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -654,8 +669,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A list of all tags.
         """
-        tags = await m.list_tags(tool_context)
-        return {"result": m.fmt.format_tags(tags)}
+
+        async def _impl() -> Any:
+            tags = await m.list_tags(tool_context)
+            return m.fmt.format_tags(tags)
+
+        return await aguard(_impl)
 
     async def list_memories(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -668,8 +687,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A preview list of all memories.
         """
-        memories = await m.list_memories(tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.list_memories(tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def skills_list(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -687,8 +710,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this to discover what reusable capabilities the agent has available.
             - Skills should be durable, explicit, and reusable across tasks.
         """
-        memories = await m.memories_by_tag("skill", tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.memories_by_tag("skill", tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def skills_read(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -711,20 +738,19 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Skills should contain actionable guidance, not just descriptive notes.
         """
 
-        memory = await m.read_memory_by_tag(name, "skill", tool_context)
-        if memory is None:
-            skill_memories = await m.memories_by_tag("skill", tool_context)
-            memory = _resolve_skill_reference(name, skill_memories)
-        if memory is None:
-            available = [
-                s.name for s in await m.memories_by_tag("skill", tool_context)
-            ]
-            return {
-                "error": f"skill memory {name!r} not found",
-                "available": available,
-            }
+        async def _impl() -> Any:
+            memory = await m.read_memory_by_tag(name, "skill", tool_context)
+            if memory is None:
+                skill_memories = await m.memories_by_tag("skill", tool_context)
+                memory = _resolve_skill_reference(name, skill_memories)
+            if memory is None:
+                available = [
+                    s.name for s in await m.memories_by_tag("skill", tool_context)
+                ]
+                return err(f"skill memory {name!r} not found", available=available)
+            return m.fmt.format_memory(memory)
 
-        return {"result": m.fmt.format_memory(memory)}
+        return await aguard(_impl)
 
     async def inbox_list(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -742,8 +768,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this to review captured incoming information.
             - Inbox is a triage view, not a store for reusable procedures.
         """
-        memories = await m.memories_by_tag("inbox", tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.memories_by_tag("inbox", tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def inbox_read(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -760,11 +790,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this when reviewing a specific incoming message or captured information item.
             - Inbox items may later be promoted into general memory or transformed into skills if appropriate.
         """
-        memory = await m.read_memory_by_tag(name, "inbox", tool_context)
-        if memory is None:
-            return {"error": f"inbox memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.read_memory_by_tag(name, "inbox", tool_context)
+            if memory is None:
+                return err(f"inbox memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     registry = [
         append_memory,

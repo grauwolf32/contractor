@@ -22,9 +22,10 @@ to the envelope.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any, Callable
 
-__all__ = ["ok", "err", "ok_page", "guard", "is_envelope"]
+__all__ = ["ok", "err", "ok_page", "guard", "aguard", "is_envelope"]
 
 
 def ok(result: Any = None, **meta: Any) -> dict[str, Any]:
@@ -100,6 +101,25 @@ def guard(thunk: Callable[[], Any]) -> dict[str, Any]:
     """
     try:
         out = thunk()
+    except Exception as exc:  # noqa: BLE001 - deliberate: any fault -> error envelope
+        return err(str(exc))
+    if is_envelope(out):
+        return out
+    return ok(out)
+
+
+async def aguard(thunk: Callable[[], Any]) -> dict[str, Any]:
+    """Async counterpart of :func:`guard` for ``async`` tool bodies.
+
+    Same contract as ``guard``, but awaits the thunk's result when it is a
+    coroutine — so ``return await aguard(lambda: backend(...))`` works whether
+    the backend call is sync or async. Use this from an ``async def`` frontend
+    tool; the plain ``guard`` would wrap the coroutine object without awaiting.
+    """
+    try:
+        out = thunk()
+        if inspect.isawaitable(out):
+            out = await out
     except Exception as exc:  # noqa: BLE001 - deliberate: any fault -> error envelope
         return err(str(exc))
     if is_envelope(out):

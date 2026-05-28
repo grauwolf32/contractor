@@ -25,6 +25,8 @@ from contractor.tools.code.tools import code_tools
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.read_tools import ro_file_tools
 from contractor.tools.fs.write_tools import rw_file_tools
+from contractor.tools.http import http_tools
+from contractor.tools.memory import memory_tools
 from contractor.tools.result import err, guard, is_envelope, ok, ok_page
 
 # Params ADK injects itself and strips from the model-facing declaration.
@@ -38,6 +40,8 @@ def _build_registries(tmp_path):
         ("code", code_tools(MemoryFileSystem())),
         ("fs_ro", ro_file_tools(MemoryFileSystem(), FileFormat(_format="json"))),
         ("fs_rw", rw_file_tools(MemoryFileSystem(), wrap_overlay=False)),
+        ("http", http_tools("contract-test")),
+        ("memory", memory_tools("contract-test")),
     ]
 
 
