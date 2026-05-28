@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from contractor.tools.result import guard, ok
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LANGUAGE = "auto"
@@ -264,7 +266,7 @@ def code_graph_tools(
         Returns counts of nodes, edges, and detected entrypoints plus
         dependency info, wrapped under "result".
         """
-        return {"result": holder.engine().summary(), "kind": "graph_summary"}
+        return guard(lambda: ok(holder.engine().summary(), kind="graph_summary"))
 
     def find_symbol(symbol: str) -> dict[str, Any]:
         """
@@ -279,29 +281,29 @@ def code_graph_tools(
         Returns the matching nodes; an empty list means the name is not in the
         graph.
         """
-        graph = holder.graph()
-        sym = str(symbol)
-        bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
-        matches: list[dict[str, Any]] = []
-        for node_id, unit in graph.nodes.items():
-            if (
-                node_id == sym
-                or unit.name == sym
-                or unit.name == bare
-                or unit.name.lower() == bare.lower()
-            ):
-                from dataclasses import asdict
 
-                d = asdict(unit)
-                d["kind"] = unit.kind.value
-                matches.append(_slim_unit(d, path_resolver=path_resolver))
-            if len(matches) >= 50:
-                break
-        return {
-            "result": matches,
-            "total_items": len(matches),
-            "kind": "find_symbol",
-        }
+        def _impl() -> dict[str, Any]:
+            graph = holder.graph()
+            sym = str(symbol)
+            bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
+            matches: list[dict[str, Any]] = []
+            for node_id, unit in graph.nodes.items():
+                if (
+                    node_id == sym
+                    or unit.name == sym
+                    or unit.name == bare
+                    or unit.name.lower() == bare.lower()
+                ):
+                    from dataclasses import asdict
+
+                    d = asdict(unit)
+                    d["kind"] = unit.kind.value
+                    matches.append(_slim_unit(d, path_resolver=path_resolver))
+                if len(matches) >= 50:
+                    break
+            return ok(matches, total_items=len(matches), kind="find_symbol")
+
+        return guard(_impl)
 
     def _resolve_id(symbol: str) -> Optional[str]:
         graph = holder.graph()
@@ -330,41 +332,45 @@ def code_graph_tools(
         graph; an empty list without a note means the symbol exists but has no
         known callers.
         """
-        node_id = _resolve_id(symbol)
-        graph = holder.graph()
-        if node_id is None:
-            return {
-                "result": [],
-                "total_items": 0,
-                "kind": "callers",
-                "note": f"symbol '{symbol}' not found in graph",
-            }
-        unit = graph.nodes[node_id]
-        bare = unit.name
-        rows: list[dict[str, Any]] = []
-        from dataclasses import asdict
 
-        for edge in graph.edges:
-            if edge.kind.value != "calls":
-                continue
-            tgt = edge.target_id
-            if tgt == node_id or tgt.endswith("." + bare) or tgt.endswith(":" + bare):
-                src_unit = graph.nodes.get(edge.source_id)
-                if src_unit is None:
+        def _impl() -> dict[str, Any]:
+            node_id = _resolve_id(symbol)
+            graph = holder.graph()
+            if node_id is None:
+                return ok(
+                    [],
+                    total_items=0,
+                    kind="callers",
+                    note=f"symbol '{symbol}' not found in graph",
+                )
+            unit = graph.nodes[node_id]
+            bare = unit.name
+            rows: list[dict[str, Any]] = []
+            from dataclasses import asdict
+
+            for edge in graph.edges:
+                if edge.kind.value != "calls":
                     continue
-                d = asdict(src_unit)
-                d["kind"] = src_unit.kind.value
-                slim = _slim_unit(d, path_resolver=path_resolver)
-                slim["edge_confidence"] = edge.confidence.value
-                slim["edge_target"] = tgt
-                rows.append(slim)
-                if len(rows) >= max_results:
-                    break
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "callers",
-        }
+                tgt = edge.target_id
+                if (
+                    tgt == node_id
+                    or tgt.endswith("." + bare)
+                    or tgt.endswith(":" + bare)
+                ):
+                    src_unit = graph.nodes.get(edge.source_id)
+                    if src_unit is None:
+                        continue
+                    d = asdict(src_unit)
+                    d["kind"] = src_unit.kind.value
+                    slim = _slim_unit(d, path_resolver=path_resolver)
+                    slim["edge_confidence"] = edge.confidence.value
+                    slim["edge_target"] = tgt
+                    rows.append(slim)
+                    if len(rows) >= max_results:
+                        break
+            return ok(rows, total_items=len(rows), kind="callers")
+
+        return guard(_impl)
 
     def find_callees(
         symbol: str,
@@ -384,44 +390,44 @@ def code_graph_tools(
         could not be resolved in the graph; an empty list without a note means
         the symbol exists but calls nothing tracked.
         """
-        node_id = _resolve_id(symbol)
-        graph = holder.graph()
-        if node_id is None:
-            return {
-                "result": [],
-                "total_items": 0,
-                "kind": "callees",
-                "note": f"symbol '{symbol}' not found in graph",
-            }
-        rows: list[dict[str, Any]] = []
-        from dataclasses import asdict
 
-        for edge in graph.edges:
-            if edge.source_id != node_id or edge.kind.value != "calls":
-                continue
-            target_unit = graph.nodes.get(edge.target_id)
-            if target_unit is not None:
-                d = asdict(target_unit)
-                d["kind"] = target_unit.kind.value
-                row = _slim_unit(d, path_resolver=path_resolver)
-            else:
-                row = {
-                    "id": edge.target_id,
-                    "name": edge.target_id.rsplit(":", 1)[-1],
-                    "kind": "unresolved",
-                    "file": None,
-                    "start_line": None,
-                    "end_line": None,
-                }
-            row["edge_confidence"] = edge.confidence.value
-            rows.append(row)
-            if len(rows) >= max_results:
-                break
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "callees",
-        }
+        def _impl() -> dict[str, Any]:
+            node_id = _resolve_id(symbol)
+            graph = holder.graph()
+            if node_id is None:
+                return ok(
+                    [],
+                    total_items=0,
+                    kind="callees",
+                    note=f"symbol '{symbol}' not found in graph",
+                )
+            rows: list[dict[str, Any]] = []
+            from dataclasses import asdict
+
+            for edge in graph.edges:
+                if edge.source_id != node_id or edge.kind.value != "calls":
+                    continue
+                target_unit = graph.nodes.get(edge.target_id)
+                if target_unit is not None:
+                    d = asdict(target_unit)
+                    d["kind"] = target_unit.kind.value
+                    row = _slim_unit(d, path_resolver=path_resolver)
+                else:
+                    row = {
+                        "id": edge.target_id,
+                        "name": edge.target_id.rsplit(":", 1)[-1],
+                        "kind": "unresolved",
+                        "file": None,
+                        "start_line": None,
+                        "end_line": None,
+                    }
+                row["edge_confidence"] = edge.confidence.value
+                rows.append(row)
+                if len(rows) >= max_results:
+                    break
+            return ok(rows, total_items=len(rows), kind="callees")
+
+        return guard(_impl)
 
     def paths_between(
         src: str,
@@ -439,13 +445,17 @@ def code_graph_tools(
         Returns each path as an ordered list of node ids; an empty list means
         no call path connects them.
         """
-        engine = holder.engine()
-        paths = engine.paths_between(str(src), str(dst)) or []
-        return {
-            "result": [list(p) for p in paths[:max_paths]],
-            "total_items": len(paths),
-            "kind": "paths_between",
-        }
+
+        def _impl() -> dict[str, Any]:
+            engine = holder.engine()
+            paths = engine.paths_between(str(src), str(dst)) or []
+            return ok(
+                [list(p) for p in paths[:max_paths]],
+                total_items=len(paths),
+                kind="paths_between",
+            )
+
+        return guard(_impl)
 
     def entrypoint_paths_to(
         symbol: str,
@@ -466,16 +476,17 @@ def code_graph_tools(
         Returns each path as an ordered list of node ids; an empty list means
         no entrypoint reaches the symbol within max_depth.
         """
-        engine = holder.engine()
-        paths = (
-            engine.entrypoint_paths_to(str(symbol), max_depth=max_depth)
-            or []
-        )
-        return {
-            "result": [list(p) for p in paths[:max_paths]],
-            "total_items": len(paths),
-            "kind": "entrypoint_paths_to",
-        }
+
+        def _impl() -> dict[str, Any]:
+            engine = holder.engine()
+            paths = engine.entrypoint_paths_to(str(symbol), max_depth=max_depth) or []
+            return ok(
+                [list(p) for p in paths[:max_paths]],
+                total_items=len(paths),
+                kind="entrypoint_paths_to",
+            )
+
+        return guard(_impl)
 
     def attack_surface() -> dict[str, Any]:
         """
@@ -486,12 +497,12 @@ def code_graph_tools(
 
         Returns the entrypoint nodes; an empty list means none were detected.
         """
-        rows = holder.engine().attack_surface() or []
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "attack_surface",
-        }
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().attack_surface() or []
+            return ok(rows, total_items=len(rows), kind="attack_surface")
+
+        return guard(_impl)
 
     def complexity_hotspots(threshold: int = 10) -> dict[str, Any]:
         """
@@ -504,12 +515,16 @@ def code_graph_tools(
         Returns the matching functions with their locations; an empty list
         means nothing is that complex.
         """
-        rows = holder.engine().complexity_hotspots(int(threshold)) or []
-        return {
-            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-            "total_items": len(rows),
-            "kind": "complexity_hotspots",
-        }
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().complexity_hotspots(int(threshold)) or []
+            return ok(
+                [_slim_unit(r, path_resolver=path_resolver) for r in rows],
+                total_items=len(rows),
+                kind="complexity_hotspots",
+            )
+
+        return guard(_impl)
 
     def functions_that_raise(exception: str) -> dict[str, Any]:
         """
@@ -521,14 +536,16 @@ def code_graph_tools(
         Returns the matching functions with their locations; an empty list
         means none were detected raising it.
         """
-        rows = (
-            holder.engine().functions_that_raise(str(exception)) or []
-        )
-        return {
-            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-            "total_items": len(rows),
-            "kind": "functions_that_raise",
-        }
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().functions_that_raise(str(exception)) or []
+            return ok(
+                [_slim_unit(r, path_resolver=path_resolver) for r in rows],
+                total_items=len(rows),
+                kind="functions_that_raise",
+            )
+
+        return guard(_impl)
 
     return [
         graph_summary,
