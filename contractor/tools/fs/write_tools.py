@@ -195,6 +195,16 @@ class FsspecWriteTools(PathValidationMixin):
             }
         }
 
+    def _commit_write(
+        self, path: str, content: str, *, encoding: str = "utf-8"
+    ) -> Optional[ToolResult]:
+        """Write file text → None on success or {"error": ...} on failure."""
+        try:
+            self.fs.write_text(path, value=content, encoding=encoding, errors="strict")
+        except Exception as exc:
+            return {"error": str(exc)}
+        return None
+
     def write_file(
         self,
         path: str,
@@ -431,15 +441,8 @@ class FsspecWriteTools(PathValidationMixin):
         new_lines.insert(insert_at, new_line)
         new_text = "".join(new_lines)
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_text,
-                encoding="utf-8",
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_text):
+            return err
 
         return {
             "result": {
@@ -481,15 +484,8 @@ class FsspecWriteTools(PathValidationMixin):
                     "path": normalized_path,
                 }
 
-            try:
-                self.fs.write_text(
-                    normalized_path,
-                    value=new_string,
-                    encoding=encoding,
-                    errors="strict",
-                )
-            except Exception as exc:
-                return {"error": str(exc)}
+            if err := self._commit_write(normalized_path, new_string, encoding=encoding):
+                return err
 
             return {
                 "result": {
@@ -582,15 +578,8 @@ class FsspecWriteTools(PathValidationMixin):
                 }
             }
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_content,
-                encoding=encoding,
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_content, encoding=encoding):
+            return err
 
         return {
             "result": {
@@ -745,15 +734,8 @@ class FsspecWriteTools(PathValidationMixin):
         new_lines[start_idx:end_idx] = replacement_lines
         new_text = "".join(new_lines)
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_text,
-                encoding="utf-8",
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_text):
+            return err
 
         inserted_line_count = len(replacement_lines)
         new_end_line = (

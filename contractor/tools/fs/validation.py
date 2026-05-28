@@ -33,20 +33,23 @@ class PathValidationMixin:
         must_exist: bool = False,
         must_be_file: bool = False,
         check_ignored: bool = True,
-    ) -> tuple[Optional[str], Optional[ToolResult]]:
+    ) -> tuple[str, Optional[ToolResult]]:
+        # On failure the path is "" with an error dict; callers always check the
+        # error before using the path, so returning "" (not None) keeps the path
+        # typed ``str`` and avoids spurious Optional-narrowing at every call site.
         try:
             normalized = norm_unicode_strict(path)
         except ValueError:
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
+            return "", {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
         if check_ignored and self._is_ignored(normalized):
-            return None, {"error": f"path {normalized} is ignored"}
+            return "", {"error": f"path {normalized} is ignored"}
         if must_exist and not self.fs.exists(normalized):
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+            return "", {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
         if must_be_file:
             if not self.fs.exists(normalized):
-                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
+                return "", {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
             if not self.fs.isfile(normalized):
-                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
+                return "", {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
         return normalized, None
 
     def _is_ignored(self, path: str) -> bool:  # pragma: no cover - host override
