@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -12,6 +12,10 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from contractor.utils import utc_now_iso
+
+# Passthrough type for _type_hint: non-str payloads return unchanged, a str may
+# be code-fence-wrapped — preserving the caller's narrower type.
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -31,10 +35,10 @@ class MemoryFormat:
 
     @staticmethod
     def _type_hint(
-        output: Union[str, dict[str, Any], list[Any]],
+        output: _T,
         fmt: str,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any], list[Any]]:
+    ) -> Union[_T, str]:
         if not type_hint or not isinstance(output, str):
             return output
         return f"```{fmt}\n{output}\n```"

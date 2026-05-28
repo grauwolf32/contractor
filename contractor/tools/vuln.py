@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -11,6 +11,10 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from contractor.utils import utc_now_iso
+
+# Passthrough type for the code-fence helpers: a non-str payload is returned
+# unchanged, a str may be wrapped — so the caller's narrower type is preserved.
+_T = TypeVar("_T")
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -170,11 +174,11 @@ class VulnerabilityReportFormat:
 
     @staticmethod
     def _wrap_code_fence(
-        output: Union[str, dict[str, Any], list[Any]],
+        output: _T,
         fmt: str,
         *,
         type_hint: bool,
-    ) -> Union[str, dict[str, Any], list[Any]]:
+    ) -> Union[_T, str]:
         """Optionally wrap string output in a Markdown code fence."""
         if not type_hint or not isinstance(output, str):
             return output
