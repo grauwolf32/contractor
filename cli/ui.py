@@ -15,6 +15,7 @@ from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
@@ -22,6 +23,20 @@ from cli import EventView
 
 TOP_PANEL_HEIGHT = 9
 EVENT_HISTORY_LIMIT = 200
+
+# Console used only to query the terminal size when wrapping event bodies, so
+# rendering adapts to the actual width instead of a fixed column count.
+_SIZING_CONSOLE = Console()
+
+
+def _body_width() -> int:
+    """Width to wrap event bodies at, derived from the current terminal size.
+
+    Clamped so the layout stays readable on both narrow and very wide
+    terminals. Recomputed per render so it tracks live resizes.
+    """
+    width = _SIZING_CONSOLE.size.width
+    return max(40, min(width - 8, 120))
 
 
 def render_artifact_summary(
@@ -151,19 +166,24 @@ class LiveRenderer:
         self.console = Console()
         self.state = UiState(pipeline_name=pipeline_name)
         self.live: Optional[Live] = None
+        self._spinner = Spinner("dots", style="cyan")
 
     def start(self) -> None:
+        # Pass ``render`` as the live renderable (not a one-shot snapshot) and
+        # let Rich auto-refresh: the elapsed clock and the activity spinner then
+        # keep ticking between events instead of freezing during long LLM calls.
         self.live = Live(
-            self.render(),
+            get_renderable=self.render,
             console=self.console,
-            auto_refresh=False,
+            auto_refresh=True,
+            refresh_per_second=8,
             transient=False,
         )
         self.live.start(refresh=True)
 
     def stop(self) -> None:
         if self.live is not None:
-            self.live.update(self.render(), refresh=True)
+            self.live.refresh()
             self.live.stop()
             self.live = None
 
@@ -175,7 +195,7 @@ class LiveRenderer:
             self._append_event(view)
 
         if self.live is not None:
-            self.live.update(self.render(), refresh=True)
+            self.live.refresh()
 
     def _append_event(self, view: EventView) -> None:
         if view.event_type in ("tool_result", "tool_result_error") and self.state.events:
@@ -334,6 +354,26 @@ class LiveRenderer:
             if title:
                 self.state.current_subtask = title
 
+    def _activity_indicator(self) -> RenderableType:
+        """Spinner while the pipeline is active, ✓/✗ once it has settled."""
+        phase = self.state.pipeline_phase
+        if phase == "ok":
+            return Text("✓", style="bold green")
+        if phase == "failed":
+            return Text("✗", style="bold red")
+        return self._spinner
+
+    def _token_rate_suffix(self) -> str:
+        """`` (123/s)`` output-token throughput, or empty until measurable."""
+        started = self.state.pipeline_started_mono
+        if started is None:
+            return ""
+        elapsed = time.monotonic() - started
+        if elapsed < 1 or self.state.output_tokens <= 0:
+            return ""
+        rate = self.state.output_tokens / elapsed
+        return f" ({rate:.0f}/s)"
+
     @staticmethod
     def _format_elapsed(started_mono: Optional[float]) -> str:
         if started_mono is None:
@@ -381,10 +421,6 @@ class LiveRenderer:
         grid.add_column(ratio=1)
         grid.add_column(ratio=1)
 
-        pipeline_text = f"Pipeline: {self.state.pipeline_name}"
-        if self.state.pipeline_phase:
-            pipeline_text += f" [{self.state.pipeline_phase}]"
-
         subtask_label = self.state.current_subtask or "—"
         if self.state.subtasks_total > 0:
             subtask_label = (
@@ -396,19 +432,31 @@ class LiveRenderer:
         pipeline_elapsed = self._format_elapsed(self.state.pipeline_started_mono)
         tokens = _format_tokens(self.state.input_tokens, self.state.output_tokens)
 
-        left = Group(
+        # Pipeline line: name + a coloured phase badge.
+        pipeline_line = Text("Pipeline: ", style="bold cyan", overflow="fold")
+        pipeline_line.append(self.state.pipeline_name, style="bold cyan")
+        if self.state.pipeline_phase:
+            phase = self.state.pipeline_phase
+            pipeline_line.append("  ")
+            pipeline_line.append(f" {phase} ", style=f"reverse {_phase_style(phase)}")
+
+        # Task line: animated activity indicator + the current task name.
+        task_line = Table.grid(padding=(0, 1))
+        task_line.add_column(width=2, no_wrap=True)
+        task_line.add_column(ratio=1)
+        task_line.add_row(
+            self._activity_indicator(),
             Text(
-                pipeline_text,
-                style="bold cyan",
-                no_wrap=False,
-                overflow="fold",
-            ),
-            Text(
-                f"Task: {self.state.current_task_name}",
+                self.state.current_task_name,
                 style="bold white",
                 no_wrap=False,
                 overflow="fold",
             ),
+        )
+
+        left = Group(
+            pipeline_line,
+            task_line,
             Text(
                 f"Subtask: {subtask_label}",
                 style="white",
@@ -430,7 +478,7 @@ class LiveRenderer:
                 overflow="fold",
             ),
             Text(
-                f"Tokens: {tokens}",
+                f"Tokens: {tokens}{self._token_rate_suffix()}",
                 style="dim",
                 no_wrap=False,
                 overflow="fold",
@@ -538,10 +586,10 @@ class LiveRenderer:
     def _available_event_lines(self) -> int:
         total_height = self.console.size.height
 
-        # Резерв под:
-        # - верхнюю панель
-        # - рамки
-        # - title нижней панели
+        # Reserve rows for:
+        # - the top status panel
+        # - panel borders
+        # - the bottom panel's title
         reserve = TOP_PANEL_HEIGHT + 4
 
         available = total_height - reserve
@@ -556,7 +604,7 @@ class LiveRenderer:
             body_width = max(panel_inner_width - 2, 10)
             height += self._wrapped_line_count(event.body, body_width)
 
-        height += 1  # пустая строка-разделитель
+        height += 1  # blank separator line
         return height
 
     @staticmethod
@@ -589,6 +637,15 @@ def _merge_tool_events(call: EventView, result: EventView) -> EventView:
     title = f"Tool: {tool_name}"
     body = result.body
     return EventView(event_type="tool_merged", title=title, body=body, tone=tone)
+
+
+def _phase_style(phase: str) -> str:
+    return {
+        "ok": "green",
+        "failed": "red",
+        "running": "cyan",
+        "initializing": "yellow",
+    }.get(phase, "blue")
 
 
 def _format_tokens(input_tokens: int, output_tokens: int) -> str:
@@ -706,7 +763,7 @@ def _fmt_iteration_started_event(payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="iteration_started",
         title=f"Iteration {iteration}",
-        body=_fmt_blob(objective, max_lines=4, max_width=100) if objective else None,
+        body=_fmt_blob(objective, max_lines=4) if objective else None,
         tone="warning",
     )
 
@@ -723,7 +780,7 @@ def _fmt_tool_call_event(payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="tool_call",
         title=f"Tool call: {tool_name}",
-        body=_fmt_tool_data(tool_args, max_lines=8, max_width=100),
+        body=_fmt_tool_data(tool_args, max_lines=8),
         tone="muted",
     )
 
@@ -743,7 +800,7 @@ def _fmt_tool_result_event(payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="tool_result",
         title=f"Tool result: {tool_name}",
-        body=_fmt_tool_data(result, max_lines=10, max_width=100),
+        body=_fmt_tool_data(result, max_lines=10),
         tone="success",
     )
 
@@ -761,7 +818,7 @@ def _fmt_tool_result_error_event(payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="tool_result_error",
         title=f"Tool returned error: {tool_name}",
-        body=_fmt_tool_data(result, max_lines=10, max_width=100),
+        body=_fmt_tool_data(result, max_lines=10),
         tone="warning",
     )
 
@@ -774,7 +831,7 @@ def _fmt_tool_exception_event(payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="tool_exception",
         title=f"Tool exception: {tool_name}",
-        body=_fmt_blob(error, max_lines=8, max_width=100),
+        body=_fmt_blob(error, max_lines=8),
         tone="error",
     )
 
@@ -787,7 +844,7 @@ def _fmt_final_text_event(payload: dict[str, Any]) -> Optional[EventView]:
     return EventView(
         event_type="final_text",
         title="Final answer",
-        body=_fmt_blob(text, max_lines=8, max_width=100),
+        body=_fmt_blob(text, max_lines=8),
         tone="success",
     )
 
@@ -807,7 +864,6 @@ def _fmt_iteration_result_event(payload: dict[str, Any]) -> EventView:
             ]
         ),
         max_lines=5,
-        max_width=100,
     )
 
     return EventView(
@@ -827,7 +883,7 @@ def _fmt_global_task_finished_event(
     return EventView(
         event_type="global_task_finished",
         title=f"Task finished: {event.task_name}",
-        body=_fmt_blob(summary, max_lines=6, max_width=100),
+        body=_fmt_blob(summary, max_lines=6),
         tone="success",
     )
 
@@ -838,12 +894,16 @@ def _fmt_task_failed_event(event: Any, payload: dict[str, Any]) -> EventView:
     return EventView(
         event_type="task_failed",
         title=f"Task failed: {event.task_name}",
-        body=_fmt_tool_data(last_result, max_lines=8, max_width=100),
+        body=_fmt_tool_data(last_result, max_lines=8),
         tone="error",
     )
 
 
-def _fmt_tool_data(value: Any, max_lines: int = 8, max_width: int = 100) -> str:
+def _fmt_tool_data(
+    value: Any, max_lines: int = 8, max_width: Optional[int] = None
+) -> str:
+    if max_width is None:
+        max_width = _body_width()
     if value is None:
         return "—"
 
@@ -895,7 +955,11 @@ def _extract_result_status(xml: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def _fmt_dict(data: dict[str, Any], max_lines: int = 8, max_width: int = 100) -> str:
+def _fmt_dict(
+    data: dict[str, Any], max_lines: int = 8, max_width: Optional[int] = None
+) -> str:
+    if max_width is None:
+        max_width = _body_width()
     lines: list[str] = []
 
     for key, value in data.items():
@@ -904,7 +968,11 @@ def _fmt_dict(data: dict[str, Any], max_lines: int = 8, max_width: int = 100) ->
     return _clamp_lines(lines, max_lines=max_lines, max_width=max_width)
 
 
-def _fmt_list(items: list[Any], max_lines: int = 8, max_width: int = 100) -> str:
+def _fmt_list(
+    items: list[Any], max_lines: int = 8, max_width: Optional[int] = None
+) -> str:
+    if max_width is None:
+        max_width = _body_width()
     lines: list[str] = []
 
     for item in items:
@@ -933,7 +1001,9 @@ def _fmt_value(value: Any) -> str:
     return str(value)
 
 
-def _fmt_blob(value: Any, max_lines: int = 8, max_width: int = 100) -> str:
+def _fmt_blob(value: Any, max_lines: int = 8, max_width: Optional[int] = None) -> str:
+    if max_width is None:
+        max_width = _body_width()
     if value is None:
         return "—"
 
@@ -964,7 +1034,11 @@ def _fmt_blob(value: Any, max_lines: int = 8, max_width: int = 100) -> str:
     return "\n".join(wrapped_lines)
 
 
-def _clamp_lines(lines: list[str], max_lines: int = 8, max_width: int = 100) -> str:
+def _clamp_lines(
+    lines: list[str], max_lines: int = 8, max_width: Optional[int] = None
+) -> str:
+    if max_width is None:
+        max_width = _body_width()
     cooked: list[str] = []
 
     for line in lines:
