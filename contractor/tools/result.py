@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-__all__ = ["ok", "err", "guard", "is_envelope"]
+__all__ = ["ok", "err", "ok_page", "guard", "is_envelope"]
 
 
 def ok(result: Any = None, **meta: Any) -> dict[str, Any]:
@@ -34,6 +34,32 @@ def ok(result: Any = None, **meta: Any) -> dict[str, Any]:
     ``kind``, ``offset``, ``truncated`` — never an ``error`` key.
     """
     return {"result": result, **meta}
+
+
+def ok_page(items: list[Any], total: int, **meta: Any) -> dict[str, Any]:
+    """Build a success envelope for a (possibly truncated) list page.
+
+    Use this for any tool that caps, slices, or paginates a result list — it
+    makes truncation *honest* so the model never mistakes a capped page for
+    the whole set:
+
+    - ``items``: the rows actually returned (already capped/sliced).
+    - ``total``: the TRUE number of matches available — NOT ``len(items)``.
+      Reporting the capped count here is the dishonest-truncation bug this
+      helper exists to prevent.
+
+    Adds ``returned`` (len of the page) and ``truncated`` (``total`` exceeds
+    what was returned) so a caller can tell "this is everything" from "there
+    is more — narrow the query or page further".
+    """
+    returned = len(items)
+    return {
+        "result": items,
+        "total_items": total,
+        "returned": returned,
+        "truncated": total > returned,
+        **meta,
+    }
 
 
 def err(message: str, **meta: Any) -> dict[str, Any]:

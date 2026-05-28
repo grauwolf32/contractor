@@ -25,7 +25,7 @@ from contractor.tools.code.tools import code_tools
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.read_tools import ro_file_tools
 from contractor.tools.fs.write_tools import rw_file_tools
-from contractor.tools.result import err, guard, is_envelope, ok
+from contractor.tools.result import err, guard, is_envelope, ok, ok_page
 
 # Params ADK injects itself and strips from the model-facing declaration.
 _INJECTED_PARAMS = {"tool_context"}
@@ -127,6 +127,37 @@ def test_graph_tools_return_envelopes(tmp_path):
         assert ("result" in out) ^ ("error" in out), f"{name} mixed keys: {out!r}"
 
 
+def test_graph_list_results_report_truncation_honestly(tmp_path):
+    """total_items must never undercount the page, and truncated must agree.
+
+    Guards the dishonest-truncation bug: a capped page reporting its own
+    length as the total, so the model thinks it saw everything.
+    """
+    # A minimal real project so the graph builds (an empty dir yields an
+    # error envelope, not a list).
+    (tmp_path / "m.py").write_text(
+        "def a():\n    return b()\n\ndef b():\n    return 1\n", encoding="utf-8"
+    )
+    tools = {t.__name__: t for t in code_graph_tools(tmp_path)}
+    list_calls = {
+        "find_symbol": ("x",),
+        "find_callers": ("x",),
+        "find_callees": ("x",),
+        "paths_between": ("a", "b"),
+        "entrypoint_paths_to": ("x",),
+        "attack_surface": (),
+        "complexity_hotspots": (),
+        "functions_that_raise": ("ValueError",),
+    }
+    for name, args in list_calls.items():
+        out = tools[name](*args)
+        result = out.get("result")
+        assert isinstance(result, list), f"{name} result is not a list: {out!r}"
+        total = out["total_items"]
+        assert total >= len(result), f"{name} total_items < returned: {out!r}"
+        assert out["truncated"] == (total > len(result)), f"{name} bad flag: {out!r}"
+
+
 # --- envelope helper unit tests ------------------------------------------
 
 
@@ -158,3 +189,20 @@ def test_guard_converts_exception_to_error_envelope():
         raise ValueError("nope")
 
     assert guard(boom) == {"error": "nope"}
+
+
+def test_ok_page_not_truncated_when_total_matches():
+    assert ok_page([1, 2], 2, kind="x") == {
+        "result": [1, 2],
+        "total_items": 2,
+        "returned": 2,
+        "truncated": False,
+        "kind": "x",
+    }
+
+
+def test_ok_page_flags_truncation_when_total_exceeds_page():
+    page = ok_page([1, 2], 10)
+    assert page["returned"] == 2
+    assert page["total_items"] == 10
+    assert page["truncated"] is True

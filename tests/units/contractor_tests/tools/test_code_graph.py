@@ -61,6 +61,20 @@ def test_graph_summary_reports_nodes_and_edges(tiny_project: Path) -> None:
     assert summary["call_edges"] >= 2
 
 
+def test_find_symbol_truncates_honestly(tmp_path: Path) -> None:
+    # 60 functions all named `target` — exceeds the 50-node cap.
+    for i in range(60):
+        (tmp_path / f"m{i}.py").write_text(
+            "def target():\n    return 1\n", encoding="utf-8"
+        )
+    tools = _by_name(code_graph_tools(tmp_path))
+    result = tools["find_symbol"]("target")
+    assert len(result["result"]) == 50, "page must respect the cap"
+    assert result["returned"] == 50
+    assert result["total_items"] == 60, "total must be the TRUE match count"
+    assert result["truncated"] is True
+
+
 def test_find_symbol_resolves_bare_name(tiny_project: Path) -> None:
     tools = _by_name(code_graph_tools(tiny_project))
     result = tools["find_symbol"]("authenticate")

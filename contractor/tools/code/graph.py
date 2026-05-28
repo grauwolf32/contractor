@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from contractor.tools.result import guard, ok
+from contractor.tools.result import guard, ok, ok_page
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ DEFAULT_LANGUAGE = "auto"
 DEFAULT_MAX_RESULTS = 200
 DEFAULT_MAX_PATHS = 25
 _MAX_PATH_DEPTH = 30
+_FIND_SYMBOL_LIMIT = 50
 
 # A path resolver maps a host-FS absolute path (as trailmark returns it)
 # to whatever string the consuming agent should see. Returning ``None``
@@ -272,8 +273,10 @@ def code_graph_tools(
         """
         Resolve a name to matching graph nodes with their source locations.
 
-        Matches by full node id, exact name, or bare (case-insensitive) name,
-        returning up to 50 nodes.
+        Matches by full node id, exact name, or bare (case-insensitive) name.
+        At most 50 nodes are returned; if more match, ``truncated`` is true and
+        ``total_items`` reports the real count — narrow the name to see the
+        rest.
 
         Args:
             symbol: Symbol name or node id to look up.
@@ -283,25 +286,27 @@ def code_graph_tools(
         """
 
         def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
             graph = holder.graph()
             sym = str(symbol)
             bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
-            matches: list[dict[str, Any]] = []
-            for node_id, unit in graph.nodes.items():
+            matched = [
+                unit
+                for node_id, unit in graph.nodes.items()
                 if (
                     node_id == sym
                     or unit.name == sym
                     or unit.name == bare
                     or unit.name.lower() == bare.lower()
-                ):
-                    from dataclasses import asdict
-
-                    d = asdict(unit)
-                    d["kind"] = unit.kind.value
-                    matches.append(_slim_unit(d, path_resolver=path_resolver))
-                if len(matches) >= 50:
-                    break
-            return ok(matches, total_items=len(matches), kind="find_symbol")
+                )
+            ]
+            rows: list[dict[str, Any]] = []
+            for unit in matched[:_FIND_SYMBOL_LIMIT]:
+                d = asdict(unit)
+                d["kind"] = unit.kind.value
+                rows.append(_slim_unit(d, path_resolver=path_resolver))
+            return ok_page(rows, len(matched), kind="find_symbol")
 
         return guard(_impl)
 
@@ -327,27 +332,28 @@ def code_graph_tools(
             symbol: Symbol name or node id to find callers of.
             max_results: Maximum number of callers to return.
 
-        Returns the calling nodes, each tagged with edge confidence. An empty
-        list with a "note" means the symbol could not be resolved in the
-        graph; an empty list without a note means the symbol exists but has no
-        known callers.
+        Returns the calling nodes, each tagged with edge confidence. If more
+        than ``max_results`` callers exist, ``truncated`` is true and
+        ``total_items`` reports the real count. An empty list with a "note"
+        means the symbol could not be resolved in the graph; an empty list
+        without a note means the symbol exists but has no known callers.
         """
 
         def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
             node_id = _resolve_id(symbol)
             graph = holder.graph()
             if node_id is None:
-                return ok(
+                return ok_page(
                     [],
-                    total_items=0,
+                    0,
                     kind="callers",
                     note=f"symbol '{symbol}' not found in graph",
                 )
             unit = graph.nodes[node_id]
             bare = unit.name
-            rows: list[dict[str, Any]] = []
-            from dataclasses import asdict
-
+            matched: list[Any] = []
             for edge in graph.edges:
                 if edge.kind.value != "calls":
                     continue
@@ -360,15 +366,16 @@ def code_graph_tools(
                     src_unit = graph.nodes.get(edge.source_id)
                     if src_unit is None:
                         continue
-                    d = asdict(src_unit)
-                    d["kind"] = src_unit.kind.value
-                    slim = _slim_unit(d, path_resolver=path_resolver)
-                    slim["edge_confidence"] = edge.confidence.value
-                    slim["edge_target"] = tgt
-                    rows.append(slim)
-                    if len(rows) >= max_results:
-                        break
-            return ok(rows, total_items=len(rows), kind="callers")
+                    matched.append((edge, src_unit))
+            rows: list[dict[str, Any]] = []
+            for edge, src_unit in matched[:max_results]:
+                d = asdict(src_unit)
+                d["kind"] = src_unit.kind.value
+                slim = _slim_unit(d, path_resolver=path_resolver)
+                slim["edge_confidence"] = edge.confidence.value
+                slim["edge_target"] = edge.target_id
+                rows.append(slim)
+            return ok_page(rows, len(matched), kind="callers")
 
         return guard(_impl)
 
@@ -386,27 +393,32 @@ def code_graph_tools(
             symbol: Symbol name or node id to find callees of.
             max_results: Maximum number of callees to return.
 
-        Returns the called nodes. An empty list with a "note" means the symbol
-        could not be resolved in the graph; an empty list without a note means
-        the symbol exists but calls nothing tracked.
+        Returns the called nodes. If more than ``max_results`` callees exist,
+        ``truncated`` is true and ``total_items`` reports the real count. An
+        empty list with a "note" means the symbol could not be resolved in the
+        graph; an empty list without a note means the symbol exists but calls
+        nothing tracked.
         """
 
         def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
             node_id = _resolve_id(symbol)
             graph = holder.graph()
             if node_id is None:
-                return ok(
+                return ok_page(
                     [],
-                    total_items=0,
+                    0,
                     kind="callees",
                     note=f"symbol '{symbol}' not found in graph",
                 )
+            matched = [
+                edge
+                for edge in graph.edges
+                if edge.source_id == node_id and edge.kind.value == "calls"
+            ]
             rows: list[dict[str, Any]] = []
-            from dataclasses import asdict
-
-            for edge in graph.edges:
-                if edge.source_id != node_id or edge.kind.value != "calls":
-                    continue
+            for edge in matched[:max_results]:
                 target_unit = graph.nodes.get(edge.target_id)
                 if target_unit is not None:
                     d = asdict(target_unit)
@@ -423,9 +435,7 @@ def code_graph_tools(
                     }
                 row["edge_confidence"] = edge.confidence.value
                 rows.append(row)
-                if len(rows) >= max_results:
-                    break
-            return ok(rows, total_items=len(rows), kind="callees")
+            return ok_page(rows, len(matched), kind="callees")
 
         return guard(_impl)
 
@@ -443,15 +453,16 @@ def code_graph_tools(
             max_paths: Maximum number of paths to return.
 
         Returns each path as an ordered list of node ids; an empty list means
-        no call path connects them.
+        no call path connects them. If more than ``max_paths`` exist,
+        ``truncated`` is true and ``total_items`` reports the real count.
         """
 
         def _impl() -> dict[str, Any]:
             engine = holder.engine()
             paths = engine.paths_between(str(src), str(dst)) or []
-            return ok(
+            return ok_page(
                 [list(p) for p in paths[:max_paths]],
-                total_items=len(paths),
+                len(paths),
                 kind="paths_between",
             )
 
@@ -474,15 +485,17 @@ def code_graph_tools(
             max_depth: Maximum path length to explore.
 
         Returns each path as an ordered list of node ids; an empty list means
-        no entrypoint reaches the symbol within max_depth.
+        no entrypoint reaches the symbol within max_depth. If more than
+        ``max_paths`` exist, ``truncated`` is true and ``total_items`` reports
+        the real count.
         """
 
         def _impl() -> dict[str, Any]:
             engine = holder.engine()
             paths = engine.entrypoint_paths_to(str(symbol), max_depth=max_depth) or []
-            return ok(
+            return ok_page(
                 [list(p) for p in paths[:max_paths]],
-                total_items=len(paths),
+                len(paths),
                 kind="entrypoint_paths_to",
             )
 
@@ -500,7 +513,7 @@ def code_graph_tools(
 
         def _impl() -> dict[str, Any]:
             rows = holder.engine().attack_surface() or []
-            return ok(rows, total_items=len(rows), kind="attack_surface")
+            return ok_page(rows, len(rows), kind="attack_surface")
 
         return guard(_impl)
 
@@ -518,9 +531,9 @@ def code_graph_tools(
 
         def _impl() -> dict[str, Any]:
             rows = holder.engine().complexity_hotspots(int(threshold)) or []
-            return ok(
+            return ok_page(
                 [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-                total_items=len(rows),
+                len(rows),
                 kind="complexity_hotspots",
             )
 
@@ -539,9 +552,9 @@ def code_graph_tools(
 
         def _impl() -> dict[str, Any]:
             rows = holder.engine().functions_that_raise(str(exception)) or []
-            return ok(
+            return ok_page(
                 [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-                total_items=len(rows),
+                len(rows),
                 kind="functions_that_raise",
             )
 
