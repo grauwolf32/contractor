@@ -514,6 +514,36 @@ class MemoryTools:
         return note
 
 
+def _resolve_skill_reference(
+    name: str,
+    skill_memories: list[MemoryNote],
+) -> Optional[MemoryNote]:
+    """Best-effort match of a skill-reference name against loaded skill notes.
+
+    Skill references are stored as ``<skill>/references/<topic>`` with no
+    extension, but index files (and agents copying from them) tend to cite the
+    bare ``references/<topic>.md`` form. Normalize the query and fall back to a
+    unique suffix / basename match so either form resolves. Returns None when
+    the match is absent or ambiguous (the caller then lists the real names).
+    """
+    query = name[:-3] if name.endswith(".md") else name
+    query = query.strip("/")
+    if not query:
+        return None
+
+    for tier in (
+        lambda n: n.name == query,
+        lambda n: n.name.endswith(f"/{query}"),
+        lambda n: n.name.rsplit("/", 1)[-1] == query.rsplit("/", 1)[-1],
+    ):
+        matches = [n for n in skill_memories if tier(n)]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            return None
+    return None
+
+
 def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
     m = MemoryTools(name=name, fmt=fmt)
 
@@ -665,7 +695,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Reads a specific agent skill by name.
 
         Args:
-            name: The name of the skill memory.
+            name: The name of the skill memory. The index's own name (e.g.
+                "trace") returns the index; a reference is named
+                "<skill>/references/<topic>". A trailing ".md" and a missing
+                "<skill>/" prefix are tolerated, so "references/sinks" and
+                "sinks" both resolve to "trace/references/sinks" when only the
+                trace skill is loaded.
 
         Returns:
             The full content of the matching memory if it exists and is tagged with "skill".
@@ -678,7 +713,16 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
 
         memory = await m.read_memory_by_tag(name, "skill", tool_context)
         if memory is None:
-            return {"error": f"skill memory {name} not found"}
+            skill_memories = await m.memories_by_tag("skill", tool_context)
+            memory = _resolve_skill_reference(name, skill_memories)
+        if memory is None:
+            available = [
+                s.name for s in await m.memories_by_tag("skill", tool_context)
+            ]
+            return {
+                "error": f"skill memory {name!r} not found",
+                "available": available,
+            }
 
         return {"result": m.fmt.format_memory(memory)}
 
