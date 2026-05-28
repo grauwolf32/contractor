@@ -3,16 +3,10 @@ import sys
 from textwrap import indent
 from typing import Any
 
-IGNORED_TOOL_RESULTS = {
-    # "add_subtask",
-    # "decompose_subtask",
-}
+# Tool names whose results the UI suppresses / de-emphasises. Add names to enable.
+IGNORED_TOOL_RESULTS: set[str] = set()  # e.g. {"add_subtask", "decompose_subtask"}
 
-LOW_SIGNAL_TOOL_RESULTS = {
-    # "get_current_subtask",
-    # "list_subtasks",
-    # "get_records",
-}
+LOW_SIGNAL_TOOL_RESULTS: set[str] = set()  # e.g. {"get_current_subtask", "list_subtasks"}
 
 FS_TOOLS = {
     "ls",

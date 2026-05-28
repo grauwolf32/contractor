@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -64,7 +64,7 @@ def format_vulnerabilities(vulnerabilities: list[dict]) -> str:
     tags = sorted(tags)
     result = ""
 
-    vulns_by_tag = {tag: [] for tag in tags}
+    vulns_by_tag: dict[str, list[Any]] = {tag: [] for tag in tags}
     for vulnerability in vulnerabilities:
         vulns_by_tag[vulnerability["tag"]].append(vulnerability)
 
