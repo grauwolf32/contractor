@@ -386,7 +386,7 @@ class TaskRunner(BaseModel):
         self,
         template: TaskTemplate,
         params: dict[str, Any],
-        artifacts: dict[str, dict[str, str]],
+        artifacts: dict[str, str],
     ) -> RenderedTask:
         return RenderedTask.from_template(
             template=template,
