@@ -13,6 +13,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+import pytest_asyncio
 
 from contractor.tools.caido import CaidoClient, CaidoError, CaidoTools
 
@@ -357,17 +358,15 @@ class TestCaidoSitemap:
 
 
 class TestCaidoAutomate:
-    @pytest.fixture(scope="class")
-    def base_request_id(self, replay_tool):
+    @pytest_asyncio.fixture
+    async def base_request_id(self, replay_tool):
         """Send a base request to httpbin that we can fuzz."""
-        result = asyncio.get_event_loop().run_until_complete(
-            replay_tool(
-                raw_request="GET /get?id=1 HTTP/1.1\r\nHost: httpbin.org\r\nAccept: */*\r\n\r\n",
-                host="httpbin.org",
-                port=443,
-                is_tls=True,
-                timeout_seconds=20,
-            )
+        result = await replay_tool(
+            raw_request="GET /get?id=1 HTTP/1.1\r\nHost: httpbin.org\r\nAccept: */*\r\n\r\n",
+            host="httpbin.org",
+            port=443,
+            is_tls=True,
+            timeout_seconds=20,
         )
         rid = result.get("request_id")
         assert rid, f"failed to create base request: {result}"
