@@ -142,6 +142,29 @@ class OpenApiArtifact:
 
         return schema_diff
 
+    async def modify_schema_locked(
+        self,
+        ctx: ToolContext,
+        modifier: Callable[[dict[str, Any]], None],
+    ) -> DictDiff:
+        """Atomically load → modify → diff → save, all under one lock.
+
+        ``modifier`` mutates the working schema dict in place; it raises to
+        reject the change (nothing is saved — ``aguard`` at the tool boundary
+        turns the raise into an ``{"error": ...}`` envelope). Mirrors
+        ``update_schema``'s atomicity for the non-merge mutators (remove/set/
+        add) so concurrent tool calls can't lose each other's writes.
+        """
+        async with self._lock:
+            await self._load_schema_locked(ctx)
+            before = self.schema
+            working = copy.deepcopy(before)
+            modifier(working)
+            schema_diff: DictDiff = dict_diff(before, working)
+            self.schema = working
+            await self._save_schema_locked(ctx)
+            return schema_diff
+
 
 def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
     try:
@@ -259,17 +282,17 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            schema = await oas.load_schema(tool_context)
-            current = copy.deepcopy(schema)
+            def _modify(schema: dict[str, Any]) -> None:
+                # Stored stripped by upsert_path; strip here too so a path with
+                # surrounding whitespace can be removed.
+                paths = schema.get("paths", {})
+                if path.strip() not in paths:
+                    raise ValueError(
+                        PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path)
+                    )
+                del paths[path.strip()]
 
-            if "paths" in oas.schema and path in oas.schema["paths"]:
-                del oas.schema["paths"][path]
-            else:
-                return {"error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path)}
-
-            diff = dict_diff(current, oas.schema)
-            await oas.save_schema(tool_context)
-
+            diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}
 
         return await aguard(_impl)
@@ -395,25 +418,18 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            schema = await oas.load_schema(tool_context)
-            current = copy.deepcopy(schema)
-
-            if (
-                "components" in oas.schema
-                and key in oas.schema["components"]
-                and component_name in oas.schema["components"][key]
-            ):
-                del oas.schema["components"][key][component_name]
-            else:
-                return {
-                    "error": COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
+            def _modify(schema: dict[str, Any]) -> None:
+                components = schema.get("components", {})
+                if key in components and component_name in components.get(key, {}):
+                    del components[key][component_name]
+                    return
+                raise ValueError(
+                    COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
                         name=component_name, key=key
                     )
-                }
+                )
 
-            diff = dict_diff(current, oas.schema)
-            await oas.save_schema(tool_context)
-
+            diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}
 
         return await aguard(_impl)
@@ -517,13 +533,10 @@ def openapi_tools(
             if code_language is not None:
                 extra["x-code-language"] = code_language
 
-            schema = await oas.load_schema(tool_context)
-            current = copy.deepcopy(schema)
+            def _modify(schema: dict[str, Any]) -> None:
+                schema["info"] = {"title": title, **extra}
 
-            oas.schema["info"] = {"title": title, **extra}
-            diff = dict_diff(current, oas.schema)
-            await oas.save_schema(tool_context)
-
+            diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}
 
         return await aguard(_impl)
@@ -553,20 +566,13 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            schema = await oas.load_schema(tool_context)
-            current = copy.deepcopy(schema)
+            def _modify(schema: dict[str, Any]) -> None:
+                servers = schema.setdefault("servers", [])
+                if any(url.strip() == server.get("url") for server in servers):
+                    raise ValueError(SERVER_ALREADY_EXISTS.format(url=url.strip()))
+                servers.append({"url": url.strip(), "description": description or ""})
 
-            oas.schema.setdefault("servers", [])
-            servers = oas.schema["servers"]
-
-            if any(url.strip() == server.get("url") for server in servers):
-                return {"error": SERVER_ALREADY_EXISTS.format(url=url.strip())}
-
-            oas.schema["servers"].append(
-                {"url": url.strip(), "description": description or ""}
-            )
-            diff = dict_diff(current, oas.schema)
-            await oas.save_schema(tool_context)
+            diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}
 
         return await aguard(_impl)
@@ -583,22 +589,15 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            schema = await oas.load_schema(tool_context)
-            current = copy.deepcopy(schema)
+            def _modify(schema: dict[str, Any]) -> None:
+                servers = schema.setdefault("servers", [])
+                if not any(url.strip() == server.get("url") for server in servers):
+                    raise ValueError(SERVER_NOT_EXISTS.format(url=url.strip()))
+                schema["servers"] = [
+                    server for server in servers if server.get("url") != url.strip()
+                ]
 
-            oas.schema.setdefault("servers", [])
-            servers = oas.schema["servers"]
-
-            if not any(url.strip() == server.get("url") for server in servers):
-                return {"error": SERVER_NOT_EXISTS.format(url=url.strip())}
-
-            servers = [
-                server for server in servers if not server.get("url") == url.strip()
-            ]
-            oas.schema["servers"] = servers
-
-            diff = dict_diff(current, oas.schema)
-            await oas.save_schema(tool_context)
+            diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}
 
         return await aguard(_impl)
