@@ -20,6 +20,7 @@ import warnings
 import pytest
 from fsspec.implementations.memory import MemoryFileSystem
 
+from contractor.tools.caido import caido_tools
 from contractor.tools.code.annotations import annotation_tools
 from contractor.tools.code.graph import code_graph_tools
 from contractor.tools.code.tools import code_tools
@@ -56,6 +57,7 @@ def _build_registries(tmp_path):
         ("openapi", openapi_tools("contract-test", MemoryFileSystem())),
         ("openapi_linter", openapi_linter_tools("contract-test")),
         ("annotations", annotation_tools(MemoryFileSystem())),
+        ("caido", caido_tools("contract-test")),
     ]
 
 

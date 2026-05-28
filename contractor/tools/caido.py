@@ -19,6 +19,8 @@ from typing import Any, Literal
 import httpx
 from google.adk.tools.tool_context import ToolContext
 
+from contractor.tools.result import aguard
+
 logger = logging.getLogger(__name__)
 
 CaidoStrategy = Literal["SEQUENTIAL", "PARALLEL", "MATRIX", "ALL"]
@@ -348,52 +350,36 @@ def _format_request_node(node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def caido_tools(
-    name: str,
-    *,
-    caido_url: str = "http://127.0.0.1:8080",
-    auth_token: str | None = None,
-    timeout: float = 30.0,
-) -> list[Any]:
-    """Build Caido proxy interaction tools.
+class CaidoTools:
+    """Backend for the Caido proxy tools.
 
-    Returns a list of async tool functions that share a single
-    ``CaidoClient`` instance (same pattern as ``http_tools``).
+    Each method does the GraphQL orchestration and returns a raw domain dict
+    (bare success, or ``{"error": ...}`` for a known failure). The agent-facing
+    ``caido_tools()`` factory wraps every method with ``aguard()`` so success is
+    enveloped as ``{"result": ...}`` and any unexpected fault becomes a clean
+    error. Tests exercise these methods directly (same backend/frontend split
+    as the fs and memory tools).
     """
-    cli = CaidoClient(url=caido_url, auth_token=auth_token, timeout=timeout)
 
-    # ------------------------------------------------------------------
-    # 1. caido_scope
-    # ------------------------------------------------------------------
-    async def caido_scope(
+    def __init__(self, cli: CaidoClient) -> None:
+        self.cli = cli
+
+    async def scope(
+        self,
         action: Literal["list", "create"] = "list",
         name: str = "",
         allowlist: list[str] | None = None,
         denylist: list[str] | None = None,
-        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Manage Caido proxy scopes (target allowlists).
-
-        **Always set a scope before running automate** to prevent fuzzing
-        non-target hosts.
-
-        Args:
-            action: "list" to view existing scopes, "create" to add one.
-            name: scope name (required for "create").
-            allowlist: glob patterns for allowed hosts, e.g. ["*.example.com", "api.target.io"].
-            denylist: glob patterns to exclude.
-
-        Returns:
-            {"scopes": [...]} for list, or {"scope": {...}} for create.
-        """
+        """List or create Caido proxy scopes (target allowlists)."""
         try:
             if action == "list":
-                data = await cli.execute(_SCOPES_QUERY)
+                data = await self.cli.execute(_SCOPES_QUERY)
                 return {"scopes": data.get("scopes", [])}
 
             if not name:
                 return {"error": "name is required when action='create'"}
-            data = await cli.execute(
+            data = await self.cli.execute(
                 _CREATE_SCOPE,
                 variables={
                     "input": {
@@ -410,35 +396,13 @@ def caido_tools(
         except CaidoError as exc:
             return {"error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # 2. caido_history
-    # ------------------------------------------------------------------
-    async def caido_history(
+    async def history(
+        self,
         filter: str = "",
         limit: int = 20,
         offset: int = 0,
-        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Query Caido's HTTP proxy history.
-
-        Returns requests that passed through the Caido proxy, newest first.
-        Use HTTPQL filter syntax to narrow results.
-
-        HTTPQL examples:
-          - ``req.host.cont:"example.com"`` — host contains
-          - ``resp.code.eq:200`` — status code equals
-          - ``req.method.eq:"POST"`` — POST requests
-          - ``req.path.cont:"/api/"`` — path contains
-          - Combine with AND/OR: ``req.host.eq:"target" AND resp.code.gte:400``
-
-        Args:
-            filter: HTTPQL filter string (empty = all requests).
-            limit: max results to return (1-100).
-            offset: pagination offset.
-
-        Returns:
-            {"count": N, "requests": [{id, method, host, path, ...}, ...]}.
-        """
+        """Query Caido's HTTP proxy history (newest first)."""
         try:
             variables: dict[str, Any] = {
                 "limit": min(max(limit, 1), 100),
@@ -447,7 +411,7 @@ def caido_tools(
             }
             if filter:
                 variables["filter"] = filter
-            data = await cli.execute(_REQUESTS_QUERY, variables=variables)
+            data = await self.cli.execute(_REQUESTS_QUERY, variables=variables)
             conn = data.get("requestsByOffset", {})
             nodes = conn.get("nodes", [])
             return {
@@ -457,27 +421,10 @@ def caido_tools(
         except CaidoError as exc:
             return {"error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # 3. caido_request_detail
-    # ------------------------------------------------------------------
-    async def caido_request_detail(
-        request_id: str,
-        tool_context: ToolContext | None = None,
-    ) -> dict[str, Any]:
-        """Get the full raw request and response for a Caido history entry.
-
-        Use this to inspect an interesting request found via ``caido_history``
-        before deciding what to fuzz. The ``raw`` fields contain the full
-        HTTP request/response text.
-
-        Args:
-            request_id: the ID from caido_history results.
-
-        Returns:
-            Full request details including raw HTTP text and response.
-        """
+    async def request_detail(self, request_id: str) -> dict[str, Any]:
+        """Get the full raw request and response for a history entry."""
         try:
-            data = await cli.execute(
+            data = await self.cli.execute(
                 _REQUEST_DETAIL_QUERY,
                 variables={"id": request_id},
             )
@@ -506,10 +453,8 @@ def caido_tools(
         except CaidoError as exc:
             return {"error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # 4. caido_replay
-    # ------------------------------------------------------------------
-    async def caido_replay(
+    async def replay(
+        self,
         request_id: str = "",
         raw_request: str = "",
         host: str = "",
@@ -517,32 +462,12 @@ def caido_tools(
         is_tls: bool = False,
         wait: bool = True,
         timeout_seconds: float = 15.0,
-        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Send an HTTP request through Caido's Replay feature.
-
-        Either provide ``request_id`` to re-send an existing request from
-        history, or provide ``raw_request`` + connection details to send
-        a new one. The request and response appear in Caido's history.
-
-        Args:
-            request_id: ID of an existing request to replay (from caido_history).
-            raw_request: raw HTTP request text (alternative to request_id).
-                Example: "GET /api/users HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n"
-            host: target host (required when using raw_request).
-            port: target port (default 80).
-            is_tls: whether to use TLS/HTTPS.
-            wait: if True, wait for the response before returning.
-            timeout_seconds: max seconds to wait for response.
-
-        Returns:
-            Replay result with request/response details, or session info
-            if wait=False.
-        """
+        """Send an HTTP request through Caido's Replay feature."""
         try:
             # Resolve connection info and raw request (as base64 Blob)
             if request_id:
-                detail_data = await cli.execute(
+                detail_data = await self.cli.execute(
                     _REQUEST_DETAIL_QUERY,
                     variables={"id": request_id},
                 )
@@ -569,7 +494,7 @@ def caido_tools(
                 return {"error": "provide either request_id or (raw_request + host)"}
 
             # Create replay session
-            data = await cli.execute(
+            data = await self.cli.execute(
                 _CREATE_REPLAY_SESSION,
                 variables={"input": {"requestSource": source}},
             )
@@ -579,8 +504,8 @@ def caido_tools(
             session_id = session["id"]
             entry_id = (session.get("activeEntry") or {}).get("id")
 
-            # Start the replay task (v0.55: requires input with raw + connection + settings)
-            start_data = await cli.execute(
+            # Start the replay task (v0.55: input with raw + connection + settings)
+            start_data = await self.cli.execute(
                 _START_REPLAY_TASK,
                 variables={
                     "sessionId": session_id,
@@ -612,7 +537,7 @@ def caido_tools(
             deadline = asyncio.get_event_loop().time() + timeout_seconds
             while asyncio.get_event_loop().time() < deadline:
                 await asyncio.sleep(0.5)
-                entry_data = await cli.execute(
+                entry_data = await self.cli.execute(
                     _REPLAY_ENTRY_QUERY,
                     variables={"id": replay_entry_id},
                 )
@@ -645,60 +570,27 @@ def caido_tools(
                 "session_id": session_id,
                 "entry_id": replay_entry_id,
                 "status": "timeout",
-                "message": f"no response within {timeout_seconds}s — query caido_request_detail later",
+                "message": (
+                    f"no response within {timeout_seconds}s — "
+                    "query caido_request_detail later"
+                ),
             }
         except CaidoError as exc:
             return {"error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # 5. caido_automate_run
-    # ------------------------------------------------------------------
-    async def caido_automate_run(
+    async def automate_run(
+        self,
         request_id: str,
         targets: list[str],
         payloads: list[str],
         strategy: CaidoStrategy = "ALL",
         workers: int = 5,
         delay_ms: int = 0,
-        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Create and start a Caido Automate (fuzzing) session.
-
-        Automate replaces marked positions in a request with payload values
-        and sends all variants concurrently. This is much faster than
-        issuing individual HTTP requests for parameter fuzzing.
-
-        Workflow:
-        1. Call ``caido_request_detail(request_id)`` first to see the raw
-           request and pick target values.
-        2. Call this tool with the target strings and payloads.
-        3. Poll ``caido_automate_results(session_id)`` for results.
-
-        Args:
-            request_id: Caido request ID (from caido_history) to use as
-                the fuzzing template.
-            targets: literal substrings in the raw request to mark as
-                injection points. Example: if the raw request contains
-                ``id=42``, pass ``["42"]`` to fuzz that value.
-                Only the **first occurrence** of each target is used.
-            payloads: values to inject at each target position.
-                Example: ``["' OR 1=1--", "1 UNION SELECT null--", "1;ls"]``.
-            strategy: how to combine payloads across multiple targets:
-                - "ALL" — try every payload in every position (default).
-                - "SEQUENTIAL" — one payload list applied sequentially.
-                - "PARALLEL" — payload[i] goes to target[i] in lockstep.
-                - "MATRIX" — cartesian product of all payload lists.
-            workers: number of concurrent requests (1-50).
-            delay_ms: milliseconds delay between requests.
-
-        Returns:
-            ``{"session_id": ..., "entry_id": ..., "task_id": ...}`` on
-            success. Use ``caido_automate_results(session_id)`` to fetch
-            the results once the task completes.
-        """
+        """Create and start a Caido Automate (fuzzing) session."""
         try:
-            # Fetch the original request to get raw content and connection info
-            detail_data = await cli.execute(
+            # Fetch the original request for raw content and connection info
+            detail_data = await self.cli.execute(
                 _REQUEST_DETAIL_QUERY,
                 variables={"id": request_id},
             )
@@ -718,14 +610,14 @@ def caido_tools(
                 offsets = _find_placeholder_offsets(raw_text, target)
                 if not offsets:
                     return {
-                        "error": f"target {target!r} not found in the raw request. "
-                        f"Raw request starts with: {raw_text[:200]!r}"
+                        "error": f"target {target!r} not found in the raw "
+                        f"request. Raw request starts with: {raw_text[:200]!r}"
                     }
                 start, end = offsets[0]
                 placeholders.append({"start": start, "end": end})
 
             # Create session from the request
-            create_data = await cli.execute(
+            create_data = await self.cli.execute(
                 _CREATE_AUTOMATE_SESSION,
                 variables={"input": {"requestSource": {"id": request_id}}},
             )
@@ -754,7 +646,7 @@ def caido_tools(
                 "retryOnFailure": {"maximumRetries": 0, "backoff": 0},
             }
 
-            update_data = await cli.execute(
+            update_data = await self.cli.execute(
                 _UPDATE_AUTOMATE_SESSION,
                 variables={
                     "id": session_id,
@@ -771,10 +663,13 @@ def caido_tools(
             )
             update_result = update_data.get("updateAutomateSession", {})
             if update_result.get("error"):
-                return {"error": f"failed to configure automate session: {update_result['error']}"}
+                return {
+                    "error": "failed to configure automate session: "
+                    f"{update_result['error']}"
+                }
 
             # Start the fuzzing task
-            start_data = await cli.execute(
+            start_data = await self.cli.execute(
                 _START_AUTOMATE_TASK,
                 variables={"automateSessionId": session_id},
             )
@@ -790,45 +685,27 @@ def caido_tools(
                 "payload_count": len(payloads),
                 "strategy": strategy,
                 "status": "started",
-                "message": "Fuzzing started. Use caido_automate_results(session_id) to check progress.",
+                "message": (
+                    "Fuzzing started. Use caido_automate_results(session_id) "
+                    "to check progress."
+                ),
             }
         except CaidoError as exc:
             return {"error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # 6. caido_automate_results
-    # ------------------------------------------------------------------
-    async def caido_automate_results(
+    async def automate_results(
+        self,
         session_id: str,
         entry_id: str = "",
         limit: int = 50,
         offset: int = 0,
         sort_by: str = "RESP_STATUS_CODE",
         ascending: bool = True,
-        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Retrieve results from a Caido Automate (fuzzing) session.
-
-        Call this after ``caido_automate_run`` to see which payloads
-        triggered interesting responses. Look for anomalies in status
-        codes, response lengths, and roundtrip times.
-
-        Args:
-            session_id: automate session ID from caido_automate_run.
-            entry_id: specific entry ID (if empty, uses latest entry).
-            limit: max results per page (1-100).
-            offset: pagination offset.
-            sort_by: field to sort by. Options: RESP_STATUS_CODE,
-                RESP_LENGTH, RESP_ROUNDTRIP_TIME, POSITION, PAYLOAD_0.
-            ascending: sort direction.
-
-        Returns:
-            Fuzzing results with payload values, status codes, and
-            response metadata for each request sent.
-        """
+        """Retrieve results from a Caido Automate (fuzzing) session."""
         try:
             if not entry_id:
-                session_data = await cli.execute(
+                session_data = await self.cli.execute(
                     _AUTOMATE_SESSION_QUERY,
                     variables={"id": session_id},
                 )
@@ -844,7 +721,7 @@ def caido_tools(
                     }
                 entry_id = entries[-1]["id"]
 
-            data = await cli.execute(
+            data = await self.cli.execute(
                 _AUTOMATE_ENTRY_REQUESTS,
                 variables={
                     "id": entry_id,
@@ -893,6 +770,295 @@ def caido_tools(
         except CaidoError as exc:
             return {"error": str(exc)}
 
+    async def sitemap(
+        self,
+        parent_id: str = "",
+        scope_id: str = "",
+        depth: str = "DIRECT",
+    ) -> dict[str, Any]:
+        """Browse Caido's passive sitemap built from proxied traffic."""
+        try:
+            if parent_id:
+                data = await self.cli.execute(
+                    _SITEMAP_DESCENDANTS_QUERY,
+                    variables={"parentId": parent_id, "depth": depth},
+                )
+                conn = data.get("sitemapDescendantEntries", {})
+            else:
+                variables: dict[str, Any] = {}
+                if scope_id:
+                    variables["scopeId"] = scope_id
+                data = await self.cli.execute(_SITEMAP_ROOT_QUERY, variables=variables)
+                conn = data.get("sitemapRootEntries", {})
+
+            entries: list[dict[str, Any]] = []
+            for node in conn.get("nodes", []):
+                entries.append({
+                    "id": node["id"],
+                    "label": node.get("label", ""),
+                    "kind": node.get("kind", ""),
+                    "has_children": node.get("hasDescendants", False),
+                    "parent_id": node.get("parentId"),
+                })
+            return {"entries": entries}
+        except CaidoError as exc:
+            return {"error": str(exc)}
+
+
+def caido_tools(
+    name: str,
+    *,
+    caido_url: str = "http://127.0.0.1:8080",
+    auth_token: str | None = None,
+    timeout: float = 30.0,
+) -> list[Any]:
+    """Build Caido proxy interaction tools.
+
+    Returns a list of async tool functions backed by a single ``CaidoTools``
+    instance. Each frontend tool is a thin ``aguard`` wrapper over the
+    matching backend method (same backend/frontend split as the fs tools).
+    """
+    backend = CaidoTools(
+        CaidoClient(url=caido_url, auth_token=auth_token, timeout=timeout)
+    )
+
+    # ------------------------------------------------------------------
+    # 1. caido_scope
+    # ------------------------------------------------------------------
+    async def caido_scope(
+        action: Literal["list", "create"] = "list",
+        name: str = "",
+        allowlist: list[str] | None = None,
+        denylist: list[str] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Manage Caido proxy scopes (target allowlists).
+
+        **Always set a scope before running automate** to prevent fuzzing
+        non-target hosts.
+
+        Args:
+            action: "list" to view existing scopes, "create" to add one.
+            name: scope name (required for "create").
+            allowlist: glob patterns for allowed hosts, e.g. ["*.example.com", "api.target.io"].
+            denylist: glob patterns to exclude.
+
+        Returns:
+            {"scopes": [...]} for list, or {"scope": {...}} for create.
+        """
+
+        return await aguard(
+            lambda: backend.scope(
+                action=action,
+                name=name,
+                allowlist=allowlist,
+                denylist=denylist,
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # 2. caido_history
+    # ------------------------------------------------------------------
+    async def caido_history(
+        filter: str = "",
+        limit: int = 20,
+        offset: int = 0,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Query Caido's HTTP proxy history.
+
+        Returns requests that passed through the Caido proxy, newest first.
+        Use HTTPQL filter syntax to narrow results.
+
+        HTTPQL examples:
+          - ``req.host.cont:"example.com"`` — host contains
+          - ``resp.code.eq:200`` — status code equals
+          - ``req.method.eq:"POST"`` — POST requests
+          - ``req.path.cont:"/api/"`` — path contains
+          - Combine with AND/OR: ``req.host.eq:"target" AND resp.code.gte:400``
+
+        Args:
+            filter: HTTPQL filter string (empty = all requests).
+            limit: max results to return (1-100).
+            offset: pagination offset.
+
+        Returns:
+            {"count": N, "requests": [{id, method, host, path, ...}, ...]}.
+        """
+
+        return await aguard(
+            lambda: backend.history(filter=filter, limit=limit, offset=offset)
+        )
+
+    # ------------------------------------------------------------------
+    # 3. caido_request_detail
+    # ------------------------------------------------------------------
+    async def caido_request_detail(
+        request_id: str,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Get the full raw request and response for a Caido history entry.
+
+        Use this to inspect an interesting request found via ``caido_history``
+        before deciding what to fuzz. The ``raw`` fields contain the full
+        HTTP request/response text.
+
+        Args:
+            request_id: the ID from caido_history results.
+
+        Returns:
+            Full request details including raw HTTP text and response.
+        """
+
+        return await aguard(lambda: backend.request_detail(request_id))
+
+    # ------------------------------------------------------------------
+    # 4. caido_replay
+    # ------------------------------------------------------------------
+    async def caido_replay(
+        request_id: str = "",
+        raw_request: str = "",
+        host: str = "",
+        port: int = 80,
+        is_tls: bool = False,
+        wait: bool = True,
+        timeout_seconds: float = 15.0,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Send an HTTP request through Caido's Replay feature.
+
+        Either provide ``request_id`` to re-send an existing request from
+        history, or provide ``raw_request`` + connection details to send
+        a new one. The request and response appear in Caido's history.
+
+        Args:
+            request_id: ID of an existing request to replay (from caido_history).
+            raw_request: raw HTTP request text (alternative to request_id).
+                Example: "GET /api/users HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n"
+            host: target host (required when using raw_request).
+            port: target port (default 80).
+            is_tls: whether to use TLS/HTTPS.
+            wait: if True, wait for the response before returning.
+            timeout_seconds: max seconds to wait for response.
+
+        Returns:
+            Replay result with request/response details, or session info
+            if wait=False.
+        """
+
+        return await aguard(
+            lambda: backend.replay(
+                request_id=request_id,
+                raw_request=raw_request,
+                host=host,
+                port=port,
+                is_tls=is_tls,
+                wait=wait,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # 5. caido_automate_run
+    # ------------------------------------------------------------------
+    async def caido_automate_run(
+        request_id: str,
+        targets: list[str],
+        payloads: list[str],
+        strategy: CaidoStrategy = "ALL",
+        workers: int = 5,
+        delay_ms: int = 0,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Create and start a Caido Automate (fuzzing) session.
+
+        Automate replaces marked positions in a request with payload values
+        and sends all variants concurrently. This is much faster than
+        issuing individual HTTP requests for parameter fuzzing.
+
+        Workflow:
+        1. Call ``caido_request_detail(request_id)`` first to see the raw
+           request and pick target values.
+        2. Call this tool with the target strings and payloads.
+        3. Poll ``caido_automate_results(session_id)`` for results.
+
+        Args:
+            request_id: Caido request ID (from caido_history) to use as
+                the fuzzing template.
+            targets: literal substrings in the raw request to mark as
+                injection points. Example: if the raw request contains
+                ``id=42``, pass ``["42"]`` to fuzz that value.
+                Only the **first occurrence** of each target is used.
+            payloads: values to inject at each target position.
+                Example: ``["' OR 1=1--", "1 UNION SELECT null--", "1;ls"]``.
+            strategy: how to combine payloads across multiple targets:
+                - "ALL" — try every payload in every position (default).
+                - "SEQUENTIAL" — one payload list applied sequentially.
+                - "PARALLEL" — payload[i] goes to target[i] in lockstep.
+                - "MATRIX" — cartesian product of all payload lists.
+            workers: number of concurrent requests (1-50).
+            delay_ms: milliseconds delay between requests.
+
+        Returns:
+            ``{"session_id": ..., "entry_id": ..., "task_id": ...}`` on
+            success. Use ``caido_automate_results(session_id)`` to fetch
+            the results once the task completes.
+        """
+
+        return await aguard(
+            lambda: backend.automate_run(
+                request_id=request_id,
+                targets=targets,
+                payloads=payloads,
+                strategy=strategy,
+                workers=workers,
+                delay_ms=delay_ms,
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # 6. caido_automate_results
+    # ------------------------------------------------------------------
+    async def caido_automate_results(
+        session_id: str,
+        entry_id: str = "",
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "RESP_STATUS_CODE",
+        ascending: bool = True,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Retrieve results from a Caido Automate (fuzzing) session.
+
+        Call this after ``caido_automate_run`` to see which payloads
+        triggered interesting responses. Look for anomalies in status
+        codes, response lengths, and roundtrip times.
+
+        Args:
+            session_id: automate session ID from caido_automate_run.
+            entry_id: specific entry ID (if empty, uses latest entry).
+            limit: max results per page (1-100).
+            offset: pagination offset.
+            sort_by: field to sort by. Options: RESP_STATUS_CODE,
+                RESP_LENGTH, RESP_ROUNDTRIP_TIME, POSITION, PAYLOAD_0.
+            ascending: sort direction.
+
+        Returns:
+            Fuzzing results with payload values, status codes, and
+            response metadata for each request sent.
+        """
+
+        return await aguard(
+            lambda: backend.automate_results(
+                session_id=session_id,
+                entry_id=entry_id,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                ascending=ascending,
+            )
+        )
+
     # ------------------------------------------------------------------
     # 7. caido_sitemap
     # ------------------------------------------------------------------
@@ -920,32 +1086,14 @@ def caido_tools(
         Returns:
             {"entries": [{id, label, kind, has_children}, ...]}.
         """
-        try:
-            if parent_id:
-                data = await cli.execute(
-                    _SITEMAP_DESCENDANTS_QUERY,
-                    variables={"parentId": parent_id, "depth": depth},
-                )
-                conn = data.get("sitemapDescendantEntries", {})
-            else:
-                variables: dict[str, Any] = {}
-                if scope_id:
-                    variables["scopeId"] = scope_id
-                data = await cli.execute(_SITEMAP_ROOT_QUERY, variables=variables)
-                conn = data.get("sitemapRootEntries", {})
 
-            entries: list[dict[str, Any]] = []
-            for node in conn.get("nodes", []):
-                entries.append({
-                    "id": node["id"],
-                    "label": node.get("label", ""),
-                    "kind": node.get("kind", ""),
-                    "has_children": node.get("hasDescendants", False),
-                    "parent_id": node.get("parentId"),
-                })
-            return {"entries": entries}
-        except CaidoError as exc:
-            return {"error": str(exc)}
+        return await aguard(
+            lambda: backend.sitemap(
+                parent_id=parent_id,
+                scope_id=scope_id,
+                depth=depth,
+            )
+        )
 
     return [
         caido_scope,
