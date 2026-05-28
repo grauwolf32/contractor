@@ -142,34 +142,73 @@ class FsspecWriteTools(PathValidationMixin):
 
     # ---- write tools ----
 
+    # ── Shared write-op skeletons ─────────────────────────────────────────
+    # The simple write ops share one shape: validate path(s) → run the fs call
+    # → return an {"ok", "op", ...} result envelope, or {"error": str(exc)} on
+    # failure. These two helpers hold that skeleton so each op declares only its
+    # filesystem call and any result extras.
+
+    def _write_op(
+        self,
+        path: str,
+        op: str,
+        fn: Callable[[str], None],
+        *,
+        must_exist: bool = False,
+        **extra: Any,
+    ) -> ToolResult:
+        normalized_path, err = self._validate_path(path, must_exist=must_exist)
+        if err:
+            return err
+        try:
+            fn(normalized_path)
+        except Exception as exc:
+            return {"error": str(exc)}
+        return {"result": {"ok": True, "op": op, "path": normalized_path, **extra}}
+
+    def _dual_path_op(
+        self,
+        src: str,
+        dst: str,
+        op: str,
+        fn: Callable[[str, str], None],
+        *,
+        recursive: bool,
+    ) -> ToolResult:
+        normalized_src, err = self._validate_path(src, must_exist=True)
+        if err:
+            return err
+        normalized_dst, err = self._validate_path(dst)
+        if err:
+            return err
+        try:
+            fn(normalized_src, normalized_dst)
+        except Exception as exc:
+            return {"error": str(exc)}
+        return {
+            "result": {
+                "ok": True,
+                "op": op,
+                "src": normalized_src,
+                "dst": normalized_dst,
+                "recursive": recursive,
+            }
+        }
+
     def write_file(
         self,
         path: str,
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=content,
-                encoding=encoding,
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "write_file",
-                "path": normalized_path,
-                "size": len(content.encode(encoding, errors="ignore")),
-            }
-        }
+        return self._write_op(
+            path,
+            "write_file",
+            lambda p: self.fs.write_text(
+                p, value=content, encoding=encoding, errors="strict"
+            ),
+            size=len(content.encode(encoding, errors="ignore")),
+        )
 
     def append_file(
         self,
@@ -177,24 +216,16 @@ class FsspecWriteTools(PathValidationMixin):
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
-            with self.fs.open(normalized_path, mode="a", encoding=encoding) as f:
+        def _op(p: str) -> None:
+            with self.fs.open(p, mode="a", encoding=encoding) as f:
                 f.write(content)
-        except Exception as exc:
-            return {"error": str(exc)}
 
-        return {
-            "result": {
-                "ok": True,
-                "op": "append_file",
-                "path": normalized_path,
-                "size": len(content.encode(encoding, errors="ignore")),
-            }
-        }
+        return self._write_op(
+            path,
+            "append_file",
+            _op,
+            size=len(content.encode(encoding, errors="ignore")),
+        )
 
     def mkdir(
         self,
@@ -202,42 +233,26 @@ class FsspecWriteTools(PathValidationMixin):
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
+        def _op(p: str) -> None:
             if exist_ok:
-                self.fs.makedirs(normalized_path, exist_ok=True)
+                self.fs.makedirs(p, exist_ok=True)
             else:
-                self.fs.mkdir(normalized_path, create_parents=create_parents)
-        except Exception as exc:
-            return {"error": str(exc)}
+                self.fs.mkdir(p, create_parents=create_parents)
 
-        return {"result": {"ok": True, "op": "mkdir", "path": normalized_path}}
+        return self._write_op(path, "mkdir", _op)
 
     def rm(
         self,
         path: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path, must_exist=True)
-        if err:
-            return err
-
-        try:
-            self.fs.rm(normalized_path, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "rm",
-                "path": normalized_path,
-                "recursive": recursive,
-            }
-        }
+        return self._write_op(
+            path,
+            "rm",
+            lambda p: self.fs.rm(p, recursive=recursive),
+            must_exist=True,
+            recursive=recursive,
+        )
 
     def cp(
         self,
@@ -245,27 +260,13 @@ class FsspecWriteTools(PathValidationMixin):
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src, err = self._validate_path(src, must_exist=True)
-        if err:
-            return err
-        normalized_dst, err = self._validate_path(dst)
-        if err:
-            return err
-
-        try:
-            self.fs.copy(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "cp",
-                "src": normalized_src,
-                "dst": normalized_dst,
-                "recursive": recursive,
-            }
-        }
+        return self._dual_path_op(
+            src,
+            dst,
+            "cp",
+            lambda s, d: self.fs.copy(s, d, recursive=recursive),
+            recursive=recursive,
+        )
 
     def mv(
         self,
@@ -273,27 +274,13 @@ class FsspecWriteTools(PathValidationMixin):
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src, err = self._validate_path(src, must_exist=True)
-        if err:
-            return err
-        normalized_dst, err = self._validate_path(dst)
-        if err:
-            return err
-
-        try:
-            self.fs.mv(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "mv",
-                "src": normalized_src,
-                "dst": normalized_dst,
-                "recursive": recursive,
-            }
-        }
+        return self._dual_path_op(
+            src,
+            dst,
+            "mv",
+            lambda s, d: self.fs.mv(s, d, recursive=recursive),
+            recursive=recursive,
+        )
 
     def interaction_stats(
         self,
