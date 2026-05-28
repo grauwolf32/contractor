@@ -18,6 +18,9 @@ from contractor.tools.result import aguard
 from contractor.utils import DictDiff, deep_merge, dict_diff
 
 COMPONENT_KEY_ERROR: Final[str] = "got key={key} but only keys {keys} are allowed"
+ALLOWED_COMPONENT_KEYS: Final[frozenset[str]] = frozenset(
+    {"schemas", "securitySchemes", "requestBodies", "headers", "responses"}
+)
 COMPONENT_VALIDATION_ERROR: Final[str] = (
     "{exception}\n{component} should be formatted as:\n{schema}"
 )
@@ -220,6 +223,14 @@ def validate_files(
     return None
 
 
+def validate_component_key(key: str) -> Optional[str]:
+    """Return an error message if ``key`` isn't a valid component bucket, else None."""
+    if key not in ALLOWED_COMPONENT_KEYS:
+        keys = ",".join(sorted(ALLOWED_COMPONENT_KEYS))
+        return COMPONENT_KEY_ERROR.format(key=key, keys=keys)
+    return None
+
+
 def openapi_tools(
     name: str,
     fs: fsspec.AbstractFileSystem,
@@ -365,16 +376,8 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            allowed_keys = {
-                "schemas",
-                "securitySchemes",
-                "requestBodies",
-                "headers",
-                "responses",
-            }
-            if key not in allowed_keys:
-                keys: str = ",".join(allowed_keys)
-                return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
+            if err := validate_component_key(key):
+                return {"error": err}
 
             if err := validate_files(component_files, fs):
                 return {"error": err}
@@ -447,16 +450,8 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            allowed_keys = {
-                "schemas",
-                "securitySchemes",
-                "requestBodies",
-                "headers",
-                "responses",
-            }
-            if key not in allowed_keys:
-                keys: str = ",".join(allowed_keys)
-                return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
+            if err := validate_component_key(key):
+                return {"error": err}
 
             schema = await oas.load_schema(tool_context)
             schema.setdefault("components", {})

@@ -38,6 +38,19 @@ class VacuumOutputError(OpenApiLinterError):
         super().__init__(message)
 
 
+def _format_linter_error(exc: OpenApiLinterError) -> dict[str, Any]:
+    """Error envelope enriched with the exception's ``details`` / ``raw_output``
+    when present (base errors carry neither)."""
+    error_dict: dict[str, Any] = {"error": str(exc)}
+    details = getattr(exc, "details", "")
+    if details:
+        error_dict["details"] = details
+    raw_output = getattr(exc, "raw_output", None)
+    if raw_output is not None:
+        error_dict["raw_output"] = raw_output
+    return error_dict
+
+
 @dataclass
 class OpenApiLinter:
     """
@@ -325,34 +338,18 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
         async def _impl() -> Dict[str, Any]:
             try:
                 openapi_str = await linter.load_artifact(ctx)
-            except OpenApiLinterError as exc:
-                return {"error": str(exc)}
-
-            try:
                 result = await asyncio.to_thread(
                     linter.lint,
                     openapi_str=openapi_str,
                     include_severities=(2,),
                     limit=limit,
                 )
-                return {"result": result}
-            except VacuumExecutionError as exc:
-                error_dict: Dict[str, Any] = {"error": str(exc)}
-                if exc.details:
-                    error_dict["details"] = exc.details
-                return error_dict
-            except VacuumOutputError as exc:
-                error_dict = {"error": str(exc)}
-                if exc.details:
-                    error_dict["details"] = exc.details
-                if exc.raw_output is not None:
-                    error_dict["raw_output"] = exc.raw_output
-                return error_dict
             except OpenApiLinterError as exc:
-                return {"error": str(exc)}
+                return _format_linter_error(exc)
+            return {"result": result}
 
-        # aguard is the outer net for *unexpected* faults; the inner handlers
-        # keep the rich per-error metadata (details / raw_output).
+        # aguard is the outer net for *unexpected* faults; the inner handler
+        # keeps the rich per-error metadata (details / raw_output).
         return await aguard(_impl)
 
     return [lint_openapi]
