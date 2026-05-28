@@ -255,11 +255,30 @@ def code_graph_tools(
     holder = GraphEngineHolder(root=Path(root), language=language)
 
     def graph_summary() -> dict[str, Any]:
-        """Graph diagnostic: node/edge/entrypoint counts and deps."""
-        return holder.engine().summary()
+        """
+        Report high-level diagnostics for the code graph.
+
+        Use this first to gauge graph size and coverage before drilling in
+        with the other graph tools.
+
+        Returns counts of nodes, edges, and detected entrypoints plus
+        dependency info, wrapped under "result".
+        """
+        return {"result": holder.engine().summary(), "kind": "graph_summary"}
 
     def find_symbol(symbol: str) -> dict[str, Any]:
-        """Resolve a name to up to 50 graph nodes with locations."""
+        """
+        Resolve a name to matching graph nodes with their source locations.
+
+        Matches by full node id, exact name, or bare (case-insensitive) name,
+        returning up to 50 nodes.
+
+        Args:
+            symbol: Symbol name or node id to look up.
+
+        Returns the matching nodes; an empty list means the name is not in the
+        graph.
+        """
         graph = holder.graph()
         sym = str(symbol)
         bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
@@ -299,11 +318,27 @@ def code_graph_tools(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callers of ``symbol``. Includes inferred edges."""
+        """
+        Find the direct callers of a symbol (including inferred call edges).
+
+        Args:
+            symbol: Symbol name or node id to find callers of.
+            max_results: Maximum number of callers to return.
+
+        Returns the calling nodes, each tagged with edge confidence. An empty
+        list with a "note" means the symbol could not be resolved in the
+        graph; an empty list without a note means the symbol exists but has no
+        known callers.
+        """
         node_id = _resolve_id(symbol)
         graph = holder.graph()
         if node_id is None:
-            return {"result": [], "total_items": 0, "kind": "callers"}
+            return {
+                "result": [],
+                "total_items": 0,
+                "kind": "callers",
+                "note": f"symbol '{symbol}' not found in graph",
+            }
         unit = graph.nodes[node_id]
         bare = unit.name
         rows: list[dict[str, Any]] = []
@@ -335,11 +370,29 @@ def code_graph_tools(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callees of ``symbol``. Unresolved targets get kind=unresolved."""
+        """
+        Find the direct callees of a symbol (what it calls).
+
+        Targets that cannot be resolved to a known node are still returned,
+        tagged with kind="unresolved".
+
+        Args:
+            symbol: Symbol name or node id to find callees of.
+            max_results: Maximum number of callees to return.
+
+        Returns the called nodes. An empty list with a "note" means the symbol
+        could not be resolved in the graph; an empty list without a note means
+        the symbol exists but calls nothing tracked.
+        """
         node_id = _resolve_id(symbol)
         graph = holder.graph()
         if node_id is None:
-            return {"result": [], "total_items": 0, "kind": "callees"}
+            return {
+                "result": [],
+                "total_items": 0,
+                "kind": "callees",
+                "note": f"symbol '{symbol}' not found in graph",
+            }
         rows: list[dict[str, Any]] = []
         from dataclasses import asdict
 
@@ -375,7 +428,17 @@ def code_graph_tools(
         dst: str,
         max_paths: int = DEFAULT_MAX_PATHS,
     ) -> dict[str, Any]:
-        """All simple call paths from ``src`` to ``dst`` as id-lists."""
+        """
+        Find call paths from one symbol to another.
+
+        Args:
+            src: Starting symbol (the caller end).
+            dst: Target symbol (the callee end).
+            max_paths: Maximum number of paths to return.
+
+        Returns each path as an ordered list of node ids; an empty list means
+        no call path connects them.
+        """
         engine = holder.engine()
         paths = engine.paths_between(str(src), str(dst)) or []
         return {
@@ -389,7 +452,20 @@ def code_graph_tools(
         max_paths: int = DEFAULT_MAX_PATHS,
         max_depth: int = _MAX_PATH_DEPTH,
     ) -> dict[str, Any]:
-        """Paths from any detected entrypoint to ``symbol``."""
+        """
+        Find call paths from any detected entrypoint to a symbol.
+
+        Useful for judging reachability — whether externally-triggered code
+        can reach the target.
+
+        Args:
+            symbol: Target symbol to reach.
+            max_paths: Maximum number of paths to return.
+            max_depth: Maximum path length to explore.
+
+        Returns each path as an ordered list of node ids; an empty list means
+        no entrypoint reaches the symbol within max_depth.
+        """
         engine = holder.engine()
         paths = (
             engine.entrypoint_paths_to(str(symbol), max_depth=max_depth)
@@ -402,7 +478,14 @@ def code_graph_tools(
         }
 
     def attack_surface() -> dict[str, Any]:
-        """Framework-detected entrypoints with trust/asset metadata."""
+        """
+        List framework-detected entrypoints (the attack surface).
+
+        These are externally-reachable handlers (HTTP routes, etc.) annotated
+        with trust and asset metadata where known.
+
+        Returns the entrypoint nodes; an empty list means none were detected.
+        """
         rows = holder.engine().attack_surface() or []
         return {
             "result": rows,
@@ -411,7 +494,16 @@ def code_graph_tools(
         }
 
     def complexity_hotspots(threshold: int = 10) -> dict[str, Any]:
-        """Functions with cyclomatic complexity ≥ ``threshold``."""
+        """
+        List functions whose cyclomatic complexity meets or exceeds a
+        threshold.
+
+        Args:
+            threshold: Minimum complexity to include (default 10).
+
+        Returns the matching functions with their locations; an empty list
+        means nothing is that complex.
+        """
         rows = holder.engine().complexity_hotspots(int(threshold)) or []
         return {
             "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
@@ -420,7 +512,15 @@ def code_graph_tools(
         }
 
     def functions_that_raise(exception: str) -> dict[str, Any]:
-        """Functions whose detected exception list includes ``exception``."""
+        """
+        List functions that may raise a given exception type.
+
+        Args:
+            exception: Exception type name to search for.
+
+        Returns the matching functions with their locations; an empty list
+        means none were detected raising it.
+        """
         rows = (
             holder.engine().functions_that_raise(str(exception)) or []
         )

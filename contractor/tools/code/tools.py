@@ -1057,8 +1057,6 @@ def _parse_language(language: str) -> Optional[Language] | dict[str, Any]:
                 f"Unknown language '{language}'. Supported: "
                 + ", ".join(lang.value for lang in Language)
             ),
-            "result": [],
-            "total_items": 0,
         }
 
 
@@ -1075,7 +1073,22 @@ def code_tools(
         path: str = "",
         language: str = "",
     ) -> dict[str, Any]:
-        """Search for the definition of a symbol in the codebase."""
+        """
+        Search for the definition of a symbol in the codebase.
+
+        Resolves the symbol via tree-sitter and falls back to a grep-style
+        text search if no structural definition is found.
+
+        Args:
+            symbol: Symbol name to find the definition of.
+            path: Restrict the search to this subtree (default: whole tree).
+            language: Restrict to a single language (e.g. "python"); empty
+                searches all supported languages.
+
+        Returns the matching definitions (or grep matches when falling back);
+        the "kind" field says which. An error is returned if the language is
+        unknown.
+        """
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
             return lang_filter
@@ -1092,7 +1105,20 @@ def code_tools(
         offset: int = 0,
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
-        """List all symbol definitions found under a path."""
+        """
+        List symbol definitions found under a path.
+
+        Args:
+            path: Subtree to scan (default: whole tree).
+            language: Restrict to a single language; empty scans all.
+            node_type: Restrict to one symbol kind (e.g. "function",
+                "class"); empty returns all kinds.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of symbols to return.
+
+        Returns the symbols with their locations (paginated). An error is
+        returned if the language is unknown.
+        """
         lang_filter = _parse_language(language)
         if isinstance(lang_filter, dict):
             return lang_filter

@@ -867,8 +867,9 @@ class TestParseLanguage:
         assert isinstance(result, dict)
         assert "error" in result
         assert "cobol" in result["error"]
-        assert result["result"] == []
-        assert result["total_items"] == 0
+        # Error wrapper must not carry success keys (result/total_items).
+        assert "result" not in result
+        assert "total_items" not in result
 
     def test_all_language_values_parseable(self):
         for lang in Language:

@@ -847,7 +847,15 @@ def verification_tools(
         name: str,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """Read a previously-stored verification by finding name."""
+        """
+        Read a previously-stored verification by its finding name.
+
+        Args:
+            name: Finding name whose verification to retrieve.
+
+        Returns the stored verification, or an error if none exists for that
+        name.
+        """
         finding = await vt.get_finding(name, tool_context)
         if finding is None:
             return {"error": f"Verification for {name!r} not found."}
@@ -856,7 +864,12 @@ def verification_tools(
     async def list_verifications(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """List all verifications stored in this namespace (preview only)."""
+        """
+        List all verifications stored in this namespace.
+
+        Returns a preview (truncated) of each stored verification; use
+        get_verification for the full detail of one.
+        """
         findings = await vt.list_findings(tool_context)
         return {"result": vt.fmt.format_findings(findings, preview=True)}
 

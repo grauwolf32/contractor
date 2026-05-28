@@ -269,6 +269,8 @@ def openapi_tools(
     async def list_paths(tool_context: ToolContext) -> dict[str, Any]:
         """
         List all API paths currently in the schema.
+
+        Returns the path strings (e.g. "/users/{id}") defined so far.
         """
 
         schema = await oas.load_schema(tool_context)
@@ -498,6 +500,8 @@ def openapi_tools(
     async def get_info(tool_context: ToolContext) -> dict[str, Any]:
         """
         Retrieve the OpenAPI info section.
+
+        Returns the info block (title, version, description, ...).
         """
 
         schema = await oas.load_schema(tool_context)
@@ -533,6 +537,12 @@ def openapi_tools(
     async def remove_server(url: str, tool_context) -> dict[str, Any]:
         """
         Remove a server entry from the schema.
+
+        Args:
+            url: URL of the server entry to remove.
+
+        Returns the resulting schema diff, or an error if no server with that
+        URL exists.
         """
 
         schema = await oas.load_schema(tool_context)
@@ -554,6 +564,8 @@ def openapi_tools(
     async def list_servers(tool_context: ToolContext) -> dict[str, Any]:
         """
         List all configured servers.
+
+        Returns the server entries (url + description) defined so far.
         """
 
         schema = await oas.load_schema(tool_context)

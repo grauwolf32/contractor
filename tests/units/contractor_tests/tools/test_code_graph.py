@@ -56,7 +56,7 @@ def _by_name(tools):
 
 def test_graph_summary_reports_nodes_and_edges(tiny_project: Path) -> None:
     tools = _by_name(code_graph_tools(tiny_project))
-    summary = tools["graph_summary"]()
+    summary = tools["graph_summary"]()["result"]
     assert summary["total_nodes"] >= 3  # app, login, authenticate, _verify
     assert summary["call_edges"] >= 2
 
@@ -97,7 +97,7 @@ def test_utf8_safety_skips_bad_file(project_with_bad_utf8: Path) -> None:
     # Must not raise UnicodeDecodeError; bad file is silently skipped and
     # the good file is still parsed.
     tools = _by_name(code_graph_tools(project_with_bad_utf8))
-    summary = tools["graph_summary"]()
+    summary = tools["graph_summary"]()["result"]
     assert summary["total_nodes"] >= 1
     result = tools["find_symbol"]("hello")
     assert result["total_items"] >= 1
