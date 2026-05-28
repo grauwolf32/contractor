@@ -54,7 +54,7 @@ class RootedLocalFileSystem(LocalFileSystem):
 
         Returns ``self._blocked_path`` for any path that escapes the sandbox.
         """
-        path = norm_unicode(stringify_path(path))
+        path = norm_unicode(stringify_path(path)) or ""
 
         if path.startswith("file://"):
             path = path[7:]

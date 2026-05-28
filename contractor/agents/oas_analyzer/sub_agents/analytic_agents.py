@@ -117,6 +117,8 @@ def _create_branch_ctx_for_sub_agent(
     return invocation_context
 
 class AnalyticAgent(BaseAgent):
+    review_agent: LlmAgent
+
     class Config:
         extra = "allow"
 

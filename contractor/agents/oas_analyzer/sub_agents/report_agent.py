@@ -60,8 +60,9 @@ def format_vulnerabilities(vulnerabilities: list[dict]) -> str:
     """
     Format the vulnerabilities into a string.
     """
-    tags = {vulnerability["tag"] for vulnerability in vulnerabilities}
-    tags = sorted(tags)
+    tags: list[str] = sorted(
+        {vulnerability["tag"] for vulnerability in vulnerabilities}
+    )
     result = ""
 
     vulns_by_tag: dict[str, list[Any]] = {tag: [] for tag in tags}
@@ -135,6 +136,12 @@ class ReportAgent(BaseAgent):
         service_information = ctx.session.state.get("oas_analyzer::service_information")
         vulnerabilities = ctx.session.state.get("oas_analyzer::vulnerabilities", [])
 
+        # The upstream review_agent populates this via output_key before this
+        # report agent runs in the sequence.
+        if service_information is None:
+            raise RuntimeError(
+                "oas_analyzer::service_information missing from session state"
+            )
         report = format_service_information(service_information)
 
         if vulnerabilities:
@@ -143,6 +150,8 @@ class ReportAgent(BaseAgent):
 
         content = types.Part.from_text(text=report)
 
+        if ctx.artifact_service is None:
+            raise RuntimeError("artifact_service is not available on the context")
         await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,
             user_id=ctx.user_id,
