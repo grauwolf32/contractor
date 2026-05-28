@@ -40,7 +40,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []

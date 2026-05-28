@@ -34,7 +34,7 @@ class VulnScanTracePipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
 
     async def _run_impl(
         self,

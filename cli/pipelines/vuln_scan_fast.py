@@ -40,7 +40,7 @@ class VulnScanFastPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
 
     async def _run_impl(
         self,
@@ -322,6 +322,7 @@ class VulnScanFastPipeline(Pipeline):
             project_path=self.ctx.project_path,
             folder_name=self.ctx.folder_name,
             model=self.ctx.model,
+            timeout=self.ctx.timeout,
             app_name=self.ctx.app_name,
             user_id=self.ctx.user_id,
             artifact_service=self.ctx.artifact_service,

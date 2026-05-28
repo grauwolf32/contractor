@@ -43,7 +43,7 @@ class TraceVerifyPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         self.paths: list[OpenApiPath] = []
 
     async def _run_impl(

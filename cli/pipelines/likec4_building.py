@@ -56,7 +56,7 @@ class LikeC4BuildingPipeline(Pipeline):
             checkpoint_path=ctx.checkpoint_path,
         )
 
-        llm = LiteLlm(model=ctx.model)
+        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         overlay_fs = self._overlay_fs
 
         await self._seed_overlay_from_artifact(overlay_fs, user_id=user_id)

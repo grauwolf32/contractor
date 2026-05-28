@@ -141,6 +141,7 @@ async def async_main(
     folder_name: str,
     user_id: str,
     model: str,
+    timeout: int,
     pipeline: str,
     artifact: Optional[str],
     prompt: Optional[str],
@@ -167,6 +168,7 @@ async def async_main(
         project_path=project_path,
         folder_name=folder_name,
         model=model,
+        timeout=timeout,
         app_name=APP_NAME,
         user_id=user_id,
         artifact_service=artifact_service,
@@ -212,7 +214,7 @@ async def async_main(
 @click.option(
     "--project-path",
     required=True,
-    type=click.Path(path_type=Path),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     help="Path to the project directory",
 )
 @click.option(
@@ -239,9 +241,16 @@ async def async_main(
 @click.option(
     "--model",
     type=str,
-    default="lm-studio-qwen3.6",
-    show_default=True,
-    help="Model name to use for the task",
+    default=lambda: get_settings().default_model_name,
+    show_default="settings.default_model_name (DEFAULT_MODEL_NAME)",
+    help="Model alias to use (resolved by the LiteLLM proxy)",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=lambda: get_settings().default_model_timeout,
+    show_default="settings.default_model_timeout (DEFAULT_MODEL_TIMEOUT)",
+    help="Per-request model timeout in seconds",
 )
 @click.option(
     "--prompt",
@@ -271,6 +280,7 @@ def main(
     output: Optional[Path],
     user_id: str,
     model: str,
+    timeout: int,
     rm: bool,
     resume: bool,
     no_ui: bool,
@@ -303,6 +313,7 @@ def main(
             folder_name=folder_name,
             user_id=user_id,
             model=model,
+            timeout=timeout,
             pipeline=pipeline,
             artifact=artifact,
             prompt=prompt,

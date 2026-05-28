@@ -47,7 +47,7 @@ class RouterPipeline(Pipeline):
         if not prompt:
             raise ValueError("RouterPipeline requires ctx.prompt to be set")
 
-        llm = LiteLlm(model=ctx.model)
+        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         fs = ctx.fs
 
         sub_agents = [
