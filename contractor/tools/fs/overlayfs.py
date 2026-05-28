@@ -257,6 +257,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return False
         except Exception:
+            # Some fsspec backends raise non-FileNotFoundError from isfile();
+            # fall back to info() rather than assume the path is absent.
             try:
                 return self.base_fs.info(path).get("type") == "file"
             except FileNotFoundError:
@@ -268,6 +270,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return False
         except Exception:
+            # See _base_isfile: tolerate quirky isdir() impls via info().
             try:
                 return self.base_fs.info(path).get("type") == "directory"
             except FileNotFoundError:
@@ -362,6 +365,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return {}
         except Exception:
+            # find() is unsupported or signature-incompatible on this base fs;
+            # degrade to the ls-walk below rather than failing the listing.
             pass
 
         # Fallback: iterative walk using ls
