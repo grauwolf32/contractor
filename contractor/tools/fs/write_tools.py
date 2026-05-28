@@ -5,8 +5,7 @@ from typing import Any, Callable, Literal, Optional
 import fsspec
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.tools.fs.const import (PATH_IS_NOT_A_FILE_ERROR,
-                                       PATH_NOT_FOUND_ERROR)
+from contractor.tools.fs.const import PATH_IS_NOT_A_FILE_ERROR
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import InteractionFilter
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
@@ -16,10 +15,10 @@ from contractor.tools.fs.read_tools import (FsspecInteractionFileTools,
 from contractor.tools.fs.utils import (_ensure_int_or_none,
                                        _line_ending_for_text, _is_ignored,
                                        _parse_bool, _split_lines_keepends)
-from contractor.utils.formatting import norm_unicode_strict
+from contractor.tools.fs.validation import PathValidationMixin
 
 
-class FsspecWriteTools:
+class FsspecWriteTools(PathValidationMixin):
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
@@ -91,29 +90,6 @@ class FsspecWriteTools:
 
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
-
-    def _validate_path(
-        self,
-        path: str,
-        *,
-        must_exist: bool = False,
-        must_be_file: bool = False,
-        check_ignored: bool = True,
-    ) -> tuple[Optional[str], Optional[ToolResult]]:
-        try:
-            normalized = norm_unicode_strict(path)
-        except ValueError:
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-        if check_ignored and self._is_ignored(normalized):
-            return None, {"error": f"path {normalized} is ignored"}
-        if must_exist and not self.fs.exists(normalized):
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-        if must_be_file:
-            if not self.fs.exists(normalized):
-                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-            if not self.fs.isfile(normalized):
-                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
-        return normalized, None
 
     def _ensure_interactions_enabled(self) -> Optional[ToolResult]:
         if not self.with_interaction_tools:

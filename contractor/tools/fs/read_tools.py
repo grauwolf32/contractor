@@ -9,14 +9,13 @@ from google.adk.tools.tool_context import ToolContext
 
 from contractor.tools.fs.const import (_IGNORE_DEFAULTS, FS_COVERAGE_STATE_KEY,
                                        INCORRECT_REGEXP_ERROR,
-                                       PATH_IS_NOT_A_FILE_ERROR,
                                        PATH_NOT_FOUND_ERROR)
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
                                         InteractionFilter, InteractionKind)
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
-from contractor.utils.formatting import (norm_unicode, norm_unicode_strict,
-                                         normalize_slashes)
+from contractor.tools.fs.validation import PathValidationMixin
+from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
 ToolResult: TypeAlias = dict[str, Any]
@@ -48,7 +47,7 @@ def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list
     return result
 
 
-class FsspecInteractionFileTools:
+class FsspecInteractionFileTools(PathValidationMixin):
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
@@ -77,29 +76,6 @@ class FsspecInteractionFileTools:
 
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
-
-    def _validate_path(
-        self,
-        path: str,
-        *,
-        must_exist: bool = False,
-        must_be_file: bool = False,
-        check_ignored: bool = True,
-    ) -> tuple[Optional[str], Optional[ToolResult]]:
-        try:
-            normalized = norm_unicode_strict(path)
-        except ValueError:
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-        if check_ignored and self._is_ignored(normalized):
-            return None, {"error": f"path {normalized} is ignored"}
-        if must_exist and not self.fs.exists(normalized):
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-        if must_be_file:
-            if not self.fs.exists(normalized):
-                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-            if not self.fs.isfile(normalized):
-                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
-        return normalized, None
 
     def _paginate(
         self,
