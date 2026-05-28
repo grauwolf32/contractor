@@ -14,7 +14,6 @@ with a warning.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 from functools import partial
@@ -22,7 +21,6 @@ from typing import Any, Optional
 
 import yaml
 from google.adk.models import LiteLlm
-from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from cli.pipelines.trace_annotation import extract_openapi_paths
@@ -51,8 +49,6 @@ class VulnAssessPipeline(Pipeline):
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler],
     ) -> Any:
-        ctx = self.ctx
-
         # ── Steps 1-3: discovery + OAS build + validate ───────────
         await self._run_oas_stage(user_id=user_id, on_event=on_event)
 

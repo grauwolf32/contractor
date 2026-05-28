@@ -7,6 +7,7 @@ from google.adk.artifacts import BaseArtifactService
 from contractor.runners.models import (
     Checkpoint,
     CheckpointEntry,
+    EventType,
     RenderedTask,
     TaskInvocation,
     TaskResult,
@@ -459,3 +460,52 @@ class TestCheckpointIntegration:
         assert len(results) == 1
         single.assert_awaited_once()
         assert not (tmp_path / "checkpoint.json").exists()
+
+
+# ─── Run lifecycle events ────────────────────────────────────────────────────
+
+
+def _emitted_event_types(emit_mock) -> list:
+    return [call.args[0] for call in emit_mock.await_args_list if call.args]
+
+
+class TestRunLifecycleEvents:
+    @pytest.mark.asyncio
+    async def test_emits_run_finished_ok_on_success(self, runner, monkeypatch):
+        monkeypatch.setattr(
+            runner, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", True, 1, task_id=0)),
+        )
+        runner.queue.append(_make_invocation(ref="a:0", iterations=1, max_attempts=1))
+
+        await runner.run(user_id="u")
+
+        types = _emitted_event_types(runner._emit)
+        assert EventType.RUN_STARTED in types
+        assert EventType.RUN_FINISHED in types
+        finished = next(
+            c for c in runner._emit.await_args_list
+            if c.args and c.args[0] is EventType.RUN_FINISHED
+        )
+        assert finished.kwargs["ok"] is True
+        assert finished.kwargs["completed_tasks"] == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_run_finished_not_ok_on_failure(self, runner, monkeypatch):
+        # All attempts fail → TaskNotCompletedError propagates, but RUN_FINISHED
+        # must still fire with ok=False so consumers can finalize.
+        monkeypatch.setattr(
+            runner, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", False, 1, task_id=0)),
+        )
+        runner.queue.append(_make_invocation(ref="a:0", iterations=1, max_attempts=1))
+
+        with pytest.raises(TaskNotCompletedError):
+            await runner.run(user_id="u")
+
+        finished = [
+            c for c in runner._emit.await_args_list
+            if c.args and c.args[0] is EventType.RUN_FINISHED
+        ]
+        assert len(finished) == 1
+        assert finished[0].kwargs["ok"] is False

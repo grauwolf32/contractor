@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections import defaultdict
 from functools import partial
 from typing import Any, Optional
 
@@ -49,8 +48,6 @@ class VulnScanFastPipeline(Pipeline):
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler],
     ) -> Any:
-        ctx = self.ctx
-
         # ── Step 1: project discovery ─────────────────────────────
         await self._run_discovery(user_id=user_id, on_event=on_event)
 

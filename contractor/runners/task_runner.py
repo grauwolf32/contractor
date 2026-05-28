@@ -189,7 +189,25 @@ class TaskRunner(BaseModel):
                     completed_tasks=task_id + 1,
                 )
 
+            await self._emit(
+                EventType.RUN_FINISHED,
+                task_name="__runner__",
+                task_id=-1,
+                total_tasks=total_tasks,
+                completed_tasks=len(results),
+                ok=True,
+            )
             return results
+        except BaseException:
+            await self._emit(
+                EventType.RUN_FINISHED,
+                task_name="__runner__",
+                task_id=-1,
+                total_tasks=total_tasks,
+                completed_tasks=len(results),
+                ok=False,
+            )
+            raise
         finally:
             self._on_event = None
 
