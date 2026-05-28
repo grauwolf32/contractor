@@ -148,7 +148,7 @@ class VulnScanTracePipeline(Pipeline):
         )
 
         runner.add_task(
-            name="annotate_request_trace_for_vulnerability_analysis",
+            name="trace_annotation",
             ref=f"vuln-scan-trace:trace:{name}",
             worker_builder=trace_builder,
             iterations=1,
