@@ -84,7 +84,7 @@ class OpenApiLinter:
                     f"artifact '{self.artifact_key()}' not found in context"
                 )
             if isinstance(artifact, types.Part):
-                return artifact.text
+                return artifact.text or ""
             if isinstance(artifact, list) and len(artifact) > 0:
                 return artifact[0].text
             raise OpenApiLinterError(

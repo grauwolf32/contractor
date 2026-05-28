@@ -46,7 +46,7 @@ class RootedLocalFileSystem(LocalFileSystem):
         """Coerce caller-supplied path to a canonical virtual form."""
         if path in (None, "", "/"):
             return ""
-        return path
+        return path or ""
 
     def _strip_protocol(self, path: str) -> str:
         """

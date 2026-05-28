@@ -10,7 +10,10 @@ from contractor.utils.formatting import xml_escape
 class FileFormat:
     with_types: bool = True
     with_file_info: bool = True
-    _format: Literal["str", "json", "xml"] = "json"
+    # Agents thread a shared output-format knob here. "str"/"xml" have dedicated
+    # rendering; "json" and other accepted values ("yaml"/"markdown") render as
+    # JSON — FileFormat has no yaml/markdown renderer, so they fall back to json.
+    _format: Literal["str", "json", "xml", "yaml", "markdown"] = "json"
     loc: Literal["lines", "bytes"] = "lines"
 
     def _format_loc(self, loc: FileLoc) -> Union[str, dict[str, Any]]:

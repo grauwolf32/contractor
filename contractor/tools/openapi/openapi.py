@@ -67,7 +67,10 @@ openapi_base_schema: Final[dict[str, Any]] = {
 
 @dataclass
 class OpenAPIFormat:
-    _format: Literal["json", "yaml"] = "json"
+    # Fed by the agents' shared output-format knob. "yaml" has dedicated
+    # rendering; "json" and other accepted values ("xml"/"markdown") render as
+    # JSON — there is no xml/markdown renderer here, they fall back to json.
+    _format: Literal["json", "xml", "yaml", "markdown"] = "json"
 
     def format_result(self, value: Any) -> Any:
         if self._format == "yaml":
