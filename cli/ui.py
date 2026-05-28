@@ -43,12 +43,14 @@ def render_artifact_summary(
     output_dir: Path,
     saved_paths: list[Path],
     *,
+    store_dir: Optional[Path] = None,
     console: Optional[Console] = None,
 ) -> None:
     """Print the post-run artifact summary, grouped by top-level prefix.
 
-    Renders the output directory as a ``file://`` URL so terminals that
-    support it can open it. No-ops when ``saved_paths`` is empty.
+    Renders the output directory (and, when given, the per-project artifact
+    ``store_dir``) as ``file://`` URLs so terminals that support it can open
+    them. No-ops when ``saved_paths`` is empty.
     """
     if not saved_paths:
         return
@@ -68,8 +70,15 @@ def render_artifact_summary(
     folder_url = output_dir.resolve().as_uri()
     body_parts: list[RenderableType] = [
         Text.from_markup(f"[bold]Folder:[/bold] [link={folder_url}]{folder_url}[/link]"),
-        Text(""),
     ]
+    if store_dir is not None:
+        store_url = store_dir.resolve().as_uri()
+        body_parts.append(
+            Text.from_markup(
+                f"[bold]Store:[/bold] [link={store_url}]{store_url}[/link]"
+            )
+        )
+    body_parts.append(Text(""))
 
     for group in sorted(grouped):
         body_parts.append(Text(f"{group}/", style="bold cyan"))

@@ -221,7 +221,7 @@ async def async_main(
         output_dir=output_dir,
         artifact_service=artifact_service,
     )
-    render_artifact_summary(output_dir, saved_paths)
+    render_artifact_summary(output_dir, saved_paths, store_dir=artifacts_dir)
 
 
 @click.command(name=APP_NAME)
