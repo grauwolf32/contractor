@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # No submodules: unit tests don't need tests/playground (eval fixtures do,
+      # but the eval suite is opt-in and LLM-bound — not run here).
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==2.4.1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      # Blocking gates: style + unit suite must pass.
+      - name: Ruff
+        run: poetry run ruff check .
+
+      - name: Unit tests
+        run: poetry run pytest tests/units/ -q
+
+      # Informational only: ~180 pre-existing type errors. Tighten to blocking
+      # once the backlog is cleared.
+      - name: Mypy (non-blocking)
+        run: poetry run mypy
+        continue-on-error: true
