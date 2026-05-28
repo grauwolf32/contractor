@@ -28,6 +28,7 @@ from contractor.tools.fs.write_tools import rw_file_tools
 from contractor.tools.http import http_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.result import err, guard, is_envelope, ok, ok_page
+from contractor.tools.vuln import verification_tools, vulnerability_report_tools
 
 # Params ADK injects itself and strips from the model-facing declaration.
 _INJECTED_PARAMS = {"tool_context"}
@@ -42,6 +43,8 @@ def _build_registries(tmp_path):
         ("fs_rw", rw_file_tools(MemoryFileSystem(), wrap_overlay=False)),
         ("http", http_tools("contract-test")),
         ("memory", memory_tools("contract-test")),
+        ("vuln_report", vulnerability_report_tools("contract-test")),
+        ("verification", verification_tools("contract-test")),
     ]
 
 
