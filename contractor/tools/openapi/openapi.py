@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from contractor.tools.openapi.models import (PathItem, RequestBody, Response,
                                              SecurityScheme)
+from contractor.tools.result import aguard
 from contractor.utils import DictDiff, deep_merge, dict_diff
 
 COMPONENT_KEY_ERROR: Final[str] = "got key={key} but only keys {keys} are allowed"
@@ -231,20 +232,24 @@ def openapi_tools(
             operations or update fields.
         """
 
-        if err := validate_files(path_files, fs):
-            return {"error": err}
+        async def _impl() -> dict[str, Any]:
+            if err := validate_files(path_files, fs):
+                return {"error": err}
 
-        ok, err = validate_model(PathItem, path_def)
-        if not ok:
-            return {"error": err}
+            ok, err = validate_model(PathItem, path_def)
+            if not ok:
+                return {"error": err}
 
-        if not isinstance(path_def, dict):
-            path_def = path_def.model_dump(by_alias=True, exclude_none=True)
-        path_def.update({"x-path-files": path_files})
+            pdef = path_def
+            if not isinstance(pdef, dict):
+                pdef = pdef.model_dump(by_alias=True, exclude_none=True)
+            pdef.update({"x-path-files": path_files})
 
-        diff = {"paths": {path.strip(): path_def}}
-        schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
-        return {"result": asdict(schema_diff)}
+            diff = {"paths": {path.strip(): pdef}}
+            schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
+            return {"result": asdict(schema_diff)}
+
+        return await aguard(_impl)
 
     async def remove_path(path: str, tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -253,18 +258,21 @@ def openapi_tools(
             path (str): API path to remove
         """
 
-        schema = await oas.load_schema(tool_context)
-        current = copy.deepcopy(schema)
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            current = copy.deepcopy(schema)
 
-        if "paths" in oas.schema and path in oas.schema["paths"]:
-            del oas.schema["paths"][path]
-        else:
-            return {"error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path)}
+            if "paths" in oas.schema and path in oas.schema["paths"]:
+                del oas.schema["paths"][path]
+            else:
+                return {"error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path)}
 
-        diff = dict_diff(current, oas.schema)
-        await oas.save_schema(tool_context)
+            diff = dict_diff(current, oas.schema)
+            await oas.save_schema(tool_context)
 
-        return {"result": asdict(diff)}
+            return {"result": asdict(diff)}
+
+        return await aguard(_impl)
 
     async def list_paths(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -273,9 +281,12 @@ def openapi_tools(
         Returns the path strings (e.g. "/users/{id}") defined so far.
         """
 
-        schema = await oas.load_schema(tool_context)
-        schema.setdefault("paths", {})
-        return {"result": list(schema["paths"].keys())}
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            schema.setdefault("paths", {})
+            return {"result": list(schema["paths"].keys())}
+
+        return await aguard(_impl)
 
     async def get_path(path: str, tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -285,15 +296,18 @@ def openapi_tools(
             path (str): API path to retrieve.
         """
 
-        schema = await oas.load_schema(tool_context)
-        schema.setdefault("paths", {})
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            schema.setdefault("paths", {})
 
-        if path.strip() not in schema["paths"]:
-            return {
-                "error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path.strip())
-            }
+            if path.strip() not in schema["paths"]:
+                return {
+                    "error": PATH_NOT_FOUND_OR_ALREADY_REMOVED.format(path=path.strip())
+                }
 
-        return {"result": fmt.format_result(schema["paths"][path.strip()])}
+            return {"result": fmt.format_result(schema["paths"][path.strip()])}
+
+        return await aguard(_impl)
 
     async def upsert_component(
         key: Literal[
@@ -327,41 +341,44 @@ def openapi_tools(
             accepted as-is — author them carefully.
         """
 
-        allowed_keys = {
-            "schemas",
-            "securitySchemes",
-            "requestBodies",
-            "headers",
-            "responses",
-        }
-        if key not in allowed_keys:
-            keys: str = ",".join(allowed_keys)
-            return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
+        async def _impl() -> dict[str, Any]:
+            allowed_keys = {
+                "schemas",
+                "securitySchemes",
+                "requestBodies",
+                "headers",
+                "responses",
+            }
+            if key not in allowed_keys:
+                keys: str = ",".join(allowed_keys)
+                return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
 
-        if err := validate_files(component_files, fs):
-            return {"error": err}
+            if err := validate_files(component_files, fs):
+                return {"error": err}
 
-        match key:
-            case "securitySchemes":
-                ok, err = validate_model(SecurityScheme, component_def)
-                if not ok:
-                    return {"error": err}
-            case "requestBodies":
-                ok, err = validate_model(RequestBody, component_def)
-                if not ok:
-                    return {"error": err}
-            case "responses":
-                ok, err = validate_model(Response, component_def)
-                if not ok:
-                    return {"error": err}
+            match key:
+                case "securitySchemes":
+                    ok, err = validate_model(SecurityScheme, component_def)
+                    if not ok:
+                        return {"error": err}
+                case "requestBodies":
+                    ok, err = validate_model(RequestBody, component_def)
+                    if not ok:
+                        return {"error": err}
+                case "responses":
+                    ok, err = validate_model(Response, component_def)
+                    if not ok:
+                        return {"error": err}
 
-        if type(component_def) is not dict:
-            return {"error": COMPONENT_SHOULD_BE_DICT_NOT_STR}
+            if type(component_def) is not dict:
+                return {"error": COMPONENT_SHOULD_BE_DICT_NOT_STR}
 
-        component_def.update({"x-component-files": component_files})
-        diff = {"components": {key: {name: component_def}}}
-        schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
-        return {"result": asdict(schema_diff)}
+            component_def.update({"x-component-files": component_files})
+            diff = {"components": {key: {name: component_def}}}
+            schema_diff: DictDiff = await oas.update_schema(diff, tool_context)
+            return {"result": asdict(schema_diff)}
+
+        return await aguard(_impl)
 
     async def remove_component(
         key: Literal[
@@ -377,26 +394,29 @@ def openapi_tools(
             component_name (str): Component name
         """
 
-        schema = await oas.load_schema(tool_context)
-        current = copy.deepcopy(schema)
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            current = copy.deepcopy(schema)
 
-        if (
-            "components" in oas.schema
-            and key in oas.schema["components"]
-            and component_name in oas.schema["components"][key]
-        ):
-            del oas.schema["components"][key][component_name]
-        else:
-            return {
-                "error": COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
-                    name=component_name, key=key
-                )
-            }
+            if (
+                "components" in oas.schema
+                and key in oas.schema["components"]
+                and component_name in oas.schema["components"][key]
+            ):
+                del oas.schema["components"][key][component_name]
+            else:
+                return {
+                    "error": COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
+                        name=component_name, key=key
+                    )
+                }
 
-        diff = dict_diff(current, oas.schema)
-        await oas.save_schema(tool_context)
+            diff = dict_diff(current, oas.schema)
+            await oas.save_schema(tool_context)
 
-        return {"result": asdict(diff)}
+            return {"result": asdict(diff)}
+
+        return await aguard(_impl)
 
     async def list_components(
         key: Literal[
@@ -410,22 +430,25 @@ def openapi_tools(
             key (str): schemas, securitySchemes, requestBodies, headers, responses
         """
 
-        allowed_keys = {
-            "schemas",
-            "securitySchemes",
-            "requestBodies",
-            "headers",
-            "responses",
-        }
-        if key not in allowed_keys:
-            keys: str = ",".join(allowed_keys)
-            return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
+        async def _impl() -> dict[str, Any]:
+            allowed_keys = {
+                "schemas",
+                "securitySchemes",
+                "requestBodies",
+                "headers",
+                "responses",
+            }
+            if key not in allowed_keys:
+                keys: str = ",".join(allowed_keys)
+                return {"error": COMPONENT_KEY_ERROR.format(key=key, keys=keys)}
 
-        schema = await oas.load_schema(tool_context)
-        schema.setdefault("components", {})
-        schema["components"].setdefault(key, {})
+            schema = await oas.load_schema(tool_context)
+            schema.setdefault("components", {})
+            schema["components"].setdefault(key, {})
 
-        return {"result": list(schema["components"][key].keys())}
+            return {"result": list(schema["components"][key].keys())}
+
+        return await aguard(_impl)
 
     async def get_component(
         key: Literal[
@@ -442,22 +465,27 @@ def openapi_tools(
             component_name (str): Component name
         """
 
-        await oas.load_schema(tool_context)
+        async def _impl() -> dict[str, Any]:
+            await oas.load_schema(tool_context)
 
-        if not (
-            "components" in oas.schema
-            and key in oas.schema["components"]
-            and component_name in oas.schema["components"][key]
-        ):
+            if not (
+                "components" in oas.schema
+                and key in oas.schema["components"]
+                and component_name in oas.schema["components"][key]
+            ):
+                return {
+                    "error": COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
+                        name=component_name, key=key
+                    )
+                }
+
             return {
-                "error": COMPONENT_NOT_FOUND_OR_ALREADY_REMOVED.format(
-                    name=component_name, key=key
+                "result": fmt.format_result(
+                    oas.schema["components"][key][component_name]
                 )
             }
 
-        return {
-            "result": fmt.format_result(oas.schema["components"][key][component_name])
-        }
+        return await aguard(_impl)
 
     async def set_info(
         title: str,
@@ -482,20 +510,23 @@ def openapi_tools(
             (description, version, custom x-* extras) are dropped.
         """
 
-        extra: dict[str, Any] = dict()
-        if framework is not None:
-            extra["x-framework"] = framework
-        if code_language is not None:
-            extra["x-code-language"] = code_language
+        async def _impl() -> dict[str, Any]:
+            extra: dict[str, Any] = dict()
+            if framework is not None:
+                extra["x-framework"] = framework
+            if code_language is not None:
+                extra["x-code-language"] = code_language
 
-        schema = await oas.load_schema(tool_context)
-        current = copy.deepcopy(schema)
+            schema = await oas.load_schema(tool_context)
+            current = copy.deepcopy(schema)
 
-        oas.schema["info"] = {"title": title, **extra}
-        diff = dict_diff(current, oas.schema)
-        await oas.save_schema(tool_context)
+            oas.schema["info"] = {"title": title, **extra}
+            diff = dict_diff(current, oas.schema)
+            await oas.save_schema(tool_context)
 
-        return {"result": asdict(diff)}
+            return {"result": asdict(diff)}
+
+        return await aguard(_impl)
 
     async def get_info(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -504,9 +535,12 @@ def openapi_tools(
         Returns the info block (title, version, description, ...).
         """
 
-        schema = await oas.load_schema(tool_context)
-        schema.setdefault("info", {})
-        return {"result": fmt.format_result(schema["info"])}
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            schema.setdefault("info", {})
+            return {"result": fmt.format_result(schema["info"])}
+
+        return await aguard(_impl)
 
     async def add_server(
         url: str, description: Optional[str], tool_context: ToolContext
@@ -518,21 +552,24 @@ def openapi_tools(
             description (Optional[str]): Server description
         """
 
-        schema = await oas.load_schema(tool_context)
-        current = copy.deepcopy(schema)
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            current = copy.deepcopy(schema)
 
-        oas.schema.setdefault("servers", [])
-        servers = oas.schema["servers"]
+            oas.schema.setdefault("servers", [])
+            servers = oas.schema["servers"]
 
-        if any(url.strip() == server.get("url") for server in servers):
-            return {"error": SERVER_ALREADY_EXISTS.format(url=url.strip())}
+            if any(url.strip() == server.get("url") for server in servers):
+                return {"error": SERVER_ALREADY_EXISTS.format(url=url.strip())}
 
-        oas.schema["servers"].append(
-            {"url": url.strip(), "description": description or ""}
-        )
-        diff = dict_diff(current, oas.schema)
-        await oas.save_schema(tool_context)
-        return {"result": asdict(diff)}
+            oas.schema["servers"].append(
+                {"url": url.strip(), "description": description or ""}
+            )
+            diff = dict_diff(current, oas.schema)
+            await oas.save_schema(tool_context)
+            return {"result": asdict(diff)}
+
+        return await aguard(_impl)
 
     async def remove_server(url: str, tool_context) -> dict[str, Any]:
         """
@@ -545,21 +582,26 @@ def openapi_tools(
         URL exists.
         """
 
-        schema = await oas.load_schema(tool_context)
-        current = copy.deepcopy(schema)
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            current = copy.deepcopy(schema)
 
-        oas.schema.setdefault("servers", [])
-        servers = oas.schema["servers"]
+            oas.schema.setdefault("servers", [])
+            servers = oas.schema["servers"]
 
-        if not any(url.strip() == server.get("url") for server in servers):
-            return {"error": SERVER_NOT_EXISTS.format(url=url.strip())}
+            if not any(url.strip() == server.get("url") for server in servers):
+                return {"error": SERVER_NOT_EXISTS.format(url=url.strip())}
 
-        servers = [server for server in servers if not server.get("url") == url.strip()]
-        oas.schema["servers"] = servers
+            servers = [
+                server for server in servers if not server.get("url") == url.strip()
+            ]
+            oas.schema["servers"] = servers
 
-        diff = dict_diff(current, oas.schema)
-        await oas.save_schema(tool_context)
-        return {"result": asdict(diff)}
+            diff = dict_diff(current, oas.schema)
+            await oas.save_schema(tool_context)
+            return {"result": asdict(diff)}
+
+        return await aguard(_impl)
 
     async def list_servers(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -568,9 +610,12 @@ def openapi_tools(
         Returns the server entries (url + description) defined so far.
         """
 
-        schema = await oas.load_schema(tool_context)
-        schema.setdefault("servers", [])
-        return {"result": schema["servers"]}
+        async def _impl() -> dict[str, Any]:
+            schema = await oas.load_schema(tool_context)
+            schema.setdefault("servers", [])
+            return {"result": schema["servers"]}
+
+        return await aguard(_impl)
 
     async def get_full_openapi_schema(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -583,8 +628,11 @@ def openapi_tools(
         for targeted reads.
         """
 
-        await oas.load_schema(tool_context)
-        return {"result": oas.dump()}
+        async def _impl() -> dict[str, Any]:
+            await oas.load_schema(tool_context)
+            return {"result": oas.dump()}
+
+        return await aguard(_impl)
 
     return [
         list_paths,

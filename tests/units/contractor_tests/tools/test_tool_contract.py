@@ -29,6 +29,7 @@ from contractor.tools.fs.write_tools import rw_file_tools
 from contractor.tools.http import http_tools
 from contractor.tools.likec4 import likec4_tools
 from contractor.tools.memory import memory_tools
+from contractor.tools.openapi.openapi import openapi_tools
 from contractor.tools.openapi.vacuum import openapi_linter_tools
 from contractor.tools.result import err, guard, is_envelope, ok, ok_page
 from contractor.tools.vuln import verification_tools, vulnerability_report_tools
@@ -52,6 +53,7 @@ def _build_registries(tmp_path):
         ("vuln_report", vulnerability_report_tools("contract-test")),
         ("verification", verification_tools("contract-test")),
         ("likec4", likec4_tools(MemoryFileSystem())),
+        ("openapi", openapi_tools("contract-test", MemoryFileSystem())),
         ("openapi_linter", openapi_linter_tools("contract-test")),
         ("annotations", annotation_tools(MemoryFileSystem())),
     ]
