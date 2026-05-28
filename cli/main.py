@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -27,9 +29,27 @@ from contractor.utils.settings import get_settings
 PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
 
 APP_NAME = "contractor"
-ARTIFACTS_DIR: Path = (
+
+# Base dir under which every project gets its own artifact store. The
+# FileArtifactService root is keyed only by app_name/user_id, so without a
+# per-project namespace below, separate projects would share one store and
+# silently reuse each other's artifacts (e.g. a stale oas-openapi-building).
+ARTIFACTS_BASE_DIR: Path = (
     get_settings().artifacts_dir or Path(__file__).parent.parent / "artifacts"
 )
+
+
+def _project_artifacts_dir(base: Path, project_path: Path) -> Path:
+    """Per-project subdirectory of ``base`` for this project's artifact store.
+
+    Named ``<project-dir>-<hash>`` where the hash is derived from the fully
+    resolved project path, so same-named directories in different locations
+    don't collide.
+    """
+    resolved = project_path.resolve()
+    digest = hashlib.sha1(str(resolved).encode("utf-8")).hexdigest()[:8]
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", resolved.name).strip("-") or "project"
+    return base / f"{name}-{digest}"
 
 _QUIET_LOGGERS = (
     "httpcore",
@@ -152,8 +172,9 @@ async def async_main(
 ) -> None:
     ts_pack.init({"cache_dir": ts_pack.cache_dir()})
 
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    artifacts_dir = _project_artifacts_dir(ARTIFACTS_BASE_DIR, project_path)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    artifact_service = FileArtifactService(root_dir=artifacts_dir)
     fs = RootedLocalFileSystem(root_path=str(project_path))
 
     if rm_artifacts:
