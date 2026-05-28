@@ -816,7 +816,13 @@ def rw_file_tools(
 
     def ls(path: str) -> dict[str, Any]:
         """
-        List immediate children of a directory from the overlay-visible tree.
+        List the immediate children of a directory in the overlay-visible tree.
+
+        Args:
+            path: Directory whose contents to list.
+
+        Returns the directory entries, or an error if the path does not exist
+        or is not a directory.
         """
         return tools.ls(path=path)
 
@@ -905,6 +911,21 @@ def rw_file_tools(
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
+        """
+        Create a file, or overwrite it entirely with the given text.
+
+        The existing content (if any) is fully replaced. To change part of a
+        file, prefer `edit`; to add lines without rewriting, use `append_file`
+        or `insert_line`.
+
+        Args:
+            path: Path to the file to write.
+            content: Full new contents of the file.
+            encoding: Text encoding (default "utf-8").
+
+        Returns confirmation of the write, or an error if the path is invalid
+        or escapes the sandbox.
+        """
         return tools.write_file(path=path, content=content, encoding=encoding)
 
     def append_file(
@@ -912,6 +933,18 @@ def rw_file_tools(
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
+        """
+        Append text to the end of a file, creating it if it does not exist.
+
+        Existing content is preserved; `content` is added after it.
+
+        Args:
+            path: Path to the file to append to.
+            content: Text to add at the end of the file.
+            encoding: Text encoding (default "utf-8").
+
+        Returns confirmation of the append, or an error if the path is invalid.
+        """
         return tools.append_file(path=path, content=content, encoding=encoding)
 
     def mkdir(
@@ -919,6 +952,19 @@ def rw_file_tools(
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> dict[str, Any]:
+        """
+        Create a directory.
+
+        Args:
+            path: Directory path to create.
+            create_parents: If True (default), create missing parent
+                directories as well.
+            exist_ok: If True (default), succeed quietly when the directory
+                already exists instead of failing.
+
+        Returns confirmation of the created directory, or an error if the
+        path is invalid.
+        """
         return tools.mkdir(
             path=path,
             create_parents=_parse_bool(create_parents, True),
@@ -929,6 +975,17 @@ def rw_file_tools(
         path: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
+        """
+        Delete a file or directory.
+
+        Args:
+            path: Path to remove.
+            recursive: Must be True to delete a non-empty directory; for a
+                single file leave it False (default).
+
+        Returns confirmation of the removal, or an error if the path does not
+        exist or a non-empty directory is removed without recursive=True.
+        """
         return tools.rm(path=path, recursive=_parse_bool(recursive, False))
 
     def cp(
@@ -936,6 +993,17 @@ def rw_file_tools(
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
+        """
+        Copy a file or directory from one path to another.
+
+        Args:
+            src: Source path to copy from.
+            dst: Destination path to copy to.
+            recursive: Must be True to copy a directory and its contents.
+
+        Returns confirmation of the copy, or an error if the source is missing
+        or a directory is copied without recursive=True.
+        """
         return tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
 
     def mv(
@@ -943,6 +1011,17 @@ def rw_file_tools(
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
+        """
+        Move or rename a file or directory.
+
+        Args:
+            src: Source path to move from.
+            dst: Destination path to move to.
+            recursive: Must be True to move a directory and its contents.
+
+        Returns confirmation of the move, or an error if the source is missing
+        or a directory is moved without recursive=True.
+        """
         return tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
 
     def insert_line(
@@ -952,6 +1031,26 @@ def rw_file_tools(
         where: Literal["before", "after"] = "before",
         occurrence: int = 1,
     ) -> dict[str, Any]:
+        """
+        Insert text before or after an existing anchor line in a file.
+
+        The anchor is located by matching `anchor` against existing lines; the
+        new `content` is inserted relative to it without rewriting the rest of
+        the file. Use this for additive edits where you can name a nearby line;
+        prefer `edit` for replacing text.
+
+        Args:
+            path: Path to the file to modify.
+            content: Text to insert.
+            anchor: Existing line text used to locate the insertion point.
+            where: Insert "before" (default) or "after" the anchor.
+            occurrence: Which matching anchor to use when several match
+                (1-based, default the first).
+
+        Returns confirmation of the insert (including whether the file
+        changed), or an error if the anchor is not found or the path is
+        invalid.
+        """
         return tools.insert_line(
             path=path,
             content=content,
@@ -1161,7 +1260,17 @@ def rw_file_tools(
         recursive: bool = True,
     ) -> dict[str, Any]:
         """
-        Revert all changes and restore original file.
+        Discard overlay edits and restore a path to its original base content.
+
+        Use this to undo writes/edits made during the session and return the
+        file (or subtree) to how it looked on the base filesystem.
+
+        Args:
+            path: File or directory to restore.
+            recursive: If True (default), restore an entire directory subtree.
+
+        Returns confirmation of the restore, or an error if the path is
+        invalid.
         """
         return tools.restore(path=path, recursive=_parse_bool(recursive, True))
 

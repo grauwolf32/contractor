@@ -345,8 +345,8 @@ class FsspecInteractionFileTools(PathValidationMixin):
                 operation="read_file",
                 interaction=InteractionKind.READ,
             )
-        except Exception:
-            return {"result": ""}
+        except Exception as exc:
+            return {"error": f"failed to read '{normalized_file}': {exc}"}
 
         lines = content.splitlines()
 
@@ -580,7 +580,13 @@ def ro_file_tools(
 
     def ls(path: str) -> dict[str, Any]:
         """
-        List immediate children of a directory.
+        List the immediate children of a directory.
+
+        Args:
+            path: Directory whose contents to list.
+
+        Returns the directory entries, or an error if the path does not exist
+        or is not a directory.
         """
         return tools.ls(path=path)
 
@@ -665,7 +671,17 @@ def ro_file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that had at least one recorded interaction.
+        List files that had at least one recorded interaction (read or grep
+        match).
+
+        Args:
+            path: Root directory to search within.
+            pattern: Glob pattern to filter files.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of items to return.
+
+        Returns the matching files (paginated), or an error if the path is
+        invalid.
         """
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
@@ -680,7 +696,17 @@ def ro_file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that have not been read and did not match grep().
+        List files that have not been read and did not match grep() — the
+        unexplored remainder.
+
+        Args:
+            path: Root directory to search within.
+            pattern: Glob pattern to filter files.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of items to return.
+
+        Returns the matching files (paginated), or an error if the path is
+        invalid.
         """
         offset = _ensure_int_or_none(offset) or 0
         limit = _ensure_int_or_none(limit)
