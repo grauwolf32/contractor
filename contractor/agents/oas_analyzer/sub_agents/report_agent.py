@@ -94,20 +94,20 @@ def extract_mermaid_diagram(text: str) -> str:
 
 
 def format_service_information(service_information: dict) -> str:
-    service_information = ServiceBasicInfo(**service_information)
-    mermaid_diagram = extract_mermaid_diagram(service_information.diagram)
+    info = ServiceBasicInfo(**service_information)
+    mermaid_diagram = extract_mermaid_diagram(info.diagram)
 
     return f"""
 # Service Information
 
 ## Name
-{service_information.name}
+{info.name}
 
 ## Description
-{service_information.description}
+{info.description}
 
 ## Summary
-{service_information.summary}
+{info.summary}
 
 ## Diagram
 ```mermaid
@@ -115,10 +115,10 @@ def format_service_information(service_information: dict) -> str:
 ```
 
 ## Criticality
-{service_information.criticality}
+{info.criticality}
 
 ## Criticality Reason
-{service_information.criticality_reason}
+{info.criticality_reason}
 """.strip()
 
 
