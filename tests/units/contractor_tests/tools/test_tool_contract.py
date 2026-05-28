@@ -20,18 +20,24 @@ import warnings
 import pytest
 from fsspec.implementations.memory import MemoryFileSystem
 
+from contractor.tools.code.annotations import annotation_tools
 from contractor.tools.code.graph import code_graph_tools
 from contractor.tools.code.tools import code_tools
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.read_tools import ro_file_tools
 from contractor.tools.fs.write_tools import rw_file_tools
 from contractor.tools.http import http_tools
+from contractor.tools.likec4 import likec4_tools
 from contractor.tools.memory import memory_tools
+from contractor.tools.openapi.vacuum import openapi_linter_tools
 from contractor.tools.result import err, guard, is_envelope, ok, ok_page
 from contractor.tools.vuln import verification_tools, vulnerability_report_tools
 
-# Params ADK injects itself and strips from the model-facing declaration.
+# ADK injects these itself and strips them from the model-facing declaration:
+# anything named tool_context, or any param typed ToolContext/CallbackContext
+# (the param name varies — some tools call it ``ctx``).
 _INJECTED_PARAMS = {"tool_context"}
+_INJECTED_TYPES = ("ToolContext", "CallbackContext")
 
 
 def _build_registries(tmp_path):
@@ -45,6 +51,9 @@ def _build_registries(tmp_path):
         ("memory", memory_tools("contract-test")),
         ("vuln_report", vulnerability_report_tools("contract-test")),
         ("verification", verification_tools("contract-test")),
+        ("likec4", likec4_tools(MemoryFileSystem())),
+        ("openapi_linter", openapi_linter_tools("contract-test")),
+        ("annotations", annotation_tools(MemoryFileSystem())),
     ]
 
 
@@ -52,6 +61,9 @@ def _expected_param_names(tool) -> set[str]:
     names = set()
     for name, p in inspect.signature(tool).parameters.items():
         if name in _INJECTED_PARAMS:
+            continue
+        # annotations are strings under `from __future__ import annotations`
+        if any(t in str(p.annotation) for t in _INJECTED_TYPES):
             continue
         if p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
             continue

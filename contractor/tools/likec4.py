@@ -11,6 +11,8 @@ from typing import Any, Callable
 
 from fsspec import AbstractFileSystem
 
+from contractor.tools.result import aguard
+
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
 DEFAULT_LIKEC4_PATH: str = "/architecture.c4"
@@ -272,24 +274,30 @@ def likec4_tools(
             On success: {"result": [<issue>, ...]}. Empty list means no issues.
             On failure: {"error": "...", "details"?: "...", "raw_output"?: ...}.
         """
-        try:
-            issues = await asyncio.to_thread(linter.validate_path, fs, path)
-            return {"result": issues}
-        except Likec4SourceNotFoundError as exc:
-            return {"error": str(exc)}
-        except Likec4ExecutionError as exc:
-            out: dict[str, Any] = {"error": str(exc)}
-            if exc.details:
-                out["details"] = exc.details
-            return out
-        except Likec4OutputError as exc:
-            out = {"error": str(exc)}
-            if exc.details:
-                out["details"] = exc.details
-            if exc.raw_output is not None:
-                out["raw_output"] = exc.raw_output
-            return out
-        except Likec4Error as exc:
-            return {"error": str(exc)}
+
+        async def _impl() -> dict[str, Any]:
+            try:
+                issues = await asyncio.to_thread(linter.validate_path, fs, path)
+                return {"result": issues}
+            except Likec4SourceNotFoundError as exc:
+                return {"error": str(exc)}
+            except Likec4ExecutionError as exc:
+                out: dict[str, Any] = {"error": str(exc)}
+                if exc.details:
+                    out["details"] = exc.details
+                return out
+            except Likec4OutputError as exc:
+                out = {"error": str(exc)}
+                if exc.details:
+                    out["details"] = exc.details
+                if exc.raw_output is not None:
+                    out["raw_output"] = exc.raw_output
+                return out
+            except Likec4Error as exc:
+                return {"error": str(exc)}
+
+        # aguard is the outer net for *unexpected* faults; the inner handlers
+        # keep the rich per-error metadata (details / raw_output).
+        return await aguard(_impl)
 
     return [validate_likec4]
