@@ -156,20 +156,28 @@ class Likec4Linter:
                 details=stderr or f"exit code {process.returncode}",
             )
 
-        # npx/bunx may prepend banners (e.g. "Update available") before the
-        # JSON payload. Try each '{' or '[' offset until one parses.
-        parsed = None
+        # likec4 normally emits a single JSON document. npx/bunx may prepend
+        # banners (e.g. "Update available") before it, so if a direct parse
+        # fails, retry from each '{'/'[' offset to skip the banner. A sentinel
+        # (not None) tracks "never parsed" so a literal JSON `null` isn't
+        # mistaken for a parse failure.
+        unparsed = object()
+        parsed: object = unparsed
         last_exc: json.JSONDecodeError | None = None
-        for i, ch in enumerate(stdout):
-            if ch in ('{', '['):
-                try:
-                    parsed = json.loads(stdout[i:])
-                    break
-                except json.JSONDecodeError as exc:
-                    last_exc = exc
-                    continue
+        try:
+            parsed = json.loads(stdout.strip())
+        except json.JSONDecodeError as exc:
+            last_exc = exc
+            for i, ch in enumerate(stdout):
+                if ch in ('{', '['):
+                    try:
+                        parsed = json.loads(stdout[i:])
+                        break
+                    except json.JSONDecodeError as exc2:
+                        last_exc = exc2
+                        continue
 
-        if parsed is None:
+        if parsed is unparsed:
             raise Likec4OutputError(
                 "failed to parse likec4 output",
                 details=str(last_exc) if last_exc else "no JSON found",
