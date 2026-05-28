@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from uuid import uuid4
 
 import yaml
@@ -10,7 +10,7 @@ from google.genai import types
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
                                             extract_openapi_paths)
-from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
                                        TaskTemplate)
@@ -161,7 +161,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
             name="trace_agent",
             fs=self.overlayfs,
             namespace=namespace,
-            _format=self._template.format,
+            _format=cast(TraceFormat, self._template.format),
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,

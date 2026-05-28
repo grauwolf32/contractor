@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from uuid import uuid4
 
 import yaml
@@ -27,7 +27,7 @@ from cli.pipelines.trace_annotation import (
     OpenApiPath,
     extract_openapi_paths,
 )
-from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import RenderedTask, TaskRunnerEventHandler, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
@@ -213,7 +213,7 @@ class TraceGraphPathParPipeline(Pipeline):
             name="trace_agent",
             fs=overlay,
             namespace=namespace,
-            _format=self._template.format,
+            _format=cast(TraceFormat, self._template.format),
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,
