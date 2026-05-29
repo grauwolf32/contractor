@@ -233,8 +233,12 @@ async def run_task_pipeline(
                 if part is not None and getattr(part, "text", None):
                     artifacts[fname] = part.text
 
+        # Also load each requested key by its exact filename. This covers
+        # ``user:``-prefixed full artifact names (e.g. verification stores and
+        # the exploit HTTP chain) that the template/kind expansion above does
+        # not reconstruct.
         for raw_key in artifact_keys:
-            if "/" in raw_key:
+            if raw_key in artifacts:
                 continue
             part = await artifact_service.load_artifact(
                 app_name=runner_name,
