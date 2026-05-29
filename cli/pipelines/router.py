@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Any, Optional
 from uuid import uuid4
 
-from google.adk.models import LiteLlm
-
 from cli.pipelines import Pipeline
 from contractor.agents.http_agent.agent import build_http_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
@@ -21,6 +19,7 @@ from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.tasks.models import Subtask, SubtaskExecutionResult
+from contractor.utils.settings import build_model
 
 ROUTER_NAMESPACE = "router"
 ROUTER_TASK_NAME = "router"
@@ -48,7 +47,7 @@ class RouterPipeline(Pipeline):
         if not prompt:
             raise ValueError("RouterPipeline requires ctx.prompt to be set")
 
-        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        llm = build_model(ctx.model, ctx.timeout)
         fs = ctx.fs
 
         sub_agents = [

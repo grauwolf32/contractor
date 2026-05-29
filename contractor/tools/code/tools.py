@@ -14,13 +14,15 @@ from tree_sitter_language_pack import get_parser
 from contractor.tools.result import ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
+from contractor.utils.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Guard against infinite directory traversal.
-_MAX_WALK_DEPTH = 50
+# Guard against infinite directory traversal (env-tunable via Settings).
+_settings = get_settings()
+_MAX_WALK_DEPTH = _settings.code_max_walk_depth
 # Maximum number of files to visit in a single traversal to prevent runaway scans.
-_MAX_FILES_PER_WALK = 100_000
+_MAX_FILES_PER_WALK = _settings.code_max_files_per_walk
 
 
 # ─── Language Detection ───────────────────────────────────────────────

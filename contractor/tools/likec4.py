@@ -12,11 +12,12 @@ from typing import Any, Callable
 from fsspec import AbstractFileSystem
 
 from contractor.tools.result import aguard
+from contractor.utils.settings import get_settings
 
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
 DEFAULT_LIKEC4_PATH: str = "/architecture.c4"
-_DEFAULT_TIMEOUT_S: float = 120.0
+_DEFAULT_TIMEOUT_S: float = get_settings().likec4_validate_timeout
 
 # Auto-confirm flags for fallback package runners. Without these, a runner
 # that needs to fetch `likec4` on first use will wait on stdin for a

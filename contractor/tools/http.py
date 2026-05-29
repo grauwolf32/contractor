@@ -6,16 +6,17 @@ import json
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 
 import httpx
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
 from contractor.tools.result import aguard
-from google.genai import types
+from contractor.utils.settings import get_settings
 
 JSONLike: TypeAlias = dict[str, Any] | list[Any]
 HTTPRequestMethod: TypeAlias = Literal[
@@ -95,9 +96,9 @@ ToolFn: TypeAlias = Callable[..., Any]
 
 @dataclass(slots=True)
 class RetryConfig:
-    attempts: int = 3
-    base_delay: float = 0.5
-    max_delay: float = 8.0
+    attempts: int = field(default_factory=lambda: get_settings().http_retry_attempts)
+    base_delay: float = field(default_factory=lambda: get_settings().http_retry_base_delay)
+    max_delay: float = field(default_factory=lambda: get_settings().http_retry_max_delay)
     retry_on_statuses: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504)
 
 
@@ -134,14 +135,20 @@ class HTTPClient:
         name: str,
         *,
         proxy: str | None = None,
-        history_size: int = 20,
-        timeout: float = 30.0,
+        history_size: int | None = None,
+        timeout: float | None = None,
         verify_ssl: bool = True,
         user_agent: str = "LLM-Agent-HTTP-Tools/1.0",
-        body_preview_chars: int = 2048,
+        body_preview_chars: int | None = None,
         retry_config: RetryConfig | None = None,
         request_tag_prefix: str | None = None,
     ) -> None:
+        s = get_settings()
+        history_size = s.http_history_size if history_size is None else history_size
+        timeout = s.http_timeout if timeout is None else timeout
+        body_preview_chars = (
+            s.http_body_preview_chars if body_preview_chars is None else body_preview_chars
+        )
         if history_size <= 0:
             raise ValueError("history_size must be > 0")
         if body_preview_chars <= 0:
@@ -648,17 +655,18 @@ def http_tools(
     name: str,
     *,
     proxy: str | None = None,
-    history_size: int = 20,
-    timeout: float = 30.0,
+    history_size: int | None = None,
+    timeout: float | None = None,
     verify_ssl: bool = True,
     user_agent: str = "LLM-Agent-HTTP-Tools/1.0",
-    body_preview_chars: int = 2048,
-    attempts: int = 3,
-    base_delay: float = 0.5,
-    max_delay: float = 8.0,
+    body_preview_chars: int | None = None,
+    attempts: int | None = None,
+    base_delay: float | None = None,
+    max_delay: float | None = None,
     retry_on_statuses: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504),
     request_tag_prefix: str | None = None,
 ) -> list[ToolFn]:
+    s = get_settings()
     cli = HTTPClient(
         name=name,
         proxy=proxy,
@@ -668,9 +676,9 @@ def http_tools(
         user_agent=user_agent,
         body_preview_chars=body_preview_chars,
         retry_config=RetryConfig(
-            attempts=attempts,
-            base_delay=base_delay,
-            max_delay=max_delay,
+            attempts=s.http_retry_attempts if attempts is None else attempts,
+            base_delay=s.http_retry_base_delay if base_delay is None else base_delay,
+            max_delay=s.http_retry_max_delay if max_delay is None else max_delay,
             retry_on_statuses=retry_on_statuses,
         ),
         request_tag_prefix=request_tag_prefix,

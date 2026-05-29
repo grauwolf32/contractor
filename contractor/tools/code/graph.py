@@ -37,13 +37,16 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from contractor.tools.result import guard, ok, ok_page
+from contractor.utils.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_LANGUAGE = "auto"
-DEFAULT_MAX_RESULTS = 200
-DEFAULT_MAX_PATHS = 25
-_MAX_PATH_DEPTH = 30
+# Defaults sourced from global Settings (env-tunable); per-call args still override.
+_settings = get_settings()
+DEFAULT_MAX_RESULTS = _settings.graph_max_results
+DEFAULT_MAX_PATHS = _settings.graph_max_paths
+_MAX_PATH_DEPTH = _settings.graph_max_path_depth
 _FIND_SYMBOL_LIMIT = 50
 
 # A path resolver maps a host-FS absolute path (as trailmark returns it)

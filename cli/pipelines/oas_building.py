@@ -1,13 +1,12 @@
 from functools import partial
 from typing import Any, Optional
 
-from google.adk.models import LiteLlm
-
 from cli.pipelines import Pipeline
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
+from contractor.utils.settings import build_model
 
 
 class OasBuildingPipeline(Pipeline):
@@ -24,7 +23,7 @@ class OasBuildingPipeline(Pipeline):
             checkpoint_path=ctx.checkpoint_path,
         )
 
-        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        llm = build_model(ctx.model, ctx.timeout)
         fs = ctx.fs
         swe_builder = partial(
             build_swe_agent, name="swe_agent", fs=fs, model=llm, max_tokens=100_000

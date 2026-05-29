@@ -18,6 +18,7 @@ from contractor.tools.fs.validation import PathValidationMixin
 from contractor.tools.result import guard, ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
+from contractor.utils.settings import get_settings
 
 ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]
@@ -55,17 +56,18 @@ class FsspecInteractionFileTools(PathValidationMixin):
         fmt: FileFormat,
         *,
         root: str = "/",
-        max_output: int = 80_000,
-        max_items: int = 100,
+        max_output: Optional[int] = None,
+        max_items: Optional[int] = None,
         ignored_patterns: Optional[list[str]] = None,
         with_types: bool = True,
         with_file_info: bool = True,
     ) -> None:
+        s = get_settings()
         self.fs = fs
         self.fmt = fmt
         self.root = root
-        self.max_output = max_output
-        self.max_items = max_items
+        self.max_output = s.fs_max_output if max_output is None else max_output
+        self.max_items = s.fs_max_items if max_items is None else max_items
         self.with_types = with_types
         self.with_file_info = with_file_info
 

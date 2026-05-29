@@ -21,15 +21,13 @@ from functools import partial
 from typing import Any, Optional
 
 import yaml
-from google.adk.models import LiteLlm
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.trace_annotation import (OpenApiPath,
-                                            extract_openapi_paths)
+from cli.pipelines.trace_annotation import OpenApiPath, extract_openapi_paths
 from contractor.agents.trace_verifier_agent.agent import \
     build_trace_verifier_agent
-from contractor.runners.task_runner import (TaskRunner,
-                                            TaskRunnerEventHandler)
+from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
+from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ class TraceVerifyPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        self.llm = build_model(ctx.model, ctx.timeout)
         self.paths: list[OpenApiPath] = []
 
     async def _run_impl(

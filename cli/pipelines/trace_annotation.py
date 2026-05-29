@@ -5,7 +5,6 @@ from functools import partial
 from typing import Any, Optional
 
 import yaml
-from google.adk.models import LiteLlm
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
@@ -13,6 +12,7 @@ from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
+from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -99,7 +99,7 @@ class TraceAnnotationPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        self.llm = build_model(ctx.model, ctx.timeout)
         self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []

@@ -2,7 +2,6 @@ import logging
 from functools import partial
 from typing import Any, Optional
 
-from google.adk.models import LiteLlm
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext
@@ -12,6 +11,7 @@ from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import DEFAULT_LIKEC4_PATH
+from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class LikeC4BuildingPipeline(Pipeline):
             checkpoint_path=ctx.checkpoint_path,
         )
 
-        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        llm = build_model(ctx.model, ctx.timeout)
         overlay_fs = self._overlay_fs
 
         await self._seed_overlay_from_artifact(overlay_fs, user_id=user_id)

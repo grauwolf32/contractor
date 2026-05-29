@@ -20,7 +20,6 @@ from functools import partial
 from typing import Any, Optional
 
 import yaml
-from google.adk.models import LiteLlm
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from cli.pipelines.trace_annotation import extract_openapi_paths
@@ -29,6 +28,7 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
+from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class VulnAssessPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        self.llm = build_model(ctx.model, ctx.timeout)
 
     async def _run_impl(
         self,

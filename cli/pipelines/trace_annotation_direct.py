@@ -4,7 +4,6 @@ from typing import Any, Optional, cast
 from uuid import uuid4
 
 import yaml
-from google.adk.models import LiteLlm
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
@@ -18,6 +17,7 @@ from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
+from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,7 +40,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
+        self.llm = build_model(ctx.model, ctx.timeout)
         self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []
