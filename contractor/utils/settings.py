@@ -51,7 +51,9 @@ class Settings(BaseSettings):
     ci_job_token: Optional[str] = Field(default=None)
 
     # ── Storage paths (override in k8s) ──────────────────────────────────
-    # Where FileArtifactService writes. None → CLI default (./artifacts).
+    # Base dir for artifact stores. None → CLI default (./artifacts). The CLI
+    # namespaces a per-project subdir under this base, so multiple projects
+    # don't share one store.
     artifacts_dir: Optional[Path] = Field(default=None, alias="CONTRACTOR_ARTIFACTS_DIR")
 
 

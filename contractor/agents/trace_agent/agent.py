@@ -17,6 +17,10 @@ from contractor.utils import load_prompt
 
 from contractor.agents.worker_factory import build_worker
 
+# Output-format knob threaded into the memory/file/vuln formatters. Exported so
+# callers can cast their (str-typed) template format to it at the boundary.
+TraceFormat = Literal["json", "xml", "yaml", "markdown"]
+
 TRACE_AGENT_PROMPT: Final[str] = load_prompt("trace_agent")
 
 # Tools that mutate the filesystem in ways the trace_agent should no
@@ -55,7 +59,7 @@ def build_trace_agent(
     fs: AbstractFileSystem,
     *,
     namespace: str,
-    _format: Literal["json", "xml", "yaml", "markdown"] = "json",
+    _format: TraceFormat = "json",
     max_tokens: int = 80000,
     model: Optional[LiteLlm] = None,
     enable_vuln_reporting: bool = False,

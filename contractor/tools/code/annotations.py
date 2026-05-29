@@ -26,6 +26,7 @@ from typing import Any, Optional
 from fsspec import AbstractFileSystem
 
 from contractor.tools.code.tools import CodeTools, Language, detect_language
+from contractor.tools.result import guard
 
 logger = logging.getLogger(__name__)
 
@@ -248,16 +249,20 @@ def annotation_tools(fs: AbstractFileSystem, *, root: str = "/") -> list:
             tainted, validated, clean, derived. May be empty.
           - calls: comma-separated callee symbols relevant to the trace.
         """
-        if args:
-            _, err = _parse_args_spec(args)
-            if err:
-                return {"error": err, "kind": "trace"}
-        parts = [f"target={target or 'unknown'}"]
-        if args:
-            parts.append(f"args={args}")
-        if calls:
-            parts.append(f"calls={','.join(_split_csv(calls))}")
-        return _insert(file, function, "trace", " ".join(parts))
+
+        def _impl() -> dict[str, Any]:
+            if args:
+                _, err = _parse_args_spec(args)
+                if err:
+                    return {"error": err, "kind": "trace"}
+            parts = [f"target={target or 'unknown'}"]
+            if args:
+                parts.append(f"args={args}")
+            if calls:
+                parts.append(f"calls={','.join(_split_csv(calls))}")
+            return _insert(file, function, "trace", " ".join(parts))
+
+        return guard(_impl)
 
     def annotate_validate(
         file: str,
@@ -272,12 +277,16 @@ def annotation_tools(fs: AbstractFileSystem, *, root: str = "/") -> list:
         is a short label of the validation (e.g. ``regex``, ``schema``,
         ``length``, ``allowlist``).
         """
-        if not arg:
-            return {"error": "arg is required", "kind": "validate"}
-        if not kind:
-            return {"error": "kind is required", "kind": "validate"}
-        body = f"arg={arg} kind={kind}"
-        return _insert(file, function, "validate", body)
+
+        def _impl() -> dict[str, Any]:
+            if not arg:
+                return {"error": "arg is required", "kind": "validate"}
+            if not kind:
+                return {"error": "kind is required", "kind": "validate"}
+            body = f"arg={arg} kind={kind}"
+            return _insert(file, function, "validate", body)
+
+        return guard(_impl)
 
     def annotate_sink(
         file: str,
@@ -291,10 +300,14 @@ def annotation_tools(fs: AbstractFileSystem, *, root: str = "/") -> list:
         clearly wraps it. ``kind`` is the sink category (e.g. ``sql``,
         ``shell``, ``ssrf``, ``deserialize``, ``open-redirect``).
         """
-        if not kind:
-            return {"error": "kind is required", "kind": "sink"}
-        body = f"kind={kind} arg={arg or 'unknown'}"
-        return _insert(file, function, "sink", body)
+
+        def _impl() -> dict[str, Any]:
+            if not kind:
+                return {"error": "kind is required", "kind": "sink"}
+            body = f"kind={kind} arg={arg or 'unknown'}"
+            return _insert(file, function, "sink", body)
+
+        return guard(_impl)
 
     return [annotate_trace, annotate_validate, annotate_sink]
 

@@ -174,12 +174,13 @@ ONCE, the first time its topic becomes the current step.
 
 | Signal observed                                                | Load                          |
 | -------------------------------------------------------------- | ----------------------------- |
-| Need to assign argument state, or unsure if a value is tainted | `references/sources`          |
-| A reached call may be a sink; need to label it precisely       | `references/sinks`            |
-| Comment form unclear, or mixed-language source on the path     | `references/annotations`      |
-| About to compose §7 — need control checklist rows              | `references/controls`         |
-| About to report — need shape, fields, severity, slug rules     | `references/finding-shapes`   |
-| Tracing a Spring/Django/Go app; need routing or DI patterns    | `references/frameworks`       |
+| Need to assign argument state, or unsure if a value is tainted | `trace/references/sources`          |
+| A reached call may be a sink; need to label it precisely       | `trace/references/sinks`            |
+| Comment form unclear, or mixed-language source on the path     | `trace/references/annotations`      |
+| About to walk the per-handler control checklist                | `trace/references/controls`         |
+| About to report — need shape, fields, severity, slug rules     | `trace/references/finding-shapes`   |
+| Writing the `details` field — need the class → CWE ID + sink   | `trace/references/cwe-mapping`      |
+| Tracing a Spring/Django/Go app; need routing or DI patterns    | `trace/references/frameworks`       |
 
 ## Common false-positive traps
 
@@ -200,9 +201,10 @@ ONCE, the first time its topic becomes the current step.
 
 | File                          | Load when working on...                                              |
 | ----------------------------- | -------------------------------------------------------------------- |
-| `references/sinks`            | Identifying a sink; need its per-sink vulnerability checklist        |
-| `references/sources`          | Deciding argument states; need taint-source taxonomy                 |
-| `references/finding-shapes`   | Reporting a finding; need shape mechanics, fields, tool-field mapping |
-| `references/controls`         | Walking the per-handler control checklist before reporting           |
-| `references/annotations`      | Placing annotations; resolving comment syntax / format ambiguity     |
-| `references/frameworks`       | Spring/Django/Go routing, DI, and service-layer patterns             |
+| `trace/references/sinks`            | Identifying a sink; need its per-sink vulnerability checklist        |
+| `trace/references/sources`          | Deciding argument states; need taint-source taxonomy                 |
+| `trace/references/finding-shapes`   | Reporting a finding; need shape mechanics, fields, tool-field mapping |
+| `trace/references/controls`         | Walking the per-handler control checklist before reporting           |
+| `trace/references/annotations`      | Placing annotations; resolving comment syntax / format ambiguity     |
+| `trace/references/cwe-mapping`      | Writing the `details` field; need the class → primary CWE + sink label |
+| `trace/references/frameworks`       | Spring/Django/Go routing, DI, and service-layer patterns             |

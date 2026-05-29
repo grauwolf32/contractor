@@ -48,6 +48,7 @@ class TestRegistry:
             "vuln-assess",
             "vuln-scan",
             "vuln-scan-fast",
+            "vuln-scan-trace",
             "router",
         }
 
@@ -440,76 +441,276 @@ class TestTraceVerifyPipeline:
         assert t.version
 
 
-# ─── RouterPipeline ─────────────────────────────────────────────────────────
+# ─── Vuln pipelines: shared helpers ─────────────────────────────────────────────
 
 
-class TestRouterPipeline:
-    @pytest.fixture(autouse=True)
-    def _skip_vacuum(self, monkeypatch):
-        """The oas_linter sub-agent checks for the vacuum binary at
-        construction time. Bypass this in tests."""
-        monkeypatch.setattr(
-            "contractor.tools.openapi.vacuum.OpenApiLinter._ensure_vacuum",
-            staticmethod(lambda: None),
-        )
+def _patch_task_runners(monkeypatch) -> list:
+    """Capture every TaskRunner created, stubbing .run(). Returns the runner list."""
+    captured: list = []
+    original_init = TaskRunner.__init__
 
+    def capture_init(self, **kwargs):
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+    monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+    return captured
+
+
+def _flat_queue(runners: list) -> list:
+    return [item for r in runners for item in r.queue]
+
+
+def _findings_yaml(*specs: dict) -> str:
+    return yaml.safe_dump({s["name"]: s for s in specs}, sort_keys=False)
+
+
+# ─── VulnScanPipeline ───────────────────────────────────────────────────────────
+
+
+class TestVulnScanPipeline:
     @pytest.mark.asyncio
-    async def test_requires_prompt(self):
-        pipeline = RouterPipeline(_make_context(prompt=None))
-        with pytest.raises(ValueError, match="requires ctx.prompt"):
-            await pipeline._run_impl(user_id="u", on_event=None)
+    async def test_assembles_single_scan_task(self, monkeypatch):
+        from cli.pipelines.vuln_scan import VulnScanPipeline
 
-    @pytest.mark.asyncio
-    async def test_assembles_planner_with_router_worker(self, monkeypatch):
-        """The router pipeline should build a planner whose worker is
-        the router agent. The planner is passed to AgentRunner.run."""
-        captured_agents: list = []
-
-        async def fake_run(self, *, agent, **kwargs):
-            captured_agents.append(agent)
-            from contractor.runners.agent_runner import AgentRunResult
-            return AgentRunResult(
-                final_text="done",
-                session_id=kwargs.get("session_id", "test"),
-                final_state={},
-            )
-
-        monkeypatch.setattr(AgentRunner, "run", fake_run)
-
-        pipeline = RouterPipeline(_make_context(prompt="Analyze the project"))
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanPipeline(_make_context())
         await pipeline._run_impl(user_id="u", on_event=None)
 
-        assert len(captured_agents) == 1
-        planner = captured_agents[0]
-        assert "task_planner" in planner.name
-        assert planner.instruction is not None
+        queue = _flat_queue(captured)
+        assert len(queue) == 1
+        item = queue[0]
+        assert item.template_key == "vuln_scan"
+        assert item.ref == "vuln-scan:full"
+        assert item.skills == ["vuln_scan"]
 
-    def test_router_not_double_instrumented(self):
-        """The router must have Subtask/SubtaskExecutionResult schemas set
-        by the pipeline but must NOT have generic worker instructions
-        appended — its own dispatch protocol in prompts/v2.md handles the
-        output format."""
-        from contractor.agents.router_agent.agent import build_router_agent
-        from contractor.tools.tasks.models import Subtask, SubtaskExecutionResult
-        from contractor.tools.tasks.tools import _INSTRUCTION_SNAPSHOT_ATTR
 
-        router = build_router_agent(
-            name="router",
-            namespace="test",
-            sub_agents=[MagicMock()],
+# ─── VulnScanTracePipeline ──────────────────────────────────────────────────────
+
+
+class TestVulnScanTracePipeline:
+    @pytest.mark.asyncio
+    async def test_scan_only_when_no_findings(self, monkeypatch):
+        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+
+        # Default _make_context load_artifact → None → no findings → trace phase
+        # skipped, only the BFS scan task is queued.
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanTracePipeline(_make_context())
+        await pipeline._run_impl(user_id="u", on_event=None)
+
+        queue = _flat_queue(captured)
+        assert {item.template_key for item in queue} == {"vuln_scan"}
+        assert queue[0].ref == "vuln-scan-trace:scan"
+
+    @pytest.mark.asyncio
+    async def test_trace_finding_assembles_task(self, monkeypatch):
+        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanTracePipeline(_make_context())
+        await pipeline._trace_finding(
+            finding={"name": "sqli-1", "place": "h.py:10", "title": "SQLi"},
+            user_id="u",
+            on_event=None,
         )
-        original_instruction = router.instruction
 
-        # Simulate what the pipeline does (set schemas, skip instrument_worker)
-        router.input_schema = Subtask
-        router.output_schema = SubtaskExecutionResult
+        queue = _flat_queue(captured)
+        assert len(queue) == 1
+        item = queue[0]
+        assert item.template_key == "trace_annotation"
+        assert item.ref == "vuln-scan-trace:trace:sqli-1"
+        assert item.skills == ["trace"]
+        assert item.params["operation_id"] == "sqli-1"
+        assert "h.py:10" in item.params["operation_schema"]
 
-        assert router.input_schema is Subtask
-        assert router.output_schema is SubtaskExecutionResult
-        # instrument_worker sets this sentinel — it must NOT be present
-        assert not hasattr(router, _INSTRUCTION_SNAPSHOT_ATTR)
-        # The prompt must not contain the generic worker boilerplate
-        assert "CORE RULE:" not in router.instruction
-        assert "STATUS RULES:" not in router.instruction
-        # The prompt must be unchanged from the build
-        assert router.instruction == original_instruction
+    @pytest.mark.asyncio
+    async def test_trace_finding_skips_without_name_or_place(self, monkeypatch):
+        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanTracePipeline(_make_context())
+        await pipeline._trace_finding(
+            finding={"name": "x", "place": ""}, user_id="u", on_event=None
+        )
+        assert _flat_queue(captured) == []
+
+    @pytest.mark.asyncio
+    async def test_load_findings_sorts_by_severity(self, monkeypatch):
+        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+
+        ctx = _make_context()
+        yaml_text = _findings_yaml(
+            {"name": "low1", "severity": "low", "place": "a"},
+            {"name": "crit1", "severity": "critical", "place": "b"},
+            {"name": "med1", "severity": "medium", "place": "c"},
+        )
+        ctx.artifact_service.load_artifact = AsyncMock(
+            return_value=MagicMock(text=yaml_text, inline_data=None)
+        )
+        pipeline = VulnScanTracePipeline(ctx)
+
+        findings = await pipeline._load_findings(user_id="u", namespace="ns")
+
+        assert [f["name"] for f in findings] == ["crit1", "med1", "low1"]
+
+
+# ─── VulnScanFastPipeline ───────────────────────────────────────────────────────
+
+
+class TestVulnScanFastPipeline:
+    def test_dedup_merges_by_file_and_cwe_keeping_higher_confidence(self):
+        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+
+        findings = [
+            {"name": "a", "place": "h.py", "details": "CWE-89 sqli", "confidence": "low"},
+            {"name": "b", "place": "h.py", "details": "CWE-89 sqli", "confidence": "high"},
+            {"name": "c", "place": "other.py", "details": "CWE-79 xss", "confidence": "medium"},
+        ]
+        deduped = VulnScanFastPipeline._dedup(findings)
+
+        # a and b collapse (same file+CWE) → the higher-confidence one wins.
+        assert len(deduped) == 2
+        h_py = next(f for f in deduped if f["place"] == "h.py")
+        assert h_py["confidence"] == "high"
+
+    @pytest.mark.asyncio
+    async def test_discovery_assembles_two_tasks(self, monkeypatch):
+        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanFastPipeline(_make_context())
+        await pipeline._run_discovery(user_id="u", on_event=None)
+
+        assert _template_keys(_flat_queue(captured)) == {
+            "dependency_information",
+            "project_information",
+        }
+
+    @pytest.mark.asyncio
+    async def test_fast_scan_assembles_scan_task(self, monkeypatch):
+        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnScanFastPipeline(_make_context())
+        await pipeline._run_fast_scan(user_id="u", on_event=None)
+
+        queue = _flat_queue(captured)
+        assert len(queue) == 1
+        assert queue[0].template_key == "vuln_scan_fast"
+        assert queue[0].ref == "vuln-scan-fast:full"
+
+
+# ─── ExploitabilityPipeline ─────────────────────────────────────────────────────
+
+
+class TestExploitabilityPipeline:
+    def test_requires_target_url(self, monkeypatch):
+        from cli.pipelines.exploitability import ExploitabilityPipeline
+
+        monkeypatch.delenv("CONTRACTOR_TARGET_URL", raising=False)
+        with pytest.raises(ValueError, match="CONTRACTOR_TARGET_URL"):
+            ExploitabilityPipeline(_make_context())
+
+    @pytest.mark.asyncio
+    async def test_assess_finding_assembles_task(self, monkeypatch):
+        from cli.pipelines.exploitability import ExploitabilityPipeline
+
+        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = ExploitabilityPipeline(_make_context())
+        await pipeline._assess_finding(
+            finding={"name": "idor-1", "title": "IDOR", "place": "v.py:3"},
+            user_id="u",
+            on_event=None,
+        )
+
+        queue = _flat_queue(captured)
+        assert len(queue) == 1
+        item = queue[0]
+        assert item.template_key == "exploitability_assessment"
+        assert item.ref == "exploitability:idor-1"
+        assert item.skills == ["exploit"]
+        assert item.params["finding_name"] == "idor-1"
+        assert item.params["source_namespace"] == "exploitability:idor-1"
+
+    @pytest.mark.asyncio
+    async def test_assess_finding_skips_unnamed(self, monkeypatch):
+        from cli.pipelines.exploitability import ExploitabilityPipeline
+
+        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = ExploitabilityPipeline(_make_context())
+        await pipeline._assess_finding(finding={"name": ""}, user_id="u", on_event=None)
+        assert _flat_queue(captured) == []
+
+    @pytest.mark.asyncio
+    async def test_load_findings_parses_seed(self, monkeypatch):
+        from cli.pipelines.exploitability import ExploitabilityPipeline
+
+        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        ctx = _make_context()
+        ctx.artifact_service.load_artifact = AsyncMock(
+            return_value=MagicMock(
+                text=_findings_yaml({"name": "f1", "severity": "high"}),
+                inline_data=None,
+            )
+        )
+        pipeline = ExploitabilityPipeline(ctx)
+        findings = await pipeline._load_findings(user_id="u")
+        assert [f["name"] for f in findings] == ["f1"]
+
+
+# ─── VulnAssessPipeline ─────────────────────────────────────────────────────────
+
+
+class TestVulnAssessPipeline:
+    @pytest.mark.asyncio
+    async def test_oas_stage_assembles_four_tasks(self, monkeypatch):
+        from cli.pipelines.vuln_assess import VulnAssessPipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnAssessPipeline(_make_context())
+        await pipeline._run_oas_stage(user_id="u", on_event=None)
+
+        assert _template_keys(_flat_queue(captured)) == {
+            "dependency_information",
+            "project_information",
+            "oas_update",
+            "oas_validate",
+        }
+
+    @pytest.mark.asyncio
+    async def test_oas_stage_artifact_references_resolve(self, monkeypatch):
+        from cli.pipelines.vuln_assess import VulnAssessPipeline
+
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnAssessPipeline(_make_context())
+        await pipeline._run_oas_stage(user_id="u", on_event=None)
+
+        queue = _flat_queue(captured)
+        produced = _template_keys(queue)
+        for artifact_ref in _all_artifact_refs(queue):
+            assert _producing_task_key(artifact_ref) in produced, (
+                f"artifact {artifact_ref!r} referenced but not produced upstream"
+            )
+
+    @pytest.mark.asyncio
+    async def test_oas_stage_skipped_when_artifact_exists(self, monkeypatch):
+        from cli.pipelines.vuln_assess import VulnAssessPipeline, OAS_ARTIFACT
+
+        ctx = _make_context()
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == OAS_ARTIFACT:
+                return MagicMock(text="exists", inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        captured = _patch_task_runners(monkeypatch)
+        pipeline = VulnAssessPipeline(ctx)
+        await pipeline._run_oas_stage(user_id="u", on_event=None)
+
+        # Whole OAS stage short-circuits — no tasks queued.
+        assert _flat_queue(captured) == []

@@ -24,7 +24,7 @@ class OasBuildingPipeline(Pipeline):
             checkpoint_path=ctx.checkpoint_path,
         )
 
-        llm = LiteLlm(model=ctx.model)
+        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         fs = ctx.fs
         swe_builder = partial(
             build_swe_agent, name="swe_agent", fs=fs, model=llm, max_tokens=100_000

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from .base import BaseCallback, CallbackTypes
 
@@ -69,5 +69,9 @@ class CallbackAdapter:
             self.chains[cb_type] = chain
         return chain
 
-    def __call__(self) -> dict[str, Callable[..., Any]]:
+    def __call__(self) -> dict[str, Any]:
+        # Keyed by ADK callback name (before_model_callback, after_tool_callback,
+        # …); values are heterogeneous callback handlers. Typed ``Any`` so the
+        # ``LlmAgent(**callback_adapter())`` splat type-checks against LlmAgent's
+        # individually-typed callback params.
         return {cb_type.value: chain for cb_type, chain in self.chains.items()}

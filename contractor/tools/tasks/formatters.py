@@ -5,7 +5,7 @@ import json
 import re
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, TypeVar, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -16,6 +16,10 @@ from contractor.tools.tasks.models import (
     SubtaskExecutionResult,
     _MAX_LITERAL_EVAL_LEN,
 )
+
+# Passthrough type for _type_hint: non-str payloads return unchanged, a str may
+# be code-fence-wrapped — preserving the caller's narrower type.
+_T = TypeVar("_T")
 
 
 def _stringify_formatted(value: Union[str, dict[str, Any]]) -> str:
@@ -152,9 +156,9 @@ class SubtaskFormatter:
     # ── Helpers ─────────────────────────────────────────────────────
     def _type_hint(
         self,
-        output: Union[str, dict[str, Any], list[dict[str, Any]]],
+        output: _T,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any], list[dict[str, Any]]]:
+    ) -> Union[_T, str]:
         if not isinstance(output, str) or not type_hint:
             return output
         return f"```{self._format}\n{output}\n```"

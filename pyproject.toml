@@ -57,10 +57,38 @@ markers = [
 ]
 
 [tool.ruff]
-extend-exclude = ["tests/playground"]
+extend-exclude = ["tests/playground", ".claude"]
 
 [tool.ruff.lint.per-file-ignores]
 "cli/main.py" = ["E402"]
+# Test/eval modules deliberately import after path setup or in sectioned blocks.
+"tests/eval/test_exploitability_task_eval.py" = ["E402"]
+"tests/units/contractor_tests/runners/test_models.py" = ["E402"]
 
 [tool.isort]
-extend_skip = ["tests/playground"]
+extend_skip = ["tests/playground", ".claude"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["contractor", "cli"]
+# tests/playground (submodule) shadows stdlib `types`; tests/dummy_agents have
+# duplicate top-level `agent` modules. Both break module resolution — exclude so
+# `mypy .` works too, not just the default `files` set.
+exclude = "^(tests/playground|tests/dummy_agents|\\.claude)/"
+namespace_packages = true
+explicit_package_bases = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["contractor", "cli"]
+branch = true
+omit = ["tests/*", "scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]

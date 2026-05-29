@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest
+import pytest_asyncio
 
-from contractor.tools.caido import CaidoClient, CaidoError, caido_tools
+from contractor.tools.caido import CaidoClient, CaidoError, CaidoTools
 
 # ---------------------------------------------------------------------------
 # Env / settings helpers
@@ -98,53 +98,51 @@ elif skip_reason:
 
 
 @pytest.fixture(scope="module")
-def tools() -> list[Any]:
-    return caido_tools(
-        "integration-test",
-        caido_url=CAIDO_URL,
-        auth_token=CAIDO_AUTH_TOKEN,
-    )
-
-
-@pytest.fixture(scope="module")
 def client() -> CaidoClient:
     return CaidoClient(url=CAIDO_URL, auth_token=CAIDO_AUTH_TOKEN)
 
 
-# Convenience: unpack individual tools
 @pytest.fixture(scope="module")
-def scope_tool(tools):
-    return tools[0]
+def backend(client: CaidoClient) -> CaidoTools:
+    # Tests exercise the backend directly (raw bare/error dicts); the
+    # agent-facing caido_tools() wraps these methods with aguard().
+    return CaidoTools(client)
 
 
+# Convenience: bind individual backend methods
 @pytest.fixture(scope="module")
-def history_tool(tools):
-    return tools[1]
-
-
-@pytest.fixture(scope="module")
-def detail_tool(tools):
-    return tools[2]
+def scope_tool(backend):
+    return backend.scope
 
 
 @pytest.fixture(scope="module")
-def replay_tool(tools):
-    return tools[3]
+def history_tool(backend):
+    return backend.history
 
 
 @pytest.fixture(scope="module")
-def automate_run_tool(tools):
-    return tools[4]
+def detail_tool(backend):
+    return backend.request_detail
 
 
 @pytest.fixture(scope="module")
-def automate_results_tool(tools):
-    return tools[5]
+def replay_tool(backend):
+    return backend.replay
 
 
 @pytest.fixture(scope="module")
-def sitemap_tool(tools):
-    return tools[6]
+def automate_run_tool(backend):
+    return backend.automate_run
+
+
+@pytest.fixture(scope="module")
+def automate_results_tool(backend):
+    return backend.automate_results
+
+
+@pytest.fixture(scope="module")
+def sitemap_tool(backend):
+    return backend.sitemap
 
 
 # ---------------------------------------------------------------------------
@@ -360,17 +358,15 @@ class TestCaidoSitemap:
 
 
 class TestCaidoAutomate:
-    @pytest.fixture(scope="class")
-    def base_request_id(self, replay_tool):
+    @pytest_asyncio.fixture
+    async def base_request_id(self, replay_tool):
         """Send a base request to httpbin that we can fuzz."""
-        result = asyncio.get_event_loop().run_until_complete(
-            replay_tool(
-                raw_request="GET /get?id=1 HTTP/1.1\r\nHost: httpbin.org\r\nAccept: */*\r\n\r\n",
-                host="httpbin.org",
-                port=443,
-                is_tls=True,
-                timeout_seconds=20,
-            )
+        result = await replay_tool(
+            raw_request="GET /get?id=1 HTTP/1.1\r\nHost: httpbin.org\r\nAccept: */*\r\n\r\n",
+            host="httpbin.org",
+            port=443,
+            is_tls=True,
+            timeout_seconds=20,
         )
         rid = result.get("request_id")
         assert rid, f"failed to create base request: {result}"

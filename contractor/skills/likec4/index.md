@@ -1,5 +1,5 @@
 ---
-description: LikeC4 DSL reference for `.c4`/`.likec4` files and LikeC4 CLI/config. Covers exact DSL/CLI syntax (validate/export flags, predicates `*`/`_`/`**`, deployment snippets, dynamic views, relationship extension matchers). Detail files live under `likec4/references/<topic>` — read on demand via `read_memory`.
+description: LikeC4 DSL reference for `.c4`/`.likec4` files and LikeC4 CLI/config. Covers exact DSL/CLI syntax (validate/export flags, predicates `*`/`_`/`**`, deployment snippets, dynamic views, relationship extension matchers). Detail files live under `likec4/references/<topic>` — read on demand via `skills_read`.
 ---
 
 # LikeC4 DSL Skill
@@ -14,7 +14,7 @@ Architecture-as-code tool. Describe systems in `.c4`/`.likec4` files and LikeC4 
 4. **Strings** — `'single'`, `"double"` — all support multi-line. Escape quotes with backslash: `\'` or `\"`.
 5. **Markdown** — properties like `summary`/`description`/`notes` can contain Markdown. Use triple quotes `'''` or `"""`. Begin a new line after opening quotes and indent Markdown content for better formatting and syntax highlighting.
 6. **Comments** — `// single line` and `/* multi-line */` comments supported anywhere.
-7. **Identifier** — letters, digits, hyphens, underscores only. No dots (dots are FQN separators). Can't start with a digit. Examples: `customer`, `payment-service`, `frontendApp`, `queue-1`. **Critical:** `payment-api` is valid; `payment.api` is NOT an identifier (dots separate FQN hierarchy). See `references/identifier-validity.md`.
+7. **Identifier** — letters, digits, hyphens, underscores only. No dots (dots are FQN separators). Can't start with a digit. Examples: `customer`, `payment-service`, `frontendApp`, `queue-1`. **Critical:** `payment-api` is valid; `payment.api` is NOT an identifier (dots separate FQN hierarchy). See `likec4/references/identifier-validity`.
 8. **FQN** — Fully Qualified Name (FQN) is a dot-separated path to an element, MUST be unique within the project. Examples: `customer`, `saas.backend.payment-service.paymentsApi`, `infra.eu.zone1.node1`.
 9. **References** — LikeC4 has lexical scoping with hoisting, nested scope may shadow outer, like in JavaScript. That scope does **not** carry across files: even with imports/includes in the same project, cross-file references must use full FQNs. Tiny reminder: `backend.api` does not survive a file boundary; across files write the full path such as `cloud.backend.api`.
 
@@ -163,7 +163,7 @@ Canonical output directory flags:
 
 Do not invent flags like `--out-dir`. Depending on LikeC4 version, `--output` may appear as compatibility alias; prefer `--outdir`/`-o` for deterministic answers.
 
-Full CLI reference → `references/cli.md`
+Full CLI reference → `likec4/references/cli`
 
 ## Canonical Snippets for High-Variance Families
 
@@ -234,7 +234,7 @@ Config file (`likec4.config.json`, `.likec4rc`, or `likec4.config.{ts,js}`) defi
 ```
 
 Key options: `name` (required, unique ID in the workspace), `title` (display name)
-Full reference → `references/configuration.md`
+Full reference → `likec4/references/configuration`
 
 ## Specification
 
@@ -242,7 +242,7 @@ Defines all named vocabularies: element kinds, deployment node kinds, relationsh
 
 Key reminders: all definitions are global across files; duplicate kind/tag identifiers cause a validation error; specification changes trigger a full project re-parse — keep it in a dedicated `spec.c4` file.
 
-Full syntax, options per kind, and worked example → `references/specification.md`
+Full syntax, options per kind, and worked example → `likec4/references/specification`
 
 ## Model
 
@@ -250,27 +250,27 @@ Hierarchical structure of elements and relationships. Elements have a kind (from
 
 Key reminders: `this`/`it` aliases the current element in nested relationships; cross-file references require full FQN; parent-child direct relationships are forbidden; `extend FQN { }` merges tags, metadata, and links into an existing element without redefining it.
 
-Full syntax, extend patterns, property table, and worked example → `references/model.md`
+Full syntax, extend patterns, property table, and worked example → `likec4/references/model`
 
 ## Style
 
 Style properties control visual appearance: `color`, `shape`, `border`, `opacity`, `size`, `padding`, `textSize`, `icon`, `iconColor`, `iconSize`, `iconPosition`, `multiple`. Relationship style extends this with `line`, `head`, and `tail` arrow shapes.
 
-Full color token table, all shape values, border/opacity/size tokens, icon pack prefixes (`aws:`, `azure:`, `gcp:`, `tech:`, `bootstrap:`), and correct usage patterns → `references/style-tokens-colors.md`
+Full color token table, all shape values, border/opacity/size tokens, icon pack prefixes (`aws:`, `azure:`, `gcp:`, `tech:`, `bootstrap:`), and correct usage patterns → `likec4/references/style-tokens-colors`
 
-Icon names follow `<group>:<name>`. Available groups and approximate counts: `aws` (~307), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051). For commonly-used names within each group, see `references/style-tokens-colors.md`. (Listing the full icon catalogue requires the LikeC4 CLI, which is not available to this agent — use a known name from the reference, or pick a different style property like `shape`/`color` if uncertain.)
+Icon names follow `<group>:<name>`. Available groups and approximate counts: `aws` (~307), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051). For commonly-used names within each group, see `likec4/references/style-tokens-colors`. (Listing the full icon catalogue requires the LikeC4 CLI, which is not available to this agent — use a known name from the reference, or pick a different style property like `shape`/`color` if uncertain.)
 
 ## Deployment
 
 Maps logical model elements to physical infrastructure nodes using `instanceOf`. Uses `deploymentNode` kinds from specification. Inherits all logical model relationships automatically; additional deployment-level relationships can be defined inline.
 
-Named vs. anonymous instances, multi-environment fixture, deployment relationships, and selection guidance → `references/deployment.md`
+Named vs. anonymous instances, multi-environment fixture, deployment relationships, and selection guidance → `likec4/references/deployment`
 
 ## Views
 
 Three view types: element views (`view id` or `view id of element`), dynamic views (`dynamic view id`), deployment views (`deployment view id`). View properties: `title`, `description`, `metadata`, `link`.
 
-Include/exclude predicates, view-level style rules, groups, `autoLayout`, `extends`, `navigateTo`, and global predicate groups → `references/views.md`
+Include/exclude predicates, view-level style rules, groups, `autoLayout`, `extends`, `navigateTo`, and global predicate groups → `likec4/references/views`
 
 ## Quick Decision Trees
 
@@ -311,17 +311,17 @@ What kind of diagram?
 
 ```text
 Styling?
-├─ Style element(s) in a view → view `style` rule, see `references/views.md`
+├─ Style element(s) in a view → view `style` rule, see `likec4/references/views`
 ├─ Style element(s) in some views, but not all
-│   ├─ views in same file → local view rule, see `references/views.md`
-│   └─ views in different files → global view rule, see `references/views.md`
+│   ├─ views in same file → local view rule, see `likec4/references/views`
+│   └─ views in different files → global view rule, see `likec4/references/views`
 ├─ Style element globally → property inside element definition, see Model section
 ├─ Style all elements of a kind → property inside kind specification, see Specification section
-├─ Style by tag → view rule, see `references/views.md`
-├─ Style relationship(s) in a view → view rule, see `references/views.md`
+├─ Style by tag → view rule, see `likec4/references/views`
+├─ Style relationship(s) in a view → view rule, see `likec4/references/views`
 ├─ Style relationship globally → property inside relationship definition, see Model section
 ├─ Style all relationships of a kind → property inside kind specification, see Specification section
-├─ Reuse same styles across views → see `references/views.md`
+├─ Reuse same styles across views → see `likec4/references/views`
 ```
 
 ### "I need to organize across files"
@@ -348,7 +348,7 @@ Flow / sequence diagram?
 ├─ Step with notes → step { notes 'Markdown content' }
 ├─ Link to another view → step { navigateTo other-view }
 ├─ Sequence variant → dynamic view name { variant sequence }
-└─ Full reference → references/dynamic-views.md
+└─ Full reference → likec4/references/dynamic-views
 ```
 
 Return-arrow precision:
@@ -368,7 +368,7 @@ Return-arrow precision:
 
 ## Common Mistakes & Debugging
 
-When a model errors or an eval answer seems wrong, load `references/troubleshooting.md` which contains:
+When a model errors or an eval answer seems wrong, load `likec4/references/troubleshooting` which contains:
 
 - **Syntax errors** — identifier format (dots forbidden in identifiers), unknown kinds, duplicate FQNs, malformed `where` predicates
 - **Model & Hierarchy** — broken FQN references, parent-child relationship constraint, cross-file visibility
@@ -382,21 +382,21 @@ When a model errors or an eval answer seems wrong, load `references/troubleshoot
 
 ## Reference Index
 
-Load a reference file when the task involves the corresponding topic. Claude reads SKILL.md first; these files are loaded on demand only when needed.
+Load a reference file when the task involves the corresponding topic via `skills_read("likec4/references/<topic>")`. This index is always in memory; reference files are loaded on demand only when needed.
 
 | File                                         | Purpose — load when...                                                                                   |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `references/specification.md`                | Writing/editing `specification { }` blocks, defining element/deploymentNode/relationship/tag/color kinds |
-| `references/model.md`                        | Writing/editing `model { }` blocks, element hierarchy, relationships, `extend` patterns, property names  |
-| `references/deployment.md`                   | Writing/editing `deployment { }` blocks, `instanceOf`, named instances, multi-environment topology       |
-| `references/style-tokens-colors.md`          | Applying colors, shapes, icons, or relationship line styles; need exact token names                      |
-| `references/views.md`                        | Writing views, include/exclude rules, style rules in views, groups, autoLayout, global predicates        |
-| `references/predicates.md`                   | Complex `where` conditions, `with` overrides, global predicate groups, reusable predicates               |
-| `references/include-predicates-wildcards.md` | Wildcard confusion suspected (`*` vs `_` vs `**`); need exact scoped-view semantics                      |
-| `references/dynamic-views.md`                | Writing dynamic views: steps, return arrows, chained steps, parallel blocks, `variant sequence`          |
-| `references/identifier-validity.md`          | Identifier vs FQN confusion; "dots in names" errors; understanding FQN construction                      |
-| `references/relationships-bidirectional.md`  | Bidirectional relationship syntax and `<->` view predicate patterns                                      |
-| `references/cli.md`                          | What `validate_likec4` does under the hood: validate flags, JSON output shape, runner fallback notes    |
-| `references/configuration.md`                | Project config options, multi-project setup, include/exclude paths, generators                           |
-| `references/examples.md`                     | Compact real-world examples: extend, groups, globals, dynamic views, deployment, rank                    |
-| `references/troubleshooting.md`              | Errors, unexpected output, eval failures — 6 error tables, 5-step debug workflow, 7 best practices       |
+| `likec4/references/specification`                | Writing/editing `specification { }` blocks, defining element/deploymentNode/relationship/tag/color kinds |
+| `likec4/references/model`                        | Writing/editing `model { }` blocks, element hierarchy, relationships, `extend` patterns, property names  |
+| `likec4/references/deployment`                   | Writing/editing `deployment { }` blocks, `instanceOf`, named instances, multi-environment topology       |
+| `likec4/references/style-tokens-colors`          | Applying colors, shapes, icons, or relationship line styles; need exact token names                      |
+| `likec4/references/views`                        | Writing views, include/exclude rules, style rules in views, groups, autoLayout, global predicates        |
+| `likec4/references/predicates`                   | Complex `where` conditions, `with` overrides, global predicate groups, reusable predicates               |
+| `likec4/references/include-predicates-wildcards` | Wildcard confusion suspected (`*` vs `_` vs `**`); need exact scoped-view semantics                      |
+| `likec4/references/dynamic-views`                | Writing dynamic views: steps, return arrows, chained steps, parallel blocks, `variant sequence`          |
+| `likec4/references/identifier-validity`          | Identifier vs FQN confusion; "dots in names" errors; understanding FQN construction                      |
+| `likec4/references/relationships-bidirectional`  | Bidirectional relationship syntax and `<->` view predicate patterns                                      |
+| `likec4/references/cli`                          | What `validate_likec4` does under the hood: validate flags, JSON output shape, runner fallback notes    |
+| `likec4/references/configuration`                | Project config options, multi-project setup, include/exclude paths, generators                           |
+| `likec4/references/examples`                     | Compact real-world examples: extend, groups, globals, dynamic views, deployment, rank                    |
+| `likec4/references/troubleshooting`              | Errors, unexpected output, eval failures — 6 error tables, 5-step debug workflow, 7 best practices       |

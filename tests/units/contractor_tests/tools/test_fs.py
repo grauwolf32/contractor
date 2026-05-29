@@ -301,11 +301,16 @@ def test_touched_files_pagination(
     assert page1["limit"] == 2
     assert page1["total_items"] == 3
     assert len(page1["result"]) == 2
+    # honest truncation: page is smaller than the full set
+    assert page1["returned"] == 2
+    assert page1["truncated"] is True
 
     assert page2["offset"] == 2
     assert page2["limit"] == 2
     assert page2["total_items"] == 3
     assert len(page2["result"]) == 1
+    assert page2["returned"] == 1
+    assert page2["truncated"] is True
 
 
 def test_get_interactions_returns_raw_state(

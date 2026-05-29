@@ -5,8 +5,7 @@ from typing import Any, Callable, Literal, Optional
 import fsspec
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.tools.fs.const import (PATH_IS_NOT_A_FILE_ERROR,
-                                       PATH_NOT_FOUND_ERROR)
+from contractor.tools.fs.const import PATH_IS_NOT_A_FILE_ERROR
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import InteractionFilter
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
@@ -16,10 +15,11 @@ from contractor.tools.fs.read_tools import (FsspecInteractionFileTools,
 from contractor.tools.fs.utils import (_ensure_int_or_none,
                                        _line_ending_for_text, _is_ignored,
                                        _parse_bool, _split_lines_keepends)
-from contractor.utils.formatting import norm_unicode_strict
+from contractor.tools.fs.validation import PathValidationMixin
+from contractor.tools.result import guard
 
 
-class FsspecWriteTools:
+class FsspecWriteTools(PathValidationMixin):
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
@@ -92,29 +92,6 @@ class FsspecWriteTools:
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
 
-    def _validate_path(
-        self,
-        path: str,
-        *,
-        must_exist: bool = False,
-        must_be_file: bool = False,
-        check_ignored: bool = True,
-    ) -> tuple[Optional[str], Optional[ToolResult]]:
-        try:
-            normalized = norm_unicode_strict(path)
-        except ValueError:
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-        if check_ignored and self._is_ignored(normalized):
-            return None, {"error": f"path {normalized} is ignored"}
-        if must_exist and not self.fs.exists(normalized):
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-        if must_be_file:
-            if not self.fs.exists(normalized):
-                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-            if not self.fs.isfile(normalized):
-                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
-        return normalized, None
-
     def _ensure_interactions_enabled(self) -> Optional[ToolResult]:
         if not self.with_interaction_tools:
             return {
@@ -165,34 +142,83 @@ class FsspecWriteTools:
 
     # ---- write tools ----
 
+    # ── Shared write-op skeletons ─────────────────────────────────────────
+    # The simple write ops share one shape: validate path(s) → run the fs call
+    # → return an {"ok", "op", ...} result envelope, or {"error": str(exc)} on
+    # failure. These two helpers hold that skeleton so each op declares only its
+    # filesystem call and any result extras.
+
+    def _write_op(
+        self,
+        path: str,
+        op: str,
+        fn: Callable[[str], None],
+        *,
+        must_exist: bool = False,
+        **extra: Any,
+    ) -> ToolResult:
+        normalized_path, err = self._validate_path(path, must_exist=must_exist)
+        if err:
+            return err
+        try:
+            fn(normalized_path)
+        except Exception as exc:
+            return {"error": str(exc)}
+        return {"result": {"ok": True, "op": op, "path": normalized_path, **extra}}
+
+    def _dual_path_op(
+        self,
+        src: str,
+        dst: str,
+        op: str,
+        fn: Callable[[str, str], None],
+        *,
+        recursive: bool,
+    ) -> ToolResult:
+        normalized_src, err = self._validate_path(src, must_exist=True)
+        if err:
+            return err
+        normalized_dst, err = self._validate_path(dst)
+        if err:
+            return err
+        try:
+            fn(normalized_src, normalized_dst)
+        except Exception as exc:
+            return {"error": str(exc)}
+        return {
+            "result": {
+                "ok": True,
+                "op": op,
+                "src": normalized_src,
+                "dst": normalized_dst,
+                "recursive": recursive,
+            }
+        }
+
+    def _commit_write(
+        self, path: str, content: str, *, encoding: str = "utf-8"
+    ) -> Optional[ToolResult]:
+        """Write file text → None on success or {"error": ...} on failure."""
+        try:
+            self.fs.write_text(path, value=content, encoding=encoding, errors="strict")
+        except Exception as exc:
+            return {"error": str(exc)}
+        return None
+
     def write_file(
         self,
         path: str,
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=content,
-                encoding=encoding,
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "write_file",
-                "path": normalized_path,
-                "size": len(content.encode(encoding, errors="ignore")),
-            }
-        }
+        return self._write_op(
+            path,
+            "write_file",
+            lambda p: self.fs.write_text(
+                p, value=content, encoding=encoding, errors="strict"
+            ),
+            size=len(content.encode(encoding, errors="ignore")),
+        )
 
     def append_file(
         self,
@@ -200,24 +226,16 @@ class FsspecWriteTools:
         content: str,
         encoding: str = "utf-8",
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
-            with self.fs.open(normalized_path, mode="a", encoding=encoding) as f:
+        def _op(p: str) -> None:
+            with self.fs.open(p, mode="a", encoding=encoding) as f:
                 f.write(content)
-        except Exception as exc:
-            return {"error": str(exc)}
 
-        return {
-            "result": {
-                "ok": True,
-                "op": "append_file",
-                "path": normalized_path,
-                "size": len(content.encode(encoding, errors="ignore")),
-            }
-        }
+        return self._write_op(
+            path,
+            "append_file",
+            _op,
+            size=len(content.encode(encoding, errors="ignore")),
+        )
 
     def mkdir(
         self,
@@ -225,42 +243,26 @@ class FsspecWriteTools:
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path)
-        if err:
-            return err
-
-        try:
+        def _op(p: str) -> None:
             if exist_ok:
-                self.fs.makedirs(normalized_path, exist_ok=True)
+                self.fs.makedirs(p, exist_ok=True)
             else:
-                self.fs.mkdir(normalized_path, create_parents=create_parents)
-        except Exception as exc:
-            return {"error": str(exc)}
+                self.fs.mkdir(p, create_parents=create_parents)
 
-        return {"result": {"ok": True, "op": "mkdir", "path": normalized_path}}
+        return self._write_op(path, "mkdir", _op)
 
     def rm(
         self,
         path: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_path, err = self._validate_path(path, must_exist=True)
-        if err:
-            return err
-
-        try:
-            self.fs.rm(normalized_path, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "rm",
-                "path": normalized_path,
-                "recursive": recursive,
-            }
-        }
+        return self._write_op(
+            path,
+            "rm",
+            lambda p: self.fs.rm(p, recursive=recursive),
+            must_exist=True,
+            recursive=recursive,
+        )
 
     def cp(
         self,
@@ -268,27 +270,13 @@ class FsspecWriteTools:
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src, err = self._validate_path(src, must_exist=True)
-        if err:
-            return err
-        normalized_dst, err = self._validate_path(dst)
-        if err:
-            return err
-
-        try:
-            self.fs.copy(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "cp",
-                "src": normalized_src,
-                "dst": normalized_dst,
-                "recursive": recursive,
-            }
-        }
+        return self._dual_path_op(
+            src,
+            dst,
+            "cp",
+            lambda s, d: self.fs.copy(s, d, recursive=recursive),
+            recursive=recursive,
+        )
 
     def mv(
         self,
@@ -296,27 +284,13 @@ class FsspecWriteTools:
         dst: str,
         recursive: bool = False,
     ) -> ToolResult:
-        normalized_src, err = self._validate_path(src, must_exist=True)
-        if err:
-            return err
-        normalized_dst, err = self._validate_path(dst)
-        if err:
-            return err
-
-        try:
-            self.fs.mv(normalized_src, normalized_dst, recursive=recursive)
-        except Exception as exc:
-            return {"error": str(exc)}
-
-        return {
-            "result": {
-                "ok": True,
-                "op": "mv",
-                "src": normalized_src,
-                "dst": normalized_dst,
-                "recursive": recursive,
-            }
-        }
+        return self._dual_path_op(
+            src,
+            dst,
+            "mv",
+            lambda s, d: self.fs.mv(s, d, recursive=recursive),
+            recursive=recursive,
+        )
 
     def interaction_stats(
         self,
@@ -467,15 +441,8 @@ class FsspecWriteTools:
         new_lines.insert(insert_at, new_line)
         new_text = "".join(new_lines)
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_text,
-                encoding="utf-8",
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_text):
+            return err
 
         return {
             "result": {
@@ -517,15 +484,8 @@ class FsspecWriteTools:
                     "path": normalized_path,
                 }
 
-            try:
-                self.fs.write_text(
-                    normalized_path,
-                    value=new_string,
-                    encoding=encoding,
-                    errors="strict",
-                )
-            except Exception as exc:
-                return {"error": str(exc)}
+            if err := self._commit_write(normalized_path, new_string, encoding=encoding):
+                return err
 
             return {
                 "result": {
@@ -618,15 +578,8 @@ class FsspecWriteTools:
                 }
             }
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_content,
-                encoding=encoding,
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_content, encoding=encoding):
+            return err
 
         return {
             "result": {
@@ -781,15 +734,8 @@ class FsspecWriteTools:
         new_lines[start_idx:end_idx] = replacement_lines
         new_text = "".join(new_lines)
 
-        try:
-            self.fs.write_text(
-                normalized_path,
-                value=new_text,
-                encoding="utf-8",
-                errors="strict",
-            )
-        except Exception as exc:
-            return {"error": str(exc)}
+        if err := self._commit_write(normalized_path, new_text):
+            return err
 
         inserted_line_count = len(replacement_lines)
         new_end_line = (
@@ -840,9 +786,15 @@ def rw_file_tools(
 
     def ls(path: str) -> dict[str, Any]:
         """
-        List immediate children of a directory from the overlay-visible tree.
+        List the immediate children of a directory in the overlay-visible tree.
+
+        Args:
+            path: Directory whose contents to list.
+
+        Returns the directory entries, or an error if the path does not exist
+        or is not a directory.
         """
-        return tools.ls(path=path)
+        return guard(lambda: tools.ls(path=path))
 
     def glob(
         pattern: str,
@@ -855,8 +807,8 @@ def rw_file_tools(
         Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
         Absolute patterns are matched as-is and post-filtered by ``path``.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        return tools.glob(pattern=pattern, path=path, offset=offset)
+        off = _ensure_int_or_none(offset) or 0
+        return guard(lambda: tools.glob(pattern=pattern, path=path, offset=off))
 
     def read_file(
         file: str,
@@ -896,16 +848,17 @@ def rw_file_tools(
             - Use raw text (without numbers) for edit.old_string
         """
 
-        offset = _ensure_int_or_none(offset)
-        limit = _ensure_int_or_none(limit)
-        result = tools.read_file(
-            file_path=file,
-            offset=offset,
-            limit=limit,
-            with_line_numbers=bool(with_line_numbers),
-        )
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+        def _impl() -> dict[str, Any]:
+            result = tools.read_file(
+                file_path=file,
+                offset=_ensure_int_or_none(offset),
+                limit=_ensure_int_or_none(limit),
+                with_line_numbers=bool(with_line_numbers),
+            )
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def grep(
         pattern: str,
@@ -919,55 +872,144 @@ def rw_file_tools(
         Usage:
          - be more specific, avoid too general patterns like .*
         """
-        offset = _ensure_int_or_none(offset) or 0
-        result = tools.grep(pattern=pattern, path=path, offset=offset)
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            off = _ensure_int_or_none(offset) or 0
+            result = tools.grep(pattern=pattern, path=path, offset=off)
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def write_file(
         path: str,
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
-        return tools.write_file(path=path, content=content, encoding=encoding)
+        """
+        Create a file, or overwrite it entirely with the given text.
+
+        The existing content (if any) is fully replaced. To change part of a
+        file, prefer `edit`; to add lines without rewriting, use `append_file`
+        or `insert_line`.
+
+        Args:
+            path: Path to the file to write.
+            content: Full new contents of the file.
+            encoding: Text encoding (default "utf-8").
+
+        Returns confirmation of the write, or an error if the path is invalid
+        or escapes the sandbox.
+        """
+        return guard(
+            lambda: tools.write_file(path=path, content=content, encoding=encoding)
+        )
 
     def append_file(
         path: str,
         content: str,
         encoding: str = "utf-8",
     ) -> dict[str, Any]:
-        return tools.append_file(path=path, content=content, encoding=encoding)
+        """
+        Append text to the end of a file, creating it if it does not exist.
+
+        Existing content is preserved; `content` is added after it.
+
+        Args:
+            path: Path to the file to append to.
+            content: Text to add at the end of the file.
+            encoding: Text encoding (default "utf-8").
+
+        Returns confirmation of the append, or an error if the path is invalid.
+        """
+        return guard(
+            lambda: tools.append_file(path=path, content=content, encoding=encoding)
+        )
 
     def mkdir(
         path: str,
         create_parents: bool = True,
         exist_ok: bool = True,
     ) -> dict[str, Any]:
-        return tools.mkdir(
-            path=path,
-            create_parents=_parse_bool(create_parents, True),
-            exist_ok=_parse_bool(exist_ok, True),
+        """
+        Create a directory.
+
+        Args:
+            path: Directory path to create.
+            create_parents: If True (default), create missing parent
+                directories as well.
+            exist_ok: If True (default), succeed quietly when the directory
+                already exists instead of failing.
+
+        Returns confirmation of the created directory, or an error if the
+        path is invalid.
+        """
+        return guard(
+            lambda: tools.mkdir(
+                path=path,
+                create_parents=_parse_bool(create_parents, True),
+                exist_ok=_parse_bool(exist_ok, True),
+            )
         )
 
     def rm(
         path: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.rm(path=path, recursive=_parse_bool(recursive, False))
+        """
+        Delete a file or directory.
+
+        Args:
+            path: Path to remove.
+            recursive: Must be True to delete a non-empty directory; for a
+                single file leave it False (default).
+
+        Returns confirmation of the removal, or an error if the path does not
+        exist or a non-empty directory is removed without recursive=True.
+        """
+        return guard(
+            lambda: tools.rm(path=path, recursive=_parse_bool(recursive, False))
+        )
 
     def cp(
         src: str,
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        """
+        Copy a file or directory from one path to another.
+
+        Args:
+            src: Source path to copy from.
+            dst: Destination path to copy to.
+            recursive: Must be True to copy a directory and its contents.
+
+        Returns confirmation of the copy, or an error if the source is missing
+        or a directory is copied without recursive=True.
+        """
+        return guard(
+            lambda: tools.cp(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        )
 
     def mv(
         src: str,
         dst: str,
         recursive: bool = False,
     ) -> dict[str, Any]:
-        return tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        """
+        Move or rename a file or directory.
+
+        Args:
+            src: Source path to move from.
+            dst: Destination path to move to.
+            recursive: Must be True to move a directory and its contents.
+
+        Returns confirmation of the move, or an error if the source is missing
+        or a directory is moved without recursive=True.
+        """
+        return guard(
+            lambda: tools.mv(src=src, dst=dst, recursive=_parse_bool(recursive, False))
+        )
 
     def insert_line(
         path: str,
@@ -976,12 +1018,34 @@ def rw_file_tools(
         where: Literal["before", "after"] = "before",
         occurrence: int = 1,
     ) -> dict[str, Any]:
-        return tools.insert_line(
-            path=path,
-            content=content,
-            anchor=anchor,
-            where=where,
-            occurrence=int(occurrence),
+        """
+        Insert text before or after an existing anchor line in a file.
+
+        The anchor is located by matching `anchor` against existing lines; the
+        new `content` is inserted relative to it without rewriting the rest of
+        the file. Use this for additive edits where you can name a nearby line;
+        prefer `edit` for replacing text.
+
+        Args:
+            path: Path to the file to modify.
+            content: Text to insert.
+            anchor: Existing line text used to locate the insertion point.
+            where: Insert "before" (default) or "after" the anchor.
+            occurrence: Which matching anchor to use when several match
+                (1-based, default the first).
+
+        Returns confirmation of the insert (including whether the file
+        changed), or an error if the anchor is not found or the path is
+        invalid.
+        """
+        return guard(
+            lambda: tools.insert_line(
+                path=path,
+                content=content,
+                anchor=anchor,
+                where=where,
+                occurrence=int(occurrence),
+            )
         )
 
     def replace_range(
@@ -1045,12 +1109,14 @@ def rw_file_tools(
 
         This tool is best used as a fallback when text-based matching is not reliable.
         """
-        return tools.replace_range(
-            path=path,
-            start_line=int(start_line),
-            end_line=int(end_line),
-            content=content,
-            preserve_trailing_newline=_parse_bool(preserve_trailing_newline, True),
+        return guard(
+            lambda: tools.replace_range(
+                path=path,
+                start_line=int(start_line),
+                end_line=int(end_line),
+                content=content,
+                preserve_trailing_newline=_parse_bool(preserve_trailing_newline, True),
+            )
         )
 
     def edit(
@@ -1127,12 +1193,14 @@ def rw_file_tools(
 
         This tool is robust to file changes and should be used for most edits.
         """
-        return tools.edit(
-            path=path,
-            old_string=old_string,
-            new_string=new_string,
-            replace_all=_parse_bool(replace_all, False),
-            encoding=encoding,
+        return guard(
+            lambda: tools.edit(
+                path=path,
+                old_string=old_string,
+                new_string=new_string,
+                replace_all=_parse_bool(replace_all, False),
+                encoding=encoding,
+            )
         )
 
     def interaction_stats(
@@ -1142,7 +1210,7 @@ def rw_file_tools(
         """
         Summarize overlay-visible filesystem interaction progress.
         """
-        return tools.interaction_stats(path=path, pattern=pattern)
+        return guard(lambda: tools.interaction_stats(path=path, pattern=pattern))
 
     def list_touched_files(
         path: str = "/",
@@ -1153,13 +1221,15 @@ def rw_file_tools(
         """
         List files that had at least one recorded interaction.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.touched_files(
-            path=path,
-            pattern=pattern,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.touched_files(
+                path=path,
+                pattern=pattern,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def list_untouched_files(
@@ -1171,13 +1241,15 @@ def rw_file_tools(
         """
         List files that have not been read and did not match grep().
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(
-            path=path,
-            pattern=pattern,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.untouched_files(
+                path=path,
+                pattern=pattern,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def restore(
@@ -1185,9 +1257,21 @@ def rw_file_tools(
         recursive: bool = True,
     ) -> dict[str, Any]:
         """
-        Revert all changes and restore original file.
+        Discard overlay edits and restore a path to its original base content.
+
+        Use this to undo writes/edits made during the session and return the
+        file (or subtree) to how it looked on the base filesystem.
+
+        Args:
+            path: File or directory to restore.
+            recursive: If True (default), restore an entire directory subtree.
+
+        Returns confirmation of the restore, or an error if the path is
+        invalid.
         """
-        return tools.restore(path=path, recursive=_parse_bool(recursive, True))
+        return guard(
+            lambda: tools.restore(path=path, recursive=_parse_bool(recursive, True))
+        )
 
     def changed_paths() -> dict[str, Any]:
         """
@@ -1199,7 +1283,7 @@ def rw_file_tools(
             Files whose overlay content matches the base content are not
             reported as modified.
         """
-        return tools.changed_paths()
+        return guard(lambda: tools.changed_paths())
 
     def diff(
         root: str = "/",
@@ -1215,9 +1299,11 @@ def rw_file_tools(
         Output may be truncated when very large; the truncation marker
         notes how many lines were dropped.
         """
-        return tools.diff(
-            root=root,
-            context_lines=_ensure_int_or_none(context_lines) or 0,
+        return guard(
+            lambda: tools.diff(
+                root=root,
+                context_lines=_ensure_int_or_none(context_lines) or 0,
+            )
         )
 
     def list_match_only_files(
@@ -1229,21 +1315,23 @@ def rw_file_tools(
         """
         List files that were matched but never read.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.files_with_interactions(
-            path=path,
-            pattern=pattern,
-            interaction=InteractionFilter.MATCH_ONLY,
-            offset=offset,
-            limit=limit,
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.files_with_interactions(
+                path=path,
+                pattern=pattern,
+                interaction=InteractionFilter.MATCH_ONLY,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def reset_interaction_tracking() -> dict[str, Any]:
         """
         Reset interaction tracking for the overlay-visible read tools.
         """
-        return tools.reset_interactions()
+        return guard(lambda: tools.reset_interactions())
 
     registry = [
         ls,

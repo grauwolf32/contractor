@@ -14,7 +14,6 @@ with a warning.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 from functools import partial
@@ -22,7 +21,6 @@ from typing import Any, Optional
 
 import yaml
 from google.adk.models import LiteLlm
-from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
 from cli.pipelines.trace_annotation import extract_openapi_paths
@@ -43,7 +41,7 @@ class VulnAssessPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
 
     async def _run_impl(
         self,
@@ -51,8 +49,6 @@ class VulnAssessPipeline(Pipeline):
         user_id: str,
         on_event: Optional[TaskRunnerEventHandler],
     ) -> Any:
-        ctx = self.ctx
-
         # ── Steps 1-3: discovery + OAS build + validate ───────────
         await self._run_oas_stage(user_id=user_id, on_event=on_event)
 
@@ -237,6 +233,7 @@ class VulnAssessPipeline(Pipeline):
             project_path=self.ctx.project_path,
             folder_name=self.ctx.folder_name,
             model=self.ctx.model,
+            timeout=self.ctx.timeout,
             app_name=self.ctx.app_name,
             user_id=self.ctx.user_id,
             artifact_service=self.ctx.artifact_service,
@@ -275,7 +272,7 @@ class VulnAssessPipeline(Pipeline):
             if not oas_part:
                 continue
             try:
-                openapi = yaml.safe_load(oas_part.text) or {}
+                openapi = yaml.safe_load(oas_part.text or "") or {}
             except yaml.YAMLError:
                 continue
             paths = extract_openapi_paths(openapi=openapi)

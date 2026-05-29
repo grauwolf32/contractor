@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -11,7 +11,12 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
+
+# Passthrough type for _type_hint: non-str payloads return unchanged, a str may
+# be code-fence-wrapped — preserving the caller's narrower type.
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -31,10 +36,10 @@ class MemoryFormat:
 
     @staticmethod
     def _type_hint(
-        output: Union[str, dict[str, Any], list[Any]],
+        output: _T,
         fmt: str,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any], list[Any]]:
+    ) -> Union[_T, str]:
         if not type_hint or not isinstance(output, str):
             return output
         return f"```{fmt}\n{output}\n```"
@@ -308,7 +313,7 @@ class MemoryTools:
         )
         raw: dict[str, Any] = {}
         if artifact is not None:
-            raw = yaml.safe_load(artifact.text) or {}
+            raw = yaml.safe_load(artifact.text or "") or {}
 
         next_ordinal = 1
         if raw:
@@ -358,7 +363,7 @@ class MemoryTools:
                 self.notes = {}
                 return
 
-            raw = yaml.safe_load(artifact.text) or {}
+            raw = yaml.safe_load(artifact.text or "") or {}
             notes: dict[str, MemoryNote] = {}
             for index, (name, item) in enumerate(raw.items(), start=1):
                 if not isinstance(item, dict):
@@ -510,6 +515,36 @@ class MemoryTools:
         return note
 
 
+def _resolve_skill_reference(
+    name: str,
+    skill_memories: list[MemoryNote],
+) -> Optional[MemoryNote]:
+    """Best-effort match of a skill-reference name against loaded skill notes.
+
+    Skill references are stored as ``<skill>/references/<topic>`` with no
+    extension, but index files (and agents copying from them) tend to cite the
+    bare ``references/<topic>.md`` form. Normalize the query and fall back to a
+    unique suffix / basename match so either form resolves. Returns None when
+    the match is absent or ambiguous (the caller then lists the real names).
+    """
+    query = name[:-3] if name.endswith(".md") else name
+    query = query.strip("/")
+    if not query:
+        return None
+
+    for tier in (
+        lambda n: n.name == query,
+        lambda n: n.name.endswith(f"/{query}"),
+        lambda n: n.name.rsplit("/", 1)[-1] == query.rsplit("/", 1)[-1],
+    ):
+        matches = [n for n in skill_memories if tier(n)]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            return None
+    return None
+
+
 def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
     m = MemoryTools(name=name, fmt=fmt)
 
@@ -541,8 +576,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Ensure the description adds context, not just repetition of the name.
             - The tags "skill" and "inbox" are reserved for system use.
         """
-        await m.write_memory(name, memory, description, tags, tool_context)
-        return {"result": "ok"}
+
+        async def _impl() -> Any:
+            await m.write_memory(name, memory, description, tags, tool_context)
+            return "ok"
+
+        return await aguard(_impl)
 
     async def append_memory(
         name: str,
@@ -559,11 +598,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             name: The name of the memory to append to.
             text: The text to append to the memory.
         """
-        memory = await m.append_memory(name, text, tool_context)
-        if memory is None:
-            return {"error": f"memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.append_memory(name, text, tool_context)
+            if memory is None:
+                return err(f"memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     async def read_memory(
         name: str,
@@ -586,11 +628,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Behavior:
             - Prefer skills_read or inbox_read when the memory must belong to a specific category.
         """
-        memory = await m.read_memory(name, tool_context)
-        if memory is None:
-            return {"error": f"memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.read_memory(name, tool_context)
+            if memory is None:
+                return err(f"memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     async def search_memory(
         tags: list[str],
@@ -610,8 +655,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A preview list of matching memories.
         """
-        memories = await m.search_memory(tags, tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.search_memory(tags, tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def list_tags(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -620,8 +669,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A list of all tags.
         """
-        tags = await m.list_tags(tool_context)
-        return {"result": m.fmt.format_tags(tags)}
+
+        async def _impl() -> Any:
+            tags = await m.list_tags(tool_context)
+            return m.fmt.format_tags(tags)
+
+        return await aguard(_impl)
 
     async def list_memories(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -634,8 +687,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         Returns:
             A preview list of all memories.
         """
-        memories = await m.list_memories(tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.list_memories(tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def skills_list(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -653,15 +710,24 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this to discover what reusable capabilities the agent has available.
             - Skills should be durable, explicit, and reusable across tasks.
         """
-        memories = await m.memories_by_tag("skill", tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.memories_by_tag("skill", tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def skills_read(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
         Reads a specific agent skill by name.
 
         Args:
-            name: The name of the skill memory.
+            name: The name of the skill memory. The index's own name (e.g.
+                "trace") returns the index; a reference is named
+                "<skill>/references/<topic>". A trailing ".md" and a missing
+                "<skill>/" prefix are tolerated, so "references/sinks" and
+                "sinks" both resolve to "trace/references/sinks" when only the
+                trace skill is loaded.
 
         Returns:
             The full content of the matching memory if it exists and is tagged with "skill".
@@ -672,11 +738,19 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Skills should contain actionable guidance, not just descriptive notes.
         """
 
-        memory = await m.read_memory_by_tag(name, "skill", tool_context)
-        if memory is None:
-            return {"error": f"skill memory {name} not found"}
+        async def _impl() -> Any:
+            memory = await m.read_memory_by_tag(name, "skill", tool_context)
+            if memory is None:
+                skill_memories = await m.memories_by_tag("skill", tool_context)
+                memory = _resolve_skill_reference(name, skill_memories)
+            if memory is None:
+                available = [
+                    s.name for s in await m.memories_by_tag("skill", tool_context)
+                ]
+                return err(f"skill memory {name!r} not found", available=available)
+            return m.fmt.format_memory(memory)
 
-        return {"result": m.fmt.format_memory(memory)}
+        return await aguard(_impl)
 
     async def inbox_list(tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -694,8 +768,12 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this to review captured incoming information.
             - Inbox is a triage view, not a store for reusable procedures.
         """
-        memories = await m.memories_by_tag("inbox", tool_context)
-        return {"result": m.fmt.format_memories(memories, preview=True)}
+
+        async def _impl() -> Any:
+            memories = await m.memories_by_tag("inbox", tool_context)
+            return m.fmt.format_memories(memories, preview=True)
+
+        return await aguard(_impl)
 
     async def inbox_read(name: str, tool_context: ToolContext) -> dict[str, Any]:
         """
@@ -712,11 +790,14 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
             - Use this when reviewing a specific incoming message or captured information item.
             - Inbox items may later be promoted into general memory or transformed into skills if appropriate.
         """
-        memory = await m.read_memory_by_tag(name, "inbox", tool_context)
-        if memory is None:
-            return {"error": f"inbox memory {name} not found"}
 
-        return {"result": m.fmt.format_memory(memory)}
+        async def _impl() -> Any:
+            memory = await m.read_memory_by_tag(name, "inbox", tool_context)
+            if memory is None:
+                return err(f"inbox memory {name} not found")
+            return m.fmt.format_memory(memory)
+
+        return await aguard(_impl)
 
     registry = [
         append_memory,

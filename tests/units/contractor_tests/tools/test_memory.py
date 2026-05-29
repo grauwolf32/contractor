@@ -7,6 +7,7 @@ from contractor.tools.memory import (
     MemoryFormat,
     MemoryNote,
     MemoryTools,
+    _resolve_skill_reference,
 )
 
 
@@ -381,6 +382,56 @@ async def test_memory_key_is_namespaced_by_name():
     assert note_b is not None and note_b.memory == "B"
     assert "alice" in a.memory_key()
     assert "bob" in b.memory_key()
+
+
+# ---------------------------------------------------------------------------
+# _resolve_skill_reference — tolerant skill-reference name matching
+# ---------------------------------------------------------------------------
+
+
+def _skill_note(name: str) -> MemoryNote:
+    return MemoryNote(name=name, memory="m", description="d", tags=["skill"])
+
+
+@pytest.fixture()
+def trace_skill_notes() -> list[MemoryNote]:
+    return [
+        _skill_note("trace"),
+        _skill_note("trace/references/sinks"),
+        _skill_note("trace/references/sources"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "trace/references/sinks",  # canonical stored form
+        "references/sinks",  # bare form copied from index tables
+        "references/sinks.md",  # bare form with extension
+        "sinks",  # basename only
+        "sinks.md",
+    ],
+)
+def test_resolve_skill_reference_tolerates_citation_forms(trace_skill_notes, query):
+    note = _resolve_skill_reference(query, trace_skill_notes)
+    assert note is not None
+    assert note.name == "trace/references/sinks"
+
+
+def test_resolve_skill_reference_returns_none_when_absent(trace_skill_notes):
+    assert _resolve_skill_reference("references/nope", trace_skill_notes) is None
+
+
+def test_resolve_skill_reference_returns_none_when_ambiguous():
+    # idor lives under two loaded skills → basename match is ambiguous, bail out.
+    notes = [
+        _skill_note("exploit/references/idor"),
+        _skill_note("vulns/references/idor"),
+    ]
+    assert _resolve_skill_reference("idor", notes) is None
+    # but a fully-qualified form still resolves unambiguously.
+    resolved = _resolve_skill_reference("vulns/references/idor", notes)
+    assert resolved is not None and resolved.name == "vulns/references/idor"
 
 
 @pytest.mark.asyncio

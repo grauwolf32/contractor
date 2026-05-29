@@ -31,7 +31,8 @@ poetry run pytest tests/eval/test_trace_agent_eval.py -k vulnyapi  # single fixt
 # Lint / format / type-check (dev deps only — no pre-commit hook, no CI config in repo)
 poetry run ruff check .
 poetry run isort .
-poetry run mypy .
+poetry run mypy            # scoped to contractor/ + cli/ via [tool.mypy] files; ~180 pre-existing errors
+poetry run pytest --cov    # coverage configured in [tool.coverage]; not gated/forced by default
 
 # Inspect a run after it finishes
 python scripts/analyze_metrics.py <output_dir>/metrics.jsonl    # charts + tables

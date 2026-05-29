@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -27,9 +29,27 @@ from contractor.utils.settings import get_settings
 PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
 
 APP_NAME = "contractor"
-ARTIFACTS_DIR: Path = (
+
+# Base dir under which every project gets its own artifact store. The
+# FileArtifactService root is keyed only by app_name/user_id, so without a
+# per-project namespace below, separate projects would share one store and
+# silently reuse each other's artifacts (e.g. a stale oas-openapi-building).
+ARTIFACTS_BASE_DIR: Path = (
     get_settings().artifacts_dir or Path(__file__).parent.parent / "artifacts"
 )
+
+
+def _project_artifacts_dir(base: Path, project_path: Path) -> Path:
+    """Per-project subdirectory of ``base`` for this project's artifact store.
+
+    Named ``<project-dir>-<hash>`` where the hash is derived from the fully
+    resolved project path, so same-named directories in different locations
+    don't collide.
+    """
+    resolved = project_path.resolve()
+    digest = hashlib.sha1(str(resolved).encode("utf-8")).hexdigest()[:8]
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", resolved.name).strip("-") or "project"
+    return base / f"{name}-{digest}"
 
 _QUIET_LOGGERS = (
     "httpcore",
@@ -141,6 +161,7 @@ async def async_main(
     folder_name: str,
     user_id: str,
     model: str,
+    timeout: int,
     pipeline: str,
     artifact: Optional[str],
     prompt: Optional[str],
@@ -151,8 +172,9 @@ async def async_main(
 ) -> None:
     ts_pack.init({"cache_dir": ts_pack.cache_dir()})
 
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-    artifact_service = FileArtifactService(root_dir=ARTIFACTS_DIR)
+    artifacts_dir = _project_artifacts_dir(ARTIFACTS_BASE_DIR, project_path)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    artifact_service = FileArtifactService(root_dir=artifacts_dir)
     fs = RootedLocalFileSystem(root_path=str(project_path))
 
     if rm_artifacts:
@@ -167,6 +189,7 @@ async def async_main(
         project_path=project_path,
         folder_name=folder_name,
         model=model,
+        timeout=timeout,
         app_name=APP_NAME,
         user_id=user_id,
         artifact_service=artifact_service,
@@ -198,7 +221,7 @@ async def async_main(
         output_dir=output_dir,
         artifact_service=artifact_service,
     )
-    render_artifact_summary(output_dir, saved_paths)
+    render_artifact_summary(output_dir, saved_paths, store_dir=artifacts_dir)
 
 
 @click.command(name=APP_NAME)
@@ -212,7 +235,7 @@ async def async_main(
 @click.option(
     "--project-path",
     required=True,
-    type=click.Path(path_type=Path),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     help="Path to the project directory",
 )
 @click.option(
@@ -239,9 +262,16 @@ async def async_main(
 @click.option(
     "--model",
     type=str,
-    default="lm-studio-qwen3.6",
-    show_default=True,
-    help="Model name to use for the task",
+    default=lambda: get_settings().default_model_name,
+    show_default="settings.default_model_name (DEFAULT_MODEL_NAME)",
+    help="Model alias to use (resolved by the LiteLLM proxy)",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=lambda: get_settings().default_model_timeout,
+    show_default="settings.default_model_timeout (DEFAULT_MODEL_TIMEOUT)",
+    help="Per-request model timeout in seconds",
 )
 @click.option(
     "--prompt",
@@ -271,6 +301,7 @@ def main(
     output: Optional[Path],
     user_id: str,
     model: str,
+    timeout: int,
     rm: bool,
     resume: bool,
     no_ui: bool,
@@ -303,6 +334,7 @@ def main(
             folder_name=folder_name,
             user_id=user_id,
             model=model,
+            timeout=timeout,
             pipeline=pipeline,
             artifact=artifact,
             prompt=prompt,

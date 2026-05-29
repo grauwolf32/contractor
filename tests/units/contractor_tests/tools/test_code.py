@@ -867,8 +867,9 @@ class TestParseLanguage:
         assert isinstance(result, dict)
         assert "error" in result
         assert "cobol" in result["error"]
-        assert result["result"] == []
-        assert result["total_items"] == 0
+        # Error wrapper must not carry success keys (result/total_items).
+        assert "result" not in result
+        assert "total_items" not in result
 
     def test_all_language_values_parseable(self):
         for lang in Language:
@@ -937,6 +938,10 @@ class TestCodeToolsFactory:
         result_page = list_syms(offset=0, limit=1)
         assert len(result_page["result"]) == min(1, total)
         assert result_page["total_items"] == total
+        # honest truncation flag reflects whether the page is the whole set
+        assert result_page["returned"] == len(result_page["result"])
+        assert result_page["truncated"] == (total > result_page["returned"])
+        assert result_all["truncated"] is False
 
     def test_list_symbols_offset(self):
         tools = self._make_tools_list({"/repo/a.py": SIMPLE_PYTHON})

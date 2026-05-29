@@ -50,7 +50,7 @@ class TpmRatelimitCallback(BaseCallback):
             self.save_to_state(callback_context)
             return
 
-        diff = token_count - self.token_count
+        diff = token_count - (self.token_count or 0)
         els = current_time - self.timer_start
         self.token_count = token_count
 
@@ -103,7 +103,7 @@ class RpmRatelimitCallback(BaseCallback):
             return
 
         self.request_count += 1
-        els = current_time - self.timer_start
+        els = current_time - (self.timer_start or 0)
 
         if self.request_count > self.rpm_limit:
             delay = 60 - els + 1

@@ -40,7 +40,7 @@ async def save_artifact(
             user_id=user_id,
             filename=filename,
         )
-        text = artifact.text or ""
+        text = (artifact.text or "") if artifact is not None else ""
         with open(upload_path, "w", encoding="utf-8") as f:
             f.write(text)
         saved.append(upload_path)

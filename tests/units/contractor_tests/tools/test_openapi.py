@@ -174,3 +174,48 @@ async def test_add_and_remove_server(tool_context, fs):
 
     res = await remove_server("https://api.example.com", tool_context)
     assert "result" in res
+
+
+@pytest.mark.asyncio
+async def test_remove_path_not_found_returns_error(tool_context, fs):
+    # A rejected modifier raises; aguard must surface it as an {"error": ...}
+    # envelope (not a crash, not a {"result": ...}).
+    tools = openapi_tools("openapi", fs)
+    remove_path = next(t for t in tools if t.__name__ == "remove_path")
+
+    res = await remove_path("/nope", tool_context)
+    assert "result" not in res
+    assert "error" in res
+    assert "/nope" in res["error"]
+
+
+@pytest.mark.asyncio
+async def test_add_server_duplicate_returns_error(tool_context, fs):
+    tools = openapi_tools("openapi", fs)
+    add_server = next(t for t in tools if t.__name__ == "add_server")
+
+    await add_server("https://api.example.com", "prod", tool_context)
+    res = await add_server("https://api.example.com", "prod again", tool_context)
+    assert "result" not in res
+    assert "error" in res
+
+
+@pytest.mark.asyncio
+async def test_remove_path_strips_whitespace(tool_context, fs):
+    # upsert stores the stripped key; remove must strip too so a path passed
+    # with surrounding whitespace still resolves.
+    tools = openapi_tools("openapi", fs)
+    upsert_path = next(t for t in tools if t.__name__ == "upsert_path")
+    remove_path = next(t for t in tools if t.__name__ == "remove_path")
+
+    await upsert_path(
+        "/pets",
+        PathItem(
+            get={"operationId": "x", "responses": {"200": {"description": "ok"}}}
+        ).model_dump(),
+        ["pets.py"],
+        tool_context,
+    )
+
+    res = await remove_path("/pets ", tool_context)  # trailing space
+    assert "result" in res

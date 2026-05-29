@@ -23,7 +23,7 @@ class OasEnrichmentPipeline(Pipeline):
             checkpoint_path=ctx.checkpoint_path,
         )
 
-        llm = LiteLlm(model=ctx.model)
+        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         fs = ctx.fs
         oas_builder = partial(
             build_oas_builder_agent,

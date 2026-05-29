@@ -13,6 +13,8 @@ from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 import httpx
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
+
+from contractor.tools.result import aguard
 from google.genai import types
 
 JSONLike: TypeAlias = dict[str, Any] | list[Any]
@@ -659,7 +661,7 @@ def http_tools(
         timeout: float | None = None,
         follow_redirects: bool = True,
         tool_context: ToolContext | None = None,
-    ) -> ResponseRecord | dict[str, str]:
+    ) -> dict[str, Any]:
         """
         Issue an HTTP request and return a small response record.
 
@@ -682,10 +684,10 @@ def http_tools(
             timeout: per-request timeout in seconds (overrides client default).
             follow_redirects: whether to follow 3xx responses.
 
-        Returns the response record, or {"error": "..."} on failure.
+        Returns the response record, or an error on failure.
         """
-        try:
-            return await cli.request(
+        return await aguard(
+            lambda: cli.request(
                 url=url,
                 method=method,
                 headers=headers,
@@ -696,8 +698,7 @@ def http_tools(
                 follow_redirects=follow_redirects,
                 ctx=tool_context,
             )
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+        )
 
     async def http_read_body(
         request_id: int,
@@ -708,41 +709,46 @@ def http_tools(
         """
         Read a slice of a previously stored response body.
 
-        For text bodies returns {"kind": "text", "data": "<slice>", ...}.
-        For binary bodies returns {"kind": "binary", "data_b64": "<slice>", ...}.
+        The result holds a text slice ({"kind": "text", "data": ...}) or a
+        base64 binary slice ({"kind": "binary", "data_b64": ...}) plus offset
+        bookkeeping.
 
         Args:
             request_id: id from a prior http_request response record.
             offset: char/byte offset to start reading from.
             length: max chars/bytes to return in this slice.
+
+        Returns the body slice, or an error if the request id is unknown.
         """
-        try:
-            return await cli.read_body(
+        return await aguard(
+            lambda: cli.read_body(
                 request_id=request_id,
                 offset=offset,
                 length=length,
                 ctx=tool_context,
             )
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+        )
 
     async def http_history(
         limit: int = 10,
         tool_context: ToolContext | None = None,
-    ) -> list[HistorySummary] | dict[str, str]:
+    ) -> dict[str, Any]:
         """
         Return summaries of recent requests, oldest first.
 
         Each summary contains: request_id, method, url, status, content_type,
         content_length, elapsed_ms. Bodies are not included; use
         http_read_body(request_id) to fetch a stored body.
+
+        Returns the list of summaries, or an error on failure.
         """
-        try:
+
+        async def _impl() -> Any:
             if tool_context is not None:
                 await cli.load_session(tool_context)
             return cli.get_history(limit=limit if limit > 0 else None)
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+
+        return await aguard(_impl)
 
     async def http_session_set(
         cookies: dict[str, str] | None = None,
@@ -767,7 +773,8 @@ def http_tools(
 
         Returns the updated session view (auth values are redacted).
         """
-        try:
+
+        async def _impl() -> Any:
             if tool_context is not None:
                 await cli.load_session(tool_context)
             if cookies is not None:
@@ -779,19 +786,24 @@ def http_tools(
             if tool_context is not None:
                 await cli.save_session(tool_context)
             return {
-                "status": "ok",
                 "cookies": cli.get_cookies(),
                 "default_headers": cli._redacted_default_headers(),
                 "auth_kind": cli.get_auth_kind(),
             }
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+
+        return await aguard(_impl)
 
     async def http_session_get(
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Return the current session: cookies, default headers, and auth kind."""
-        try:
+        """
+        Return the current session: cookies, default headers, and auth kind.
+
+        Returns the session view (auth values are redacted), or an error on
+        failure.
+        """
+
+        async def _impl() -> Any:
             if tool_context is not None:
                 await cli.load_session(tool_context)
             return {
@@ -799,20 +811,25 @@ def http_tools(
                 "default_headers": cli._redacted_default_headers(),
                 "auth_kind": cli.get_auth_kind(),
             }
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+
+        return await aguard(_impl)
 
     async def http_session_clear(
         tool_context: ToolContext | None = None,
-    ) -> dict[str, str]:
-        """Clear cookies, default headers, auth, and history. Stored bodies remain."""
-        try:
+    ) -> dict[str, Any]:
+        """
+        Clear cookies, default headers, auth, and history. Stored bodies remain.
+
+        Returns a confirmation message, or an error on failure.
+        """
+
+        async def _impl() -> Any:
             cli.clear_session_state()
             if tool_context is not None:
                 await cli.save_session(tool_context)
-            return {"status": "ok", "message": "session cleared"}
-        except HTTPClientError as exc:
-            return {"error": str(exc)}
+            return "session cleared"
+
+        return await aguard(_impl)
 
     return [
         http_request,
