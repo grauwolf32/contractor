@@ -19,6 +19,7 @@ from typing import Any, Literal
 import httpx
 from google.adk.tools.tool_context import ToolContext
 
+from contractor.tools.http import REQUEST_TAG_HEADER
 from contractor.tools.result import aguard
 
 logger = logging.getLogger(__name__)
@@ -319,9 +320,6 @@ def _decode_blob(blob: str | None) -> str:
         return blob
 
 
-_REQUEST_TAG_HEADER: str = "X-Request-Id"
-
-
 def _inject_raw_header(raw: str, name: str, value: str) -> str:
     """Insert ``name: value`` into the header block of a raw HTTP request.
 
@@ -536,7 +534,7 @@ class CaidoTools:
             if request_tag:
                 raw_text = _decode_blob(raw_b64)
                 raw_text = _inject_raw_header(
-                    raw_text, _REQUEST_TAG_HEADER, request_tag
+                    raw_text, REQUEST_TAG_HEADER, request_tag
                 )
                 raw_b64 = base64.b64encode(raw_text.encode()).decode()
                 if isinstance(source.get("raw"), dict):

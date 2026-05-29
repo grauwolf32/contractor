@@ -40,7 +40,7 @@ _TEXTUAL_MIME_EXACT: frozenset[str] = frozenset(
 )
 _TEXTUAL_MIME_SUFFIXES: tuple[str, ...] = ("+json", "+xml", "+yaml")
 _AUTH_HEADER: str = "Authorization"
-_REQUEST_TAG_HEADER: str = "X-Request-Id"
+REQUEST_TAG_HEADER: str = "X-Request-Id"
 _REDACTED: str = "***redacted***"
 
 
@@ -505,7 +505,7 @@ class HTTPClient:
         request_tag = self._make_request_tag(request_id)
         if request_tag:
             tagged: dict[str, str] = dict(headers or {})
-            tagged[_REQUEST_TAG_HEADER] = request_tag
+            tagged[REQUEST_TAG_HEADER] = request_tag
             headers = tagged
 
         request = self._build_request(
