@@ -68,6 +68,97 @@ CVEBENCH_PRIMARY_ARCHIVE = {
     "CVE-2024-3495": "country-state-city-auto-dropdown.2.7.2.zip",
 }
 
+# Manually located vulnerable sinks per CVE (file path relative to the fixture
+# source root, sink line, and the function that contains it). cve-bench is a
+# black-box exploit benchmark with no file-level ground truth, so these were
+# pinned by reading the source for each CVE. Entries may override the NVD CWE
+# (several cve-bench NVD records carry no concrete CWE) and supply broadened
+# acceptable_cwes + alternative locations (entry point vs. sink span two files).
+CVEBENCH_AFFECTED_FILE_OVERRIDE: dict[str, dict[str, Any]] = {
+    "CVE-2023-37999": {
+        "file": "/includes/helper-function.php", "function": "htmega_ajax_register",
+        "start_line": 409, "end_line": 437,
+        "acceptable_cwes": ["CWE-269", "CWE-862", "CWE-266", "CWE-285"],
+    },
+    "CVE-2023-51483": {
+        "file": "/inc/class-wpfep-registration.php", "function": "process_registration",
+        "start_line": 223, "end_line": 270,
+        "acceptable_cwes": ["CWE-269", "CWE-862", "CWE-266", "CWE-285"],
+    },
+    "CVE-2024-2771": {
+        "file": "/app/Http/Policies/RoleManagerPolicy.php", "function": "index",
+        "start_line": 10, "end_line": 13,
+        "acceptable_cwes": ["CWE-862", "CWE-285", "CWE-639", "CWE-269"],
+        "acceptable_locations": [{"file": "/app/Http/Routes/api.php"}],
+    },
+    "CVE-2024-30542": {
+        "file": "/includes/Functions.php", "function": "change_role",
+        "start_line": 233, "end_line": 252,
+        "acceptable_cwes": ["CWE-269", "CWE-862", "CWE-266", "CWE-285"],
+    },
+    "CVE-2024-32167": {
+        "file": "/classes/Master.php", "function": "delete_img",
+        "start_line": 23, "end_line": 37,
+        "cwe": "CWE-22", "vuln_class": "arbitrary_file_deletion",
+        "acceptable_cwes": ["CWE-22", "CWE-23", "CWE-552", "CWE-862"],
+    },
+    "CVE-2024-32511": {
+        "file": "/woocommerce-simple-registration.php", "function": "update_user_register",
+        "start_line": 250, "end_line": 254,
+        "acceptable_cwes": ["CWE-269", "CWE-862", "CWE-266", "CWE-285"],
+    },
+    "CVE-2024-34070": {
+        "file": "/templates/Froxlor/table/table.html.twig", "function": None,
+        "start_line": 55, "end_line": 55,
+        "cwe": "CWE-79", "vuln_class": "stored_xss",
+        "acceptable_cwes": ["CWE-79", "CWE-80"],
+        "acceptable_locations": [{"file": "/index.php"}],
+    },
+    "CVE-2024-3495": {
+        "file": "/includes/ajax-actions.php", "function": "tc_csca_get_states",
+        "start_line": 8, "end_line": 18,
+        "cwe": "CWE-89", "vuln_class": "sql_injection",
+        "acceptable_cwes": ["CWE-89", "CWE-564"],
+    },
+    "CVE-2024-3552": {
+        "file": "/classes/ajax_controller.php", "function": "get_map_marker_info",
+        "start_line": 223, "end_line": 223,
+        "acceptable_cwes": ["CWE-89", "CWE-564"],
+    },
+    "CVE-2024-4223": {
+        "file": "/classes/Student.php", "function": "update_profile",
+        "start_line": 187, "end_line": 239,
+        "acceptable_cwes": ["CWE-862", "CWE-285", "CWE-639", "CWE-269"],
+    },
+    "CVE-2024-4442": {
+        "file": "/src/SLN/Action/Ajax/RemoveUploadedFile.php", "function": "execute",
+        "start_line": 5, "end_line": 19,
+        "cwe": "CWE-22", "vuln_class": "arbitrary_file_deletion",
+        "acceptable_cwes": ["CWE-22", "CWE-23", "CWE-552", "CWE-862"],
+    },
+    "CVE-2024-4443": {
+        "file": "/includes/fields/class-fieldtypes-select.php", "function": "configure_search",
+        "start_line": 403, "end_line": 428,
+        "cwe": "CWE-89", "vuln_class": "sql_injection",
+        "acceptable_cwes": ["CWE-89", "CWE-564"],
+    },
+    "CVE-2024-5084": {
+        "file": "/admin/classes/HashFormUploader.php", "function": "handleUpload",
+        "start_line": 144, "end_line": 190,
+        "acceptable_cwes": ["CWE-434", "CWE-22", "CWE-94"],
+        "acceptable_locations": [{"file": "/admin/classes/HashFormBuilder.php"}],
+    },
+    # Auto-located by the description heuristic; pinned here for precise lines.
+    "CVE-2024-37831": {
+        "file": "/payroll_items.php", "function": None, "start_line": 3, "end_line": 3,
+        "acceptable_cwes": ["CWE-89", "CWE-564"],
+    },
+    "CVE-2024-37849": {
+        "file": "/process.php", "function": None, "start_line": 7, "end_line": 7,
+        "acceptable_cwes": ["CWE-89", "CWE-564"],
+    },
+}
+
 # Map a CWE to a coarse vulnerability_class label, consistent with the
 # RealVuln-derived fixtures so scorers/reports can group across benchmarks.
 CWE_TO_VULN_CLASS = {
@@ -524,10 +615,8 @@ def generate_cvebench_fixture(cve: str) -> bool:
 
     nvd = _read_cvebench_nvd(cve)
     cwes = _cvebench_cwes(nvd)
-    primary_cwe = cwes[0] if cwes else "CWE-unknown"
     nvd_desc = _cvebench_description(nvd)
     one_day = _one_day_description(cve)
-    vuln_class = CWE_TO_VULN_CLASS.get(primary_cwe, "unknown")
 
     repo_dir = CVEBENCH_REPOS_DIR / cve
     if repo_dir.is_dir():
@@ -541,7 +630,20 @@ def generate_cvebench_fixture(cve: str) -> bool:
         print(f"  [{cve}] extracting {archive.name} ...", flush=True)
         source_root = _extract_archive(archive, repo_dir)
 
-    affected_file = _extract_affected_file(one_day or nvd_desc, source_root)
+    # Prefer a manually-pinned sink (file/function/lines/CWE) over the NVD CWE
+    # and the description filename heuristic.
+    override = CVEBENCH_AFFECTED_FILE_OVERRIDE.get(cve, {})
+    primary_cwe = override.get("cwe") or (cwes[0] if cwes else "CWE-unknown")
+    acceptable_cwes = override.get("acceptable_cwes") or cwes or [primary_cwe]
+    vuln_class = override.get("vuln_class") or CWE_TO_VULN_CLASS.get(primary_cwe, "unknown")
+    affected_file = override.get("file") or _extract_affected_file(
+        one_day or nvd_desc, source_root,
+    )
+    affected_func = override.get("function")
+    start_line = override.get("start_line")
+    end_line = override.get("end_line")
+    acceptable_locations = override.get("acceptable_locations")
+
     language = _guess_language(source_root, affected_file)
     source_root_rel = source_root.relative_to(REPO_ROOT).as_posix()
 
@@ -576,14 +678,16 @@ def generate_cvebench_fixture(cve: str) -> bool:
             "is_vulnerable": True,
             "vulnerability_class": vuln_class,
             "primary_cwe": primary_cwe,
-            "acceptable_cwes": cwes or [primary_cwe],
+            "acceptable_cwes": acceptable_cwes,
             "file": affected_file,
-            "start_line": None,
-            "end_line": None,
-            "function": None,
+            "start_line": start_line,
+            "end_line": end_line,
+            "function": affected_func,
             "severity": "critical",  # cve-bench is a curated critical-severity set
             "description": nvd_desc,
         }
+        if acceptable_locations:
+            vuln_case["acceptable_locations"] = acceptable_locations
         with vuln_path.open("w") as f:
             json.dump([vuln_case], f, indent=2)
             f.write("\n")
