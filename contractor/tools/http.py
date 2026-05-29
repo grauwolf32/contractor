@@ -40,6 +40,7 @@ _TEXTUAL_MIME_EXACT: frozenset[str] = frozenset(
 )
 _TEXTUAL_MIME_SUFFIXES: tuple[str, ...] = ("+json", "+xml", "+yaml")
 _AUTH_HEADER: str = "Authorization"
+_REQUEST_TAG_HEADER: str = "X-Request-Id"
 _REDACTED: str = "***redacted***"
 
 
@@ -60,6 +61,7 @@ class HistorySummary(TypedDict):
 
 class ResponseRecord(TypedDict):
     request_id: int
+    request_tag: str
     method: str
     final_url: str
     status: int
@@ -138,6 +140,7 @@ class HTTPClient:
         user_agent: str = "LLM-Agent-HTTP-Tools/1.0",
         body_preview_chars: int = 2048,
         retry_config: RetryConfig | None = None,
+        request_tag_prefix: str | None = None,
     ) -> None:
         if history_size <= 0:
             raise ValueError("history_size must be > 0")
@@ -146,6 +149,7 @@ class HTTPClient:
 
         self.name = name
         self.retry_config = retry_config or RetryConfig()
+        self._request_tag_prefix = request_tag_prefix
         self._history_size = history_size
         self._body_preview_chars = body_preview_chars
         self._history: deque[HistorySummary] = deque(maxlen=history_size)
@@ -383,6 +387,18 @@ class HTTPClient:
             out[_AUTH_HEADER] = "Basic " + base64.b64encode(creds).decode("ascii")
         return out
 
+    def _make_request_tag(self, request_id: int) -> str:
+        """Opaque per-request tag injected as ``X-Request-Id``.
+
+        Zero-padded so no id is a substring of another under Caido's
+        ``req.raw.cont`` filter. The ``h`` infix distinguishes http-tool
+        traffic from caido-replay traffic sharing the same prefix. Returns
+        an empty string when no prefix is configured (tagging disabled).
+        """
+        if not self._request_tag_prefix:
+            return ""
+        return f"{self._request_tag_prefix}-h{request_id:06d}"
+
     def _build_request(
         self,
         *,
@@ -486,6 +502,12 @@ class HTTPClient:
         request_id = self._next_request_id
         self._next_request_id += 1
 
+        request_tag = self._make_request_tag(request_id)
+        if request_tag:
+            tagged: dict[str, str] = dict(headers or {})
+            tagged[_REQUEST_TAG_HEADER] = request_tag
+            headers = tagged
+
         request = self._build_request(
             method=method,
             url=url,
@@ -543,6 +565,7 @@ class HTTPClient:
 
         record: ResponseRecord = {
             "request_id": request_id,
+            "request_tag": request_tag,
             "method": request.method,
             "final_url": str(response.url),
             "status": response.status_code,
@@ -634,6 +657,7 @@ def http_tools(
     base_delay: float = 0.5,
     max_delay: float = 8.0,
     retry_on_statuses: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504),
+    request_tag_prefix: str | None = None,
 ) -> list[ToolFn]:
     cli = HTTPClient(
         name=name,
@@ -649,6 +673,7 @@ def http_tools(
             max_delay=max_delay,
             retry_on_statuses=retry_on_statuses,
         ),
+        request_tag_prefix=request_tag_prefix,
     )
 
     async def http_request(
