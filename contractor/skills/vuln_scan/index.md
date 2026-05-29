@@ -6,7 +6,11 @@ description: Vulnerability scanning skill — workflow overview, checklist refer
 
 ## Workflow
 
-1. **Inventory** — glob source files, identify framework + language
+1. **Inventory** — glob source files, identify framework + language.
+   If the target is PHP / a WordPress plugin (`*.php`, `Plugin Name:`
+   header), load `vuln_scan/references/php-wordpress` FIRST — the generic
+   patterns below miss WP AJAX authz, privilege escalation, `$wpdb` SQLi,
+   file deletion, and stored XSS.
 2. **Per-file scan** — for each handler file:
    a. `list_symbols` to inventory all handlers
    b. Check auth decorators on each handler (compare siblings)
@@ -23,3 +27,4 @@ description: Vulnerability scanning skill — workflow overview, checklist refer
 - `vuln_scan/references/checklist` — per-endpoint control checklist (auth, authz, ownership, validation, output filtering, rate limiting)
 - `vuln_scan/references/sink-patterns` — language-specific dangerous functions with safe vs vulnerable examples
 - `vuln_scan/references/miss-patterns` — commonly missed vulnerability patterns with examples
+- `vuln_scan/references/php-wordpress` — PHP / WordPress-plugin sinks + absence patterns ($wpdb SQLi, `wp_ajax_nopriv_` missing-authz / privilege escalation, file deletion/upload, stored XSS); **load whenever the target has `*.php` files** — the generic patterns miss almost all of it
