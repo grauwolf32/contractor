@@ -28,7 +28,7 @@ import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from google.adk.artifacts import FileArtifactService
 
@@ -134,6 +134,7 @@ async def run_task_pipeline(
     observability_tags: Optional[list[str]] = None,
     preloaded_artifacts: Optional[dict[str, str]] = None,
     output_dir: Optional[Path] = None,
+    post_run_fn: Optional[Callable[..., Any]] = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
     and return everything the caller needs to score and analyse the run.
@@ -204,6 +205,18 @@ async def run_task_pipeline(
                 timeout=timeout_s,
             )
 
+        # Post-run hook (e.g. materialize the HTTP proof chain). Runs while the
+        # artifact service is still alive so anything it writes is loadable via
+        # ``artifact_keys`` below.
+        if post_run_fn is not None:
+            maybe = post_run_fn(
+                artifact_service=artifact_service,
+                app_name=runner_name,
+                user_id=user_id,
+            )
+            if maybe is not None and hasattr(maybe, "__await__"):
+                await maybe
+
         artifacts: dict[str, str] = {}
         template_keys = {
             k.rpartition("/")[0] for k in artifact_keys if "/" in k
@@ -220,8 +233,12 @@ async def run_task_pipeline(
                 if part is not None and getattr(part, "text", None):
                     artifacts[fname] = part.text
 
+        # Also load each requested key by its exact filename. This covers
+        # ``user:``-prefixed full artifact names (e.g. verification stores and
+        # the exploit HTTP chain) that the template/kind expansion above does
+        # not reconstruct.
         for raw_key in artifact_keys:
-            if "/" in raw_key:
+            if raw_key in artifacts:
                 continue
             part = await artifact_service.load_artifact(
                 app_name=runner_name,

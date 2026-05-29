@@ -534,6 +534,7 @@ class VerifiedFinding:
     path_broken_at: Optional[str] = None
     impact: str = ""
     notes: str = ""
+    evidence_request_ids: list[str] = field(default_factory=list)
     verified_at: str = field(default_factory=utc_now_iso)
 
     def __post_init__(self) -> None:
@@ -597,6 +598,11 @@ def _verification_to_markdown(
             lines.append(f"**Path broken at**: {finding.path_broken_at}")
         if finding.impact:
             lines.append(f"**Impact**: {finding.impact}")
+        if finding.evidence_request_ids:
+            lines.append(
+                "**Evidence request ids**: "
+                + ", ".join(f"`{r}`" for r in finding.evidence_request_ids)
+            )
         if finding.notes:
             lines.append(f"**Notes**:\n{finding.notes}")
     return "\n".join(lines) + "\n"
@@ -628,6 +634,15 @@ def _verification_to_xml(
             children.append(_xml_tag("path_broken_at", finding.path_broken_at, pad2))
         if finding.impact:
             children.append(_xml_tag("impact", finding.impact, pad2))
+        if finding.evidence_request_ids:
+            ids_inner = "".join(
+                f"\n{pad2}    <id>{xml_escape(r)}</id>"
+                for r in finding.evidence_request_ids
+            )
+            children.append(
+                f"{pad2}<evidence_request_ids>{ids_inner}\n"
+                f"{pad2}</evidence_request_ids>"
+            )
         if finding.notes:
             children.append(_xml_tag("notes", finding.notes, pad2))
     inner = "\n".join(children)
@@ -716,6 +731,7 @@ class VerifiedFindingsTools:
             path_broken_at=item.get("path_broken_at"),
             impact=item.get("impact", ""),
             notes=item.get("notes", ""),
+            evidence_request_ids=list(item.get("evidence_request_ids", []) or []),
             verified_at=item.get("verified_at", utc_now_iso()),
         )
 
@@ -771,6 +787,7 @@ class VerifiedFindingsTools:
         impact: str,
         notes: str,
         ctx: ToolContext | CallbackContext,
+        evidence_request_ids: Optional[list[str]] = None,
     ) -> VerifiedFinding:
         await self.load(ctx)
         finding = VerifiedFinding(
@@ -785,6 +802,7 @@ class VerifiedFindingsTools:
             path_broken_at=path_broken_at,
             impact=impact,
             notes=notes,
+            evidence_request_ids=list(evidence_request_ids or []),
         )
         self.findings[name] = finding
         await self.save(ctx)
@@ -821,6 +839,7 @@ def verification_tools(
         notes: str,
         tool_context: ToolContext,
         path_broken_at: Optional[str] = None,
+        request_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Persist a verifier verdict for a single upstream finding.
 
@@ -843,6 +862,9 @@ def verification_tools(
             path_broken_at:             For "not_exploitable" / "inconclusive": which step
                                         the path breaks at (function name or guard). None
                                         when sink is reached.
+            request_ids:                The request_tag values (from http_request /
+                                        caido_replay) of the requests that prove this
+                                        verdict. Used to collect the raw HTTP chain.
         """
 
         async def _impl() -> Any:
@@ -858,6 +880,7 @@ def verification_tools(
                 path_broken_at=path_broken_at,
                 impact=impact,
                 notes=notes,
+                evidence_request_ids=request_ids,
                 ctx=tool_context,
             )
             return vt.fmt.format_finding(finding)
@@ -911,6 +934,7 @@ def verification_tools(
         tool_context: ToolContext,
         sink_reached: bool = True,
         attacker_control: AttackerControl = "full",
+        request_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Simplified verdict submission — use this instead of report_verification.
 
@@ -924,6 +948,10 @@ def verification_tools(
                                 observed behavior, code references.
             sink_reached:       True if attacker data reaches the sink.
             attacker_control:   "full", "partial", or "none".
+            request_ids:        The request_tag values (from http_request /
+                                caido_replay) of the requests that prove this
+                                verdict. Used to collect the raw HTTP chain
+                                as an artifact — list every probe that matters.
         """
 
         async def _impl() -> Any:
@@ -941,6 +969,7 @@ def verification_tools(
                 if verdict in ("exploitable", "exploitable_unverified")
                 else "",
                 notes=evidence,
+                evidence_request_ids=request_ids,
                 ctx=tool_context,
             )
             return vt.fmt.format_finding(finding)

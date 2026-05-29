@@ -19,6 +19,7 @@ from typing import Any, Literal
 import httpx
 from google.adk.tools.tool_context import ToolContext
 
+from contractor.tools.http import REQUEST_TAG_HEADER
 from contractor.tools.result import aguard
 
 logger = logging.getLogger(__name__)
@@ -319,6 +320,23 @@ def _decode_blob(blob: str | None) -> str:
         return blob
 
 
+def _inject_raw_header(raw: str, name: str, value: str) -> str:
+    """Insert ``name: value`` into the header block of a raw HTTP request.
+
+    The header is placed right after the request-line (the first line),
+    so it lands before any blank line that separates headers from the body.
+    Handles both CRLF and bare-LF line endings; leaves *raw* untouched if it
+    has no recognizable line break.
+    """
+    for sep in ("\r\n", "\n"):
+        idx = raw.find(sep)
+        if idx != -1:
+            head = raw[: idx + len(sep)]
+            rest = raw[idx + len(sep):]
+            return f"{head}{name}: {value}{sep}{rest}"
+    return raw
+
+
 def _find_placeholder_offsets(raw: str, target: str) -> list[tuple[int, int]]:
     """Find all occurrences of *target* in the raw HTTP request and return (start, end) byte pairs."""
     offsets: list[tuple[int, int]] = []
@@ -361,8 +379,25 @@ class CaidoTools:
     as the fs and memory tools).
     """
 
-    def __init__(self, cli: CaidoClient) -> None:
+    def __init__(
+        self, cli: CaidoClient, *, request_tag_prefix: str | None = None
+    ) -> None:
         self.cli = cli
+        self._request_tag_prefix = request_tag_prefix
+        self._next_request_id = 1
+
+    def _make_request_tag(self) -> str:
+        """Opaque per-replay tag, mirroring HTTPClient's scheme.
+
+        Uses a ``c`` infix so caido-replay tags never collide with the
+        http-tools (``h``) counter sharing the same prefix. Empty when no
+        prefix is configured.
+        """
+        if not self._request_tag_prefix:
+            return ""
+        tag = f"{self._request_tag_prefix}-c{self._next_request_id:06d}"
+        self._next_request_id += 1
+        return tag
 
     async def scope(
         self,
@@ -493,6 +528,18 @@ class CaidoTools:
             else:
                 return {"error": "provide either request_id or (raw_request + host)"}
 
+            # Tag the outgoing request so the proof chain can be collected
+            # deterministically from history later (mirrors http_tools).
+            request_tag = self._make_request_tag()
+            if request_tag:
+                raw_text = _decode_blob(raw_b64)
+                raw_text = _inject_raw_header(
+                    raw_text, REQUEST_TAG_HEADER, request_tag
+                )
+                raw_b64 = base64.b64encode(raw_text.encode()).decode()
+                if isinstance(source.get("raw"), dict):
+                    source["raw"]["raw"] = raw_b64
+
             # Create replay session
             data = await self.cli.execute(
                 _CREATE_REPLAY_SESSION,
@@ -531,6 +578,7 @@ class CaidoTools:
                     "session_id": session_id,
                     "entry_id": replay_entry_id,
                     "task_id": task.get("id"),
+                    "request_tag": request_tag,
                     "status": "started",
                 }
 
@@ -557,6 +605,7 @@ class CaidoTools:
                         "session_id": session_id,
                         "entry_id": replay_entry_id,
                         "request_id": req_node.get("id"),
+                        "request_tag": request_tag,
                         "method": req_node.get("method", ""),
                         "host": req_node.get("host", ""),
                         "path": req_node.get("path", ""),
@@ -569,6 +618,7 @@ class CaidoTools:
             return {
                 "session_id": session_id,
                 "entry_id": replay_entry_id,
+                "request_tag": request_tag,
                 "status": "timeout",
                 "message": (
                     f"no response within {timeout_seconds}s — "
@@ -811,6 +861,7 @@ def caido_tools(
     caido_url: str = "http://127.0.0.1:8080",
     auth_token: str | None = None,
     timeout: float = 30.0,
+    request_tag_prefix: str | None = None,
 ) -> list[Any]:
     """Build Caido proxy interaction tools.
 
@@ -819,7 +870,8 @@ def caido_tools(
     matching backend method (same backend/frontend split as the fs tools).
     """
     backend = CaidoTools(
-        CaidoClient(url=caido_url, auth_token=auth_token, timeout=timeout)
+        CaidoClient(url=caido_url, auth_token=auth_token, timeout=timeout),
+        request_tag_prefix=request_tag_prefix,
     )
 
     # ------------------------------------------------------------------

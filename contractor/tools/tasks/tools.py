@@ -354,11 +354,22 @@ def task_tools(
                     f"{_SUBTASK_DECOMPOSITION_SCHEMA_JSON}"
                 )
             }
+        # Models often emit the bare subtask array instead of the wrapper
+        # object; accept that shape rather than crashing on `.subtasks`.
+        if isinstance(decomposition, list):
+            decomposition = {"subtasks": decomposition}
         if isinstance(decomposition, dict):
             try:
                 decomposition = SubtaskDecomposition.model_validate(decomposition)
             except ValidationError as exc:
                 return {"error": f"Validation error in decomposition: {exc}"}
+        if not isinstance(decomposition, SubtaskDecomposition):
+            return {
+                "error": (
+                    "TypeError: 'decomposition' must be a SubtaskDecomposition "
+                    f"object. Expected schema:\n{_SUBTASK_DECOMPOSITION_SCHEMA_JSON}"
+                )
+            }
 
         current = mgr.get_current_subtask(tool_context)
         if current is None:
