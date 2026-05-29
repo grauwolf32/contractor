@@ -20,6 +20,7 @@ from contractor.runners.models import (GLOBAL_TASK_ID_KEY,
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
+from contractor.tools.tasks.models import Subtask, SubtaskExecutionResult
 
 ROUTER_NAMESPACE = "router"
 ROUTER_TASK_NAME = "router"
@@ -96,12 +97,20 @@ class RouterPipeline(Pipeline):
             model=llm,
         )
 
+        # The router already has its own dispatch protocol (prompts/v1.md)
+        # that produces SubtaskExecutionResult. Set schemas so ADK's AgentTool
+        # parses Subtask input correctly, but skip instrument_worker to avoid
+        # appending conflicting generic worker instructions.
+        router.input_schema = Subtask
+        router.output_schema = SubtaskExecutionResult
+
         planner = build_planning_agent(
             name=ROUTER_TASK_NAME,
             namespace=ROUTER_NAMESPACE,
             worker=router,
             model=llm,
             max_steps=ROUTER_MAX_STEPS,
+            worker_instrumentation=False,
         )
 
         runner = AgentRunner(
@@ -139,8 +148,20 @@ class RouterPipeline(Pipeline):
             emit=runner._emit,
         )
         plugins = [
-            AdkTracePlugin(**plugin_kwargs),
-            AdkMetricsPlugin(**plugin_kwargs),
+            AdkTracePlugin(
+                task_name=ROUTER_TASK_NAME,
+                task_id=ROUTER_TASK_ID,
+                iteration=1,
+                session_id=session_id,
+                emit=runner._emit,
+            ),
+            AdkMetricsPlugin(
+                task_name=ROUTER_TASK_NAME,
+                task_id=ROUTER_TASK_ID,
+                iteration=1,
+                session_id=session_id,
+                emit=runner._emit,
+            ),
         ]
 
         return await runner.run(

@@ -25,6 +25,7 @@ from cli.pipelines.router import RouterPipeline
 from cli.pipelines.trace_annotation import TraceAnnotationPipeline
 from cli.pipelines.trace_annotation_direct import TraceAnnotationDirectPipeline
 from cli.pipelines.trace_verify import TraceVerifyPipeline
+from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.task_runner import TaskRunner
 
 

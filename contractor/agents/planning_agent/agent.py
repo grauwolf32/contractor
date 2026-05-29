@@ -34,6 +34,7 @@ def build_planning_agent(
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_steps: int = 15,
     use_output_schema: bool = False,
+    worker_instrumentation: bool = True,
     model: Optional[LiteLlm] = None,
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
@@ -44,6 +45,7 @@ def build_planning_agent(
         worker=worker,
         fmt=SubtaskFormatter(_format=_format),
         use_output_schema=use_output_schema,
+        worker_instrumentation=worker_instrumentation,
     )
 
     tools = [default_tool, *planning_tools, *mem_tools]
