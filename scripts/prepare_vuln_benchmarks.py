@@ -12,19 +12,31 @@ For eyeballvul, the script downloads the data into the eyeballvul cache,
 selects a curated subset of Python repos, clones them, and generates
 fixtures.
 
+For cve-bench, the benchmark tree is expected at tests/playground/cve-bench
+(copy the cloned repo there). The script extracts the bundled source archives
+of the source-shipping challenges into tests/playground/cve-bench-repos/ and
+emits vuln-detection + exploitability fixtures from the NVD / metadata records.
+Challenges that ship no source (Dockerfile-only targets) are skipped.
+
 Usage:
     python scripts/prepare_vuln_benchmarks.py realvuln            # RealVuln only
     python scripts/prepare_vuln_benchmarks.py realvuln --repos realvuln-vampi realvuln-dsvw
     python scripts/prepare_vuln_benchmarks.py eyeballvul          # eyeballvul only
-    python scripts/prepare_vuln_benchmarks.py all                 # both
-    python scripts/prepare_vuln_benchmarks.py --list-realvuln     # list available repos
+    python scripts/prepare_vuln_benchmarks.py cvebench            # cve-bench (source-shipping subset)
+    python scripts/prepare_vuln_benchmarks.py cvebench --cves CVE-2024-37831 CVE-2024-4442
+    python scripts/prepare_vuln_benchmarks.py all                 # all three
+    python scripts/prepare_vuln_benchmarks.py --list-realvuln     # list available realvuln repos
+    python scripts/prepare_vuln_benchmarks.py --list-cvebench     # list cve-bench challenges
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +50,54 @@ REALVULN_GT_DIR = REALVULN_ROOT / "ground-truth"
 REALVULN_REPOS_DIR = PLAYGROUND_ROOT / "realvuln-repos"
 EYEBALLVUL_ROOT = PLAYGROUND_ROOT / "eyeballvul"
 EYEBALLVUL_REPOS_DIR = PLAYGROUND_ROOT / "eyeballvul-repos"
+CVEBENCH_ROOT = PLAYGROUND_ROOT / "cve-bench"
+CVEBENCH_CHALLENGES_DIR = CVEBENCH_ROOT / "src" / "critical" / "challenges"
+CVEBENCH_NVD_DIR = CVEBENCH_ROOT / "src" / "critical" / "nvd"
+CVEBENCH_METADATA_DIR = CVEBENCH_ROOT / "src" / "critical" / "metadata"
+CVEBENCH_REPOS_DIR = PLAYGROUND_ROOT / "cve-bench-repos"
+
+# Several cve-bench challenges bundle the vulnerable plugin *and* its
+# dependencies (e.g. WooCommerce, Elementor) as separate archives. The eval
+# fixture should be rooted at the *vulnerable* component only, so we pin the
+# primary archive for the ambiguous multi-archive challenges. Single-archive
+# challenges are resolved automatically.
+CVEBENCH_PRIMARY_ARCHIVE = {
+    "CVE-2023-37999": "ht-mega-for-elementor.2.2.0.zip",
+    "CVE-2024-30542": "wholesalex.1.3.2.zip",
+    "CVE-2024-32511": "woocommerce-simple-registration.1.5.6.zip",
+    "CVE-2024-3495": "country-state-city-auto-dropdown.2.7.2.zip",
+}
+
+# Map a CWE to a coarse vulnerability_class label, consistent with the
+# RealVuln-derived fixtures so scorers/reports can group across benchmarks.
+CWE_TO_VULN_CLASS = {
+    "CWE-20": "improper_input_validation",
+    "CWE-22": "path_traversal",
+    "CWE-29": "path_traversal",
+    "CWE-78": "command_injection",
+    "CWE-79": "reflected_xss",
+    "CWE-80": "reflected_xss",
+    "CWE-89": "sql_injection",
+    "CWE-94": "code_injection",
+    "CWE-269": "privilege_escalation",
+    "CWE-284": "broken_access_control",
+    "CWE-285": "broken_access_control",
+    "CWE-434": "unrestricted_file_upload",
+    "CWE-502": "insecure_deserialization",
+    "CWE-862": "missing_authorization",
+    "CWE-863": "incorrect_authorization",
+}
+
+_SOURCE_EXT_LANG = {
+    ".php": "php",
+    ".py": "python",
+    ".rs": "rust",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".java": "java",
+    ".go": "go",
+    ".rb": "ruby",
+}
 
 DEFAULT_REALVULN_SLUGS = [
     "realvuln-vampi",
@@ -288,6 +348,299 @@ def generate_eyeballvul_fixtures() -> None:
 
 
 # ---------------------------------------------------------------------------
+# cve-bench
+# ---------------------------------------------------------------------------
+
+_FILENAME_RE = re.compile(r"[`'\"]?([\w./\-]+\.(?:php|py|rs|js|jsx|ts|java|go|rb))[`'\"]?")
+
+
+def _read_cvebench_nvd(cve: str) -> dict[str, Any]:
+    path = CVEBENCH_NVD_DIR / f"{cve}.json"
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        data = json.load(f)
+    vulns = data.get("vulnerabilities") or []
+    return vulns[0].get("cve", {}) if vulns else {}
+
+
+def _cvebench_cwes(nvd: dict[str, Any]) -> list[str]:
+    """Ordered, de-duplicated list of concrete CWE-NNN ids from the NVD record."""
+    cwes: list[str] = []
+    for weakness in nvd.get("weaknesses", []):
+        for desc in weakness.get("description", []):
+            value = desc.get("value", "")
+            if value.startswith("CWE-") and value not in cwes:
+                cwes.append(value)
+    return cwes
+
+
+def _cvebench_description(nvd: dict[str, Any]) -> str:
+    for desc in nvd.get("descriptions", []):
+        if desc.get("lang") == "en":
+            return desc.get("value", "").strip()
+    return ""
+
+
+def _select_primary_archive(cve: str) -> Path | None:
+    target_dir = CVEBENCH_CHALLENGES_DIR / cve / "target"
+    archives = sorted(
+        p for p in target_dir.glob("*")
+        if p.suffix == ".zip" or p.name.endswith(".tar.gz")
+    )
+    if not archives:
+        return None
+    pinned = CVEBENCH_PRIMARY_ARCHIVE.get(cve)
+    if pinned:
+        for arc in archives:
+            if arc.name == pinned:
+                return arc
+        print(f"  [{cve}] WARNING: pinned archive {pinned} not found; using {archives[0].name}")
+    return archives[0]
+
+
+def _extract_archive(archive: Path, dest: Path) -> Path:
+    """Extract ``archive`` into ``dest``; return the effective source root.
+
+    If the archive unpacks to a single top-level directory (the common case),
+    that directory becomes the source root so the fixture isn't double-nested.
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as zf:
+            top_levels = {n.split("/")[0] for n in zf.namelist() if n}
+            zf.extractall(dest)
+    else:  # .tar.gz
+        with tarfile.open(archive, "r:gz") as tf:
+            top_levels = {n.split("/")[0] for n in tf.getnames() if n}
+            tf.extractall(dest)  # noqa: S202 - trusted local benchmark archives
+    if len(top_levels) == 1:
+        only = dest / next(iter(top_levels))
+        if only.is_dir():
+            return only
+    return dest
+
+
+# Server-side languages are preferred when guessing the app language: web-app
+# bundles routinely vendor large amounts of client JS/TS (jQuery, admin themes)
+# that dwarf the actual PHP/Python application code.
+_SERVER_LANGS = {"php", "python", "rust", "ruby", "go", "java"}
+
+
+def _guess_language(root: Path, affected_file: str | None = None) -> str:
+    if affected_file:
+        lang = _SOURCE_EXT_LANG.get(Path(affected_file).suffix.lower())
+        if lang:
+            return lang
+    counts: dict[str, int] = {}
+    for path in root.rglob("*"):
+        if path.is_file():
+            lang = _SOURCE_EXT_LANG.get(path.suffix.lower())
+            if lang:
+                counts[lang] = counts.get(lang, 0) + 1
+    if not counts:
+        return "unknown"
+    server = {k: v for k, v in counts.items() if k in _SERVER_LANGS}
+    pool = server or counts
+    return max(pool, key=lambda k: pool[k])
+
+
+def _guess_framework(root: Path, language: str) -> str:
+    """Distinguish WordPress plugins from standalone PHP apps.
+
+    WordPress plugins carry a ``Plugin Name:`` header in a top-level PHP file;
+    standalone apps (e.g. the SourceCodester demos) do not.
+    """
+    if language != "php":
+        return "unknown"
+    php_files = [p for p in root.rglob("*.php") if p.is_file()]
+    for php in php_files[:200]:
+        try:
+            head = php.read_text(encoding="utf-8", errors="ignore")[:1500]
+        except OSError:
+            continue
+        if "Plugin Name:" in head:
+            return "wordpress-plugin"
+    return "php"
+
+
+def _extract_affected_file(text: str, root: Path) -> str | None:
+    """Best-effort: pull a source filename from the CVE text and confirm it
+    exists somewhere in the extracted tree, returning its repo-relative path."""
+    for match in _FILENAME_RE.finditer(text or ""):
+        candidate = match.group(1).lstrip("./")
+        basename = candidate.split("/")[-1]
+        hits = list(root.rglob(basename))
+        if hits:
+            return str(hits[0].relative_to(root))
+    return None
+
+
+def _one_day_description(cve: str) -> str:
+    """The human-readable vuln description from the challenge's one_day prompt.
+
+    Falls back to '' if the eval.yml lacks it; the caller uses the NVD
+    description as the canonical source either way.
+    """
+    eval_path = CVEBENCH_CHALLENGES_DIR / cve / "eval.yml"
+    if not eval_path.exists():
+        return ""
+    data = _maybe_load_yaml(eval_path, {}) or {}
+    prompt = (data.get("variants", {}).get("one_day", {}) or {}).get("prompt", "")
+    if "known to have the following vulnerability:" not in prompt:
+        return ""
+    body = prompt.split("known to have the following vulnerability:", 1)[1]
+    # Keep only the vuln description, drop the boilerplate attack menu.
+    return body.split("As a/an", 1)[0].strip()
+
+
+def _maybe_load_yaml(path: Path, default: Any) -> Any:
+    if not path.is_file():
+        return default
+    with path.open() as f:
+        return yaml.safe_load(f)
+
+
+def list_cvebench_challenges() -> None:
+    if not CVEBENCH_CHALLENGES_DIR.is_dir():
+        print(f"cve-bench not found at {CVEBENCH_ROOT}. Copy it into tests/playground first.")
+        return
+    for cve_dir in sorted(CVEBENCH_CHALLENGES_DIR.iterdir()):
+        if not cve_dir.is_dir():
+            continue
+        cve = cve_dir.name
+        archive = _select_primary_archive(cve)
+        nvd = _read_cvebench_nvd(cve)
+        cwes = _cvebench_cwes(nvd)
+        tag = archive.name if archive else "(no source — Dockerfile-only)"
+        print(f"  {cve:18s}  cwes={','.join(cwes) or '?':20s}  {tag}")
+
+
+def generate_cvebench_fixture(cve: str) -> bool:
+    archive = _select_primary_archive(cve)
+    if archive is None:
+        print(f"  [{cve}] no bundled source archive — skipped (Dockerfile-only target)")
+        return False
+
+    nvd = _read_cvebench_nvd(cve)
+    cwes = _cvebench_cwes(nvd)
+    primary_cwe = cwes[0] if cwes else "CWE-unknown"
+    nvd_desc = _cvebench_description(nvd)
+    one_day = _one_day_description(cve)
+    vuln_class = CWE_TO_VULN_CLASS.get(primary_cwe, "unknown")
+
+    repo_dir = CVEBENCH_REPOS_DIR / cve
+    if repo_dir.is_dir():
+        print(f"  [{cve}] already extracted")
+        source_root = repo_dir
+        # Re-derive the single-top-dir root for an already-extracted tree.
+        children = [c for c in repo_dir.iterdir() if c.is_dir()]
+        if len(children) == 1:
+            source_root = children[0]
+    else:
+        print(f"  [{cve}] extracting {archive.name} ...", flush=True)
+        source_root = _extract_archive(archive, repo_dir)
+
+    affected_file = _extract_affected_file(one_day or nvd_desc, source_root)
+    language = _guess_language(source_root, affected_file)
+    source_root_rel = source_root.relative_to(REPO_ROOT).as_posix()
+
+    slug = f"cvebench-{cve.lower()}"
+    fixture_dir = FIXTURES_ROOT / slug
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+
+    meta = {
+        "slug": slug,
+        "language": language,
+        "framework": _guess_framework(source_root, language),
+        "source_root": source_root_rel,
+        "benchmark": "cvebench",
+        "cve": cve,
+        "primary_cwe": primary_cwe,
+        "description": (
+            f"CVE-Bench: {cve} ({primary_cwe}, {vuln_class}). "
+            f"{nvd_desc[:200]}"
+        ),
+    }
+    with (fixture_dir / "meta.yaml").open("w") as f:
+        yaml.safe_dump(meta, f, sort_keys=False, allow_unicode=True)
+
+    # vuln-detection scoring matches on file path; a CVE whose affected file we
+    # couldn't locate would be permanently unmatchable (and crash the path
+    # normaliser on a null file). For those, ship only the exploitability
+    # register below — cve-bench's native black-box mode — not a vuln case.
+    vuln_path = fixture_dir / "vuln-cases.json"
+    if affected_file:
+        vuln_case: dict[str, Any] = {
+            "id": f"{cve.lower()}-001",
+            "is_vulnerable": True,
+            "vulnerability_class": vuln_class,
+            "primary_cwe": primary_cwe,
+            "acceptable_cwes": cwes or [primary_cwe],
+            "file": affected_file,
+            "start_line": None,
+            "end_line": None,
+            "function": None,
+            "severity": "critical",  # cve-bench is a curated critical-severity set
+            "description": nvd_desc,
+        }
+        with vuln_path.open("w") as f:
+            json.dump([vuln_case], f, indent=2)
+            f.write("\n")
+    elif vuln_path.exists():
+        # Stale file from an earlier run where the file heuristic differed.
+        vuln_path.unlink()
+
+    # Exploitability fixture — cve-bench's native register. The seed carries the
+    # full finding; the case asserts the agent confirms it as exploitable.
+    finding_name = f"{cve.lower()}-{vuln_class.replace('_', '-')}"
+    details = one_day or nvd_desc
+    finding = {
+        "name": finding_name,
+        "place_type": "file",
+        "place": affected_file or ".",
+        "title": f"{cve}: {vuln_class.replace('_', ' ')}",
+        "summary": nvd_desc[:200],
+        "severity": "critical",
+        "confidence": "high",
+        "details": details,
+    }
+    seed_finding = dict(finding)
+    seed_finding.update({
+        "ordinal": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    })
+    with (fixture_dir / "vulnerabilities.seed.yaml").open("w") as f:
+        yaml.safe_dump({finding_name: seed_finding}, f, sort_keys=False, allow_unicode=True)
+
+    exploit_case = {
+        "id": f"exploit-{cve.lower()}-001",
+        "vulnerability_name": finding_name,
+        "expected_verdict": "exploitable",
+        "timeout_s": 900,
+        "finding": finding,
+    }
+    with (fixture_dir / "exploitability-cases.json").open("w") as f:
+        json.dump([exploit_case], f, indent=2)
+        f.write("\n")
+
+    file_note = affected_file or "(file not located — CWE-level only)"
+    print(f"  [{cve}] fixture {slug} written  lang={language}  file={file_note}")
+    return True
+
+
+def discover_cvebench_with_source() -> list[str]:
+    if not CVEBENCH_CHALLENGES_DIR.is_dir():
+        return []
+    return [
+        d.name
+        for d in sorted(CVEBENCH_CHALLENGES_DIR.iterdir())
+        if d.is_dir() and _select_primary_archive(d.name) is not None
+    ]
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -312,16 +665,23 @@ def main() -> int:
     parser.add_argument(
         "benchmark",
         nargs="?",
-        choices=["realvuln", "eyeballvul", "all"],
+        choices=["realvuln", "eyeballvul", "cvebench", "all"],
         help="Which benchmark to prepare",
     )
     parser.add_argument("--repos", nargs="+", help="Specific RealVuln slugs")
+    parser.add_argument("--cves", nargs="+", help="Specific cve-bench CVE ids")
     parser.add_argument("--list-realvuln", action="store_true",
                         help="List available RealVuln repos")
+    parser.add_argument("--list-cvebench", action="store_true",
+                        help="List cve-bench challenges (and whether they ship source)")
     args = parser.parse_args()
 
     if args.list_realvuln:
         list_realvuln_repos()
+        return 0
+
+    if args.list_cvebench:
+        list_cvebench_challenges()
         return 0
 
     if not args.benchmark:
@@ -340,6 +700,18 @@ def main() -> int:
     if args.benchmark in ("eyeballvul", "all"):
         print("\n=== eyeballvul: preparing fixtures ===\n")
         generate_eyeballvul_fixtures()
+
+    if args.benchmark in ("cvebench", "all"):
+        cves = args.cves or discover_cvebench_with_source()
+        print(f"\n=== cve-bench: preparing {len(cves)} fixtures ===\n")
+        made = 0
+        for cve in cves:
+            try:
+                if generate_cvebench_fixture(cve):
+                    made += 1
+            except Exception as e:
+                print(f"  [{cve}] ERROR: {e}")
+        print(f"\n  cve-bench: {made}/{len(cves)} fixtures generated")
 
     return 0
 
