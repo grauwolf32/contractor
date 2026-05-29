@@ -8,6 +8,7 @@ import yaml
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
+from cli.pipelines.config import TRACE_ANNOTATION as CFG
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
@@ -16,9 +17,6 @@ from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-TRACE_MAX_TOKENS: int = 80_000
 
 
 @dataclass
@@ -176,7 +174,7 @@ class TraceAnnotationPipeline(Pipeline):
             name="trace_agent",
             fs=self.overlayfs,
             model=self.llm,
-            max_tokens=TRACE_MAX_TOKENS,
+            max_tokens=CFG.max_tokens,
             enable_vuln_reporting=True,
             with_graph_tools=True,
         )
@@ -199,9 +197,7 @@ class TraceAnnotationPipeline(Pipeline):
             name="trace_annotation",
             ref=f"trace_annotation:{self.namespace}:{api_path.path_key}",
             worker_builder=trace_builder,
-            iterations=1,
-            max_attempts=3,
-            max_steps=20,
+            **CFG.annotate.as_kwargs(),
             artifacts=[],
             skills=["trace"],
             namespace=pipeline_namespace,

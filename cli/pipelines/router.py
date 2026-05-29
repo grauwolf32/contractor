@@ -4,6 +4,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from cli.pipelines import Pipeline
+from cli.pipelines.config import ROUTER as CFG
 from contractor.agents.http_agent.agent import build_http_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
@@ -24,8 +25,6 @@ from contractor.utils.settings import build_model
 ROUTER_NAMESPACE = "router"
 ROUTER_TASK_NAME = "router"
 ROUTER_TASK_ID = 0
-ROUTER_MAX_STEPS = 20
-ROUTER_MAX_TOKENS = 120_000
 
 
 class RouterPipeline(Pipeline):
@@ -56,28 +55,28 @@ class RouterPipeline(Pipeline):
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=ROUTER_MAX_TOKENS,
+                max_tokens=CFG.max_tokens,
             ),
             build_oas_builder_agent(
                 name="oas_builder",
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=ROUTER_MAX_TOKENS,
+                max_tokens=CFG.max_tokens,
             ),
             build_oas_linter_agent(
                 name="oas_linter",
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=ROUTER_MAX_TOKENS,
+                max_tokens=CFG.max_tokens,
             ),
             build_trace_agent(
                 name="trace_agent",
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=ROUTER_MAX_TOKENS,
+                max_tokens=CFG.max_tokens,
                 enable_vuln_reporting=True,
                 with_graph_tools=True,
             ),
@@ -85,7 +84,7 @@ class RouterPipeline(Pipeline):
                 name="http_agent",
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=ROUTER_MAX_TOKENS,
+                max_tokens=CFG.max_tokens,
             ),
         ]
 
@@ -108,7 +107,7 @@ class RouterPipeline(Pipeline):
             namespace=ROUTER_NAMESPACE,
             worker=router,
             model=llm,
-            max_steps=ROUTER_MAX_STEPS,
+            max_steps=CFG.max_steps,
             worker_instrumentation=False,
         )
 

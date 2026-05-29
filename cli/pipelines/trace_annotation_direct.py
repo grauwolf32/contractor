@@ -7,6 +7,7 @@ import yaml
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
+from cli.pipelines.config import TRACE_ANNOTATION_DIRECT as CFG
 from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
                                             extract_openapi_paths)
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
@@ -24,7 +25,6 @@ logger.setLevel(logging.DEBUG)
 
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
-TRACE_MAX_TOKENS: int = 100_000
 
 
 class TraceAnnotationDirectPipeline(Pipeline):
@@ -163,7 +163,7 @@ class TraceAnnotationDirectPipeline(Pipeline):
             namespace=namespace,
             _format=cast(TraceFormat, self._template.format),
             model=self.llm,
-            max_tokens=TRACE_MAX_TOKENS,
+            max_tokens=CFG.max_tokens,
             enable_vuln_reporting=True,
             with_graph_tools=True,
         )

@@ -23,6 +23,7 @@ from typing import Any, Optional
 import yaml
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
+from cli.pipelines.config import TRACE_VERIFY as CFG
 from cli.pipelines.trace_annotation import OpenApiPath, extract_openapi_paths
 from contractor.agents.trace_verifier_agent.agent import \
     build_trace_verifier_agent
@@ -30,8 +31,6 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
-
-VERIFY_MAX_TOKENS: int = 80_000
 
 
 class TraceVerifyPipeline(Pipeline):
@@ -97,7 +96,7 @@ class TraceVerifyPipeline(Pipeline):
             fs=ctx.fs,
             source_namespace=source_namespace,
             model=self.llm,
-            max_tokens=VERIFY_MAX_TOKENS,
+            max_tokens=CFG.max_tokens,
         )
 
         runner = TaskRunner(
@@ -118,9 +117,7 @@ class TraceVerifyPipeline(Pipeline):
                     f"{api_path.path_key}:{finding_name}"
                 ),
                 worker_builder=verifier_builder,
-                iterations=1,
-                max_attempts=2,
-                max_steps=20,
+                **CFG.verify.as_kwargs(),
                 namespace=source_namespace,
                 model=self.llm,
                 params={

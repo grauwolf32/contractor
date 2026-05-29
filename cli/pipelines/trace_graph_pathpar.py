@@ -21,6 +21,7 @@ import yaml
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
+from cli.pipelines.config import TRACE_GRAPH_PATHPAR as CFG
 from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
                                             extract_openapi_paths)
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
@@ -39,8 +40,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
-TRACE_MAX_TOKENS: int = 100_000
-DEFAULT_MAX_CONCURRENCY: int = 3
 
 
 class TraceGraphPathParPipeline(Pipeline):
@@ -57,7 +56,7 @@ class TraceGraphPathParPipeline(Pipeline):
         self,
         ctx: PipelineContext,
         *,
-        max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
+        max_concurrency: int = CFG.max_concurrency,
     ) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
@@ -213,7 +212,7 @@ class TraceGraphPathParPipeline(Pipeline):
             namespace=namespace,
             _format=cast(TraceFormat, self._template.format),
             model=self.llm,
-            max_tokens=TRACE_MAX_TOKENS,
+            max_tokens=CFG.max_tokens,
             enable_vuln_reporting=True,
             graph_tools=self._shared_graph_tools,
         )

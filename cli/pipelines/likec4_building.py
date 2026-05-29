@@ -5,6 +5,7 @@ from typing import Any, Optional
 from google.genai import types
 
 from cli.pipelines import Pipeline, PipelineContext
+from cli.pipelines.config import LIKEC4_BUILDING as CFG
 from contractor.agents.likec4_builder_agent.agent import \
     build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
@@ -62,14 +63,15 @@ class LikeC4BuildingPipeline(Pipeline):
         await self._seed_overlay_from_artifact(overlay_fs, user_id=user_id)
 
         swe_builder = partial(
-            build_swe_agent, name="swe_agent", fs=ctx.fs, model=llm, max_tokens=100_000
+            build_swe_agent, name="swe_agent", fs=ctx.fs, model=llm,
+            max_tokens=CFG.swe_max_tokens,
         )
         likec4_builder = partial(
             build_likec4_builder_agent,
             name="likec4_builder",
             fs=overlay_fs,
             model=llm,
-            max_tokens=120_000,
+            max_tokens=CFG.builder_max_tokens,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
@@ -83,9 +85,7 @@ class LikeC4BuildingPipeline(Pipeline):
             runner.add_task(
                 name="dependency_information",
                 worker_builder=swe_builder,
-                iterations=1,
-                max_attempts=3,
-                max_steps=20,
+                **CFG.dependency_information.as_kwargs(),
                 namespace="dependency_information",
                 model=llm,
             )
@@ -98,9 +98,7 @@ class LikeC4BuildingPipeline(Pipeline):
             runner.add_task(
                 name="project_information",
                 worker_builder=swe_builder,
-                iterations=1,
-                max_attempts=3,
-                max_steps=20,
+                **CFG.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
                 namespace="project_information",
                 model=llm,
@@ -111,9 +109,7 @@ class LikeC4BuildingPipeline(Pipeline):
         runner.add_task(
             name="likec4_build",
             worker_builder=likec4_builder,
-            iterations=3,
-            max_attempts=6,
-            max_steps=20,
+            **CFG.likec4_build.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",
@@ -125,9 +121,7 @@ class LikeC4BuildingPipeline(Pipeline):
         runner.add_task(
             name="likec4_validate",
             worker_builder=likec4_builder,
-            iterations=1,
-            max_attempts=2,
-            max_steps=20,
+            **CFG.likec4_validate.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",

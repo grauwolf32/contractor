@@ -11,13 +11,12 @@ from functools import partial
 from typing import Any, Optional
 
 from cli.pipelines import Pipeline, PipelineContext
+from cli.pipelines.config import VULN_SCAN as CFG
 from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
-
-SCAN_MAX_TOKENS: int = 80_000
 
 
 class VulnScanPipeline(Pipeline):
@@ -42,7 +41,7 @@ class VulnScanPipeline(Pipeline):
             name="vuln_scan_agent",
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=SCAN_MAX_TOKENS,
+            max_tokens=CFG.scan_max_tokens,
             with_graph_tools=True,
         )
 
@@ -58,9 +57,7 @@ class VulnScanPipeline(Pipeline):
             name="vuln_scan",
             ref="vuln-scan:full",
             worker_builder=agent_builder,
-            iterations=1,
-            max_attempts=2,
-            max_steps=75,
+            **CFG.scan.as_kwargs(),
             namespace=self.namespace,
             skills=["vuln_scan"],
             model=self.llm,

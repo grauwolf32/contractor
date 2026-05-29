@@ -16,15 +16,13 @@ from typing import Any, Optional
 import yaml
 
 from cli.pipelines import Pipeline, PipelineContext
+from cli.pipelines.config import VULN_SCAN_TRACE as CFG
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 
 logger = logging.getLogger(__name__)
-
-SCAN_MAX_TOKENS: int = 80_000
-TRACE_MAX_TOKENS: int = 80_000
 
 
 class VulnScanTracePipeline(Pipeline):
@@ -52,7 +50,7 @@ class VulnScanTracePipeline(Pipeline):
             name="vuln_scan_agent",
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=SCAN_MAX_TOKENS,
+            max_tokens=CFG.scan_max_tokens,
             with_graph_tools=True,
         )
 
@@ -68,9 +66,7 @@ class VulnScanTracePipeline(Pipeline):
             name="vuln_scan",
             ref="vuln-scan-trace:scan",
             worker_builder=scan_builder,
-            iterations=1,
-            max_attempts=2,
-            max_steps=75,
+            **CFG.scan.as_kwargs(),
             namespace=scan_namespace,
             skills=["vuln_scan"],
             model=self.llm,
@@ -121,7 +117,7 @@ class VulnScanTracePipeline(Pipeline):
             name="trace_agent",
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=TRACE_MAX_TOKENS,
+            max_tokens=CFG.trace_max_tokens,
             enable_vuln_reporting=True,
             with_graph_tools=True,
         )
@@ -151,9 +147,7 @@ class VulnScanTracePipeline(Pipeline):
             name="trace_annotation",
             ref=f"vuln-scan-trace:trace:{name}",
             worker_builder=trace_builder,
-            iterations=1,
-            max_attempts=1,
-            max_steps=30,
+            **CFG.trace.as_kwargs(),
             namespace=trace_namespace,
             skills=["trace"],
             model=self.llm,
