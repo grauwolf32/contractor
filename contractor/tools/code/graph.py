@@ -36,12 +36,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from contractor.tools.result import guard, ok, ok_page
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LANGUAGE = "auto"
 DEFAULT_MAX_RESULTS = 200
 DEFAULT_MAX_PATHS = 25
 _MAX_PATH_DEPTH = 30
+_FIND_SYMBOL_LIMIT = 50
 
 # A path resolver maps a host-FS absolute path (as trailmark returns it)
 # to whatever string the consuming agent should see. Returning ``None``
@@ -255,34 +258,57 @@ def code_graph_tools(
     holder = GraphEngineHolder(root=Path(root), language=language)
 
     def graph_summary() -> dict[str, Any]:
-        """Graph diagnostic: node/edge/entrypoint counts and deps."""
-        return holder.engine().summary()
+        """
+        Report high-level diagnostics for the code graph.
+
+        Use this first to gauge graph size and coverage before drilling in
+        with the other graph tools.
+
+        Returns counts of nodes, edges, and detected entrypoints plus
+        dependency info, wrapped under "result".
+        """
+        return guard(lambda: ok(holder.engine().summary(), kind="graph_summary"))
 
     def find_symbol(symbol: str) -> dict[str, Any]:
-        """Resolve a name to up to 50 graph nodes with locations."""
-        graph = holder.graph()
-        sym = str(symbol)
-        bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
-        matches: list[dict[str, Any]] = []
-        for node_id, unit in graph.nodes.items():
-            if (
-                node_id == sym
-                or unit.name == sym
-                or unit.name == bare
-                or unit.name.lower() == bare.lower()
-            ):
-                from dataclasses import asdict
+        """
+        Resolve a name to matching graph nodes with their source locations.
 
+        Matches by full node id, exact name, or bare (case-insensitive) name.
+        At most 50 nodes are returned; if more match, ``truncated`` is true and
+        ``total_items`` reports the real count — narrow the name to see the
+        rest.
+
+        Args:
+            symbol: Symbol name or node id to look up.
+
+        Returns the matching nodes; an empty list means the name is not in the
+        graph.
+        """
+
+        def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
+            graph = holder.graph()
+            sym = str(symbol)
+            bare = sym.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
+            matched = [
+                unit
+                for node_id, unit in graph.nodes.items()
+                if (
+                    node_id == sym
+                    or unit.name == sym
+                    or unit.name == bare
+                    or unit.name.lower() == bare.lower()
+                )
+            ]
+            rows: list[dict[str, Any]] = []
+            for unit in matched[:_FIND_SYMBOL_LIMIT]:
                 d = asdict(unit)
                 d["kind"] = unit.kind.value
-                matches.append(_slim_unit(d, path_resolver=path_resolver))
-            if len(matches) >= 50:
-                break
-        return {
-            "result": matches,
-            "total_items": len(matches),
-            "kind": "find_symbol",
-        }
+                rows.append(_slim_unit(d, path_resolver=path_resolver))
+            return ok_page(rows, len(matched), kind="find_symbol")
+
+        return guard(_impl)
 
     def _resolve_id(symbol: str) -> Optional[str]:
         graph = holder.graph()
@@ -299,136 +325,240 @@ def code_graph_tools(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callers of ``symbol``. Includes inferred edges."""
-        node_id = _resolve_id(symbol)
-        graph = holder.graph()
-        if node_id is None:
-            return {"result": [], "total_items": 0, "kind": "callers"}
-        unit = graph.nodes[node_id]
-        bare = unit.name
-        rows: list[dict[str, Any]] = []
-        from dataclasses import asdict
+        """
+        Find the direct callers of a symbol (including inferred call edges).
 
-        for edge in graph.edges:
-            if edge.kind.value != "calls":
-                continue
-            tgt = edge.target_id
-            if tgt == node_id or tgt.endswith("." + bare) or tgt.endswith(":" + bare):
-                src_unit = graph.nodes.get(edge.source_id)
-                if src_unit is None:
+        Args:
+            symbol: Symbol name or node id to find callers of.
+            max_results: Maximum number of callers to return.
+
+        Returns the calling nodes, each tagged with edge confidence. If more
+        than ``max_results`` callers exist, ``truncated`` is true and
+        ``total_items`` reports the real count. An empty list with a "note"
+        means the symbol could not be resolved in the graph; an empty list
+        without a note means the symbol exists but has no known callers.
+        """
+
+        def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
+            node_id = _resolve_id(symbol)
+            graph = holder.graph()
+            if node_id is None:
+                return ok_page(
+                    [],
+                    0,
+                    kind="callers",
+                    note=f"symbol '{symbol}' not found in graph",
+                )
+            unit = graph.nodes[node_id]
+            bare = unit.name
+            matched: list[Any] = []
+            for edge in graph.edges:
+                if edge.kind.value != "calls":
                     continue
+                tgt = edge.target_id
+                if (
+                    tgt == node_id
+                    or tgt.endswith("." + bare)
+                    or tgt.endswith(":" + bare)
+                ):
+                    src_unit = graph.nodes.get(edge.source_id)
+                    if src_unit is None:
+                        continue
+                    matched.append((edge, src_unit))
+            rows: list[dict[str, Any]] = []
+            for edge, src_unit in matched[:max_results]:
                 d = asdict(src_unit)
                 d["kind"] = src_unit.kind.value
                 slim = _slim_unit(d, path_resolver=path_resolver)
                 slim["edge_confidence"] = edge.confidence.value
-                slim["edge_target"] = tgt
+                slim["edge_target"] = edge.target_id
                 rows.append(slim)
-                if len(rows) >= max_results:
-                    break
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "callers",
-        }
+            return ok_page(rows, len(matched), kind="callers")
+
+        return guard(_impl)
 
     def find_callees(
         symbol: str,
         max_results: int = DEFAULT_MAX_RESULTS,
     ) -> dict[str, Any]:
-        """Direct callees of ``symbol``. Unresolved targets get kind=unresolved."""
-        node_id = _resolve_id(symbol)
-        graph = holder.graph()
-        if node_id is None:
-            return {"result": [], "total_items": 0, "kind": "callees"}
-        rows: list[dict[str, Any]] = []
-        from dataclasses import asdict
+        """
+        Find the direct callees of a symbol (what it calls).
 
-        for edge in graph.edges:
-            if edge.source_id != node_id or edge.kind.value != "calls":
-                continue
-            target_unit = graph.nodes.get(edge.target_id)
-            if target_unit is not None:
-                d = asdict(target_unit)
-                d["kind"] = target_unit.kind.value
-                row = _slim_unit(d, path_resolver=path_resolver)
-            else:
-                row = {
-                    "id": edge.target_id,
-                    "name": edge.target_id.rsplit(":", 1)[-1],
-                    "kind": "unresolved",
-                    "file": None,
-                    "start_line": None,
-                    "end_line": None,
-                }
-            row["edge_confidence"] = edge.confidence.value
-            rows.append(row)
-            if len(rows) >= max_results:
-                break
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "callees",
-        }
+        Targets that cannot be resolved to a known node are still returned,
+        tagged with kind="unresolved".
+
+        Args:
+            symbol: Symbol name or node id to find callees of.
+            max_results: Maximum number of callees to return.
+
+        Returns the called nodes. If more than ``max_results`` callees exist,
+        ``truncated`` is true and ``total_items`` reports the real count. An
+        empty list with a "note" means the symbol could not be resolved in the
+        graph; an empty list without a note means the symbol exists but calls
+        nothing tracked.
+        """
+
+        def _impl() -> dict[str, Any]:
+            from dataclasses import asdict
+
+            node_id = _resolve_id(symbol)
+            graph = holder.graph()
+            if node_id is None:
+                return ok_page(
+                    [],
+                    0,
+                    kind="callees",
+                    note=f"symbol '{symbol}' not found in graph",
+                )
+            matched = [
+                edge
+                for edge in graph.edges
+                if edge.source_id == node_id and edge.kind.value == "calls"
+            ]
+            rows: list[dict[str, Any]] = []
+            for edge in matched[:max_results]:
+                target_unit = graph.nodes.get(edge.target_id)
+                if target_unit is not None:
+                    d = asdict(target_unit)
+                    d["kind"] = target_unit.kind.value
+                    row = _slim_unit(d, path_resolver=path_resolver)
+                else:
+                    row = {
+                        "id": edge.target_id,
+                        "name": edge.target_id.rsplit(":", 1)[-1],
+                        "kind": "unresolved",
+                        "file": None,
+                        "start_line": None,
+                        "end_line": None,
+                    }
+                row["edge_confidence"] = edge.confidence.value
+                rows.append(row)
+            return ok_page(rows, len(matched), kind="callees")
+
+        return guard(_impl)
 
     def paths_between(
         src: str,
         dst: str,
         max_paths: int = DEFAULT_MAX_PATHS,
     ) -> dict[str, Any]:
-        """All simple call paths from ``src`` to ``dst`` as id-lists."""
-        engine = holder.engine()
-        paths = engine.paths_between(str(src), str(dst)) or []
-        return {
-            "result": [list(p) for p in paths[:max_paths]],
-            "total_items": len(paths),
-            "kind": "paths_between",
-        }
+        """
+        Find call paths from one symbol to another.
+
+        Args:
+            src: Starting symbol (the caller end).
+            dst: Target symbol (the callee end).
+            max_paths: Maximum number of paths to return.
+
+        Returns each path as an ordered list of node ids; an empty list means
+        no call path connects them. If more than ``max_paths`` exist,
+        ``truncated`` is true and ``total_items`` reports the real count.
+        """
+
+        def _impl() -> dict[str, Any]:
+            engine = holder.engine()
+            paths = engine.paths_between(str(src), str(dst)) or []
+            return ok_page(
+                [list(p) for p in paths[:max_paths]],
+                len(paths),
+                kind="paths_between",
+            )
+
+        return guard(_impl)
 
     def entrypoint_paths_to(
         symbol: str,
         max_paths: int = DEFAULT_MAX_PATHS,
         max_depth: int = _MAX_PATH_DEPTH,
     ) -> dict[str, Any]:
-        """Paths from any detected entrypoint to ``symbol``."""
-        engine = holder.engine()
-        paths = (
-            engine.entrypoint_paths_to(str(symbol), max_depth=max_depth)
-            or []
-        )
-        return {
-            "result": [list(p) for p in paths[:max_paths]],
-            "total_items": len(paths),
-            "kind": "entrypoint_paths_to",
-        }
+        """
+        Find call paths from any detected entrypoint to a symbol.
+
+        Useful for judging reachability — whether externally-triggered code
+        can reach the target.
+
+        Args:
+            symbol: Target symbol to reach.
+            max_paths: Maximum number of paths to return.
+            max_depth: Maximum path length to explore.
+
+        Returns each path as an ordered list of node ids; an empty list means
+        no entrypoint reaches the symbol within max_depth. If more than
+        ``max_paths`` exist, ``truncated`` is true and ``total_items`` reports
+        the real count.
+        """
+
+        def _impl() -> dict[str, Any]:
+            engine = holder.engine()
+            paths = engine.entrypoint_paths_to(str(symbol), max_depth=max_depth) or []
+            return ok_page(
+                [list(p) for p in paths[:max_paths]],
+                len(paths),
+                kind="entrypoint_paths_to",
+            )
+
+        return guard(_impl)
 
     def attack_surface() -> dict[str, Any]:
-        """Framework-detected entrypoints with trust/asset metadata."""
-        rows = holder.engine().attack_surface() or []
-        return {
-            "result": rows,
-            "total_items": len(rows),
-            "kind": "attack_surface",
-        }
+        """
+        List framework-detected entrypoints (the attack surface).
+
+        These are externally-reachable handlers (HTTP routes, etc.) annotated
+        with trust and asset metadata where known.
+
+        Returns the entrypoint nodes; an empty list means none were detected.
+        """
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().attack_surface() or []
+            return ok_page(rows, len(rows), kind="attack_surface")
+
+        return guard(_impl)
 
     def complexity_hotspots(threshold: int = 10) -> dict[str, Any]:
-        """Functions with cyclomatic complexity ≥ ``threshold``."""
-        rows = holder.engine().complexity_hotspots(int(threshold)) or []
-        return {
-            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-            "total_items": len(rows),
-            "kind": "complexity_hotspots",
-        }
+        """
+        List functions whose cyclomatic complexity meets or exceeds a
+        threshold.
+
+        Args:
+            threshold: Minimum complexity to include (default 10).
+
+        Returns the matching functions with their locations; an empty list
+        means nothing is that complex.
+        """
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().complexity_hotspots(int(threshold)) or []
+            return ok_page(
+                [_slim_unit(r, path_resolver=path_resolver) for r in rows],
+                len(rows),
+                kind="complexity_hotspots",
+            )
+
+        return guard(_impl)
 
     def functions_that_raise(exception: str) -> dict[str, Any]:
-        """Functions whose detected exception list includes ``exception``."""
-        rows = (
-            holder.engine().functions_that_raise(str(exception)) or []
-        )
-        return {
-            "result": [_slim_unit(r, path_resolver=path_resolver) for r in rows],
-            "total_items": len(rows),
-            "kind": "functions_that_raise",
-        }
+        """
+        List functions that may raise a given exception type.
+
+        Args:
+            exception: Exception type name to search for.
+
+        Returns the matching functions with their locations; an empty list
+        means none were detected raising it.
+        """
+
+        def _impl() -> dict[str, Any]:
+            rows = holder.engine().functions_that_raise(str(exception)) or []
+            return ok_page(
+                [_slim_unit(r, path_resolver=path_resolver) for r in rows],
+                len(rows),
+                kind="functions_that_raise",
+            )
+
+        return guard(_impl)
 
     return [
         graph_summary,

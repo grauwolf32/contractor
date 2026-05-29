@@ -25,6 +25,10 @@ class PipelineContext:
     artifact: Optional[str] = None
     prompt: Optional[str] = None
     checkpoint_path: Optional[Path] = None
+    # Per-request model timeout (seconds). Mirrors Settings.default_model_timeout;
+    # the CLI passes the configured/overridden value, so pipeline-built LiteLlm
+    # instances honour it instead of silently dropping the timeout.
+    timeout: int = 300
 
 
 class Pipeline(ABC):

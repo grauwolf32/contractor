@@ -47,7 +47,7 @@ class RouterPipeline(Pipeline):
         if not prompt:
             raise ValueError("RouterPipeline requires ctx.prompt to be set")
 
-        llm = LiteLlm(model=ctx.model)
+        llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         fs = ctx.fs
 
         sub_agents = [
@@ -129,7 +129,9 @@ class RouterPipeline(Pipeline):
         }
 
         session_id = uuid4().hex
-        plugin_kwargs = dict(
+        # Heterogeneous kwargs shared by both plugin constructors; typed Any so
+        # the **splat checks against each plugin's individually-typed params.
+        plugin_kwargs: dict[str, Any] = dict(
             task_name=ROUTER_TASK_NAME,
             task_id=ROUTER_TASK_ID,
             iteration=1,

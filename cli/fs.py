@@ -46,7 +46,7 @@ class RootedLocalFileSystem(LocalFileSystem):
         """Coerce caller-supplied path to a canonical virtual form."""
         if path in (None, "", "/"):
             return ""
-        return path
+        return path or ""
 
     def _strip_protocol(self, path: str) -> str:
         """
@@ -54,7 +54,7 @@ class RootedLocalFileSystem(LocalFileSystem):
 
         Returns ``self._blocked_path`` for any path that escapes the sandbox.
         """
-        path = norm_unicode(stringify_path(path))
+        path = norm_unicode(stringify_path(path)) or ""
 
         if path.startswith("file://"):
             path = path[7:]

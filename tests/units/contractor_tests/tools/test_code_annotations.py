@@ -38,7 +38,7 @@ def test_annotate_trace_inserts_above_function(tmp_path: Path) -> None:
     )
     r = tools["annotate_trace"](
         "/app.py", "login", target="login-flow", args="token:tainted"
-    )
+    )["result"]
     assert r["kind"] == "trace"
     assert r["annotation_line"] == 1
     text = overlay.read_text("/app.py", encoding="utf-8")

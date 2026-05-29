@@ -34,7 +34,7 @@ class VulnScanTracePipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
 
     async def _run_impl(
         self,
@@ -148,7 +148,7 @@ class VulnScanTracePipeline(Pipeline):
         )
 
         runner.add_task(
-            name="annotate_request_trace_for_vulnerability_analysis",
+            name="trace_annotation",
             ref=f"vuln-scan-trace:trace:{name}",
             worker_builder=trace_builder,
             iterations=1,
@@ -185,7 +185,7 @@ class VulnScanTracePipeline(Pipeline):
             return []
 
         try:
-            raw = yaml.safe_load(part.text) or {}
+            raw = yaml.safe_load(part.text or "") or {}
         except yaml.YAMLError as exc:
             logger.warning("could not parse scan results: %s", exc)
             return []

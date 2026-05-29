@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict, dataclass
+from collections.abc import Sequence
 from typing import Any, Literal, Optional, Union
 
 from contractor.tools.fs.models import FileLoc, FsEntry
@@ -10,7 +11,10 @@ from contractor.utils.formatting import xml_escape
 class FileFormat:
     with_types: bool = True
     with_file_info: bool = True
-    _format: Literal["str", "json", "xml"] = "json"
+    # Agents thread a shared output-format knob here. "str"/"xml" have dedicated
+    # rendering; "json" and other accepted values ("yaml"/"markdown") render as
+    # JSON — FileFormat has no yaml/markdown renderer, so they fall back to json.
+    _format: Literal["str", "json", "xml", "yaml", "markdown"] = "json"
     loc: Literal["lines", "bytes"] = "lines"
 
     def _format_loc(self, loc: FileLoc) -> Union[str, dict[str, Any]]:
@@ -85,7 +89,7 @@ class FileFormat:
 
     def format_file_list(
         self,
-        files: list[Optional[FsEntry]],
+        files: Sequence[Optional[FsEntry]],
     ) -> Union[str, list[dict[str, Any]]]:
         cleaned = [file for file in files if file is not None]
 

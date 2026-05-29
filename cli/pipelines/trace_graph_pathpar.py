@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from uuid import uuid4
 
 import yaml
@@ -27,7 +27,7 @@ from cli.pipelines.trace_annotation import (
     OpenApiPath,
     extract_openapi_paths,
 )
-from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import RenderedTask, TaskRunnerEventHandler, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
@@ -62,7 +62,7 @@ class TraceGraphPathParPipeline(Pipeline):
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
     ) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         self.fs = ctx.fs
         self.overlayfs = MemoryOverlayFileSystem(fs=self.fs)
         self.paths: list[OpenApiPath] = []
@@ -88,7 +88,7 @@ class TraceGraphPathParPipeline(Pipeline):
         if not raw:
             raise ValueError("No OpenAPI artifact found")
 
-        openapi = yaml.safe_load(raw.text)
+        openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
         # Resume: load existing overlay state if present.
@@ -98,7 +98,7 @@ class TraceGraphPathParPipeline(Pipeline):
             filename=f"trace-{self.namespace}-fs",
         )
         if fs_state_artifact:
-            self.overlayfs.load(json.loads(fs_state_artifact.text))
+            self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
 
         # Build graph tools once — trailmark parses the base FS (read-only),
         # so the tool closures are safe to share across parallel forks.
@@ -213,7 +213,7 @@ class TraceGraphPathParPipeline(Pipeline):
             name="trace_agent",
             fs=overlay,
             namespace=namespace,
-            _format=self._template.format,
+            _format=cast(TraceFormat, self._template.format),
             model=self.llm,
             max_tokens=TRACE_MAX_TOKENS,
             enable_vuln_reporting=True,

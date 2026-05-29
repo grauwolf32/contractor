@@ -43,7 +43,7 @@ class TraceVerifyPipeline(Pipeline):
 
     def __init__(self, ctx: PipelineContext) -> None:
         super().__init__(ctx)
-        self.llm = LiteLlm(model=ctx.model)
+        self.llm = LiteLlm(model=ctx.model, timeout=ctx.timeout)
         self.paths: list[OpenApiPath] = []
 
     async def _run_impl(
@@ -63,7 +63,7 @@ class TraceVerifyPipeline(Pipeline):
         if not raw:
             raise ValueError("No OpenAPI artifact found")
 
-        openapi = yaml.safe_load(raw.text)
+        openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
         for api_path in self.paths:

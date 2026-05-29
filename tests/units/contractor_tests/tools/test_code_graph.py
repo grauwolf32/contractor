@@ -56,9 +56,23 @@ def _by_name(tools):
 
 def test_graph_summary_reports_nodes_and_edges(tiny_project: Path) -> None:
     tools = _by_name(code_graph_tools(tiny_project))
-    summary = tools["graph_summary"]()
+    summary = tools["graph_summary"]()["result"]
     assert summary["total_nodes"] >= 3  # app, login, authenticate, _verify
     assert summary["call_edges"] >= 2
+
+
+def test_find_symbol_truncates_honestly(tmp_path: Path) -> None:
+    # 60 functions all named `target` — exceeds the 50-node cap.
+    for i in range(60):
+        (tmp_path / f"m{i}.py").write_text(
+            "def target():\n    return 1\n", encoding="utf-8"
+        )
+    tools = _by_name(code_graph_tools(tmp_path))
+    result = tools["find_symbol"]("target")
+    assert len(result["result"]) == 50, "page must respect the cap"
+    assert result["returned"] == 50
+    assert result["total_items"] == 60, "total must be the TRUE match count"
+    assert result["truncated"] is True
 
 
 def test_find_symbol_resolves_bare_name(tiny_project: Path) -> None:
@@ -97,7 +111,7 @@ def test_utf8_safety_skips_bad_file(project_with_bad_utf8: Path) -> None:
     # Must not raise UnicodeDecodeError; bad file is silently skipped and
     # the good file is still parsed.
     tools = _by_name(code_graph_tools(project_with_bad_utf8))
-    summary = tools["graph_summary"]()
+    summary = tools["graph_summary"]()["result"]
     assert summary["total_nodes"] >= 1
     result = tools["find_symbol"]("hello")
     assert result["total_items"] >= 1

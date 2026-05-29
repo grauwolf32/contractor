@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -10,7 +10,12 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
+
+# Passthrough type for the code-fence helpers: a non-str payload is returned
+# unchanged, a str may be wrapped — so the caller's narrower type is preserved.
+_T = TypeVar("_T")
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -170,11 +175,11 @@ class VulnerabilityReportFormat:
 
     @staticmethod
     def _wrap_code_fence(
-        output: Union[str, dict[str, Any], list[Any]],
+        output: _T,
         fmt: str,
         *,
         type_hint: bool,
-    ) -> Union[str, dict[str, Any], list[Any]]:
+    ) -> Union[_T, str]:
         """Optionally wrap string output in a Markdown code fence."""
         if not type_hint or not isinstance(output, str):
             return output
@@ -303,7 +308,7 @@ class VulnerabilityReportTools:
                 self.reports = {}
                 return
 
-            raw: dict[str, Any] = yaml.safe_load(artifact.text) or {}
+            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
             self.reports = {
                 report.name: report
                 for index, (name, item) in enumerate(raw.items(), start=1)
@@ -445,18 +450,22 @@ def vulnerability_report_tools(
             confidence:  "low", "medium", or "high".
             details:     Technical details, reproduction steps, impact, and remediation hints.
         """
-        report = await vr.write_report(
-            name=name,
-            place_type=place_type,
-            place=place,
-            title=title,
-            summary=summary,
-            severity=severity,
-            confidence=confidence,
-            details=details,
-            ctx=tool_context,
-        )
-        return {"result": vr.fmt.format_report(report)}
+
+        async def _impl() -> Any:
+            report = await vr.write_report(
+                name=name,
+                place_type=place_type,
+                place=place,
+                title=title,
+                summary=summary,
+                severity=severity,
+                confidence=confidence,
+                details=details,
+                ctx=tool_context,
+            )
+            return vr.fmt.format_report(report)
+
+        return await aguard(_impl)
 
     async def get_vulnerability(
         name: str,
@@ -468,10 +477,14 @@ def vulnerability_report_tools(
         Args:
             name: Exact report key.
         """
-        report = await vr.get_report(name, tool_context)
-        if report is None:
-            return {"error": f"Vulnerability report {name!r} not found."}
-        return {"result": vr.fmt.format_report(report)}
+
+        async def _impl() -> Any:
+            report = await vr.get_report(name, tool_context)
+            if report is None:
+                return err(f"Vulnerability report {name!r} not found.")
+            return vr.fmt.format_report(report)
+
+        return await aguard(_impl)
 
     async def list_vulnerabilities(
         tool_context: ToolContext,
@@ -482,8 +495,12 @@ def vulnerability_report_tools(
         Returns:
             A preview list with title, location, severity, confidence, and summary.
         """
-        reports = await vr.list_reports(tool_context)
-        return {"result": vr.fmt.format_reports(reports, preview=True)}
+
+        async def _impl() -> Any:
+            reports = await vr.list_reports(tool_context)
+            return vr.fmt.format_reports(reports, preview=True)
+
+        return await aguard(_impl)
 
     return [
         report_vulnerability,
@@ -708,7 +725,7 @@ class VerifiedFindingsTools:
             if artifact is None:
                 self.findings = {}
                 return
-            raw: dict[str, Any] = yaml.safe_load(artifact.text) or {}
+            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
             self.findings = {
                 f.name: f
                 for name, item in raw.items()
@@ -827,38 +844,63 @@ def verification_tools(
                                         the path breaks at (function name or guard). None
                                         when sink is reached.
         """
-        finding = await vt.write_finding(
-            name=name,
-            source_namespace=source_namespace,
-            verdict=verdict,
-            summary=summary,
-            attacker_control_at_sink=attacker_control_at_sink,
-            sink_reached=sink_reached,
-            entry_point=entry_point,
-            data_flow=data_flow,
-            path_broken_at=path_broken_at,
-            impact=impact,
-            notes=notes,
-            ctx=tool_context,
-        )
-        return {"result": vt.fmt.format_finding(finding)}
+
+        async def _impl() -> Any:
+            finding = await vt.write_finding(
+                name=name,
+                source_namespace=source_namespace,
+                verdict=verdict,
+                summary=summary,
+                attacker_control_at_sink=attacker_control_at_sink,
+                sink_reached=sink_reached,
+                entry_point=entry_point,
+                data_flow=data_flow,
+                path_broken_at=path_broken_at,
+                impact=impact,
+                notes=notes,
+                ctx=tool_context,
+            )
+            return vt.fmt.format_finding(finding)
+
+        return await aguard(_impl)
 
     async def get_verification(
         name: str,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """Read a previously-stored verification by finding name."""
-        finding = await vt.get_finding(name, tool_context)
-        if finding is None:
-            return {"error": f"Verification for {name!r} not found."}
-        return {"result": vt.fmt.format_finding(finding)}
+        """
+        Read a previously-stored verification by its finding name.
+
+        Args:
+            name: Finding name whose verification to retrieve.
+
+        Returns the stored verification, or an error if none exists for that
+        name.
+        """
+
+        async def _impl() -> Any:
+            finding = await vt.get_finding(name, tool_context)
+            if finding is None:
+                return err(f"Verification for {name!r} not found.")
+            return vt.fmt.format_finding(finding)
+
+        return await aguard(_impl)
 
     async def list_verifications(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """List all verifications stored in this namespace (preview only)."""
-        findings = await vt.list_findings(tool_context)
-        return {"result": vt.fmt.format_findings(findings, preview=True)}
+        """
+        List all verifications stored in this namespace.
+
+        Returns a preview (truncated) of each stored verification; use
+        get_verification for the full detail of one.
+        """
+
+        async def _impl() -> Any:
+            findings = await vt.list_findings(tool_context)
+            return vt.fmt.format_findings(findings, preview=True)
+
+        return await aguard(_impl)
 
     async def submit_verdict(
         name: str,
@@ -883,21 +925,27 @@ def verification_tools(
             sink_reached:       True if attacker data reaches the sink.
             attacker_control:   "full", "partial", or "none".
         """
-        finding = await vt.write_finding(
-            name=name,
-            source_namespace=vt.name,
-            verdict=verdict,
-            summary=summary,
-            attacker_control_at_sink=attacker_control,
-            sink_reached=sink_reached,
-            entry_point=entry_point,
-            data_flow=[],
-            path_broken_at=None,
-            impact=summary if verdict in ("exploitable", "exploitable_unverified") else "",
-            notes=evidence,
-            ctx=tool_context,
-        )
-        return {"result": vt.fmt.format_finding(finding)}
+
+        async def _impl() -> Any:
+            finding = await vt.write_finding(
+                name=name,
+                source_namespace=vt.name,
+                verdict=verdict,
+                summary=summary,
+                attacker_control_at_sink=attacker_control,
+                sink_reached=sink_reached,
+                entry_point=entry_point,
+                data_flow=[],
+                path_broken_at=None,
+                impact=summary
+                if verdict in ("exploitable", "exploitable_unverified")
+                else "",
+                notes=evidence,
+                ctx=tool_context,
+            )
+            return vt.fmt.format_finding(finding)
+
+        return await aguard(_impl)
 
     return [
         submit_verdict,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -60,11 +60,12 @@ def format_vulnerabilities(vulnerabilities: list[dict]) -> str:
     """
     Format the vulnerabilities into a string.
     """
-    tags = {vulnerability["tag"] for vulnerability in vulnerabilities}
-    tags = sorted(tags)
+    tags: list[str] = sorted(
+        {vulnerability["tag"] for vulnerability in vulnerabilities}
+    )
     result = ""
 
-    vulns_by_tag = {tag: [] for tag in tags}
+    vulns_by_tag: dict[str, list[Any]] = {tag: [] for tag in tags}
     for vulnerability in vulnerabilities:
         vulns_by_tag[vulnerability["tag"]].append(vulnerability)
 
@@ -94,20 +95,20 @@ def extract_mermaid_diagram(text: str) -> str:
 
 
 def format_service_information(service_information: dict) -> str:
-    service_information = ServiceBasicInfo(**service_information)
-    mermaid_diagram = extract_mermaid_diagram(service_information.diagram)
+    info = ServiceBasicInfo(**service_information)
+    mermaid_diagram = extract_mermaid_diagram(info.diagram)
 
     return f"""
 # Service Information
 
 ## Name
-{service_information.name}
+{info.name}
 
 ## Description
-{service_information.description}
+{info.description}
 
 ## Summary
-{service_information.summary}
+{info.summary}
 
 ## Diagram
 ```mermaid
@@ -115,10 +116,10 @@ def format_service_information(service_information: dict) -> str:
 ```
 
 ## Criticality
-{service_information.criticality}
+{info.criticality}
 
 ## Criticality Reason
-{service_information.criticality_reason}
+{info.criticality_reason}
 """.strip()
 
 
@@ -135,6 +136,12 @@ class ReportAgent(BaseAgent):
         service_information = ctx.session.state.get("oas_analyzer::service_information")
         vulnerabilities = ctx.session.state.get("oas_analyzer::vulnerabilities", [])
 
+        # The upstream review_agent populates this via output_key before this
+        # report agent runs in the sequence.
+        if service_information is None:
+            raise RuntimeError(
+                "oas_analyzer::service_information missing from session state"
+            )
         report = format_service_information(service_information)
 
         if vulnerabilities:
@@ -143,6 +150,8 @@ class ReportAgent(BaseAgent):
 
         content = types.Part.from_text(text=report)
 
+        if ctx.artifact_service is None:
+            raise RuntimeError("artifact_service is not available on the context")
         await ctx.artifact_service.save_artifact(
             app_name=ctx.app_name,
             user_id=ctx.user_id,

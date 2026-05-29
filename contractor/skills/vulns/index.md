@@ -36,10 +36,10 @@ Pick the reference by the signal you observe in the target:
 
 | Signal | Load |
 | --- | --- |
-| Object IDs in URL/body/cookies, ownership-bound resources, GraphQL `id:` args, mass-assignment-prone JSON, presigned URLs | `references/idor.md` |
-| URL/host/webhook input, "fetch from URL", PDF/screenshot export, allow/deny-listed domains, internal IP filtering | `references/ssrf.md` |
-| Reflected input that *evaluates* (e.g. `{{7*7}}` → `49`), template engine errors in stack traces | `references/ssti.md` |
-| `application/xml`, SOAP envelope, SAML AuthnRequest, file upload accepting DOCX / SVG / EPUB / XLSX, JSON→XML conversion | `references/xxe.md` |
+| Object IDs in URL/body/cookies, ownership-bound resources, GraphQL `id:` args, mass-assignment-prone JSON, presigned URLs | `vulns/references/idor` |
+| URL/host/webhook input, "fetch from URL", PDF/screenshot export, allow/deny-listed domains, internal IP filtering | `vulns/references/ssrf` |
+| Reflected input that *evaluates* (e.g. `{{7*7}}` → `49`), template engine errors in stack traces | `vulns/references/ssti` |
+| `application/xml`, SOAP envelope, SAML AuthnRequest, file upload accepting DOCX / SVG / EPUB / XLSX, JSON→XML conversion | `vulns/references/xxe` |
 
 If two signals coexist (very common: SSRF + XXE, IDOR + SSTI), load both — chains are where these classes deliver the highest impact.
 
@@ -54,7 +54,7 @@ If two signals coexist (very common: SSRF + XXE, IDOR + SSTI), load both — cha
 
 | File | Load when working on... |
 | --- | --- |
-| `references/idor.md` | Authorization tampering, object-id enumeration, GUID/UUID prediction, GraphQL/gRPC ID swaps, mass assignment, OAuth `state`/`code`, MFA endpoints, presigned-URL abuse, OPA/Cedar policy fuzzing |
-| `references/ssrf.md` | URL fetchers, cloud metadata (AWS IMDSv2, GCP, Azure, Alibaba, Oracle, ECS, OpenStack), IP-format/encoding bypass, DNS rebinding, gopher/dict/file/jar protocols, K8s + service-mesh pivots |
-| `references/ssti.md` | Engine fingerprint (Jinja2, Twig, FreeMarker, Pebble, Velocity, Mako, Thymeleaf, Razor, Liquid, Nunjucks, Handlebars, Blade, Groovy/GSP), sandbox escape, prototype-chain RCE in Node templates, CVEs 2024–2025 |
-| `references/xxe.md` | XML parser exposed, SVG/DOCX/EPUB/SAML/XLSX upload, OOB exfil via external DTD, XInclude, CDATA bypass, PHP `php://filter` base64, K8s admission webhooks, CI/CD XML artifact parsing, parser hardening per language |
+| `vulns/references/idor` | Authorization tampering, object-id enumeration, GUID/UUID prediction, GraphQL/gRPC ID swaps, mass assignment, OAuth `state`/`code`, MFA endpoints, presigned-URL abuse, OPA/Cedar policy fuzzing |
+| `vulns/references/ssrf` | URL fetchers, cloud metadata (AWS IMDSv2, GCP, Azure, Alibaba, Oracle, ECS, OpenStack), IP-format/encoding bypass, DNS rebinding, gopher/dict/file/jar protocols, K8s + service-mesh pivots |
+| `vulns/references/ssti` | Engine fingerprint (Jinja2, Twig, FreeMarker, Pebble, Velocity, Mako, Thymeleaf, Razor, Liquid, Nunjucks, Handlebars, Blade, Groovy/GSP), sandbox escape, prototype-chain RCE in Node templates, CVEs 2024–2025 |
+| `vulns/references/xxe` | XML parser exposed, SVG/DOCX/EPUB/SAML/XLSX upload, OOB exfil via external DTD, XInclude, CDATA bypass, PHP `php://filter` base64, K8s admission webhooks, CI/CD XML artifact parsing, parser hardening per language |

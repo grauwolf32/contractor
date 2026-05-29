@@ -9,14 +9,14 @@ from google.adk.tools.tool_context import ToolContext
 
 from contractor.tools.fs.const import (_IGNORE_DEFAULTS, FS_COVERAGE_STATE_KEY,
                                        INCORRECT_REGEXP_ERROR,
-                                       PATH_IS_NOT_A_FILE_ERROR,
                                        PATH_NOT_FOUND_ERROR)
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
                                         InteractionFilter, InteractionKind)
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
-from contractor.utils.formatting import (norm_unicode, norm_unicode_strict,
-                                         normalize_slashes)
+from contractor.tools.fs.validation import PathValidationMixin
+from contractor.tools.result import guard, ok_page
+from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
 
 ToolResult: TypeAlias = dict[str, Any]
@@ -48,7 +48,7 @@ def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list
     return result
 
 
-class FsspecInteractionFileTools:
+class FsspecInteractionFileTools(PathValidationMixin):
     def __init__(
         self,
         fs: fsspec.AbstractFileSystem,
@@ -77,29 +77,6 @@ class FsspecInteractionFileTools:
 
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
-
-    def _validate_path(
-        self,
-        path: str,
-        *,
-        must_exist: bool = False,
-        must_be_file: bool = False,
-        check_ignored: bool = True,
-    ) -> tuple[Optional[str], Optional[ToolResult]]:
-        try:
-            normalized = norm_unicode_strict(path)
-        except ValueError:
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=path)}
-        if check_ignored and self._is_ignored(normalized):
-            return None, {"error": f"path {normalized} is ignored"}
-        if must_exist and not self.fs.exists(normalized):
-            return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-        if must_be_file:
-            if not self.fs.exists(normalized):
-                return None, {"error": PATH_NOT_FOUND_ERROR.format(path=normalized)}
-            if not self.fs.isfile(normalized):
-                return None, {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized)}
-        return normalized, None
 
     def _paginate(
         self,
@@ -302,12 +279,9 @@ class FsspecInteractionFileTools:
         normalized_pattern = norm_unicode(pattern)
 
         if normalized_pattern is None:
-            return {
-                "result": [],
-                "offset": offset,
-                "total_items": 0,
-                "limit": self.max_items,
-            }
+            return ok_page(
+                [], 0, returned=0, offset=offset, limit=self.max_items
+            )
 
         if normalized_path and not self.fs.exists(normalized_path):
             return {"error": PATH_NOT_FOUND_ERROR.format(path=normalized_path)}
@@ -341,12 +315,13 @@ class FsspecInteractionFileTools:
         total = len(entries)
         paged = entries[offset : offset + self.max_items]
 
-        return {
-            "result": self.fmt.format_file_list(paged),
-            "offset": offset,
-            "total_items": total,
-            "limit": self.max_items,
-        }
+        return ok_page(
+            self.fmt.format_file_list(paged),
+            total,
+            returned=len(paged),
+            offset=offset,
+            limit=self.max_items,
+        )
 
     def read_file(
         self,
@@ -369,8 +344,8 @@ class FsspecInteractionFileTools:
                 operation="read_file",
                 interaction=InteractionKind.READ,
             )
-        except Exception:
-            return {"result": ""}
+        except Exception as exc:
+            return {"error": f"failed to read '{normalized_file}': {exc}"}
 
         lines = content.splitlines()
 
@@ -449,12 +424,13 @@ class FsspecInteractionFileTools:
             total = len(entries)
             paged = entries[offset : offset + self.max_items]
 
-            return {
-                "result": self.fmt.format_file_list(paged),
-                "offset": offset,
-                "total_items": total,
-                "limit": self.max_items,
-            }
+            return ok_page(
+                self.fmt.format_file_list(paged),
+                total,
+                returned=len(paged),
+                offset=offset,
+                limit=self.max_items,
+            )
 
         results: list[FsEntry] = []
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
@@ -466,12 +442,13 @@ class FsspecInteractionFileTools:
         total = len(results)
         paged = results[offset : offset + self.max_items]
 
-        return {
-            "result": self.fmt.format_file_list(paged),
-            "offset": offset,
-            "total_items": total,
-            "limit": self.max_items,
-        }
+        return ok_page(
+            self.fmt.format_file_list(paged),
+            total,
+            returned=len(paged),
+            offset=offset,
+            limit=self.max_items,
+        )
 
     def interaction_stats(
         self,
@@ -529,13 +506,14 @@ class FsspecInteractionFileTools:
             selected, offset=offset, limit=limit
         )
 
-        return {
-            "result": [self._serialize_interaction_entry(p) for p in page],
-            "offset": resolved_offset,
-            "total_items": len(selected),
-            "limit": resolved_limit,
-            "interaction": interaction.value,
-        }
+        return ok_page(
+            [self._serialize_interaction_entry(p) for p in page],
+            len(selected),
+            returned=len(page),
+            offset=resolved_offset,
+            limit=resolved_limit,
+            interaction=interaction.value,
+        )
 
     def touched_files(
         self,
@@ -573,12 +551,13 @@ class FsspecInteractionFileTools:
             selected, offset=offset, limit=limit
         )
 
-        return {
-            "result": [{"path": p} for p in page],
-            "offset": resolved_offset,
-            "total_items": len(selected),
-            "limit": resolved_limit,
-        }
+        return ok_page(
+            [{"path": p} for p in page],
+            len(selected),
+            returned=len(page),
+            offset=resolved_offset,
+            limit=resolved_limit,
+        )
 
 
 def ro_file_tools(
@@ -604,9 +583,15 @@ def ro_file_tools(
 
     def ls(path: str) -> dict[str, Any]:
         """
-        List immediate children of a directory.
+        List the immediate children of a directory.
+
+        Args:
+            path: Directory whose contents to list.
+
+        Returns the directory entries, or an error if the path does not exist
+        or is not a directory.
         """
-        return tools.ls(path=path)
+        return guard(lambda: tools.ls(path=path))
 
     def glob(
         pattern: str,
@@ -619,8 +604,8 @@ def ro_file_tools(
         Relative patterns (e.g. "*.py", "**/*.py") are searched under ``path``.
         Absolute patterns are matched as-is and post-filtered by ``path``.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        return tools.glob(pattern=pattern, path=path, offset=offset)
+        off = _ensure_int_or_none(offset) or 0
+        return guard(lambda: tools.glob(pattern=pattern, path=path, offset=off))
 
     def read_file(
         file: str,
@@ -641,16 +626,18 @@ def ro_file_tools(
                 its 1-based line number (e.g. ``10 | def hello():``). Line
                 numbers are NOT part of the file content.
         """
-        offset = _ensure_int_or_none(offset)
-        limit = _ensure_int_or_none(limit)
-        result = tools.read_file(
-            file_path=file,
-            offset=offset,
-            limit=limit,
-            with_line_numbers=bool(with_line_numbers),
-        )
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            result = tools.read_file(
+                file_path=file,
+                offset=_ensure_int_or_none(offset),
+                limit=_ensure_int_or_none(limit),
+                with_line_numbers=bool(with_line_numbers),
+            )
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def grep(
         pattern: str,
@@ -664,10 +651,14 @@ def ro_file_tools(
         Usage:
          - be more specific, avoid too general patterns like .*
         """
-        offset = _ensure_int_or_none(offset) or 0
-        result = tools.grep(pattern=pattern, path=path, offset=offset)
-        _push_fs_coverage(tool_context, tools.coverage_stats())
-        return result
+
+        def _impl() -> dict[str, Any]:
+            off = _ensure_int_or_none(offset) or 0
+            result = tools.grep(pattern=pattern, path=path, offset=off)
+            _push_fs_coverage(tool_context, tools.coverage_stats())
+            return result
+
+        return guard(_impl)
 
     def interaction_stats(
         path: str = "/",
@@ -680,7 +671,7 @@ def ro_file_tools(
             - "touched" means the file was either read or matched by grep()
             - "untouched" means the file had no recorded interaction
         """
-        return tools.interaction_stats(path=path, pattern=pattern)
+        return guard(lambda: tools.interaction_stats(path=path, pattern=pattern))
 
     def list_touched_files(
         path: str = "/",
@@ -689,12 +680,24 @@ def ro_file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that had at least one recorded interaction.
+        List files that had at least one recorded interaction (read or grep
+        match).
+
+        Args:
+            path: Root directory to search within.
+            pattern: Glob pattern to filter files.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of items to return.
+
+        Returns the matching files (paginated), or an error if the path is
+        invalid.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.touched_files(
-            path=path, pattern=pattern, offset=offset, limit=limit
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.touched_files(
+                path=path, pattern=pattern, offset=off, limit=lim
+            )
         )
 
     def list_untouched_files(
@@ -704,12 +707,24 @@ def ro_file_tools(
         limit: Optional[int] = None,
     ) -> dict[str, Any]:
         """
-        List files that have not been read and did not match grep().
+        List files that have not been read and did not match grep() — the
+        unexplored remainder.
+
+        Args:
+            path: Root directory to search within.
+            pattern: Glob pattern to filter files.
+            offset: Pagination offset (0-based).
+            limit: Maximum number of items to return.
+
+        Returns the matching files (paginated), or an error if the path is
+        invalid.
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
-        return tools.untouched_files(
-            path=path, pattern=pattern, offset=offset, limit=limit
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
+        return guard(
+            lambda: tools.untouched_files(
+                path=path, pattern=pattern, offset=off, limit=lim
+            )
         )
 
     def list_match_only_files(
@@ -756,23 +771,29 @@ def ro_file_tools(
             - Equivalent to InteractionFilter.MATCH_ONLY
             - Files never seen (no grep, no read) are NOT included
         """
-        offset = _ensure_int_or_none(offset) or 0
-        limit = _ensure_int_or_none(limit)
+        off = _ensure_int_or_none(offset) or 0
+        lim = _ensure_int_or_none(limit)
 
-        return tools.files_with_interactions(
-            path=path,
-            pattern=pattern,
-            interaction=InteractionFilter.MATCH_ONLY,
-            offset=offset,
-            limit=limit,
+        return guard(
+            lambda: tools.files_with_interactions(
+                path=path,
+                pattern=pattern,
+                interaction=InteractionFilter.MATCH_ONLY,
+                offset=off,
+                limit=lim,
+            )
         )
 
     def reset_interaction_tracking() -> dict[str, Any]:
         """
         Reset interaction tracking.
         """
-        tools.reset_interactions()
-        return {"result": "ok"}
+
+        def _impl() -> dict[str, Any]:
+            tools.reset_interactions()
+            return {"result": "ok"}
+
+        return guard(_impl)
 
     registry = [ls, glob, read_file, grep]
 

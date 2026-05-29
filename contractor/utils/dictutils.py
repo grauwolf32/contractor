@@ -14,7 +14,7 @@ def deep_merge(target: dict, diff: dict) -> dict:
         if isinstance(value, collections.abc.Mapping) and isinstance(
             target.get(key), collections.abc.Mapping
         ):
-            target[key] = deep_merge(dict(target[key]), value)
+            target[key] = deep_merge(dict(target[key]), dict(value))
         else:
             target[key] = copy.deepcopy(value)
     return target

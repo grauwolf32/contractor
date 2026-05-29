@@ -132,7 +132,7 @@ def _pie_chart(
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=figsize)
-    nonzero = [(l, v) for l, v in zip(labels, values) if v > 0]
+    nonzero = [(lbl, v) for lbl, v in zip(labels, values) if v > 0]
     if not nonzero:
         ax.text(0.5, 0.5, "No data", ha="center", va="center")
     else:
@@ -726,7 +726,6 @@ def _section_tool_usage(data: dict) -> str:
 def _section_tokens(data: dict) -> str:
     fixtures = data["fixtures"]
     slugs = [f["slug"].replace("realvuln-", "") for f in fixtures]
-    a = _agg(fixtures)
 
     token_chart = _stacked_bar(
         slugs,
@@ -761,7 +760,6 @@ def _section_tokens(data: dict) -> str:
     rows = ""
     for f in fixtures:
         tpt = f["total_tokens"] / max(f["tp"], 1)
-        findings_per_kloc = len(f["reported_findings"]) / (f["total_tokens"] / 1000)
         rows += (
             f'<tr><td>{f["slug"].replace("realvuln-","")}</td>'
             f'<td>{f["input_tokens"]:,}</td>'

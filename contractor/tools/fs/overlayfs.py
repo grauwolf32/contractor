@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import base64
-import difflib
-import hashlib
 import io
 import posixpath
 import threading
@@ -14,6 +11,9 @@ from typing import Any, Iterable, Iterator
 from fsspec.spec import AbstractFileSystem
 
 from contractor.tools.fs.models import FsEntry
+from contractor.tools.fs.overlay_diff import render_overlay_diff
+from contractor.tools.fs.overlay_patch import (b64decode, b64encode,
+                                               build_overlay_patch, sha256_hex)
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
@@ -257,6 +257,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return False
         except Exception:
+            # Some fsspec backends raise non-FileNotFoundError from isfile();
+            # fall back to info() rather than assume the path is absent.
             try:
                 return self.base_fs.info(path).get("type") == "file"
             except FileNotFoundError:
@@ -268,6 +270,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return False
         except Exception:
+            # See _base_isfile: tolerate quirky isdir() impls via info().
             try:
                 return self.base_fs.info(path).get("type") == "directory"
             except FileNotFoundError:
@@ -297,17 +300,6 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def _text_encoding(kwargs: dict[str, Any]) -> str:
         return kwargs.get("encoding") or "utf-8"
 
-    @staticmethod
-    def _sha256_bytes(data: bytes) -> str:
-        return hashlib.sha256(data).hexdigest()
-
-    @staticmethod
-    def _b64encode(data: bytes) -> str:
-        return base64.b64encode(data).decode("ascii")
-
-    @staticmethod
-    def _b64decode(data: str) -> bytes:
-        return base64.b64decode(data.encode("ascii"))
 
     def _effective_read_bytes(self, path: str) -> bytes:
         return self.cat_file(path)
@@ -373,6 +365,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         except FileNotFoundError:
             return {}
         except Exception:
+            # find() is unsupported or signature-incompatible on this base fs;
+            # degrade to the ls-walk below rather than failing the listing.
             pass
 
         # Fallback: iterative walk using ls
@@ -450,7 +444,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def _current_overlay_state(self) -> dict[str, Any]:
         return {
             "files": {
-                path: self._b64encode(content)
+                path: b64encode(content)
                 for path, content in sorted(self._files.items())
             },
             "dirs": sorted(path for path in self._dirs if path != self.root_marker),
@@ -488,7 +482,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
             self._dirs.update(self._norm(path) for path in state.get("dirs", []))
             self._deleted.update(self._norm(path) for path in state.get("deleted", []))
             self._files = {
-                self._norm(path): self._b64decode(content)
+                self._norm(path): b64decode(content)
                 for path, content in state.get("files", {}).items()
             }
             self._invalidate_filetype()
@@ -573,91 +567,16 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         """
         with self._lock:
             root = self._norm(root)
-
-            base_entries = self._base_find_detail(root)
-            visible_entries = self._visible_find_detail(root)
-
-            base_paths = set(base_entries)
-            visible_paths = set(visible_entries)
-
-            patches: list[Patch] = []
-
-            # Cache for base file reads to avoid redundant I/O
-            _base_cache: dict[str, bytes] = {}
-
-            def _read_base_cached(p: str) -> bytes:
-                if p not in _base_cache:
-                    _base_cache[p] = self._base_read_bytes(p)
-                return _base_cache[p]
-
-            # Deletions
-            for path in sorted(base_paths - visible_paths):
-                if path == self.root_marker:
-                    continue
-
-                base_info = base_entries[path]
-                entry_type = base_info.get("type", "file")
-
-                patch: Patch = {
-                    "op": "delete_path",
-                    "path": path,
-                    "type": entry_type,
-                }
-
-                if entry_type == "file":
-                    try:
-                        patch["base_hash"] = self._sha256_bytes(_read_base_cached(path))
-                    except FileNotFoundError:
-                        pass
-
-                patches.append(patch)
-
-            # Creates / modifies
-            for path in sorted(visible_paths):
-                if path == self.root_marker:
-                    continue
-
-                visible_info = visible_entries[path]
-                visible_type = visible_info.get("type", "file")
-
-                if visible_type == "directory":
-                    if path not in base_paths and self._effective_empty_dir(path):
-                        patches.append({"op": "create_dir", "path": path})
-                    continue
-
-                current_bytes = self._effective_read_bytes(path)
-
-                if path not in base_paths:
-                    patches.append(
-                        {
-                            "op": "write_file",
-                            "path": path,
-                            "content_b64": self._b64encode(current_bytes),
-                        }
-                    )
-                    continue
-
-                base_info = base_entries[path]
-                if base_info.get("type") != "file":
-                    raise RuntimeError(f"Type mismatch for {path}: base is not a file")
-
-                base_bytes = _read_base_cached(path)
-                if base_bytes != current_bytes:
-                    patches.append(
-                        {
-                            "op": "write_file",
-                            "path": path,
-                            "base_hash": self._sha256_bytes(base_bytes),
-                            "content_b64": self._b64encode(current_bytes),
-                        }
-                    )
-
-            return {
-                "version": self.PATCH_VERSION,
-                "kind": "overlay_patch",
-                "root": root,
-                "patches": patches,
-            }
+            return build_overlay_patch(
+                base_entries=self._base_find_detail(root),
+                visible_entries=self._visible_find_detail(root),
+                root=root,
+                root_marker=self.root_marker,
+                version=self.PATCH_VERSION,
+                read_base_bytes=self._base_read_bytes,
+                read_effective_bytes=self._effective_read_bytes,
+                effective_empty_dir=self._effective_empty_dir,
+            )
 
     def load(self, patch: Patch, *, reset: bool = True) -> None:
         """
@@ -700,14 +619,14 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                         and self._base_exists(path)
                         and self._base_isfile(path)
                     ):
-                        actual_hash = self._sha256_bytes(self._base_read_bytes(path))
+                        actual_hash = sha256_hex(self._base_read_bytes(path))
                         if actual_hash != base_hash:
                             raise RuntimeError(
                                 f"Base hash mismatch for {path}: "
                                 f"expected={base_hash} actual={actual_hash}"
                             )
 
-                    content = self._b64decode(item["content_b64"])
+                    content = b64decode(item["content_b64"])
                     self.pipe_file(path, content)
                     continue
 
@@ -1465,189 +1384,15 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
         with self._lock:
             root = self._norm(root)
-
-            base_entries = self._base_find_detail(root)
-            visible_entries = self._visible_find_detail(root)
-
-            base_paths = set(base_entries)
-            visible_paths = set(visible_entries)
-
-            output_lines: list[str] = []
-
-            all_paths = sorted(base_paths | visible_paths)
-
-            # Cache for base file reads
-            _base_cache: dict[str, bytes] = {}
-
-            def _read_base_cached(p: str) -> bytes:
-                if p not in _base_cache:
-                    _base_cache[p] = self._base_read_bytes(p)
-                return _base_cache[p]
-
-            def _is_text(data: bytes) -> bool:
-                """Heuristic: treat data as text if it decodes as UTF-8
-                and contains no null bytes."""
-                if b"\x00" in data:
-                    return False
-                try:
-                    data.decode("utf-8")
-                    return True
-                except (UnicodeDecodeError, ValueError):
-                    return False
-
-            def _lines(data: bytes) -> list[str]:
-                """Split bytes into text lines suitable for difflib."""
-                text = data.decode("utf-8", errors="replace")
-                # splitlines(True) keeps line endings; we normalise to \n
-                lines = text.splitlines(True)
-                # Ensure every line ends with newline for clean diff output
-                return [ln if ln.endswith("\n") else ln + "\n" for ln in lines]
-
-            def _emit_diff_header(path: str, status: str) -> None:
-                output_lines.append(f"diff --overlay a{path} b{path}")
-                output_lines.append(f"{status}")
-
-            for path in all_paths:
-                if path == self.root_marker:
-                    continue
-
-                in_base = path in base_paths
-                in_visible = path in visible_paths
-
-                base_info = base_entries.get(path, {})
-                visible_info = visible_entries.get(path, {})
-
-                base_type = base_info.get("type", "file")
-                visible_type = visible_info.get("type", "file")
-
-                # --- Deleted paths ---------------------------------------------------
-                if in_base and not in_visible:
-                    if base_type == "directory":
-                        _emit_diff_header(path, "deleted directory")
-                        output_lines.append("")
-                        continue
-
-                    # Deleted file
-                    _emit_diff_header(path, "deleted file")
-                    try:
-                        base_bytes = _read_base_cached(path)
-                    except FileNotFoundError:
-                        output_lines.append("")
-                        continue
-
-                    if not _is_text(base_bytes):
-                        output_lines.append(f"--- a{path}")
-                        output_lines.append("+++ /dev/null")
-                        output_lines.append(binary_marker)
-                        output_lines.append("")
-                        continue
-
-                    base_lines = _lines(base_bytes)
-                    diff_result = difflib.unified_diff(
-                        base_lines,
-                        [],
-                        fromfile=f"a{path}",
-                        tofile="/dev/null",
-                        n=context_lines,
-                    )
-                    output_lines.extend(line.rstrip("\n") for line in diff_result)
-                    output_lines.append("")
-                    continue
-
-                # --- New paths -------------------------------------------------------
-                if not in_base and in_visible:
-                    if visible_type == "directory":
-                        _emit_diff_header(path, "new directory")
-                        output_lines.append("")
-                        continue
-
-                    # New file
-                    _emit_diff_header(path, "new file")
-                    try:
-                        current_bytes = self._effective_read_bytes(path)
-                    except FileNotFoundError:
-                        output_lines.append("")
-                        continue
-
-                    if not _is_text(current_bytes):
-                        output_lines.append("--- /dev/null")
-                        output_lines.append(f"+++ b{path}")
-                        output_lines.append(binary_marker)
-                        output_lines.append("")
-                        continue
-
-                    current_lines = _lines(current_bytes)
-                    diff_result = difflib.unified_diff(
-                        [],
-                        current_lines,
-                        fromfile="/dev/null",
-                        tofile=f"b{path}",
-                        n=context_lines,
-                    )
-                    output_lines.extend(line.rstrip("\n") for line in diff_result)
-                    output_lines.append("")
-                    continue
-
-                # --- Both exist – check for modifications ----------------------------
-                # Type change (e.g. dir -> file or file -> dir)
-                if base_type != visible_type:
-                    _emit_diff_header(
-                        path, f"type changed: {base_type} -> {visible_type}"
-                    )
-                    output_lines.append("")
-                    continue
-
-                # Directories don't have content to diff
-                if visible_type == "directory":
-                    continue
-
-                # Compare file contents
-                try:
-                    base_bytes = _read_base_cached(path)
-                except FileNotFoundError:
-                    base_bytes = b""
-
-                try:
-                    current_bytes = self._effective_read_bytes(path)
-                except FileNotFoundError:
-                    current_bytes = b""
-
-                if base_bytes == current_bytes:
-                    continue  # No change
-
-                _emit_diff_header(path, "modified file")
-
-                base_is_text = _is_text(base_bytes)
-                current_is_text = _is_text(current_bytes)
-
-                if not base_is_text or not current_is_text:
-                    output_lines.append(f"--- a{path}")
-                    output_lines.append(f"+++ b{path}")
-                    output_lines.append(binary_marker)
-                    output_lines.append("")
-                    continue
-
-                base_lines = _lines(base_bytes)
-                current_lines = _lines(current_bytes)
-
-                diff_result = difflib.unified_diff(
-                    base_lines,
-                    current_lines,
-                    fromfile=f"a{path}",
-                    tofile=f"b{path}",
-                    n=context_lines,
-                )
-                output_lines.extend(line.rstrip("\n") for line in diff_result)
-                output_lines.append("")
-
-        # Strip trailing blank lines but keep one final newline
-        while output_lines and output_lines[-1] == "":
-            output_lines.pop()
-
-        if not output_lines:
-            return ""
-
-        return "\n".join(output_lines) + "\n"
+            return render_overlay_diff(
+                base_entries=self._base_find_detail(root),
+                visible_entries=self._visible_find_detail(root),
+                root_marker=self.root_marker,
+                read_base_bytes=self._base_read_bytes,
+                read_effective_bytes=self._effective_read_bytes,
+                context_lines=context_lines,
+                binary_marker=binary_marker,
+            )
 
 
 class _OverlayWriteFile:

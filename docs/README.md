@@ -159,18 +159,38 @@ subtasks.
 
 ### 3.4 Pipelines
 
-Concrete pipelines are thin assemblers of templates + worker builders:
+Concrete pipelines are thin assemblers of templates + worker builders.
+The full mode → class map lives in `get_pipelines()`
+([cli/pipelines/__init__.py](../cli/pipelines/__init__.py)); `--pipeline`
+accepts any of these keys:
+
+OpenAPI / architecture:
 
 - [oas_building.py](../cli/pipelines/oas_building.py) — `build`
 - [oas_enrichment.py](../cli/pipelines/oas_enrichment.py) — `enrich`
 - [likec4_building.py](../cli/pipelines/likec4_building.py) — `likec4`
+
+Trace & annotate:
+
 - [trace_annotation.py](../cli/pipelines/trace_annotation.py) — `trace` (planner-driven, per-operation overlay FS)
 - [trace_annotation_direct.py](../cli/pipelines/trace_annotation_direct.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
 - [trace_graph.py](../cli/pipelines/trace_graph.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
+- [trace_graph_pathpar.py](../cli/pipelines/trace_graph_pathpar.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-pipelines.md](insights-parallel-vuln-pipelines.md))
 - [trace_verify.py](../cli/pipelines/trace_verify.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
+
+Vulnerability detection:
+
+- [vuln_scan.py](../cli/pipelines/vuln_scan.py) — `vuln-scan` (breadth-first scan against source code)
+- [vuln_scan_fast.py](../cli/pipelines/vuln_scan_fast.py) — `vuln-scan-fast` (Pipeline B: high-recall scan → dedup → trace-confirm → exploit)
+- [vuln_scan_trace.py](../cli/pipelines/vuln_scan_trace.py) — `vuln-scan-trace` (BFS discovery → DFS confirmation)
+- [vuln_assess.py](../cli/pipelines/vuln_assess.py) — `vuln-assess` (Pipeline A: discovery → OAS → trace → exploit)
+- [exploitability.py](../cli/pipelines/exploitability.py) — `exploit` (per-finding exploitability assessment against a live target)
+
+Prompt-driven:
+
 - [router.py](../cli/pipelines/router.py) — `router`
 
-Two pipelines diverge from the planner+worker pattern:
+Several pipelines diverge from the planner+worker pattern:
 
 - **`router`** skips the templated task queue and runs a single planner
   whose worker is a *router agent* that dispatches to one of several
@@ -219,7 +239,7 @@ The flow:
 5. **Transfer to worker** — `execute_current_subtask` invokes the
    worker `AgentTool`. The worker has been instrumented (see
    `instrument_worker` in
-   [contractor/tools/tasks.py](../contractor/tools/tasks.py)) with the
+   [contractor/tools/tasks/tools.py](../contractor/tools/tasks/tools.py)) with the
    `Subtask` input schema and `SubtaskExecutionResult` output schema, so
    its response is parsed deterministically into `{status, output,
    summary}`.
@@ -293,7 +313,7 @@ planner starts:
 
 Subtasks have a strict lifecycle enforced by
 `SUBTASK_STATUS_TRANSITIONS` in
-[contractor/tools/tasks.py](../contractor/tools/tasks.py). Invalid
+[contractor/tools/tasks/models.py](../contractor/tools/tasks/models.py). Invalid
 transitions raise `InvalidStatusTransitionError` and are surfaced back
 to the planner as tool errors.
 
@@ -356,7 +376,7 @@ True` so the planner cannot keep emitting tool calls.
 | Skills (markdown reference bundles)    | [contractor/skills/](../contractor/skills/)                            |
 | Task runner internals                  | [contractor/runners/task_runner.py](../contractor/runners/task_runner.py) |
 | Models (templates, invocations, keys)  | [contractor/runners/models.py](../contractor/runners/models.py)        |
-| Streamline manager + worker schemas    | [contractor/tools/tasks.py](../contractor/tools/tasks.py)              |
+| Streamline manager + worker schemas    | [contractor/tools/tasks/](../contractor/tools/tasks/) (`tools.py`, `manager.py`, `models.py`) |
 | Planner factory + prompt               | [contractor/agents/planning_agent/](../contractor/agents/planning_agent/) |
 | Memory tooling                         | [contractor/tools/memory.py](../contractor/tools/memory.py)            |
 | Worker agents (SWE, OAS, trace, …)     | [contractor/agents/](../contractor/agents/)                            |

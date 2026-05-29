@@ -11,6 +11,8 @@ from typing import Any, Callable
 
 from fsspec import AbstractFileSystem
 
+from contractor.tools.result import aguard
+
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
 DEFAULT_LIKEC4_PATH: str = "/architecture.c4"
@@ -156,20 +158,28 @@ class Likec4Linter:
                 details=stderr or f"exit code {process.returncode}",
             )
 
-        # npx/bunx may prepend banners (e.g. "Update available") before the
-        # JSON payload. Try each '{' or '[' offset until one parses.
-        parsed = None
+        # likec4 normally emits a single JSON document. npx/bunx may prepend
+        # banners (e.g. "Update available") before it, so if a direct parse
+        # fails, retry from each '{'/'[' offset to skip the banner. A sentinel
+        # (not None) tracks "never parsed" so a literal JSON `null` isn't
+        # mistaken for a parse failure.
+        unparsed = object()
+        parsed: object = unparsed
         last_exc: json.JSONDecodeError | None = None
-        for i, ch in enumerate(stdout):
-            if ch in ('{', '['):
-                try:
-                    parsed = json.loads(stdout[i:])
-                    break
-                except json.JSONDecodeError as exc:
-                    last_exc = exc
-                    continue
+        try:
+            parsed = json.loads(stdout.strip())
+        except json.JSONDecodeError as exc:
+            last_exc = exc
+            for i, ch in enumerate(stdout):
+                if ch in ('{', '['):
+                    try:
+                        parsed = json.loads(stdout[i:])
+                        break
+                    except json.JSONDecodeError as exc2:
+                        last_exc = exc2
+                        continue
 
-        if parsed is None:
+        if parsed is unparsed:
             raise Likec4OutputError(
                 "failed to parse likec4 output",
                 details=str(last_exc) if last_exc else "no JSON found",
@@ -264,24 +274,30 @@ def likec4_tools(
             On success: {"result": [<issue>, ...]}. Empty list means no issues.
             On failure: {"error": "...", "details"?: "...", "raw_output"?: ...}.
         """
-        try:
-            issues = await asyncio.to_thread(linter.validate_path, fs, path)
-            return {"result": issues}
-        except Likec4SourceNotFoundError as exc:
-            return {"error": str(exc)}
-        except Likec4ExecutionError as exc:
-            out: dict[str, Any] = {"error": str(exc)}
-            if exc.details:
-                out["details"] = exc.details
-            return out
-        except Likec4OutputError as exc:
-            out = {"error": str(exc)}
-            if exc.details:
-                out["details"] = exc.details
-            if exc.raw_output is not None:
-                out["raw_output"] = exc.raw_output
-            return out
-        except Likec4Error as exc:
-            return {"error": str(exc)}
+
+        async def _impl() -> dict[str, Any]:
+            try:
+                issues = await asyncio.to_thread(linter.validate_path, fs, path)
+                return {"result": issues}
+            except Likec4SourceNotFoundError as exc:
+                return {"error": str(exc)}
+            except Likec4ExecutionError as exc:
+                out: dict[str, Any] = {"error": str(exc)}
+                if exc.details:
+                    out["details"] = exc.details
+                return out
+            except Likec4OutputError as exc:
+                out = {"error": str(exc)}
+                if exc.details:
+                    out["details"] = exc.details
+                if exc.raw_output is not None:
+                    out["raw_output"] = exc.raw_output
+                return out
+            except Likec4Error as exc:
+                return {"error": str(exc)}
+
+        # aguard is the outer net for *unexpected* faults; the inner handlers
+        # keep the rich per-error metadata (details / raw_output).
+        return await aguard(_impl)
 
     return [validate_likec4]

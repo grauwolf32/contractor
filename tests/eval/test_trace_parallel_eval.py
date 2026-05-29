@@ -17,21 +17,17 @@ Usage::
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import tempfile
 
 import pytest
-import yaml
 from google.adk.artifacts import FileArtifactService
 from google.adk.models.lite_llm import LiteLlm
-from google.genai import types
 
 from cli.fs import RootedLocalFileSystem
 from cli.pipelines import Pipeline, PipelineContext
