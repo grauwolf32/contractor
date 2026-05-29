@@ -28,7 +28,7 @@ import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from google.adk.artifacts import FileArtifactService
 
@@ -134,6 +134,7 @@ async def run_task_pipeline(
     observability_tags: Optional[list[str]] = None,
     preloaded_artifacts: Optional[dict[str, str]] = None,
     output_dir: Optional[Path] = None,
+    post_run_fn: Optional[Callable[..., Any]] = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
     and return everything the caller needs to score and analyse the run.
@@ -203,6 +204,18 @@ async def run_task_pipeline(
                 runner.run(user_id=user_id, on_event=_on_event),
                 timeout=timeout_s,
             )
+
+        # Post-run hook (e.g. materialize the HTTP proof chain). Runs while the
+        # artifact service is still alive so anything it writes is loadable via
+        # ``artifact_keys`` below.
+        if post_run_fn is not None:
+            maybe = post_run_fn(
+                artifact_service=artifact_service,
+                app_name=runner_name,
+                user_id=user_id,
+            )
+            if maybe is not None and hasattr(maybe, "__await__"):
+                await maybe
 
         artifacts: dict[str, str] = {}
         template_keys = {
