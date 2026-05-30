@@ -23,8 +23,10 @@ Environment overrides:
 
 from __future__ import annotations
 
+import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -32,6 +34,51 @@ import yaml
 
 from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
 from tests.eval.vuln_scan_harness import AgentKind, VulnScanRun, run_vuln_scan
+
+# Where per-run records (reported findings + score) are written so a run is
+# inspectable after the fact (Langfuse only captures the live trace). Lands
+# under the gitignored eval_runs/ tree; override with CONTRACTOR_EVAL_RESULTS_DIR.
+_RESULTS_DIR = Path(
+    os.environ.get("CONTRACTOR_EVAL_RESULTS_DIR")
+    or Path(__file__).resolve().parents[2] / "eval_runs" / "vuln_detection"
+)
+
+
+def _dump_record(
+    *, slug: str, agent_kind: str, prompt_version: str | None,
+    findings: list[AgentFinding], gt: list[dict[str, Any]], score: VulnScore,
+) -> None:
+    """Persist the reported findings + score for one (fixture, agent) run.
+
+    Without this the only durable evidence of a run is the score summary in
+    the pytest log — the actual finding titles/files (needed to diagnose
+    why a class is missed) are lost. Best-effort: never fail the test.
+    """
+    try:
+        _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        record = {
+            "slug": slug,
+            "agent": agent_kind,
+            "prompt_version": prompt_version,
+            "score": {
+                "tp": score.tp, "fp": score.fp, "fn": score.fn, "tn": score.tn,
+                "precision": round(score.precision, 3),
+                "recall": round(score.recall, 3),
+                "f1": round(score.f1, 3),
+            },
+            "ground_truth": [
+                {"id": c.get("id"), "file": c.get("file"),
+                 "primary_cwe": c.get("primary_cwe")} for c in gt
+            ],
+            "reported": [
+                {"file": f.file, "cwe": f.cwe, "line": f.line,
+                 "title": f.title, "severity": f.severity} for f in findings
+            ],
+        }
+        out = _RESULTS_DIR / f"{slug}__{agent_kind}__{prompt_version or 'active'}.json"
+        out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +234,10 @@ async def test_vuln_detection(vuln_fixture, eval_model):
         findings = _extract_findings(run)
         score = score_vuln_findings(findings, gt)
         attempts.append((run, findings, score))
+        _dump_record(
+            slug=vuln_fixture.slug, agent_kind=agent_kind,
+            prompt_version=run.prompt_version, findings=findings, gt=gt, score=score,
+        )
 
         print(
             f"\n  [{vuln_fixture.slug}] attempt {attempt}/{n} "
