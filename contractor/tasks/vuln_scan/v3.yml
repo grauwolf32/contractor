@@ -30,17 +30,13 @@ task:
     real vulnerabilities than Phase 1.
 
     PHP / WordPress targets: the generic sinks above miss WP idioms. Load
-    the vuln_scan/references/php-wordpress skill reference first. For each
-    AJAX/REST handler (add_action wp_ajax_ / wp_ajax_nopriv_ /
-    register_rest_route), check for: a missing current_user_can capability
-    check (missing authorization — a nonce check is NOT authorization); a
-    role/capability set from request input such as wp_insert_user or
-    add_role with a posted role (privilege escalation); $wpdb queries built
-    by concatenation or with invalid placeholders like %1s (SQL injection);
-    unlink / move_uploaded_file on request-controlled paths (arbitrary file
-    deletion/upload); and unescaped echo / raw template output (XSS). Treat
-    request values as attacker-controlled even when a UI form normally
-    supplies them.
+    the vuln_scan/references/php-wordpress skill reference, which explains
+    how to audit a WP codebase: enumerate the AJAX/REST/admin handlers,
+    verify each state-changing handler has an authorization check
+    (current_user_can — a nonce is not authorization), and trace request
+    data into SQL, role/capability, filesystem, and output sinks to confirm
+    the safe control is absent. Reason from the code you read; treat request
+    values as attacker-controlled even when a UI form normally supplies them.
 
     Report each finding via report_vulnerability with: name, place_type,
     place, title, summary, severity, confidence, details.
