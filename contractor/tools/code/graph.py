@@ -42,11 +42,6 @@ from contractor.utils.settings import get_settings
 logger = logging.getLogger(__name__)
 
 DEFAULT_LANGUAGE = "auto"
-# Defaults sourced from global Settings (env-tunable); per-call args still override.
-_settings = get_settings()
-DEFAULT_MAX_RESULTS = _settings.graph_max_results
-DEFAULT_MAX_PATHS = _settings.graph_max_paths
-_MAX_PATH_DEPTH = _settings.graph_max_path_depth
 _FIND_SYMBOL_LIMIT = 50
 
 # A path resolver maps a host-FS absolute path (as trailmark returns it)
@@ -326,7 +321,7 @@ def code_graph_tools(
 
     def find_callers(
         symbol: str,
-        max_results: int = DEFAULT_MAX_RESULTS,
+        max_results: Optional[int] = None,
     ) -> dict[str, Any]:
         """
         Find the direct callers of a symbol (including inferred call edges).
@@ -341,6 +336,9 @@ def code_graph_tools(
         means the symbol could not be resolved in the graph; an empty list
         without a note means the symbol exists but has no known callers.
         """
+        limit = (
+            get_settings().graph_max_results if max_results is None else max_results
+        )
 
         def _impl() -> dict[str, Any]:
             from dataclasses import asdict
@@ -371,7 +369,7 @@ def code_graph_tools(
                         continue
                     matched.append((edge, src_unit))
             rows: list[dict[str, Any]] = []
-            for edge, src_unit in matched[:max_results]:
+            for edge, src_unit in matched[:limit]:
                 d = asdict(src_unit)
                 d["kind"] = src_unit.kind.value
                 slim = _slim_unit(d, path_resolver=path_resolver)
@@ -384,7 +382,7 @@ def code_graph_tools(
 
     def find_callees(
         symbol: str,
-        max_results: int = DEFAULT_MAX_RESULTS,
+        max_results: Optional[int] = None,
     ) -> dict[str, Any]:
         """
         Find the direct callees of a symbol (what it calls).
@@ -402,6 +400,9 @@ def code_graph_tools(
         graph; an empty list without a note means the symbol exists but calls
         nothing tracked.
         """
+        limit = (
+            get_settings().graph_max_results if max_results is None else max_results
+        )
 
         def _impl() -> dict[str, Any]:
             from dataclasses import asdict
@@ -421,7 +422,7 @@ def code_graph_tools(
                 if edge.source_id == node_id and edge.kind.value == "calls"
             ]
             rows: list[dict[str, Any]] = []
-            for edge in matched[:max_results]:
+            for edge in matched[:limit]:
                 target_unit = graph.nodes.get(edge.target_id)
                 if target_unit is not None:
                     d = asdict(target_unit)
@@ -445,7 +446,7 @@ def code_graph_tools(
     def paths_between(
         src: str,
         dst: str,
-        max_paths: int = DEFAULT_MAX_PATHS,
+        max_paths: Optional[int] = None,
     ) -> dict[str, Any]:
         """
         Find call paths from one symbol to another.
@@ -459,12 +460,13 @@ def code_graph_tools(
         no call path connects them. If more than ``max_paths`` exist,
         ``truncated`` is true and ``total_items`` reports the real count.
         """
+        limit = get_settings().graph_max_paths if max_paths is None else max_paths
 
         def _impl() -> dict[str, Any]:
             engine = holder.engine()
             paths = engine.paths_between(str(src), str(dst)) or []
             return ok_page(
-                [list(p) for p in paths[:max_paths]],
+                [list(p) for p in paths[:limit]],
                 len(paths),
                 kind="paths_between",
             )
@@ -473,8 +475,8 @@ def code_graph_tools(
 
     def entrypoint_paths_to(
         symbol: str,
-        max_paths: int = DEFAULT_MAX_PATHS,
-        max_depth: int = _MAX_PATH_DEPTH,
+        max_paths: Optional[int] = None,
+        max_depth: Optional[int] = None,
     ) -> dict[str, Any]:
         """
         Find call paths from any detected entrypoint to a symbol.
@@ -492,12 +494,15 @@ def code_graph_tools(
         ``max_paths`` exist, ``truncated`` is true and ``total_items`` reports
         the real count.
         """
+        s = get_settings()
+        limit = s.graph_max_paths if max_paths is None else max_paths
+        depth = s.graph_max_path_depth if max_depth is None else max_depth
 
         def _impl() -> dict[str, Any]:
             engine = holder.engine()
-            paths = engine.entrypoint_paths_to(str(symbol), max_depth=max_depth) or []
+            paths = engine.entrypoint_paths_to(str(symbol), max_depth=depth) or []
             return ok_page(
-                [list(p) for p in paths[:max_paths]],
+                [list(p) for p in paths[:limit]],
                 len(paths),
                 kind="entrypoint_paths_to",
             )

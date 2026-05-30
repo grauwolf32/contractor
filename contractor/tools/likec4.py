@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from fsspec import AbstractFileSystem
 
@@ -17,7 +17,6 @@ from contractor.utils.settings import get_settings
 _RUNNER_FALLBACKS: tuple[str, ...] = ("bunx", "pnpx", "npx")
 _DEFAULT_FILENAME = "main.c4"
 DEFAULT_LIKEC4_PATH: str = "/architecture.c4"
-_DEFAULT_TIMEOUT_S: float = get_settings().likec4_validate_timeout
 
 # Auto-confirm flags for fallback package runners. Without these, a runner
 # that needs to fetch `likec4` on first use will wait on stdin for a
@@ -90,7 +89,7 @@ class Likec4Linter:
         )
 
     def validate(
-        self, content: str, *, timeout: float = _DEFAULT_TIMEOUT_S
+        self, content: str, *, timeout: Optional[float] = None
     ) -> list[dict[str, Any]]:
         """
         Runs `likec4 validate --json --no-layout` against a single in-memory
@@ -111,6 +110,8 @@ class Likec4Linter:
             Likec4ExecutionError: If the likec4 process fails to run or times out.
             Likec4OutputError: If output cannot be parsed or has unexpected shape.
         """
+        if timeout is None:
+            timeout = get_settings().likec4_validate_timeout
         cmd_prefix = self._resolve_command()
 
         with tempfile.TemporaryDirectory(prefix="likec4-") as tmp:
@@ -216,7 +217,7 @@ class Likec4Linter:
         fs: AbstractFileSystem,
         path: str,
         *,
-        timeout: float = _DEFAULT_TIMEOUT_S,
+        timeout: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         """
         Reads a LikeC4 source file from `fs` (overlay-aware) and validates it.
