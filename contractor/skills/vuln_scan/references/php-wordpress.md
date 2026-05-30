@@ -43,10 +43,10 @@ reach it).
 
 ```php
 // VULNERABLE: data-changing AJAX with no capability check
-add_action('wp_ajax_tutor_update_profile', [$this, 'update_profile']);
-public function update_profile() {
-    tutor_utils()->checking_nonce();      // nonce only — NOT authz
-    update_user_meta($user_id, 'first_name', $_POST['first_name']);  // sink
+add_action('wp_ajax_<handler>', [$this, '<handler>']);
+public function <handler>() {
+    check_ajax_referer('my-nonce');       // nonce only — NOT authz
+    update_user_meta($user_id, 'field', $_POST['field']);  // sink
 }
 ```
 **Detect**: for each AJAX callback, grep its body for `current_user_can`.
@@ -61,7 +61,7 @@ request input**:
 ```php
 // VULNERABLE: attacker-chosen role
 wp_insert_user(['user_login'=>$u, 'role'=>$_POST['role']]);     // → admin
-$user->add_role($_POST['wholesalex_registration_role']);
+$user->add_role($_POST['role']);
 update_user_meta($id, 'wp_capabilities', $_POST['caps']);
 wp_update_user(['ID'=>$id, 'role'=>$_POST['role']]);
 ```
@@ -85,7 +85,7 @@ $wpdb->query("... WHERE id=".$location_id);   // tainted local var
 
 // 2. prepare() with an INVALID placeholder — silently unsafe
 $wpdb->get_results($wpdb->prepare(
-   "SELECT * FROM state WHERE country_id=%1s", $cid));  // %1s is NOT valid → no escaping
+   "SELECT * FROM t WHERE col=%1s", $val));  // %1s is NOT a valid placeholder → no escaping
 ```
 ```
 grep "$wpdb->query"  "$wpdb->get_results"  "$wpdb->get_var"  "$wpdb->get_row"
@@ -125,17 +125,61 @@ attacker-influenced data:
 
 ```php
 echo $_GET['q'];                                   // reflected
-echo $row->loginname;                               // stored (logged input)
+echo $row->field;                                   // stored (a saved request value)
 <?php echo $user_input; ?>                          // template
 {{ td.data|raw }}                                   // Twig raw filter = no escaping
 ```
 Safe sinks: `esc_html()`, `esc_attr()`, `esc_url()`, `wp_kses()`,
 `esc_html_e()`. Their ABSENCE around dynamic output is the bug. Stored
-XSS has two ends — the **storage** point (e.g. a failed-login logger
-writing `$_POST['loginname']`) and the **output sink** (the admin view
-rendering it unescaped). Report the output sink as primary.
+XSS has two ends — the **storage** point (a handler saving a raw request
+value) and the **output sink** (a later view rendering it unescaped).
+Report the output sink as primary.
 ```
 grep "echo "  "print "  "<?= "  "|raw"   # then check for esc_* wrapping
+```
+
+## Worked examples — code → the finding you MUST report
+
+These are the classes most often read-but-NOT-reported. If a handler
+matches one of these shapes, REPORT IT — do not rationalise it away as
+"that's just how registration/profile forms work". `$_POST`/`$_REQUEST`
+values are attacker-controlled even when a UI dropdown normally supplies
+them. (Names below are illustrative placeholders, not real handlers.)
+
+EXAMPLE 1 — privilege escalation (report this):
+```php
+add_action('wp_ajax_nopriv_<handler>', '<handler>');
+function <handler>() {
+    $data = ['user_login'=>$_POST['u'], 'role'=>$_POST['role']];  // role from request
+    wp_insert_user($data);   // no allowlist → attacker sets role=administrator
+}
+```
+→ report it: severity critical. The bug is real EVEN THOUGH a form
+normally posts a fixed role — there is no server-side role allowlist.
+
+EXAMPLE 2 — missing authorization (report this):
+```php
+add_action('wp_ajax_<handler>', [$this, '<handler>']);
+public function <handler>() {
+    check_ajax_referer('my-nonce');             // nonce ≠ authorization
+    update_user_meta($id, 'x', $_POST['x']);    // state change, no current_user_can
+}
+```
+→ report it: severity high. A nonce check alone is NOT authorization.
+
+EXAMPLE 3 — stored XSS (report the output sink):
+```php
+// storage: handler logs/saves a raw request value
+save_record($_POST['field']);
+// output (the sink to report): a view renders it unescaped
+{{ row.field|raw }}   // or:  <?php echo $row->field; ?>
+```
+→ report it at the OUTPUT file: severity medium.
+
+Counter-example — do NOT report (it is safe):
+```php
+if (!current_user_can('manage_options')) wp_die();   // capability present
+$wpdb->get_results($wpdb->prepare("SELECT * FROM t WHERE id=%d", $id));  // %d, prepared
 ```
 
 ## Scan order for PHP / WordPress
