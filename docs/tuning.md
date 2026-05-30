@@ -9,7 +9,7 @@ All file:line references are against the tree as analyzed; treat them as the
 
 > **TL;DR levers, highest impact first**
 > 1. `--model` / `default_model_name` — the single biggest quality+cost+latency lever.
-> 2. Per-workflow `*_MAX_TOKENS` (summarization trigger) — context retained before compression.
+> 2. Per-workflow `*_max_tokens` (summarization trigger) — context retained before compression.
 > 3. Per-task `iterations` / `max_attempts` / `max_steps` — convergence vs. cost.
 > 4. Planner `max_steps` (subtask budget) — decomposition granularity.
 > 5. **Sampling params (temperature, top_p, reasoning_effort) — currently unset; see [§5](#5-sampling-params--currently-unset-lever).**
@@ -21,19 +21,25 @@ All file:line references are against the tree as analyzed; treat them as the
 
 ```
 CLI flag (cli/main.py)
-   └─► WorkflowContext (contractor/workflows/__init__/workflow.py)        # model, timeout, paths, ui
-         └─► Workflow assembler (contractor/workflows/<mode>/workflow.py) # *_MAX_TOKENS, max_steps, iterations
-               ├─► build_worker(...) (agents/worker_factory.py)   # token budget, elision, guardrails
-               └─► TaskRunner.add_task(...) (runners/task_runner.py) # retry/iteration semantics
-Settings (.env via contractor/utils/settings.py)          # model alias default, proxy, langfuse, caido
+   └─► WorkflowContext (contractor/workflows/__init__.py)            # model, timeout, paths, ui
+         └─► Workflow assembler (contractor/workflows/<mode>/workflow.py)
+               │     reads CFG = WorkflowConfig.load(__file__)       # ← contractor/workflows/<mode>/config.yaml
+               ├─► build_worker(...) (agents/worker_factory.py)      # token budget (CFG.budgets.*), elision, guardrails
+               ├─► build_<agent>(...) (agents/<agent>/agent.py)      # tool opts (CFG.agent(...).output_format / with_graph_tools)
+               └─► TaskRunner.add_task(..., **CFG.tasks.<n>.as_kwargs())  # retry/iteration semantics
+Settings (.env via contractor/utils/settings.py)          # model alias default, proxy, langfuse, caido, sampling, tool caps
 LiteLLM proxy (deploy/litellm/litellm_config.yaml)        # model aliases, rpm/tpm, retries, timeout
 ```
 
 Three editing surfaces:
 - **Per-run**: CLI flags.
 - **Per-environment**: `cli/.env` (`Settings`) and `litellm_config.yaml`.
-- **Per-workflow / per-task (code)**: the `*_MAX_TOKENS` / `max_steps` / `iterations`
-  constants inside each `contractor/workflows/<mode>/workflow.py`, and the `build_worker(...)` defaults.
+- **Per-workflow / per-task / per-agent (data)**: the `budgets:` (`*_max_tokens`,
+  `max_steps`, …), `tasks:` (`iterations` / `max_attempts` / `max_steps`), and
+  `agents:` (`output_format` / `with_graph_tools`) blocks in each
+  `contractor/workflows/<mode>/config.yaml`. The workflow reads them via
+  `WorkflowConfig.load(__file__)` — edit the YAML, not the assembler. (The
+  `build_worker(...)` defaults remain the last-resort fallback.)
 
 ---
 
@@ -121,31 +127,46 @@ The `build_worker` factory defaults (`contractor/agents/worker_factory.py`):
 | `repeated_call_threshold` | `5` (57) | Identical-consecutive-call count before loop advisory. |
 | `model` | `DEFAULT_MODEL` (53) | Per-agent model override. |
 
-Per-workflow overrides (verified). `iter` = `iterations`, `att` = `max_attempts`,
-`steps` = planner subtask budget (`max_steps`):
+Per-workflow overrides live in `contractor/workflows/<mode>/config.yaml`
+(`budgets:` for the `*_max_tokens` token budgets, `tasks:` for the retry/iter/step
+budgets). The workflow reads them via `WorkflowConfig.load(__file__)`; edit the YAML
+to tune. `iter` = `iterations`, `att` = `max_attempts`, `steps` = planner subtask
+budget (`max_steps`):
 
-| Workflow (file) | `*_MAX_TOKENS` | Task budgets (`iter`/`att`/`steps`) |
+| Workflow (`<mode>/config.yaml`) | `budgets.*_max_tokens` | Task budgets (`iter`/`att`/`steps`) |
 |-----------------|----------------|--------------------------------------|
-| `oas_enrichment.py` | 120k (enrich agents) | enrich `3/6/30`; update `2/2/20` |
-| `oas_building.py` | 100k (swe/builder) | build `2/4/20`; others `1/2/20` |
-| `likec4_building.py` | 100k | `1/2/20`-class stages |
-| `trace_annotation.py` | 80k | `1/3/20` |
-| `trace_annotation_direct.py` | 100k | — |
-| `trace_graph.py` / `trace_graph_pathpar.py` | 100k | — |
-| `trace_verify.py` | 80k | `1/2/20` |
-| `vuln_scan.py` | 80k | `1/2/75` |
-| `vuln_scan_fast.py` | 80k scan / 100k assess | scan `1/2/50`; assess `1/2/20` |
-| `vuln_scan_trace.py` | 80k scan / 80k trace | scan `1/2/75`; trace `1/1/30` |
-| `vuln_assess.py` | 100k | assess `1/2/20`; one stage `2/4/20`; final `1/1/20` |
-| `exploitability.py` | 80k | `1/2/25` |
-| `router.py` | 120k | `ROUTER_MAX_STEPS` |
+| `oas_enrichment` | 120k (enrich agents) | enrich `3/6/30`; update `2/2/20` |
+| `oas_building` | 100k (swe/builder) | build `2/4/20`; others `1/2/20` |
+| `likec4_building` | 100k | `1/2/20`-class stages |
+| `trace_annotation` | 80k | `1/3/20` |
+| `trace_annotation_direct` | 100k | — |
+| `trace_graph` / `trace_graph_pathpar` | 100k | — |
+| `trace_verify` | 80k | `1/2/20` |
+| `vuln_scan` | 80k | `1/2/75` |
+| `vuln_scan_fast` | 80k scan / 100k assess | scan `1/2/50`; assess `1/2/20` |
+| `vuln_scan_trace` | 80k scan / 80k trace | scan `1/2/75`; trace `1/1/30` |
+| `vuln_assess` | 100k | assess `1/2/20`; one stage `2/4/20`; final `1/1/20` |
+| `exploitability` | 80k | `1/2/25` |
+| `router` | 120k | `budgets.max_steps` (20) |
 
 Notes:
-- **`max_tokens` here is a *summarization trigger*, not a generation cap** — raising it
+- **`*_max_tokens` here is a *summarization trigger*, not a generation cap** — raising it
   retains more context (better cross-file reasoning) at higher per-call token cost and
   risk of hitting the model's true context window.
 - `vuln_scan` uses a large `steps=75` budget (deep, single-pass exploration); the
   `_fast` variant cuts it to 50.
+
+### Per-agent tool options (`config.yaml` `agents:` block)
+
+Each `config.yaml` may carry an `agents:` map keyed by agent name; the workflow reads
+it via `CFG.agent("<name>")` and threads it into the `build_<agent>` factory. Agents
+not listed fall back to defaults (`output_format: json`, `with_graph_tools: false`),
+so behaviour is unchanged unless tuned.
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `output_format` | `json` | The shared `_format` knob for fs/memory/openapi/report tool output (`json` / `xml` / `yaml` / `markdown`; unsupported renderers fall back to json). |
+| `with_graph_tools` | `false` | Attach the trailmark call-graph tools (callers/callees/paths/attack-surface). Enabled for the `vuln_scan_agent` / `trace_agent` in the scan + trace workflows. |
 
 ---
 
@@ -254,7 +275,7 @@ Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (ac
 **Speed / cost down (sacrifice depth):**
 - Use a smaller/faster `--model` alias; keep `default_model_timeout` modest.
 - `--resume` aggressively on re-runs.
-- Lower per-workflow `*_MAX_TOKENS` (earlier summarization) and `elide_keep_last_n` (e.g. 8–10).
+- Lower per-workflow `*_max_tokens` (earlier summarization) and `elide_keep_last_n` (e.g. 8–10).
 - Trim `max_steps` on exploratory workflows (`vuln_scan` 75→50, à la `_fast`).
 - Keep `use_langfuse=False`.
 
@@ -265,7 +286,7 @@ Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (ac
   (enrich already uses 3; trace/vuln verdicts are candidates).
 - Raise `max_attempts` above `iterations` everywhere to survive transient failures cheaply.
 - Raise planner `max_steps` for large codebases (more decomposition headroom).
-- Raise `*_MAX_TOKENS` toward the model's real context window for cross-file reasoning.
+- Raise `*_max_tokens` toward the model's real context window for cross-file reasoning.
 
 **Throughput / parallelism:**
 - Raise per-alias `rpm` (default `20`) in `litellm_config.yaml` if the backend sustains it —
