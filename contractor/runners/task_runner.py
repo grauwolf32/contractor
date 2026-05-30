@@ -233,7 +233,7 @@ class TaskRunner(BaseModel):
     def _load_checkpoint(self) -> Checkpoint | None:
         if self.checkpoint_path is None:
             return None
-        return Checkpoint.load(self.checkpoint_path) or Checkpoint(pipeline=self.name)
+        return Checkpoint.load(self.checkpoint_path) or Checkpoint(workflow=self.name)
 
     def _save_checkpoint(
         self,

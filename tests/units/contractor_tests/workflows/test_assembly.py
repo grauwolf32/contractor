@@ -1,11 +1,11 @@
-"""Pipeline-assembly smoke tests.
+"""Workflow-assembly smoke tests.
 
-These tests exercise each pipeline's ``_run_impl`` with the heavy I/O
+These tests exercise each workflow's ``_run_impl`` with the heavy I/O
 side-effects stubbed out, then inspect the resulting ``TaskRunner.queue``.
 They are the first line of defense against artifact-wiring regressions:
 a typo in an upstream ``add_task(name=...)`` or a downstream
 ``artifacts=[...]`` reference is silently fatal at runtime, but caught
-here by ``test_<pipeline>_artifact_references_resolve``.
+here by ``test_<workflow>_artifact_references_resolve``.
 """
 
 from __future__ import annotations
@@ -17,24 +17,24 @@ import pytest
 import yaml
 from google.adk.artifacts import BaseArtifactService
 
-from cli.pipelines import Pipeline, PipelineContext, get_pipelines
-from cli.pipelines.likec4_building import LikeC4BuildingPipeline
-from cli.pipelines.oas_building import OasBuildingPipeline
-from cli.pipelines.oas_enrichment import OasEnrichmentPipeline
-from cli.pipelines.router import RouterPipeline
-from cli.pipelines.trace_annotation import TraceAnnotationPipeline
-from cli.pipelines.trace_annotation_direct import TraceAnnotationDirectPipeline
-from cli.pipelines.trace_verify import TraceVerifyPipeline
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.task_runner import TaskRunner
-
+from contractor.workflows import Workflow, WorkflowContext, get_workflows
+from contractor.workflows.likec4_building import LikeC4BuildingWorkflow
+from contractor.workflows.oas_building import OasBuildingWorkflow
+from contractor.workflows.oas_enrichment import OasEnrichmentWorkflow
+from contractor.workflows.router import RouterWorkflow
+from contractor.workflows.trace_annotation import TraceAnnotationWorkflow
+from contractor.workflows.trace_annotation_direct import \
+    TraceAnnotationDirectWorkflow
+from contractor.workflows.trace_verify import TraceVerifyWorkflow
 
 # ─── Registry ─────────────────────────────────────────────────────────────────
 
 
 class TestRegistry:
     def test_known_keys_present(self):
-        registry = get_pipelines()
+        registry = get_workflows()
         assert set(registry.keys()) == {
             "build",
             "enrich",
@@ -52,38 +52,38 @@ class TestRegistry:
             "router",
         }
 
-    def test_all_classes_extend_pipeline_base(self):
-        for cls in get_pipelines().values():
-            assert issubclass(cls, Pipeline), f"{cls.__name__} must extend Pipeline"
+    def test_all_classes_extend_workflow_base(self):
+        for cls in get_workflows().values():
+            assert issubclass(cls, Workflow), f"{cls.__name__} must extend Workflow"
 
     def test_registry_matches_explicit_imports(self):
-        # Catch the case where get_pipelines() drifts from the modules that
-        # actually define the classes — e.g. someone deletes a pipeline file
+        # Catch the case where get_workflows() drifts from the modules that
+        # actually define the classes — e.g. someone deletes a workflow file
         # but forgets to remove it from the registry.
-        registry = get_pipelines()
-        assert registry["build"] is OasBuildingPipeline
-        assert registry["enrich"] is OasEnrichmentPipeline
-        assert registry["likec4"] is LikeC4BuildingPipeline
-        assert registry["trace"] is TraceAnnotationPipeline
-        assert registry["trace-direct"] is TraceAnnotationDirectPipeline
-        assert registry["trace-verify"] is TraceVerifyPipeline
-        assert registry["router"] is RouterPipeline
+        registry = get_workflows()
+        assert registry["build"] is OasBuildingWorkflow
+        assert registry["enrich"] is OasEnrichmentWorkflow
+        assert registry["likec4"] is LikeC4BuildingWorkflow
+        assert registry["trace"] is TraceAnnotationWorkflow
+        assert registry["trace-direct"] is TraceAnnotationDirectWorkflow
+        assert registry["trace-verify"] is TraceVerifyWorkflow
+        assert registry["router"] is RouterWorkflow
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _make_context(*, prompt: str | None = None) -> PipelineContext:
-    """A PipelineContext with all I/O surfaces mocked.
+def _make_context(*, prompt: str | None = None) -> WorkflowContext:
+    """A WorkflowContext with all I/O surfaces mocked.
 
-    `load_artifact` returns None by default — pipelines should treat that as
+    `load_artifact` returns None by default — workflows should treat that as
     "no prior run". Tests that need a non-empty artifact patch this further.
     """
     artifact_service = MagicMock(spec=BaseArtifactService)
     artifact_service.load_artifact = AsyncMock(return_value=None)
     artifact_service.save_artifact = AsyncMock()
 
-    return PipelineContext(
+    return WorkflowContext(
         project_path=Path("/tmp/proj"),
         folder_name="src",
         model="lm-studio-test",
@@ -95,8 +95,8 @@ def _make_context(*, prompt: str | None = None) -> PipelineContext:
     )
 
 
-async def _capture_queue(pipeline: Pipeline, *, monkeypatch) -> list:
-    """Invoke a pipeline's ``_run_impl`` while suppressing the actual run.
+async def _capture_queue(workflow: Workflow, *, monkeypatch) -> list:
+    """Invoke a workflow's ``_run_impl`` while suppressing the actual run.
 
     Returns the list of ``TaskInvocation`` objects added to the queue.
     """
@@ -114,7 +114,7 @@ async def _capture_queue(pipeline: Pipeline, *, monkeypatch) -> list:
     monkeypatch.setattr(TaskRunner, "__init__", capture_init)
     monkeypatch.setattr(TaskRunner, "run", fake_run)
 
-    await pipeline._run_impl(user_id="u", on_event=None)
+    await workflow._run_impl(user_id="u", on_event=None)
 
     queues: list = []
     for r in captured.get("runners", []):
@@ -138,8 +138,8 @@ def _all_artifact_refs(queue) -> set[str]:
     return refs
 
 
-# Artifacts that pipelines persist outside the runner before any task runs.
-# Trace pipelines seed ``oas-openapi-building`` via ``persist_seed_artifact``
+# Artifacts that workflows persist outside the runner before any task runs.
+# Trace workflows seed ``oas-openapi-building`` via ``persist_seed_artifact``
 # and depend on it being present — they don't go through the runner queue.
 _KNOWN_SEED_ARTIFACTS: set[str] = set()
 
@@ -149,14 +149,14 @@ def _producing_task_key(artifact_ref: str) -> str:
     return artifact_ref.rsplit("/", 1)[0]
 
 
-# ─── OasBuildingPipeline ──────────────────────────────────────────────────────
+# ─── OasBuildingWorkflow ──────────────────────────────────────────────────────
 
 
-class TestOasBuildingPipeline:
+class TestOasBuildingWorkflow:
     @pytest.mark.asyncio
     async def test_assembles_four_tasks(self, monkeypatch):
-        pipeline = OasBuildingPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = OasBuildingWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
 
         # Two code-analysis tasks + oas_update + oas_validate, all queued
         # because load_artifact returns None (no prior run).
@@ -169,8 +169,8 @@ class TestOasBuildingPipeline:
 
     @pytest.mark.asyncio
     async def test_artifact_references_resolve(self, monkeypatch):
-        pipeline = OasBuildingPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = OasBuildingWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
 
         produced = _template_keys(queue) | _KNOWN_SEED_ARTIFACTS
         for artifact_ref in _all_artifact_refs(queue):
@@ -191,58 +191,58 @@ class TestOasBuildingPipeline:
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
 
-        pipeline = OasBuildingPipeline(ctx)
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = OasBuildingWorkflow(ctx)
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
         assert "dependency_information" not in _template_keys(queue)
         # Downstream tasks still queued — they will read the existing artifact.
         assert "oas_update" in _template_keys(queue)
 
 
-# ─── OasEnrichmentPipeline ────────────────────────────────────────────────────
+# ─── OasEnrichmentWorkflow ────────────────────────────────────────────────────
 
 
-class TestOasEnrichmentPipeline:
+class TestOasEnrichmentWorkflow:
     @pytest.mark.asyncio
     async def test_assembles_enrich_and_validate(self, monkeypatch):
-        pipeline = OasEnrichmentPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = OasEnrichmentWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
         assert _template_keys(queue) == {"oas_enrich", "oas_validate"}
 
     @pytest.mark.asyncio
     async def test_artifact_references_resolve(self, monkeypatch):
         # Enrich pulls upstream `dependency_information/result` and
-        # `project_information/result`, which this pipeline does NOT queue —
+        # `project_information/result`, which this workflow does NOT queue —
         # they must come from a prior `build` run. Treat them as accepted
         # external inputs.
         external_inputs = {"dependency_information", "project_information"}
-        pipeline = OasEnrichmentPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = OasEnrichmentWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
 
         produced = _template_keys(queue) | external_inputs
         for artifact_ref in _all_artifact_refs(queue):
             assert _producing_task_key(artifact_ref) in produced
 
 
-# ─── LikeC4BuildingPipeline ───────────────────────────────────────────────────
+# ─── LikeC4BuildingWorkflow ───────────────────────────────────────────────────
 
 
-class TestLikeC4BuildingPipeline:
+class TestLikeC4BuildingWorkflow:
     @pytest.mark.asyncio
     async def test_assembles_four_tasks(self, monkeypatch):
         # Skip the overlay seed/persist (they hit ctx.fs which is a MagicMock).
         monkeypatch.setattr(
-            LikeC4BuildingPipeline,
+            LikeC4BuildingWorkflow,
             "_seed_overlay_from_artifact",
             AsyncMock(),
         )
         monkeypatch.setattr(
-            LikeC4BuildingPipeline,
+            LikeC4BuildingWorkflow,
             "_persist_overlay_to_artifact",
             AsyncMock(),
         )
 
-        pipeline = LikeC4BuildingPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = LikeC4BuildingWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
         assert _template_keys(queue) == {
             "dependency_information",
             "project_information",
@@ -253,35 +253,36 @@ class TestLikeC4BuildingPipeline:
     @pytest.mark.asyncio
     async def test_artifact_references_resolve(self, monkeypatch):
         monkeypatch.setattr(
-            LikeC4BuildingPipeline,
+            LikeC4BuildingWorkflow,
             "_seed_overlay_from_artifact",
             AsyncMock(),
         )
         monkeypatch.setattr(
-            LikeC4BuildingPipeline,
+            LikeC4BuildingWorkflow,
             "_persist_overlay_to_artifact",
             AsyncMock(),
         )
 
-        pipeline = LikeC4BuildingPipeline(_make_context())
-        queue = await _capture_queue(pipeline, monkeypatch=monkeypatch)
+        workflow = LikeC4BuildingWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
 
         produced = _template_keys(queue) | _KNOWN_SEED_ARTIFACTS
         for artifact_ref in _all_artifact_refs(queue):
             assert _producing_task_key(artifact_ref) in produced
 
 
-# ─── TraceAnnotationPipeline ──────────────────────────────────────────────────
+# ─── TraceAnnotationWorkflow ──────────────────────────────────────────────────
 
 
-class TestTraceAnnotationPipeline:
-    """Per-path trace pipeline. Test the per-path task assembly directly
+class TestTraceAnnotationWorkflow:
+    """Per-path trace workflow. Test the per-path task assembly directly
     using ``_run_path_analysis`` since the outer loop iterates over an
     OpenAPI artifact we'd otherwise need to fabricate."""
 
     @pytest.mark.asyncio
     async def test_per_path_task_assembles(self, monkeypatch):
-        from cli.pipelines.trace_annotation import OpenApiOperation, OpenApiPath
+        from contractor.workflows.trace_annotation import (OpenApiOperation,
+                                                           OpenApiPath)
 
         api_path = OpenApiPath(
             path="/items/{id}",
@@ -295,7 +296,7 @@ class TestTraceAnnotationPipeline:
             ],
         )
 
-        pipeline = TraceAnnotationPipeline(_make_context())
+        workflow = TraceAnnotationWorkflow(_make_context())
         queue: list = []
         original_init = TaskRunner.__init__
 
@@ -306,7 +307,7 @@ class TestTraceAnnotationPipeline:
         monkeypatch.setattr(TaskRunner, "__init__", capture_init)
         monkeypatch.setattr(TaskRunner, "run", AsyncMock())
 
-        await pipeline._run_path_analysis(api_path, user_id="u")
+        await workflow._run_path_analysis(api_path, user_id="u")
 
         assert len(queue) == 1
         runner = queue[0]
@@ -319,24 +320,24 @@ class TestTraceAnnotationPipeline:
         assert item.artifacts == []
 
 
-# ─── TraceAnnotationDirectPipeline ────────────────────────────────────────────
+# ─── TraceAnnotationDirectWorkflow ────────────────────────────────────────────
 
 
-class TestTraceAnnotationDirectPipeline:
+class TestTraceAnnotationDirectWorkflow:
     def test_template_loads_at_class_init(self):
-        # The "trace_annotation" template MUST be loadable for this pipeline
+        # The "trace_annotation" template MUST be loadable for this workflow
         # to import successfully. Construction triggers TaskTemplate.load —
         # a missing manifest or body file fails the test.
-        pipeline = TraceAnnotationDirectPipeline(_make_context())
-        assert pipeline._template.key == "trace_annotation"
-        assert pipeline._template.version  # any non-empty version is fine
+        workflow = TraceAnnotationDirectWorkflow(_make_context())
+        assert workflow._template.key == "trace_annotation"
+        assert workflow._template.version  # any non-empty version is fine
 
 
-# ─── TraceVerifyPipeline ──────────────────────────────────────────────────────
+# ─── TraceVerifyWorkflow ──────────────────────────────────────────────────────
 
 
-class TestTraceVerifyPipeline:
-    """Per-path verifier pipeline. Tests use ``_verify_path_findings``
+class TestTraceVerifyWorkflow:
+    """Per-path verifier workflow. Tests use ``_verify_path_findings``
     directly with a hand-crafted ``OpenApiPath`` since the outer loop only
     reads the OpenAPI artifact to discover paths."""
 
@@ -360,7 +361,7 @@ class TestTraceVerifyPipeline:
 
     @pytest.mark.asyncio
     async def test_one_task_per_finding(self, monkeypatch):
-        from cli.pipelines.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_annotation import OpenApiPath
 
         ctx = _make_context()
         findings_yaml = self._make_findings_yaml("sqli-list", "xss-list")
@@ -371,7 +372,7 @@ class TestTraceVerifyPipeline:
             return None
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
-        pipeline = TraceVerifyPipeline(ctx)
+        workflow = TraceVerifyWorkflow(ctx)
 
         # Bypass the OpenAPI-loading outer loop — only this inner method
         # touches the findings artifact and the task queue.
@@ -387,7 +388,7 @@ class TestTraceVerifyPipeline:
         monkeypatch.setattr(TaskRunner, "__init__", capture_init)
         monkeypatch.setattr(TaskRunner, "run", AsyncMock())
 
-        await pipeline._verify_path_findings(
+        await workflow._verify_path_findings(
             api_path=api_path,
             user_id="u",
             on_event=None,
@@ -408,10 +409,10 @@ class TestTraceVerifyPipeline:
 
     @pytest.mark.asyncio
     async def test_skips_path_with_no_findings(self, monkeypatch):
-        from cli.pipelines.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_annotation import OpenApiPath
 
         # Default _make_context's load_artifact returns None for everything.
-        pipeline = TraceVerifyPipeline(_make_context())
+        workflow = TraceVerifyWorkflow(_make_context())
         api_path = OpenApiPath(path="/items", operations=[])
 
         captured: list = []
@@ -424,7 +425,7 @@ class TestTraceVerifyPipeline:
         monkeypatch.setattr(TaskRunner, "__init__", capture_init)
         monkeypatch.setattr(TaskRunner, "run", AsyncMock())
 
-        await pipeline._verify_path_findings(
+        await workflow._verify_path_findings(
             api_path=api_path,
             user_id="u",
             on_event=None,
@@ -441,7 +442,7 @@ class TestTraceVerifyPipeline:
         assert t.version
 
 
-# ─── Vuln pipelines: shared helpers ─────────────────────────────────────────────
+# ─── Vuln workflows: shared helpers ─────────────────────────────────────────────
 
 
 def _patch_task_runners(monkeypatch) -> list:
@@ -466,17 +467,17 @@ def _findings_yaml(*specs: dict) -> str:
     return yaml.safe_dump({s["name"]: s for s in specs}, sort_keys=False)
 
 
-# ─── VulnScanPipeline ───────────────────────────────────────────────────────────
+# ─── VulnScanWorkflow ───────────────────────────────────────────────────────────
 
 
-class TestVulnScanPipeline:
+class TestVulnScanWorkflow:
     @pytest.mark.asyncio
     async def test_assembles_single_scan_task(self, monkeypatch):
-        from cli.pipelines.vuln_scan import VulnScanPipeline
+        from contractor.workflows.vuln_scan import VulnScanWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanPipeline(_make_context())
-        await pipeline._run_impl(user_id="u", on_event=None)
+        workflow = VulnScanWorkflow(_make_context())
+        await workflow._run_impl(user_id="u", on_event=None)
 
         queue = _flat_queue(captured)
         assert len(queue) == 1
@@ -486,19 +487,19 @@ class TestVulnScanPipeline:
         assert item.skills == ["vuln_scan"]
 
 
-# ─── VulnScanTracePipeline ──────────────────────────────────────────────────────
+# ─── VulnScanTraceWorkflow ──────────────────────────────────────────────────────
 
 
-class TestVulnScanTracePipeline:
+class TestVulnScanTraceWorkflow:
     @pytest.mark.asyncio
     async def test_scan_only_when_no_findings(self, monkeypatch):
-        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+        from contractor.workflows.vuln_scan_trace import VulnScanTraceWorkflow
 
         # Default _make_context load_artifact → None → no findings → trace phase
         # skipped, only the BFS scan task is queued.
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanTracePipeline(_make_context())
-        await pipeline._run_impl(user_id="u", on_event=None)
+        workflow = VulnScanTraceWorkflow(_make_context())
+        await workflow._run_impl(user_id="u", on_event=None)
 
         queue = _flat_queue(captured)
         assert {item.template_key for item in queue} == {"vuln_scan"}
@@ -506,11 +507,11 @@ class TestVulnScanTracePipeline:
 
     @pytest.mark.asyncio
     async def test_trace_finding_assembles_task(self, monkeypatch):
-        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+        from contractor.workflows.vuln_scan_trace import VulnScanTraceWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanTracePipeline(_make_context())
-        await pipeline._trace_finding(
+        workflow = VulnScanTraceWorkflow(_make_context())
+        await workflow._trace_finding(
             finding={"name": "sqli-1", "place": "h.py:10", "title": "SQLi"},
             user_id="u",
             on_event=None,
@@ -527,18 +528,18 @@ class TestVulnScanTracePipeline:
 
     @pytest.mark.asyncio
     async def test_trace_finding_skips_without_name_or_place(self, monkeypatch):
-        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+        from contractor.workflows.vuln_scan_trace import VulnScanTraceWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanTracePipeline(_make_context())
-        await pipeline._trace_finding(
+        workflow = VulnScanTraceWorkflow(_make_context())
+        await workflow._trace_finding(
             finding={"name": "x", "place": ""}, user_id="u", on_event=None
         )
         assert _flat_queue(captured) == []
 
     @pytest.mark.asyncio
     async def test_load_findings_sorts_by_severity(self, monkeypatch):
-        from cli.pipelines.vuln_scan_trace import VulnScanTracePipeline
+        from contractor.workflows.vuln_scan_trace import VulnScanTraceWorkflow
 
         ctx = _make_context()
         yaml_text = _findings_yaml(
@@ -549,26 +550,26 @@ class TestVulnScanTracePipeline:
         ctx.artifact_service.load_artifact = AsyncMock(
             return_value=MagicMock(text=yaml_text, inline_data=None)
         )
-        pipeline = VulnScanTracePipeline(ctx)
+        workflow = VulnScanTraceWorkflow(ctx)
 
-        findings = await pipeline._load_findings(user_id="u", namespace="ns")
+        findings = await workflow._load_findings(user_id="u", namespace="ns")
 
         assert [f["name"] for f in findings] == ["crit1", "med1", "low1"]
 
 
-# ─── VulnScanFastPipeline ───────────────────────────────────────────────────────
+# ─── VulnScanFastWorkflow ───────────────────────────────────────────────────────
 
 
-class TestVulnScanFastPipeline:
+class TestVulnScanFastWorkflow:
     def test_dedup_merges_by_file_and_cwe_keeping_higher_confidence(self):
-        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
 
         findings = [
             {"name": "a", "place": "h.py", "details": "CWE-89 sqli", "confidence": "low"},
             {"name": "b", "place": "h.py", "details": "CWE-89 sqli", "confidence": "high"},
             {"name": "c", "place": "other.py", "details": "CWE-79 xss", "confidence": "medium"},
         ]
-        deduped = VulnScanFastPipeline._dedup(findings)
+        deduped = VulnScanFastWorkflow._dedup(findings)
 
         # a and b collapse (same file+CWE) → the higher-confidence one wins.
         assert len(deduped) == 2
@@ -577,11 +578,11 @@ class TestVulnScanFastPipeline:
 
     @pytest.mark.asyncio
     async def test_discovery_assembles_two_tasks(self, monkeypatch):
-        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanFastPipeline(_make_context())
-        await pipeline._run_discovery(user_id="u", on_event=None)
+        workflow = VulnScanFastWorkflow(_make_context())
+        await workflow._run_discovery(user_id="u", on_event=None)
 
         assert _template_keys(_flat_queue(captured)) == {
             "dependency_information",
@@ -590,11 +591,11 @@ class TestVulnScanFastPipeline:
 
     @pytest.mark.asyncio
     async def test_fast_scan_assembles_scan_task(self, monkeypatch):
-        from cli.pipelines.vuln_scan_fast import VulnScanFastPipeline
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnScanFastPipeline(_make_context())
-        await pipeline._run_fast_scan(user_id="u", on_event=None)
+        workflow = VulnScanFastWorkflow(_make_context())
+        await workflow._run_fast_scan(user_id="u", on_event=None)
 
         queue = _flat_queue(captured)
         assert len(queue) == 1
@@ -602,25 +603,25 @@ class TestVulnScanFastPipeline:
         assert queue[0].ref == "vuln-scan-fast:full"
 
 
-# ─── ExploitabilityPipeline ─────────────────────────────────────────────────────
+# ─── ExploitabilityWorkflow ─────────────────────────────────────────────────────
 
 
-class TestExploitabilityPipeline:
+class TestExploitabilityWorkflow:
     def test_requires_target_url(self, monkeypatch):
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         monkeypatch.delenv("CONTRACTOR_TARGET_URL", raising=False)
         with pytest.raises(ValueError, match="CONTRACTOR_TARGET_URL"):
-            ExploitabilityPipeline(_make_context())
+            ExploitabilityWorkflow(_make_context())
 
     @pytest.mark.asyncio
     async def test_assess_finding_assembles_task(self, monkeypatch):
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
         captured = _patch_task_runners(monkeypatch)
-        pipeline = ExploitabilityPipeline(_make_context())
-        await pipeline._assess_finding(
+        workflow = ExploitabilityWorkflow(_make_context())
+        await workflow._assess_finding(
             finding={"name": "idor-1", "title": "IDOR", "place": "v.py:3"},
             user_id="u",
             on_event=None,
@@ -637,17 +638,17 @@ class TestExploitabilityPipeline:
 
     @pytest.mark.asyncio
     async def test_assess_finding_skips_unnamed(self, monkeypatch):
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
         captured = _patch_task_runners(monkeypatch)
-        pipeline = ExploitabilityPipeline(_make_context())
-        await pipeline._assess_finding(finding={"name": ""}, user_id="u", on_event=None)
+        workflow = ExploitabilityWorkflow(_make_context())
+        await workflow._assess_finding(finding={"name": ""}, user_id="u", on_event=None)
         assert _flat_queue(captured) == []
 
     @pytest.mark.asyncio
     async def test_load_findings_parses_seed(self, monkeypatch):
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
         ctx = _make_context()
@@ -657,22 +658,22 @@ class TestExploitabilityPipeline:
                 inline_data=None,
             )
         )
-        pipeline = ExploitabilityPipeline(ctx)
-        findings = await pipeline._load_findings(user_id="u")
+        workflow = ExploitabilityWorkflow(ctx)
+        findings = await workflow._load_findings(user_id="u")
         assert [f["name"] for f in findings] == ["f1"]
 
 
-# ─── VulnAssessPipeline ─────────────────────────────────────────────────────────
+# ─── VulnAssessWorkflow ─────────────────────────────────────────────────────────
 
 
-class TestVulnAssessPipeline:
+class TestVulnAssessWorkflow:
     @pytest.mark.asyncio
     async def test_oas_stage_assembles_four_tasks(self, monkeypatch):
-        from cli.pipelines.vuln_assess import VulnAssessPipeline
+        from contractor.workflows.vuln_assess import VulnAssessWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnAssessPipeline(_make_context())
-        await pipeline._run_oas_stage(user_id="u", on_event=None)
+        workflow = VulnAssessWorkflow(_make_context())
+        await workflow._run_oas_stage(user_id="u", on_event=None)
 
         assert _template_keys(_flat_queue(captured)) == {
             "dependency_information",
@@ -683,11 +684,11 @@ class TestVulnAssessPipeline:
 
     @pytest.mark.asyncio
     async def test_oas_stage_artifact_references_resolve(self, monkeypatch):
-        from cli.pipelines.vuln_assess import VulnAssessPipeline
+        from contractor.workflows.vuln_assess import VulnAssessWorkflow
 
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnAssessPipeline(_make_context())
-        await pipeline._run_oas_stage(user_id="u", on_event=None)
+        workflow = VulnAssessWorkflow(_make_context())
+        await workflow._run_oas_stage(user_id="u", on_event=None)
 
         queue = _flat_queue(captured)
         produced = _template_keys(queue)
@@ -698,7 +699,8 @@ class TestVulnAssessPipeline:
 
     @pytest.mark.asyncio
     async def test_oas_stage_skipped_when_artifact_exists(self, monkeypatch):
-        from cli.pipelines.vuln_assess import VulnAssessPipeline, OAS_ARTIFACT
+        from contractor.workflows.vuln_assess.workflow import (
+            OAS_ARTIFACT, VulnAssessWorkflow)
 
         ctx = _make_context()
 
@@ -709,8 +711,8 @@ class TestVulnAssessPipeline:
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
         captured = _patch_task_runners(monkeypatch)
-        pipeline = VulnAssessPipeline(ctx)
-        await pipeline._run_oas_stage(user_id="u", on_event=None)
+        workflow = VulnAssessWorkflow(ctx)
+        await workflow._run_oas_stage(user_id="u", on_event=None)
 
         # Whole OAS stage short-circuits — no tasks queued.
         assert _flat_queue(captured) == []

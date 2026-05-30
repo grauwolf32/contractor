@@ -1,4 +1,4 @@
-"""Combined BFS→DFS vulnerability pipeline.
+"""Combined BFS→DFS vulnerability workflow.
 
 Phase 1 (BFS): vuln_scan_agent sweeps the codebase for findings.
 Phase 2 (DFS): trace_agent deep-traces each reported finding to
@@ -15,22 +15,24 @@ from typing import Any, Optional
 
 import yaml
 
-from cli.pipelines import Pipeline, PipelineContext
-from cli.pipelines.config import VULN_SCAN_TRACE as CFG
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
+from contractor.workflows import Workflow, WorkflowContext
+from contractor.workflows.config import WorkflowConfig
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 
 
-class VulnScanTracePipeline(Pipeline):
-    """BFS discovery → DFS confirmation pipeline."""
+class VulnScanTraceWorkflow(Workflow):
+    """BFS discovery → DFS confirmation workflow."""
 
     namespace: str = "vuln-scan-trace"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
 
@@ -48,10 +50,11 @@ class VulnScanTracePipeline(Pipeline):
         scan_builder = partial(
             build_vuln_scan_agent,
             name="vuln_scan_agent",
+            _format=CFG.agent("vuln_scan_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=CFG.scan_max_tokens,
-            with_graph_tools=True,
+            max_tokens=CFG.budgets.scan_max_tokens,
+            with_graph_tools=CFG.agent("vuln_scan_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
@@ -66,7 +69,7 @@ class VulnScanTracePipeline(Pipeline):
             name="vuln_scan",
             ref="vuln-scan-trace:scan",
             worker_builder=scan_builder,
-            **CFG.scan.as_kwargs(),
+            **CFG.tasks.scan.as_kwargs(),
             namespace=scan_namespace,
             skills=["vuln_scan"],
             model=self.llm,
@@ -115,11 +118,12 @@ class VulnScanTracePipeline(Pipeline):
         trace_builder = partial(
             build_trace_agent,
             name="trace_agent",
+            _format=CFG.agent("trace_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=CFG.trace_max_tokens,
+            max_tokens=CFG.budgets.trace_max_tokens,
             enable_vuln_reporting=True,
-            with_graph_tools=True,
+            with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
@@ -147,7 +151,7 @@ class VulnScanTracePipeline(Pipeline):
             name="trace_annotation",
             ref=f"vuln-scan-trace:trace:{name}",
             worker_builder=trace_builder,
-            **CFG.trace.as_kwargs(),
+            **CFG.tasks.trace.as_kwargs(),
             namespace=trace_namespace,
             skills=["trace"],
             model=self.llm,

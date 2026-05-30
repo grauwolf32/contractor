@@ -13,10 +13,8 @@ from typing import Literal, Optional
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
-from contractor.utils import observability
-
 from contractor.runners.skills import inject_skills
-
+from contractor.utils import observability
 from tests.eval.harness import AgentRun, run_agent
 
 AgentKind = Literal["vuln_scan", "trace"]
@@ -83,7 +81,8 @@ async def run_vuln_scan(
             prompt=prompt_text,
         )
     else:
-        from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
+        from contractor.agents.vuln_scan_agent.agent import \
+            build_vuln_scan_agent
         from contractor.utils import load_prompt_with_version
 
         prompt_text, resolved_version = load_prompt_with_version(

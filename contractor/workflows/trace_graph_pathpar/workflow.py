@@ -1,4 +1,4 @@
-"""Path-level parallel trace-annotation pipeline.
+"""Path-level parallel trace-annotation workflow.
 
 All API paths run concurrently (bounded by a semaphore), each in its
 own forked ``MemoryOverlayFileSystem``.  Operations *within* a path
@@ -6,7 +6,7 @@ remain sequential — the overlay is shared across sibling operations so
 later operations see earlier annotations, just like ``trace-graph``.
 
 After every path completes, the per-path overlays are merged back into
-the pipeline's main overlay and persisted as a single diff artifact.
+the workflow's main overlay and persisted as a single diff artifact.
 """
 
 from __future__ import annotations
@@ -20,10 +20,6 @@ from uuid import uuid4
 import yaml
 from google.genai import types
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import TRACE_GRAPH_PATHPAR as CFG
-from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
-                                            extract_openapi_paths)
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
@@ -35,6 +31,14 @@ from contractor.tools.code import attach_graph_tools_if_local
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.fs.merge import fork_overlay, merge_overlay_forks
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.trace_annotation import (OpenApiOperation,
+                                                   OpenApiPath,
+                                                   extract_openapi_paths)
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,8 +46,8 @@ logger.setLevel(logging.DEBUG)
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
 
-class TraceGraphPathParPipeline(Pipeline):
-    """Path-level parallel variant of ``TraceGraphPipeline``.
+class TraceGraphPathParWorkflow(Workflow):
+    """Path-level parallel variant of ``TraceGraphWorkflow``.
 
     Identical annotation semantics — every operation gets the same
     prompt, tools, and overlay-FS contract — but independent API paths
@@ -54,9 +58,9 @@ class TraceGraphPathParPipeline(Pipeline):
 
     def __init__(
         self,
-        ctx: PipelineContext,
+        ctx: WorkflowContext,
         *,
-        max_concurrency: int = CFG.max_concurrency,
+        max_concurrency: int = CFG.budgets.max_concurrency,
     ) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
@@ -66,7 +70,7 @@ class TraceGraphPathParPipeline(Pipeline):
         self._template = TaskTemplate.load(TRACE_TASK_TEMPLATE)
         self.max_concurrency = max_concurrency
 
-    # ── public pipeline entry ─────────────────────────────────────────
+    # ── public workflow entry ─────────────────────────────────────────
 
     async def _run_impl(
         self,
@@ -212,7 +216,7 @@ class TraceGraphPathParPipeline(Pipeline):
             namespace=namespace,
             _format=cast(TraceFormat, self._template.format),
             model=self.llm,
-            max_tokens=CFG.max_tokens,
+            max_tokens=CFG.budgets.max_tokens,
             enable_vuln_reporting=True,
             graph_tools=self._shared_graph_tools,
         )

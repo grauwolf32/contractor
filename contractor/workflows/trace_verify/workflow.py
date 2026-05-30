@@ -22,23 +22,27 @@ from typing import Any, Optional
 
 import yaml
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import TRACE_VERIFY as CFG
-from cli.pipelines.trace_annotation import OpenApiPath, extract_openapi_paths
 from contractor.agents.trace_verifier_agent.agent import \
     build_trace_verifier_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.trace_annotation import (OpenApiPath,
+                                                   extract_openapi_paths)
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 
 
-class TraceVerifyPipeline(Pipeline):
+class TraceVerifyWorkflow(Workflow):
     """OpenAnt Stage-2-style verifier for trace findings."""
 
     namespace: str = "openapi"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
         self.paths: list[OpenApiPath] = []
@@ -93,10 +97,11 @@ class TraceVerifyPipeline(Pipeline):
         verifier_builder = partial(
             build_trace_verifier_agent,
             name="trace_verifier",
+            _format=CFG.agent("trace_verifier").output_format,
             fs=ctx.fs,
             source_namespace=source_namespace,
             model=self.llm,
-            max_tokens=CFG.max_tokens,
+            max_tokens=CFG.budgets.max_tokens,
         )
 
         runner = TaskRunner(
@@ -117,7 +122,7 @@ class TraceVerifyPipeline(Pipeline):
                     f"{api_path.path_key}:{finding_name}"
                 ),
                 worker_builder=verifier_builder,
-                **CFG.verify.as_kwargs(),
+                **CFG.tasks.verify.as_kwargs(),
                 namespace=source_namespace,
                 model=self.llm,
                 params={

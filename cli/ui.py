@@ -103,7 +103,7 @@ def render_artifact_summary(
 
 
 def interactive_prompt(
-    pipeline_name: str,
+    workflow_name: str,
     *,
     title: str = "Interactive prompt",
     hint: str = "Describe what you want the router to do.",
@@ -121,7 +121,7 @@ def interactive_prompt(
         console.print(
             Panel(
                 Group(
-                    Text(f"Pipeline: {pipeline_name}", style="bold cyan"),
+                    Text(f"Workflow: {workflow_name}", style="bold cyan"),
                     Text(""),
                     Text(hint, style="white"),
                     Text(""),
@@ -145,7 +145,7 @@ def interactive_prompt(
 
 @dataclass
 class UiState:
-    pipeline_name: str
+    workflow_name: str
     total_tasks: int = 0
     completed_tasks: int = 0
 
@@ -158,8 +158,8 @@ class UiState:
     subtasks_done: int = 0
     subtasks_total: int = 0
 
-    pipeline_phase: Optional[str] = None
-    pipeline_started_mono: Optional[float] = None
+    workflow_phase: Optional[str] = None
+    workflow_started_mono: Optional[float] = None
     task_started_mono: Optional[float] = None
 
     input_tokens: int = 0
@@ -171,9 +171,9 @@ class UiState:
 
 
 class LiveRenderer:
-    def __init__(self, pipeline_name: str) -> None:
+    def __init__(self, workflow_name: str) -> None:
         self.console = Console()
-        self.state = UiState(pipeline_name=pipeline_name)
+        self.state = UiState(workflow_name=workflow_name)
         self.live: Optional[Live] = None
         self._spinner = Spinner("dots", style="cyan")
 
@@ -228,18 +228,18 @@ class LiveRenderer:
         event_type = getattr(event, "type", "") or ""
         payload = getattr(event, "payload", {}) or {}
 
-        if event_type == "pipeline_started":
-            self.state.pipeline_phase = str(payload.get("phase") or "initializing")
-            self.state.current_task_name = "initializing pipeline…"
-            self.state.pipeline_started_mono = time.monotonic()
+        if event_type == "workflow_started":
+            self.state.workflow_phase = str(payload.get("phase") or "initializing")
+            self.state.current_task_name = "initializing workflow…"
+            self.state.workflow_started_mono = time.monotonic()
             return
 
-        if event_type == "pipeline_finished":
-            self.state.pipeline_phase = "ok" if payload.get("ok") else "failed"
+        if event_type == "workflow_finished":
+            self.state.workflow_phase = "ok" if payload.get("ok") else "failed"
             return
 
         if event_type == "run_started":
-            self.state.pipeline_phase = "running"
+            self.state.workflow_phase = "running"
             self.state.total_tasks = int(payload.get("total_tasks") or 0)
             self.state.completed_tasks = int(payload.get("completed_tasks") or 0)
             return
@@ -364,8 +364,8 @@ class LiveRenderer:
                 self.state.current_subtask = title
 
     def _activity_indicator(self) -> RenderableType:
-        """Spinner while the pipeline is active, ✓/✗ once it has settled."""
-        phase = self.state.pipeline_phase
+        """Spinner while the workflow is active, ✓/✗ once it has settled."""
+        phase = self.state.workflow_phase
         if phase == "ok":
             return Text("✓", style="bold green")
         if phase == "failed":
@@ -374,7 +374,7 @@ class LiveRenderer:
 
     def _token_rate_suffix(self) -> str:
         """`` (123/s)`` output-token throughput, or empty until measurable."""
-        started = self.state.pipeline_started_mono
+        started = self.state.workflow_started_mono
         if started is None:
             return ""
         elapsed = time.monotonic() - started
@@ -404,7 +404,7 @@ class LiveRenderer:
             expand=True,
         )
         progress.add_task(
-            description="Pipeline",
+            description="Workflow",
             total=max(1, self.state.total_tasks),
             completed=min(self.state.completed_tasks, self.state.total_tasks),
         )
@@ -438,16 +438,16 @@ class LiveRenderer:
             )
 
         elapsed = self._format_elapsed(self.state.task_started_mono)
-        pipeline_elapsed = self._format_elapsed(self.state.pipeline_started_mono)
+        workflow_elapsed = self._format_elapsed(self.state.workflow_started_mono)
         tokens = _format_tokens(self.state.input_tokens, self.state.output_tokens)
 
-        # Pipeline line: name + a coloured phase badge.
-        pipeline_line = Text("Pipeline: ", style="bold cyan", overflow="fold")
-        pipeline_line.append(self.state.pipeline_name, style="bold cyan")
-        if self.state.pipeline_phase:
-            phase = self.state.pipeline_phase
-            pipeline_line.append("  ")
-            pipeline_line.append(f" {phase} ", style=f"reverse {_phase_style(phase)}")
+        # Workflow line: name + a coloured phase badge.
+        workflow_line = Text("Workflow: ", style="bold cyan", overflow="fold")
+        workflow_line.append(self.state.workflow_name, style="bold cyan")
+        if self.state.workflow_phase:
+            phase = self.state.workflow_phase
+            workflow_line.append("  ")
+            workflow_line.append(f" {phase} ", style=f"reverse {_phase_style(phase)}")
 
         # Task line: animated activity indicator + the current task name.
         task_line = Table.grid(padding=(0, 1))
@@ -464,7 +464,7 @@ class LiveRenderer:
         )
 
         left = Group(
-            pipeline_line,
+            workflow_line,
             task_line,
             Text(
                 f"Subtask: {subtask_label}",
@@ -481,7 +481,7 @@ class LiveRenderer:
                 overflow="fold",
             ),
             Text(
-                f"Elapsed: {elapsed} (total {pipeline_elapsed})",
+                f"Elapsed: {elapsed} (total {workflow_elapsed})",
                 style="magenta",
                 no_wrap=False,
                 overflow="fold",
@@ -672,11 +672,11 @@ def _normalize_event(event: Any) -> Optional[EventView]:
     event_type = getattr(event, "type", "") or ""
     payload = getattr(event, "payload", {}) or {}
 
-    if event_type == "pipeline_started":
-        return _fmt_pipeline_started_event(payload)
+    if event_type == "workflow_started":
+        return _fmt_workflow_started_event(payload)
 
-    if event_type == "pipeline_finished":
-        return _fmt_pipeline_finished_event(payload)
+    if event_type == "workflow_finished":
+        return _fmt_workflow_finished_event(payload)
 
     if event_type == "run_started":
         return _fmt_run_started_event(payload)
@@ -711,22 +711,22 @@ def _normalize_event(event: Any) -> Optional[EventView]:
     return None
 
 
-def _fmt_pipeline_started_event(payload: dict[str, Any]) -> EventView:
-    pipeline = payload.get("pipeline") or "—"
+def _fmt_workflow_started_event(payload: dict[str, Any]) -> EventView:
+    workflow = payload.get("workflow") or "—"
     return EventView(
-        event_type="pipeline_started",
-        title=f"Pipeline starting: {pipeline}",
+        event_type="workflow_started",
+        title=f"Workflow starting: {workflow}",
         body="Constructing agents and runner…",
         tone="info",
     )
 
 
-def _fmt_pipeline_finished_event(payload: dict[str, Any]) -> EventView:
-    pipeline = payload.get("pipeline") or "—"
+def _fmt_workflow_finished_event(payload: dict[str, Any]) -> EventView:
+    workflow = payload.get("workflow") or "—"
     ok = bool(payload.get("ok"))
     return EventView(
-        event_type="pipeline_finished",
-        title=f"Pipeline finished: {pipeline}",
+        event_type="workflow_finished",
+        title=f"Workflow finished: {workflow}",
         body="status: ok" if ok else "status: failed",
         tone="success" if ok else "error",
     )

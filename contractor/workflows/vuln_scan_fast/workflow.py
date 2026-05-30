@@ -1,4 +1,4 @@
-"""Fast vulnerability scan pipeline (Pipeline B).
+"""Fast vulnerability scan workflow (Workflow B).
 
 High-recall breadth-first scan with downstream verification::
 
@@ -20,12 +20,14 @@ from typing import Any, Optional
 
 import yaml
 
-from cli.pipelines import Pipeline, PipelineContext
-from cli.pipelines.config import VULN_SCAN_FAST as CFG
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
+from contractor.workflows import Workflow, WorkflowContext
+from contractor.workflows.config import WorkflowConfig
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +35,12 @@ SCAN_TASK_TEMPLATE: str = "vuln_scan_fast"
 VULN_REPORTS_KEY: str = "user:vulnerability-reports/vuln-scan-fast"
 
 
-class VulnScanFastPipeline(Pipeline):
+class VulnScanFastWorkflow(Workflow):
     """High-recall vulnerability scan → dedup → trace confirm → exploit."""
 
     namespace: str = "vuln-scan-fast"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
 
@@ -86,8 +88,9 @@ class VulnScanFastPipeline(Pipeline):
         )
 
         swe_builder = partial(
-            build_swe_agent, name="swe_agent", fs=ctx.fs,
-            model=self.llm, max_tokens=CFG.swe_max_tokens,
+            build_swe_agent, name="swe_agent",
+            _format=CFG.agent("swe_agent").output_format, fs=ctx.fs,
+            model=self.llm, max_tokens=CFG.budgets.swe_max_tokens,
         )
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
@@ -97,7 +100,7 @@ class VulnScanFastPipeline(Pipeline):
             runner.add_task(
                 name="dependency_information",
                 worker_builder=swe_builder,
-                **CFG.dependency_information.as_kwargs(),
+                **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information", model=self.llm,
             )
         else:
@@ -109,7 +112,7 @@ class VulnScanFastPipeline(Pipeline):
             runner.add_task(
                 name="project_information",
                 worker_builder=swe_builder,
-                **CFG.project_information.as_kwargs(),
+                **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
                 namespace="project_information", model=self.llm,
             )
@@ -129,10 +132,11 @@ class VulnScanFastPipeline(Pipeline):
         agent_builder = partial(
             build_vuln_scan_agent,
             name="vuln_scan_agent",
+            _format=CFG.agent("vuln_scan_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=CFG.scan_max_tokens,
-            with_graph_tools=True,
+            max_tokens=CFG.budgets.scan_max_tokens,
+            with_graph_tools=CFG.agent("vuln_scan_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
@@ -147,7 +151,7 @@ class VulnScanFastPipeline(Pipeline):
             name=SCAN_TASK_TEMPLATE,
             ref="vuln-scan-fast:full",
             worker_builder=agent_builder,
-            **CFG.scan.as_kwargs(),
+            **CFG.tasks.scan.as_kwargs(),
             namespace=self.namespace,
             skills=["vuln_scan"],
             model=self.llm,
@@ -258,12 +262,13 @@ class VulnScanFastPipeline(Pipeline):
 
             agent = build_trace_agent(
                 name="trace_agent",
+                _format=CFG.agent("trace_agent").output_format,
                 fs=overlay,
                 namespace=ns,
                 model=self.llm,
-                max_tokens=CFG.scan_max_tokens,
+                max_tokens=CFG.budgets.scan_max_tokens,
                 enable_vuln_reporting=True,
-                with_graph_tools=True,
+                with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
             )
 
             message = (
@@ -308,7 +313,7 @@ class VulnScanFastPipeline(Pipeline):
             )
             return
 
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         findings_yaml = yaml.safe_dump(
             {f["name"]: f for f in findings if f.get("name")},
@@ -316,7 +321,7 @@ class VulnScanFastPipeline(Pipeline):
             allow_unicode=True,
         )
 
-        exploit_ctx = PipelineContext(
+        exploit_ctx = WorkflowContext(
             project_path=self.ctx.project_path,
             folder_name=self.ctx.folder_name,
             model=self.ctx.model,
@@ -329,5 +334,5 @@ class VulnScanFastPipeline(Pipeline):
             checkpoint_path=self.ctx.checkpoint_path,
         )
 
-        exploit_pipeline = ExploitabilityPipeline(exploit_ctx)
-        await exploit_pipeline._run_impl(user_id=user_id, on_event=on_event)
+        exploit_workflow = ExploitabilityWorkflow(exploit_ctx)
+        await exploit_workflow._run_impl(user_id=user_id, on_event=on_event)

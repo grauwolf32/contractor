@@ -7,13 +7,16 @@ from typing import Any, Optional
 import yaml
 from google.genai import types
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import TRACE_ANNOTATION as CFG
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -92,10 +95,10 @@ def extract_openapi_paths(
     return paths
 
 
-class TraceAnnotationPipeline(Pipeline):
+class TraceAnnotationWorkflow(Workflow):
     namespace: str = "openapi"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
         self.fs = ctx.fs
@@ -172,11 +175,12 @@ class TraceAnnotationPipeline(Pipeline):
         trace_builder = partial(
             build_trace_agent,
             name="trace_agent",
+            _format=CFG.agent("trace_agent").output_format,
             fs=self.overlayfs,
             model=self.llm,
-            max_tokens=CFG.max_tokens,
+            max_tokens=CFG.budgets.max_tokens,
             enable_vuln_reporting=True,
-            with_graph_tools=True,
+            with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
@@ -188,7 +192,7 @@ class TraceAnnotationPipeline(Pipeline):
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
         operation_ids, operation_schema_yaml = self._build_path_task_payload(api_path)
-        pipeline_namespace = f"trace-annotation:{self.namespace}"
+        workflow_namespace = f"trace-annotation:{self.namespace}"
 
         runner.add_variable(name="operation_id", value=operation_ids)
         runner.add_variable(name="operation_schema", value=operation_schema_yaml)
@@ -197,10 +201,10 @@ class TraceAnnotationPipeline(Pipeline):
             name="trace_annotation",
             ref=f"trace_annotation:{self.namespace}:{api_path.path_key}",
             worker_builder=trace_builder,
-            **CFG.annotate.as_kwargs(),
+            **CFG.tasks.annotate.as_kwargs(),
             artifacts=[],
             skills=["trace"],
-            namespace=pipeline_namespace,
+            namespace=workflow_namespace,
             model=self.llm,
         )
 

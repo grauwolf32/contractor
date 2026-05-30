@@ -1,7 +1,7 @@
 """Task-level eval harness.
 
 Runs an entire ``TaskRunner`` queue (planner + worker chain, exactly the
-shape pipelines under ``cli/pipelines/`` build) against a fixture and
+shape pipelines under ``contractor/pipelines/`` build) against a fixture and
 captures the same analytics signal trace_agent's harness produces:
 tool counts, token usage, tool exec time — keyed by task ref.
 

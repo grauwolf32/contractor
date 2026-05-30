@@ -16,7 +16,6 @@ load_dotenv()
 
 from cli.fs import RootedLocalFileSystem
 from cli.metrics import MetricsSink
-from cli.pipelines import PipelineContext, get_pipelines
 from cli.render import _render_event
 from cli.ui import LiveRenderer, interactive_prompt, render_artifact_summary
 from cli.utils import (remove_artifacts, save_artifact, validate_folder_name,
@@ -25,8 +24,9 @@ from contractor.runners.task_runner import (TaskRunnerEvent,
                                             TaskRunnerEventHandler)
 from contractor.utils import observability
 from contractor.utils.settings import get_settings
+from contractor.workflows import WorkflowContext, get_workflows
 
-PROMPT_REQUIRED_PIPELINES = frozenset({"router"})
+PROMPT_REQUIRED_WORKFLOWS = frozenset({"router"})
 
 APP_NAME = "contractor"
 
@@ -65,7 +65,7 @@ _QUIET_LOGGERS = (
     "opentelemetry",
 )
 
-_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed", "pipeline_finished"})
+_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed", "workflow_finished"})
 
 # High-volume / non-user-facing events. Persisted to metrics.jsonl when they
 # match, but never forwarded to the live UI (they would just flood it).
@@ -126,11 +126,11 @@ def _read_artifact_file(
 
 def _build_event_handler(
     output_dir: Path,
-    pipeline: str,
+    workflow: str,
     enable_ui: bool,
 ) -> TaskRunnerEventHandler:
     metrics = MetricsSink(output_dir)
-    ui = LiveRenderer(pipeline_name=pipeline) if enable_ui else None
+    ui = LiveRenderer(workflow_name=workflow) if enable_ui else None
     if ui is not None:
         ui.start()
 
@@ -162,7 +162,7 @@ async def async_main(
     user_id: str,
     model: str,
     timeout: int,
-    pipeline: str,
+    workflow: str,
     artifact: Optional[str],
     prompt: Optional[str],
     output_dir: Path,
@@ -184,8 +184,8 @@ async def async_main(
             artifact_service=artifact_service,
         )
 
-    pipeline_cls = get_pipelines()[pipeline]
-    ctx = PipelineContext(
+    workflow_cls = get_workflows()[workflow]
+    ctx = WorkflowContext(
         project_path=project_path,
         folder_name=folder_name,
         model=model,
@@ -199,14 +199,14 @@ async def async_main(
         checkpoint_path=checkpoint_path,
     )
 
-    runner = pipeline_cls(ctx)
-    handler = _build_event_handler(output_dir, pipeline, enable_ui=enable_ui)
+    runner = workflow_cls(ctx)
+    handler = _build_event_handler(output_dir, workflow, enable_ui=enable_ui)
 
     with observability.run_context(
-        name=f"pipeline.{pipeline}",
+        name=f"workflow.{workflow}",
         user_id=user_id,
-        session_id=f"{pipeline}:{project_path.name}",
-        tags=[f"pipeline:{pipeline}", f"model:{model}"],
+        session_id=f"{workflow}:{project_path.name}",
+        tags=[f"workflow:{workflow}", f"model:{model}"],
         metadata={
             "project_path": str(project_path),
             "folder_name": folder_name,
@@ -226,11 +226,11 @@ async def async_main(
 
 @click.command(name=APP_NAME)
 @click.option(
-    "--pipeline",
-    type=click.Choice(sorted(get_pipelines().keys()), case_sensitive=False),
+    "--workflow",
+    type=click.Choice(sorted(get_workflows().keys()), case_sensitive=False),
     default="build",
     show_default=True,
-    help="Pipeline to run",
+    help="Workflow to run",
 )
 @click.option(
     "--project-path",
@@ -250,7 +250,7 @@ async def async_main(
     type=click.Path(path_type=Path),
     callback=_read_artifact_file,
     default=None,
-    help="Path to existing OpenAPI artifact file for pipelines that require it",
+    help="Path to existing OpenAPI artifact file for workflows that require it",
 )
 @click.option(
     "--user-id",
@@ -278,7 +278,7 @@ async def async_main(
     type=str,
     default=None,
     help=(
-        "User prompt for prompt-driven pipelines (e.g. router). "
+        "User prompt for prompt-driven workflows (e.g. router). "
         "Required with --no-ui; otherwise an interactive input screen is shown."
     ),
 )
@@ -293,7 +293,7 @@ async def async_main(
 )
 @click.option("--no-ui", is_flag=True, help="disable ui")
 def main(
-    pipeline: str,
+    workflow: str,
     project_path: Path,
     folder_name: str,
     artifact: Optional[str],
@@ -306,14 +306,14 @@ def main(
     resume: bool,
     no_ui: bool,
 ) -> None:
-    """Run contractor task pipeline for a project."""
+    """Run contractor task workflow for a project."""
     _setup_logging()
     observability.init()
 
     if rm and resume:
         raise click.UsageError("--rm and --resume are mutually exclusive")
 
-    pipeline = pipeline.lower()
+    workflow = workflow.lower()
     project_path = validate_project_path(project_path)
     folder_name = validate_folder_name(project_path, folder_name)
     output_dir = output if output else project_path / ".contractor"
@@ -321,12 +321,12 @@ def main(
 
     checkpoint_path = (output_dir / "checkpoint.json") if resume else None
 
-    if pipeline in PROMPT_REQUIRED_PIPELINES and not prompt:
+    if workflow in PROMPT_REQUIRED_WORKFLOWS and not prompt:
         if no_ui:
             raise click.UsageError(
-                f"--prompt is required for pipeline '{pipeline}' when --no-ui is set"
+                f"--prompt is required for workflow '{workflow}' when --no-ui is set"
             )
-        prompt = interactive_prompt(pipeline_name=pipeline)
+        prompt = interactive_prompt(workflow_name=workflow)
 
     asyncio.run(
         async_main(
@@ -335,7 +335,7 @@ def main(
             user_id=user_id,
             model=model,
             timeout=timeout,
-            pipeline=pipeline,
+            workflow=workflow,
             artifact=artifact,
             prompt=prompt,
             rm_artifacts=rm,

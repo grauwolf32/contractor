@@ -22,9 +22,7 @@ from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
-from contractor.utils import load_prompt_with_version
-from contractor.utils import observability
-
+from contractor.utils import load_prompt_with_version, observability
 from tests.eval.harness import AgentRun, run_agent
 
 

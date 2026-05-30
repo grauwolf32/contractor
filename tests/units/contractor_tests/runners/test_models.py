@@ -3,13 +3,9 @@ from pathlib import Path
 import pytest
 
 from contractor.runners import models as m
-from contractor.runners.models import (
-    RenderedTask,
-    TaskTemplate,
-    _artifact_var_name,
-    _normalize_name,
-    _resolve_task_version,
-)
+from contractor.runners.models import (RenderedTask, TaskTemplate,
+                                       _artifact_var_name, _normalize_name,
+                                       _resolve_task_version)
 
 
 class TestNormalizeName:
@@ -318,30 +314,30 @@ class TestCheckpoint:
         )
 
     def test_get_returns_matching_entry(self):
-        cp = Checkpoint(pipeline="test", entries=[self._entry("a:0")])
+        cp = Checkpoint(workflow="test", entries=[self._entry("a:0")])
         assert cp.get("a:0") is not None
         assert cp.get("b:0") is None
 
     def test_mark_done_adds_entry(self):
-        cp = Checkpoint(pipeline="test")
+        cp = Checkpoint(workflow="test")
         cp.mark_done(self._entry("a:0"))
         assert len(cp.entries) == 1
         assert cp.get("a:0") is not None
 
     def test_mark_done_replaces_existing(self):
-        cp = Checkpoint(pipeline="test", entries=[self._entry("a:0", task_id=0)])
+        cp = Checkpoint(workflow="test", entries=[self._entry("a:0", task_id=0)])
         cp.mark_done(self._entry("a:0", task_id=5))
         assert len(cp.entries) == 1
         assert cp.get("a:0").task_id == 5
 
     def test_save_and_load_roundtrip(self, tmp_path):
-        cp = Checkpoint(pipeline="my_pipe", entries=[self._entry("a:0")])
+        cp = Checkpoint(workflow="my_pipe", entries=[self._entry("a:0")])
         path = tmp_path / "checkpoint.json"
         cp.save(path)
 
         loaded = Checkpoint.load(path)
         assert loaded is not None
-        assert loaded.pipeline == "my_pipe"
+        assert loaded.workflow == "my_pipe"
         assert len(loaded.entries) == 1
         assert loaded.get("a:0").published_artifacts == {
             "result": "t/result",
@@ -364,7 +360,7 @@ class TestCheckpoint:
 
     def test_save_is_atomic(self, tmp_path):
         path = tmp_path / "checkpoint.json"
-        cp = Checkpoint(pipeline="test", entries=[self._entry()])
+        cp = Checkpoint(workflow="test", entries=[self._entry()])
         cp.save(path)
         assert path.exists()
         assert not path.with_suffix(".tmp").exists()

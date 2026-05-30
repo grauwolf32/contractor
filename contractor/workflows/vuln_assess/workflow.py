@@ -1,4 +1,4 @@
-"""Full vulnerability assessment pipeline (Pipeline A).
+"""Full vulnerability assessment workflow (Workflow A).
 
 Five-step chain with verification at steps 3 and 5::
 
@@ -21,15 +21,18 @@ from typing import Any, Optional
 
 import yaml
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import VULN_ASSESS as CFG
-from cli.pipelines.trace_annotation import extract_openapi_paths
-from cli.pipelines.trace_graph_pathpar import TraceGraphPathParPipeline
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.trace_annotation import extract_openapi_paths
+from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +40,10 @@ OAS_ARTIFACT = "user:oas-openapi-building"
 TRACE_OAS_ARTIFACT = "oas-openapi-building"
 
 
-class VulnAssessPipeline(Pipeline):
+class VulnAssessWorkflow(Workflow):
     """Full vulnerability assessment: discovery → OAS → trace → exploit."""
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
 
@@ -62,7 +65,7 @@ class VulnAssessPipeline(Pipeline):
         # ── Step 5: exploitability verification ───────────────────
         await self._run_exploit_stage(user_id=user_id, on_event=on_event)
 
-    # ── Stage 1-3: OAS pipeline ──────────────────────────────────
+    # ── Stage 1-3: OAS workflow ──────────────────────────────────
 
     async def _run_oas_stage(
         self,
@@ -88,16 +91,19 @@ class VulnAssessPipeline(Pipeline):
         )
 
         swe_builder = partial(
-            build_swe_agent, name="swe_agent", fs=fs,
-            model=self.llm, max_tokens=CFG.swe_max_tokens,
+            build_swe_agent, name="swe_agent",
+            _format=CFG.agent("swe_agent").output_format, fs=fs,
+            model=self.llm, max_tokens=CFG.budgets.swe_max_tokens,
         )
         oas_builder = partial(
-            build_oas_builder_agent, name="oas_builder", fs=fs,
-            model=self.llm, max_tokens=CFG.builder_max_tokens,
+            build_oas_builder_agent, name="oas_builder",
+            _format=CFG.agent("oas_builder").output_format, fs=fs,
+            model=self.llm, max_tokens=CFG.budgets.builder_max_tokens,
         )
         oas_linter = partial(
-            build_oas_linter_agent, name="oas_validator", fs=fs,
-            model=self.llm, max_tokens=CFG.validator_max_tokens,
+            build_oas_linter_agent, name="oas_validator",
+            _format=CFG.agent("oas_validator").output_format, fs=fs,
+            model=self.llm, max_tokens=CFG.budgets.validator_max_tokens,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
@@ -108,7 +114,7 @@ class VulnAssessPipeline(Pipeline):
             runner.add_task(
                 name="dependency_information",
                 worker_builder=swe_builder,
-                **CFG.dependency_information.as_kwargs(),
+                **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information", model=self.llm,
             )
         else:
@@ -120,7 +126,7 @@ class VulnAssessPipeline(Pipeline):
             runner.add_task(
                 name="project_information",
                 worker_builder=swe_builder,
-                **CFG.project_information.as_kwargs(),
+                **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
                 namespace="project_information", model=self.llm,
             )
@@ -130,7 +136,7 @@ class VulnAssessPipeline(Pipeline):
         runner.add_task(
             name="oas_update",
             worker_builder=oas_builder,
-            **CFG.oas_update.as_kwargs(),
+            **CFG.tasks.oas_update.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",
@@ -142,7 +148,7 @@ class VulnAssessPipeline(Pipeline):
         runner.add_task(
             name="oas_validate",
             worker_builder=oas_linter,
-            **CFG.oas_validate.as_kwargs(),
+            **CFG.tasks.oas_validate.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",
@@ -198,8 +204,8 @@ class VulnAssessPipeline(Pipeline):
             logger.error("Cannot run trace stage — no OAS artifact")
             return
 
-        trace_pipeline = TraceGraphPathParPipeline(ctx)
-        await trace_pipeline._run_impl(user_id=user_id, on_event=on_event)
+        trace_workflow = TraceGraphPathParWorkflow(ctx)
+        await trace_workflow._run_impl(user_id=user_id, on_event=on_event)
 
     # ── Stage 5: exploit [VERIFY] ────────────────────────────────
 
@@ -220,7 +226,7 @@ class VulnAssessPipeline(Pipeline):
             )
             return
 
-        from cli.pipelines.exploitability import ExploitabilityPipeline
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
 
         findings_yaml = await self._collect_vuln_reports(user_id=user_id)
         if not findings_yaml:
@@ -230,7 +236,7 @@ class VulnAssessPipeline(Pipeline):
             )
             return
 
-        exploit_ctx = PipelineContext(
+        exploit_ctx = WorkflowContext(
             project_path=self.ctx.project_path,
             folder_name=self.ctx.folder_name,
             model=self.ctx.model,
@@ -243,8 +249,8 @@ class VulnAssessPipeline(Pipeline):
             checkpoint_path=self.ctx.checkpoint_path,
         )
 
-        exploit_pipeline = ExploitabilityPipeline(exploit_ctx)
-        await exploit_pipeline._run_impl(user_id=user_id, on_event=on_event)
+        exploit_workflow = ExploitabilityWorkflow(exploit_ctx)
+        await exploit_workflow._run_impl(user_id=user_id, on_event=on_event)
 
     async def _collect_vuln_reports(self, *, user_id: str) -> str:
         """Merge all ``user:vulnerability-reports/*`` artifacts into one YAML."""

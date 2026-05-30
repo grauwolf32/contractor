@@ -1,4 +1,4 @@
-"""Unit tests for the exploitability pipeline's HTTP-chain collection.
+"""Unit tests for the exploitability workflow's HTTP-chain collection.
 
 Covers the opaque run-unique tag, raw-chain serialization, deterministic
 Caido collection (cited-id path + full-sequence fallback), and the
@@ -12,10 +12,9 @@ import pytest
 import yaml
 from google.genai import types
 
-import cli.pipelines.exploitability as exploit
-from cli.pipelines.exploitability import (ExploitabilityPipeline,
-                                          _finding_tag_prefix,
-                                          _serialize_chain)
+import contractor.workflows.exploitability.workflow as exploit
+from contractor.workflows.exploitability.workflow import (
+    ExploitabilityWorkflow, _finding_tag_prefix, _serialize_chain)
 
 
 def test_tag_prefix_is_opaque_and_deterministic():
@@ -95,8 +94,8 @@ def _detail(path, raw="r", resp=None):
             "response": resp or {}}
 
 
-def _bare_pipeline(artifact_service):
-    p = object.__new__(ExploitabilityPipeline)
+def _bare_workflow(artifact_service):
+    p = object.__new__(ExploitabilityWorkflow)
     p.caido_url = "http://caido"
     p.caido_auth_token = None
     p.ctx = SimpleNamespace(artifact_service=artifact_service, app_name="app")
@@ -219,7 +218,7 @@ async def test_collect_http_chain_writes_artifact(monkeypatch):
     monkeypatch.setattr(exploit, "CaidoClient", lambda **kw: object())
     monkeypatch.setattr(exploit, "CaidoTools", lambda client: backend)
 
-    p = _bare_pipeline(artifact_service=svc)
+    p = _bare_workflow(artifact_service=svc)
     await p._collect_http_chain(
         finding_name=finding,
         source_namespace=ns,
@@ -236,7 +235,7 @@ async def test_collect_http_chain_writes_artifact(monkeypatch):
 @pytest.mark.asyncio
 async def test_collect_http_chain_noop_without_caido(monkeypatch):
     svc = FakeArtifactService()
-    p = _bare_pipeline(artifact_service=svc)
+    p = _bare_workflow(artifact_service=svc)
     p.caido_url = None
     await p._collect_http_chain(
         finding_name="f", source_namespace="ns", tag_prefix="r", user_id="u"

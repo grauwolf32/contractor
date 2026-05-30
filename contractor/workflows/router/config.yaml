@@ -1,0 +1,5 @@
+budgets:
+  max_tokens: 120000
+  max_steps: 20
+agents:
+  trace_agent: { with_graph_tools: true, output_format: json }

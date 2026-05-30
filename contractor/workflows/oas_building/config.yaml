@@ -1,0 +1,9 @@
+budgets:
+  swe_max_tokens: 100000
+  builder_max_tokens: 100000
+  validator_max_tokens: 100000
+tasks:
+  dependency_information: { iterations: 1, max_attempts: 2, max_steps: 20 }
+  project_information: { iterations: 1, max_attempts: 2, max_steps: 20 }
+  oas_update: { iterations: 2, max_attempts: 4, max_steps: 20 }
+  oas_validate: { iterations: 1, max_attempts: 1, max_steps: 20 }

@@ -6,10 +6,6 @@ from uuid import uuid4
 import yaml
 from google.genai import types
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import TRACE_ANNOTATION_DIRECT as CFG
-from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
-                                            extract_openapi_paths)
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
@@ -19,6 +15,14 @@ from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.trace_annotation import (OpenApiOperation,
+                                                   OpenApiPath,
+                                                   extract_openapi_paths)
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -27,18 +31,18 @@ logger.setLevel(logging.DEBUG)
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
 
-class TraceAnnotationDirectPipeline(Pipeline):
-    """Variant of TraceAnnotationPipeline that skips the planning_agent layer.
+class TraceAnnotationDirectWorkflow(Workflow):
+    """Variant of TraceAnnotationWorkflow that skips the planning_agent layer.
 
     Each OpenAPI operation is rendered directly from its task template and
-    handed to a freshly built ``trace_agent`` via ``AgentRunner``. The pipeline
-    keeps the same overlay-FS / artifact contract as ``TraceAnnotationPipeline``
+    handed to a freshly built ``trace_agent`` via ``AgentRunner``. The workflow
+    keeps the same overlay-FS / artifact contract as ``TraceAnnotationWorkflow``
     so that produced annotations can be compared head-to-head.
     """
 
     namespace: str = "openapi"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
         self.fs = ctx.fs
@@ -163,9 +167,9 @@ class TraceAnnotationDirectPipeline(Pipeline):
             namespace=namespace,
             _format=cast(TraceFormat, self._template.format),
             model=self.llm,
-            max_tokens=CFG.max_tokens,
+            max_tokens=CFG.budgets.max_tokens,
             enable_vuln_reporting=True,
-            with_graph_tools=True,
+            with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
         )
 
         session_id = uuid4().hex

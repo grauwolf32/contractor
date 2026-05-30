@@ -1,5 +1,5 @@
 """Currently unused: ``build_triage_agent`` has no callers in production
-pipelines (``cli/pipelines/``) or tests as of 2026-05. Kept for potential
+workflows (``contractor/workflows/``) or tests as of 2026-05. Kept for potential
 future use (security-analysis workflows). If you wire this up, remove this
 notice; if it remains unreferenced, consider deleting the directory along
 with its prompts and tasks.

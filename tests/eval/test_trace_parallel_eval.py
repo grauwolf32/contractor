@@ -1,4 +1,4 @@
-"""A/B eval: sequential vs parallel trace pipelines.
+"""A/B eval: sequential vs parallel trace workflows.
 
 Runs ``trace-graph``, ``trace-graph-pathpar``, and ``trace-graph-opspar``
 on the same fixture and compares:
@@ -8,7 +8,7 @@ on the same fixture and compares:
 - **Merge conflicts** (files touched by >1 parallel fork)
 
 The fixture's ``oas.expected.yaml`` is used as the input OpenAPI spec so
-the eval doesn't depend on the ``build`` pipeline.
+the eval doesn't depend on the ``build`` workflow.
 
 Usage::
 
@@ -18,39 +18,35 @@ Usage::
 from __future__ import annotations
 
 import json
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-import tempfile
 
 import pytest
 from google.adk.artifacts import FileArtifactService
 from google.adk.models.lite_llm import LiteLlm
 
 from cli.fs import RootedLocalFileSystem
-from cli.pipelines import Pipeline, PipelineContext
-from cli.pipelines.trace_graph import TraceGraphPipeline
-from cli.pipelines.trace_graph_pathpar import TraceGraphPathParPipeline
 from contractor.runners.models import TaskRunnerEvent
 from contractor.utils import observability
+from contractor.workflows import Workflow, WorkflowContext
+from contractor.workflows.trace_graph import TraceGraphWorkflow
+from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from tests.eval.conftest import FIXTURES_ROOT, EvalFixture, _load_fixture
-from tests.eval.trace_harness import (
-    Annotation,
-    extract_annotations_from_overlay,
-    overlay_modified_files,
-)
+from tests.eval.trace_harness import (Annotation,
+                                      extract_annotations_from_overlay,
+                                      overlay_modified_files)
 
-
-PIPELINE_VARIANTS: list[tuple[str, type[Pipeline]]] = [
-    ("trace-graph", TraceGraphPipeline),
-    ("trace-graph-pathpar", TraceGraphPathParPipeline),
+WORKFLOW_VARIANTS: list[tuple[str, type[Workflow]]] = [
+    ("trace-graph", TraceGraphWorkflow),
+    ("trace-graph-pathpar", TraceGraphPathParWorkflow),
 ]
 
 
 @dataclass
-class PipelineRunResult:
+class WorkflowRunResult:
     variant: str
     annotations: set[Annotation]
     modified_files: set[str]
@@ -67,21 +63,21 @@ def _expected_annotations(fixture: EvalFixture) -> set[Annotation]:
     return annotations
 
 
-async def _run_pipeline_variant(
-    pipeline_cls: type[Pipeline],
+async def _run_workflow_variant(
+    workflow_cls: type[Workflow],
     *,
     fixture: EvalFixture,
     model: LiteLlm,
     oas_yaml: str,
-) -> PipelineRunResult:
-    """Run a single pipeline variant end-to-end and capture results."""
+) -> WorkflowRunResult:
+    """Run a single workflow variant end-to-end and capture results."""
     tmp = tempfile.mkdtemp(prefix="eval_parallel_")
     artifact_service = FileArtifactService(root_dir=Path(tmp))
     fs = RootedLocalFileSystem(str(fixture.source_root))
     app_name = "eval-parallel"
     user_id = "eval-user"
 
-    ctx = PipelineContext(
+    ctx = WorkflowContext(
         project_path=fixture.source_root,
         folder_name="/",
         model=model.model,
@@ -92,7 +88,7 @@ async def _run_pipeline_variant(
         artifact=oas_yaml,
     )
 
-    pipeline = pipeline_cls(ctx)
+    workflow = workflow_cls(ctx)
 
     events: list[dict[str, Any]] = []
 
@@ -100,15 +96,15 @@ async def _run_pipeline_variant(
         events.append({"type": event.type, "task": event.task_name, **event.payload})
 
     t0 = time.monotonic()
-    await pipeline.run(user_id=user_id, on_event=_on_event)
+    await workflow.run(user_id=user_id, on_event=_on_event)
     wallclock = time.monotonic() - t0
 
-    overlay = pipeline.overlayfs
+    overlay = workflow.overlayfs
     annotations = extract_annotations_from_overlay(overlay)
     modified = overlay_modified_files(overlay)
 
-    return PipelineRunResult(
-        variant=pipeline_cls.__name__,
+    return WorkflowRunResult(
+        variant=workflow_cls.__name__,
         annotations=annotations,
         modified_files=modified,
         wallclock_s=wallclock,
@@ -161,7 +157,7 @@ def parallel_fixture(request: pytest.FixtureRequest) -> EvalFixture:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_trace_parallel_pipelines(parallel_fixture: EvalFixture, eval_model: LiteLlm):
+async def test_trace_parallel_workflows(parallel_fixture: EvalFixture, eval_model: LiteLlm):
     """Compare trace-graph, trace-graph-pathpar, and trace-graph-opspar."""
     fixture = parallel_fixture
 
@@ -169,17 +165,17 @@ async def test_trace_parallel_pipelines(parallel_fixture: EvalFixture, eval_mode
     oas_yaml = oas_path.read_text(encoding="utf-8")
 
     expected = _expected_annotations(fixture)
-    results: list[PipelineRunResult] = []
+    results: list[WorkflowRunResult] = []
 
-    for variant_name, pipeline_cls in PIPELINE_VARIANTS:
+    for variant_name, workflow_cls in WORKFLOW_VARIANTS:
         with observability.run_context(
             name=f"eval.parallel.{variant_name}",
             session_id=f"parallel-eval-{fixture.slug}-{variant_name}",
-            tags=["eval", "parallel-pipeline", f"variant:{variant_name}"],
+            tags=["eval", "parallel-workflow", f"variant:{variant_name}"],
             metadata={"fixture": fixture.slug, "variant": variant_name},
         ):
-            result = await _run_pipeline_variant(
-                pipeline_cls,
+            result = await _run_workflow_variant(
+                workflow_cls,
                 fixture=fixture,
                 model=eval_model,
                 oas_yaml=oas_yaml,
@@ -188,7 +184,7 @@ async def test_trace_parallel_pipelines(parallel_fixture: EvalFixture, eval_mode
         results.append(result)
 
     # ── Report ────────────────────────────────────────────────────────
-    header = f"\n{'='*70}\nParallel pipeline comparison — fixture={fixture.slug}\n{'='*70}"
+    header = f"\n{'='*70}\nParallel workflow comparison — fixture={fixture.slug}\n{'='*70}"
     lines = [header]
 
     baseline = results[0]

@@ -3,15 +3,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from contractor.runners.artifacts import (
-    ARTIFACT_KINDS,
-    InvalidArtifactKeyError,
-    artifact_filename,
-    artifact_names_for_key,
-    save_result_artifacts,
-    validate_artifact_key,
-    _records_to_text,
-)
+from contractor.runners.artifacts import (ARTIFACT_KINDS,
+                                          InvalidArtifactKeyError,
+                                          _records_to_text, artifact_filename,
+                                          artifact_names_for_key,
+                                          save_result_artifacts,
+                                          validate_artifact_key)
 
 
 class TestValidateArtifactKey:

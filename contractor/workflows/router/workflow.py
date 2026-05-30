@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Any, Optional
 from uuid import uuid4
 
-from cli.pipelines import Pipeline
-from cli.pipelines.config import ROUTER as CFG
 from contractor.agents.http_agent.agent import build_http_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
@@ -21,14 +19,18 @@ from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.tasks.models import Subtask, SubtaskExecutionResult
 from contractor.utils.settings import build_model
+from contractor.workflows import Workflow
+from contractor.workflows.config import WorkflowConfig
+
+CFG = WorkflowConfig.load(__file__)
 
 ROUTER_NAMESPACE = "router"
 ROUTER_TASK_NAME = "router"
 ROUTER_TASK_ID = 0
 
 
-class RouterPipeline(Pipeline):
-    """Prompt-driven pipeline: planner → router → specialised sub-agent.
+class RouterWorkflow(Workflow):
+    """Prompt-driven workflow: planner → router → specialised sub-agent.
 
     The planner decomposes the user's prompt into subtasks. For each subtask
     the planner invokes the router (its worker), which dispatches to one of
@@ -44,7 +46,7 @@ class RouterPipeline(Pipeline):
         ctx = self.ctx
         prompt = (ctx.prompt or "").strip()
         if not prompt:
-            raise ValueError("RouterPipeline requires ctx.prompt to be set")
+            raise ValueError("RouterWorkflow requires ctx.prompt to be set")
 
         llm = build_model(ctx.model, ctx.timeout)
         fs = ctx.fs
@@ -52,44 +54,50 @@ class RouterPipeline(Pipeline):
         sub_agents = [
             build_swe_agent(
                 name="swe_agent",
+                _format=CFG.agent("swe_agent").output_format,
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=CFG.max_tokens,
+                max_tokens=CFG.budgets.max_tokens,
             ),
             build_oas_builder_agent(
                 name="oas_builder",
+                _format=CFG.agent("oas_builder").output_format,
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=CFG.max_tokens,
+                max_tokens=CFG.budgets.max_tokens,
             ),
             build_oas_linter_agent(
                 name="oas_linter",
+                _format=CFG.agent("oas_linter").output_format,
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=CFG.max_tokens,
+                max_tokens=CFG.budgets.max_tokens,
             ),
             build_trace_agent(
                 name="trace_agent",
+                _format=CFG.agent("trace_agent").output_format,
                 fs=fs,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=CFG.max_tokens,
+                max_tokens=CFG.budgets.max_tokens,
                 enable_vuln_reporting=True,
-                with_graph_tools=True,
+                with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
             ),
             build_http_agent(
                 name="http_agent",
+                _format=CFG.agent("http_agent").output_format,
                 namespace=ROUTER_NAMESPACE,
                 model=llm,
-                max_tokens=CFG.max_tokens,
+                max_tokens=CFG.budgets.max_tokens,
             ),
         ]
 
         router = build_router_agent(
             name="router",
+            _format=CFG.agent("router").output_format,
             namespace=ROUTER_NAMESPACE,
             sub_agents=sub_agents,
             model=llm,
@@ -107,7 +115,7 @@ class RouterPipeline(Pipeline):
             namespace=ROUTER_NAMESPACE,
             worker=router,
             model=llm,
-            max_steps=CFG.max_steps,
+            max_steps=CFG.budgets.max_steps,
             worker_instrumentation=False,
         )
 

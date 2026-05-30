@@ -1,4 +1,4 @@
-"""Trace-annotation pipeline that runs ``trace_agent`` with the
+"""Trace-annotation workflow that runs ``trace_agent`` with the
 trailmark-backed call-graph tool set explicitly enabled.
 
 Mostly a thin variant of ``trace-direct``: identical task template,
@@ -19,10 +19,6 @@ from uuid import uuid4
 import yaml
 from google.genai import types
 
-from cli.pipelines import Pipeline, PipelineContext, persist_seed_artifact
-from cli.pipelines.config import TRACE_GRAPH as CFG
-from cli.pipelines.trace_annotation import (OpenApiOperation, OpenApiPath,
-                                            extract_openapi_paths)
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
@@ -32,6 +28,14 @@ from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils.settings import build_model
+from contractor.workflows import (Workflow, WorkflowContext,
+                                  persist_seed_artifact)
+from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.trace_annotation import (OpenApiOperation,
+                                                   OpenApiPath,
+                                                   extract_openapi_paths)
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -39,8 +43,8 @@ logger.setLevel(logging.DEBUG)
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
 
-class TraceGraphPipeline(Pipeline):
-    """Variant of ``TraceAnnotationDirectPipeline`` that runs
+class TraceGraphWorkflow(Workflow):
+    """Variant of ``TraceAnnotationDirectWorkflow`` that runs
     ``trace_agent`` with ``with_graph_tools=True`` per operation.
 
     Trailmark parses the project on the first agent call (lazy build
@@ -50,7 +54,7 @@ class TraceGraphPipeline(Pipeline):
 
     namespace: str = "openapi"
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
         self.fs = ctx.fs
@@ -177,9 +181,9 @@ class TraceGraphPipeline(Pipeline):
             namespace=namespace,
             _format=cast(TraceFormat, self._template.format),
             model=self.llm,
-            max_tokens=CFG.max_tokens,
+            max_tokens=CFG.budgets.max_tokens,
             enable_vuln_reporting=True,
-            with_graph_tools=True,
+            with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
         )
 
         session_id = uuid4().hex

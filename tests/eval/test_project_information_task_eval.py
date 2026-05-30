@@ -3,7 +3,7 @@
 This goes through ``TaskRunner`` (planner + worker), not just the bare
 ``swe_agent``. ``project_information`` consumes
 ``dependency_information/result`` as an upstream artifact, so we queue
-both tasks the same way ``LikeC4BuildingPipeline`` does and then score
+both tasks the same way ``LikeC4BuildingWorkflow`` does and then score
 the Markdown the second task publishes.
 
 Scoring is structural: how many of the nine numbered category headings

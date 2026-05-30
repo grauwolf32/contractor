@@ -4,8 +4,6 @@ from typing import Any, Optional
 
 from google.genai import types
 
-from cli.pipelines import Pipeline, PipelineContext
-from cli.pipelines.config import LIKEC4_BUILDING as CFG
 from contractor.agents.likec4_builder_agent.agent import \
     build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
@@ -13,16 +11,20 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.likec4 import DEFAULT_LIKEC4_PATH
 from contractor.utils.settings import build_model
+from contractor.workflows import Workflow, WorkflowContext
+from contractor.workflows.config import WorkflowConfig
+
+CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
 
 
 # Artifact key for the canonical LikeC4 source. Kept as a single text artifact
-# so reruns of the pipeline can pick up where the previous one left off.
+# so reruns of the workflow can pick up where the previous one left off.
 LIKEC4_ARTIFACT_FILENAME: str = "likec4-architecture.c4"
 
 
-class LikeC4BuildingPipeline(Pipeline):
+class LikeC4BuildingWorkflow(Workflow):
     """Builds a LikeC4 architecture model for the project, focused on
     security-relevant facts (external interactions, trust boundaries,
     data classes).
@@ -34,13 +36,13 @@ class LikeC4BuildingPipeline(Pipeline):
       4. likec4_validate          — LikeC4 builder worker, repair-only pass
 
     Persistence: the LikeC4 source lives in a single overlay-backed file at
-    :data:`contractor.tools.likec4.DEFAULT_LIKEC4_PATH`. Before the pipeline
+    :data:`contractor.tools.likec4.DEFAULT_LIKEC4_PATH`. Before the workflow
     runs, that file is seeded from the ``likec4-architecture.c4`` artifact if
-    it exists; after the pipeline finishes, the file is read back and saved
+    it exists; after the workflow finishes, the file is read back and saved
     as that artifact.
     """
 
-    def __init__(self, ctx: "PipelineContext") -> None:
+    def __init__(self, ctx: "WorkflowContext") -> None:
         super().__init__(ctx)
         self._overlay_fs = MemoryOverlayFileSystem(fs=ctx.fs)
 
@@ -63,15 +65,17 @@ class LikeC4BuildingPipeline(Pipeline):
         await self._seed_overlay_from_artifact(overlay_fs, user_id=user_id)
 
         swe_builder = partial(
-            build_swe_agent, name="swe_agent", fs=ctx.fs, model=llm,
-            max_tokens=CFG.swe_max_tokens,
+            build_swe_agent, name="swe_agent",
+            _format=CFG.agent("swe_agent").output_format, fs=ctx.fs, model=llm,
+            max_tokens=CFG.budgets.swe_max_tokens,
         )
         likec4_builder = partial(
             build_likec4_builder_agent,
             name="likec4_builder",
+            _format=CFG.agent("likec4_builder").output_format,
             fs=overlay_fs,
             model=llm,
-            max_tokens=CFG.builder_max_tokens,
+            max_tokens=CFG.budgets.builder_max_tokens,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
@@ -85,7 +89,7 @@ class LikeC4BuildingPipeline(Pipeline):
             runner.add_task(
                 name="dependency_information",
                 worker_builder=swe_builder,
-                **CFG.dependency_information.as_kwargs(),
+                **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information",
                 model=llm,
             )
@@ -98,7 +102,7 @@ class LikeC4BuildingPipeline(Pipeline):
             runner.add_task(
                 name="project_information",
                 worker_builder=swe_builder,
-                **CFG.project_information.as_kwargs(),
+                **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
                 namespace="project_information",
                 model=llm,
@@ -109,7 +113,7 @@ class LikeC4BuildingPipeline(Pipeline):
         runner.add_task(
             name="likec4_build",
             worker_builder=likec4_builder,
-            **CFG.likec4_build.as_kwargs(),
+            **CFG.tasks.likec4_build.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",
@@ -121,7 +125,7 @@ class LikeC4BuildingPipeline(Pipeline):
         runner.add_task(
             name="likec4_validate",
             worker_builder=likec4_builder,
-            **CFG.likec4_validate.as_kwargs(),
+            **CFG.tasks.likec4_validate.as_kwargs(),
             artifacts=[
                 "dependency_information/result",
                 "project_information/result",
@@ -170,7 +174,7 @@ class LikeC4BuildingPipeline(Pipeline):
     ) -> None:
         """Read ``DEFAULT_LIKEC4_PATH`` and save it as the LikeC4 artifact.
 
-        If the file is missing (e.g. the pipeline failed before any agent
+        If the file is missing (e.g. the workflow failed before any agent
         wrote it) the previous artifact is left untouched.
         """
         if not overlay_fs.exists(DEFAULT_LIKEC4_PATH):

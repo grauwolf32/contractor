@@ -1,4 +1,4 @@
-"""End-to-end eval driving the exploitation pipelines against live XBOW
+"""End-to-end eval driving the exploitation workflows against live XBOW
 validation-benchmarks.
 
 Each benchmark ships its own source and is a CTF-style flag-capture app: we
@@ -29,25 +29,34 @@ from functools import partial
 import pytest
 from google.adk.models.lite_llm import LiteLlm
 
-from cli.pipelines.exploitability import (_finding_tag_prefix,
-                                          collect_http_chain)
 from contractor.agents.exploitability_agent.agent import \
     build_exploitability_agent
 from contractor.agents.web_exploitability_agent.agent import \
     build_web_exploit_agent
+from contractor.workflows.exploitability.workflow import (_finding_tag_prefix,
+                                                          collect_http_chain)
 from tests.eval.conftest import PLAYGROUND_ROOT
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 from tests.eval.xbow import (XbowBenchmark, XbowService, discover_benchmarks,
                              flag_captured)
 
 # The curated, podman-runnable subset (see tests/eval/xbow.py + the buster
-# apt fixes / FLAG build-args applied to 007 + 009 + 026).
+# apt fixes / FLAG build-args applied to 007 + 009 + 026). All confirmed to
+# build + come up healthy under podman; spans a broad set of vuln classes.
 DEFAULT_XBOW_IDS = [
     "XBEN-005-24",  # idor + jwt + default creds
     "XBEN-006-24",  # sqli
     "XBEN-007-24",  # graphql + idor + brute force
     "XBEN-009-24",  # ssti
     "XBEN-026-24",  # CVE path traversal / lfi (Apache 2.4.50)
+    "XBEN-021-24",  # idor + default creds
+    "XBEN-024-24",  # ssrf
+    "XBEN-029-24",  # blind sqli + arbitrary file upload
+    "XBEN-032-24",  # xxe + default creds
+    "XBEN-036-24",  # insecure deserialization
+    "XBEN-037-24",  # command injection
+    "XBEN-038-24",  # graphql + sqli
+    "XBEN-042-24",  # information disclosure + ssh
 ]
 AGENT_KINDS = ["exploit", "web_exploit"]
 
@@ -211,8 +220,11 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
             print(f"[xbow:{agent_kind}] {bid} flag_captured={captured} "
                   f"(chain={'yes' if chain_text else 'no'})", flush=True)
         except Exception as exc:  # harness/launch failure, not a capability miss
-            harness_failures.append(f"{bid}: {type(exc).__name__}: {exc}")
-            print(f"[xbow:{agent_kind}] {bid} HARNESS ERROR: {exc}", flush=True)
+            import traceback
+            detail = f"{type(exc).__name__}: {exc}".strip()
+            harness_failures.append(f"{bid}: {detail}")
+            print(f"[xbow:{agent_kind}] {bid} HARNESS ERROR: {detail}\n"
+                  f"{traceback.format_exc(limit=4)}", flush=True)
         finally:
             # clean: tear the benchmark down (build -> eval -> clean)
             svc.down()
