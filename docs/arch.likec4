@@ -30,7 +30,7 @@ model {
     pipelineRegistry = component "Pipeline Registry" {
       technology "Python class registry"
       description '''
-- Maps pipeline names to `Pipeline` subclasses (`cli/pipelines/__init__.py::get_pipelines`).
+- Maps pipeline names to `Pipeline` subclasses (`contractor/pipelines/__init__.py::get_pipelines`).
 - Current pipelines:
     `build`         → `OasBuildingPipeline`
     `enrich`        → `OasEnrichmentPipeline`

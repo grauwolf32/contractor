@@ -1,7 +1,7 @@
 # Tuning & Performance Knobs
 
 A consolidated inventory of every tunable parameter in Contractor — CLI flags,
-global settings, LiteLLM proxy config, per-pipeline agent budgets, task/planner
+global settings, LiteLLM proxy config, per-workflow agent budgets, task/planner
 limits, callback thresholds, and tool caps — plus a tuning playbook at the end.
 
 All file:line references are against the tree as analyzed; treat them as the
@@ -9,7 +9,7 @@ All file:line references are against the tree as analyzed; treat them as the
 
 > **TL;DR levers, highest impact first**
 > 1. `--model` / `default_model_name` — the single biggest quality+cost+latency lever.
-> 2. Per-pipeline `*_MAX_TOKENS` (summarization trigger) — context retained before compression.
+> 2. Per-workflow `*_MAX_TOKENS` (summarization trigger) — context retained before compression.
 > 3. Per-task `iterations` / `max_attempts` / `max_steps` — convergence vs. cost.
 > 4. Planner `max_steps` (subtask budget) — decomposition granularity.
 > 5. **Sampling params (temperature, top_p, reasoning_effort) — currently unset; see [§5](#5-sampling-params--currently-unset-lever).**
@@ -21,8 +21,8 @@ All file:line references are against the tree as analyzed; treat them as the
 
 ```
 CLI flag (cli/main.py)
-   └─► PipelineContext (cli/pipelines/__init__.py)        # model, timeout, paths, ui
-         └─► Pipeline assembler (cli/pipelines/<mode>.py) # *_MAX_TOKENS, max_steps, iterations
+   └─► WorkflowContext (contractor/workflows/__init__/workflow.py)        # model, timeout, paths, ui
+         └─► Workflow assembler (contractor/workflows/<mode>/workflow.py) # *_MAX_TOKENS, max_steps, iterations
                ├─► build_worker(...) (agents/worker_factory.py)   # token budget, elision, guardrails
                └─► TaskRunner.add_task(...) (runners/task_runner.py) # retry/iteration semantics
 Settings (.env via contractor/utils/settings.py)          # model alias default, proxy, langfuse, caido
@@ -32,8 +32,8 @@ LiteLLM proxy (deploy/litellm/litellm_config.yaml)        # model aliases, rpm/t
 Three editing surfaces:
 - **Per-run**: CLI flags.
 - **Per-environment**: `cli/.env` (`Settings`) and `litellm_config.yaml`.
-- **Per-pipeline / per-task (code)**: the `*_MAX_TOKENS` / `max_steps` / `iterations`
-  constants inside each `cli/pipelines/<mode>.py`, and the `build_worker(...)` defaults.
+- **Per-workflow / per-task (code)**: the `*_MAX_TOKENS` / `max_steps` / `iterations`
+  constants inside each `contractor/workflows/<mode>/workflow.py`, and the `build_worker(...)` defaults.
 
 ---
 
@@ -41,14 +41,14 @@ Three editing surfaces:
 
 | Flag | Type | Default | Effect on perf/quality/cost |
 |------|------|---------|------------------------------|
-| `--pipeline` | choice | `build` | Selects agent chain + task templates. |
+| `--workflow` | choice | `build` | Selects agent chain + task templates. |
 | `--project-path` | path | **required** | Sandbox root; scope of analysis = cost driver. |
 | `--folder-name` | str | `/` | Narrows template focus; does not change file-scan scope. |
 | `--artifact` | path | `None` | Seeds from a prior artifact; optional for enrich/trace/exploit/vuln (reuses store seed). |
 | `--user-id` | str | `cli-user` | Session/Langfuse/artifact namespace. |
 | `--model` | str | `Settings.default_model_name` | **Top lever.** LiteLLM alias, not a raw model name. |
 | `--timeout` | int (s) | `Settings.default_model_timeout` (300) | Per-request model timeout → completion-vs-timeout tradeoff. |
-| `--prompt` | str | `None` | Prompt-driven pipelines (router); required with `--no-ui`. |
+| `--prompt` | str | `None` | Prompt-driven workflows (router); required with `--no-ui`. |
 | `--rm` | flag | `False` | Clears prior artifacts (mutually exclusive with `--resume`). |
 | `--resume` | flag | `False` | Skips completed tasks via `checkpoint.json` — biggest re-run cost saver. |
 | `-o/--output` | path | `<project>/.contractor` | Artifact/checkpoint/metrics dir. |
@@ -85,7 +85,7 @@ Three editing surfaces:
 `lm-studio-nemotron`, `lm-studio-openai`, `lm-studio-qwen3.5`, `lm-studio-glm`,
 `lm-studio-qwen3.5-opus`, `lm-studio-qwen3.5-hauhau`, `lm-studio-qwen3.6` (default).
 
-> `rpm: 20` is the binding throughput limit for parallel/multi-task pipelines; raise it
+> `rpm: 20` is the binding throughput limit for parallel/multi-task workflows; raise it
 > if the backend can sustain more concurrency, otherwise tasks serialize behind it.
 
 ---
@@ -109,7 +109,7 @@ kwargs through `build_worker(...)`, or set defaults per-alias in `litellm_config
 
 ---
 
-## 6. Per-pipeline agent budgets & task limits
+## 6. Per-workflow agent budgets & task limits
 
 The `build_worker` factory defaults (`contractor/agents/worker_factory.py`):
 
@@ -121,10 +121,10 @@ The `build_worker` factory defaults (`contractor/agents/worker_factory.py`):
 | `repeated_call_threshold` | `5` (57) | Identical-consecutive-call count before loop advisory. |
 | `model` | `DEFAULT_MODEL` (53) | Per-agent model override. |
 
-Per-pipeline overrides (verified). `iter` = `iterations`, `att` = `max_attempts`,
+Per-workflow overrides (verified). `iter` = `iterations`, `att` = `max_attempts`,
 `steps` = planner subtask budget (`max_steps`):
 
-| Pipeline (file) | `*_MAX_TOKENS` | Task budgets (`iter`/`att`/`steps`) |
+| Workflow (file) | `*_MAX_TOKENS` | Task budgets (`iter`/`att`/`steps`) |
 |-----------------|----------------|--------------------------------------|
 | `oas_enrichment.py` | 120k (enrich agents) | enrich `3/6/30`; update `2/2/20` |
 | `oas_building.py` | 100k (swe/builder) | build `2/4/20`; others `1/2/20` |
@@ -159,7 +159,7 @@ Notes:
 | `default_iterations` / `format` (template) | `1` / `json` | From task YAML; resolution logic at `task_runner.py:366-381` enforces `max_attempts ≥ iterations ≥ 1`. |
 
 > **Resilience gap:** default `max_attempts == iterations`, so a single transient failure
-> kills a task unless the pipeline explicitly sets a buffer (as enrich/build do). Raising
+> kills a task unless the workflow explicitly sets a buffer (as enrich/build do). Raising
 > `max_attempts` above `iterations` is the cheap reliability knob.
 
 Task templates (`contractor/tasks/*.yml`) all currently use `iterations: 1` and
@@ -254,8 +254,8 @@ Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (ac
 **Speed / cost down (sacrifice depth):**
 - Use a smaller/faster `--model` alias; keep `default_model_timeout` modest.
 - `--resume` aggressively on re-runs.
-- Lower per-pipeline `*_MAX_TOKENS` (earlier summarization) and `elide_keep_last_n` (e.g. 8–10).
-- Trim `max_steps` on exploratory pipelines (`vuln_scan` 75→50, à la `_fast`).
+- Lower per-workflow `*_MAX_TOKENS` (earlier summarization) and `elide_keep_last_n` (e.g. 8–10).
+- Trim `max_steps` on exploratory workflows (`vuln_scan` 75→50, à la `_fast`).
 - Keep `use_langfuse=False`.
 
 **Quality / completeness up (accept cost):**
@@ -269,7 +269,7 @@ Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (ac
 
 **Throughput / parallelism:**
 - Raise per-alias `rpm` (default `20`) in `litellm_config.yaml` if the backend sustains it —
-  it's the binding limit for multi-task pipelines.
+  it's the binding limit for multi-task workflows.
 - Add `RpmRatelimitCallback`/`TpmRatelimitCallback` only where you need to *protect* a
   shared backend; they introduce blocking sleeps.
 
@@ -280,6 +280,6 @@ Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (ac
 ---
 
 *Generated from a code sweep of `cli/main.py`, `contractor/utils/settings.py`,
-`deploy/litellm/litellm_config.yaml`, `cli/pipelines/*.py`, `contractor/agents/worker_factory.py`,
+`deploy/litellm/litellm_config.yaml`, `contractor/workflows/*/workflow.py`, `contractor/agents/worker_factory.py`,
 `contractor/runners/*`, `contractor/agents/planning_agent/*`, `contractor/callbacks/*`,
 and `contractor/tools/*`. Verify line numbers before editing — they drift.*
