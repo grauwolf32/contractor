@@ -154,20 +154,8 @@ class RouterWorkflow(Workflow):
             emit=runner._emit,
         )
         plugins = [
-            AdkTracePlugin(
-                task_name=ROUTER_TASK_NAME,
-                task_id=ROUTER_TASK_ID,
-                iteration=1,
-                session_id=session_id,
-                emit=runner._emit,
-            ),
-            AdkMetricsPlugin(
-                task_name=ROUTER_TASK_NAME,
-                task_id=ROUTER_TASK_ID,
-                iteration=1,
-                session_id=session_id,
-                emit=runner._emit,
-            ),
+            AdkTracePlugin(**plugin_kwargs),
+            AdkMetricsPlugin(**plugin_kwargs),
         ]
 
         return await runner.run(
