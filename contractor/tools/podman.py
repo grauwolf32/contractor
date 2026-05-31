@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import hashlib
 import logging
 import shutil
 import subprocess
@@ -54,16 +55,26 @@ class SandboxError(RuntimeError):
     """Raised when the sandbox container cannot be created or exec'd."""
 
 
-def _short(invocation_id: str) -> str:
-    return "".join(c for c in invocation_id if c.isalnum())[:12] or "default"
+def _name_token(key: str) -> str:
+    """Collision-free, valid container-name token for a sandbox key."""
+    return hashlib.sha1(key.encode()).hexdigest()[:16]
+
+
+def _safe(key: str) -> str:
+    """Sanitise a key for use inside an artifact path."""
+    return "".join(c if c.isalnum() or c in "-_." else "-" for c in key) or "default"
 
 
 class KaliSandbox:
-    """One ephemeral podman container for a single agent-run."""
+    """One ephemeral podman container, keyed by a stable scope key.
+
+    The key is the worker's ``namespace`` (per-case / per-finding), so a single
+    container is reused across all of that run's tool calls and torn down once.
+    """
 
     def __init__(
         self,
-        invocation_id: str,
+        key: str,
         *,
         image: str = DEFAULT_SANDBOX_IMAGE,
         host_project_path: Optional[str] = None,
@@ -71,8 +82,8 @@ class KaliSandbox:
         cpus: str = "2",
         pids_limit: int = 512,
     ) -> None:
-        self.invocation_id = invocation_id
-        self.name = f"{_CONTAINER_PREFIX}{_short(invocation_id)}"
+        self.key = key
+        self.name = f"{_CONTAINER_PREFIX}{_name_token(key)}"
         self.image = image
         self.host_project_path = host_project_path
         self.memory = memory
@@ -195,30 +206,35 @@ class KaliSandbox:
         return CodeExecutionResult(stdout=out, stderr=err, output_files=output_files)
 
 
-# ── per-agent-run registry ───────────────────────────────────────────────
+# ── sandbox registry (keyed by scope key = worker namespace) ──────────────
 _SANDBOXES: dict[str, KaliSandbox] = {}
 _REGISTRY_LOCK = threading.Lock()
 
 
-def get_or_create_sandbox(invocation_id: str, **kwargs: Any) -> KaliSandbox:
+def get_or_create_sandbox(key: str, **kwargs: Any) -> KaliSandbox:
     with _REGISTRY_LOCK:
-        sb = _SANDBOXES.get(invocation_id)
+        sb = _SANDBOXES.get(key)
         if sb is None:
-            sb = KaliSandbox(invocation_id, **kwargs)
-            _SANDBOXES[invocation_id] = sb
+            sb = KaliSandbox(key, **kwargs)
+            _SANDBOXES[key] = sb
         return sb
 
 
-def teardown_sandbox(invocation_id: str) -> None:
-    """Remove the container for an agent-run (called by the cleanup plugin)."""
+def teardown_sandbox(key: str) -> None:
+    """Remove the container for one scope key."""
     with _REGISTRY_LOCK:
-        sb = _SANDBOXES.pop(invocation_id, None)
+        sb = _SANDBOXES.pop(key, None)
     if sb is not None:
         sb.teardown()
 
 
-@atexit.register
-def _sweep_sandboxes() -> None:
+def teardown_all() -> None:
+    """Remove every live sandbox. Called at run end (cleanup plugin) + atexit.
+
+    Safe because code-exec runs are sequential (the only parallel workflow,
+    trace_graph_pathpar, does not use code-exec), so no other run's sandbox is
+    active when one finishes.
+    """
     with _REGISTRY_LOCK:
         sandboxes = list(_SANDBOXES.values())
         _SANDBOXES.clear()
@@ -227,6 +243,9 @@ def _sweep_sandboxes() -> None:
             sb.teardown()
         except Exception:  # best-effort
             logger.exception("sandbox teardown failed for %s", sb.name)
+
+
+atexit.register(teardown_all)
 
 
 class KaliCodeExecutor(BaseCodeExecutor):
@@ -249,19 +268,15 @@ class KaliCodeExecutor(BaseCodeExecutor):
         return result
 
 
-def _invocation_id(tool_context: Optional[ToolContext]) -> str:
-    return getattr(tool_context, "invocation_id", None) or "default"
-
-
 async def _save_artifacts(
-    tool_context: Optional[ToolContext], namespace: str, inv: str,
+    tool_context: Optional[ToolContext], namespace: str,
     script: Optional[str], output_files: list[File],
 ) -> list[str]:
     """Persist the executed script + any created files as artifacts."""
     if tool_context is None:
         return []
     saved: list[str] = []
-    base = f"code-exec/{namespace}/{_short(inv)}"
+    base = f"code-exec/{_safe(namespace)}"
     try:
         if script is not None:
             key = f"{base}/script_{abs(hash(script)) % 10000:04d}.py"
@@ -295,9 +310,11 @@ def code_exec_tools(
     """
     host_project_path = getattr(fs, "root_path", None)
 
-    def _executor(inv: str) -> KaliSandbox:
+    def _sandbox() -> KaliSandbox:
+        # Keyed by the per-case namespace → one container per run, reused across
+        # this run's tool calls and torn down once at run end.
         return get_or_create_sandbox(
-            inv, image=image, host_project_path=host_project_path)
+            namespace, image=image, host_project_path=host_project_path)
 
     async def run_python(
         code: str,
@@ -325,11 +342,10 @@ def code_exec_tools(
             stdout, stderr, exit_code, and the artifact keys of the saved script
             and any files the script produced.
         """
-        inv = _invocation_id(tool_context)
         result, script = await asyncio.to_thread(
-            _executor(inv).run_python, code, preinit, int(timeout_s))
+            _sandbox().run_python, code, preinit, int(timeout_s))
         saved = await _save_artifacts(
-            tool_context, namespace, inv, script, result.output_files)
+            tool_context, namespace, script, result.output_files)
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
@@ -354,11 +370,10 @@ def code_exec_tools(
         Returns:
             stdout, stderr, and the artifact keys of any files produced.
         """
-        inv = _invocation_id(tool_context)
         result = await asyncio.to_thread(
-            _executor(inv).run_bash, command, int(timeout_s))
+            _sandbox().run_bash, command, int(timeout_s))
         saved = await _save_artifacts(
-            tool_context, namespace, inv, None, result.output_files)
+            tool_context, namespace, None, result.output_files)
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
@@ -375,5 +390,6 @@ __all__ = [
     "code_exec_tools",
     "get_or_create_sandbox",
     "teardown_sandbox",
+    "teardown_all",
     "DEFAULT_SANDBOX_IMAGE",
 ]

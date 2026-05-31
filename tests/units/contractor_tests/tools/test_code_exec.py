@@ -123,6 +123,44 @@ def test_registry_and_teardown_sandbox(fake_podman):
     assert get_or_create_sandbox("inv-reg") is not sb
 
 
+def test_sandbox_keyed_by_namespace(fake_podman):
+    # same namespace → same container reused; different namespace → distinct
+    a = get_or_create_sandbox("exploit:case-1")
+    assert get_or_create_sandbox("exploit:case-1") is a
+    b = get_or_create_sandbox("exploit:case-2")
+    assert b is not a and b.name != a.name
+
+
+def test_teardown_all_sweeps_registry(fake_podman):
+    from contractor.tools.podman import _SANDBOXES, teardown_all
+    a = get_or_create_sandbox("ns-a")
+    a.ensure_started()
+    b = get_or_create_sandbox("ns-b")
+    b.ensure_started()
+    teardown_all()
+    assert ["podman", "rm", "-f", a.name] in fake_podman.calls
+    assert ["podman", "rm", "-f", b.name] in fake_podman.calls
+    assert not _SANDBOXES
+
+
+@pytest.mark.asyncio
+async def test_cleanup_plugin_sweeps_only_on_root(monkeypatch):
+    import contractor.runners.plugins.sandbox_cleanup as mod
+    swept = []
+    monkeypatch.setattr(mod, "teardown_all", lambda: swept.append(1))
+    p = mod.SandboxCleanupPlugin()
+
+    class IC:
+        def __init__(self, i): self.invocation_id = i
+
+    await p.before_run_callback(invocation_context=IC("P"))  # outer run
+    await p.before_run_callback(invocation_context=IC("W"))  # inner AgentTool run
+    await p.after_run_callback(invocation_context=IC("W"))   # inner end → no sweep
+    assert swept == []
+    await p.after_run_callback(invocation_context=IC("P"))   # outer end → sweep once
+    assert swept == [1]
+
+
 @pytest.mark.asyncio
 async def test_code_exec_tools_surface_and_result(fake_podman):
     tools = code_exec_tools(namespace="exploit:demo", fs=None)
