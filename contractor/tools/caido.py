@@ -252,6 +252,61 @@ query ReplayEntry($id: ID!) {
 """
 
 
+_WORKFLOWS_QUERY = """
+query Workflows {
+  workflows {
+    id
+    name
+    kind
+    enabled
+    global
+  }
+}
+"""
+
+_RUN_CONVERT_WORKFLOW = """
+mutation RunConvertWorkflow($id: ID!, $input: Blob!) {
+  runConvertWorkflow(id: $id, input: $input) {
+    output
+    error {
+      __typename
+      ... on OtherUserError { code }
+    }
+  }
+}
+"""
+
+_RUN_ACTIVE_WORKFLOW = """
+mutation RunActiveWorkflow($id: ID!, $input: RunActiveWorkflowInput!) {
+  runActiveWorkflow(id: $id, input: $input) {
+    task { id createdAt workflow { id name } }
+    error {
+      __typename
+      ... on OtherUserError { code }
+    }
+  }
+}
+"""
+
+_FINDINGS_QUERY = """
+query FindingsByOffset($limit: Int, $offset: Int, $order: FindingOrderInput) {
+  findingsByOffset(limit: $limit, offset: $offset, order: $order) {
+    count { value }
+    nodes {
+      id
+      title
+      description
+      host
+      path
+      reporter
+      createdAt
+      request { id method host path }
+    }
+  }
+}
+"""
+
+
 class CaidoError(Exception):
     pass
 
@@ -854,6 +909,128 @@ class CaidoTools:
         except CaidoError as exc:
             return {"error": str(exc)}
 
+    async def workflow_list(self, kind: str = "") -> dict[str, Any]:
+        """List workflows installed in Caido (optionally filtered by kind)."""
+        try:
+            data = await self.cli.execute(_WORKFLOWS_QUERY)
+            workflows = data.get("workflows", [])
+            want = kind.strip().upper()
+            if want:
+                workflows = [w for w in workflows if w.get("kind") == want]
+            return {
+                "workflows": [
+                    {
+                        "id": w["id"],
+                        "name": w.get("name", ""),
+                        "kind": (w.get("kind") or "").lower(),
+                        "enabled": w.get("enabled", False),
+                        "global": w.get("global", False),
+                    }
+                    for w in workflows
+                ]
+            }
+        except CaidoError as exc:
+            return {"error": str(exc)}
+
+    async def workflow_run(
+        self,
+        workflow_id: str,
+        input: str = "",
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Run a CONVERT or ACTIVE workflow.
+
+        Dispatch is by argument: ``request_id`` → ACTIVE workflow (runs
+        against a captured request), otherwise ``input`` → CONVERT workflow
+        (transforms the text). PASSIVE workflows are not run on demand —
+        enable them once and read output via ``workflow_findings``.
+        """
+        try:
+            if not workflow_id:
+                return {"error": "workflow_id is required"}
+
+            if request_id:
+                data = await self.cli.execute(
+                    _RUN_ACTIVE_WORKFLOW,
+                    variables={
+                        "id": workflow_id,
+                        "input": {"requestId": request_id},
+                    },
+                )
+                payload = data.get("runActiveWorkflow", {})
+                if payload.get("error"):
+                    return {"error": f"active workflow failed: {payload['error']}"}
+                task = payload.get("task") or {}
+                return {
+                    "kind": "active",
+                    "workflow_id": workflow_id,
+                    "request_id": request_id,
+                    "task_id": task.get("id"),
+                    "status": "started",
+                    "message": (
+                        "Active workflow started against the request. Any findings "
+                        "it raises are readable via caido_workflow_findings."
+                    ),
+                }
+
+            if not input:
+                return {
+                    "error": "provide input (for a convert workflow) or "
+                    "request_id (for an active workflow)"
+                }
+
+            raw_b64 = base64.b64encode(input.encode()).decode()
+            data = await self.cli.execute(
+                _RUN_CONVERT_WORKFLOW,
+                variables={"id": workflow_id, "input": raw_b64},
+            )
+            payload = data.get("runConvertWorkflow", {})
+            if payload.get("error"):
+                return {"error": f"convert workflow failed: {payload['error']}"}
+            return {
+                "kind": "convert",
+                "workflow_id": workflow_id,
+                "output": _decode_blob(payload.get("output")),
+            }
+        except CaidoError as exc:
+            return {"error": str(exc)}
+
+    async def workflow_findings(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Read findings raised by passive workflows (newest first)."""
+        try:
+            data = await self.cli.execute(
+                _FINDINGS_QUERY,
+                variables={
+                    "limit": min(max(limit, 1), 100),
+                    "offset": max(offset, 0),
+                    "order": {"by": "ID", "ordering": "DESC"},
+                },
+            )
+            conn = data.get("findingsByOffset", {})
+            findings: list[dict[str, Any]] = []
+            for node in conn.get("nodes", []):
+                req = node.get("request") or {}
+                findings.append({
+                    "id": node["id"],
+                    "title": node.get("title", ""),
+                    "description": node.get("description", ""),
+                    "reporter": node.get("reporter", ""),
+                    "host": node.get("host", ""),
+                    "path": node.get("path", ""),
+                    "created_at": node.get("createdAt", ""),
+                    "request_id": req.get("id"),
+                })
+            return {
+                "count": conn.get("count", {}).get("value", 0),
+                "findings": findings,
+            }
+        except CaidoError as exc:
+            return {"error": str(exc)}
+
 
 def caido_tools(
     name: str,
@@ -1147,6 +1324,105 @@ def caido_tools(
             )
         )
 
+    # ------------------------------------------------------------------
+    # 8. caido_workflow_list
+    # ------------------------------------------------------------------
+    async def caido_workflow_list(
+        kind: str = "",
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """List the workflows installed in Caido.
+
+        Workflows are reusable automations. Three kinds:
+          - ``convert`` — transform text; run with caido_workflow_run(input=...).
+          - ``active`` — run a check against a captured request; run with
+            caido_workflow_run(request_id=...).
+          - ``passive`` — auto-run on proxied traffic; their output is read
+            via caido_workflow_findings (not run on demand).
+
+        Call this first to discover available workflow ids and kinds — the
+        installed set grows over time. See the ``caido`` skill for which
+        workflows are worth using and when.
+
+        Args:
+            kind: optional filter — "convert", "active", or "passive".
+
+        Returns:
+            {"workflows": [{id, name, kind, enabled, global}, ...]}.
+        """
+
+        return await aguard(lambda: backend.workflow_list(kind=kind))
+
+    # ------------------------------------------------------------------
+    # 9. caido_workflow_run
+    # ------------------------------------------------------------------
+    async def caido_workflow_run(
+        workflow_id: str,
+        input: str = "",
+        request_id: str = "",
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Run a Caido convert or active workflow.
+
+        Dispatch is by argument:
+          - pass ``input`` to run a CONVERT workflow on that text — returns
+            the transformed ``output`` (e.g. generate a GraphQL introspection
+            query, build a Python PoC from a raw request, pad a request to
+            bypass a WAF).
+          - pass ``request_id`` (from caido_history) to run an ACTIVE workflow
+            against that request — returns a task id; any findings it raises
+            are readable via caido_workflow_findings.
+
+        Get workflow ids from caido_workflow_list. PASSIVE workflows cannot be
+        run here — they fire automatically on proxied traffic.
+
+        Args:
+            workflow_id: the workflow id (e.g. "g:2" or a uuid).
+            input: text to transform (convert workflows).
+            request_id: request to run against (active workflows).
+
+        Returns:
+            convert → {"kind": "convert", "output": "..."}; active →
+            {"kind": "active", "task_id": ..., "status": "started"}.
+        """
+
+        return await aguard(
+            lambda: backend.workflow_run(
+                workflow_id=workflow_id,
+                input=input,
+                request_id=request_id,
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # 10. caido_workflow_findings
+    # ------------------------------------------------------------------
+    async def caido_workflow_findings(
+        limit: int = 20,
+        offset: int = 0,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Read findings raised by passive workflows (and other reporters).
+
+        Passive workflows (e.g. secret/leak detectors, SSRF/open-redirect
+        param spotters, SSO detectors) run automatically on every request that
+        flows through the Caido proxy and record structured findings. Call this
+        to harvest those signals for the request traffic the assessment has
+        generated. The ``reporter`` field identifies which workflow raised it.
+
+        Args:
+            limit: max findings to return (1-100), newest first.
+            offset: pagination offset.
+
+        Returns:
+            {"count": N, "findings": [{id, title, description, reporter,
+            host, path, request_id, created_at}, ...]}.
+        """
+
+        return await aguard(
+            lambda: backend.workflow_findings(limit=limit, offset=offset)
+        )
+
     return [
         caido_scope,
         caido_history,
@@ -1155,4 +1431,7 @@ def caido_tools(
         caido_automate_run,
         caido_automate_results,
         caido_sitemap,
+        caido_workflow_list,
+        caido_workflow_run,
+        caido_workflow_findings,
     ]
