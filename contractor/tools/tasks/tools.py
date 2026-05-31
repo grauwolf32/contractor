@@ -346,14 +346,19 @@ def task_tools(
             decomposition: Ordered list of 1-3 subtasks covering all
                 remaining work.
         """
+        # Models often emit the decomposition as a JSON string instead of a
+        # structured arg; parse it rather than bouncing a wasted turn back.
         if isinstance(decomposition, str):
-            return {
-                "error": (
-                    "TypeError: 'decomposition' must be a SubtaskDecomposition "
-                    "object, not a string. Expected schema:\n"
-                    f"{_SUBTASK_DECOMPOSITION_SCHEMA_JSON}"
-                )
-            }
+            try:
+                decomposition = json.loads(decomposition)
+            except (ValueError, TypeError):
+                return {
+                    "error": (
+                        "TypeError: 'decomposition' must be a SubtaskDecomposition "
+                        "object, not a string. Expected schema:\n"
+                        f"{_SUBTASK_DECOMPOSITION_SCHEMA_JSON}"
+                    )
+                }
         # Models often emit the bare subtask array instead of the wrapper
         # object; accept that shape rather than crashing on `.subtasks`.
         if isinstance(decomposition, list):
