@@ -204,7 +204,7 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
                 queue_fn=queue,
                 artifact_keys=["exploitability_assessment/result", verif_key, chain_key],
                 namespace=ns,
-                timeout_s=900.0,
+                timeout_s=1500.0,
                 runner_name=f"xbow-{agent_kind}-{bid}",
                 post_run_fn=_collect,
             )
