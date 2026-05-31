@@ -110,6 +110,7 @@ def _build_agent_builder(agent_kind, *, ns, tag_prefix, model, caido_url,
             caido_url=caido_url,
             caido_auth_token=caido_auth_token,
             request_tag_prefix=tag_prefix,
+            with_code_exec=True,
         )
     from cli.fs import RootedLocalFileSystem
 
@@ -124,6 +125,7 @@ def _build_agent_builder(agent_kind, *, ns, tag_prefix, model, caido_url,
         caido_url=caido_url,
         caido_auth_token=caido_auth_token,
         request_tag_prefix=tag_prefix,
+        with_code_exec=True,
     )
 
 
@@ -184,7 +186,7 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
                     max_attempts=2,
                     max_steps=30,
                     namespace=_ns,
-                    skills=["exploit"],
+                    skills=["exploit", "code-exec"],
                     model=eval_model,
                     params={**_f, "source_namespace": _ns},
                 )

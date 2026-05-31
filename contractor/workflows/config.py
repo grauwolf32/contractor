@@ -64,11 +64,14 @@ class AgentToolConfig:
     ``output_format`` is the shared ``_format`` knob (json / xml / yaml /
     markdown — fs/openapi formatters fall back to json for unsupported
     renderers). ``with_graph_tools`` attaches the trailmark call-graph tools
-    (only honoured by factories that accept it).
+    (only honoured by factories that accept it). ``with_code_exec`` attaches
+    the podman-backed ``run_python`` / ``execute_bash`` sandbox tools (exploit
+    agents only).
     """
 
     output_format: str = "json"
     with_graph_tools: bool = False
+    with_code_exec: bool = False
 
 
 class WorkflowConfig:
