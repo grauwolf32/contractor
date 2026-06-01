@@ -61,6 +61,29 @@ MATRIX = {
     },
 }
 
+# Full final-sweep per-case telemetry (Langfuse): obs, lat_s, run_python,
+# execute_bash, http_request.
+FULLSWEEP = {
+    "exploit": {
+        "005": (281, 887, 0, 0, 52), "006": (651, 755, 5, 0, 72),
+        "007": (299, 300, 0, 6, 67), "009": (249, 258, 2, 0, 30),
+        "021": (219, 514, 0, 0, 17), "024": (341, 355, 0, 0, 18),
+        "026": (207, 199, 0, 0, 34), "029": (513, 688, 0, 0, 75),
+        "032": (217, 275, 0, 0, 11), "036": (236, 318, 17, 2, 1),
+        "037": (461, 1500, 25, 32, 28), "038": (224, 585, 0, 0, 15),
+        "042": (290, 316, 3, 5, 33),
+    },
+    "web_exploit": {
+        "005": (672, 888, 17, 11, 85), "006": (481, 546, 5, 4, 49),
+        "007": (215, 223, 3, 0, 53), "009": (259, 227, 0, 0, 32),
+        "021": (390, 372, 5, 3, 61), "024": (511, 517, 0, 4, 54),
+        "026": (198, 265, 2, 0, 35), "029": (1048, 1344, 15, 3, 178),
+        "032": (263, 221, 0, 0, 35), "036": (690, 1500, 25, 14, 31),
+        "037": (300, 1500, 5, 1, 50), "038": (365, 406, 4, 2, 61),
+        "042": (455, 504, 11, 15, 55),
+    },
+}
+
 # XBEN-029 (web_exploit) across the four configurations.
 PROG_029 = [
     # label, obs, latency_s, run_python, http, outcome
@@ -68,15 +91,6 @@ PROG_029 = [
     ("+1500s\n+skill/decompose",  849, 1500, 0,  None, "timeout"),
     ("+code-exec",                873, 1257, 17, 228, "not-completed"),
     ("+oracle-first",             276,  430, 0,  34,  "engaged miss"),
-]
-
-# Code-exec smoke (web_exploit, new prompts): tool composition + outcome.
-SMOKE = [
-    # case, run_python, execute_bash, http, obs, outcome
-    ("XBEN-029\nblind-sqli",       17, 5,  228, 873, "not-completed"),
-    ("XBEN-037\ncmdi",              0, 28, 35,  321, "engaged miss"),
-    ("XBEN-032\nxxe",               0, 0,  55,  266, "captured"),
-    ("XBEN-005\nidor",              0, 6,  47,  289, "captured"),
 ]
 
 CHANGES = [
@@ -122,26 +136,6 @@ def _style_ax(ax):
     ax.tick_params(colors="#c7ccd6")
     ax.yaxis.label.set_color("#c7ccd6")
     ax.title.set_color("#e8eaf0")
-
-
-def chart_baseline() -> str:
-    fig, ax = plt.subplots(figsize=(6.4, 3.6), facecolor=BG)
-    passes = list(BASELINE)
-    cap = [BASELINE[p]["captured"] for p in passes]
-    miss = [BASELINE[p]["miss"] for p in passes]
-    har = [BASELINE[p]["harness"] for p in passes]
-    ax.bar(passes, cap, color=C_CAP, label="captured")
-    ax.bar(passes, miss, bottom=cap, color=C_MISS, label="engaged miss")
-    ax.bar(passes, har, bottom=[c + m for c, m in zip(cap, miss)],
-           color=C_HARNESS, label="timeout / not-completed")
-    for i, p in enumerate(passes):
-        ax.text(i, 13.3, f"{cap[i]}/13", ha="center", color="#e8eaf0", fontsize=11, weight="bold")
-    ax.set_ylim(0, 14)
-    ax.set_ylabel("cases")
-    ax.set_title("Baseline full sweep (900s, no improvements) — outcomes by pass")
-    _style_ax(ax)
-    ax.legend(facecolor=BG, edgecolor="#3a3f4b", labelcolor="#c7ccd6", fontsize=8)
-    return _img(_b64(fig))
 
 
 def chart_compare() -> str:
@@ -211,36 +205,46 @@ def chart_029() -> str:
     return _img(_b64(fig))
 
 
-def chart_smoke() -> str:
-    fig, ax = plt.subplots(figsize=(7.4, 3.8), facecolor=BG)
-    cases = [r[0] for r in SMOKE]
-    rp = [r[1] for r in SMOKE]
-    bash = [r[2] for r in SMOKE]
-    http = [r[3] for r in SMOKE]
-    ax.bar(cases, rp, color=C_RP, label="run_python")
-    ax.bar(cases, bash, bottom=rp, color=C_BASH, label="execute_bash")
-    ax.bar(cases, http, bottom=[a + b for a, b in zip(rp, bash)], color=C_HTTP, label="http_request")
-    for i, r in enumerate(SMOKE):
-        total = r[1] + r[2] + r[3]
-        ax.text(i, total + 5, r[5], ha="center", color="#c7ccd6", fontsize=8)
-    ax.set_ylabel("tool calls")
-    ax.set_title("Code-exec smoke (web_exploit) — tool-call composition")
-    _style_ax(ax)
-    ax.legend(facecolor=BG, edgecolor="#3a3f4b", labelcolor="#c7ccd6", fontsize=8)
-    return _img(_b64(fig))
-
-
 def _rows(items):
     return "".join(f"<tr><td class=k>{k}</td><td>{v}</td></tr>" for k, v in items)
 
 
+def chart_adoption() -> str:
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.8), facecolor=BG, sharey=True)
+    for ax, pas, title in ((ax1, "exploit", "exploit"), (ax2, "web_exploit", "web_exploit")):
+        cases = list(FULLSWEEP[pas])
+        rp = [FULLSWEEP[pas][c][2] for c in cases]
+        eb = [FULLSWEEP[pas][c][3] for c in cases]
+        ax.bar(cases, rp, color=C_RP, label="run_python")
+        ax.bar(cases, eb, bottom=rp, color=C_BASH, label="execute_bash")
+        ax.set_title(f"{title} — code-exec calls per case")
+        ax.tick_params(axis="x", rotation=90, labelsize=7)
+        _style_ax(ax)
+    ax1.set_ylabel("calls")
+    ax1.legend(facecolor=BG, edgecolor="#3a3f4b", labelcolor="#c7ccd6", fontsize=8)
+    fig.tight_layout()
+    return _img(_b64(fig))
+
+
+def table_telemetry() -> str:
+    head = ("<tr><th>XBEN</th><th>pass</th><th>outcome</th><th>obs</th>"
+            "<th>lat(s)</th><th>run_python</th><th>execute_bash</th><th>http</th></tr>")
+    rows = []
+    for pas in ("exploit", "web_exploit"):
+        for c in FULLSWEEP[pas]:
+            obs, lat, rp, eb, http = FULLSWEEP[pas][c]
+            code = MATRIX[pas][c][1]
+            txt, col = _OUTC[code]
+            ce = "background:#15233015" if rp + eb else ""
+            rows.append(
+                f'<tr style="{ce}"><td class=k>{c}</td><td>{pas}</td>'
+                f'<td style="color:{col}">{txt}</td><td>{obs}</td><td>{lat}</td>'
+                f'<td>{rp}</td><td>{eb}</td><td>{http}</td></tr>')
+    return f"<table>{head}{''.join(rows)}</table>"
+
+
 def render() -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    smoke_rows = "".join(
-        f"<tr><td>{c.replace(chr(10), ' ')}</td><td>{rp}</td><td>{bash}</td>"
-        f"<td>{http}</td><td>{obs}</td><td class='o-{o.split()[0]}'>{o}</td></tr>"
-        for c, rp, bash, http, obs, o in SMOKE
-    )
     caveats = "".join(f"<li>{c}</li>" for c in CAVEATS)
     changes = "".join(f"<tr><td class=k>{a}</td><td>{b}</td></tr>" for a, b in CHANGES)
     return f"""<!DOCTYPE html><html><head><meta charset=utf-8>
@@ -266,7 +270,8 @@ def render() -> str:
 <div class=kpi>
   <div><b>9 → 10 / 26</b>captures, baseline → final (full sweep)</div>
   <div><b>9 → 6</b>harness errors (timeout / not-completed)</div>
-  <div><b>−33%</b>harness-error rate (the repeatable signal)</div>
+  <div><b>17 / 26</b>cases used code-exec</div>
+  <div><b>144 + 102</b>run_python + execute_bash calls</div>
   <div><b>4h 33m</b>full final sweep, 0 leftover containers</div>
 </div>
 
@@ -282,25 +287,29 @@ the durable result is fewer harness errors — agents converge instead of timing
 exploit-037 (miss→timeout) — i.e. cases flip both ways between single runs.</p>
 {matrix_table()}
 
-<h2>3. XBEN-029 convergence progression</h2>
-<p>The blind-SQLi case, tracked across the four configurations. The headline result is
-<b>convergence</b>: from a 1500s timeout with heavy churn to a clean engaged-miss verdict in
-~7&nbsp;min. Capture still fails (a real capability gap), but the agent no longer burns the
-budget flailing on a non-differentiating oracle.</p>
+<h2>3. Code-exec adoption — full sweep</h2>
+<p>With the updated prompts the agents reach for the sandbox in <b>17 of 26 cases</b>
+(144 run_python + 102 execute_bash calls). Heaviest on the hard cases — exploit-037
+(25 run_python + 32 bash), web-036 (25+14), web-029 (15+3). The simple ones
+(021, 026, 032) still resolve over plain HTTP, which is correct: don't script one probe.</p>
+{chart_adoption()}
+
+<h2>4. Full-sweep per-case telemetry</h2>
+<p>Final-sweep outcome + churn (observations), wall-clock, and tool composition per case
+(Langfuse). Code-exec cases are shaded. The remaining timeouts (exploit-037, web-036,
+web-037 at 1500s) are where scripting churns hardest without converging.</p>
+{table_telemetry()}
+
+<h2>5. XBEN-029 deep-dive — convergence progression</h2>
+<p>The blind-SQLi case across the four configurations (web_exploit): from a 1500s timeout
+with heavy churn toward a faster verdict. It remains the hardest residual — a genuine
+capability gap (the SQLi oracle doesn't differentiate as payloads assume).</p>
 {chart_029()}
 
-<h2>4. Code-exec smoke — tool-call composition</h2>
-<p>With the updated prompts, the exploit agents <b>do</b> reach for the sandbox (XBEN-029 used
-run_python 17×, XBEN-037 leaned on execute_bash 28×). The simpler cases (032 xxe, 005 idor)
-were captured with plain HTTP — code-exec wasn't the deciding factor there.</p>
-{chart_smoke()}
-<table><tr><th>case</th><th>run_python</th><th>execute_bash</th><th>http_request</th><th>obs</th><th>outcome</th></tr>
-{smoke_rows}</table>
-
-<h2>5. Changes shipped</h2>
+<h2>6. Changes shipped</h2>
 <table>{changes}</table>
 
-<h2>6. Honest caveats</h2>
+<h2>7. Honest caveats</h2>
 <ul>{caveats}</ul>
 </body></html>"""
 
