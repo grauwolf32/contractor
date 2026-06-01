@@ -77,8 +77,27 @@ print("RECOVERED:", val)
 - **Budget**: each call has its own `timeout_s` — give loops a realistic cap and
   print progress with `flush=True` so partial results survive a timeout.
 
+## Reporting what a script found — REQUIRED
+
+The sandbox's HTTP happens *inside the container* (via `requests`/`curl`), so
+those requests are **not** in the auto-collected proof chain (`request_ids`),
+and a script's stdout is **not** your verdict. So whatever a script recovers —
+a password, token, flag, or other proof — you MUST carry it into the verdict
+yourself:
+
+1. **State the recovered value in `submit_verdict`** (evidence/summary). A value
+   a script found but you didn't report does not count.
+2. **For a citable proof request**, re-issue the single decisive request once via
+   the `http_request` tool (which IS tagged) and cite its tag in `request_ids` —
+   e.g. after a scripted login-bypass, replay the one authenticated request that
+   shows impact.
+
 ## Discipline
 
+- **One robust script, not many attempts.** Add error handling and print
+  progress; if a script errors, fix *that* error and re-run — don't fire off a
+  dozen near-identical scripts (that's the same churn, just moved into the
+  sandbox).
 - Don't re-run an identical script; build on what the previous call produced.
 - Stay on the authorized target host. The sandbox is for testing the target, not
   the host it runs on.
