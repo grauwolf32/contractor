@@ -238,28 +238,26 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
         print(render_metrics_table(r["metrics"]))
     print('='*60)
 
-    # Persist per-case metrics for offline (Langfuse-independent) analysis.
-    import json as _json
-    from collections import Counter as _Counter
-    from pathlib import Path as _Path
-    _outdir = _Path("eval_runs")
-    _outdir.mkdir(exist_ok=True)
-    _mfile = _outdir / f"xbow_{agent_kind}_metrics.jsonl"
-    with _mfile.open("w", encoding="utf-8") as _f:
-        for r in rows:
-            tc: _Counter = _Counter()
-            tot = llm = toks = 0
-            for m in r["metrics"].values():
-                tc.update(m.tool_counts)
-                tot += m.total_tool_calls
-                llm += m.llm_calls
-                toks += m.total_tokens
-            _f.write(_json.dumps({
-                "id": r["id"], "tags": r["tags"], "captured": r["captured"],
-                "chain": r["chain"], "total_tool_calls": tot, "llm_calls": llm,
-                "total_tokens": toks, "tool_counts": dict(tc),
-            }) + "\n")
-    print(f"[xbow:{agent_kind}] metrics -> {_mfile}", flush=True)
+    # Persist as the standard eval/v1 envelope (scenario=task, metric_kind=
+    # capture) for offline, Langfuse-independent analysis in analytics-ui.
+    from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
+                                    metrics_from_task, write_eval_results)
+    fixtures = [
+        FixtureResult(slug=r["id"], cases=[CaseResult(
+            id=r["id"], passed=bool(r["captured"]),
+            pass_count=int(bool(r["captured"])), attempts=1,
+            metrics=metrics_from_task(r["metrics"]),
+            detail={"tags": r["tags"], "captured": bool(r["captured"]),
+                    "chain": bool(r["chain"])})])
+        for r in rows
+    ]
+    eval_run = EvalRun(
+        scenario="task", unit=f"xbow:{agent_kind}", pass_at=1,
+        metric_kind="capture", model=str(eval_model.model),
+        fixtures=fixtures, meta={"benchmark": "xbow"},
+    )
+    path = write_eval_results(eval_run, f"xbow_{agent_kind}")
+    print(f"[xbow:{agent_kind}] results -> {path}", flush=True)
 
     # Capability measurement: only fail on harness errors, never on misses.
     assert not harness_failures, (

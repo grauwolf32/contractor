@@ -238,6 +238,23 @@ def _eval_observability() -> None:
 
 
 @pytest.fixture(scope="session")
+def eval_sink():
+    """Session-wide collector that writes one ``eval/v1`` envelope per
+    ``(scenario, unit)`` at the end of the run.
+
+    Per-fixture eval tests call ``eval_sink.record(...)`` once with their scored
+    :class:`~tests.eval.results.CaseResult`; the aggregated envelopes land in
+    ``eval_runs/<unit>/eval_results.json`` for analytics-ui.
+    """
+    from tests.eval.results import EvalSink
+
+    sink = EvalSink()
+    yield sink
+    for path in sink.flush():
+        print(f"[eval_sink] results -> {path}", flush=True)
+
+
+@pytest.fixture(scope="session")
 def eval_model() -> LiteLlm:
     """LiteLlm instance used by eval agents.
 

@@ -311,7 +311,7 @@ def write_eval_results(run: EvalRun, out_dir: Path | str) -> Path:
     ``eval_runs/``. The directory is created if missing.
     """
     out = Path(out_dir)
-    if not out.is_absolute() and out_dir == out.name:
+    if not out.is_absolute() and str(out_dir) == out.name:
         out = EVAL_ROOT / out
     out.mkdir(parents=True, exist_ok=True)
     path = out / "eval_results.json"
@@ -320,3 +320,61 @@ def write_eval_results(run: EvalRun, out_dir: Path | str) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+# ───────────────────────── session sink (for pytest gates) ─────────────────────────
+
+
+def _safe_name(unit: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in unit)
+
+
+class EvalSink:
+    """Accumulates per-case results across a pytest session and, on flush,
+    writes one ``eval_results.json`` envelope per ``(scenario, unit)`` group.
+
+    Per-fixture pytest evals are isolated test invocations, so they can't build
+    an aggregate run themselves. Each records a single :class:`CaseResult` here
+    via :meth:`record`; the session-scoped fixture flushes them at the end. A
+    partial pytest selection simply produces a partial (but valid) envelope.
+    """
+
+    def __init__(self) -> None:
+        self._runs: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def record(
+        self,
+        *,
+        scenario: Scenario,
+        unit: str,
+        metric_kind: MetricKind,
+        fixture: str,
+        case: CaseResult,
+        model: Optional[str] = None,
+        prompt_version: Optional[str] = None,
+        pass_at: int = 1,
+        run_name: Optional[str] = None,
+        meta: Optional[dict[str, Any]] = None,
+    ) -> None:
+        key = (scenario, unit)
+        run = self._runs.setdefault(key, {
+            "scenario": scenario, "unit": unit, "metric_kind": metric_kind,
+            "model": model, "prompt_version": prompt_version, "pass_at": pass_at,
+            "run_name": run_name or _safe_name(unit), "meta": meta or {},
+            "fixtures": {},
+        })
+        run["fixtures"].setdefault(fixture, []).append(case)
+        run["pass_at"] = max(run["pass_at"], pass_at)
+
+    def flush(self) -> list[Path]:
+        paths = []
+        for run in self._runs.values():
+            fixtures = [FixtureResult(slug=s, cases=cs)
+                        for s, cs in run["fixtures"].items()]
+            eval_run = EvalRun(
+                scenario=run["scenario"], unit=run["unit"], pass_at=run["pass_at"],
+                metric_kind=run["metric_kind"], model=run["model"],
+                prompt_version=run["prompt_version"], fixtures=fixtures, meta=run["meta"],
+            )
+            paths.append(write_eval_results(eval_run, run["run_name"]))
+        return paths

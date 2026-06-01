@@ -5,8 +5,9 @@ import asyncio
 import json
 
 from tests.eval.results import (SCHEMA, AttemptOutcome, CaseResult, EvalRun,
-                                 FixtureResult, derive_headline, derive_totals,
-                                 metrics_from_task, pass_at, write_eval_results)
+                                 EvalSink, FixtureResult, derive_headline,
+                                 derive_totals, metrics_from_task, pass_at,
+                                 write_eval_results)
 
 
 def _outcome(passed, **detail):
@@ -164,6 +165,27 @@ def test_envelope_shape_and_embedded_snapshot():
     assert env["totals"]["cases"] == 1
     # fixtures carry per-case records
     assert env["fixtures"][0]["cases"][0]["id"] == "XBEN-032-24"
+
+
+def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+
+    sink = EvalSink()
+    sink.record(scenario="task", unit="oas_build", metric_kind="diff",
+                fixture="vulnyapi", case=CaseResult("vulnyapi", True, 1, 1, detail={"f1": 1.0}),
+                model="m", pass_at=2)
+    sink.record(scenario="task", unit="oas_build", metric_kind="diff",
+                fixture="petstore", case=CaseResult("petstore", False, 0, 1, detail={"f1": 0.0}))
+    sink.record(scenario="agent", unit="swe_edit_agent", metric_kind="generic",
+                fixture="fx", case=CaseResult("fx", True, 1, 1))
+    paths = sink.flush()
+    assert len(paths) == 2   # two (scenario, unit) groups
+    names = sorted(p.parent.name for p in paths)
+    assert names == ["oas_build", "swe_edit_agent"]
+    oas = json.loads((tmp_path / "oas_build" / "eval_results.json").read_text())
+    assert oas["scenario"] == "task" and oas["pass_at"] == 2   # max pass_at wins
+    assert len(oas["fixtures"]) == 2 and oas["headline"]["pass_rate"] == 0.5
 
 
 def test_write_eval_results_roundtrip(tmp_path):
