@@ -35,6 +35,8 @@ from contractor.workflows import Workflow, WorkflowContext
 from contractor.workflows.trace_graph import TraceGraphWorkflow
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from tests.eval.conftest import FIXTURES_ROOT, EvalFixture, _load_fixture
+from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
+                                write_eval_results)
 from tests.eval.trace_harness import (Annotation,
                                       extract_annotations_from_overlay,
                                       overlay_modified_files)
@@ -230,4 +232,23 @@ async def test_trace_parallel_workflows(parallel_fixture: EvalFixture, eval_mode
     (runs_dir / "parallel_comparison.json").write_text(
         json.dumps(structured, indent=2, default=str),
         encoding="utf-8",
+    )
+
+    # Canonical eval/v1 envelope (scenario=pipeline, metric_kind=diff): each
+    # workflow variant is a case under the fixture.
+    cases = [
+        CaseResult(
+            id=v["name"], passed=v["f1"] >= 0.5, pass_count=int(v["f1"] >= 0.5),
+            attempts=1, metrics={"duration_s": v["wallclock_s"]},
+            detail={"variant": v["name"], "precision": v["precision"],
+                    "recall": v["recall"], "f1": v["f1"],
+                    "annotation_count": v["annotation_count"]})
+        for v in structured["variants"]
+    ]
+    write_eval_results(
+        EvalRun(scenario="pipeline", unit="trace", pass_at=1, metric_kind="diff",
+                model=str(eval_model.model),
+                fixtures=[FixtureResult(slug=fixture.slug, cases=cases)],
+                meta={"expected_count": len(expected)}),
+        f"trace-parallel-{fixture.slug}",
     )

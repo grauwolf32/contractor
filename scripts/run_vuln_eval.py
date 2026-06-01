@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import re
 import sys
@@ -393,13 +392,57 @@ async def run_eval(
               f"llm_calls: {metrics['llm_calls']}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    # ``payload`` is the in-memory shape the HTML report generator consumes.
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": timestamp,
         "model": model.model,
         "fixtures": [asdict(r) for r in results],
     }
-    results_path = output_dir / "eval_results.json"
-    results_path.write_text(json.dumps(payload, indent=2, default=str))
+
+    # Persist the canonical eval/v1 envelope (scenario=agent, metric_kind=
+    # detection — one case per fixture) for analytics-ui.
+    from tests.eval.results import CaseResult as EnvCase
+    from tests.eval.results import EvalRun as EnvRun
+    from tests.eval.results import FixtureResult as EnvFixture
+    from tests.eval.results import write_eval_results
+
+    def _cwe_tpfpfn(per_cwe: dict) -> dict:
+        out = {}
+        for cwe, agg in (per_cwe or {}).items():
+            if "tp" in agg or "fp" in agg or "fn" in agg:
+                out[cwe] = {k: int(agg.get(k, 0) or 0) for k in ("tp", "fp", "fn")}
+            else:
+                found, exp = int(agg.get("found", 0) or 0), int(agg.get("expected", 0) or 0)
+                out[cwe] = {"tp": min(found, exp), "fp": max(found - exp, 0),
+                            "fn": max(exp - found, 0)}
+        return out
+
+    fixtures = []
+    for r in (asdict(x) for x in results):
+        tp, fp, fn, tn = (int(r.get(k, 0) or 0) for k in ("tp", "fp", "fn", "tn"))
+        in_tok, out_tok = int(r.get("input_tokens", 0) or 0), int(r.get("output_tokens", 0) or 0)
+        case = EnvCase(
+            id=r.get("slug"), passed=tp > 0, pass_count=int(tp > 0), attempts=1,
+            metrics={"input_tokens": in_tok, "output_tokens": out_tok,
+                     "total_tokens": int(r.get("total_tokens", 0) or 0) or (in_tok + out_tok),
+                     "total_tool_calls": int(r.get("total_tool_calls", 0) or 0),
+                     "llm_calls": int(r.get("llm_calls", 0) or 0),
+                     "duration_s": float(r.get("duration_s", 0) or 0),
+                     "tool_counts": r.get("tool_counts") or {}},
+            detail={"tp": tp, "fp": fp, "fn": fn, "tn": tn,
+                    "precision": r.get("precision"), "recall": r.get("recall"), "f1": r.get("f1"),
+                    "prompt_version": r.get("prompt_version"),
+                    "per_cwe": _cwe_tpfpfn(r.get("per_cwe") or {}),
+                    "reported_findings": r.get("reported_findings") or [],
+                    "matches": r.get("matches") or [], "skills_loaded": r.get("skills_loaded") or [],
+                    "files_read": r.get("files_read") or [], "gt_cwes": r.get("gt_cwes") or []})
+        fixtures.append(EnvFixture(slug=r.get("slug"), cases=[case]))
+    eval_run = EnvRun(
+        scenario="agent", unit="codereview_agent", pass_at=1, metric_kind="detection",
+        model=str(model.model), timestamp=timestamp, fixtures=fixtures,
+    )
+    results_path = write_eval_results(eval_run, output_dir)
     print(f"\nResults saved to {results_path}")
 
     from scripts.vuln_eval_report import generate_report

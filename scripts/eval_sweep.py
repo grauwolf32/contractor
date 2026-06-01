@@ -586,6 +586,32 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     report = render_report(runs, axes, args.pipeline, args.project_path, out_dir)
     (out_dir / "sweep.md").write_text(report, encoding="utf-8")
+
+    # Canonical eval/v1 envelope (scenario=pipeline, metric_kind=generic): each
+    # swept combo is a case; it passes if the run finished with no failed task.
+    from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
+                                    write_eval_results)
+    cases = []
+    for r in runs:
+        s = r.summary or {}
+        label = "__".join(f"{k}={v}" for k, v in r.combo.items()) or "default"
+        label = f"{label}#rep{r.rep}"
+        passed = (r.status == "ok" and int(s.get("task_finished", 0) or 0) > 0
+                  and int(s.get("task_failed", 0) or 0) == 0)
+        cases.append(CaseResult(
+            id=label, passed=passed, pass_count=int(passed), attempts=1,
+            metrics={"total_tokens": int(s.get("total_tokens", 0) or 0),
+                     "total_tool_calls": int(s.get("tool_calls", 0) or 0),
+                     "duration_s": round(r.duration_s, 1)},
+            detail={**r.combo, "status": r.status, "tool_errors": s.get("tool_errors"),
+                    "diagnose": r.diagnose}))
+    write_eval_results(
+        EvalRun(scenario="pipeline", unit=args.pipeline, pass_at=1, metric_kind="generic",
+                fixtures=[FixtureResult(slug=args.pipeline, cases=cases)],
+                meta={"axes": [a.name for a in axes]}),
+        out_dir,
+    )
+
     print(f"\n{report}")
     print(f"\nReport: {out_dir / 'sweep.md'}")
     print(f"JSON:   {out_dir / 'sweep.json'}")
