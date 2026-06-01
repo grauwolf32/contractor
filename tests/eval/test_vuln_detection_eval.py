@@ -299,6 +299,7 @@ async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
                                  "ground_truth_id": m.ground_truth_id,
                                  "finding_file": m.finding_file, "finding_cwe": m.finding_cwe}
                                 for m in best.matches]}),
+        artifacts=best_run.agent_run.artifacts,
     )
     assert passed, (
         f"pass@{n} failed for {vuln_fixture.slug} (agent={agent_kind})\n"

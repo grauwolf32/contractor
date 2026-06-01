@@ -141,6 +141,7 @@ async def test_planner_behavior(planner_case, eval_model: LiteLlm, eval_sink):
             metrics=metrics_from_task(run.metrics),
             detail=({"precision": round(_tc.precision, 3), "recall": round(_tc.recall, 3),
                      "f1": round(_tc.f1, 3)} if _tc is not None else {})),
+        artifacts=run.artifacts,
     )
     assert passed, (
         f"planner eval failed for fixture={fixture.slug} "

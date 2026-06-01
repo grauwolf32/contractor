@@ -74,6 +74,7 @@ async def test_oas_analyzer_finds_expected_classes(fixture, eval_model, eval_sin
         case=CaseResult(id=fixture.slug, passed=result.passed,
                         pass_count=int(result.passed), attempts=1,
                         metrics=metrics_from_events(run.metrics_events), detail=diff_detail(result)),
+        artifacts=run.artifacts,
     )
     assert result.passed, (
         f"oas_analyzer eval failed: fixture={fixture.slug}\n{result.explain()}"

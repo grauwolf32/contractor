@@ -49,5 +49,6 @@ async def test_swe_agent(swe_case, eval_model, eval_sink):
         case=CaseResult(id=case["id"], passed=result.passed,
                         pass_count=int(result.passed), attempts=1,
                         metrics=metrics_from_events(run.metrics_events), detail={}),
+        artifacts=run.artifacts,
     )
     assert result.passed, f"swe_agent eval failed: case={case['id']}\n{result.explain()}"

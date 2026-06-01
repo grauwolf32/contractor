@@ -23,8 +23,10 @@ Run with:
 from __future__ import annotations
 
 import os
+import shutil
 import time
 from functools import partial
+from pathlib import Path
 
 import pytest
 from google.adk.models.lite_llm import LiteLlm
@@ -202,6 +204,11 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
                     caido_auth_token=caido_auth_token, since_ms=_since,
                 )
 
+            # Persist per-case metrics + the full artifact trace (HTTP session,
+            # memory, verifications, code-exec) under eval_runs/ for analysis.
+            case_dir = Path("eval_runs") / f"xbow_{agent_kind}" / bid
+            shutil.rmtree(case_dir, ignore_errors=True)
+
             run = await run_task_pipeline(
                 queue_fn=queue,
                 artifact_keys=["exploitability_assessment/result", verif_key, chain_key],
@@ -209,6 +216,8 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
                 timeout_s=1500.0,
                 runner_name=f"xbow-{agent_kind}-{bid}",
                 post_run_fn=_collect,
+                output_dir=case_dir,
+                artifact_dir=case_dir / "artifacts",
             )
 
             result_text = run.result_text("exploitability_assessment") or ""

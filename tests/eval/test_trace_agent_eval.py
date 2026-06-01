@@ -74,5 +74,6 @@ async def test_trace_agent(trace_case, eval_model, eval_sink):
                         pass_count=int(result.passed), attempts=1,
                         metrics=metrics_from_events(getattr(_agent_run, "metrics_events", [])),
                         detail=diff_detail(result)),
+        artifacts=getattr(_agent_run, "artifacts", {}) or {},
     )
     assert result.passed, f"trace_agent eval failed: case={case['id']}\n{result.explain()}"

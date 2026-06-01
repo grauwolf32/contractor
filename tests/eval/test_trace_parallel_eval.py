@@ -245,10 +245,14 @@ async def test_trace_parallel_workflows(parallel_fixture: EvalFixture, eval_mode
                     "annotation_count": v["annotation_count"]})
         for v in structured["variants"]
     ]
-    write_eval_results(
+    _env_path = write_eval_results(
         EvalRun(scenario="pipeline", unit="trace", pass_at=1, metric_kind="diff",
                 model=str(eval_model.model),
                 fixtures=[FixtureResult(slug=fixture.slug, cases=cases)],
                 meta={"expected_count": len(expected)}),
         f"trace-parallel-{fixture.slug}",
     )
+    # Persist the pipeline artifact (per-variant comparison) next to the
+    # envelope so the run's metrics + artifacts both live under eval_runs/.
+    (_env_path.parent / "comparison.json").write_text(
+        json.dumps(structured, indent=2, default=str), encoding="utf-8")

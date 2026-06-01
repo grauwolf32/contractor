@@ -146,5 +146,6 @@ async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm, eval_si
         case=CaseResult(id=fixture.slug, passed=result.passed,
                         pass_count=int(result.passed), attempts=1,
                         metrics=metrics_from_task(run.metrics), detail=diff_detail(result)),
+        artifacts=run.artifacts,
     )
     assert result.passed, f"oas_enrich eval failed\n{summary}"

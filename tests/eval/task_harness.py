@@ -139,6 +139,7 @@ async def run_task_pipeline(
     observability_tags: Optional[list[str]] = None,
     preloaded_artifacts: Optional[dict[str, str]] = None,
     output_dir: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
     post_run_fn: Optional[Callable[..., Any]] = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
@@ -159,14 +160,26 @@ async def run_task_pipeline(
     keep the same isolation the production pipelines use).
     """
     import asyncio
+    import contextlib
 
     # ``InMemoryArtifactService`` rejects saves with ``session_id=None`` on
     # filenames that aren't ``user:``-prefixed (its strict mode requires
     # one or the other). The production CLI uses ``FileArtifactService``
     # which treats ``session_id=None`` as user-scoped — the same shape
-    # ``TaskRunner._publish_task_artifacts`` relies on. Mirror that here
-    # over a TemporaryDirectory so each eval call is hermetic.
-    with tempfile.TemporaryDirectory(prefix="task-eval-artifacts-") as tmpdir:
+    # ``TaskRunner._publish_task_artifacts`` relies on.
+    #
+    # By default each eval call is hermetic (a TemporaryDirectory, discarded
+    # after the run). Pass ``artifact_dir`` to instead persist the full ADK
+    # artifact tree (HTTP sessions, memory versions, verifications, code-exec)
+    # for offline analysis — e.g. under ``eval_runs/<run>/<case>/artifacts``.
+    if artifact_dir is not None:
+        artifact_dir = Path(artifact_dir)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        _dir_cm: Any = contextlib.nullcontext(str(artifact_dir))
+    else:
+        _dir_cm = tempfile.TemporaryDirectory(prefix="task-eval-artifacts-")
+
+    with _dir_cm as tmpdir:
         artifact_service = FileArtifactService(root_dir=tmpdir)
         runner = TaskRunner(name=runner_name, artifact_service=artifact_service)
 

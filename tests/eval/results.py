@@ -403,6 +403,7 @@ class EvalSink:
         pass_at: int = 1,
         run_name: Optional[str] = None,
         meta: Optional[dict[str, Any]] = None,
+        artifacts: Optional[dict[str, str]] = None,
     ) -> None:
         key = (scenario, unit)
         run = self._runs.setdefault(key, {
@@ -413,6 +414,24 @@ class EvalSink:
         })
         run["fixtures"].setdefault(fixture, []).append(case)
         run["pass_at"] = max(run["pass_at"], pass_at)
+        # Persist this case immediately (crash-safe): per-case metrics + any
+        # agent artifacts under eval_runs/<unit>/cases/<fixture>__<case>/.
+        self._persist_case(run["run_name"], fixture, case, artifacts)
+
+    @staticmethod
+    def _persist_case(run_name: str, fixture: str, case: "CaseResult",
+                      artifacts: Optional[dict[str, str]]) -> None:
+        base = EVAL_ROOT / run_name / "cases" / _safe_name(f"{fixture}__{case.id}")
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "metrics.json").write_text(
+            json.dumps({"fixture": fixture, **case.to_dict()}, indent=2, ensure_ascii=False),
+            encoding="utf-8")
+        for name, text in (artifacts or {}).items():
+            if not text:
+                continue
+            (base / _safe_name(name)).write_text(
+                text if isinstance(text, str) else json.dumps(text, default=str, ensure_ascii=False),
+                encoding="utf-8")
 
     def flush(self) -> list[Path]:
         paths = []

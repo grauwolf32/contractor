@@ -193,5 +193,6 @@ async def test_likec4_task(fixture, eval_model: LiteLlm, eval_sink):
         case=CaseResult(id=case["id"], passed=result.passed,
                         pass_count=int(result.passed), attempts=1,
                         metrics=metrics_from_task(run.metrics), detail=diff_detail(result)),
+        artifacts=run.artifacts,
     )
     assert result.passed, f"likec4 eval failed\n{summary}"

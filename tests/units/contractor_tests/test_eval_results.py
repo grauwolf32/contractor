@@ -204,7 +204,12 @@ def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
     sink = EvalSink()
     sink.record(scenario="task", unit="oas_build", metric_kind="diff",
                 fixture="vulnyapi", case=CaseResult("vulnyapi", True, 1, 1, detail={"f1": 1.0}),
-                model="m", pass_at=2)
+                model="m", pass_at=2, artifacts={"oas_build/result": "openapi: 3.0.0"})
+    # per-case persistence happens immediately on record()
+    case_dir = tmp_path / "oas_build" / "cases" / "vulnyapi__vulnyapi"
+    assert (case_dir / "metrics.json").is_file()
+    assert (case_dir / "oas_build_result").read_text() == "openapi: 3.0.0"
+    assert json.loads((case_dir / "metrics.json").read_text())["passed"] is True
     sink.record(scenario="task", unit="oas_build", metric_kind="diff",
                 fixture="petstore", case=CaseResult("petstore", False, 0, 1, detail={"f1": 0.0}))
     sink.record(scenario="agent", unit="swe_edit_agent", metric_kind="generic",
