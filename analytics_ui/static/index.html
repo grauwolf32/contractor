@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contractor Explorer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;text y='26' font-size='26'&gt;🛠️&lt;/text&gt;&lt;/svg&gt;" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" data-link="#/overview">
+      <span class="logo">🛠️</span>
+      <span class="brand-name">Contractor <em>Explorer</em></span>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search agents, tasks, pipelines, skills…  ( / )" autocomplete="off" />
+    </div>
+    <a class="ghost-btn" id="reload-btn" title="Reload data from disk">↻ Refresh</a>
+  </header>
+
+  <div class="layout">
+    <nav id="sidebar" class="sidebar"></nav>
+    <main id="main" class="main">
+      <div class="loading">Loading…</div>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -14,7 +14,7 @@ Axis names auto-detect — use `prompt:<name>` or `task:<name>` to disambiguate.
 
 Usage:
     poetry run python scripts/eval_sweep.py \\
-        --pipeline build \\
+        --pipeline oas_build \\
         --project-path tests/playground/python/vulnyapi \\
         --model lm-studio-qwen3.6 \\
         --vary planning_agent=v4,v5 \\
@@ -420,7 +420,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--pipeline",
         required=True,
-        help="Workflow name (build, enrich, trace, trace-direct, likec4, router).",
+        help="Workflow name (oas_build, oas_update, trace, trace-direct, likec4, router).",
     )
     parser.add_argument(
         "--project-path",

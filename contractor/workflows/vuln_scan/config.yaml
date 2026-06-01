@@ -3,4 +3,4 @@ budgets:
 tasks:
   scan: { iterations: 1, max_attempts: 2, max_steps: 75 }
 agents:
-  vuln_scan_agent: { with_graph_tools: true, output_format: json }
+  codereview_agent: { with_graph_tools: true, output_format: json }

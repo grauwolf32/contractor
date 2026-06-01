@@ -228,3 +228,6 @@ __marimo__/
 
 # Databases
 *.db
+
+# Contractor run-output dir (defaults to <project>/.contractor)
+.contractor/

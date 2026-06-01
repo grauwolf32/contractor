@@ -47,7 +47,7 @@ Three editing surfaces:
 
 | Flag | Type | Default | Effect on perf/quality/cost |
 |------|------|---------|------------------------------|
-| `--workflow` | choice | `build` | Selects agent chain + task templates. |
+| `--workflow` | choice | `oas_build` | Selects agent chain + task templates. |
 | `--project-path` | path | **required** | Sandbox root; scope of analysis = cost driver. |
 | `--folder-name` | str | `/` | Narrows template focus; does not change file-scan scope. |
 | `--artifact` | path | `None` | Seeds from a prior artifact; optional for enrich/trace/exploit/vuln (reuses store seed). |
@@ -166,7 +166,7 @@ so behaviour is unchanged unless tuned.
 | Key | Default | Effect |
 |-----|---------|--------|
 | `output_format` | `json` | The shared `_format` knob for fs/memory/openapi/report tool output (`json` / `xml` / `yaml` / `markdown`; unsupported renderers fall back to json). |
-| `with_graph_tools` | `false` | Attach the trailmark call-graph tools (callers/callees/paths/attack-surface). Enabled for the `vuln_scan_agent` / `trace_agent` in the scan + trace workflows. |
+| `with_graph_tools` | `false` | Attach the trailmark call-graph tools (callers/callees/paths/attack-surface). Enabled for the `codereview_agent` / `trace_agent` in the scan + trace workflows. |
 
 ---
 
@@ -264,7 +264,7 @@ Each agent dir has `prompt.yml` with an `active:` version selecting `prompts/v*.
 (`load_prompt(name)` / `load_prompt_with_version(name, version)`). Switching the active
 version is a pure quality lever. The trace eval already A/Bs versions via
 `CONTRACTOR_EVAL_TRACE_PROMPT_VERSION`; the same pattern works for any agent.
-Versioned agents include: `planning_agent`, `trace_agent`, `vuln_scan_agent` (active `v2`),
+Versioned agents include: `planning_agent`, `trace_agent`, `codereview_agent` (active `v3`),
 `exploitability_agent`, `web_exploitability_agent`, `swe_edit_agent`, `http_agent`,
 `threat_model_agent`, `oas_*`.
 

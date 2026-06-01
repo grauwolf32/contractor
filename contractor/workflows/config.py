@@ -9,7 +9,7 @@ reads:
     CFG = WorkflowConfig.load(__file__)
     CFG.budgets.scan_max_tokens        # int — summarization-trigger budget
     CFG.tasks.scan.as_kwargs()         # splat into TaskRunner.add_task(...)
-    CFG.agent("vuln_scan_agent")       # AgentToolConfig for that agent
+    CFG.agent("codereview_agent")       # AgentToolConfig for that agent
 
 This is deliberately *not* in global ``Settings``: these are per-workflow shape
 decisions, not environment config. Global/tool defaults and LLM sampling live

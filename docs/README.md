@@ -35,7 +35,7 @@ Each layer is intentionally narrow:
 
 - **CLI** wires the user's flags into a `WorkflowContext`.
 - **Workflows** declare *which tasks*, in which order, with which
-  worker agents, run for a given mode (`build`, `enrich`, `trace`,
+  worker agents, run for a given mode (`oas_build`, `oas_update`, `trace`,
   `router`).
 - **Task Runner** turns each queued task into one or more attempts of a
   *planner + worker* pair, persists artifacts, and emits lifecycle
@@ -166,8 +166,8 @@ accepts any of these keys:
 
 OpenAPI / architecture:
 
-- [oas_building.py](../contractor/workflows/oas_building/workflow.py) — `build`
-- [oas_enrichment.py](../contractor/workflows/oas_enrichment/workflow.py) — `enrich`
+- [oas_building.py](../contractor/workflows/oas_building/workflow.py) — `oas_build`
+- [oas_enrichment.py](../contractor/workflows/oas_enrichment/workflow.py) — `oas_update`
 - [likec4_building.py](../contractor/workflows/likec4_building/workflow.py) — `likec4`
 
 Trace & annotate:

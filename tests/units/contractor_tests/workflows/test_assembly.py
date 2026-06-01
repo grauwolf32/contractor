@@ -36,8 +36,8 @@ class TestRegistry:
     def test_known_keys_present(self):
         registry = get_workflows()
         assert set(registry.keys()) == {
-            "build",
-            "enrich",
+            "oas_build",
+            "oas_update",
             "exploit",
             "likec4",
             "trace",
@@ -61,8 +61,8 @@ class TestRegistry:
         # actually define the classes — e.g. someone deletes a workflow file
         # but forgets to remove it from the registry.
         registry = get_workflows()
-        assert registry["build"] is OasBuildingWorkflow
-        assert registry["enrich"] is OasEnrichmentWorkflow
+        assert registry["oas_build"] is OasBuildingWorkflow
+        assert registry["oas_update"] is OasEnrichmentWorkflow
         assert registry["likec4"] is LikeC4BuildingWorkflow
         assert registry["trace"] is TraceAnnotationWorkflow
         assert registry["trace-direct"] is TraceAnnotationDirectWorkflow
@@ -632,7 +632,7 @@ class TestExploitabilityWorkflow:
         item = queue[0]
         assert item.template_key == "exploitability_assessment"
         assert item.ref == "exploitability:idor-1"
-        assert item.skills == ["exploit", "code-exec"]
+        assert item.skills == ["exploit", "code-exec", "auth"]
         assert item.params["finding_name"] == "idor-1"
         assert item.params["source_namespace"] == "exploitability:idor-1"
 
