@@ -238,6 +238,29 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
         print(render_metrics_table(r["metrics"]))
     print('='*60)
 
+    # Persist per-case metrics for offline (Langfuse-independent) analysis.
+    import json as _json
+    from collections import Counter as _Counter
+    from pathlib import Path as _Path
+    _outdir = _Path("eval_runs")
+    _outdir.mkdir(exist_ok=True)
+    _mfile = _outdir / f"xbow_{agent_kind}_metrics.jsonl"
+    with _mfile.open("w", encoding="utf-8") as _f:
+        for r in rows:
+            tc: _Counter = _Counter()
+            tot = llm = toks = 0
+            for m in r["metrics"].values():
+                tc.update(m.tool_counts)
+                tot += m.total_tool_calls
+                llm += m.llm_calls
+                toks += m.total_tokens
+            _f.write(_json.dumps({
+                "id": r["id"], "tags": r["tags"], "captured": r["captured"],
+                "chain": r["chain"], "total_tool_calls": tot, "llm_calls": llm,
+                "total_tokens": toks, "tool_counts": dict(tc),
+            }) + "\n")
+    print(f"[xbow:{agent_kind}] metrics -> {_mfile}", flush=True)
+
     # Capability measurement: only fail on harness errors, never on misses.
     assert not harness_failures, (
         f"XBOW[{agent_kind}] harness failures:\n" + "\n".join(harness_failures)
