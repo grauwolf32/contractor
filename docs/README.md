@@ -6,7 +6,7 @@ memory are shared, and how the planning agent (the "streamline planner")
 drives multi-step execution.
 
 It is meant for contributors working on the runner, planner, or new
-pipelines — not for end users. For usage-level docs see the [top-level
+workflows — not for end users. For usage-level docs see the [top-level
 README](../README.md).
 
 ---
@@ -17,9 +17,9 @@ Contractor is built as a small stack of independent layers:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  CLI                 cli/main.py, cli/pipelines/    │  user-facing
+│  CLI                 cli/main.py, contractor/workflows/    │  user-facing
 ├─────────────────────────────────────────────────────┤
-│  Pipelines           cli/pipelines/*.py             │  orchestration
+│  Workflows           contractor/workflows/*/workflow.py             │  orchestration
 ├─────────────────────────────────────────────────────┤
 │  Task Runner         contractor/runners/            │  execution
 │   ├─ Planning Agent  contractor/agents/planning_agent
@@ -33,8 +33,8 @@ Contractor is built as a small stack of independent layers:
 
 Each layer is intentionally narrow:
 
-- **CLI** wires the user's flags into a `PipelineContext`.
-- **Pipelines** declare *which tasks*, in which order, with which
+- **CLI** wires the user's flags into a `WorkflowContext`.
+- **Workflows** declare *which tasks*, in which order, with which
   worker agents, run for a given mode (`build`, `enrich`, `trace`,
   `router`).
 - **Task Runner** turns each queued task into one or more attempts of a
@@ -50,7 +50,7 @@ Each layer is intentionally narrow:
 
 ## 2. Data flow between tasks
 
-A pipeline is a *sequence of tasks*. Tasks do not call each other
+A workflow is a *sequence of tasks*. Tasks do not call each other
 directly — they communicate through two shared substrates:
 
 - **Artifact Pool** — durable, content-addressable outputs of every
@@ -70,7 +70,7 @@ What the diagram shows:
   three things back: `result`, `records`, `summary`.
 - Each task gets its own **Memory Namespace**. The namespace is reset
   per task ref (so tasks do not leak intermediate notes), but the
-  *Artifact Pool* persists across the whole pipeline run.
+  *Artifact Pool* persists across the whole workflow run.
 - An **Inbox** is the set of memories the runner pre-injects into a
   namespace before the planner starts. Inbox entries come from artifacts
   produced by earlier tasks, e.g. `task1_result` or an `openapi schema`.
@@ -91,14 +91,14 @@ The relevant code:
 
 ---
 
-## 3. Global task execution pipeline
+## 3. Global task execution workflow
 
-The Task Runner is the spine of every pipeline. For each queued task it
+The Task Runner is the spine of every workflow. For each queued task it
 materialises a *planner* (with a worker attached as a tool), creates a
 fresh ADK session, runs the planner-worker loop, and persists the
 artifacts so downstream tasks can pick them up.
 
-![pipeline](pipeplines.png)
+![workflow](pipeplines.png)
 
 ### 3.1 Key objects
 
@@ -157,40 +157,40 @@ subtasks.
 }
 ```
 
-### 3.4 Pipelines
+### 3.4 Workflows
 
-Concrete pipelines are thin assemblers of templates + worker builders.
-The full mode → class map lives in `get_pipelines()`
-([cli/pipelines/__init__.py](../cli/pipelines/__init__.py)); `--pipeline`
+Concrete workflows are thin assemblers of templates + worker builders.
+The full mode → class map lives in `get_workflows()`
+([contractor/workflows/__init__/workflow.py](../contractor/workflows/__init__/workflow.py)); `--workflow`
 accepts any of these keys:
 
 OpenAPI / architecture:
 
-- [oas_building.py](../cli/pipelines/oas_building.py) — `build`
-- [oas_enrichment.py](../cli/pipelines/oas_enrichment.py) — `enrich`
-- [likec4_building.py](../cli/pipelines/likec4_building.py) — `likec4`
+- [oas_building.py](../contractor/workflows/oas_building/workflow.py) — `build`
+- [oas_enrichment.py](../contractor/workflows/oas_enrichment/workflow.py) — `enrich`
+- [likec4_building.py](../contractor/workflows/likec4_building/workflow.py) — `likec4`
 
 Trace & annotate:
 
-- [trace_annotation.py](../cli/pipelines/trace_annotation.py) — `trace` (planner-driven, per-operation overlay FS)
-- [trace_annotation_direct.py](../cli/pipelines/trace_annotation_direct.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
-- [trace_graph.py](../cli/pipelines/trace_graph.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
-- [trace_graph_pathpar.py](../cli/pipelines/trace_graph_pathpar.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-pipelines.md](insights-parallel-vuln-pipelines.md))
-- [trace_verify.py](../cli/pipelines/trace_verify.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
+- [trace_annotation.py](../contractor/workflows/trace_annotation/workflow.py) — `trace` (planner-driven, per-operation overlay FS)
+- [trace_annotation_direct.py](../contractor/workflows/trace_annotation_direct/workflow.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
+- [trace_graph.py](../contractor/workflows/trace_graph/workflow.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
+- [trace_graph_pathpar.py](../contractor/workflows/trace_graph_pathpar/workflow.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-workflows.md](insights-parallel-vuln-workflows.md))
+- [trace_verify.py](../contractor/workflows/trace_verify/workflow.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
 
 Vulnerability detection:
 
-- [vuln_scan.py](../cli/pipelines/vuln_scan.py) — `vuln-scan` (breadth-first scan against source code)
-- [vuln_scan_fast.py](../cli/pipelines/vuln_scan_fast.py) — `vuln-scan-fast` (Pipeline B: high-recall scan → dedup → trace-confirm → exploit)
-- [vuln_scan_trace.py](../cli/pipelines/vuln_scan_trace.py) — `vuln-scan-trace` (BFS discovery → DFS confirmation)
-- [vuln_assess.py](../cli/pipelines/vuln_assess.py) — `vuln-assess` (Pipeline A: discovery → OAS → trace → exploit)
-- [exploitability.py](../cli/pipelines/exploitability.py) — `exploit` (per-finding exploitability assessment against a live target)
+- [vuln_scan.py](../contractor/workflows/vuln_scan/workflow.py) — `vuln-scan` (breadth-first scan against source code)
+- [vuln_scan_fast.py](../contractor/workflows/vuln_scan_fast/workflow.py) — `vuln-scan-fast` (Workflow B: high-recall scan → dedup → trace-confirm → exploit)
+- [vuln_scan_trace.py](../contractor/workflows/vuln_scan_trace/workflow.py) — `vuln-scan-trace` (BFS discovery → DFS confirmation)
+- [vuln_assess.py](../contractor/workflows/vuln_assess/workflow.py) — `vuln-assess` (Workflow A: discovery → OAS → trace → exploit)
+- [exploitability.py](../contractor/workflows/exploitability/workflow.py) — `exploit` (per-finding exploitability assessment against a live target)
 
 Prompt-driven:
 
-- [router.py](../cli/pipelines/router.py) — `router`
+- [router.py](../contractor/workflows/router/workflow.py) — `router`
 
-Several pipelines diverge from the planner+worker pattern:
+Several workflows diverge from the planner+worker pattern:
 
 - **`router`** skips the templated task queue and runs a single planner
   whose worker is a *router agent* that dispatches to one of several
@@ -198,7 +198,7 @@ Several pipelines diverge from the planner+worker pattern:
 - **`trace-direct` / `trace-graph`** use the bare `AgentRunner`
   (`contractor/runners/agent_runner.py`) instead of `TaskRunner`: one
   `trace_agent` invocation per OpenAPI operation, no planner, no
-  subtask state machine. The pipeline wraps the project filesystem in
+  subtask state machine. The workflow wraps the project filesystem in
   `MemoryOverlayFileSystem` so worker writes (the inlined `@trace`
   annotations) are captured as an artifact diff rather than mutating
   the host tree.
@@ -371,7 +371,7 @@ True` so the planner cannot keep emitting tool calls.
 
 | Topic                                  | File / directory                                                       |
 | -------------------------------------- | ---------------------------------------------------------------------- |
-| Pipeline definitions                   | [cli/pipelines/](../cli/pipelines/)                                    |
+| Workflow definitions                   | [contractor/workflows/](../contractor/workflows/)                                    |
 | Task templates (YAML)                  | [contractor/tasks/](../contractor/tasks/)                              |
 | Skills (markdown reference bundles)    | [contractor/skills/](../contractor/skills/)                            |
 | Task runner internals                  | [contractor/runners/task_runner.py](../contractor/runners/task_runner.py) |

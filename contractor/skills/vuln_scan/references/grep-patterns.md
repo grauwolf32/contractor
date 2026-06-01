@@ -144,9 +144,28 @@ grep "login\|signin\|otp\|verify\|reset.*password\|forgot.*password"
 ```
 Then check: any rate limiting middleware applied?
 
+## PHP / WordPress (see `php-wordpress` reference for full detail)
+
+The patterns above are Python/Java/Go-shaped and miss most PHP/WP bugs.
+For `*.php` targets, start here:
+
+```
+grep "wp_ajax_nopriv_"  "wp_ajax_"  "register_rest_route"   # entry points; nopriv = unauth
+grep "$wpdb->query"  "$wpdb->get_results"  "$wpdb->get_var"  "$wpdb->get_row"   # SQLi sinks
+grep "%1s"  "%1$s"                                           # invalid prepare() placeholder = unsafe
+grep "wp_insert_user"  "wp_update_user"  "->add_role("  "update_user_meta"   # privilege escalation
+grep "unlink("  "wp_delete_file("  "move_uploaded_file("  "extract($_POST"   # file deletion/upload
+grep "echo "  "<?= "  "|raw"                                 # XSS output sinks (check for esc_* wrapping)
+grep "$_GET\|$_POST\|$_REQUEST\|$_FILES"                     # taint sources
+```
+For EACH AJAX/REST handler, confirm a `current_user_can(...)` capability
+check exists; its absence on a state-changing handler is a missing-
+authorization / privilege-escalation finding (a nonce check alone is NOT
+authorization). `sanitize_text_field()` is NOT SQL escaping.
+
 ## Scan order for maximum speed
 
-1. `glob "*.py" "*.java" "*.go" "*.js" "*.ts"` — inventory source files
+1. `glob "*.py" "*.java" "*.go" "*.js" "*.ts" "*.php"` — inventory source files
 2. Grep CRITICAL patterns first (highest value per time)
 3. For each hit file, list_symbols to understand structure
 4. Read 20-30 lines around each hit to confirm

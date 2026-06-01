@@ -58,7 +58,7 @@ def merge_overlay_forks(
     Parameters
     ----------
     target:
-        The overlay to merge into (typically the pipeline's main overlay).
+        The overlay to merge into (typically the workflow's main overlay).
     forks:
         The independently-run overlay forks.
     pre_fork_files:

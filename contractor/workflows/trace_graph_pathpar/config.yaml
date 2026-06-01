@@ -1,0 +1,3 @@
+budgets:
+  max_tokens: 100000
+  max_concurrency: 3

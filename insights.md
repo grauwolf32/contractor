@@ -139,7 +139,7 @@ If a finding already has a `VerifiedFinding` in
 `user:vulnerability-verifications/{namespace}`, skip re-running the verifier
 unless the upstream report's `updated_at` is newer.
 
-**Where**: `cli/pipelines/trace_verify.py::_verify_path_findings` —
+**Where**: `contractor/pipelines/trace_verify/pipeline.py::_verify_path_findings` —
 pre-load the verifications artifact, compare `name` + `updated_at`,
 filter the per-finding `add_task` loop. ~20 LOC.
 
@@ -150,7 +150,7 @@ Pipeline `verify-report` (or sub-task in trace-verify) that joins
 human-readable artifact: title, claim, verdict, exploit_path, refuted
 attempts. Output: Markdown + a triage-ready JSON.
 
-**Where**: new `cli/pipelines/verify_report.py` + small `summarize_findings`
+**Where**: new `contractor/pipelines/verify_report/pipeline.py` + small `summarize_findings`
 function on top of the two artifact stores. Deterministic, no LLM.
 
 ### ⬜ Pending — XML-tagged sections in security prompts (PentAGI)

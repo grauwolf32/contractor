@@ -25,6 +25,7 @@ from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
                                        TaskStatus, TaskTemplate, WorkerBuilder,
                                        build_active_state)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
+from contractor.runners.plugins.sandbox_cleanup import SandboxCleanupPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
@@ -233,7 +234,7 @@ class TaskRunner(BaseModel):
     def _load_checkpoint(self) -> Checkpoint | None:
         if self.checkpoint_path is None:
             return None
-        return Checkpoint.load(self.checkpoint_path) or Checkpoint(pipeline=self.name)
+        return Checkpoint.load(self.checkpoint_path) or Checkpoint(workflow=self.name)
 
     def _save_checkpoint(
         self,
@@ -690,6 +691,7 @@ class TaskRunner(BaseModel):
                 session_id=session_id,
                 emit=self._emit,
             ),
+            SandboxCleanupPlugin(),
         ]
 
     async def _consume_events(

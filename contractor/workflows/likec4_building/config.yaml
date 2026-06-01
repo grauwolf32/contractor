@@ -1,0 +1,8 @@
+budgets:
+  swe_max_tokens: 100000
+  builder_max_tokens: 120000
+tasks:
+  dependency_information: { iterations: 1, max_attempts: 3, max_steps: 20 }
+  project_information: { iterations: 1, max_attempts: 3, max_steps: 20 }
+  likec4_build: { iterations: 3, max_attempts: 6, max_steps: 20 }
+  likec4_validate: { iterations: 1, max_attempts: 2, max_steps: 20 }

@@ -1,0 +1,10 @@
+budgets:
+  scan_max_tokens: 80000
+  swe_max_tokens: 100000
+tasks:
+  dependency_information: { iterations: 1, max_attempts: 2, max_steps: 20 }
+  project_information: { iterations: 1, max_attempts: 2, max_steps: 20 }
+  scan: { iterations: 1, max_attempts: 2, max_steps: 50 }
+agents:
+  vuln_scan_agent: { with_graph_tools: true, output_format: json }
+  trace_agent: { with_graph_tools: true, output_format: json }

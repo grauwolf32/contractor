@@ -60,12 +60,12 @@ class AgioEventType(StrEnum):
     ADK_TOOL_ERROR = "adk_tool_error"
     ADK_EVENT = "adk_event"
 
-    # ── Contractor extensions: pipeline / runner / task lifecycle ──
-    PIPELINE_STARTED = "pipeline_started"
-    PIPELINE_FINISHED = "pipeline_finished"
+    # ── Contractor extensions: workflow / runner / task lifecycle ──
+    WORKFLOW_STARTED = "workflow_started"
+    WORKFLOW_FINISHED = "workflow_finished"
     RUN_STARTED = "run_started"
     RUN_FINISHED = "run_finished"
-    AGENT_RUN_STARTED = "agent_run_started"   # AgentRunner.run() boundary (RouterPipeline)
+    AGENT_RUN_STARTED = "agent_run_started"   # AgentRunner.run() boundary (RouterWorkflow)
     AGENT_RUN_FINISHED = "agent_run_finished"
     TASK_STARTED = "task_started"
     TASK_FINISHED = "task_finished"

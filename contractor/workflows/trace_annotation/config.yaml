@@ -1,0 +1,6 @@
+budgets:
+  max_tokens: 80000
+tasks:
+  annotate: { iterations: 1, max_attempts: 3, max_steps: 20 }
+agents:
+  trace_agent: { with_graph_tools: true, output_format: json }

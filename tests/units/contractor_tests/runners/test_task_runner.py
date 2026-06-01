@@ -4,19 +4,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from google.adk.artifacts import BaseArtifactService
 
-from contractor.runners.models import (
-    Checkpoint,
-    CheckpointEntry,
-    EventType,
-    RenderedTask,
-    TaskInvocation,
-    TaskResult,
-    TaskStatus,
-    TaskTemplate,
-)
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
+from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
+                                       RenderedTask, TaskInvocation,
+                                       TaskResult, TaskStatus, TaskTemplate)
 from contractor.runners.task_runner import TaskNotCompletedError, TaskRunner
-
 
 # ─── _extract_final_text ──────────────────────────────────────────────────────
 
@@ -382,7 +374,7 @@ class TestCheckpointIntegration:
     @pytest.mark.asyncio
     async def test_checkpoint_skips_completed_task(self, tmp_path, monkeypatch):
         # Seed a checkpoint with task "a:0" already done.
-        cp = Checkpoint(pipeline="test")
+        cp = Checkpoint(workflow="test")
         cp.mark_done(CheckpointEntry(
             task_id=0, ref="a:0", template_key="t", template_version="v1",
             published_artifacts={"result": "t/result"},
@@ -411,7 +403,7 @@ class TestCheckpointIntegration:
     @pytest.mark.asyncio
     async def test_checkpoint_reruns_if_artifact_missing(self, tmp_path, monkeypatch):
         # Checkpoint says done, but artifact returns None → re-run.
-        cp = Checkpoint(pipeline="test")
+        cp = Checkpoint(workflow="test")
         cp.mark_done(CheckpointEntry(
             task_id=0, ref="a:0", template_key="t", template_version="v1",
             published_artifacts={"result": "t/result"},

@@ -14,13 +14,10 @@ from tree_sitter_language_pack import get_parser
 from contractor.tools.result import ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
+from contractor.utils.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Guard against infinite directory traversal.
-_MAX_WALK_DEPTH = 50
-# Maximum number of files to visit in a single traversal to prevent runaway scans.
-_MAX_FILES_PER_WALK = 100_000
 
 
 # ─── Language Detection ───────────────────────────────────────────────
@@ -389,8 +386,8 @@ def _iter_all_files(
     fs: AbstractFileSystem,
     root: str,
     *,
-    max_depth: int = _MAX_WALK_DEPTH,
-    max_files: int = _MAX_FILES_PER_WALK,
+    max_depth: Optional[int] = None,
+    max_files: Optional[int] = None,
 ) -> Iterator[str]:
     """Yield every file path under *root* using ``fs.walk``.
 
@@ -404,6 +401,9 @@ def _iter_all_files(
     guard against cycles on filesystems that expose symlinked directories
     through multiple path aliases.
     """
+    s = get_settings()
+    max_depth = s.code_max_walk_depth if max_depth is None else max_depth
+    max_files = s.code_max_files_per_walk if max_files is None else max_files
     try:
         if not fs.exists(root):
             return
@@ -791,8 +791,12 @@ class CodeTools:
     root: str = "/"
     max_context_lines: int = 15
     grep_context_lines: int = 2
-    max_walk_depth: int = _MAX_WALK_DEPTH
-    max_files: int = _MAX_FILES_PER_WALK
+    max_walk_depth: int = field(
+        default_factory=lambda: get_settings().code_max_walk_depth
+    )
+    max_files: int = field(
+        default_factory=lambda: get_settings().code_max_files_per_walk
+    )
     _parse_cache: dict[str, _ParsedFile] = field(
         default_factory=dict, init=False, repr=False
     )

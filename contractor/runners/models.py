@@ -389,7 +389,7 @@ class CheckpointEntry:
 
 @dataclass
 class Checkpoint:
-    pipeline: str
+    workflow: str
     entries: list[CheckpointEntry] = field(default_factory=list)
 
     def get(self, ref: str) -> CheckpointEntry | None:
@@ -405,7 +405,7 @@ class Checkpoint:
     def save(self, path: Path) -> None:
         data = {
             "version": _CHECKPOINT_VERSION,
-            "pipeline": self.pipeline,
+            "workflow": self.workflow,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "tasks": [
                 {
@@ -443,7 +443,7 @@ class Checkpoint:
             return None
 
         return cls(
-            pipeline=data.get("pipeline", ""),
+            workflow=data.get("workflow", ""),
             entries=[
                 CheckpointEntry(
                     task_id=t["task_id"],

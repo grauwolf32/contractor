@@ -4,16 +4,10 @@ from unittest.mock import AsyncMock
 import pytest
 
 from contractor.runners import skills as m
-from contractor.runners.skills import (
-    SkillFile,
-    _default_description,
-    _memory_name,
-    _parse_frontmatter,
-    _skill_files_to_memories,
-    inject_skills,
-    load_skill,
-    load_skills,
-)
+from contractor.runners.skills import (SkillFile, _default_description,
+                                       _memory_name, _parse_frontmatter,
+                                       _skill_files_to_memories, inject_skills,
+                                       load_skill, load_skills)
 
 
 class TestParseFrontmatter:

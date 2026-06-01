@@ -35,6 +35,32 @@ class Settings(BaseSettings):
     litellm_api_base: Optional[str] = Field(default=None)
     litellm_api_key: Optional[str] = Field(default=None)
 
+    # ── LLM sampling (None → backend / model default) ────────────────────
+    # Applied to every LiteLlm built via `build_model`. Lower temperature
+    # tightens structured-output adherence; leave None to keep the model's
+    # own defaults.
+    model_temperature: Optional[float] = Field(default=None)
+    model_top_p: Optional[float] = Field(default=None)
+
+    # ── Tool defaults (global baseline; agent code may override) ─────────
+    # These are the fallbacks used when a tool/agent factory is called
+    # without an explicit value. Keep them equal to the historical
+    # hardcoded constants so behaviour is unchanged unless tuned via env.
+    http_timeout: float = Field(default=30.0)
+    http_body_preview_chars: int = Field(default=2048)
+    http_history_size: int = Field(default=20)
+    http_retry_attempts: int = Field(default=3)
+    http_retry_base_delay: float = Field(default=0.5)
+    http_retry_max_delay: float = Field(default=8.0)
+    fs_max_items: int = Field(default=100)
+    fs_max_output: int = Field(default=80_000)
+    code_max_walk_depth: int = Field(default=50)
+    code_max_files_per_walk: int = Field(default=100_000)
+    graph_max_results: int = Field(default=200)
+    graph_max_paths: int = Field(default=25)
+    graph_max_path_depth: int = Field(default=30)
+    likec4_validate_timeout: float = Field(default=120.0)
+
     # ── Observability (Langfuse) ─────────────────────────────────────────
     use_langfuse: bool = Field(default=False)
     langfuse_host: Optional[str] = Field(default=None)
@@ -62,9 +88,30 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def _build_default_model() -> LiteLlm:
+def build_model(
+    model_name: Optional[str] = None,
+    timeout: Optional[int] = None,
+) -> LiteLlm:
+    """Construct a ``LiteLlm`` applying the configured sampling defaults.
+
+    ``model_name`` / ``timeout`` fall back to ``Settings`` when omitted.
+    ``model_temperature`` / ``model_top_p`` are forwarded to litellm only
+    when set, so leaving them unset preserves the model's own defaults.
+    """
     s = get_settings()
-    return LiteLlm(model=s.default_model_name, timeout=s.default_model_timeout)
+    kwargs: dict = {
+        "model": model_name if model_name is not None else s.default_model_name,
+        "timeout": timeout if timeout is not None else s.default_model_timeout,
+    }
+    if s.model_temperature is not None:
+        kwargs["temperature"] = s.model_temperature
+    if s.model_top_p is not None:
+        kwargs["top_p"] = s.model_top_p
+    return LiteLlm(**kwargs)
+
+
+def _build_default_model() -> LiteLlm:
+    return build_model()
 
 
 # Many modules import this directly; keep the symbol working.

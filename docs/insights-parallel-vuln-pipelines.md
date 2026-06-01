@@ -1,13 +1,13 @@
-# Key Insights: Parallel Trace Pipelines & Vulnerability Detection
+# Key Insights: Parallel Trace Workflows & Vulnerability Detection
 
 *Session: 2026-05-27 → 2026-05-28*
 
 ---
 
-## 1. Parallelizing the Trace Pipeline
+## 1. Parallelizing the Trace Workflow
 
 ### Problem
-The trace pipeline processes API operations sequentially — each operation runs a full LLM agent session (multiple tool calls, file reads, annotation writes). With 10-20 operations, wallclock time scales linearly.
+The trace workflow processes API operations sequentially — each operation runs a full LLM agent session (multiple tool calls, file reads, annotation writes). With 10-20 operations, wallclock time scales linearly.
 
 ### Approach: Path-Level Parallelism
 Each API path gets its own forked `MemoryOverlayFileSystem`. Paths run concurrently via `asyncio.TaskGroup` with a semaphore (`max_concurrency=3`). Operations within a path remain sequential so sibling operations see each other's annotations.
@@ -45,7 +45,7 @@ Operations within a path often share code (middleware, services). Sequential exe
 ## 2. The Cascade Decay Problem
 
 ### The Math
-In a sequential N-stage pipeline where each stage has accuracy `p`, end-to-end accuracy is `p^N`.
+In a sequential N-stage workflow where each stage has accuracy `p`, end-to-end accuracy is `p^N`.
 
 | Stages | p=0.80 | p=0.90 | p=0.95 |
 |---|---|---|---|
@@ -53,7 +53,7 @@ In a sequential N-stage pipeline where each stage has accuracy `p`, end-to-end a
 | 3 | 0.51 | 0.73 | 0.86 |
 | 5 | 0.33 | 0.59 | 0.77 |
 
-At 80% per-stage, a 5-step pipeline delivers only 33% end-to-end accuracy.
+At 80% per-stage, a 5-step workflow delivers only 33% end-to-end accuracy.
 
 ### Research Findings (2025-2026)
 - Google DeepMind: unstructured multi-agent networks amplify errors **up to 17.2x** vs single-agent baselines
@@ -72,12 +72,12 @@ Generator → VERIFY → Generator → VERIFY = p₁ × p₃ × filter  (filters
 
 ---
 
-## 3. Pipeline Architecture: Two Designs
+## 3. Workflow Architecture: Two Designs
 
 ### Design Rule
 > Keep sequential chains under 5 steps. Insert verification agents at steps 3 and 5.
 
-### Pipeline A: `vuln-assess` (full assessment, highest quality)
+### Workflow A: `vuln-assess` (full assessment, highest quality)
 
 ```
 Step 1: project_discovery     — SWE agent: deps + structure
@@ -92,7 +92,7 @@ Step 5: exploit       [VERIFY]— exploitability agent: verify each finding
 - Step 5 requires `CONTRACTOR_TARGET_URL` (live target); skipped if unset
 - Artifact bridge copies `user:oas-openapi-building` → `oas-openapi-building` between OAS and trace stages
 
-### Pipeline B: `vuln-scan-fast` (high recall, no OAS dependency)
+### Workflow B: `vuln-scan-fast` (high recall, no OAS dependency)
 
 ```
 Step 1: project_discovery     — SWE agent (skip if exists)
@@ -106,8 +106,8 @@ Step 5: exploit       [VERIFY]— exploitability agent per finding
 - Step 3 is programmatic (no LLM), acts as cheap noise filter
 - Step 4 uses trace agent in targeted mode: given a specific finding, trace the code path to confirm or refute
 
-### Why Two Pipelines
-Pipeline A is thorough but slow (OAS build + per-operation trace). Pipeline B skips OAS entirely and uses a fast scan + targeted confirmation, trading coverage depth for speed. For CI integration, B runs in minutes; A runs in tens of minutes but produces richer output (annotated code + OAS + verified findings).
+### Why Two Workflows
+Workflow A is thorough but slow (OAS build + per-operation trace). Workflow B skips OAS entirely and uses a fast scan + targeted confirmation, trading coverage depth for speed. For CI integration, B runs in minutes; A runs in tens of minutes but produces richer output (annotated code + OAS + verified findings).
 
 ---
 
@@ -125,17 +125,17 @@ Stage 3 (trace):   targeted confirmation, high precision      → kill false pos
 Stage 4 (exploit): final verification against live target     → highest confidence
 ```
 
-The key: **recall can only decrease through the pipeline; precision can increase**. So maximize recall at the top, refine precision at the bottom.
+The key: **recall can only decrease through the workflow; precision can increase**. So maximize recall at the top, refine precision at the bottom.
 
 ### Concrete Implementation
 The `vuln_scan_fast` task template instructs the agent:
-> "You are the first stage of a multi-stage pipeline. Your job is to MAXIMIZE RECALL. Report every plausible vulnerability, even at low confidence. A later stage will verify and filter. Missing a real vulnerability here means it is lost forever."
+> "You are the first stage of a multi-stage workflow. Your job is to MAXIMIZE RECALL. Report every plausible vulnerability, even at low confidence. A later stage will verify and filter. Missing a real vulnerability here means it is lost forever."
 
 ### Pass@K Alternative
 Run the scan stage K times with prompt/temperature variation, union the findings:
 - At 80% recall per run, `pass@3` union gives `1 - (1-0.8)³ = 99.2%` theoretical recall
 - Cost: K× scan tokens, but only 1× verification tokens
-- The parallel pipeline infrastructure already supports concurrent execution
+- The parallel workflow infrastructure already supports concurrent execution
 
 ---
 
@@ -188,9 +188,9 @@ Self-contained HTML report (`scripts/vuln_eval_report.py`) with matplotlib chart
 
 | File | Purpose |
 |---|---|
-| `cli/pipelines/trace_graph_pathpar.py` | Path-parallel trace pipeline |
-| `cli/pipelines/vuln_assess.py` | Pipeline A: full vulnerability assessment |
-| `cli/pipelines/vuln_scan_fast.py` | Pipeline B: high-recall fast scan |
+| `contractor/workflows/trace_graph_pathpar/workflow.py` | Path-parallel trace workflow |
+| `contractor/workflows/vuln_assess/workflow.py` | Workflow A: full vulnerability assessment |
+| `contractor/workflows/vuln_scan_fast/workflow.py` | Workflow B: high-recall fast scan |
 | `contractor/tasks/vuln_scan_fast/v1.yml` | Separate task template for over-reporting scan |
 | `contractor/tools/fs/merge.py` | Overlay fork/merge utilities |
 | `contractor/skills/trace/references/cwe-mapping.md` | CWE quick-reference for agents |

@@ -335,7 +335,7 @@ def render_report(
 ) -> str:
     out = []
     out.append("# Contractor Eval Sweep Report\n")
-    out.append(f"- Pipeline: `{pipeline}`")
+    out.append(f"- Workflow: `{pipeline}`")
     out.append(f"- Project: `{project_path}`")
     out.append(f"- Output: `{out_dir}`")
     out.append(f"- Runs: **{len(runs)}**")
@@ -420,7 +420,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--pipeline",
         required=True,
-        help="Pipeline name (build, enrich, trace, trace-direct, likec4, router).",
+        help="Workflow name (build, enrich, trace, trace-direct, likec4, router).",
     )
     parser.add_argument(
         "--project-path",

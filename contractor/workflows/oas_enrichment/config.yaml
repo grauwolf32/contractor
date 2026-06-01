@@ -1,0 +1,6 @@
+budgets:
+  builder_max_tokens: 120000
+  validator_max_tokens: 120000
+tasks:
+  oas_enrich: { iterations: 3, max_attempts: 6, max_steps: 30 }
+  oas_validate: { iterations: 2, max_attempts: 2, max_steps: 20 }

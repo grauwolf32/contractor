@@ -1,289 +1,395 @@
-import os
+"""Podman-backed sandbox for the exploit agents' code-execution tools.
+
+Exposes ``run_python`` / ``execute_bash`` (via :func:`code_exec_tools`) backed
+by an ephemeral Kali container, scoped to a single worker **agent-run** (keyed
+by the ADK ``invocation_id``):
+
+- one container per agent-run, started lazily on the first call and reused
+  across that run's calls so files/state persist;
+- target source mounted read-only at ``/project``; a writable scratch
+  ``/work`` (container fs) where scripts write — created files are returned as
+  ``output_files`` and saved as artifacts by the tools;
+- ``--network host`` (reach the live target), ``--rm`` + resource/pid/time caps,
+  clean env (podman does not pass host env by default — no host secrets leak);
+- torn down by :mod:`contractor.runners.plugins.sandbox_cleanup` at run end,
+  with an ``atexit`` sweep + container TTL as backstops.
+
+The engine is an ADK :class:`BaseCodeExecutor` so it stays on ADK rails (uses
+``CodeExecutionInput`` / ``CodeExecutionResult`` / ``File`` and could later be
+attached as ``LlmAgent.code_executor``); the agent-facing surface is the two
+function tools.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import atexit
+import hashlib
+import logging
 import shutil
 import subprocess
-from typing import Callable, Optional
+import threading
+from typing import Any, Callable, Optional
+
+from fsspec import AbstractFileSystem
+from google.adk.code_executors.base_code_executor import BaseCodeExecutor
+from google.adk.code_executors.code_execution_utils import (
+    CodeExecutionInput, CodeExecutionResult, File)
+from google.adk.tools.tool_context import ToolContext
+from google.genai import types
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_SANDBOX_IMAGE = "contractor-sandbox:latest"
+_CONTAINER_PREFIX = "contractor-sbx-"
+_PROJECT_MOUNT = "/project"
+_WORKDIR = "/work"
+_CONTAINER_TTL = "2h"          # self-expiry backstop if teardown is missed
+_DEFAULT_TIMEOUT_S = 120
+_MAX_OUTPUT_CHARS = 60_000     # truncate stdout/stderr returned to the model
+_MAX_OUTPUT_FILES = 20
+_MAX_FILE_BYTES = 1_000_000
 
 
-class PodmanNotFoundException(Exception):
-    def __init__(self) -> None:
-        super().__init__("podman not found!")
+class SandboxError(RuntimeError):
+    """Raised when the sandbox container cannot be created or exec'd."""
 
 
-class PodmanMountException(Exception):
-    def __init__(self, mount: str) -> None:
-        super().__init__(
-            f"mounted directory {mount} does not exist or is not a directory"
-        )
+def _name_token(key: str) -> str:
+    """Collision-free, valid container-name token for a sandbox key."""
+    return hashlib.sha1(key.encode()).hexdigest()[:16]
 
 
-class PodmanImageNotFoundException(Exception):
-    def __init__(self, image: str) -> None:
-        super().__init__(f"image {image} not found in registry (pull failed)")
+def _safe(key: str) -> str:
+    """Sanitise a key for use inside an artifact path."""
+    return "".join(c if c.isalnum() or c in "-_." else "-" for c in key) or "default"
 
 
-class PodmanContainer:
+class KaliSandbox:
+    """One ephemeral podman container, keyed by a stable scope key.
+
+    The key is the worker's ``namespace`` (per-case / per-finding), so a single
+    container is reused across all of that run's tool calls and torn down once.
+    """
+
     def __init__(
         self,
-        name: str,
-        image: str,
-        mounts: list[str],
-        commands: Optional[list[str]] = None,
-        ro_mode: bool = False,
-        workdir: str = "/mnt",
-    ):
-        """
+        key: str,
+        *,
+        image: str = DEFAULT_SANDBOX_IMAGE,
+        host_project_path: Optional[str] = None,
+        memory: str = "2g",
+        cpus: str = "2",
+        pids_limit: int = 512,
+    ) -> None:
+        self.key = key
+        self.name = f"{_CONTAINER_PREFIX}{_name_token(key)}"
+        self.image = image
+        self.host_project_path = host_project_path
+        self.memory = memory
+        self.cpus = cpus
+        self.pids_limit = pids_limit
+        self._started = False
+        self._lock = threading.Lock()
+        self._seq = 0
+
+    # ── lifecycle ────────────────────────────────────────────────────────
+    def ensure_started(self) -> None:
+        with self._lock:
+            if self._started:
+                return
+            if not shutil.which("podman"):
+                raise SandboxError("podman not found on PATH")
+            # Drop any stale container with the same name.
+            subprocess.run(["podman", "rm", "-f", self.name],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd = [
+                "podman", "run", "-d", "--rm", "--name", self.name,
+                "--network", "host",
+                "--memory", self.memory, "--cpus", self.cpus,
+                "--pids-limit", str(self.pids_limit),
+                "--workdir", _WORKDIR,
+            ]
+            if self.host_project_path:
+                cmd += ["-v", f"{self.host_project_path}:{_PROJECT_MOUNT}:ro"]
+            # No -e / --env-host: container gets a clean env (no host secrets).
+            cmd += [self.image, "sleep", _CONTAINER_TTL]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                raise SandboxError(
+                    f"failed to start sandbox ({self.image}): {res.stderr.strip()}"
+                )
+            self._started = True
+            logger.info("sandbox %s started (image=%s)", self.name, self.image)
+
+    def teardown(self) -> None:
+        with self._lock:
+            if not self._started:
+                return
+            subprocess.run(["podman", "rm", "-f", self.name],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self._started = False
+            logger.info("sandbox %s removed", self.name)
+
+    # ── exec helpers ─────────────────────────────────────────────────────
+    def _write_file(self, path: str, content: str) -> None:
+        res = subprocess.run(
+            ["podman", "exec", "-i", self.name, "sh", "-c", f"cat > {path}"],
+            input=content.encode(), capture_output=True,
+        )
+        if res.returncode != 0:
+            raise SandboxError(f"failed to write {path}: {res.stderr.decode().strip()}")
+
+    def _list_workdir(self) -> set[str]:
+        res = subprocess.run(
+            ["podman", "exec", self.name, "sh", "-c",
+             f"find {_WORKDIR} -maxdepth 2 -type f"],
+            capture_output=True, text=True,
+        )
+        return {ln.strip() for ln in res.stdout.splitlines() if ln.strip()}
+
+    def _read_file(self, path: str) -> bytes:
+        res = subprocess.run(["podman", "exec", self.name, "cat", path],
+                             capture_output=True)
+        return res.stdout[:_MAX_FILE_BYTES]
+
+    def _collect_new_files(self, before: set[str], skip: set[str]) -> list[File]:
+        files: list[File] = []
+        for path in sorted(self._list_workdir() - before - skip):
+            if len(files) >= _MAX_OUTPUT_FILES:
+                break
+            data = self._read_file(path)
+            if not data:
+                continue
+            name = path[len(_WORKDIR) + 1:]
+            files.append(File(name=name, content=data,
+                              mime_type="application/octet-stream"))
+        return files
+
+    def _exec(self, argv: list[str], timeout_s: int) -> tuple[int, str, str]:
+        """Run argv in the container under an in-container `timeout`."""
+        full = ["podman", "exec", self.name,
+                "timeout", "--signal=KILL", str(timeout_s), *argv]
+        try:
+            res = subprocess.run(full, capture_output=True, text=True,
+                                 timeout=timeout_s + 15)
+        except subprocess.TimeoutExpired:
+            return 124, "", f"sandbox exec exceeded {timeout_s}s wall-clock"
+        out = res.stdout[:_MAX_OUTPUT_CHARS]
+        err = res.stderr[:_MAX_OUTPUT_CHARS]
+        if res.returncode == 124:
+            err = (err + f"\n[timed out after {timeout_s}s]").strip()
+        return res.returncode, out, err
+
+    # ── code execution ───────────────────────────────────────────────────
+    def run_python(self, code: str, preinit: Optional[list[str]],
+                   timeout_s: int) -> tuple[CodeExecutionResult, str]:
+        self.ensure_started()
+        self._seq += 1
+        script_name = f"{_WORKDIR}/script_{self._seq}.py"
+        body = ""
+        if preinit:
+            body += "# --- preinit ---\n" + "\n".join(preinit) + "\n\n"
+        body += "# --- script ---\n" + code + "\n"
+        self._write_file(script_name, body)
+        before = self._list_workdir()
+        rc, out, err = self._exec(["python3", script_name], timeout_s)
+        output_files = self._collect_new_files(before, skip={script_name})
+        result = CodeExecutionResult(stdout=out, stderr=err, output_files=output_files)
+        return result, body
+
+    def run_bash(self, command: str, timeout_s: int) -> CodeExecutionResult:
+        self.ensure_started()
+        before = self._list_workdir()
+        rc, out, err = self._exec(["sh", "-c", command], timeout_s)
+        output_files = self._collect_new_files(before, skip=set())
+        return CodeExecutionResult(stdout=out, stderr=err, output_files=output_files)
+
+
+# ── sandbox registry (keyed by scope key = worker namespace) ──────────────
+_SANDBOXES: dict[str, KaliSandbox] = {}
+_REGISTRY_LOCK = threading.Lock()
+
+
+def get_or_create_sandbox(key: str, **kwargs: Any) -> KaliSandbox:
+    with _REGISTRY_LOCK:
+        sb = _SANDBOXES.get(key)
+        if sb is None:
+            sb = KaliSandbox(key, **kwargs)
+            _SANDBOXES[key] = sb
+        return sb
+
+
+def teardown_sandbox(key: str) -> None:
+    """Remove the container for one scope key."""
+    with _REGISTRY_LOCK:
+        sb = _SANDBOXES.pop(key, None)
+    if sb is not None:
+        sb.teardown()
+
+
+def teardown_all() -> None:
+    """Remove every live sandbox. Called at run end (cleanup plugin) + atexit.
+
+    Safe because code-exec runs are sequential (the only parallel workflow,
+    trace_graph_pathpar, does not use code-exec), so no other run's sandbox is
+    active when one finishes.
+    """
+    with _REGISTRY_LOCK:
+        sandboxes = list(_SANDBOXES.values())
+        _SANDBOXES.clear()
+    for sb in sandboxes:
+        try:
+            sb.teardown()
+        except Exception:  # best-effort
+            logger.exception("sandbox teardown failed for %s", sb.name)
+
+
+atexit.register(teardown_all)
+
+
+class KaliCodeExecutor(BaseCodeExecutor):
+    """ADK code executor backed by :class:`KaliSandbox` (one per agent-run)."""
+
+    image: str = DEFAULT_SANDBOX_IMAGE
+    host_project_path: Optional[str] = None
+
+    def _sandbox(self, invocation_id: str) -> KaliSandbox:
+        return get_or_create_sandbox(
+            invocation_id, image=self.image,
+            host_project_path=self.host_project_path,
+        )
+
+    def execute_code(self, invocation_context: Any,
+                     code_execution_input: CodeExecutionInput) -> CodeExecutionResult:
+        inv = getattr(invocation_context, "invocation_id", None) or "default"
+        result, _ = self._sandbox(inv).run_python(
+            code_execution_input.code, preinit=None, timeout_s=_DEFAULT_TIMEOUT_S)
+        return result
+
+
+async def _save_artifacts(
+    tool_context: Optional[ToolContext], namespace: str,
+    script: Optional[str], output_files: list[File],
+) -> list[str]:
+    """Persist the executed script + any created files as artifacts."""
+    if tool_context is None:
+        return []
+    saved: list[str] = []
+    base = f"code-exec/{_safe(namespace)}"
+    try:
+        if script is not None:
+            key = f"{base}/script_{abs(hash(script)) % 10000:04d}.py"
+            await tool_context.save_artifact(
+                filename=key, artifact=types.Part.from_text(text=script))
+            saved.append(key)
+        for f in output_files:
+            key = f"{base}/files/{f.name}"
+            data = f.content if isinstance(f.content, bytes) else f.content.encode()
+            await tool_context.save_artifact(
+                filename=key, artifact=types.Part.from_bytes(
+                    data=data, mime_type=f.mime_type))
+            saved.append(key)
+    except Exception:  # artifact persistence must not break the tool
+        logger.exception("failed to persist code-exec artifacts")
+    return saved
+
+
+def code_exec_tools(
+    namespace: str,
+    fs: Optional[AbstractFileSystem] = None,
+    *,
+    image: str = DEFAULT_SANDBOX_IMAGE,
+    default_timeout_s: int = _DEFAULT_TIMEOUT_S,
+) -> list[Callable[..., Any]]:
+    """Build the ``run_python`` / ``execute_bash`` tools for an exploit agent.
+
+    The target source (``fs.root_path`` when ``fs`` is a rooted local fs) is
+    bind-mounted read-only into the per-run sandbox; pass ``fs=None`` for
+    black-box agents (no project mount).
+    """
+    host_project_path = getattr(fs, "root_path", None)
+
+    def _sandbox() -> KaliSandbox:
+        # Keyed by the per-case namespace → one container per run, reused across
+        # this run's tool calls and torn down once at run end.
+        return get_or_create_sandbox(
+            namespace, image=image, host_project_path=host_project_path)
+
+    async def run_python(
+        code: str,
+        preinit: Optional[list[str]] = None,
+        timeout_s: int = default_timeout_s,
+        tool_context: Optional[ToolContext] = None,
+    ) -> dict[str, Any]:
+        """Execute a Python 3 script in the exploitation sandbox and return its output.
+
+        The sandbox is a Kali container (requests/httpx/pwntools/bs4/pyjwt
+        preinstalled, host network) that persists for this agent run — files you
+        write to the working directory survive across calls and are saved as
+        artifacts. Use this to script repetitive work in ONE call (e.g. a blind
+        SQL-injection extraction via a binary-search loop) instead of issuing the
+        same request hundreds of times by hand.
+
         Args:
-            name: container unique name (podman --name)
-            image: container image from registry (e.g. "docker.io/library/alpine:latest")
-            mounts: host directories to mount into the container under /mnt/<basename>
-            commands: allow-list of commands executable inside the container; None means allow all
-            ro_mode: enables read-only container mode (and mounts are mounted read-only)
-            workdir: container working directory (default: /mnt)
-        """
-        self.name: str = name
-        self.image: str = image
-        self.mounts: list[str] = mounts
-        self.commands: Optional[list[str]] = commands
-        self.ro_mode: bool = ro_mode
-        self.workdir: str = workdir
-        self.container_id: Optional[str] = None
+            code: Python source to run. The target source tree is mounted
+                read-only at /project; write any output files to the current dir.
+            preinit: Optional setup snippets executed before `code` in the same
+                interpreter (seed variables, imports, helpers, captured data).
+            timeout_s: Hard wall-clock limit for the script in seconds.
 
-    # ----------------- checks / ensures -----------------
-
-    def _ensure_podman(self) -> None:
-        """Checks that podman is available."""
-        if not shutil.which("podman"):
-            raise PodmanNotFoundException()
-
-    def _ensure_image(self) -> None:
-        """
-        Checks if image exists locally. Pull image from registry otherwise.
-        Raises PodmanImageNotFoundException if pulling fails.
-        """
-        exists = subprocess.run(
-            ["podman", "image", "exists", self.image],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if exists.returncode == 0:
-            return
-
-        pull = subprocess.run(
-            ["podman", "pull", self.image], capture_output=True, text=True
-        )
-        if pull.returncode != 0:
-            raise PodmanImageNotFoundException(self.image)
-
-    def _ensure_mounts(self) -> None:
-        """Checks if all mounts are directories and exist."""
-        for m in self.mounts:
-            if not os.path.isdir(m):
-                raise PodmanMountException(m)
-
-    # ----------------- container lifecycle helpers -----------------
-
-    def _remove_container_by_name_if_exists(self) -> None:
-        """
-        Remove a container by name if it exists (running or not). This is a safety net:
-        - prevents 'name already in use' issues
-        - also cleans up containers created without --rm
-        """
-        subprocess.run(
-            ["podman", "rm", "-f", self.name],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-    def _get_running_container_id(self) -> Optional[str]:
-        """Returns the ID of a *running* container that matches self.name, or None."""
-        r = subprocess.run(
-            ["podman", "ps", "--filter", f"name={self.name}", "--format", "{{.ID}}"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode != 0:
-            return None
-
-        ids = [line.strip() for line in r.stdout.splitlines() if line.strip()]
-        return ids[0] if ids else None
-
-    def _check_container_running(self) -> bool:
-        """Checks whether self.container_id exists and is in Running state."""
-        if self.container_id is None:
-            return False
-
-        r = subprocess.run(
-            ["podman", "inspect", "-f", "{{.State.Running}}", self.container_id[:12]],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode != 0:
-            return False
-
-        return r.stdout.strip().lower() == "true"
-
-    def _run_container(self, ro_mode: bool) -> str:
-        """
-        Run container without persistence (--rm) in detached mode.
-        Sets workdir to self.workdir and mounts all directories under self.workdir/<basename>.
-        Keeps container alive for 30 minutes.
         Returns:
-            container_id
+            stdout, stderr, exit_code, and the artifact keys of the saved script
+            and any files the script produced.
         """
-        cmd: list[str] = [
-            "podman",
-            "run",
-            "-d",
-            "--rm",
-            "--name",
-            self.name,
-            "--workdir",
-            self.workdir,
-        ]
+        result, script = await asyncio.to_thread(
+            _sandbox().run_python, code, preinit, int(timeout_s))
+        saved = await _save_artifacts(
+            tool_context, namespace, script, result.output_files)
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "artifacts": saved,
+        }
 
-        if ro_mode:
-            cmd.append("--read-only")
+    async def execute_bash(
+        command: str,
+        timeout_s: int = default_timeout_s,
+        tool_context: Optional[ToolContext] = None,
+    ) -> dict[str, Any]:
+        """Run a shell command in the same exploitation sandbox as run_python.
 
-        for host_path in self.mounts:
-            host_abs = os.path.abspath(host_path)
-            mount_name = os.path.basename(host_abs)
-            container_path = f"{self.workdir.rstrip('/')}/{mount_name}"
+        Kali CLI tooling is available (curl, jq, nmap, sqlmap, netcat,
+        gobuster). The container persists for this agent run and shares its
+        filesystem with run_python.
 
-            volume = f"{host_abs}:{container_path}"
-            if ro_mode:
-                volume += ":ro"
+        Args:
+            command: Shell command line to execute via `sh -c`.
+            timeout_s: Hard wall-clock limit in seconds.
 
-            cmd += ["-v", volume]
-
-        # Keep container alive so `podman exec` can run commands later (30 minutes)
-        cmd += [self.image, "sleep", "30m"]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"failed to run container: {result.stderr.strip()}")
-
-        return result.stdout.strip()
-
-    def _check_command_available(self, command: str) -> bool:
+        Returns:
+            stdout, stderr, and the artifact keys of any files produced.
         """
-        If commands allow-list is provided, only allow executing those commands (by first token).
-        """
-        if not command or not command.strip():
-            return False
+        result = await asyncio.to_thread(
+            _sandbox().run_bash, command, int(timeout_s))
+        saved = await _save_artifacts(
+            tool_context, namespace, None, result.output_files)
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "artifacts": saved,
+        }
 
-        if self.commands is None:
-            return True
+    return [run_python, execute_bash]
 
-        first = command.strip().split()[0]
-        return first in self.commands
 
-    def _ensure_container_running(self) -> None:
-        """
-        Ensures there is a running container and self.container_id is set.
-        Order:
-          1) if current self.container_id is running -> ok
-          2) else if a container with self.name is already running -> reuse its id
-          3) else remove any leftover container with same name and start a new one
-        """
-        if self._check_container_running():
-            return
-
-        if running_id := self._get_running_container_id():
-            self.container_id = running_id
-            return
-
-        # container not running -> start fresh (avoid name conflicts)
-        self._remove_container_by_name_if_exists()
-        self.container_id = self._run_container(self.ro_mode)
-
-    # ----------------- public API -----------------
-
-    def start(self) -> None:
-        self._ensure_podman()
-        self._ensure_image()
-        self._ensure_mounts()
-        self._ensure_container_running()
-
-    def execute(self, command: str) -> tuple[str, str]:
-        """
-        Execute a command inside the container.
-        If the container is dead/expired, it will be (re)started automatically.
-        """
-        self._ensure_podman()
-
-        if not self._check_command_available(command):
-            return "", f"command {command} is not available to call"
-
-        # If container is dead or missing, bring it back before exec
-        if self.container_id is None or not self._check_container_running():
-            # Ensure deps are ready before (re)run
-            self._ensure_image()
-            self._ensure_mounts()
-            self._ensure_container_running()
-
-        assert self.container_id is not None, "container_id must be set after _ensure_container_running"
-        command = command.strip()
-        result = subprocess.run(
-            ["podman", "exec", self.container_id[:12], "sh", "-c", command],
-            capture_output=True,
-            text=True,
-        )
-
-        # If exec failed because container died between checks, retry once.
-        if result.returncode != 0 and (
-            "no such container" in (result.stderr or "").lower()
-        ):
-            self.container_id = None
-            self._ensure_image()
-            self._ensure_mounts()
-            self._ensure_container_running()
-            assert self.container_id is not None, "container_id must be set after _ensure_container_running"
-            result = subprocess.run(
-                ["podman", "exec", self.container_id[:12], "sh", "-c", command],
-                capture_output=True,
-                text=True,
-            )
-
-        return result.stdout, result.stderr
-
-    def tools(self) -> list[Callable[[str], dict[str, str]]]:
-        """
-        Returns a list of callable tools.
-        Ensures container is running; if it dies later, execution will restart it.
-        """
-        self.start()
-
-        def code_execution_tool(command: str) -> dict[str, str]:
-            """
-            code_execution_tool: tool to execute arbitrary system command inside the container
-
-            Args:
-                command: arbitrary system command (i.e. "ls -la")
-            Returns:
-                {"result": <stdout>, "error": <stderr or validation error>}
-            """
-            if not self._check_command_available(command):
-                return {
-                    "result": "",
-                    "error": f"command {command} is not available to call",
-                }
-
-            out, err = self.execute(command)
-            if err.strip():
-                return {"result": out, "error": err}
-
-            return {"result": out}
-
-        return [code_execution_tool]
-
-    def stop(self) -> None:
-        """Stops the running container (if any)."""
-        if not self.container_id:
-            return
-
-        subprocess.run(
-            ["podman", "stop", self.container_id[:12]],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        self.container_id = None
+__all__ = [
+    "KaliSandbox",
+    "KaliCodeExecutor",
+    "SandboxError",
+    "code_exec_tools",
+    "get_or_create_sandbox",
+    "teardown_sandbox",
+    "teardown_all",
+    "DEFAULT_SANDBOX_IMAGE",
+]

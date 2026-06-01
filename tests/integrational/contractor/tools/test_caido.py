@@ -9,6 +9,7 @@ Run:
 from __future__ import annotations
 
 import asyncio
+import base64
 from pathlib import Path
 
 import httpx
@@ -143,6 +144,21 @@ def automate_results_tool(backend):
 @pytest.fixture(scope="module")
 def sitemap_tool(backend):
     return backend.sitemap
+
+
+@pytest.fixture(scope="module")
+def workflow_list_tool(backend):
+    return backend.workflow_list
+
+
+@pytest.fixture(scope="module")
+def workflow_run_tool(backend):
+    return backend.workflow_run
+
+
+@pytest.fixture(scope="module")
+def workflow_findings_tool(backend):
+    return backend.workflow_findings
 
 
 # ---------------------------------------------------------------------------
@@ -429,3 +445,85 @@ class TestCaidoAutomate:
     async def test_automate_results_no_session(self, automate_results_tool):
         result = await automate_results_tool(session_id="99999999")
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Workflows (list / run / findings)
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_workflow_id(workflow_list_tool, name: str) -> str | None:
+    """Find an installed workflow's id by display name (case-insensitive)."""
+    listing = await workflow_list_tool()
+    assert "error" not in listing, listing
+    for wf in listing["workflows"]:
+        if wf["name"].lower() == name.lower():
+            return wf["id"]
+    return None
+
+
+class TestCaidoWorkflows:
+    @pytest.mark.asyncio
+    async def test_list_returns_builtin_converts(self, workflow_list_tool):
+        result = await workflow_list_tool()
+        assert "error" not in result, result
+        names = {w["name"].lower() for w in result["workflows"]}
+        # The four stock convert workflows ship with every Caido instance.
+        assert "base64 encode" in names
+        assert "base64 decode" in names
+        for w in result["workflows"]:
+            assert w["kind"] in ("convert", "active", "passive")
+            assert isinstance(w["enabled"], bool)
+
+    @pytest.mark.asyncio
+    async def test_list_filter_kind(self, workflow_list_tool):
+        result = await workflow_list_tool(kind="convert")
+        assert "error" not in result, result
+        assert result["workflows"]  # at least the stock encoders
+        assert all(w["kind"] == "convert" for w in result["workflows"])
+
+    @pytest.mark.asyncio
+    async def test_run_convert_base64_encode(
+        self, workflow_run_tool, workflow_list_tool
+    ):
+        wid = await _resolve_workflow_id(workflow_list_tool, "Base64 Encode")
+        assert wid, "Base64 Encode workflow not installed"
+        result = await workflow_run_tool(workflow_id=wid, input="hello world")
+        assert "error" not in result, result
+        assert result["kind"] == "convert"
+        assert result["output"] == base64.b64encode(b"hello world").decode()
+
+    @pytest.mark.asyncio
+    async def test_run_convert_roundtrip(
+        self, workflow_run_tool, workflow_list_tool
+    ):
+        enc_id = await _resolve_workflow_id(workflow_list_tool, "Base64 Encode")
+        dec_id = await _resolve_workflow_id(workflow_list_tool, "Base64 Decode")
+        assert enc_id and dec_id
+        encoded = await workflow_run_tool(workflow_id=enc_id, input="contractor")
+        decoded = await workflow_run_tool(
+            workflow_id=dec_id, input=encoded["output"]
+        )
+        assert decoded["output"] == "contractor"
+
+    @pytest.mark.asyncio
+    async def test_run_missing_args(self, workflow_run_tool):
+        result = await workflow_run_tool(workflow_id="g:2")
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_run_missing_id(self, workflow_run_tool):
+        result = await workflow_run_tool(workflow_id="", input="x")
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_run_bad_id(self, workflow_run_tool):
+        result = await workflow_run_tool(workflow_id="g:99999", input="x")
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_findings_shape(self, workflow_findings_tool):
+        result = await workflow_findings_tool(limit=5)
+        assert "error" not in result, result
+        assert "count" in result
+        assert isinstance(result["findings"], list)

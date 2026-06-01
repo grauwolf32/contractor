@@ -33,7 +33,7 @@ class AgentRunner(BaseModel):
 
     Knows nothing about templates, retries, queues, or task artifacts —
     those belong to higher-level orchestrators (e.g. ``TaskRunner``) or
-    to pipelines that compose ``AgentRunner`` directly.
+    to workflows that compose ``AgentRunner`` directly.
 
     Emits ``TaskRunnerEvent`` so callers can reuse the same handler /
     plugin contracts as ``TaskRunner``.

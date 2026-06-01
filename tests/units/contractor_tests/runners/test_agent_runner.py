@@ -1,5 +1,5 @@
 """Unit tests for AgentRunner — the bare single-agent runner used by
-RouterPipeline. The ADK ``Runner`` is replaced with a fake that yields
+RouterWorkflow. The ADK ``Runner`` is replaced with a fake that yields
 canned events, so these exercise AgentRunner's own lifecycle/emission/state
 logic without an LLM."""
 
@@ -16,7 +16,6 @@ import contractor.runners.agent_runner as agent_runner_mod
 from contractor.runners.agent_runner import AgentRunner, AgentRunResult
 from contractor.runners.artifacts import artifact_names_for_key
 from contractor.runners.models import TaskRunnerEvent, TaskScopedKeys
-
 
 # ─── Fakes / helpers ──────────────────────────────────────────────────────────
 
