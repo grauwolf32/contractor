@@ -128,15 +128,18 @@ after editing an unrelated region, still reporting `ok/changed`. Sibling tools
 loudly (returns `{"error": ...}`) on non-decodable files like its siblings.
 Regression test: `test_edit_does_not_corrupt_non_utf8_file`.
 
-### ☐ M3 — OpenAPI `$ref` mutual-recursion inlines asymmetrically / blows up
+### ☑ M3 — OpenAPI `$ref` mutual-recursion inlines asymmetrically / blows up — FIXED
 **`contractor/tools/openapi/ref_resolver.py:108-116`**
 
 `resolve_local_refs` seeds each schema only with its own self-ref, so a cycle
 `A→B→A` resolves to different depths depending on entry point, and N
 mutually-recursive types inline each cycle ~N times (quadratic/exponential on dense
-specs). Terminates, but corrupts output shape and can balloon memory. **Fix:** carry
-the full ancestor `seen` set across the mutual recursion, not just the per-schema
-self-ref.
+specs). Terminates, but corrupts output shape and can balloon memory. **Fixed**
+(`contractor/tools/openapi/ref_resolver.py`): each named schema is now resolved
+against the *original* `schema` into a separate `resolved_named` dict that is
+written back only after all schemas are done, so a partially-inlined schema can no
+longer feed into a later one's resolution — making the output independent of
+iteration order.
 
 ### ☑ M4 — Caido fuzz offsets are character indices, not byte offsets — FIXED
 **`contractor/tools/caido.py:395-405, 712-722`**

@@ -105,15 +105,23 @@ def resolve_local_refs(
 
     # Pre-resolve each named schema with its own self-ref already in `seen`,
     # so that self-referential schemas are detected as circular immediately.
+    #
+    # Resolve every named schema against the *original* `schema` and collect the
+    # results separately, only writing them back once all are done. Writing each
+    # resolved schema back into `schema` as we go would let a partially-inlined
+    # schema feed into a later one's resolution, which made mutually-recursive
+    # cycles (A→B→A) inline to different depths depending on iteration order.
     components_schemas = schema.get("components", {}).get("schemas", {})
+    resolved_named: dict[str, Any] = {}
     for name in list(components_schemas.keys()):
         self_ref = f"#/components/schemas/{name}"
-        components_schemas[name] = resolve_refs(
+        resolved_named[name] = resolve_refs(
             components_schemas[name],
             schema,
             max_depth=max_depth,
             _initial_seen=frozenset({self_ref}),
         )
+    components_schemas.update(resolved_named)
 
     # Now resolve the rest of the schema (paths, etc.)
     # Schemas are already resolved, so remaining $refs to them will be inlined.
