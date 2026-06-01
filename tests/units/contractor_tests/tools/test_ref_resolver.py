@@ -359,3 +359,35 @@ class TestResolveLocalRefs:
                 "child": {"$circular_ref": "#/components/schemas/Node"},
             },
         }
+
+    def test_mutual_circular_resolves_symmetrically(self, mutual_circular_schema):
+        # Regression for M3: each named schema must resolve against the original
+        # schema, not against earlier partially-inlined results — otherwise the
+        # same A↔B cycle inlines to different depths by iteration order.
+        result = resolve_local_refs(mutual_circular_schema)
+        a = result["components"]["schemas"]["A"]
+        b = result["components"]["schemas"]["B"]
+        # A inlines B exactly once, then closes the cycle back on A.
+        assert a == {
+            "type": "object",
+            "properties": {
+                "b": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"$circular_ref": "#/components/schemas/A"},
+                    },
+                },
+            },
+        }
+        # B is the mirror image — same shape, one level of inlining.
+        assert b == {
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "object",
+                    "properties": {
+                        "b": {"$circular_ref": "#/components/schemas/B"},
+                    },
+                },
+            },
+        }

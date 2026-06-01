@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import dataclasses
 import hashlib
 import logging
-import dataclasses
 import shutil
 import subprocess
 import threading
