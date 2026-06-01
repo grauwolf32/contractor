@@ -10,7 +10,7 @@ breadth-first sweep to confirmed, optionally-exploited findings.
 ```mermaid
 flowchart TD
     D["1 · project_discovery<br/><sub>swe_agent (skippable)</sub>"]
-    S["2 · vuln_scan_fast<br/><sub>vuln_scan_agent, over-report</sub>"]
+    S["2 · vuln_scan_fast<br/><sub>codereview_agent, over-report</sub>"]
     V1["3 · dedup  ⟦VERIFY⟧<br/><sub>programmatic: file + CWE</sub>"]
     T["4 · trace_confirm<br/><sub>trace_agent per finding</sub>"]
     V2["5 · exploit  ⟦VERIFY⟧<br/><sub>exploitability_agent per finding</sub>"]
@@ -25,7 +25,7 @@ flowchart TD
 | # | Step | Engine | Notes |
 |---|------|--------|-------|
 | 1 | `project_discovery` | `swe_agent` (`TaskRunner`) | deps + structure; each task skipped if its artifact exists. |
-| 2 | `vuln_scan_fast` | `vuln_scan_agent` (`TaskRunner`) | high-recall, over-report; writes `user:vulnerability-reports/vuln-scan-fast`. |
+| 2 | `vuln_scan_fast` | `codereview_agent` (`TaskRunner`) | high-recall, over-report; writes `user:vulnerability-reports/vuln-scan-fast`. |
 | 3 | **dedup** `[VERIFY]` | pure Python (`_dedup`) | merge findings sharing `(file, CWE)`, keep highest confidence. |
 | 4 | `trace_confirm` | `trace_agent` (`AgentRunner`, per finding) | confirm/deny each finding by tracing its code path; shared overlay FS. |
 | 5 | **exploit** `[VERIFY]` | `ExploitabilityWorkflow` | live probing; **skipped** unless `CONTRACTOR_TARGET_URL` is set. |
@@ -38,7 +38,7 @@ returns early.
 
 - `budgets.scan_max_tokens` / `budgets.swe_max_tokens` — context budgets.
 - `tasks.{dependency_information,project_information,scan}` — retry/step budgets.
-- `agents.{vuln_scan_agent,trace_agent}.with_graph_tools: true`.
+- `agents.{codereview_agent,trace_agent}.with_graph_tools: true`.
 
 ## Artifacts
 

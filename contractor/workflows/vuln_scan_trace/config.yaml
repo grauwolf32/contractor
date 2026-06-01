@@ -5,5 +5,5 @@ tasks:
   scan: { iterations: 1, max_attempts: 2, max_steps: 75 }
   trace: { iterations: 1, max_attempts: 1, max_steps: 30 }
 agents:
-  vuln_scan_agent: { with_graph_tools: true, output_format: json }
+  codereview_agent: { with_graph_tools: true, output_format: json }
   trace_agent: { with_graph_tools: true, output_format: json }

@@ -1,6 +1,6 @@
 """Combined BFS→DFS vulnerability workflow.
 
-Phase 1 (BFS): vuln_scan_agent sweeps the codebase for findings.
+Phase 1 (BFS): codereview_agent sweeps the codebase for findings.
 Phase 2 (DFS): trace_agent deep-traces each reported finding to
 produce annotated evidence chains.
 
@@ -16,7 +16,7 @@ from typing import Any, Optional
 import yaml
 
 from contractor.agents.trace_agent.agent import build_trace_agent
-from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
+from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
@@ -48,13 +48,13 @@ class VulnScanTraceWorkflow(Workflow):
         scan_namespace = f"{self.namespace}:scan"
 
         scan_builder = partial(
-            build_vuln_scan_agent,
-            name="vuln_scan_agent",
-            _format=CFG.agent("vuln_scan_agent").output_format,
+            build_codereview_agent,
+            name="codereview_agent",
+            _format=CFG.agent("codereview_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
             max_tokens=CFG.budgets.scan_max_tokens,
-            with_graph_tools=CFG.agent("vuln_scan_agent").with_graph_tools,
+            with_graph_tools=CFG.agent("codereview_agent").with_graph_tools,
         )
 
         runner = TaskRunner(

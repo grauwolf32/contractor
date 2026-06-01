@@ -15,7 +15,7 @@ from contractor.utils import load_prompt
 
 from contractor.agents.worker_factory import build_worker
 
-VULN_SCAN_PROMPT: Final[str] = load_prompt("vuln_scan_agent")
+CODEREVIEW_PROMPT: Final[str] = load_prompt("codereview_agent")
 
 _ELIDE_TOOLS: list[str] = [
     "read_file", "grep", "glob", "list_symbols",
@@ -33,7 +33,7 @@ _SUMMARIZATION_BULLETS: Final[str] = (
 )
 
 
-def build_vuln_scan_agent(
+def build_codereview_agent(
     name: str,
     fs: AbstractFileSystem,
     *,
@@ -46,7 +46,7 @@ def build_vuln_scan_agent(
     with_graph_tools: bool = False,
     prompt: Optional[str] = None,
 ) -> LlmAgent:
-    instruction = prompt if prompt is not None else VULN_SCAN_PROMPT
+    instruction = prompt if prompt is not None else CODEREVIEW_PROMPT
 
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(

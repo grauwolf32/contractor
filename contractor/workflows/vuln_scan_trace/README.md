@@ -2,13 +2,13 @@
 
 **CLI alias:** `vuln-scan-trace` &nbsp;·&nbsp; **Class:** `VulnScanTraceWorkflow` &nbsp;·&nbsp; **Runner:** `TaskRunner`
 
-Two phases: a breadth-first `vuln_scan_agent` sweep discovers candidate findings,
+Two phases: a breadth-first `codereview_agent` sweep discovers candidate findings,
 then a `trace_agent` deep-traces **each** finding to produce annotated evidence
 chains and control checklists. Static only — no live target involved.
 
 ```mermaid
 flowchart TD
-    SRC[("project source")] --> SCAN["Phase 1 — BFS<br/><sub>vuln_scan_agent · max_steps: 75</sub>"]
+    SRC[("project source")] --> SCAN["Phase 1 — BFS<br/><sub>codereview_agent · max_steps: 75</sub>"]
     SCAN --> REP[["vulnerability-reports/vuln-scan-trace:scan"]]
     REP --> SORT["load + sort by severity<br/><sub>critical → low</sub>"]
     SORT -->|per finding| TRACE["Phase 2 — DFS<br/><sub>trace_agent · skills: trace<br/>+graph tools · vuln reporting</sub>"]
@@ -36,7 +36,7 @@ flowchart TD
 
 - `budgets.scan_max_tokens` / `budgets.trace_max_tokens` — per-phase context budgets.
 - `tasks.scan` (max_steps 75) / `tasks.trace` (max_steps 30).
-- `agents.{vuln_scan_agent,trace_agent}.with_graph_tools: true`.
+- `agents.{codereview_agent,trace_agent}.with_graph_tools: true`.
 
 ## Artifacts
 

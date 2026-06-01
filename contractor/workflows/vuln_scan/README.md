@@ -2,7 +2,7 @@
 
 **CLI alias:** `vuln-scan` &nbsp;·&nbsp; **Class:** `VulnScanWorkflow` &nbsp;·&nbsp; **Runner:** `TaskRunner`
 
-The simplest vulnerability workflow: a **single** `vuln_scan_agent` pass that
+The simplest vulnerability workflow: a **single** `codereview_agent` pass that
 sweeps the codebase breadth-first (grep-driven, with call-graph tools) and
 reports findings. No discovery, no verification, no exploitation — just fast
 recall. Use it as a quick first look, or as the discovery phase that the larger
@@ -10,7 +10,7 @@ recall. Use it as a quick first look, or as the discovery phase that the larger
 
 ```mermaid
 flowchart TD
-    SRC[("project source")] --> TASK["vuln_scan task<br/><sub>vuln_scan_agent · skills: vuln_scan<br/>+graph tools · max_steps: 75</sub>"]
+    SRC[("project source")] --> TASK["vuln_scan task<br/><sub>codereview_agent · skills: vuln_scan<br/>+graph tools · max_steps: 75</sub>"]
     TASK --> OUT[["vulnerability-reports/vuln-scan"]]
 ```
 
@@ -25,7 +25,7 @@ cover the whole tree. Findings are written via the report tool to
 
 - `budgets.scan_max_tokens` — agent context budget (80k).
 - `tasks.scan` — `iterations` / `max_attempts` / `max_steps` (75).
-- `agents.vuln_scan_agent.with_graph_tools: true` — call-graph tools enabled.
+- `agents.codereview_agent.with_graph_tools: true` — call-graph tools enabled.
 
 ## Artifacts
 

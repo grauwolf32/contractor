@@ -1,6 +1,6 @@
 """End-to-end eval for vulnerability detection against benchmark fixtures.
 
-Runs either ``vuln_scan_agent`` (baseline) or ``trace_agent`` (with vuln
+Runs either ``codereview_agent`` (baseline) or ``trace_agent`` (with vuln
 reporting enabled) against each vuln-benchmark fixture and scores the
 reported findings against ground-truth.
 

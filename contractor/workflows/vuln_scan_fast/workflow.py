@@ -21,7 +21,7 @@ from typing import Any, Optional
 import yaml
 
 from contractor.agents.swe_agent.agent import build_swe_agent
-from contractor.agents.vuln_scan_agent.agent import build_vuln_scan_agent
+from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
@@ -130,13 +130,13 @@ class VulnScanFastWorkflow(Workflow):
         ctx = self.ctx
 
         agent_builder = partial(
-            build_vuln_scan_agent,
-            name="vuln_scan_agent",
-            _format=CFG.agent("vuln_scan_agent").output_format,
+            build_codereview_agent,
+            name="codereview_agent",
+            _format=CFG.agent("codereview_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
             max_tokens=CFG.budgets.scan_max_tokens,
-            with_graph_tools=CFG.agent("vuln_scan_agent").with_graph_tools,
+            with_graph_tools=CFG.agent("codereview_agent").with_graph_tools,
         )
 
         runner = TaskRunner(

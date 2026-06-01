@@ -1,6 +1,6 @@
 """Vulnerability-scan eval harness.
 
-Runs either the baseline ``vuln_scan_agent`` or the ``trace_agent`` (with
+Runs either the baseline ``codereview_agent`` or the ``trace_agent`` (with
 vuln reporting enabled) against a fixture and returns the reported findings.
 """
 
@@ -81,15 +81,15 @@ async def run_vuln_scan(
             prompt=prompt_text,
         )
     else:
-        from contractor.agents.vuln_scan_agent.agent import \
-            build_vuln_scan_agent
+        from contractor.agents.codereview_agent.agent import \
+            build_codereview_agent
         from contractor.utils import load_prompt_with_version
 
         prompt_text, resolved_version = load_prompt_with_version(
-            "vuln_scan_agent", prompt_version
+            "codereview_agent", prompt_version
         )
-        agent = build_vuln_scan_agent(
-            name="vuln_scan_agent",
+        agent = build_codereview_agent(
+            name="codereview_agent",
             fs=base_fs,
             namespace=namespace,
             model=model,
