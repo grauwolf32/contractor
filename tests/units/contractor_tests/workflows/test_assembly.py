@@ -632,7 +632,7 @@ class TestExploitabilityWorkflow:
         item = queue[0]
         assert item.template_key == "exploitability_assessment"
         assert item.ref == "exploitability:idor-1"
-        assert item.skills == ["exploit", "code-exec"]
+        assert item.skills == ["exploit", "code-exec", "auth"]
         assert item.params["finding_name"] == "idor-1"
         assert item.params["source_namespace"] == "exploitability:idor-1"
 

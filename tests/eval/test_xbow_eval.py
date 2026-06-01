@@ -186,7 +186,7 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
                     max_attempts=2,
                     max_steps=30,
                     namespace=_ns,
-                    skills=["exploit", "code-exec"],
+                    skills=["exploit", "code-exec", "auth"],
                     model=eval_model,
                     params={**_f, "source_namespace": _ns},
                 )
