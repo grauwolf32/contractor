@@ -28,11 +28,13 @@ dependencies = [
 
 [project.scripts]
 contractor = "cli.main:main"
+analytics-ui = "analytics_ui.server:main"
 
 [tool.poetry]
 packages = [
   { include = "contractor" },
   { include = "cli" },
+  { include = "analytics_ui" },
 ]
 
 [tool.poetry.group.dev.dependencies]
