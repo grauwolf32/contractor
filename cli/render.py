@@ -436,7 +436,7 @@ def _fmt_error(result: dict[str, Any]) -> str | None:
         "error_message",
         "errors",
     ):
-        if result.get("error") not in (None, "", [], {}):
+        if result.get(field) not in (None, "", [], {}):
             err_key = field
             break
 

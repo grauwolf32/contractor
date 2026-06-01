@@ -1,10 +1,67 @@
-import fnmatch
 import os
+import re
 from typing import Any, Iterator
 
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 
 from contractor.utils.formatting import norm_unicode
+
+
+def _translate_glob_segment(seg: str) -> str:
+    """Translate one glob path segment to regex, never crossing ``/``."""
+    out: list[str] = []
+    i, n = 0, len(seg)
+    while i < n:
+        c = seg[i]
+        if c == "*":
+            out.append("[^/]*")
+        elif c == "?":
+            out.append("[^/]")
+        elif c == "[":
+            j = i + 1
+            if j < n and seg[j] == "!":
+                j += 1
+            if j < n and seg[j] == "]":
+                j += 1
+            while j < n and seg[j] != "]":
+                j += 1
+            if j >= n:  # no closing bracket: treat '[' literally
+                out.append(re.escape(c))
+            else:
+                inner = seg[i + 1 : j]
+                if inner.startswith("!"):
+                    inner = "^" + inner[1:]
+                out.append("[" + inner + "]")
+                i = j + 1
+                continue
+        else:
+            out.append(re.escape(c))
+        i += 1
+    return "".join(out)
+
+
+def _glob_to_regex(pattern: str) -> "re.Pattern[str]":
+    """
+    Compile a glob pattern into a path-aware regex with Python-like semantics:
+    ``*``/``?``/``[...]`` match within a single path segment, while ``**``
+    matches any number of segments (including zero). Matches relative paths
+    without a leading ``/``.
+    """
+    segments = pattern.split("/")
+    parts: list[str] = []
+    last = len(segments) - 1
+    for idx, seg in enumerate(segments):
+        if seg == "**":
+            if idx == last:
+                parts.append(".*")  # trailing ** matches anything, any depth
+            else:
+                parts.append("(?:[^/]*/)*")  # **/ matches zero or more segments
+                continue  # the separator is baked into the group above
+        else:
+            parts.append(_translate_glob_segment(seg))
+        if idx != last:
+            parts.append("/")
+    return re.compile("(?s:" + "".join(parts) + r")\Z")
 
 
 class RootedLocalFileSystem(LocalFileSystem):
@@ -152,21 +209,13 @@ class RootedLocalFileSystem(LocalFileSystem):
         if ".." in pattern.split("/"):
             return []
 
-        recursive = "**" in pattern
+        regex = _glob_to_regex(pattern)
         matches: set[str] = set()
 
-        if recursive:
-            walker = os.walk(self.root_path, followlinks=False)
-        else:
-            try:
-                top_entries = os.listdir(self.root_path)
-            except FileNotFoundError:
-                return []
-            walker = iter([(self.root_path, [], top_entries)])
-
-        tail_pattern = pattern.rsplit("/", 1)[-1] if recursive else ""
-
-        for host_root, dirs, files in walker:
+        # Always walk the full tree: a non-recursive pattern like ``sub/*.py``
+        # still needs to descend into ``sub``. The regex is path-aware, so a
+        # non-recursive pattern naturally won't match deeper paths.
+        for host_root, dirs, files in os.walk(self.root_path, followlinks=False):
             # Prune symlinked directories.
             dirs[:] = [d for d in dirs if self._is_safe_entry(host_root, d)]
 
@@ -186,13 +235,7 @@ class RootedLocalFileSystem(LocalFileSystem):
                 )
                 rel_path = norm_unicode(rel_path.replace(os.sep, "/")) or rel_path
 
-                if fnmatch.fnmatch(rel_path, pattern):
+                if regex.match(rel_path):
                     matches.add("/" + rel_path)
-                elif (
-                    recursive
-                    and "/" not in rel_path
-                    and fnmatch.fnmatch(normalized_name, tail_pattern)
-                ):
-                    matches.add("/" + normalized_name)
 
         return sorted(matches)

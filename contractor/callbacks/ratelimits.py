@@ -50,11 +50,18 @@ class TpmRatelimitCallback(BaseCallback):
             self.save_to_state(callback_context)
             return
 
+        # `token_count` is the cumulative usage; `self.token_count` is the
+        # baseline captured at the start of the current 60s window, so `diff`
+        # is the tokens consumed *within* the window (not just since the last
+        # call). The baseline is only rolled when the window resets — never on
+        # every call — otherwise usage never accumulates and the limit is only
+        # ever hit by a single oversized request.
         diff = token_count - (self.token_count or 0)
         els = current_time - self.timer_start
-        self.token_count = token_count
 
         if diff > self.tpm_limit:
+            # Window budget spent: sleep out the remainder of the window, then
+            # start a fresh window baselined at the current cumulative count.
             delay = 60 - els + 1
             if delay > 0:
                 time.sleep(delay)
@@ -69,6 +76,11 @@ class TpmRatelimitCallback(BaseCallback):
                 }
             )
             self.timer_start = int(time.time())
+            self.token_count = token_count
+        elif els >= 60:
+            # Window elapsed under budget: roll it forward without sleeping.
+            self.timer_start = current_time
+            self.token_count = token_count
 
         self.save_to_state(callback_context)
         return

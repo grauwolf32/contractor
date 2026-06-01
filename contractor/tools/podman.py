@@ -26,6 +26,7 @@ import asyncio
 import atexit
 import hashlib
 import logging
+import dataclasses
 import shutil
 import subprocess
 import threading
@@ -39,6 +40,18 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class _ExecResult(CodeExecutionResult):
+    """CodeExecutionResult plus the process exit code.
+
+    ADK's ``CodeExecutionResult`` has no exit-code field, so the rc returned by
+    ``_exec`` was being dropped — leaving the ``run_python`` / ``execute_bash``
+    tools unable to report the ``exit_code`` their docstrings promise.
+    """
+
+    exit_code: int = 0
 
 DEFAULT_SANDBOX_IMAGE = "contractor-sandbox:latest"
 _CONTAINER_PREFIX = "contractor-sbx-"
@@ -183,7 +196,7 @@ class KaliSandbox:
 
     # ── code execution ───────────────────────────────────────────────────
     def run_python(self, code: str, preinit: Optional[list[str]],
-                   timeout_s: int) -> tuple[CodeExecutionResult, str]:
+                   timeout_s: int) -> tuple[_ExecResult, str]:
         self.ensure_started()
         self._seq += 1
         script_name = f"{_WORKDIR}/script_{self._seq}.py"
@@ -195,15 +208,18 @@ class KaliSandbox:
         before = self._list_workdir()
         rc, out, err = self._exec(["python3", script_name], timeout_s)
         output_files = self._collect_new_files(before, skip={script_name})
-        result = CodeExecutionResult(stdout=out, stderr=err, output_files=output_files)
+        result = _ExecResult(
+            stdout=out, stderr=err, output_files=output_files, exit_code=rc)
         return result, body
 
-    def run_bash(self, command: str, timeout_s: int) -> CodeExecutionResult:
+    def run_bash(self, command: str, timeout_s: int) -> _ExecResult:
         self.ensure_started()
+        self._seq += 1  # share the run_python sequence so artifacts stay ordered
         before = self._list_workdir()
         rc, out, err = self._exec(["sh", "-c", command], timeout_s)
         output_files = self._collect_new_files(before, skip=set())
-        return CodeExecutionResult(stdout=out, stderr=err, output_files=output_files)
+        return _ExecResult(
+            stdout=out, stderr=err, output_files=output_files, exit_code=rc)
 
 
 # ── sandbox registry (keyed by scope key = worker namespace) ──────────────
@@ -271,15 +287,22 @@ class KaliCodeExecutor(BaseCodeExecutor):
 async def _save_artifacts(
     tool_context: Optional[ToolContext], namespace: str,
     script: Optional[str], output_files: list[File],
+    *, seq: int = 0, ext: str = "py",
 ) -> list[str]:
-    """Persist the executed script + any created files as artifacts."""
+    """Persist the executed script/command + any created files as artifacts.
+
+    Scripts are named ``script_<seq>.<ext>`` using the sandbox's monotonic
+    execution counter, so artifacts preserve run order and are stable across
+    processes (unlike a content hash). ``ext`` is ``py`` for run_python and
+    ``sh`` for execute_bash.
+    """
     if tool_context is None:
         return []
     saved: list[str] = []
     base = f"code-exec/{_safe(namespace)}"
     try:
         if script is not None:
-            key = f"{base}/script_{abs(hash(script)) % 10000:04d}.py"
+            key = f"{base}/script_{seq:03d}.{ext}"
             await tool_context.save_artifact(
                 filename=key, artifact=types.Part.from_text(text=script))
             saved.append(key)
@@ -342,13 +365,15 @@ def code_exec_tools(
             stdout, stderr, exit_code, and the artifact keys of the saved script
             and any files the script produced.
         """
+        sb = _sandbox()
         result, script = await asyncio.to_thread(
-            _sandbox().run_python, code, preinit, int(timeout_s))
+            sb.run_python, code, preinit, int(timeout_s))
         saved = await _save_artifacts(
-            tool_context, namespace, script, result.output_files)
+            tool_context, namespace, script, result.output_files, seq=sb._seq, ext="py")
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
+            "exit_code": result.exit_code,
             "artifacts": saved,
         }
 
@@ -368,15 +393,19 @@ def code_exec_tools(
             timeout_s: Hard wall-clock limit in seconds.
 
         Returns:
-            stdout, stderr, and the artifact keys of any files produced.
+            stdout, stderr, exit_code, and the artifact keys of any files
+            produced.
         """
+        sb = _sandbox()
         result = await asyncio.to_thread(
-            _sandbox().run_bash, command, int(timeout_s))
+            sb.run_bash, command, int(timeout_s))
+        # persist the bash command itself (as script_<seq>.sh), not just outputs
         saved = await _save_artifacts(
-            tool_context, namespace, None, result.output_files)
+            tool_context, namespace, command, result.output_files, seq=sb._seq, ext="sh")
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
+            "exit_code": result.exit_code,
             "artifacts": saved,
         }
 

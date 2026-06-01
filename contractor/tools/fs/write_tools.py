@@ -504,10 +504,12 @@ class FsspecWriteTools(PathValidationMixin):
             return {"error": PATH_IS_NOT_A_FILE_ERROR.format(path=normalized_path)}
 
         try:
+            # No errors="ignore": dropping undecodable bytes here and writing
+            # the cleaned text back silently corrupts files with non-UTF-8
+            # content. Fail loudly instead, matching replace_range/insert_line.
             current_content = self.fs.read_text(
                 normalized_path,
                 encoding=encoding,
-                errors="ignore",
             )
         except Exception as exc:
             return {"error": str(exc)}

@@ -170,6 +170,41 @@ async def test_code_exec_tools_surface_and_result(fake_podman):
     out = await run_python(code="print(1)", tool_context=None)
     assert out["stdout"] == "SCRIPT-STDOUT"
     assert "stderr" in out and "artifacts" in out
+    # Regression for M5: the tool surfaces the exit_code its docstring promises.
+    assert out["exit_code"] == 0
+
+
+@pytest.mark.asyncio
+async def test_execute_bash_surfaces_exit_code(fake_podman):
+    tools = code_exec_tools(namespace="exploit:demo", fs=None)
+    execute_bash = next(t for t in tools if t.__name__ == "execute_bash")
+    out = await execute_bash(command="id", tool_context=None)
+    assert out["exit_code"] == 0
+    assert "stdout" in out and "stderr" in out and "artifacts" in out
+
+
+def test_run_python_propagates_nonzero_exit_code(fake_podman, monkeypatch):
+    # Regression for M5: a non-zero rc from _exec must reach result.exit_code
+    # instead of being dropped by the ADK CodeExecutionResult type.
+    sb = KaliSandbox("inv-rc")
+    monkeypatch.setattr(sb, "ensure_started", lambda: None)
+    monkeypatch.setattr(sb, "_write_file", lambda *a, **k: None)
+    monkeypatch.setattr(sb, "_list_workdir", lambda: set())
+    monkeypatch.setattr(sb, "_exec", lambda argv, t: (7, "out", "err"))
+
+    result, _ = sb.run_python("boom", preinit=None, timeout_s=5)
+    assert result.exit_code == 7
+    assert result.stdout == "out"
+
+
+def test_run_bash_propagates_nonzero_exit_code(fake_podman, monkeypatch):
+    sb = KaliSandbox("inv-rc2")
+    monkeypatch.setattr(sb, "ensure_started", lambda: None)
+    monkeypatch.setattr(sb, "_list_workdir", lambda: set())
+    monkeypatch.setattr(sb, "_exec", lambda argv, t: (3, "o", "e"))
+
+    result = sb.run_bash("false", timeout_s=5)
+    assert result.exit_code == 3
 
 
 @pytest.mark.skipif(

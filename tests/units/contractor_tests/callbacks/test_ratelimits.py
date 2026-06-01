@@ -112,6 +112,92 @@ class TestTpmBoundaries:
         sleep_mock.assert_called_once()
 
 
+# ─── TpmRatelimitCallback accumulation (regression for H1) ───────────────────
+
+
+class TestTpmAccumulation:
+    """The window baseline must NOT be rebaselined on every call, otherwise
+    tokens never accumulate and the limit is only ever hit by a single
+    oversized request (bug H1)."""
+
+    def test_small_requests_accumulate_within_window(self, monkeypatch):
+        # Four cumulative reads 30/60/90/120 against a 100 limit, all inside
+        # one 60s window. No single *delta-since-last-call* exceeds 100, but
+        # the cumulative usage does, so the window must throttle.
+        # Pre-fix (rebaseline every call) this never slept.
+        monkeypatch.setattr(
+            "time.time",
+            MagicMock(side_effect=[1000.0, 1001.0, 1002.0, 1003.0, 1004.0, 1064.0]),
+        )
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
+
+        cb = TpmRatelimitCallback(tpm_limit=100, tpm_limit_key="input")
+        ctx = mk_callback_context()
+        state_key = TokenUsageCallback.global_counter_key()
+        ctx.state[state_key] = {"input": 0, "output": 0, "total": 0}
+
+        cb(ctx, MagicMock())  # init: baseline=0 @ t=1000
+        for cumulative in (30, 60, 90, 120):
+            ctx.state[state_key]["input"] = cumulative
+            cb(ctx, MagicMock())
+
+        # diff vs the window baseline (0) reaches 120 > 100 → exactly one sleep.
+        sleep_mock.assert_called_once()
+        assert cb.history[0]["diff"] == 120
+        # After throttling the window rolls forward to the current count.
+        assert cb.token_count == 120
+        assert cb.timer_start == 1064
+
+    def test_baseline_not_rebaselined_under_budget(self, monkeypatch):
+        # A sub-budget call must leave the baseline untouched so the next call's
+        # diff is still measured from window start (the crux of H1).
+        monkeypatch.setattr(
+            "time.time", MagicMock(side_effect=[1000.0, 1010.0, 1020.0])
+        )
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
+
+        cb = TpmRatelimitCallback(tpm_limit=100, tpm_limit_key="input")
+        ctx = mk_callback_context()
+        state_key = TokenUsageCallback.global_counter_key()
+        ctx.state[state_key] = {"input": 0, "output": 0, "total": 0}
+
+        cb(ctx, MagicMock())  # baseline=0
+        ctx.state[state_key]["input"] = 40
+        cb(ctx, MagicMock())  # diff=40, under budget
+        assert cb.token_count == 0  # baseline preserved, NOT rebaselined to 40
+        ctx.state[state_key]["input"] = 70
+        cb(ctx, MagicMock())  # diff vs baseline = 70, still under budget
+        assert cb.token_count == 0
+        sleep_mock.assert_not_called()
+
+    def test_window_rolls_after_60s_without_sleeping(self, monkeypatch):
+        # Once 60s elapse under budget, the window rolls forward (baseline +
+        # timer reset) without sleeping — exercises the `elif els >= 60` branch.
+        monkeypatch.setattr(
+            "time.time", MagicMock(side_effect=[1000.0, 1030.0, 1065.0])
+        )
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
+
+        cb = TpmRatelimitCallback(tpm_limit=100, tpm_limit_key="input")
+        ctx = mk_callback_context()
+        state_key = TokenUsageCallback.global_counter_key()
+        ctx.state[state_key] = {"input": 0, "output": 0, "total": 0}
+
+        cb(ctx, MagicMock())  # baseline=0 @ 1000
+        ctx.state[state_key]["input"] = 50
+        cb(ctx, MagicMock())  # @1030 diff=50, no roll
+        assert cb.token_count == 0
+        ctx.state[state_key]["input"] = 90
+        cb(ctx, MagicMock())  # @1065 els=65>=60, diff=90<=100 → roll, no sleep
+
+        sleep_mock.assert_not_called()
+        assert cb.timer_start == 1065
+        assert cb.token_count == 90  # baseline rolled forward to current count
+
+
 # ─── RpmRatelimitCallback ─────────────────────────────────────────────────────
 
 

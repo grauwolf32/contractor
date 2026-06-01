@@ -7,7 +7,11 @@ Caido's ``req.raw.cont`` filter.
 """
 from __future__ import annotations
 
-from contractor.tools.caido import CaidoTools, _inject_raw_header
+from contractor.tools.caido import (
+    CaidoTools,
+    _find_placeholder_offsets,
+    _inject_raw_header,
+)
 from contractor.tools.http import HTTPClient
 
 
@@ -56,3 +60,31 @@ class TestInjectRawHeader:
 
     def test_no_line_break_left_untouched(self):
         assert _inject_raw_header("garbage", "X", "y") == "garbage"
+
+
+class TestFindPlaceholderOffsets:
+    """Regression for M4: offsets must be byte positions into the raw request,
+    not character indices into a decoded str."""
+
+    def test_ascii_offsets(self):
+        raw = b"GET /?id=42 HTTP/1.1\r\n\r\n"
+        assert _find_placeholder_offsets(raw, "42") == [(9, 11)]
+
+    def test_multibyte_prefix_shifts_byte_offset(self):
+        # 'é' is two UTF-8 bytes, so the target's byte offset is one greater
+        # than its character index. Pre-fix (char indices) this was wrong.
+        raw = "GET /?q=é&id=42 HTTP/1.1\r\n\r\n".encode("utf-8")
+        offsets = _find_placeholder_offsets(raw, "42")
+        start, end = offsets[0]
+        # The bytes at the reported offsets really are the target.
+        assert raw[start:end] == b"42"
+        # And it is shifted by the extra byte from 'é'.
+        char_index = "GET /?q=é&id=42 HTTP/1.1\r\n\r\n".index("42")
+        assert start == char_index + 1
+
+    def test_multiple_occurrences(self):
+        raw = b"a=1&a=1"
+        assert _find_placeholder_offsets(raw, "a=1") == [(0, 3), (4, 7)]
+
+    def test_target_absent(self):
+        assert _find_placeholder_offsets(b"GET / HTTP/1.1", "nope") == []

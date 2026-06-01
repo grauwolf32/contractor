@@ -392,16 +392,23 @@ def _inject_raw_header(raw: str, name: str, value: str) -> str:
     return raw
 
 
-def _find_placeholder_offsets(raw: str, target: str) -> list[tuple[int, int]]:
-    """Find all occurrences of *target* in the raw HTTP request and return (start, end) byte pairs."""
+def _find_placeholder_offsets(raw: bytes, target: str) -> list[tuple[int, int]]:
+    """Find all occurrences of *target* in the raw HTTP request bytes.
+
+    Caido's Automate placeholders are **byte** offsets into the raw request
+    that is sent on the wire, so the search must run over the raw bytes — not a
+    decoded ``str``. Using character indices misaligns every placeholder once
+    any multibyte UTF-8 (hostnames, cookies, prior params) precedes the target.
+    """
     offsets: list[tuple[int, int]] = []
+    target_b = target.encode("utf-8")
     start = 0
     while True:
-        idx = raw.find(target, start)
+        idx = raw.find(target_b, start)
         if idx == -1:
             break
-        offsets.append((idx, idx + len(target)))
-        start = idx + len(target)
+        offsets.append((idx, idx + len(target_b)))
+        start = idx + len(target_b)
     return offsets
 
 
@@ -708,11 +715,14 @@ class CaidoTools:
                 return {"error": f"request {request_id} has no raw content"}
 
             raw_text = _decode_blob(raw_b64)
+            # Offsets must be byte positions into the raw request as sent on the
+            # wire (the base64 Blob), so search the decoded bytes — not the str.
+            raw_bytes = base64.b64decode(raw_b64)
 
-            # Compute placeholder offsets on the decoded raw text
+            # Compute placeholder offsets on the raw request bytes
             placeholders: list[dict[str, int]] = []
             for target in targets:
-                offsets = _find_placeholder_offsets(raw_text, target)
+                offsets = _find_placeholder_offsets(raw_bytes, target)
                 if not offsets:
                     return {
                         "error": f"target {target!r} not found in the raw "

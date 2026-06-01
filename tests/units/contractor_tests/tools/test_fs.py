@@ -1216,6 +1216,31 @@ def test_edit_fails_when_old_string_not_found(write_tool_map, write_tmpdir: Path
     assert "could not find the string" in res["error"]
 
 
+def test_edit_does_not_corrupt_non_utf8_file(write_tool_map, write_tmpdir: Path):
+    # Regression for M2: edit must not read with errors="ignore" and write the
+    # cleaned text back, which silently drops undecodable bytes. It should fail
+    # loudly instead (like replace_range / insert_line).
+    target = write_tmpdir / "binary.txt"
+    original = b"alpha\xff\xfe\nbeta\n"
+    target.write_bytes(original)
+    path = abs_path(target)
+
+    res = write_tool_map["edit"](
+        path=path,
+        old_string="alpha",
+        new_string="ALPHA",
+    )
+
+    # Either it refuses with a decode error, or it edits losslessly — but it
+    # must never silently drop the non-UTF-8 bytes.
+    if "error" not in res:
+        survived = target.read_bytes()
+        assert b"\xff\xfe" in survived, "edit silently dropped non-UTF-8 bytes"
+    else:
+        # File left untouched on failure.
+        assert target.read_bytes() == original
+
+
 def test_changed_paths_tool_reports_overlay_state(
     write_tool_map, write_tmpdir: Path
 ):

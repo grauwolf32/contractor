@@ -133,7 +133,8 @@ state machine:
    5. Emit `ITERATION_RESULT`.
    6. If `state[TaskScopedKeys.status] == DONE`, publish artifacts via
       `_publish_task_artifacts`. After `iterations` successful runs in
-      a row, emit `TASK_FINISHED` and return.
+      total (cumulative across attempts, not necessarily consecutive),
+      emit `TASK_FINISHED` and return.
 4. **Exhausted retries** — emit `TASK_FAILED` and raise
    `TaskNotCompletedError`.
 
