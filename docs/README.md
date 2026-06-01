@@ -161,7 +161,7 @@ subtasks.
 
 Concrete workflows are thin assemblers of templates + worker builders.
 The full mode → class map lives in `get_workflows()`
-([contractor/workflows/__init__/workflow.py](../contractor/workflows/__init__/workflow.py)); `--workflow`
+([contractor/workflows/__init__.py](../contractor/workflows/__init__.py)); `--workflow`
 accepts any of these keys:
 
 OpenAPI / architecture:
@@ -175,7 +175,7 @@ Trace & annotate:
 - [trace_annotation.py](../contractor/workflows/trace_annotation/workflow.py) — `trace` (planner-driven, per-operation overlay FS)
 - [trace_annotation_direct.py](../contractor/workflows/trace_annotation_direct/workflow.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
 - [trace_graph.py](../contractor/workflows/trace_graph/workflow.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
-- [trace_graph_pathpar.py](../contractor/workflows/trace_graph_pathpar/workflow.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-workflows.md](insights-parallel-vuln-workflows.md))
+- [trace_graph_pathpar.py](../contractor/workflows/trace_graph_pathpar/workflow.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-pipelines.md](insights-parallel-vuln-pipelines.md))
 - [trace_verify.py](../contractor/workflows/trace_verify/workflow.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
 
 Vulnerability detection:
