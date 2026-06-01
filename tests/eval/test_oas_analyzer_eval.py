@@ -13,7 +13,8 @@ import yaml
 
 from contractor.agents.oas_analyzer.agent import root_agent
 from tests.eval.harness import run_agent
-from tests.eval.scorers import score_oas_analysis
+from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.scorers import diff_detail, score_oas_analysis
 
 VULN_STATE_KEY = "oas_analyzer::vulnerabilities"
 SERVICE_INFO_KEY = "oas_analyzer::service_information"
@@ -32,7 +33,7 @@ def _user_message(schema: dict) -> str:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_oas_analyzer_finds_expected_classes(fixture, eval_model):
+async def test_oas_analyzer_finds_expected_classes(fixture, eval_model, eval_sink):
     from google.adk.agents import LlmAgent
 
     def _all_llm_agents(node) -> list:
@@ -66,6 +67,13 @@ async def test_oas_analyzer_finds_expected_classes(fixture, eval_model):
     result = score_oas_analysis(
         vulnerabilities, fixture.expected_vulnerabilities,
         min_precision=0.4, min_recall=0.5,
+    )
+    eval_sink.record(
+        scenario="agent", unit="oas_analyzer", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=fixture.slug, passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_events(run.metrics_events), detail=diff_detail(result)),
     )
     assert result.passed, (
         f"oas_analyzer eval failed: fixture={fixture.slug}\n{result.explain()}"

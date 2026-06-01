@@ -23,7 +23,8 @@ import os
 
 import pytest
 
-from tests.eval.scorers import score_trace_run
+from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.scorers import diff_detail, score_trace_run
 from tests.eval.trace_harness import run_trace_agent
 
 
@@ -50,7 +51,7 @@ def _resolve_prompt_version(case: dict) -> str | None:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_trace_agent(trace_case, eval_model):
+async def test_trace_agent(trace_case, eval_model, eval_sink):
     fixture, case = trace_case
 
     run = await run_trace_agent(
@@ -64,4 +65,14 @@ async def test_trace_agent(trace_case, eval_model):
     )
 
     result = score_trace_run(run, case)
+    _agent_run = getattr(run, "agent_run", None)
+    eval_sink.record(
+        scenario="agent", unit="trace_agent", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        prompt_version=_resolve_prompt_version(case),
+        case=CaseResult(id=case["id"], passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_events(getattr(_agent_run, "metrics_events", [])),
+                        detail=diff_detail(result)),
+    )
     assert result.passed, f"trace_agent eval failed: case={case['id']}\n{result.explain()}"

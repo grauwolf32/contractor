@@ -14,6 +14,7 @@ import pytest
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from tests.eval.harness import run_agent
+from tests.eval.results import CaseResult, metrics_from_events
 from tests.eval.scorers import score_swe_run
 
 NAMESPACE = "swe-eval"
@@ -21,7 +22,7 @@ NAMESPACE = "swe-eval"
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_swe_agent(swe_case, eval_model):
+async def test_swe_agent(swe_case, eval_model, eval_sink):
     fixture, case = swe_case
 
     from cli.fs import RootedLocalFileSystem
@@ -42,4 +43,11 @@ async def test_swe_agent(swe_case, eval_model):
     )
 
     result = score_swe_run(run, case)
+    eval_sink.record(
+        scenario="agent", unit="swe_agent", metric_kind="generic",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=case["id"], passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_events(run.metrics_events), detail={}),
+    )
     assert result.passed, f"swe_agent eval failed: case={case['id']}\n{result.explain()}"

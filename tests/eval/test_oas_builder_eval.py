@@ -12,7 +12,8 @@ import yaml
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from tests.eval.harness import run_agent
-from tests.eval.scorers import score_oas_schema
+from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.scorers import diff_detail, score_oas_schema
 
 NAMESPACE = "openapi-eval"
 ARTIFACT_KEY = f"user:oas-{NAMESPACE}"
@@ -31,7 +32,7 @@ def _build_user_message(source_root_label: str) -> str:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_oas_builder_endpoint_coverage(fixture, fixture_fs, eval_model):
+async def test_oas_builder_endpoint_coverage(fixture, fixture_fs, eval_model, eval_sink):
     agent = build_oas_builder_agent(
         name="oas_builder",
         fs=fixture_fs,
@@ -57,5 +58,12 @@ async def test_oas_builder_endpoint_coverage(fixture, fixture_fs, eval_model):
         actual_schema, fixture.expected_oas,
         min_endpoint_precision=0.7, min_endpoint_recall=0.8,
         min_schema_recall=0.5,
+    )
+    eval_sink.record(
+        scenario="agent", unit="oas_builder", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=fixture.slug, passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_events(run.metrics_events), detail=diff_detail(result)),
     )
     assert result.passed, f"oas_builder eval failed: fixture={fixture.slug}\n{result.explain()}"

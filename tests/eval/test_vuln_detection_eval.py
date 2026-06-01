@@ -32,8 +32,11 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.eval.results import CaseResult, metrics_from_events
 from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
 from tests.eval.vuln_scan_harness import AgentKind, VulnScanRun, run_vuln_scan
+
+_UNIT_FOR_KIND = {"vuln_scan": "codereview_agent", "trace": "trace_agent"}
 
 # Where per-run records (reported findings + score) are written so a run is
 # inspectable after the fact (Langfuse only captures the live trace). Lands
@@ -195,7 +198,7 @@ def _build_scan_prompt() -> str:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_vuln_detection(vuln_fixture, eval_model):
+async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
     """Run vulnerability detection with pass@N scoring."""
     if not vuln_fixture.vuln_cases:
         pytest.skip(f"no vuln cases for {vuln_fixture.slug}")
@@ -277,6 +280,26 @@ async def test_vuln_detection(vuln_fixture, eval_model):
         f"{'=' * 60}"
     )
 
+    best_run, best_findings, _ = max(attempts, key=lambda a: a[2].f1)
+    pass_count = sum(1 for s in all_scores if s.passes(min_precision=min_p, min_recall=min_r))
+    eval_sink.record(
+        scenario="agent", unit=_UNIT_FOR_KIND.get(agent_kind, agent_kind),
+        metric_kind="detection", fixture=vuln_fixture.slug, pass_at=n,
+        model=str(eval_model.model), prompt_version=best_run.prompt_version,
+        case=CaseResult(
+            id=vuln_fixture.slug, passed=passed, pass_count=pass_count, attempts=len(attempts),
+            metrics=metrics_from_events(best_run.agent_run.metrics_events),
+            detail={"tp": best.tp, "fp": best.fp, "fn": best.fn, "tn": best.tn,
+                    "precision": round(best.precision, 3), "recall": round(best.recall, 3),
+                    "f1": round(best.f1, 3), "prompt_version": best_run.prompt_version,
+                    "reported_findings": [{"file": getattr(f, "file", None),
+                                           "cwe": getattr(f, "cwe", None),
+                                           "title": getattr(f, "title", None)} for f in best_findings],
+                    "matches": [{"classification": m.classification,
+                                 "ground_truth_id": m.ground_truth_id,
+                                 "finding_file": m.finding_file, "finding_cwe": m.finding_cwe}
+                                for m in best.matches]}),
+    )
     assert passed, (
         f"pass@{n} failed for {vuln_fixture.slug} (agent={agent_kind})\n"
         f"best score: {best.explain()}\n"

@@ -22,6 +22,7 @@ from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from tests.eval.planner_scoring import score_planner
+from tests.eval.results import CaseResult, metrics_from_task
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -83,7 +84,7 @@ _TASK_QUEUE_REGISTRY: dict[str, dict[str, Any]] = {
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_planner_behavior(planner_case, eval_model: LiteLlm):
+async def test_planner_behavior(planner_case, eval_model: LiteLlm, eval_sink):
     """Evaluate planner decomposition quality for a single case."""
     fixture, case = planner_case
 
@@ -129,8 +130,19 @@ async def test_planner_behavior(planner_case, eval_model: LiteLlm):
     )
 
     min_topic_recall = float(case.get("min_topic_recall", 0.0))
+    passed = planner_score.passes(min_topic_recall=min_topic_recall)
 
-    assert planner_score.passes(min_topic_recall=min_topic_recall), (
+    _tc = planner_score.topic_coverage
+    eval_sink.record(
+        scenario="task", unit="planning_agent", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(
+            id=case["id"], passed=passed, pass_count=int(passed), attempts=1,
+            metrics=metrics_from_task(run.metrics),
+            detail=({"precision": round(_tc.precision, 3), "recall": round(_tc.recall, 3),
+                     "f1": round(_tc.f1, 3)} if _tc is not None else {})),
+    )
+    assert passed, (
         f"planner eval failed for fixture={fixture.slug} "
         f"case={case['id']}\n"
         f"{planner_score.explain()}\n\n"

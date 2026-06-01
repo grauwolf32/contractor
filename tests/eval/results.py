@@ -272,6 +272,43 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
 # ───────────────────────── metrics helper ─────────────────────────
 
 
+def metrics_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fold ADK metrics-plugin events (``AgentRun.metrics_events`` /
+    ``metrics.jsonl`` rows) into the standard per-case metrics bag.
+
+    Each event is a dict with ``event_type`` ∈ {tool_call, tool_result,
+    llm_usage}. Tolerant of an empty list (→ zeros) so harnesses that don't
+    attach the metrics plugin still produce a valid case record.
+    """
+    tool_counts: Counter[str] = Counter()
+    tot = llm = in_tok = out_tok = toks = 0
+    dur_ms = 0.0
+    for ev in events or []:
+        et = str(ev.get("event_type", ""))
+        if et == "tool_call":
+            name = str(ev.get("tool_name", ""))
+            if name:
+                tool_counts[name] += 1
+                tot += 1
+        elif et == "tool_result":
+            dur_ms += float(ev.get("execution_time_ms", 0) or 0)
+        elif et == "llm_usage":
+            usage = ev.get("usage") or {}
+            llm += 1
+            in_tok += int(usage.get("input", 0) or 0)
+            out_tok += int(usage.get("output", 0) or 0)
+            toks += int(usage.get("total", 0) or 0)
+    return {
+        "input_tokens": in_tok,
+        "output_tokens": out_tok,
+        "total_tokens": toks or (in_tok + out_tok),
+        "total_tool_calls": tot,
+        "llm_calls": llm,
+        "tool_time_ms": _round(dur_ms, 1),
+        "tool_counts": dict(tool_counts),
+    }
+
+
 def metrics_from_task(metrics: dict[str, Any]) -> dict[str, Any]:
     """Fold a ``{task_ref: TaskMetrics}`` mapping (from ``task_harness``) into
     the standard per-case metrics bag."""
