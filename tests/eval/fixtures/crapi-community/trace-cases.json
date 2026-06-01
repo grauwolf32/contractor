@@ -43,5 +43,49 @@
     ],
     "min_precision": 0.3,
     "min_recall": 0.5
+  },
+  {
+    "id": "posts-search-regex-injection",
+    "intent": "Trace GET /community/api/v2/community/posts/search. The GetPostsByTitle handler reads the raw `title` query parameter and passes it unmodified to FindPostsByTitle, which embeds it as the value of a MongoDB `$regex` operator with `$options: \"i\"`. The user controls the regular expression directly, so a request can match every document (e.g. `.*`) or supply a pathological pattern that causes catastrophic backtracking against the post collection. Annotate the controller handler and the model function that builds the regex filter.",
+    "entrypoint": {
+      "file": "/api/controllers/post_controller.go",
+      "function": "GetPostsByTitle",
+      "route": "GET /community/api/v2/community/posts/search"
+    },
+    "expected_annotated": [
+      { "file": "/api/controllers/post_controller.go", "function": "GetPostsByTitle" },
+      { "file": "/api/models/post.go", "function": "FindPostsByTitle" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
+  },
+  {
+    "id": "jwt-verify-tls-and-unverified-claims",
+    "intent": "Trace the request authentication path used by every authenticated community endpoint. ExtractTokenID (api/auth/token.go) sets the process-wide http.DefaultTransport TLS config to InsecureSkipVerify=true before POSTing the bearer token to the identity service for verification, and separately parses the same token with jwt.Parser.ParseUnverified — accepting the `sub` claim without checking the signature locally. Trust in the caller's identity therefore rests on an unauthenticated TLS channel plus claims read from an unverified token. Annotate the function that performs token extraction and verification.",
+    "entrypoint": {
+      "file": "/api/auth/token.go",
+      "function": "ExtractTokenID",
+      "route": "* (authentication middleware for all /community/api/v2 routes)"
+    },
+    "expected_annotated": [
+      { "file": "/api/auth/token.go", "function": "ExtractTokenID" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 1.0
+  },
+  {
+    "id": "post-author-shared-global-identity-confusion",
+    "intent": "Trace POST /community/api/v2/community/posts. The authenticated caller's identity is resolved in FindAuthorByEmail (api/models/user.go), which writes the caller's id, email, nickname, picture and vehicle UUID into package-level mutable globals (autherID, userEmail, nickname, picurl, vehicleID). AddNewPost later calls post.Prepare(), which reads those same globals to stamp the new post's Author. Because the globals are shared across all concurrent requests with no synchronisation, one user's authenticated identity can be attributed to another user's post under concurrency. Annotate the handler that creates the post and the function that populates the shared author globals.",
+    "entrypoint": {
+      "file": "/api/controllers/post_controller.go",
+      "function": "AddNewPost",
+      "route": "POST /community/api/v2/community/posts"
+    },
+    "expected_annotated": [
+      { "file": "/api/controllers/post_controller.go", "function": "AddNewPost" },
+      { "file": "/api/models/user.go", "function": "FindAuthorByEmail" }
+    ],
+    "min_precision": 0.3,
+    "min_recall": 0.5
   }
 ]
