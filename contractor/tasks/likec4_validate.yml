@@ -1,4 +1,6 @@
-active: v1
+active: v2
 versions:
   v1:
     file: likec4_validate/v1.yml
+  v2:
+    file: likec4_validate/v2.yml
