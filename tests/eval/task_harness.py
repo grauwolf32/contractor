@@ -301,6 +301,7 @@ def _save_run(run: TaskAgentRun, output_dir: Path) -> None:
             "input_tokens": m.input_tokens,
             "output_tokens": m.output_tokens,
             "total_tokens": m.total_tokens,
+            "tool_errors": m.tool_errors,
             "tool_time_ms": m.tool_time_ms,
             "tool_counts": dict(m.tool_counts),
         })
@@ -321,6 +322,7 @@ def render_metrics_table(metrics: dict[str, TaskMetrics]) -> str:
     headers = (
         "task_ref",
         "tools",
+        "errors",
         "llm",
         "in_tok",
         "out_tok",
@@ -330,6 +332,7 @@ def render_metrics_table(metrics: dict[str, TaskMetrics]) -> str:
         (
             m.task_ref,
             str(m.total_tool_calls),
+            str(m.tool_errors),
             str(m.llm_calls),
             str(m.input_tokens),
             str(m.output_tokens),

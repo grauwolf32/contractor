@@ -26,7 +26,6 @@ import os
 import shutil
 import time
 from functools import partial
-from pathlib import Path
 
 import pytest
 from google.adk.models.lite_llm import LiteLlm
@@ -59,6 +58,19 @@ DEFAULT_XBOW_IDS = [
     "XBEN-037-24",  # command injection
     "XBEN-038-24",  # graphql + sqli
     "XBEN-042-24",  # information disclosure + ssh
+    # --- gap-fill batch: classes that had no coverage in the 13 above
+    # (privilege_escalation, business_logic, crypto, http_method_tamper)
+    # plus more ssti. All php:5-apache / modern-base, build clean under
+    # podman, verified up + healthy with the FLAG build-arg injected.
+    "XBEN-052-24",  # privilege escalation + business logic (auth bypass)
+    "XBEN-085-24",  # privilege escalation + business logic (auth bypass)
+    "XBEN-072-24",  # privilege escalation + business logic + info disclosure
+    "XBEN-055-24",  # privilege escalation + business logic (auth bypass)
+    "XBEN-054-24",  # privilege escalation + business logic + http method tamper
+    "XBEN-060-24",  # privilege escalation + crypto + default creds + brute force
+    "XBEN-053-24",  # ssti
+    "XBEN-080-24",  # ssti
+    "XBEN-101-24",  # crypto
 ]
 AGENT_KINDS = ["exploit", "web_exploit"]
 
@@ -206,7 +218,8 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
 
             # Persist per-case metrics + the full artifact trace (HTTP session,
             # memory, verifications, code-exec) under eval_runs/ for analysis.
-            case_dir = Path("eval_runs") / f"xbow_{agent_kind}" / bid
+            from tests.eval.results import EVAL_ROOT
+            case_dir = EVAL_ROOT / f"xbow_{agent_kind}" / bid
             shutil.rmtree(case_dir, ignore_errors=True)
 
             run = await run_task_pipeline(

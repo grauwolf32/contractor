@@ -160,7 +160,10 @@ def _summary(data: dict[str, Any]) -> dict[str, Any]:
         "headline": data.get("headline") or {},
         "totals": totals,
         "fixtures": rows,
-        "tools": _top_tools(totals.get("tool_counts", {})),
+        # skills_read is promoted to its own "Skill usage" panel below; exclude
+        # it here so it isn't double-displayed in "Tool calls by tool".
+        "tools": _top_tools({k: v for k, v in totals.get("tool_counts", {}).items()
+                             if k != "skills_read"}),
         "skills": {
             "names": skill_names,
             "reads": totals["skill_reads"],

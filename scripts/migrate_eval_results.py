@@ -96,10 +96,16 @@ def _from_legacy_exploit(data: dict) -> EvalRun:
                         "has_evidence": bool(c.get("has_evidence"))},
             ))
         fixtures.append(FixtureResult(slug=f.get("slug"), cases=cases))
-    return EvalRun(scenario="agent", unit=data.get("agent_variant") or "exploitability_agent",
+    # Map the legacy variant string to the same agent name new runs emit
+    # (run_exploit_eval.py resolves via _VARIANT_AGENT_NAMES before writing
+    # unit=), so migrated and fresh runs land under one (scenario, unit) bucket.
+    from tests.eval.exploitability_harness import _VARIANT_AGENT_NAMES
+    variant = data.get("agent_variant")
+    unit = _VARIANT_AGENT_NAMES.get(variant, variant) or "exploitability_agent"
+    return EvalRun(scenario="agent", unit=unit,
                    pass_at=n, metric_kind="verdict", model=data.get("model"),
                    prompt_version=data.get("prompt_version"), timestamp=data.get("timestamp"),
-                   fixtures=fixtures, meta={"agent_variant": data.get("agent_variant")})
+                   fixtures=fixtures, meta={"agent_variant": variant})
 
 
 def _from_xbow(rows: list[dict], stem: str) -> EvalRun:

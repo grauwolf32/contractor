@@ -388,7 +388,7 @@ class EvalSink:
     """
 
     def __init__(self) -> None:
-        self._runs: dict[tuple[str, str], dict[str, Any]] = {}
+        self._runs: dict[tuple[str, str, str], dict[str, Any]] = {}
 
     def record(
         self,
@@ -405,7 +405,11 @@ class EvalSink:
         meta: Optional[dict[str, Any]] = None,
         artifacts: Optional[dict[str, str]] = None,
     ) -> None:
-        key = (scenario, unit)
+        # Key on metric_kind too: detection/diff/verdict cases carry
+        # incompatible `detail` shapes, so two record() calls sharing
+        # (scenario, unit) but differing in metric_kind must not merge into one
+        # bucket (the first kind would silently win via setdefault).
+        key = (scenario, unit, metric_kind)
         run = self._runs.setdefault(key, {
             "scenario": scenario, "unit": unit, "metric_kind": metric_kind,
             "model": model, "prompt_version": prompt_version, "pass_at": pass_at,
