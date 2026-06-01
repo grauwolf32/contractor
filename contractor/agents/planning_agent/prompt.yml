@@ -1,5 +1,11 @@
 active: v5
 versions:
+  # pentestgpt: v5 + PentestGPT-PTT-derived planning discipline — prune
+  # subtasks whose premise fresh evidence invalidates, and grow the plan
+  # on discovery instead of pre-planning undiscovered surface. A/B against
+  # v5 before promoting to active.
+  pentestgpt:
+    file: prompts/pentestgpt.md
   v5:
     file: prompts/v5.md
   v4:

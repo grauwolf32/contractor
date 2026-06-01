@@ -1,4 +1,9 @@
 active: v1
 versions:
+  # shannon: v1 + Shannon-derived bypass-exhaustion, sink-slot reasoning,
+  # and a (statically reasoned) proof-of-exploitation level on verdicts.
+  # A/B against v1 before promoting to active.
+  shannon:
+    file: prompts/shannon.md
   v1:
     file: prompts/v1.md

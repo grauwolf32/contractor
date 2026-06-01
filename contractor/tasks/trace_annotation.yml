@@ -4,3 +4,8 @@ versions:
     file: trace_annotation/v1.yml
   v2:
     file: trace_annotation/v2.yml
+  # shannon: v1 + coverage-ledger output ("Analyzed — No Finding"),
+  # control-dominance + sink-slot guidance, and an exploit_hypothesis
+  # witness per finding. Pairs with trace_agent prompt `shannon`.
+  shannon:
+    file: trace_annotation/shannon.yml

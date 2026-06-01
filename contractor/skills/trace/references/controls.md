@@ -145,6 +145,35 @@ endpoints have `absent` rate limiting.
 `N/A` when the endpoint is pure read with no enumeration/brute-force
 concern, or uses non-browser bearer tokens and is not CSRF-reachable.
 
+## Dominance rule (a control only counts if it dominates the operation)
+
+A control is `present` only when it **dominates** the sensitive operation:
+it must run on EVERY path that reaches the operation, BEFORE the operation,
+and its failure must STOP the operation (fail-closed). A control that exists
+but does not dominate is `weak` or `absent`, not `present`.
+
+Ask: *is there ANY path to the sensitive operation that skips this control,
+or reaches it after the effect, or continues past its failure?* If yes, the
+control does not dominate.
+
+Non-dominating patterns (mark `weak`, with the reason in parentheses):
+
+- check runs AFTER the side effect (write/query/response already happened)
+  → `weak (authz after effect)`
+- check on one branch but another branch reaches the same sink unchecked
+  → `weak (path B skips check)`
+- check failure is caught / logged / returns a warning but execution
+  continues → `weak (not fail-closed)`
+- check on a parent route/object but a child route/object is independently
+  addressable and reaches the operation directly
+  → `weak (parent guarded, child reachable)`
+- check depends on a value the attacker also controls (subject/resource id
+  taken from the same request) → `weak (guard input attacker-controlled)`
+
+A control that dominates on the traced path but that you could not confirm
+covers sibling paths is `present` for THIS path — note the unverified
+siblings under Uncertainties rather than over-claiming project-wide.
+
 ## Common confusions (do NOT mark `present` for these)
 
 | Confusion                              | Correct interpretation                                          |

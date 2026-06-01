@@ -98,6 +98,44 @@ NOT structural by itself:
   executable interprets it as dangerous structure
 - user value stored as data with no immediate sensitive use
 
+## Sanitizer / slot mismatch (match the control to the sink slot)
+
+A sanitizer only protects the **slot** it targets. An escaper that is safe
+for one slot of a sink is useless — sometimes actively misleading — for a
+different slot of the same sink. Before crediting a control on a Shape A
+path, identify which slot the tainted value occupies and confirm the
+sanitizer targets THAT slot. If it targets a different slot, treat the
+control as ABSENT for the value you are tracing.
+
+Slot taxonomy by sink family (tainted value's role at the sink):
+
+- **SQL** — `value` (string/number literal, normally bound or quote-escaped)
+  vs `identifier` (table / column / `ORDER BY` target) vs
+  `keyword/operator` vs `raw-fragment`. Quote-escaping and driver binding
+  protect the `value` slot only. A tainted column name, sort direction, or
+  table name reaching the query is an `identifier`-slot injection that
+  quoting does not touch.
+- **Shell** — `argument-value` vs `argument-flag` (an attacker-set option,
+  e.g. `--output=`) vs `command-name`. An argv list (`shell=False`) blocks
+  metacharacter injection into `argument-value` but does NOT stop
+  argument/flag injection or attacker-controlled `command-name`.
+- **Path** — `filename-segment` vs `full-path` vs `extension`. `basename()`
+  guards the `filename-segment` slot but not an absolute-path or `..`
+  sequence reaching the `full-path` slot.
+- **HTML / template** — `text` vs `attribute` vs `URL` vs `JS` vs `CSS`
+  context. HTML-entity escaping is correct for `text`/`attribute` but is
+  the wrong control for the `URL`, `JS`, or `CSS` contexts.
+- **URL / SSRF** — `scheme` vs `host` vs `path` vs `query`. A host allowlist
+  does not constrain the `scheme` slot (`file://`, `gopher://`), and scheme
+  checks do not constrain the `host` slot.
+
+**Concatenation-after-sanitization nullifies the sanitizer.** If a value is
+validated or escaped and is then concatenated, re-encoded, URL/HTML/base64
+decoded, reassembled, or substituted into a larger string before the sink,
+the earlier sanitizer no longer guards the sink. Always trace to the LAST
+transformation before the sink and judge the control there — an early
+`escape()` whose output is later glued into a query string is not a control.
+
 ## Auth pair rule (read before reporting any token defect)
 
 `auth.token.create` and `auth.token.verify` MUST be analyzed as a pair.

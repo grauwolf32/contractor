@@ -75,6 +75,17 @@ once with a deterministic slug (file path + symbol).
 Optional (Shape A):
   source / path / sink — the source, transformation chain, and sink
 
+Optional (all shapes) — the witness, for the downstream verifier:
+  exploit_hypothesis:   a single concrete witness a verifier could check
+                        WITHOUT you firing it — the entry input and the
+                        observable it should produce. State it as
+                        `<entry: METHOD path + input> ⇒ <expected observable>`,
+                        e.g. `POST /orders {"sort":"id;DROP--"} ⇒ 500 with SQL
+                        parse error` or `GET /users/2 as user 1 ⇒ 200 returning
+                        user 2's email`. Generate it from visible code; do not
+                        execute it. This is the proof obligation the
+                        trace_verifier / exploitability agent will discharge.
+
 ## Severity heuristics
 
 Pick the lowest tier that matches the worst plausible outcome on this
@@ -155,6 +166,7 @@ the finding can be triaged without re-reading source.
   confidence:           <low|medium|high>
   title:                <short title>
   summary:              <one sentence>
+  exploit_hypothesis:   <entry input ⇒ expected observable>   # optional witness
   # Shape A only:
   source:               <where input enters>
   path:                 <fn A → fn B → fn C>
