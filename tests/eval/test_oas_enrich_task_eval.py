@@ -22,7 +22,8 @@ from google.adk.models.lite_llm import LiteLlm
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.utils.prompt import load_prompt_with_version
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.scorers import score_oas_schema
+from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.scorers import diff_detail, score_oas_schema
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -62,7 +63,7 @@ def _build_skeleton_seed(expected_oas: dict) -> str:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm):
+async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm, eval_sink):
     if not fixture.expected_oas:
         pytest.skip(f"no oas.expected.yaml for fixture {fixture.slug}")
 
@@ -139,4 +140,11 @@ async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm):
     )
     print(f"\n{'='*60}\n{summary}\n{'='*60}")
 
+    eval_sink.record(
+        scenario="task", unit="oas_enrich", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=fixture.slug, passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_task(run.metrics), detail=diff_detail(result)),
+    )
     assert result.passed, f"oas_enrich eval failed\n{summary}"

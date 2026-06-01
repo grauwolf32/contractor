@@ -21,7 +21,8 @@ import pytest
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
-from tests.eval.scorers import score_project_info
+from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.scorers import diff_detail, score_project_info
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -34,7 +35,7 @@ def _case_for(fixture, task: str) -> dict | None:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_project_information_task(fixture, eval_model: LiteLlm):
+async def test_project_information_task(fixture, eval_model: LiteLlm, eval_sink):
     case = _case_for(fixture, "project_information")
     if case is None:
         pytest.skip(f"no project_information case for fixture {fixture.slug}")
@@ -90,6 +91,13 @@ async def test_project_information_task(fixture, eval_model: LiteLlm):
     )
 
     result = score_project_info(result_text, case)
+    eval_sink.record(
+        scenario="task", unit="project_information", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=case["id"], passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_task(run.metrics), detail=diff_detail(result)),
+    )
     assert result.passed, (
         f"project_information eval failed: "
         f"fixture={fixture.slug} case={case['id']}\n"

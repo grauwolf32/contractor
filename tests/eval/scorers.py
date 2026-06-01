@@ -16,6 +16,22 @@ from tests.eval.scoring import (EvalCheck, EvalResult, _score_sets,
                                 score_markdown_sections, score_phrases,
                                 score_vulnerabilities)
 
+
+def diff_detail(result: EvalResult) -> dict[str, Any]:
+    """Extract a ``diff`` case detail (precision/recall/f1) from an EvalResult.
+
+    Scans ``result.meta`` for the first ``Score``-like object (one carrying an
+    ``f1`` attribute) and returns its rounded metrics. Used to populate the
+    ``eval/v1`` case detail for set-diff scorers (OAS / LikeC4 / project-info /
+    trace). Returns ``{}`` when no Score is present (→ headline mean_f1 unaffected).
+    """
+    for value in result.meta.values():
+        if hasattr(value, "f1"):
+            return {"precision": round(value.precision, 3),
+                    "recall": round(value.recall, 3),
+                    "f1": round(value.f1, 3)}
+    return {}
+
 # ---------------------------------------------------------------------------
 # Trace agent
 # ---------------------------------------------------------------------------

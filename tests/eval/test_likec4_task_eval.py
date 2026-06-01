@@ -35,7 +35,8 @@ from contractor.tools.likec4 import (DEFAULT_LIKEC4_PATH, Likec4Error,
                                      Likec4Linter, Likec4NotFoundError)
 from contractor.utils.prompt import load_prompt_with_version
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.scorers import score_likec4_build
+from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.scorers import diff_detail, score_likec4_build
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 _LIKEC4_FENCE_RE = re.compile(
@@ -71,7 +72,7 @@ def _load_precomputed(slug: str) -> dict[str, str] | None:
 
 @pytest.mark.eval
 @pytest.mark.asyncio
-async def test_likec4_task(fixture, eval_model: LiteLlm):
+async def test_likec4_task(fixture, eval_model: LiteLlm, eval_sink):
     case = _case_for(fixture, "likec4_build")
     if case is None:
         pytest.skip(f"no likec4_build case for fixture {fixture.slug}")
@@ -186,4 +187,11 @@ async def test_likec4_task(fixture, eval_model: LiteLlm):
     )
     print(f"\n{'='*60}\n{summary}\n{'='*60}")
 
+    eval_sink.record(
+        scenario="task", unit="likec4_build", metric_kind="diff",
+        fixture=fixture.slug, model=str(eval_model.model),
+        case=CaseResult(id=case["id"], passed=result.passed,
+                        pass_count=int(result.passed), attempts=1,
+                        metrics=metrics_from_task(run.metrics), detail=diff_detail(result)),
+    )
     assert result.passed, f"likec4 eval failed\n{summary}"
