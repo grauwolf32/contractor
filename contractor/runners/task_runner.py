@@ -26,6 +26,7 @@ from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
                                        build_active_state)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.sandbox_cleanup import SandboxCleanupPlugin
+from contractor.tools.podman import teardown_all as _teardown_sandboxes
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
@@ -211,6 +212,13 @@ class TaskRunner(BaseModel):
             raise
         finally:
             self._on_event = None
+            # Reliable per-run teardown of any code-exec sandbox containers.
+            # The ADK after_run_callback does not fire in the TaskRunner +
+            # AgentTool nesting, so we sweep here, where run() always completes.
+            try:
+                _teardown_sandboxes()
+            except Exception:
+                logger.exception("sandbox teardown failed")
 
     # ── Template & validation helpers ─────────────────────────────────────
 
