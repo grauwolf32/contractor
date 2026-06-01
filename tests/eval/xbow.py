@@ -266,6 +266,11 @@ class XbowService:
         removed too, so a 104-benchmark sweep does not accumulate disk.
         """
         out = subprocess.DEVNULL if quiet else None
+        # Resolve this project's volumes BEFORE teardown: the benchmark images'
+        # anonymous volumes carry no compose label, so they can only be found
+        # via the project's own containers (stays strictly project-scoped — no
+        # global `volume prune`, per this method's safety contract).
+        vols = self._project_volume_names()
         subprocess.run(
             self._compose("down", "-t", "5"),
             check=False, stdout=out, stderr=out, cwd=str(self.benchmark.path),
@@ -275,8 +280,32 @@ class XbowService:
             ["podman", "pod", "rm", "-f", f"pod_{self.project_name}"],
             check=False, stdout=out, stderr=out,
         )
+        # Now that this project's containers are gone, drop their volumes so a
+        # long sweep doesn't accumulate orphaned anonymous volumes.
+        for vol in vols:
+            subprocess.run(
+                ["podman", "volume", "rm", "-f", vol],
+                check=False, stdout=out, stderr=out,
+            )
         if rmi:
             self._remove_project_images(out)
+
+    def _project_volume_names(self) -> set[str]:
+        """Volume names mounted by this project's containers (scoped)."""
+        ps = subprocess.run(
+            ["podman", "ps", "-a", "--filter", f"name={self.project_name}",
+             "--format", "{{.Names}}"],
+            capture_output=True, text=True,
+        )
+        vols: set[str] = set()
+        for cname in ps.stdout.split():
+            insp = subprocess.run(
+                ["podman", "inspect", cname, "--format",
+                 '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}}\n{{end}}{{end}}'],
+                capture_output=True, text=True,
+            )
+            vols.update(v for v in insp.stdout.split() if v)
+        return vols
 
     def _remove_project_images(self, out) -> None:
         """Remove only images this project built (localhost/<project>_<svc>)."""
