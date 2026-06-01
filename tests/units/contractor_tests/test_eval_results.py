@@ -119,6 +119,36 @@ def test_derive_totals_aggregates_tokens_and_tools():
     assert t["cases"] == 2 and t["fixtures"] == 1
 
 
+def test_metrics_from_events_counts_errors_and_tokens():
+    from tests.eval.results import metrics_from_events
+    events = [
+        {"event_type": "tool_call", "tool_name": "http_request"},
+        {"event_type": "tool_result", "result_error": False, "execution_time_ms": 5},
+        {"event_type": "tool_call", "tool_name": "http_request"},
+        {"event_type": "tool_result", "result_error": True},      # a result error
+        {"event_type": "tool_exception"},                          # an exception
+        {"event_type": "tool_call", "tool_name": "skills_read"},
+        {"event_type": "llm_usage", "usage": {"input": 100, "output": 20, "total": 120}},
+    ]
+    m = metrics_from_events(events)
+    assert m["total_tool_calls"] == 3
+    assert m["tool_errors"] == 2          # result_error + tool_exception
+    assert m["llm_calls"] == 1 and m["total_tokens"] == 120
+    assert m["tool_counts"]["skills_read"] == 1
+
+
+def test_derive_totals_includes_errors_and_skill_reads():
+    fx = _fixtures(
+        CaseResult("a", True, 1, 1, metrics={
+            "tool_errors": 2, "tool_counts": {"skills_read": 3, "http_request": 4}}),
+        CaseResult("b", True, 1, 1, metrics={
+            "tool_errors": 1, "tool_counts": {"skills_read": 1}}),
+    )
+    t = derive_totals(fx)
+    assert t["tool_errors"] == 3
+    assert t["skill_reads"] == 4
+
+
 def test_metrics_from_task_folds_taskmetrics():
     from tests.eval.task_harness import TaskMetrics
 

@@ -810,11 +810,59 @@ async function renderEval(id) {
     main.appendChild(passCard('Pass rate', h.passed, h.total, 'passed'));
   }
 
+  // ── analytics charts (tool calls · errors · tokens · skills) ──
+  if (typeof CX !== 'undefined' && CX.ready) main.appendChild(evalCharts(run));
+  else if (s.tools.length) main.appendChild(toolUsageCard(s.tools));
+
   // ── per-fixture breakdown ──
   main.appendChild(mk === 'detection' ? vulnFixtureCard(run) : caseFixtureCard(run));
+}
 
-  // ── tool usage ──
-  if (s.tools.length) main.appendChild(toolUsageCard(s.tools));
+function chartCard(title, config, height, sub) {
+  return el('div', { class: 'card' },
+    el('h3', { class: 'card-h', text: title }),
+    sub ? el('div', { class: 'card-sub', text: sub }) : null,
+    CX.chart(config, height));
+}
+
+// Tool calls · errors · consumed tokens · skill usage, rendered with Chart.js.
+function evalCharts(run) {
+  const s = run.summary, t = s.totals || {}, fx = s.fixtures || [];
+  const labels = fx.map((f) => f.slug);
+  const h = (n, pad) => Math.max(180, n * labels.length + (pad || 70));
+  const cards = [];
+
+  if (t.input_tokens || t.output_tokens || t.total_tokens) {
+    cards.push(chartCard('Consumed tokens by fixture',
+      CX.bars(labels, [
+        { label: 'input', data: fx.map((f) => f.input_tokens || 0) },
+        { label: 'output', data: fx.map((f) => f.output_tokens || 0), color: CX.PALETTE[1] },
+      ], { stacked: true }), h(34, 90),
+      `${fmtTokens(t.total_tokens || 0)} total · ${t.llm_calls || 0} LLM calls`));
+  }
+
+  if (s.tools && s.tools.length) {
+    cards.push(chartCard('Tool calls by tool',
+      CX.bars(s.tools.map((x) => x.name),
+        [{ label: 'calls', data: s.tools.map((x) => x.count), color: CX.PALETTE[0] }],
+        { horizontal: true }),
+      Math.max(200, 26 * s.tools.length + 60),
+      `${t.total_tool_calls || 0} calls · ${t.tool_errors || 0} errors`));
+  }
+
+  cards.push(chartCard('Tool errors by fixture',
+    CX.bars(labels, [{ label: 'errors', data: fx.map((f) => f.tool_errors || 0), color: CX.PALETTE[4] }]),
+    h(34), t.tool_errors ? `${t.tool_errors} total` : 'no tool errors recorded'));
+
+  const sk = s.skills || {};
+  cards.push(chartCard('Skill usage by fixture',
+    CX.bars(labels, [{ label: 'skills_read', data: fx.map((f) => f.skill_reads || 0), color: CX.PALETTE[3] }]),
+    h(34),
+    `used in ${sk.used_fixtures || 0}/${sk.total_fixtures || labels.length} fixtures`
+    + (sk.names && sk.names.length ? ` · ${sk.names.join(', ')}` : '')));
+
+  return el('div', {}, el('h3', { class: 'section-h', text: 'Analytics' }),
+    el('div', { class: 'chart-grid' }, ...cards));
 }
 
 function passCard(title, passed, total, posLabel) {

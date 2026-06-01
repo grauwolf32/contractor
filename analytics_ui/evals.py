@@ -118,12 +118,17 @@ def _fixture_rows(metric_kind: str, fixtures: list[dict[str, Any]]) -> list[dict
         cases = f.get("cases") or []
         def _sum(key: str) -> float:
             return sum(float((c.get("metrics") or {}).get(key, 0) or 0) for c in cases)
+        skill_reads = sum(int(((c.get("metrics") or {}).get("tool_counts") or {}).get("skills_read", 0) or 0)
+                          for c in cases)
         passed = sum(1 for c in cases if c.get("passed"))
         row: dict[str, Any] = {
             "slug": f.get("slug"),
             "cases_total": len(cases), "cases_passed": passed,
             "pass_rate": _round(passed / len(cases), 3) if cases else 0.0,
-            "total_tokens": int(_sum("total_tokens")), "tool_calls": int(_sum("total_tool_calls")),
+            "total_tokens": int(_sum("total_tokens")),
+            "input_tokens": int(_sum("input_tokens")), "output_tokens": int(_sum("output_tokens")),
+            "tool_calls": int(_sum("total_tool_calls")), "tool_errors": int(_sum("tool_errors")),
+            "skill_reads": skill_reads,
             "http_requests": int(_sum("http_requests")), "duration_s": _round(_sum("duration_s"), 1),
         }
         if metric_kind == "detection" and cases:
@@ -141,11 +146,27 @@ def _fixture_rows(metric_kind: str, fixtures: list[dict[str, Any]]) -> list[dict
 def _summary(data: dict[str, Any]) -> dict[str, Any]:
     mk = data.get("metric_kind", "generic")
     fixtures = data.get("fixtures") or []
+    rows = _fixture_rows(mk, fixtures)
+    totals = dict(data.get("totals") or {})
+    totals["tool_errors"] = sum(r["tool_errors"] for r in rows)
+    totals["skill_reads"] = sum(r["skill_reads"] for r in rows)
+    # skill names come from detection's skills_loaded; other kinds expose the
+    # skills_read *count* via tool_counts (names not recorded).
+    skill_names = sorted({
+        s for f in fixtures for c in (f.get("cases") or [])
+        for s in ((c.get("detail") or {}).get("skills_loaded") or [])
+    })
     summary: dict[str, Any] = {
         "headline": data.get("headline") or {},
-        "totals": data.get("totals") or {},
-        "fixtures": _fixture_rows(mk, fixtures),
-        "tools": _top_tools((data.get("totals") or {}).get("tool_counts", {})),
+        "totals": totals,
+        "fixtures": rows,
+        "tools": _top_tools(totals.get("tool_counts", {})),
+        "skills": {
+            "names": skill_names,
+            "reads": totals["skill_reads"],
+            "used_fixtures": sum(1 for r in rows if r["skill_reads"] > 0),
+            "total_fixtures": len(rows),
+        },
     }
     if mk == "detection":
         summary["per_cwe"] = _per_cwe(fixtures)

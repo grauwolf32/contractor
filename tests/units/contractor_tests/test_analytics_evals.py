@@ -82,6 +82,23 @@ def test_capture_run_chain_rate(eval_root):
     assert case["captured"] is True and case["chain"] is True and case["tags"] == "xxe"
 
 
+def test_summary_surfaces_errors_and_skill_usage(eval_root):
+    _write(eval_root, "exploit", EvalRun(
+        scenario="agent", unit="exploitability_agent", pass_at=1, metric_kind="verdict",
+        fixtures=[FixtureResult("vulnyapi", [
+            CaseResult("f1", True, 1, 1, metrics={
+                "input_tokens": 100, "output_tokens": 20, "tool_errors": 2,
+                "tool_counts": {"skills_read": 3, "http_request": 5}},
+                detail={"expected_verdict": "exploitable", "actual_verdict": "exploitable",
+                        "has_evidence": True})])]))
+    s = evals.get_eval_run("exploit")["summary"]
+    assert s["totals"]["tool_errors"] == 2 and s["totals"]["skill_reads"] == 3
+    assert s["skills"]["reads"] == 3 and s["skills"]["used_fixtures"] == 1
+    row = s["fixtures"][0]
+    assert row["tool_errors"] == 2 and row["skill_reads"] == 3
+    assert row["input_tokens"] == 100 and row["output_tokens"] == 20
+
+
 def test_list_sorted_by_scenario(eval_root):
     _write(eval_root, "p", EvalRun(scenario="pipeline", unit="trace", pass_at=1,
                                    metric_kind="diff", fixtures=[]))

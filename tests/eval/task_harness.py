@@ -55,6 +55,7 @@ class TaskMetrics:
     task_ref: str
     tool_counts: Counter[str] = field(default_factory=Counter)
     total_tool_calls: int = 0
+    tool_errors: int = 0
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -114,6 +115,10 @@ def _aggregate_metrics(events: list[TaskRunnerEvent]) -> dict[str, TaskMetrics]:
             # execution_time_ms / result_size land on TOOL_RESULT, not TOOL_CALL
             b.tool_time_ms += float(p.get("execution_time_ms", 0) or 0)
             b.result_bytes += int(p.get("result_size", 0) or 0)
+            if p.get("result_error"):
+                b.tool_errors += 1
+        elif kind == AgioEventType.TOOL_EXCEPTION:
+            b.tool_errors += 1
         elif kind == AgioEventType.LLM_USAGE:
             usage = p.get("usage") or {}
             b.llm_calls += 1

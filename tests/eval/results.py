@@ -238,7 +238,7 @@ def derive_headline(metric_kind: str, fixtures: list[dict[str, Any]]) -> dict[st
 
 def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
     cases = list(_iter_cases(fixtures))
-    in_tok = out_tok = tot_tok = tool_calls = llm_calls = http = 0
+    in_tok = out_tok = tot_tok = tool_calls = tool_errors = llm_calls = http = skill_reads = 0
     dur = 0.0
     tools: Counter[str] = Counter()
     for c in cases:
@@ -247,6 +247,7 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
         out_tok += int(m.get("output_tokens", 0) or 0)
         tot_tok += int(m.get("total_tokens", 0) or 0)
         tool_calls += int(m.get("total_tool_calls", m.get("tool_calls", 0)) or 0)
+        tool_errors += int(m.get("tool_errors", 0) or 0)
         llm_calls += int(m.get("llm_calls", 0) or 0)
         http += int(m.get("http_requests", 0) or 0)
         dur += float(m.get("duration_s", 0) or 0)
@@ -255,6 +256,7 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
             for k, v in tc.items():
                 if isinstance(v, (int, float)):
                     tools[k] += int(v)
+            skill_reads += int(tc.get("skills_read", 0) or 0)
     return {
         "fixtures": len(fixtures),
         "cases": len(cases),
@@ -262,8 +264,10 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
         "output_tokens": out_tok,
         "total_tokens": tot_tok or (in_tok + out_tok),
         "total_tool_calls": tool_calls,
+        "tool_errors": tool_errors,
         "llm_calls": llm_calls,
         "http_requests": http,
+        "skill_reads": skill_reads,
         "duration_s": _round(dur, 1),
         "tool_counts": dict(tools),
     }
@@ -281,7 +285,7 @@ def metrics_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     attach the metrics plugin still produce a valid case record.
     """
     tool_counts: Counter[str] = Counter()
-    tot = llm = in_tok = out_tok = toks = 0
+    tot = llm = in_tok = out_tok = toks = errors = 0
     dur_ms = 0.0
     for ev in events or []:
         et = str(ev.get("event_type", ""))
@@ -292,6 +296,10 @@ def metrics_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                 tot += 1
         elif et == "tool_result":
             dur_ms += float(ev.get("execution_time_ms", 0) or 0)
+            if ev.get("result_error"):
+                errors += 1
+        elif et == "tool_exception":
+            errors += 1
         elif et == "llm_usage":
             usage = ev.get("usage") or {}
             llm += 1
@@ -303,6 +311,7 @@ def metrics_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "output_tokens": out_tok,
         "total_tokens": toks or (in_tok + out_tok),
         "total_tool_calls": tot,
+        "tool_errors": errors,
         "llm_calls": llm,
         "tool_time_ms": _round(dur_ms, 1),
         "tool_counts": dict(tool_counts),
@@ -313,11 +322,12 @@ def metrics_from_task(metrics: dict[str, Any]) -> dict[str, Any]:
     """Fold a ``{task_ref: TaskMetrics}`` mapping (from ``task_harness``) into
     the standard per-case metrics bag."""
     tool_counts: Counter[str] = Counter()
-    tot = llm = in_tok = out_tok = toks = 0
+    tot = llm = in_tok = out_tok = toks = errors = 0
     dur_ms = 0.0
     for m in metrics.values():
         tool_counts.update(getattr(m, "tool_counts", {}) or {})
         tot += int(getattr(m, "total_tool_calls", 0) or 0)
+        errors += int(getattr(m, "tool_errors", 0) or 0)
         llm += int(getattr(m, "llm_calls", 0) or 0)
         in_tok += int(getattr(m, "input_tokens", 0) or 0)
         out_tok += int(getattr(m, "output_tokens", 0) or 0)
@@ -328,6 +338,7 @@ def metrics_from_task(metrics: dict[str, Any]) -> dict[str, Any]:
         "output_tokens": out_tok,
         "total_tokens": toks or (in_tok + out_tok),
         "total_tool_calls": tot,
+        "tool_errors": errors,
         "llm_calls": llm,
         "tool_time_ms": _round(dur_ms, 1),
         "tool_counts": dict(tool_counts),
