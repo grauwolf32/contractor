@@ -15,9 +15,9 @@ poetry install                              # install runtime + dev deps
 poetry run contractor --help                # main CLI (entrypoint: cli.main:main)
 
 # Workflows (see contractor/workflows/__init__.py for the full registry):
-#   build | enrich | likec4 | trace | trace-direct | trace-graph | trace-verify | router
-poetry run contractor --workflow build --project-path ./target --folder-name src --model lm-studio-qwen3.6
-poetry run contractor --workflow enrich  --project-path ./target --artifact openapi.yaml --model ...
+#   oas_build | oas_update | likec4 | trace | trace-direct | trace-graph | trace-verify | router
+poetry run contractor --workflow oas_build --project-path ./target --folder-name src --model lm-studio-qwen3.6
+poetry run contractor --workflow oas_update  --project-path ./target --artifact openapi.yaml --model ...
 poetry run contractor --workflow router  --project-path ./target --prompt "..."   # prompt-driven; interactive prompt opens when --prompt omitted
 
 # Tests

@@ -47,7 +47,7 @@ Three editing surfaces:
 
 | Flag | Type | Default | Effect on perf/quality/cost |
 |------|------|---------|------------------------------|
-| `--workflow` | choice | `build` | Selects agent chain + task templates. |
+| `--workflow` | choice | `oas_build` | Selects agent chain + task templates. |
 | `--project-path` | path | **required** | Sandbox root; scope of analysis = cost driver. |
 | `--folder-name` | str | `/` | Narrows template focus; does not change file-scan scope. |
 | `--artifact` | path | `None` | Seeds from a prior artifact; optional for enrich/trace/exploit/vuln (reuses store seed). |

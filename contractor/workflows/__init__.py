@@ -172,8 +172,8 @@ def get_workflows() -> dict[str, type[Workflow]]:
     from .vuln_scan_trace import VulnScanTraceWorkflow
 
     return {
-        "build": OasBuildingWorkflow,
-        "enrich": OasEnrichmentWorkflow,
+        "oas_build": OasBuildingWorkflow,
+        "oas_update": OasEnrichmentWorkflow,
         "exploit": ExploitabilityWorkflow,
         "likec4": LikeC4BuildingWorkflow,
         "trace": TraceAnnotationWorkflow,

@@ -32,8 +32,8 @@ model {
       description '''
 - Maps pipeline names to `Pipeline` subclasses (`contractor/pipelines/__init__.py::get_pipelines`).
 - Current pipelines:
-    `build`         → `OasBuildingPipeline`
-    `enrich`        → `OasEnrichmentPipeline`
+    `oas_build`         → `OasBuildingPipeline`
+    `oas_update`        → `OasEnrichmentPipeline`
     `likec4`        → `LikeC4BuildingPipeline`
     `trace`         → `TraceAnnotationPipeline`        (planner-driven)
     `trace-direct`  → `TraceAnnotationDirectPipeline`  (single-agent, AgentRunner)
@@ -145,7 +145,7 @@ model {
 - Always runs the planning agent as the root agent through ADK Runner.
 - Collects event streams from trace and metrics plugins.
 - Persists `result`, `summary`, and `records` artifacts after each task.
-- Used by `build`, `enrich`, `likec4`, `trace`, `trace-verify`, and `router`.
+- Used by `oas_build`, `oas_update`, `likec4`, `trace`, `trace-verify`, and `router`.
 '''
     }
 

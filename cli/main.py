@@ -228,7 +228,7 @@ async def async_main(
 @click.option(
     "--workflow",
     type=click.Choice(sorted(get_workflows().keys()), case_sensitive=False),
-    default="build",
+    default="oas_build",
     show_default=True,
     help="Workflow to run",
 )
