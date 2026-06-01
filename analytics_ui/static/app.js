@@ -309,15 +309,19 @@ const SECTIONS = [
 ];
 
 function evalHeadline(x) {
-  if (x.kind === 'vuln') return `F1 ${pct(x.headline.f1)} · P ${pct(x.headline.precision)} · R ${pct(x.headline.recall)}`;
-  return `pass ${pct(x.headline.pass_rate)} (${x.headline.passed}/${x.headline.total})`;
+  const h = x.headline || {};
+  if (x.metric_kind === 'detection') return `F1 ${pct(h.f1)} · P ${pct(h.precision)} · R ${pct(h.recall)}`;
+  let s = `pass@${x.pass_at ?? 1} ${pct(h.pass_rate)} (${h.passed}/${h.total})`;
+  if (x.metric_kind === 'capture' && h.chain_rate != null) s += ` · chain ${pct(h.chain_rate)}`;
+  if (x.metric_kind === 'verdict' && h.evidence_rate != null) s += ` · ev ${pct(h.evidence_rate)}`;
+  return s;
 }
 
 function itemMeta(sec, x) {
   if (sec.key === 'agents') return { id: x.name, title: x.name, sub: x.summary, badge: x.active };
   if (sec.key === 'tasks') return { id: x.name, title: x.name, sub: x.summary, badge: x.active };
   if (sec.key === 'workflows') return { id: x.key, title: x.key, sub: x.summary, badge: null };
-  if (sec.key === 'evals') return { id: x.id, title: x.name, sub: evalHeadline(x), badge: x.kind };
+  if (sec.key === 'evals') return { id: x.id, title: x.name, sub: evalHeadline(x), badge: x.scenario };
   return { id: x.name, title: x.name, sub: x.description, badge: x.references?.length ? `${x.references.length} ref` : null };
 }
 
@@ -453,7 +457,7 @@ function renderOverview() {
       er.appendChild(el('div', { class: 'chip', style: '--acc:var(--evals)',
         onclick: () => navigate(`#/evals/${encodeURIComponent(e.id)}`) },
         el('span', { class: 'chip-dot' }), `${e.name}`,
-        el('span', { class: 'chip-metric', text: e.kind === 'vuln' ? `F1 ${pct(e.headline.f1)}` : pct(e.headline.pass_rate) })));
+        el('span', { class: 'chip-metric', text: e.metric_kind === 'detection' ? `F1 ${pct(e.headline.f1)}` : pct(e.headline.pass_rate) })));
     }
     evCard.appendChild(er);
     main.appendChild(evCard);
@@ -759,27 +763,33 @@ async function renderEval(id) {
   main.innerHTML = '';
   main.classList.remove('wide');
 
-  const kindTag = el('span', { class: 'tag', style: `color:var(--evals);border-color:rgba(95,200,247,.4)`, text: run.kind === 'vuln' ? 'vuln detection' : 'exploitability' });
-  const metaBits = [run.model, run.prompt_version ? `prompt ${run.prompt_version}` : null, run.timestamp ? new Date(run.timestamp).toLocaleString() : null].filter(Boolean).join('  ·  ');
-  main.appendChild(pageHead('Eval run', run.name, [kindTag], metaBits));
+  const mk = run.metric_kind;
+  const scenarioTag = el('span', { class: 'tag', style: `color:var(--evals);border-color:rgba(95,200,247,.4)`, text: `${run.scenario} · pass@${run.pass_at ?? 1}` });
+  const kindTag = el('span', { class: 'tag', style: `color:var(--violet);border-color:rgba(167,139,250,.4)`, text: mk });
+  const metaBits = [run.unit, run.model, run.prompt_version ? `prompt ${run.prompt_version}` : null, run.timestamp ? new Date(run.timestamp).toLocaleString() : null].filter(Boolean).join('  ·  ');
+  main.appendChild(pageHead('Eval run', run.name, [scenarioTag, kindTag], metaBits));
 
   // ── headline stat cards ──
-  const grid = el('div', { class: 'grid-2' });
-  if (run.kind === 'vuln') {
-    grid.appendChild(statCard(pct(s.micro.f1), 'F1 (micro)', 'var(--evals)'));
-    grid.appendChild(statCard(pct(s.micro.precision), `Precision · ${t.tp}TP / ${t.fp}FP`, 'var(--green)'));
-    grid.appendChild(statCard(pct(s.micro.recall), `Recall · ${t.fn} missed`, 'var(--amber)'));
-    grid.appendChild(statCard(String(t.fixtures), `Fixtures · ${fmtTokens(t.input_tokens + t.output_tokens)} tok`, 'var(--accent)'));
+  const h = s.headline, grid = el('div', { class: 'grid-2' });
+  const toks = `${fmtTokens(t.input_tokens + t.output_tokens)} tok`;
+  if (mk === 'detection') {
+    grid.appendChild(statCard(pct(h.f1), 'F1 (micro)', 'var(--evals)'));
+    grid.appendChild(statCard(pct(h.precision), `Precision · ${t.tp}TP / ${t.fp}FP`, 'var(--green)'));
+    grid.appendChild(statCard(pct(h.recall), `Recall · ${t.fn} missed`, 'var(--amber)'));
+    grid.appendChild(statCard(String(t.fixtures), `Fixtures · ${toks}`, 'var(--accent)'));
   } else {
-    grid.appendChild(statCard(pct(s.headline.pass_rate), `Pass rate · ${s.headline.passed}/${s.headline.total}`, 'var(--green)'));
-    grid.appendChild(statCard(pct(s.headline.evidence_rate), 'Has evidence', 'var(--accent)'));
-    grid.appendChild(statCard(String(t.http_requests), 'HTTP requests', 'var(--amber)'));
-    grid.appendChild(statCard(String(t.fixtures), `Fixtures · ${fmtTokens(t.input_tokens + t.output_tokens)} tok`, 'var(--violet)'));
+    grid.appendChild(statCard(pct(h.pass_rate), `Pass@${run.pass_at ?? 1} · ${h.passed}/${h.total}`, 'var(--green)'));
+    if (mk === 'verdict') grid.appendChild(statCard(pct(h.evidence_rate), 'Has evidence', 'var(--accent)'));
+    else if (mk === 'capture') grid.appendChild(statCard(pct(h.chain_rate), 'Proof chain', 'var(--accent)'));
+    else if (mk === 'diff') grid.appendChild(statCard(pct(h.mean_f1), 'Mean F1', 'var(--accent)'));
+    else grid.appendChild(statCard(String(t.cases ?? t.fixtures), 'Cases', 'var(--accent)'));
+    grid.appendChild(statCard(String(t.http_requests || t.total_tool_calls), t.http_requests ? 'HTTP requests' : 'Tool calls', 'var(--amber)'));
+    grid.appendChild(statCard(String(t.fixtures), `Fixtures · ${toks}`, 'var(--violet)'));
   }
   main.appendChild(grid);
 
-  // ── classification / verdict overview ──
-  if (run.kind === 'vuln') {
+  // ── domain panel ──
+  if (mk === 'detection') {
     const card = el('div', { class: 'card' }, el('h3', { class: 'card-h', text: 'Finding classification' }));
     card.appendChild(stackBar([
       { value: t.tp, color: 'var(--green)', label: 'true positive' },
@@ -791,16 +801,31 @@ async function renderEval(id) {
       legendDot('var(--green)', `TP ${t.tp}`), legendDot('var(--red)', `FP ${t.fp}`),
       legendDot('var(--amber)', `FN ${t.fn}`), legendDot('var(--faint)', `TN ${t.tn}`)));
     main.appendChild(card);
-    if (s.per_cwe.some((c) => c.tp + c.fp + c.fn > 0)) main.appendChild(cweCard(s.per_cwe));
-  } else {
+    if ((s.per_cwe || []).some((c) => c.tp + c.fp + c.fn > 0)) main.appendChild(cweCard(s.per_cwe));
+  } else if (mk === 'verdict') {
     main.appendChild(verdictMatrixCard(s.verdict_matrix));
+  } else if (mk === 'capture') {
+    main.appendChild(passCard('Flag capture', h.passed, h.total, 'captured'));
+  } else {
+    main.appendChild(passCard('Pass rate', h.passed, h.total, 'passed'));
   }
 
   // ── per-fixture breakdown ──
-  main.appendChild(run.kind === 'vuln' ? vulnFixtureCard(run) : exploitFixtureCard(run));
+  main.appendChild(mk === 'detection' ? vulnFixtureCard(run) : caseFixtureCard(run));
 
   // ── tool usage ──
   if (s.tools.length) main.appendChild(toolUsageCard(s.tools));
+}
+
+function passCard(title, passed, total, posLabel) {
+  const card = el('div', { class: 'card' }, el('h3', { class: 'card-h', text: title }));
+  card.appendChild(stackBar([
+    { value: passed, color: 'var(--green)', label: posLabel },
+    { value: Math.max((total || 0) - (passed || 0), 0), color: 'var(--red)', label: 'missed' },
+  ], total));
+  card.appendChild(el('div', { class: 'legend', style: 'margin-top:12px' },
+    legendDot('var(--green)', `${posLabel} ${passed}`), legendDot('var(--red)', `missed ${(total || 0) - (passed || 0)}`)));
+  return card;
 }
 
 function legendDot(color, label) {
@@ -876,10 +901,16 @@ function vulnFixtureCard(run) {
   return card;
 }
 
-function exploitFixtureCard(run) {
+// Per-fixture card for case-based metric kinds (verdict / capture / diff /
+// generic). The per-case line adapts to whichever detail fields are present.
+function caseFixtureCard(run) {
   const card = el('div', { class: 'card' }, el('h3', { class: 'card-h', text: 'Per-fixture' }));
   for (const f of run.summary.fixtures) {
     const det = run.detail[f.slug];
+    const metrics = [el('span', { class: 'fx-m', html: `<b>${f.cases_passed}/${f.cases_total}</b>` })];
+    if (f.http_requests) metrics.push(el('span', { class: 'fx-m muted', text: `${f.http_requests} http` }));
+    metrics.push(el('span', { class: 'fx-m muted', text: `${fmtTokens(f.total_tokens)} tok` }));
+    if (f.duration_s) metrics.push(el('span', { class: 'fx-m muted', text: fmtDur(f.duration_s) }));
     const header = el('div', { class: 'fx-head', onclick: (e) => e.currentTarget.parentElement.classList.toggle('open') },
       el('span', { class: 'fx-chev', text: '▸' }),
       el('span', { class: 'fx-slug', text: f.slug }),
@@ -887,23 +918,35 @@ function exploitFixtureCard(run) {
         { value: f.cases_passed, color: 'var(--green)', label: 'passed' },
         { value: f.cases_total - f.cases_passed, color: 'var(--red)', label: 'failed' },
       ], f.cases_total)),
-      el('span', { class: 'fx-metrics' },
-        el('span', { class: 'fx-m', html: `<b>${f.cases_passed}/${f.cases_total}</b>` }),
-        el('span', { class: 'fx-m muted', text: `${f.http_requests} http` }),
-        el('span', { class: 'fx-m muted', text: `${fmtTokens(f.total_tokens)} tok` }),
-        el('span', { class: 'fx-m muted', text: fmtDur(f.duration_s) })));
+      el('span', { class: 'fx-metrics' }, ...metrics));
     const body = el('div', { class: 'fx-body' });
-    for (const c of (det?.cases || [])) {
-      body.appendChild(el('div', { class: 'case-row' },
-        el('span', { class: 'case-mark ' + (c.passed ? 'ok' : 'bad'), text: c.passed ? '✓' : '✗' }),
-        el('code', { class: 'case-name', text: c.finding_name || c.id }),
-        el('span', { class: 'case-verdict', html: `${c.expected_verdict} <span class="muted">→</span> <b class="${c.passed ? 'good' : 'bad'}">${c.actual_verdict || '—'}</b>` }),
-        c.has_evidence ? el('span', { class: 'case-ev', text: '🔬 evidence' }) : null,
-        el('span', { class: 'case-meta', text: `${c.http_requests ?? 0} http · ${fmtTokens(c.total_tokens)} tok · ${fmtDur(c.duration_s)}` })));
-    }
+    for (const c of (det?.cases || [])) body.appendChild(caseRow(c, run.pass_at));
     card.appendChild(el('div', { class: 'fx' }, header, body));
   }
   return card;
+}
+
+function caseRow(c, passAt) {
+  // Domain-specific middle column.
+  let mid;
+  if (c.expected_verdict !== undefined) {
+    mid = el('span', { class: 'case-verdict', html: `${c.expected_verdict} <span class="muted">→</span> <b class="${c.passed ? 'good' : 'bad'}">${c.actual_verdict || '—'}</b>` });
+  } else if (c.captured !== undefined) {
+    mid = el('span', { class: 'case-verdict' },
+      c.tags ? el('span', { class: 'muted', text: c.tags + '  ' }) : null,
+      c.chain ? el('span', { class: 'case-ev', text: '🔗 chain' }) : null);
+  } else if (c.f1 !== undefined) {
+    mid = el('span', { class: 'case-verdict muted', text: `F1 ${pct(c.f1)}` });
+  } else {
+    mid = el('span', {});
+  }
+  const passNote = (passAt > 1 && c.pass_count != null) ? `  ${c.pass_count}/${c.attempts}` : '';
+  return el('div', { class: 'case-row' },
+    el('span', { class: 'case-mark ' + (c.passed ? 'ok' : 'bad'), text: c.passed ? '✓' : '✗' }),
+    el('code', { class: 'case-name', text: (c.finding_name || c.id || '') + passNote }),
+    mid,
+    c.has_evidence ? el('span', { class: 'case-ev', text: '🔬 evidence' }) : null,
+    el('span', { class: 'case-meta', text: `${c.http_requests ? c.http_requests + ' http · ' : ''}${fmtTokens(c.total_tokens)} tok${c.duration_s ? ' · ' + fmtDur(c.duration_s) : ''}` }));
 }
 
 function toolUsageCard(tools) {
