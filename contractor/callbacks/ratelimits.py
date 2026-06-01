@@ -19,13 +19,16 @@ class TpmRatelimitCallback(BaseCallback):
     deps: list[str] = [TOKEN_USAGE_CALLBACK_NAME]
 
     def __init__(self, tpm_limit: int, tpm_limit_key="input"):
+        if tpm_limit_key not in {"input", "output", "total"}:
+            raise ValueError(
+                f"tpm_limit_key must be one of input/output/total, "
+                f"got {tpm_limit_key!r}"
+            )
         self.tpm_limit = tpm_limit
         self.tpm_limit_key = tpm_limit_key
         self.timer_start: int | None = None
         self.token_count: int | None = None
         self.history: list[Any] = []
-
-        assert tpm_limit_key in {"input", "output", "total"}
 
     def to_state(self) -> dict[str, Any]:
         return {

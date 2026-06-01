@@ -64,7 +64,11 @@ class ThinkingBudgetGuardrailCallback(BaseCallback):
         if message:
             self.message = message
 
-        assert token_budget_key in {"input", "output", "total"}
+        if token_budget_key not in {"input", "output", "total"}:
+            raise ValueError(
+                f"token_budget_key must be one of input/output/total, "
+                f"got {token_budget_key!r}"
+            )
 
     def to_state(self) -> dict[str, Any]:
         return {
@@ -152,7 +156,11 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         self.tool_names.update(ADK_RESERVED_TOOLS)
 
         self.history: list[Any] = []
-        assert default_tool_name in self.tool_names
+        if default_tool_name not in self.tool_names:
+            raise ValueError(
+                f"default_tool_name {default_tool_name!r} is not among the "
+                f"provided tools: {sorted(self.tool_names)}"
+            )
 
     def to_state(self):
         return {
@@ -313,7 +321,8 @@ class RepeatedToolCallCallback(BaseCallback):
     deps: list[str] = []
 
     def __init__(self, threshold: int = 5, message: Optional[str] = None):
-        assert threshold > 1
+        if threshold <= 1:
+            raise ValueError(f"threshold must be > 1, got {threshold}")
         self.threshold = threshold
         self.message_template = message or REPEATED_TOOL_CALL_DEFAULT_MESSAGE
         self.last_signature: Optional[str] = None

@@ -314,8 +314,12 @@ def main(
         raise click.UsageError("--rm and --resume are mutually exclusive")
 
     workflow = workflow.lower()
-    project_path = validate_project_path(project_path)
-    folder_name = validate_folder_name(project_path, folder_name)
+    try:
+        project_path = validate_project_path(project_path)
+        folder_name = validate_folder_name(project_path, folder_name)
+    except ValueError as exc:
+        # Surface a clean CLI error instead of an uncaught traceback.
+        raise click.BadParameter(str(exc)) from exc
     output_dir = output if output else project_path / ".contractor"
     output_dir.mkdir(parents=True, exist_ok=True)
 

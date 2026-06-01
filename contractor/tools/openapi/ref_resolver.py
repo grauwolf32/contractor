@@ -35,7 +35,10 @@ def resolve_refs(
     def _follow_pointer(ref: str) -> Any:
         if not ref.startswith("#/"):
             raise ValueError(f"Only local refs supported. Got: {ref!r}")
-        parts = ref.lstrip("#/").split("/")
+        # Strip the leading "#/" prefix exactly — lstrip("#/") would strip a
+        # *set* of leading '#'/'/' chars and corrupt pointers with an empty
+        # first segment (e.g. "#//foo").
+        parts = ref[2:].split("/")
         parts = [p.replace("~1", "/").replace("~0", "~") for p in parts]
         node = schema
         for part in parts:

@@ -203,8 +203,10 @@ def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
 def validate_files(
     files: list[str],
     fs: fsspec.AbstractFileSystem,
-    ext: list[str] = [".json", ".md", ".yaml", ".yml"],
+    ext: Optional[list[str]] = None,
 ) -> Optional[str]:
+    if ext is None:
+        ext = [".json", ".md", ".yaml", ".yml"]
     if not files:
         return FILE_VALIDATION_NO_FILES_PROVIDED
 

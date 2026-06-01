@@ -54,7 +54,7 @@ def test_tpm_ratelimit_triggers_sleep__side_effect(monkeypatch):
 
 class TestTpmBoundaries:
     def test_invalid_limit_key_rejected(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="tpm_limit_key"):
             TpmRatelimitCallback(tpm_limit=100, tpm_limit_key="bogus")
 
     def test_diff_exactly_at_limit_no_sleep(self, monkeypatch):
