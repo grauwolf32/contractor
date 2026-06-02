@@ -19,6 +19,10 @@ from tests.eval.harness import AgentRun, run_agent
 
 AgentKind = Literal["vuln_scan", "trace"]
 
+# Maps the eval's agent_kind to the agent the harness actually builds — used as
+# the eval/v1 `unit` so envelopes are labelled by the real agent under test.
+UNIT_FOR_KIND: dict[str, str] = {"vuln_scan": "codereview_agent", "trace": "trace_agent"}
+
 
 def _make_metrics_plugin(
     task_name: str,

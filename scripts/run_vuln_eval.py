@@ -261,6 +261,7 @@ async def run_eval(
     output_dir: Path,
     timeout_s: float,
     prompt_version: Optional[str] = None,
+    agent_kind: str = "trace",
 ) -> list[FixtureResult]:
     from dotenv import load_dotenv
     for p in (REPO_ROOT / "cli" / ".env", REPO_ROOT / ".env"):
@@ -279,7 +280,7 @@ async def run_eval(
         model = DEFAULT_MODEL
 
     from tests.eval.conftest import _load_fixture
-    from tests.eval.vuln_scan_harness import run_vuln_scan
+    from tests.eval.vuln_scan_harness import UNIT_FOR_KIND, run_vuln_scan
     from tests.eval.scoring import AgentFinding, score_vuln_findings
 
     scan_prompt = (
@@ -317,7 +318,7 @@ async def run_eval(
                 fixture_root=fixture.source_root,
                 user_message=scan_prompt,
                 model=model,
-                agent_kind="trace",
+                agent_kind=agent_kind,
                 namespace=f"vuln-eval-{slug}",
                 timeout_s=timeout_s,
                 prompt_version=prompt_version,
@@ -441,10 +442,10 @@ async def run_eval(
                     "files_read": r.get("files_read") or [], "gt_cwes": r.get("gt_cwes") or []})
         fixtures.append(EnvFixture(slug=r.get("slug"), cases=[case]))
     eval_run = EnvRun(
-        scenario="agent", unit="trace_agent", pass_at=1, metric_kind="detection",
-        model=str(model.model),
+        scenario="agent", unit=UNIT_FOR_KIND.get(agent_kind, agent_kind),
+        pass_at=1, metric_kind="detection", model=str(model.model),
         prompt_version=(results[0].prompt_version if results else prompt_version),
-        timestamp=timestamp, fixtures=fixtures,
+        timestamp=timestamp, fixtures=fixtures, meta={"agent_kind": agent_kind},
     )
     results_path = write_eval_results(eval_run, output_dir)
     print(f"\nResults saved to {results_path}")
@@ -458,7 +459,7 @@ async def run_eval(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run trace-agent vuln detection evals")
+    parser = argparse.ArgumentParser(description="Run vuln-detection evals (trace or codereview agent)")
     parser.add_argument(
         "--fixtures", default=DEFAULT_FIXTURES,
         help=f"Comma-separated fixture slugs (default: {DEFAULT_FIXTURES})",
@@ -469,13 +470,17 @@ def main():
     )
     parser.add_argument("--timeout", type=float, default=900.0)
     parser.add_argument(
+        "--agent", default="trace", choices=["trace", "vuln_scan"],
+        help="agent under test: trace (trace_agent) or vuln_scan (codereview_agent)",
+    )
+    parser.add_argument(
         "--prompt", default=None,
-        help="trace_agent prompt version (e.g. v7, shannon); default = active",
+        help="prompt version for the chosen agent (e.g. v7, shannon); default = active",
     )
     args = parser.parse_args()
 
     slugs = [s.strip() for s in args.fixtures.split(",") if s.strip()]
-    asyncio.run(run_eval(slugs, Path(args.output), args.timeout, args.prompt))
+    asyncio.run(run_eval(slugs, Path(args.output), args.timeout, args.prompt, args.agent))
 
 
 if __name__ == "__main__":

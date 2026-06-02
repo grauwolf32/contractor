@@ -34,9 +34,8 @@ import yaml
 
 from tests.eval.results import CaseResult, metrics_from_events
 from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
-from tests.eval.vuln_scan_harness import AgentKind, VulnScanRun, run_vuln_scan
-
-_UNIT_FOR_KIND = {"vuln_scan": "codereview_agent", "trace": "trace_agent"}
+from tests.eval.vuln_scan_harness import (UNIT_FOR_KIND, AgentKind,
+                                          VulnScanRun, run_vuln_scan)
 
 # Where per-run records (reported findings + score) are written so a run is
 # inspectable after the fact (Langfuse only captures the live trace). Lands
@@ -283,7 +282,7 @@ async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
     best_run, best_findings, _ = max(attempts, key=lambda a: a[2].f1)
     pass_count = sum(1 for s in all_scores if s.passes(min_precision=min_p, min_recall=min_r))
     eval_sink.record(
-        scenario="agent", unit=_UNIT_FOR_KIND.get(agent_kind, agent_kind),
+        scenario="agent", unit=UNIT_FOR_KIND.get(agent_kind, agent_kind),
         metric_kind="detection", fixture=vuln_fixture.slug, pass_at=n,
         model=str(eval_model.model), prompt_version=best_run.prompt_version,
         case=CaseResult(
