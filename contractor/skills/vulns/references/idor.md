@@ -237,6 +237,14 @@ for id in range(1, 1000):
   ```
 - **Encrypted IDs**: Identify encryption patterns and test related IDs
 
+#### Predictable "Random" ID Structures
+
+Many IDs that look opaque are actually structured and partially predictable. Fingerprint the format first, then enumerate the predictable fields:
+
+- **UUIDv1** (`xxxxxxxx-xxxx-1xxx-...` — the version nibble is `1`): encodes a 60-bit timestamp + clock sequence + node (the host's MAC address). The MAC stays constant and the timestamp is monotonic, so IDs minted close in time differ only in their low timestamp bits. If you can mint your own ID (e.g. your registration returns a UUIDv1 and you know its issuance time), generate the candidate space between two of your own IDs to **sandwich the victim's creation window** and brute the small remaining range. Tooling: [uuidtools](https://github.com/intruder-io/guidtool) (`guidtool`) to decode a sample and emit candidates around a target timestamp.
+- **MongoDB ObjectId** (24 hex chars): 4-byte epoch seconds + 3-byte machine id + 2-byte process id + 3-byte incrementing counter. Machine/pid are constant for a given server. Once you have **two** ObjectIds from the same backend, the only varying field is the 3-byte counter (plus the epoch) — enumerate the counter between them to walk other users' objects.
+- **Timestamp / epoch as ID**: if IDs are (or embed) a creation timestamp (Unix seconds/millis, or auto-increment seeded by time), enumerate around the victim's known signup/action time. Combine with the comparative-response and side-channel analysis above to confirm hits cheaply.
+
 ### Access Control Bypass
 
 - **HTTP Method Switching**: Change GET to POST or PUT

@@ -25,6 +25,12 @@ grep "createQuery" "createNativeQuery" "Statement" "PreparedStatement"
 ```
 Confirm: is the string built with concatenation, not parameters?
 
+For Ruby/Rails:
+```
+grep ".where(\".*#{" "find_by_sql(" "#{" near ".order(\|.pluck(\|.group("
+```
+Confirm: is `#{...}` interpolation inside `where`/`order`/`pluck` instead of `?`/hash conditions?
+
 ## CRITICAL — Command Injection
 
 Python:
@@ -39,7 +45,28 @@ Go:
 ```
 grep "exec.Command" "os/exec"
 ```
-Confirm: does user input reach the command string?
+Ruby/Rails:
+```
+grep "system(" "exec(" "spawn(" "eval(" "Open3.\|IO.popen\|PTY.spawn" "`"
+grep "constantize\|safe_constantize" ".send(\|.public_send(\|.__send__(\|.try("
+```
+Confirm: does user input reach the command string, or a method/class name (reflection RCE)?
+
+## CRITICAL — Server-Side Template Injection (SSTI)
+
+Python/Flask:
+```
+grep "render_template_string" ".from_string(" "Template(" "autoescape=False"
+```
+Go:
+```
+grep "text/template" "template.HTML("
+```
+Node:
+```
+grep "<%-" "compile(" near user input; handlebars/mustache with escape disabled
+```
+Confirm: does user input reach the template **string** itself (not just the data context)? Rendering user data into a precompiled template is safe; building the template source from user input is RCE.
 
 ## CRITICAL — Authentication Bypass
 
@@ -111,6 +138,19 @@ Confirm: are extra fields (admin, role, balance) accepted?
 
 ## MEDIUM — Hardcoded Secrets
 
+High-precision provider-key regexes (low false-positive — a hit is almost always a real key):
+```
+AWS access key:  \b((?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})\b
+GitHub PAT:      ghp_[0-9a-zA-Z]{36}                 github_pat_\w{82}
+GCP/Firebase:    \bAIza[\w-]{35}\b
+Slack bot:       xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*
+Stripe:          \b(?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99}\b
+OpenAI:          sk-[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}
+Anthropic:       sk-ant-api03-[a-zA-Z0-9_-]{93}AA
+JWT:             \bey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9/_-]{17,}\.[a-zA-Z0-9/_-]{10,}
+Private key:     -----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY
+```
+Low-confidence fallback (catches generic literals but noisy — verify each hit):
 ```
 grep "password.*=.*\"" "secret.*=.*\"" "api_key.*=.*\"" "SECRET_KEY.*=.*\""
 ```
@@ -165,7 +205,7 @@ authorization). `sanitize_text_field()` is NOT SQL escaping.
 
 ## Scan order for maximum speed
 
-1. `glob "*.py" "*.java" "*.go" "*.js" "*.ts" "*.php"` — inventory source files
+1. `glob "*.py" "*.java" "*.go" "*.js" "*.ts" "*.php" "*.rb" "*.cs"` — inventory source files
 2. Grep CRITICAL patterns first (highest value per time)
 3. For each hit file, list_symbols to understand structure
 4. Read 20-30 lines around each hit to confirm

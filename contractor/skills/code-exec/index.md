@@ -79,6 +79,22 @@ print("RECOVERED:", val)
 ''', timeout_s=120)
 ```
 
+## Authenticated probing — use a Session
+
+For anything past the login wall, drive a `requests.Session` instead of bare
+`requests.get/post`. The session preserves cookies (needed for cookie/CSRF-based
+auth) across every request in the script, sets the auth once, and adds bounded
+retries + a timeout so a flaky target doesn't hang the whole call:
+
+```
+import requests
+from requests.adapters import HTTPAdapter, Retry
+s = requests.Session()
+s.headers["Authorization"] = "Bearer " + TOKEN   # from auth/creds
+s.mount("http://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=0.3, status_forcelist=[429,500,502,503])))
+def get(p, **kw): return s.get(URL + p, timeout=10, **kw)
+```
+
 - **`preinit`**: pass setup snippets (base URL, captured cookies/token, helper
   functions, data from earlier steps) — they run before your code in the same
   interpreter, so the main script stays focused.

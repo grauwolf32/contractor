@@ -19,6 +19,7 @@ Always include the primary CWE ID (e.g. `CWE-89`) in the `details` field.
 | XPath Injection                  | CWE-643     | xpath.query          |
 | Header Injection                 | CWE-113     | http.response.header |
 | Insecure Deserialization         | CWE-502     | parser.pickle / parser.yaml.unsafe |
+| XML External Entity (XXE)         | CWE-611     | parser.xml.unsafe    |
 | Code Injection / eval            | CWE-94      | reflect.eval         |
 | SMTP Injection                   | CWE-93      | smtp.send            |
 | Log Injection                    | CWE-117     | log.write            |

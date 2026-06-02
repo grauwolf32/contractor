@@ -66,6 +66,46 @@ style { color "primary" }    // ✗ Wrong: quoted string (remove quotes)
 - **Custom named colors** defined in specification are explicit hex values; use them sparingly for brand colors.
 - **Raw hex** in a style property is not recommended — always register in specification first.
 
+## Shape tokens
+
+The `shape` property accepts one of the following tokens:
+
+`rectangle` (default), `component`, `person`, `browser`, `mobile`, `cylinder`, `storage`, `queue`, `bucket`, `document`.
+
+```likec4
+element service {
+  style { shape component }
+}
+```
+
+## Border, line, arrow-head, and size tokens
+
+| Property | Valid tokens |
+| -------- | ------------ |
+| `line` | `solid`, `dashed`, `dotted` |
+| `border` | `solid`, `dashed`, `dotted`, `none` |
+| `head` / `tail` (arrow types) | `none`, `normal`, `onormal`, `dot`, `odot`, `diamond`, `odiamond`, `crow`, `open`, `vee` |
+| `size` / `padding` / `textSize` / `iconSize` | `xs`, `sm`, `md`, `lg`, `xl` |
+| `opacity` | integer percentage, e.g. `opacity 40%` |
+
+```likec4
+// Relationship style
+style customer -> api {
+  line dashed
+  head vee
+  tail none
+}
+
+// Element style
+element service {
+  style {
+    border dotted
+    size lg
+    opacity 80%
+  }
+}
+```
+
 ## Icon packs
 
 Icons use the format `group:name` (e.g. `tech:react`, `aws:lambda`, `azure:app-service`). Five built-in groups are available:

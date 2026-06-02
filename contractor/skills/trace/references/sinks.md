@@ -12,9 +12,11 @@ it. Do not infer sinks from name alone.
   filesystem.read | filesystem.write | filesystem.delete | filesystem.path.join
   db.query | db.exec | db.query.raw | db.exec.raw | db.orm.bulk
   shell.exec | shell.exec.args | process.env.write
-  http.request | http.redirect | dns.lookup | socket.connect | smtp.send
+  http.request | http.redirect | http.response.header |
+    dns.lookup | socket.connect | smtp.send
   template.render | template.render.raw | html.render | pdf.render
   parser.process | parser.yaml.unsafe | parser.pickle |
+    parser.xml | parser.xml.unsafe |
     serializer.encode | serializer.decode
   cache.read | cache.write | queue.publish | queue.consume
   crypto.key.derive | crypto.random.seed | crypto.sign | secret.log
@@ -175,6 +177,13 @@ control" answer is a candidate finding.
 - target URL attacker-controlled and validated against allowlist?
 → Open Redirect.
 
+### http.response.header
+- tainted value written into a response header / Location / Set-Cookie
+  name or value; CR/LF not stripped?
+→ Response Splitting / Header Injection (CWE-113). The request `Host`
+  header used to build links / password-reset URLs is a tainted source
+  (host-header trust) — treat it as attacker-controlled.
+
 ### template.render.raw / html.render
 - tainted data rendered without auto-escape or explicit escape?
 - template selected from tainted input?
@@ -184,7 +193,20 @@ scope unless the render path is also traced.
 
 ### parser.pickle / parser.yaml.unsafe / serializer.decode
 - input attacker-controlled? Deserializer safe (yaml.safe_load, JSON)?
+- Also unsafe-deserialization sinks: Java ObjectInputStream.readObject,
+  Jackson with enableDefaultTyping()/@JsonTypeInfo; .NET BinaryFormatter/
+  LosFormatter/NetDataContractSerializer/JavaScriptSerializer with a type
+  resolver; Newtonsoft with TypeNameHandling != None. Safe forms (plain
+  JsonConvert, DataContractSerializer with known types) are not this sink.
 → Insecure Deserialization / RCE.
+
+### parser.xml.unsafe
+- XML parser created without disabling DTD/external entities (no
+  disallow-doctype-decl, no FEATURE_SECURE_PROCESSING; .NET XmlResolver
+  not null; PHP no libxml_disable_entity_loader/LIBXML_NONET)?
+- tainted XML body parsed → XXE (file read / SSRF).
+→ XML External Entity (XXE). A parser with entity expansion disabled is
+  `parser.xml`, not this sink.
 
 ### reflect.eval / reflect.import / reflect.attr / db.orm.bulk
 - symbol / expression / field-set attacker-controlled?

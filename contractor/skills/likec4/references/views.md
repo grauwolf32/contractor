@@ -66,6 +66,37 @@ See [Predicates](./predicates.md) for more information on predicates and express
 - `style` rules override previously applied styles.
   - Style cascade (each override the previous): Spec defaults → element properties → local styles → view-level styles → customized predicates
 
+## Splitting Merged Relationship Edges (`multiple`)
+
+By default, multiple relationships between the same two elements are merged into a single edge. When their titles differ, the merged label is rendered as `[...]`. Setting `multiple true` renders each relationship as its own separate edge with its own label.
+
+Define it spec-wide for a relationship kind:
+
+```likec4
+specification {
+  relationship async {
+    multiple true
+    line dotted
+    color amber
+  }
+}
+```
+
+Or override it per-view on individual relationships (a per-view `with { ... }` rule takes precedence over the spec-level setting):
+
+```likec4
+include customer -> cloud with {
+  multiple true              // render each relationship as its own edge
+}
+```
+
+Use `multiple false` to disable expansion for specific relationships in a view.
+
+**Notes:**
+
+- Only matching relationships split; non-matching relationships in the same connection stay merged.
+- Expanded edges never participate in bidirectional merging — only merged edges do.
+
 ## Dynamic View Rules
 
 Syntax:

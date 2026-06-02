@@ -72,6 +72,20 @@ if "admin" in request.json:
 - JWT signing keys that are short strings, not cryptographic keys
 - API keys hardcoded in source
 
+A generic `password = "..."` grep is a noisy low-confidence fallback. Sweep with the high-precision provider-key regexes for a near-zero-false-positive pass — any hit is almost certainly a live credential:
+
+```
+AWS access key:  \b((?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})\b
+GitHub PAT:      ghp_[0-9a-zA-Z]{36}                 github_pat_\w{82}
+GCP/Firebase:    \bAIza[\w-]{35}\b
+Slack bot:       xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*
+Stripe:          \b(?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99}\b
+OpenAI:          sk-[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}
+Anthropic:       sk-ant-api03-[a-zA-Z0-9_-]{93}AA
+JWT:             \bey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9/_-]{17,}\.[a-zA-Z0-9/_-]{10,}
+Private key:     -----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY
+```
+
 ## 10. Debug mode in production code
 
 `app.run(debug=True)` or `DEBUG=True` in settings. Enables interactive debugger, detailed stack traces, auto-reload — all dangerous in production.

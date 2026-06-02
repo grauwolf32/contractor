@@ -54,6 +54,27 @@ Examples:
 - weak randomness used for security-relevant values
 - TLS verification disabled on outbound calls
 
+Hardcoded-secret fingerprints (any string literal matching → Shape C,
+CWE-798, even without a suggestive variable name):
+
+| Pattern                          | Issuer / kind        |
+|----------------------------------|----------------------|
+| `AKIA…` / `ASIA…`                | AWS access key       |
+| `ghp_…` / `github_pat_…`         | GitHub token         |
+| `glpat-…`                        | GitLab token         |
+| `AIza…`                          | Google API key       |
+| `sk-ant-api03-…`                 | Anthropic key        |
+| `sk-…T3BlbkFJ…`                  | OpenAI key           |
+| `xoxb-` / `xoxp-`                | Slack token          |
+| `sk_live_` / `rk_live_`          | Stripe key           |
+| `SG.`                            | SendGrid key         |
+| `npm_…`                          | npm token            |
+| `-----BEGIN … PRIVATE KEY-----`  | private key (PEM)    |
+| `ey….ey….`                       | JWT                  |
+
+FP guard: a `*_test_*` Stripe key or an obvious placeholder/example value
+(e.g. `sk_test_…`, `XXXX`, `your-key-here`) is low/info, not high.
+
 Defects on opened files outside the traced flow are Shape C — report
 once with a deterministic slug (file path + symbol).
 

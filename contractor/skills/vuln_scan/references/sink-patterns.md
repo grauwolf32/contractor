@@ -25,6 +25,14 @@ Vulnerable = user input reaches the function without validation.
 - VULNERABLE: `db.query("SELECT " + req.body.id)`, template literals in SQL
 - SAFE: `db.query("SELECT ... WHERE x=$1", [param])`, query builders
 
+### Ruby / Rails
+- VULNERABLE: `Model.where("name = '#{params[:name]}'")`, `find_by_sql("... #{input}")`, interpolation `#{...}` inside `where(`/`order(`/`pluck(`/`group(`
+- SAFE: `where("name = ?", value)`, `where(name: value)`, hash conditions
+
+### .NET / C#
+- VULNERABLE: `new SqlCommand("SELECT ... " + input)`, `string.Format`/`$"...{input}"` into `CommandText`, then `ExecuteReader`/`ExecuteNonQuery`/`ExecuteScalar`
+- SAFE: `SqlParameter` / `cmd.Parameters.Add(...)` / `cmd.Parameters.AddWithValue("@x", value)`
+
 ### MongoDB (NoSQL Injection)
 - VULNERABLE: `collection.find(JSON.parse(userInput))`, `bson.M` from `json.Unmarshal(body, &bsonMap)`, `{$where: userInput}`
 - SAFE: explicit field construction `{field: value}`, schema validation before query
@@ -43,10 +51,20 @@ Vulnerable = user input reaches the function without validation.
 - VULNERABLE: `exec.Command("sh", "-c", userInput)`, `exec.Command(userBinary)`
 - SAFE: `exec.Command(fixedBinary, sanitizedArg)` with allowlist
 
+### Ruby / Rails
+- VULNERABLE: `system(cmd + input)`, `exec`, `spawn`, `\`#{input}\``, `eval(input)`, `Open3.capture2`/`Open3.popen3`/`IO.popen`/`PTY.spawn` with user input
+- REFLECTION: `input.constantize`/`safe_constantize`, `obj.send(input)`/`public_send`/`__send__`, `obj.try(input)` — user-controlled method/class name = RCE
+- SAFE: array-form `system(binary, arg1)`, allowlist of permitted methods/classes
+
+### .NET / C#
+- VULNERABLE: `Process.Start(input)`, `ProcessStartInfo{ UseShellExecute=true, Arguments=input }`, `cmd /c` with concatenation
+- SAFE: `ProcessStartInfo{ FileName=binary, ArgumentList={...}, UseShellExecute=false }`, allowlist
+
 ## SSRF
 
 ### All languages
 - VULNERABLE: `requests.get(user_url)`, `http.Get(userURL)`, `fetch(req.body.url)`, `file_get_contents($url)`, `HttpClient.send(req)` where URL from user
+- .NET: `HttpClient.GetAsync(userUrl)`, `WebRequest.Create(userUrl)`; Ruby: `Net::HTTP.get(URI(userUrl))`, `open(userUrl)`
 - SAFE: URL parsed + host checked against allowlist, schema restricted to https, no redirect following to internal nets
 
 ### Bypass indicators in code
@@ -82,6 +100,76 @@ Vulnerable = user input reaches the function without validation.
 - DANGEROUS: `unserialize($userInput)` without `allowed_classes => false`
 - SAFE: `json_decode($input)`, `unserialize($data, ['allowed_classes' => ['Safe']])`
 
+### Ruby
+- DANGEROUS: `Marshal.load(user_data)`, `YAML.load(data)` (pre-Psych-4), `Oj.load`/`Oj.object_load` with default mode
+- SAFE: `YAML.safe_load(data)`, `JSON.parse(data)`, `Oj.load(data, mode: :strict)`
+
+### .NET / C#
+- DANGEROUS: `BinaryFormatter`, `LosFormatter`, `SoapFormatter`, `NetDataContractSerializer`, `JavaScriptSerializer` with a resolver, Newtonsoft `JsonConvert` with `TypeNameHandling` != `None`
+- SAFE: `System.Text.Json`, Newtonsoft with default `TypeNameHandling.None`, `DataContractSerializer` with known types
+
+## Server-Side Template Injection (SSTI) — CRITICAL
+
+User input must reach the template **string** itself, not just the data context. Passing user data as a *variable* to a precompiled template is safe; building the template source from user input is RCE.
+
+### Python (Flask/Jinja2)
+- VULNERABLE: `render_template_string(user_input)`, `Template(user_input).render(...)`, `Environment(...).from_string(user_input)`, `autoescape=False`
+- SAFE: `render_template("file.html", var=user_input)` — user data bound as a context variable only
+
+### Go
+- VULNERABLE: `text/template` rendering user data (no auto-escaping), `template.HTML(userInput)` (bypasses escaping)
+- SAFE: `html/template` with user data as a typed context value
+
+### Node.js
+- VULNERABLE: mustache/handlebars with escaping disabled, eval-based engines, `dot`/`ejs` `<%- userInput %>` (unescaped), template source from user input
+- SAFE: precompiled templates with user data passed as the data object, escaped interpolation (`<%= %>`)
+
+## XXE (XML External Entity)
+
+VULNERABLE when these parse **user-supplied XML** without disabling DOCTYPE/external entities:
+
+### Java
+- `DocumentBuilderFactory` / `SAXParserFactory` / `XMLInputFactory` / `TransformerFactory` used without `setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)` or `FEATURE_SECURE_PROCESSING`
+- SAFE: doctype disabled, `XMLConstants.ACCESS_EXTERNAL_DTD`/`SCHEMA` set to `""`
+
+### .NET / C#
+- `XmlTextReader` (DTD enabled by default pre-4.5), `XmlReaderSettings { DtdProcessing = DtdProcessing.Parse }`
+- SAFE: `DtdProcessing = DtdProcessing.Prohibit`, `XmlResolver = null`
+
+### PHP
+- `simplexml_load_string`/`simplexml_load_file`/`DOMDocument->load*` with `LIBXML_NOENT`, or `libxml_disable_entity_loader(false)`
+- SAFE: default flags (no `LIBXML_NOENT`), entity loader left disabled
+
+### Node.js
+- `libxmljs` parse with `{ noent: true }`, `xml2json` and similar that expand entities
+- SAFE: entity expansion disabled / not enabled
+
+## LDAP / XPath Injection
+
+### .NET / C# — LDAP
+- VULNERABLE: `DirectorySearcher`/`DirectoryEntry` with `Filter` built by concatenating user input
+- SAFE: `Encoder.LdapFilterEncode(input)` before building the filter
+
+### .NET / C# — XPath
+- VULNERABLE: `SelectNodes`/`SelectSingleNode`/`XPathNavigator.Compile` with concatenated user input
+- SAFE: parameterized XPath (`XPathExpression` with variables), input allowlist
+
+## Cross-Site Scripting (XSS) — output sinks
+
+### Ruby / Rails
+- VULNERABLE: `input.html_safe`, `raw(input)`, `<%== input %>` — all bypass ERB auto-escaping
+- SAFE: default `<%= input %>` (auto-escaped), `sanitize(input)` with an allowlist
+
+### .NET / Razor
+- VULNERABLE: `@Html.Raw(input)` — bypasses Razor auto-encoding
+- SAFE: `@input` (auto-encoded), `@Html.Encode(input)`
+
+## Render / Local File Inclusion
+
+### Ruby / Rails
+- VULNERABLE: `render file: params[:f]`, `render inline: params[:t]`, `render template:`/`render action:` with user-controlled path (inline → SSTI/RCE, file → LFI)
+- SAFE: render fixed template names; never pass user input to `file:`/`inline:`/`template:`
+
 ## JWT Vulnerabilities
 
 - ALG:NONE: `PlainJWT.parse()` fallback, `jwt.decode(verify=False)`, `algorithms` param missing
@@ -102,6 +190,7 @@ Vulnerable = user input reaches the function without validation.
 - IDOR: `Model.findById(req.params.id)` without `WHERE owner = currentUser`
 - BFLA: admin endpoint without role check (`@PreAuthorize("hasRole('ADMIN')")` missing)
 - MASS ASSIGNMENT: `Model.update(req.body)` / `@RequestBody Entity` without DTO / `@JsonIgnore`
+- MASS ASSIGNMENT (Rails): `params.permit!` (blanket), `attr_accessible`, `Model.new(params[:model])` without strong-param allowlist
 - PRIVILEGE FIELD: `role`, `is_admin`, `balance`, `credit` accepted from user input
 
 ## Race Conditions

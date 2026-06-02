@@ -99,6 +99,19 @@ deployment {
 }
 ```
 
+## Deployment View: `includeAncestors`
+
+A `deployment view` can force all ancestors of already-visible nodes into the diagram via `includeAncestors`. This is a representation preference only — it shows how each relevant element is deployed and does **not** affect the visible relationships.
+
+```likec4
+deployment view ancestors_test {
+  includeAncestors: true
+
+  include hyp1.tomcat1.svc1
+  include hyp2.tomcat2.svc2
+}
+```
+
 ## Named vs. Anonymous: When It Matters
 
 | Scenario | Use |

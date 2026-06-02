@@ -8,6 +8,17 @@ Caido **workflows** are reusable automations exposed to you through three
 tools. They complement `caido_replay` / `caido_automate_run` — workflows are
 canned transforms and checks, not a fuzzer.
 
+## Caido vs http_request
+
+Use `http_request` for one-off confirming probes and traffic you'll cite
+directly. Route traffic through Caido (`caido_replay` / `caido_automate_run`)
+when you want passive workflows to score it, when you need a convert recipe (PoC
+generation, GraphQL introspection), or an active check (CORS). **IMPORTANT:**
+passive findings only fire on traffic Caido actually proxied — `http_request`
+traffic is invisible to Caido, so probes sent there will **not** appear in
+`caido_workflow_findings`. Don't treat an empty findings list as "no issues" if
+you never routed traffic through Caido.
+
 ## The three tools
 
 - **`caido_workflow_list`** — discover what's installed. Returns each
