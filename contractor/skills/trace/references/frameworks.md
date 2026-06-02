@@ -1,11 +1,31 @@
 ---
-description: Framework-specific patterns for tracing request flows — Django, Spring Boot, Go/gorilla-mux. How to follow controller → service → repository call chains efficiently.
+description: Framework-specific patterns for tracing request flows — Spring Boot, Django, Go/gorilla-mux, Express/NestJS, Laravel, WordPress. Identify each framework's routing and authorization-control primitive; follow controller → service → repository chains efficiently.
 ---
 
 # Framework-Specific Tracing Patterns
 
 When tracing across multi-file architectures, use these patterns
 to follow the call chain without excessive file reads.
+
+## Recognizing the authorization control primitive (any framework)
+
+Every framework expresses access control through a **primitive** — a
+decorator, middleware, route guard, policy attribute, or an inline
+capability call. To evaluate authorization on a handler:
+
+1. **Identify the framework's primitive** (the per-framework sections
+   below name it: Spring `.hasRole`/security config, Django
+   `@…_required`, Express/Nest middleware/`@UseGuards`, Laravel
+   `->middleware`, WordPress `current_user_can`).
+2. **Check the sensitive handler actually invokes it on the path that
+   reaches the operation** (per the dominance rule in
+   `trace/references/controls`).
+
+A privileged or state-changing handler that **never invokes the
+primitive** is a missing-authorization finding (**Shape B**,
+CWE-862/285/269) — reportable from the code structure ALONE; you do NOT
+need a tainted-data flow or a demonstrated exploit. "No `current_user_can`
+/ no guard / no `permission_callback` on a sensitive action" IS the bug.
 
 ## Spring Boot (Java)
 
@@ -137,6 +157,40 @@ missing-auth candidate.
   model has a `$fillable`/`$guarded` allowlist
 - `view($name)` with tainted `$name` → template selection;
   `{!! $x !!}` (unescaped Blade) → template.render.raw / XSS
+
+## WordPress / WP plugins (PHP)
+
+### Routing — hooks & actions, not a route table
+WP plugins register entrypoints via hooks. Grep for these, not for routes:
+- **AJAX**: `add_action('wp_ajax_{action}', 'handler')` (logged-in) and
+  `add_action('wp_ajax_nopriv_{action}', 'handler')` — the `_nopriv_`
+  variant is reachable **UNAUTHENTICATED**. Invoked via
+  `POST /wp-admin/admin-ajax.php` with `action={action}`.
+- **REST**: `register_rest_route('ns/v1', '/path', ['callback'=>'fn',
+  'permission_callback'=>...])`. A `permission_callback` of
+  `'__return_true'` (or omitted) = **no authorization**.
+- **Forms/init**: `add_action('admin_post_{action}'|'admin_post_nopriv_{action}', …)`,
+  `add_action('init'|'admin_init', …)`, `add_shortcode(…)`.
+
+### Control primitives (open these before marking authz/csrf present)
+- **authentication**: `is_user_logged_in()`, or the action is only on
+  `wp_ajax_` (not `_nopriv_`).
+- **authorization**: `current_user_can('capability')`
+  (`'manage_options'` for admin actions). A sensitive handler with **no
+  `current_user_can`** = missing authorization (Shape B, CWE-862/269).
+- **CSRF/nonce**: `check_ajax_referer(…)`, `wp_verify_nonce(…)`,
+  `check_admin_referer(…)`. Absent on a state-changing AJAX/admin
+  handler = CSRF (Shape B, `csrf`).
+- A registration / profile-update handler that sets `role`,
+  `wp_update_user`, `add_user_to_blog`, or a `*_capabilities` / `is_admin`
+  field from request input **without** a `current_user_can` check →
+  **privilege escalation** (Shape B, CWE-269).
+
+### Sinks
+- `$wpdb->query("… $x …")` / `$wpdb->get_results($raw)` → `db.query.raw`
+  (SQLi). `$wpdb->prepare(…)` / `$wpdb->query($wpdb->prepare(…))` = bound.
+- `update_option` / `update_user_meta` / `wp_update_user` from request
+  input → state change; verify authz + nonce dominate the call.
 
 ## Multi-Service Architectures
 

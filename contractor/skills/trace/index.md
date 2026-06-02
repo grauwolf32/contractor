@@ -180,7 +180,7 @@ ONCE, the first time its topic becomes the current step.
 | About to walk the per-handler control checklist                | `trace/references/controls`         |
 | About to report — need shape, fields, severity, slug rules     | `trace/references/finding-shapes`   |
 | Writing the `details` field — need the class → CWE ID + sink   | `trace/references/cwe-mapping`      |
-| Tracing a Spring/Django/Go app; need routing or DI patterns    | `trace/references/frameworks`       |
+| Tracing a Spring/Django/Go/Express/Laravel/WordPress app; need its routing, DI, or **authz-control primitive** | `trace/references/frameworks`       |
 
 ## Common false-positive traps
 
@@ -207,4 +207,4 @@ ONCE, the first time its topic becomes the current step.
 | `trace/references/controls`         | Walking the per-handler control checklist before reporting           |
 | `trace/references/annotations`      | Placing annotations; resolving comment syntax / format ambiguity     |
 | `trace/references/cwe-mapping`      | Writing the `details` field; need the class → primary CWE + sink label |
-| `trace/references/frameworks`       | Spring/Django/Go routing, DI, and service-layer patterns             |
+| `trace/references/frameworks`       | Routing + authz-primitive per framework (Spring/Django/Go/Express/Laravel/WordPress) |

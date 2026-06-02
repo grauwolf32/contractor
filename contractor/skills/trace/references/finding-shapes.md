@@ -35,6 +35,14 @@ checklist (see `trace/references/controls`).
 Possible missing controls: auth, authz, signature_verify, expiry_check,
 role_check, ownership_check, csrf, rate_limit.
 
+**Reportable from structure alone.** Shape B does not need a tainted-data
+flow OR a demonstrated exploit. A sensitive operation reachable without a
+dominating control IS the finding — report it on the visible code. Common
+miss: a **self-service registration / profile-update handler that assigns
+or can set a role / capability / admin flag from request input without an
+authorization check** → privilege escalation (CWE-269), even though no
+"input → sink" taint exists. Do not stay silent because you couldn't run it.
+
 ## Shape C — Sensitive value at rest / in transit / in response without protection
 
 Mechanic: a sensitive value is exposed without the protection it

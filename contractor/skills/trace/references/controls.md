@@ -215,6 +215,9 @@ Sensitive operations:
 - debug / diagnostic endpoints
 - token issuance or token verification
 - login, password reset, credential change, invite creation
+- self-service registration / signup, or profile update, that assigns or
+  can be manipulated to set a role, capability, group, or admin status
+  (privilege escalation, CWE-269)
 - expensive operation where abuse has security or availability impact
 
 If the row is `absent` or `weak` on a sensitive operation, raise a
