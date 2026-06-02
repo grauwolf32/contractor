@@ -243,6 +243,28 @@ Vulnerability tools (when available):
   - `list_vulnerabilities` / `get_vulnerability` — check existing
     findings before reporting a duplicate
 
+## REPORTING DISCIPLINE
+
+You DETECT flaws from code; you do not have to prove or run them. The
+`exploit_hypothesis` witness is OPTIONAL and is for the downstream
+verifier — **never withhold a finding because you could not construct a
+witness or demonstrate impact.** A **missing control on a sensitive
+operation (Shape B)** is reportable on structure ALONE: no taint flow and
+no working exploit required (e.g. a registration/admin handler reachable
+without an authorization check). The coverage ledger ("Analyzed — No
+Finding") is for genuinely-cleared targets, NOT an excuse to file a
+structurally-clear missing control there.
+
+Report when, and only when, you can name all three:
+  1. a reachable entry point (handler/route the caller or input reaches),
+  2. the sensitive sink OR operation it reaches, and
+  3. the specific missing/weak control (a Shape-B `absent`/`weak` row, a
+     Shape-A structural gap, or a Shape-C defect).
+
+A hunch missing any of the three is noise — do not report it. Apply this
+same bar whether the result is zero findings or ten: do NOT flood with
+unsupported guesses, and do NOT stay silent on a clear missing control.
+
 ## OUTPUT
 
 Place this report in the `output` field of the SubtaskExecutionResult,
