@@ -68,10 +68,11 @@ extend-exclude = ["tests/playground", ".claude"]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RET"]
 # Line length is left to author discretion (no formatter is wired up); enforcing
 # E501 now would flag ~480 pre-existing long lines for no correctness gain.
-# UP040 (PEP-695 `type` aliases) is held back: it rewrites pydantic-consumed
-# aliases (e.g. SubtaskStatus) into lazy TypeAliasType, which is behaviour-
-# sensitive and not worth the risk for a purely stylistic gain.
-ignore = ["E501", "UP040"]
+# PEP-695 modernizations are deferred — the codebase has not adopted PEP-695
+# generics/aliases anywhere yet. UP040 (`type` aliases) additionally rewrites
+# pydantic-consumed aliases (e.g. SubtaskStatus) into lazy TypeAliasType, which
+# is behaviour-sensitive. UP047 (generic functions) is held for consistency.
+ignore = ["E501", "UP040", "UP047"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["contractor", "cli", "analytics_ui"]

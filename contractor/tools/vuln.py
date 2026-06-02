@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, TypeVar
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from typing import Any, Literal, Protocol, TypeVar
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
+from pydantic import BaseModel, ConfigDict, Field
 
 from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
@@ -33,23 +35,20 @@ Verdict = Literal[
 ]
 AttackerControl = Literal["full", "partial", "none"]
 
-_VALID_SEVERITIES: frozenset[str] = frozenset(
-    {"info", "low", "medium", "high", "critical"}
-)
-_VALID_CONFIDENCES: frozenset[str] = frozenset({"low", "medium", "high"})
-_VALID_VERDICTS: frozenset[str] = frozenset(
-    {"exploitable", "exploitable_unverified", "not_exploitable", "inconclusive"}
-)
-_VALID_ATTACKER_CONTROL: frozenset[str] = frozenset({"full", "partial", "none"})
-
 
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+#
+# Both records are frozen pydantic models: the ``Literal`` fields enforce the
+# constrained vocabularies (severity / confidence / verdict / attacker control)
+# at construction — no hand-rolled ``__post_init__`` validators — and freezing
+# makes the stored records genuinely immutable, as their docstrings promise.
 
 
-@dataclass
-class VulnerabilityReport:
+class VulnerabilityReport(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     name: str
     place_type: PlaceType
     place: str
@@ -59,20 +58,81 @@ class VulnerabilityReport:
     confidence: Confidence
     details: str
     ordinal: int = 0
-    created_at: str = field(default_factory=utc_now_iso)
-    updated_at: str = field(default_factory=utc_now_iso)
+    created_at: str = Field(default_factory=utc_now_iso)
+    updated_at: str = Field(default_factory=utc_now_iso)
 
-    def __post_init__(self) -> None:
-        if self.severity not in _VALID_SEVERITIES:
-            raise ValueError(
-                f"Invalid severity {self.severity!r}. "
-                f"Must be one of {sorted(_VALID_SEVERITIES)}."
-            )
-        if self.confidence not in _VALID_CONFIDENCES:
-            raise ValueError(
-                f"Invalid confidence {self.confidence!r}. "
-                f"Must be one of {sorted(_VALID_CONFIDENCES)}."
-            )
+
+# ---------------------------------------------------------------------------
+# Shared serialisation helpers
+# ---------------------------------------------------------------------------
+
+
+class _NamedRecord(Protocol):
+    """Structural type for the two record models: a ``name`` + ``model_dump``."""
+
+    name: str
+
+    def model_dump(self) -> dict[str, Any]: ...
+
+
+_R = TypeVar("_R", bound=_NamedRecord)
+
+
+def _preview_dict(
+    model: BaseModel, fields: tuple[str, ...] | None = None
+) -> dict[str, Any]:
+    """Serialise a model to a dict, optionally projected to preview ``fields``."""
+    data = model.model_dump()
+    if fields is None:
+        return data
+    return {k: data[k] for k in fields}
+
+
+def _single_record_yaml(key: str, payload: dict[str, Any]) -> str:
+    """YAML-dump one record under a single top-level ``key``."""
+    return yaml.safe_dump({key: payload}, sort_keys=False, allow_unicode=True)
+
+
+def _dump_records_yaml(records: Iterable[_NamedRecord]) -> str:
+    """YAML-dump a ``{record.name: model_dump}`` map preserving the given order."""
+    payload = {r.name: r.model_dump() for r in records}
+    return yaml.safe_dump(
+        payload, sort_keys=False, allow_unicode=True, default_flow_style=False
+    )
+
+
+async def _load_artifact_records(
+    ctx: ToolContext | CallbackContext,
+    *,
+    artifact_key: str,
+    normalize: Callable[[str, dict[str, Any], int], _R],
+) -> dict[str, _R]:
+    """Load a ``{name: record}`` map from a YAML artifact, skipping non-dicts.
+
+    ``normalize`` is called with ``(name, item, index)`` where ``index`` is the
+    1-based position (a fallback ordinal); records are keyed by their own
+    ``.name``.
+    """
+    artifact = await ctx.load_artifact(filename=artifact_key)
+    if artifact is None:
+        return {}
+    raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
+    records: dict[str, _R] = {}
+    for index, (name, item) in enumerate(raw.items(), start=1):
+        if not isinstance(item, dict):
+            continue
+        record = normalize(name, item, index)
+        records[record.name] = record
+    return records
+
+
+async def _save_artifact_text(
+    ctx: ToolContext | CallbackContext, artifact_key: str, text: str
+) -> None:
+    """Persist ``text`` to the artifact store under ``artifact_key``."""
+    await ctx.save_artifact(
+        filename=artifact_key, artifact=types.Part.from_text(text=text)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +158,7 @@ def _report_to_dict(
     report: VulnerabilityReport, *, preview: bool = False
 ) -> dict[str, Any]:
     """Serialise a report to a plain dictionary."""
-    data = asdict(report)
-    if preview:
-        return {k: data[k] for k in _PREVIEW_FIELDS}
-    return data
+    return _preview_dict(report, _PREVIEW_FIELDS if preview else None)
 
 
 def _report_to_markdown(report: VulnerabilityReport, *, preview: bool = False) -> str:
@@ -123,8 +180,9 @@ def _report_to_markdown(report: VulnerabilityReport, *, preview: bool = False) -
 
 def _report_to_yaml(report: VulnerabilityReport, *, preview: bool = False) -> str:
     """Render a report as a YAML document."""
-    payload = {f"vulnerability_{report.name}": _report_to_dict(report, preview=preview)}
-    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+    return _single_record_yaml(
+        f"vulnerability_{report.name}", _report_to_dict(report, preview=preview)
+    )
 
 
 def _xml_tag(tag: str, value: str, pad: str) -> str:
@@ -229,8 +287,10 @@ class VulnerabilityReportFormat:
             return [_report_to_dict(r, preview=preview) for r in reports]
 
         if self._format in {"markdown", "yaml"}:
+            # In these branches format_report yields a str; str() is identity
+            # but lets mypy see a str generator without an arg-type ignore.
             output = "\n".join(
-                self.format_report(r, preview=preview, type_hint=False)  # type: ignore[arg-type]
+                str(self.format_report(r, preview=preview, type_hint=False))
                 for r in reports
             )
             return self._wrap_code_fence(output, self._format, type_hint=type_hint)
@@ -303,41 +363,25 @@ class VulnerabilityReportTools:
     async def load(self, ctx: ToolContext | CallbackContext) -> None:
         """Load reports from the artifact store into memory."""
         async with self._lock:
-            artifact = await ctx.load_artifact(filename=self.artifact_key)
-            if artifact is None:
-                self.reports = {}
-                return
-
-            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
-            self.reports = {
-                report.name: report
-                for index, (name, item) in enumerate(raw.items(), start=1)
-                if isinstance(item, dict)
-                for report in (
-                    self._normalize_report(
-                        name=name, item=item, fallback_ordinal=index
-                    ),
-                )
-            }
+            self.reports = await _load_artifact_records(
+                ctx,
+                artifact_key=self.artifact_key,
+                normalize=self._normalize_report,
+            )
 
     def dump(self) -> str:
-        """Serialise all reports to a YAML string."""
-        sorted_reports = sorted(
+        """Serialise all reports to a YAML string, ordered by (ordinal, name)."""
+        # Bind to a typed local first so the sort key sees VulnerabilityReport
+        # (with .ordinal), not the _NamedRecord protocol expected downstream.
+        ordered: list[VulnerabilityReport] = sorted(
             self.reports.values(), key=lambda r: (r.ordinal, r.name)
         )
-        payload = {r.name: asdict(r) for r in sorted_reports}
-        return yaml.safe_dump(
-            payload,
-            sort_keys=False,
-            allow_unicode=True,
-            default_flow_style=False,
-        )
+        return _dump_records_yaml(ordered)
 
     async def save(self, ctx: ToolContext | CallbackContext) -> None:
         """Persist in-memory reports to the artifact store."""
         async with self._lock:
-            artifact = types.Part.from_text(text=self.dump())
-            await ctx.save_artifact(filename=self.artifact_key, artifact=artifact)
+            await _save_artifact_text(ctx, self.artifact_key, self.dump())
 
     # ------------------------------------------------------------------
     # Public CRUD API
@@ -514,14 +558,16 @@ def vulnerability_report_tools(
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class VerifiedFinding:
+class VerifiedFinding(BaseModel):
     """Outcome of a verifier-stage assessment.
 
     Verifier consumes a :class:`VulnerabilityReport` and produces this record,
     which is stored separately so the original finding remains immutable and
-    multiple verification attempts can coexist.
+    multiple verification attempts can coexist. The model is frozen, so that
+    immutability is enforced rather than merely conventional.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     source_namespace: str
@@ -530,25 +576,12 @@ class VerifiedFinding:
     attacker_control_at_sink: AttackerControl
     sink_reached: bool
     entry_point: str
-    data_flow: list[str] = field(default_factory=list)
+    data_flow: list[str] = Field(default_factory=list)
     path_broken_at: str | None = None
     impact: str = ""
     notes: str = ""
-    evidence_request_ids: list[str] = field(default_factory=list)
-    verified_at: str = field(default_factory=utc_now_iso)
-
-    def __post_init__(self) -> None:
-        if self.verdict not in _VALID_VERDICTS:
-            raise ValueError(
-                f"Invalid verdict {self.verdict!r}. "
-                f"Must be one of {sorted(_VALID_VERDICTS)}."
-            )
-        if self.attacker_control_at_sink not in _VALID_ATTACKER_CONTROL:
-            raise ValueError(
-                f"Invalid attacker_control_at_sink "
-                f"{self.attacker_control_at_sink!r}. "
-                f"Must be one of {sorted(_VALID_ATTACKER_CONTROL)}."
-            )
+    evidence_request_ids: list[str] = Field(default_factory=list)
+    verified_at: str = Field(default_factory=utc_now_iso)
 
 
 _VERIFICATION_PREVIEW_FIELDS: tuple[str, ...] = (
@@ -565,17 +598,16 @@ _VERIFICATION_PREVIEW_FIELDS: tuple[str, ...] = (
 def _verification_to_dict(
     finding: VerifiedFinding, *, preview: bool = False
 ) -> dict[str, Any]:
-    data = asdict(finding)
-    if preview:
-        return {k: data[k] for k in _VERIFICATION_PREVIEW_FIELDS}
-    return data
+    return _preview_dict(finding, _VERIFICATION_PREVIEW_FIELDS if preview else None)
 
 
 def _verification_to_yaml(
     finding: VerifiedFinding, *, preview: bool = False
 ) -> str:
-    payload = {f"verification_{finding.name}": _verification_to_dict(finding, preview=preview)}
-    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+    return _single_record_yaml(
+        f"verification_{finding.name}",
+        _verification_to_dict(finding, preview=preview),
+    )
 
 
 def _verification_to_markdown(
@@ -737,28 +769,19 @@ class VerifiedFindingsTools:
 
     async def load(self, ctx: ToolContext | CallbackContext) -> None:
         async with self._lock:
-            artifact = await ctx.load_artifact(filename=self.artifact_key)
-            if artifact is None:
-                self.findings = {}
-                return
-            raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
-            self.findings = {
-                f.name: f
-                for name, item in raw.items()
-                if isinstance(item, dict)
-                for f in (self._normalize(name=name, item=item),)
-            }
+            self.findings = await _load_artifact_records(
+                ctx,
+                artifact_key=self.artifact_key,
+                # Findings have no fallback ordinal — the position is ignored.
+                normalize=lambda name, item, _index: self._normalize(name, item),
+            )
 
     def dump(self) -> str:
-        payload = {f.name: asdict(f) for f in self.findings.values()}
-        return yaml.safe_dump(
-            payload, sort_keys=False, allow_unicode=True, default_flow_style=False
-        )
+        return _dump_records_yaml(self.findings.values())
 
     async def save(self, ctx: ToolContext | CallbackContext) -> None:
         async with self._lock:
-            artifact = types.Part.from_text(text=self.dump())
-            await ctx.save_artifact(filename=self.artifact_key, artifact=artifact)
+            await _save_artifact_text(ctx, self.artifact_key, self.dump())
 
     async def list_findings(
         self, ctx: ToolContext | CallbackContext
