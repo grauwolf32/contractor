@@ -8,6 +8,13 @@ Caido **workflows** are reusable automations exposed to you through three
 tools. They complement `caido_replay` / `caido_automate_run` — workflows are
 canned transforms and checks, not a fuzzer.
 
+Workflows are the **only** Caido automation callable headlessly — they run over
+Caido's GraphQL API, which is exactly what these tools drive. That's why they're
+exposed to you. Plugin RPC / UI commands are **not** headlessly callable: if a
+capability exists only as a plugin command (not a workflow), you cannot drive it
+from here — note it in your summary and do the step manually or in the code-exec
+sandbox.
+
 ## Caido vs http_request
 
 Use `http_request` for one-off confirming probes and traffic you'll cite
@@ -47,7 +54,15 @@ you never routed traffic through Caido.
 ## Curated set worth using
 
 Resolve these by name with `caido_workflow_list`. If a workflow you want isn't
-installed, note it in your summary and fall back to doing the step manually.
+installed, note it in your summary and fall back to the manual equivalent:
+
+- **Copy As Python Requests** → build the `requests` PoC script yourself in the
+  code-exec sandbox from the raw request.
+- **GraphQL Introspection Query** → send the standard `__schema` introspection
+  query via `http_request`.
+- **CORS Checker** → replay the request with `Origin: https://evil.com` and
+  inspect the `Access-Control-Allow-Origin` / `Access-Control-Allow-Credentials`
+  response headers.
 
 ### Convert (run with `input=`)
 - **Copy As Python Requests** — turn a raw HTTP request into a runnable

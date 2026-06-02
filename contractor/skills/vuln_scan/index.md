@@ -17,7 +17,14 @@ description: Vulnerability scanning skill — workflow overview, checklist refer
    c. grep for dangerous sinks within the file
    d. Check ownership on data-access handlers
    e. Report each finding immediately
-3. **Project-wide sweep** — grep for secrets, config issues, weak crypto
+3. **Project-wide sweep** — grep for secrets, config issues, weak crypto.
+   Also glob for **sensitive files committed to the repo** and flag any
+   tracked match (CWE-538 / CWE-312): `**/.env*`, `**/*.pem`, `**/*.key`,
+   `**/*.p12`, `**/*.pfx`, `**/id_rsa`, `**/*.sql`, `**/*.sql.gz`,
+   `**/*.dump`, `**/*.bak`, `**/*.backup`, `**/wp-config.php`,
+   `**/credentials*`, `**/.git/config`, `**/.aws/credentials`,
+   `**/*.kdbx`, `**/*.keystore`. Exclude obvious `.example` / `.sample`
+   templates and test fixtures.
 4. **Report** — `report_vulnerability` for each confirmed finding
 
 ## References (load on demand)

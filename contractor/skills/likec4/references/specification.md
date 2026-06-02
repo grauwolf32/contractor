@@ -15,6 +15,9 @@ specification {
   // Define a tag; outside specification it is referenced as #IDENTIFIER
   tag IDENTIFIER
 
+  // A tag may optionally carry a color (hex or rgb(...))
+  tag IDENTIFIER { color #FF0000 }
+
   // Define element kind for use in model
   element IDENTIFIER {
     #tag-1 #tag-2          // tags applied to all elements of this kind
@@ -56,8 +59,8 @@ specification {
   relationship async { color amber; line dotted; head diamond; tail vee }
   relationship sql   { technology "SQL"; line dashed }
 
-  tag deprecated
-  tag critical
+  tag deprecated { color #FF0000 }   // tag with a color (also accepts rgb(255 0 0))
+  tag critical                       // bare tag is still valid
 
   deploymentNode environment { notation "Environment"; style { color gray } }
   deploymentNode zone        { notation "Network Zone" }

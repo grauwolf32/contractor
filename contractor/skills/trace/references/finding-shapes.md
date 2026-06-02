@@ -53,6 +53,9 @@ Examples:
 - secrets written to logs
 - weak randomness used for security-relevant values
 - TLS verification disabled on outbound calls
+- CORS reflects the request Origin into `Access-Control-Allow-Origin`, or
+  uses `*` together with `Allow-Credentials: true` → Origin Validation
+  Error (CWE-346)
 
 Hardcoded-secret fingerprints (any string literal matching → Shape C,
 CWE-798, even without a suggestive variable name):

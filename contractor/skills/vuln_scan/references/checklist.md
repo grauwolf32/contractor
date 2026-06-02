@@ -14,6 +14,8 @@ For EVERY endpoint discovered (HTTP handler, CLI command, async consumer, backgr
 | input_validation | present / absent / weak / N/A | Are inputs constrained? |
 | output_filter | present / absent / weak / N/A | Are sensitive fields excluded from response? |
 | rate_limit | present / absent / weak / N/A | Is abuse/brute-force prevented? |
+| csrf | present / absent / weak / N/A | For cookie/session-auth state-changing endpoints: anti-CSRF token enforced? (N/A for pure bearer-token APIs) |
+| cors_policy | present / absent / weak / N/A | For endpoints returning credentialed responses: origin allowlisted, not wildcard/reflected with credentials? |
 
 ## Where to look for controls (check all before marking absent)
 

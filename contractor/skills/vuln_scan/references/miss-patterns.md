@@ -90,6 +90,24 @@ Private key:     -----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY
 
 `app.run(debug=True)` or `DEBUG=True` in settings. Enables interactive debugger, detailed stack traces, auto-reload — all dangerous in production.
 
+## 11. Sensitive files committed to the repository
+
+Secrets, key material, and database dumps checked into version control are a finding even when no code references them (CWE-538 / CWE-312). Glob the tree and flag any **tracked** match:
+- Secrets/config: `**/.env*`, `**/wp-config.php`, `**/credentials*`, `**/.git/config`, `**/.aws/credentials`
+- Key material: `**/*.pem`, `**/*.key`, `**/*.p12`, `**/*.pfx`, `**/id_rsa`, `**/*.kdbx`, `**/*.keystore`
+- Data dumps/backups: `**/*.sql`, `**/*.sql.gz`, `**/*.dump`, `**/*.bak`, `**/*.backup`
+
+**How to check:** Glob each pattern, then open the match to confirm it carries real material. Exclude obvious templates (`.env.example`, `*.sample`) and test fixtures — those are expected to be present.
+
+## 12. CORS misconfiguration with credentials
+
+A permissive cross-origin policy combined with credentialed responses lets any site read authenticated data (CWE-942). Flag when a wildcard or reflected origin is paired with credentials:
+- `Access-Control-Allow-Origin: *` (or echoing the request `Origin` header back) **together with** `Access-Control-Allow-Credentials: true`
+- Express `cors()` called with no options, or `origin: true` (reflects any origin)
+- Django `CORS_ORIGIN_ALLOW_ALL = True` / `CORS_ALLOW_ALL_ORIGINS = True` with `CORS_ALLOW_CREDENTIALS = True`
+
+**How to check:** See the "CORS / Header misconfig" sink in `sink-patterns` for grep strings. Reflected-origin + credentials is the high-severity case; wildcard origin without credentials is informational.
+
 ## Reporting discipline
 
 - Always report against the **source file** containing the vulnerable code, not spec files or config files that merely describe the endpoint
@@ -104,5 +122,8 @@ Private key:     -----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY
   - Error detail leakage → CWE-209
   - Debug mode → CWE-489
   - Mass assignment → CWE-915
+  - Sensitive file committed → CWE-538 (insertion of sensitive info into repo) / CWE-312 (cleartext storage)
+  - CORS misconfiguration → CWE-942
+  - Missing CSRF protection → CWE-352
   - ReDoS → CWE-1333
 - Do NOT report the same logical vulnerability twice with different CWEs. Pick the primary CWE.

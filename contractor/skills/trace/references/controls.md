@@ -18,6 +18,7 @@ function does not count unless the current target reaches it.
 | input_validation   | schema/type/format check on each request-derived arg     |
 | output_filter      | domain object passed through a projection/sanitizer      |
 | rate_limit / csrf  | applicable to write/state-changing operations            |
+| cors               | response ACAO not reflected/`*`-with-credentials          |
 
 ## Status semantics
 
@@ -145,6 +146,19 @@ endpoints have `absent` rate limiting.
 `N/A` when the endpoint is pure read with no enumeration/brute-force
 concern, or uses non-browser bearer tokens and is not CSRF-reachable.
 
+### cors
+
+`present` when the response `Access-Control-Allow-Origin` is a fixed
+allowlist (exact origins), or credentials are not enabled for a wildcard.
+
+`weak` when:
+- the request `Origin` header is reflected verbatim into `ACAO`
+- `ACAO: *` is sent together with `Access-Control-Allow-Credentials: true`
+- the origin allowlist matches by substring/prefix/suffix (e.g.
+  `endsWith("example.com")` lets `evil-example.com` through)
+
+→ Origin Validation Error (CWE-346).
+
 ## Dominance rule (a control only counts if it dominates the operation)
 
 A control is `present` only when it **dominates** the sensitive operation:
@@ -216,6 +230,7 @@ Shape B finding with `control_missing` set to the appropriate tag.
 | input_validation   | `input_validation`                       |
 | output_filter      | `output_filter`                          |
 | rate_limit / csrf  | `rate_limit` or `csrf`                   |
+| cors               | `cors` (CORS misconfig, Shape C)         |
 
 Token verification defects may use `signature_verify` or
 `expiry_check`. Use the more specific tag when available.

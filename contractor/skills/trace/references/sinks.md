@@ -22,7 +22,7 @@ it. Do not infer sinks from name alone.
   crypto.key.derive | crypto.random.seed | crypto.sign | secret.log
   auth.token.create | auth.token.verify | authz.policy.eval |
     auth.password.check | auth.password.hash
-  reflect.eval | reflect.import | reflect.attr
+  reflect.eval | reflect.import | reflect.attr | reflect.proto
   log.write | metric.record | audit.write
   cookie.set
   ldap.query | nosql.query | xpath.query
@@ -156,6 +156,10 @@ control" answer is a candidate finding.
 - path attacker-controlled (tainted/derived)?
 - destination confined (allowlist, normalize+prefix-check, no `..`)?
 - for write/delete: content/target attacker-controlled?
+- uploaded files — if the destination path uses the client-supplied
+  filename (multipart), require basename()/FilenameUtils.getName to strip
+  path segments AND an extension/content-type allowlist; absence →
+  Unrestricted Upload (CWE-434) / arbitrary write.
 → Path Traversal / Arbitrary Read|Write|Delete.
 
 ### db.query.raw / db.exec.raw
@@ -211,7 +215,17 @@ scope unless the render path is also traced.
 ### reflect.eval / reflect.import / reflect.attr / db.orm.bulk
 - symbol / expression / field-set attacker-controlled?
 - allowlist of permitted keys?
+- Node equivalents that are also `reflect.eval`: `new Function(str)`,
+  `vm.runInContext`/`runInNewContext`, vm2 `.run()`,
+  puppeteer/playwright `page.evaluate(str)`/`addInitScript`/`setContent`.
+  vm/vm2 are NOT real sandboxes — tainted code reaching them is RCE
+  (CWE-94).
 → RCE / Mass Assignment.
+
+### reflect.proto
+- tainted key in `obj[key]=v`, deep-merge, `Object.assign`, or `_.merge`
+  with no `__proto__`/`constructor`/`prototype` key denylist?
+→ Prototype Pollution (CWE-1321).
 
 ### auth.token.create AND auth.token.verify — CHECK AS A PAIR
 - real cryptographic signature on create (HMAC/JWT lib)?

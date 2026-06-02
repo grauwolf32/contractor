@@ -45,9 +45,29 @@ POST <BASE_URL>/users/v1/login            {"username":"exploituser1","password":
 Rules:
 - If signup returns **200**, go straight to login. If **409** (already exists),
   go straight to login anyway — do NOT try a second signup pattern.
-- Extract the token from the login response JSON (common field names:
-  `token`, `auth_token`, `access_token`, `jwt`) and set it:
+
+## Pin the credential to the session (decision tree)
+
+Inspect the login response and branch on what it hands you:
+
+- **Bearer token in JSON body** (common fields: `token`, `auth_token`,
+  `access_token`, `jwt`) →
   `http_session_set(auth={"kind":"bearer","token":"<token>"})`.
+- **Session cookie, no token in body** → do nothing special: the http session
+  keeps its own cookie jar, so the cookie set by the login response is replayed
+  automatically on subsequent requests. For **state-changing** requests
+  (POST/PUT/DELETE) you usually also need a CSRF token — harvest it from the
+  login/HTML response body or a `/csrf` (a.k.a. `/api/csrf-token`) endpoint and
+  echo it back via the `X-CSRF-Token` header (or the matching hidden form
+  field). Common cookie names: `session`, `sid`, `connect.sid`, `JSESSIONID`,
+  `laravel_session`.
+- **Separate `refresh_token`** → save it under `auth/refresh`, and use it to
+  mint a fresh `access_token` when the current one expires (POST the refresh
+  token to `/token/refresh` / `/oauth/token` `grant_type=refresh_token`) instead
+  of re-running the whole login.
+- **API key** (returned once, or supplied by the finding) →
+  `http_session_set(headers={"X-API-Key": "<key>"})` (header name varies:
+  `Authorization: ApiKey ...`, `X-Api-Key`, `api_key` query param).
 
 ## Two-user setup (for IDOR)
 
@@ -93,3 +113,39 @@ If login redirects to an `/authorize` or `/oauth/*` endpoint, or you find
 5. **Referer leak** — token/code leaking in the `Referer` header after callback.
 
 Persist discovered `client_id` / `redirect_uri` under `auth/oauth`.
+
+## When login is multi-step / MFA-gated
+
+If login returns "2FA required" / a `verify`-OTP step instead of a token, try
+these before giving up:
+- **Force-browse past it** — hit the post-auth endpoint directly with whatever
+  partial session/token the first step gave you; the 2FA step may not be
+  enforced server-side.
+- **Code-validation bypass** — submit `code:null`, `000000`, an empty string, or
+  the code as an array (`code:[123456]` / `code[]=123456`) — weak comparisons
+  accept these.
+- **OTP replay** — replay a previously *used* OTP; if it isn't invalidated after
+  use it's still valid.
+- **Leaked code** — check the OTP-submit response body, headers, and any inlined
+  JS for the expected code echoed back.
+- **Response tampering** — flip a `verified:false`→`true` flag or a `401`→`200`
+  status on the verify response (works when the client trusts it).
+- **Throttling** — if none work, check whether the OTP endpoint rate-limits at
+  all; an unthrottled 6-digit code is brute-forceable (hand the iteration to the
+  code-exec skill).
+
+## If you can't get valid creds, try to bypass
+
+When signup/login won't yield creds, attack the auth check itself:
+- **SQLi auth bypass** in the username/password fields: `admin' --`,
+  `' OR 1=1-- `, `admin'/*`, `" OR ""="`.
+- **Auth-flag parameter modification** — if the response or a follow-up request
+  carries flags like `authenticated=1`, `role=admin`, `isAdmin=true`, flip them.
+- **Type juggling** — `{"password": true}`, NoSQL operator injection
+  `{"password": {"$ne": null}}` / `{"username": {"$gt": ""}}`, or array coercion
+  `password[]=`.
+- **Predictable sessions** — if session IDs are sequential/guessable, mint or
+  guess another user's session.
+
+Hand any iterative SQLi-bypass / boolean-blind extraction to the code-exec
+skill. Persist a working bypass under `auth/bypass`.

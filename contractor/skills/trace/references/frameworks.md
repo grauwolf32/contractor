@@ -95,6 +95,49 @@ Go uses `//` comments, not `#`:
 func (s *Server) HandlerName(w http.ResponseWriter, r *http.Request) {
 ```
 
+## Express / NestJS (Node)
+
+### Routing
+- Express: `app.get`/`post`/`put`/`delete("/path", handler)`,
+  `router.use("/prefix", subRouter)` for mounting
+- NestJS: `@Controller("/prefix")` + `@Get()`/`@Post()`/… on methods;
+  full path = controller prefix + method path
+
+### Sources
+- `req.query`, `req.body`, `req.params`, `req.headers`, `req.cookies`
+  are all tainted (NestJS: `@Query`/`@Body`/`@Param`/`@Headers` params)
+
+### Auth detection
+Auth lives in `app.use(mw)` / `router.use(mw)` / per-route middleware
+arguments, or NestJS `@UseGuards(...)`. **Open the middleware/guard —
+the name (`auth`, `requireUser`) is not evidence.** A route whose
+handler array omits the auth middleware that siblings include is a
+missing-auth candidate.
+
+### Sinks
+- `res.redirect(userInput)` → http.redirect (open redirect)
+- `child_process.exec`/`execSync(str)` → shell.exec
+- `sequelize.query(str)` raw → db.query.raw; ORM finders = db.query
+- `obj[key]=v` / `_.merge` with tainted key → reflect.proto
+
+## Laravel (PHP)
+
+### Routing
+- `routes/web.php` / `routes/api.php`: `Route::get`/`post(...)`
+- Auth/scoping via `->middleware("auth")` and `Route::group([...], fn)`
+  — open the middleware group covering the route before marking auth
+  `absent`
+
+### Sinks
+- `DB::raw($x)` / `->whereRaw($x)` / `DB::select("... $x ...")` →
+  db.query.raw (SQLi); query builder methods (`->where("col", $x)`) =
+  db.query (bound)
+- `Model::create($request->all())` / `->fill($request->all())` /
+  `->update($request->all())` → mass assignment (db.orm.bulk) unless the
+  model has a `$fillable`/`$guarded` allowlist
+- `view($name)` with tainted `$name` → template selection;
+  `{!! $x !!}` (unescaped Blade) → template.render.raw / XSS
+
 ## Multi-Service Architectures
 
 When the target endpoint lives behind a reverse proxy (nginx)

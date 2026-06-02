@@ -13,6 +13,7 @@ Always include the primary CWE ID (e.g. `CWE-89`) in the `details` field.
 | SSTI (Server-Side Template Inj.) | CWE-1336    | template.render.raw  |
 | XSS (Reflected / Stored)        | CWE-79      | response (unfiltered)|
 | Path Traversal                   | CWE-22      | filesystem.read/write|
+| Unrestricted File Upload         | CWE-434     | filesystem.write     |
 | SSRF                             | CWE-918     | http.request         |
 | Open Redirect                    | CWE-601     | http.redirect        |
 | LDAP Injection                   | CWE-90      | ldap.query           |
@@ -21,6 +22,7 @@ Always include the primary CWE ID (e.g. `CWE-89`) in the `details` field.
 | Insecure Deserialization         | CWE-502     | parser.pickle / parser.yaml.unsafe |
 | XML External Entity (XXE)         | CWE-611     | parser.xml.unsafe    |
 | Code Injection / eval            | CWE-94      | reflect.eval         |
+| Prototype Pollution              | CWE-1321    | reflect.proto        |
 | SMTP Injection                   | CWE-93      | smtp.send            |
 | Log Injection                    | CWE-117     | log.write            |
 
@@ -49,6 +51,7 @@ Always include the primary CWE ID (e.g. `CWE-89`) in the `details` field.
 | Missing Cookie Flags             | CWE-614     |
 | Weak PRNG for Security           | CWE-330     |
 | Cleartext Transmission           | CWE-319     |
+| CORS Misconfiguration            | CWE-346     |
 
 ## Details Field Template
 

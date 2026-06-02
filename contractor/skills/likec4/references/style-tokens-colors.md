@@ -118,7 +118,18 @@ Icons use the format `group:name` (e.g. `tech:react`, `aws:lambda`, `azure:app-s
 | `tech`      | ~2000 | `tech:react`, `tech:postgresql`, `tech:docker` |
 | `bootstrap` | ~2051 | `bootstrap:gear`, `bootstrap:person`           |
 
-The full icon catalogue is only enumerable via the LikeC4 CLI, which the agent cannot invoke. Use icon names you already know to be valid in the listed groups, or fall back to a non-icon style property (`shape`, `color`).
+Icons load on demand by name (from a CDN), so an unknown name silently fails to resolve and renders no icon. The full catalogue is only enumerable via the LikeC4 CLI, which the agent cannot invoke. Use the vetted known-good names below, or fall back to a non-icon style property (`shape`, `color`).
+
+### Vetted known-good icon names
+
+These names are confirmed to exist in their groups — safe defaults when you need a common technology icon:
+
+| Group  | Known-good names (use as `group:name`)                                                                                  |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `tech` | `react`, `nodejs`, `postgresql`, `redis`, `docker`, `kubernetes`, `nginx`, `python`, `typescript`, `kafka`             |
+| `aws`  | `lambda`, `simple-storage-service` (S3), `dynamo-db`, `api-gateway`, `ec2`, `rds`, `simple-queue-service` (SQS), `simple-notification-service` (SNS), `cloud-front` |
+
+Note the upstream AWS naming: S3 is `aws:simple-storage-service`, DynamoDB is `aws:dynamo-db`, SQS is `aws:simple-queue-service`, SNS is `aws:simple-notification-service`, CloudFront is `aws:cloud-front` (not the short service acronyms). Any name not present in the group fails to resolve — when uncertain, prefer one of the names above or use `shape`/`color` instead.
 
 ## Complete style example
 

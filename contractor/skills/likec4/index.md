@@ -256,6 +256,11 @@ Full syntax, extend patterns, property table, and worked example → `likec4/ref
 
 Style properties control visual appearance: `color`, `shape`, `border`, `opacity`, `size`, `padding`, `textSize`, `icon`, `iconColor`, `iconSize`, `iconPosition`, `multiple`. Relationship style extends this with `line`, `head`, and `tail` arrow shapes.
 
+`multiple true` has **two distinct meanings** depending on where it is set:
+
+- **On an element** (kind spec or element `{}`) — renders the element as multiple stacked instances (a visual "many" badge).
+- **On a relationship** (kind spec, `with { }`, or per-view rule; v1.57.0+) — splits merged edges so each relationship between the same two elements is drawn as its own edge with its own label, instead of being collapsed into one `[...]` edge. See `likec4/references/views` → "Splitting Merged Relationship Edges".
+
 Full color token table, all shape values, border/opacity/size tokens, icon pack prefixes (`aws:`, `azure:`, `gcp:`, `tech:`, `bootstrap:`), and correct usage patterns → `likec4/references/style-tokens-colors`
 
 Icon names follow `<group>:<name>`. Available groups and approximate counts: `aws` (~307), `azure` (~614), `gcp` (~216), `tech` (~2000), `bootstrap` (~2051). For commonly-used names within each group, see `likec4/references/style-tokens-colors`. (Listing the full icon catalogue requires the LikeC4 CLI, which is not available to this agent — use a known name from the reference, or pick a different style property like `shape`/`color` if uncertain.)

