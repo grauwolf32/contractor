@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from google.adk.models.lite_llm import LiteLlm
 
@@ -58,8 +58,9 @@ async def run_vuln_scan(
     agent_kind: AgentKind = "vuln_scan",
     namespace: str = "vuln-eval",
     timeout_s: float = 900.0,
-    prompt_version: Optional[str] = None,
+    prompt_version: str | None = None,
     with_graph_tools: bool = False,
+    artifact_dir: Path | None = None,
 ) -> VulnScanRun:
     from cli.fs import RootedLocalFileSystem
 
@@ -85,8 +86,7 @@ async def run_vuln_scan(
             prompt=prompt_text,
         )
     else:
-        from contractor.agents.codereview_agent.agent import \
-            build_codereview_agent
+        from contractor.agents.codereview_agent.agent import build_codereview_agent
         from contractor.utils import load_prompt_with_version
 
         prompt_text, resolved_version = load_prompt_with_version(
@@ -136,6 +136,7 @@ async def run_vuln_scan(
             setup=_setup,
             plugins=[plugin],
             metrics_events=metrics_events,
+            artifact_dir=artifact_dir,
         )
 
     return VulnScanRun(

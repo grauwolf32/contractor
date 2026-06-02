@@ -11,15 +11,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
+import json
 import os
 import re
 import sys
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -100,14 +102,14 @@ def _extract_findings_from_artifacts(artifacts: dict[str, str]):
             place = report.get("place", "")
             details = report.get("details", "")
             m = _CWE_RE.search(details)
-            findings.append(dict(
-                file=place.lstrip("/"),
-                cwe=m.group(0) if m else None,
-                line=None,
-                title=report.get("title"),
-                severity=report.get("severity"),
-                details=details[:300],
-            ))
+            findings.append({
+                "file": place.lstrip("/"),
+                "cwe": m.group(0) if m else None,
+                "line": None,
+                "title": report.get("title"),
+                "severity": report.get("severity"),
+                "details": details[:300],
+            })
     return findings
 
 
@@ -119,14 +121,14 @@ def _extract_findings_from_tool_calls(tool_calls):
         args = call.args
         details = args.get("details", "")
         m = _CWE_RE.search(details)
-        findings.append(dict(
-            file=args.get("place", "").lstrip("/"),
-            cwe=m.group(0) if m else None,
-            line=None,
-            title=args.get("title"),
-            severity=args.get("severity"),
-            details=details[:300],
-        ))
+        findings.append({
+            "file": args.get("place", "").lstrip("/"),
+            "cwe": m.group(0) if m else None,
+            "line": None,
+            "title": args.get("title"),
+            "severity": args.get("severity"),
+            "details": details[:300],
+        })
     return findings
 
 
@@ -162,15 +164,15 @@ def _extract_metrics(metrics_events: list[dict]) -> dict[str, Any]:
                 output_tokens += usage.get("output", 0) or 0
                 total_tokens += usage.get("total", 0) or 0
 
-    return dict(
-        tool_counts=dict(tool_counts),
-        total_tool_calls=sum(tool_counts.values()),
-        tool_errors=tool_errors,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        total_tokens=total_tokens,
-        llm_calls=llm_calls,
-    )
+    return {
+        "tool_counts": dict(tool_counts),
+        "total_tool_calls": sum(tool_counts.values()),
+        "tool_errors": tool_errors,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "llm_calls": llm_calls,
+    }
 
 
 def _extract_behavior(tool_calls) -> dict[str, Any]:
@@ -202,13 +204,13 @@ def _extract_behavior(tool_calls) -> dict[str, Any]:
         for c in tool_calls
     ]
 
-    return dict(
-        files_read=files_read,
-        vuln_tools_used=dict(vuln_tools),
-        annotation_tools_used=dict(annot_tools),
-        skills_loaded=skills,
-        tool_sequence=sequence,
-    )
+    return {
+        "files_read": files_read,
+        "vuln_tools_used": dict(vuln_tools),
+        "annotation_tools_used": dict(annot_tools),
+        "skills_loaded": skills,
+        "tool_sequence": sequence,
+    }
 
 
 def _summarize_args(args: dict) -> str:
@@ -260,7 +262,7 @@ async def run_eval(
     fixture_slugs: list[str],
     output_dir: Path,
     timeout_s: float,
-    prompt_version: Optional[str] = None,
+    prompt_version: str | None = None,
     agent_kind: str = "trace",
 ) -> list[FixtureResult]:
     from dotenv import load_dotenv
@@ -271,6 +273,11 @@ async def run_eval(
     from contractor.utils import observability
     observability.init()
 
+    # Live progress: flush each print line so the log fills as fixtures run,
+    # instead of buffering until the process ends.
+    with contextlib.suppress(Exception):
+        sys.stdout.reconfigure(line_buffering=True)
+
     override = os.environ.get("CONTRACTOR_EVAL_MODEL")
     if override:
         from google.adk.models.lite_llm import LiteLlm
@@ -280,8 +287,8 @@ async def run_eval(
         model = DEFAULT_MODEL
 
     from tests.eval.conftest import _load_fixture
-    from tests.eval.vuln_scan_harness import UNIT_FOR_KIND, run_vuln_scan
     from tests.eval.scoring import AgentFinding, score_vuln_findings
+    from tests.eval.vuln_scan_harness import UNIT_FOR_KIND, run_vuln_scan
 
     scan_prompt = (
         "Scan this codebase for security vulnerabilities. "
@@ -313,6 +320,7 @@ async def run_eval(
         print(f"{'='*60}")
 
         t0 = time.monotonic()
+        case_dir = output_dir / slug
         try:
             run = await run_vuln_scan(
                 fixture_root=fixture.source_root,
@@ -323,6 +331,7 @@ async def run_eval(
                 timeout_s=timeout_s,
                 prompt_version=prompt_version,
                 with_graph_tools=True,
+                artifact_dir=case_dir / "artifacts",
             )
         except Exception as exc:
             print(f"  [{slug}] ERROR: {exc}")
@@ -340,12 +349,12 @@ async def run_eval(
         ]
         score = score_vuln_findings(agent_findings, gt)
         matches_dicts = [
-            dict(
-                classification=m.classification,
-                ground_truth_id=m.ground_truth_id,
-                finding_file=m.finding_file,
-                finding_cwe=m.finding_cwe,
-            )
+            {
+                "classification": m.classification,
+                "ground_truth_id": m.ground_truth_id,
+                "finding_file": m.finding_file,
+                "finding_cwe": m.finding_cwe,
+            }
             for m in score.matches
         ]
 
@@ -387,6 +396,11 @@ async def run_eval(
             **behavior,
         )
         results.append(fr)
+        # incremental per-fixture persistence (crash-safe), next to the live
+        # FileArtifactService trace under <case_dir>/artifacts
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "metrics.json").write_text(
+            json.dumps(asdict(fr), indent=2, default=str), encoding="utf-8")
 
         print(f"  duration: {duration:.1f}s  findings: {len(findings_dicts)}")
         print(f"  {score.explain()}")
@@ -395,7 +409,7 @@ async def run_eval(
               f"llm_calls: {metrics['llm_calls']}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     # ``payload`` is the in-memory shape the HTML report generator consumes.
     payload = {
         "timestamp": timestamp,

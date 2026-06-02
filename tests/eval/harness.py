@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Optional
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from google.adk.agents import BaseAgent
@@ -80,13 +82,14 @@ async def run_agent(
     agent: BaseAgent,
     *,
     user_message: str,
-    initial_state: Optional[dict[str, Any]] = None,
+    initial_state: dict[str, Any] | None = None,
     app_name: str = "eval",
     user_id: str = "eval-user",
     timeout_s: float = 600.0,
-    setup: Optional[SetupHook] = None,
-    plugins: Optional[list[Any]] = None,
-    metrics_events: Optional[list[dict[str, Any]]] = None,
+    setup: SetupHook | None = None,
+    plugins: list[Any] | None = None,
+    metrics_events: list[dict[str, Any]] | None = None,
+    artifact_dir: Path | None = None,
 ) -> AgentRun:
     """Drive `agent` end-to-end via ADK Runner and capture outputs.
 
@@ -98,8 +101,19 @@ async def run_agent(
     ``AdkMetricsPlugin`` for token/timing capture). `metrics_events`, when
     supplied, is the list those plugins should append to; it is attached to
     the returned ``AgentRun`` so callers can inspect it.
+
+    `artifact_dir`, if given, persists the agent's artifacts to that directory
+    via ``FileArtifactService`` — a live, on-disk trace (memory, saved
+    artifacts) that survives the run for offline analysis. Default is an
+    in-memory service (no on-disk trace).
     """
-    artifact_service = InMemoryArtifactService()
+    if artifact_dir is not None:
+        from google.adk.artifacts import FileArtifactService
+
+        Path(artifact_dir).mkdir(parents=True, exist_ok=True)
+        artifact_service: Any = FileArtifactService(root_dir=str(artifact_dir))
+    else:
+        artifact_service = InMemoryArtifactService()
     session_service = InMemorySessionService()
     session_id = uuid4().hex
 
