@@ -21,7 +21,7 @@ import pytest
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
-from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_task
 from tests.eval.scorers import diff_detail, score_project_info
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
@@ -82,6 +82,7 @@ async def test_project_information_task(fixture, eval_model: LiteLlm, eval_sink)
         namespace=f"task-eval-{fixture.slug}-{case['id']}",
         timeout_s=float(case.get("timeout_s", 1800.0)),
         runner_name=f"project_information-{fixture.slug}",
+        artifact_dir=case_artifact_dir("project_information", fixture.slug, case["id"]),
     )
 
     result_text = run.result_text("project_information")

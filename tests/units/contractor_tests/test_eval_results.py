@@ -232,6 +232,14 @@ def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
     assert len(oas["fixtures"]) == 2 and oas["headline"]["pass_rate"] == 0.5
 
 
+def test_case_artifact_dir_colocated_with_eval_sink(tmp_path, monkeypatch):
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    from tests.eval.results import case_artifact_dir
+    d = case_artifact_dir("trace_agent", "vulnyapi", "c1")
+    assert d == tmp_path / "trace_agent" / "cases" / "vulnyapi__c1" / "artifacts"
+
+
 def test_write_eval_results_roundtrip(tmp_path):
     run = EvalRun(
         scenario="agent", unit="trace_agent", pass_at=1, metric_kind="diff",

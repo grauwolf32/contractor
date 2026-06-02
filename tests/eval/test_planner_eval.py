@@ -22,7 +22,7 @@ from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from tests.eval.planner_scoring import score_planner
-from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_task
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
 
@@ -114,6 +114,7 @@ async def test_planner_behavior(planner_case, eval_model: LiteLlm, eval_sink):
         namespace=f"planner-eval-{fixture.slug}-{case['id']}",
         timeout_s=float(case.get("timeout_s", 1800)),
         runner_name=f"planner-{fixture.slug}-{case['id']}",
+        artifact_dir=case_artifact_dir("planning_agent", fixture.slug, case["id"]),
     )
 
     planner_score = score_planner(

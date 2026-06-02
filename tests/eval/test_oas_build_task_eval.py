@@ -19,7 +19,7 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.utils.prompt import load_prompt_with_version
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_task
 from tests.eval.scorers import diff_detail, score_oas_schema
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
@@ -107,6 +107,7 @@ async def test_oas_build_task(fixture, fixture_fs, eval_model: LiteLlm, eval_sin
         runner_name=f"oas-build-{fixture.slug}",
         preloaded_artifacts=precomputed,
         output_dir=run_dir,
+        artifact_dir=case_artifact_dir("oas_build", fixture.slug, fixture.slug),
     )
 
     result_text = run.artifacts.get(oas_artifact_key, "")

@@ -38,7 +38,7 @@ from contractor.tools.likec4 import (
 )
 from contractor.utils.prompt import load_prompt_with_version
 from tests.eval.conftest import FIXTURES_ROOT
-from tests.eval.results import CaseResult, metrics_from_task
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_task
 from tests.eval.scorers import diff_detail, score_likec4_build
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
 
@@ -150,6 +150,7 @@ async def test_likec4_task(fixture, eval_model: LiteLlm, eval_sink):
         runner_name=f"likec4-{fixture.slug}",
         preloaded_artifacts=precomputed,
         output_dir=run_dir,
+        artifact_dir=case_artifact_dir("likec4_build", fixture.slug, case["id"]),
     )
 
     if overlay_fs.exists(DEFAULT_LIKEC4_PATH):
