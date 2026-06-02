@@ -10,7 +10,6 @@ from contractor.tools.memory import (
     _resolve_skill_reference,
 )
 
-
 # ---------------------------------------------------------------------------
 # Mock ctx with artifact load/save support
 # ---------------------------------------------------------------------------

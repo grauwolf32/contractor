@@ -1,5 +1,5 @@
 import fnmatch
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import quote as url_quote
 
 from contractor.utils.formatting import normalize_slashes
@@ -20,7 +20,7 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
     )
 
 
-def _ensure_int_or_none(value: Any) -> Optional[int]:
+def _ensure_int_or_none(value: Any) -> int | None:
     if value is None:
         return None
     try:

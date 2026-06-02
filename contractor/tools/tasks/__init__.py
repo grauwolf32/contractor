@@ -13,6 +13,8 @@ from contractor.tools.tasks.formatters import (
 )
 from contractor.tools.tasks.manager import StreamlineManager
 from contractor.tools.tasks.models import (
+    _MAX_LITERAL_EVAL_LEN,
+    _SUBTASK_DECOMPOSITION_SCHEMA_JSON,
     DO_NOT_FINISH_WITH_NO_TASKS_DONE,
     NO_ACTIVE_SUBTASKS_MSG,
     NO_REMAINING_SUBTASKS_MSG,
@@ -33,15 +35,13 @@ from contractor.tools.tasks.models import (
     SubtaskSpec,
     SubtaskStatus,
     TaskManagerExecutionError,
-    _MAX_LITERAL_EVAL_LEN,
-    _SUBTASK_DECOMPOSITION_SCHEMA_JSON,
     validate_status_transition,
 )
 from contractor.tools.tasks.tools import (
-    TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
     _INSTRUCTION_SNAPSHOT_ATTR,
     _WORKER_EXAMPLE_DONE,
     _WORKER_EXAMPLE_INCOMPLETE,
+    TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
     _get_agent_ref,
     _prepare_worker_instructions,
     instrument_worker,

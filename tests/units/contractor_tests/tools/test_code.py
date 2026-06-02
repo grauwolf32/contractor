@@ -5,30 +5,31 @@ Run with:
 """
 
 from __future__ import annotations
+
 from unittest.mock import MagicMock
+
 import pytest
 
 # ─── Import the module under test ────────────────────────────────────────────
 from contractor.tools.code.tools import (
-    Language,
     _EXT_TO_LANG,
-    detect_language,
-    _NodeSpec,
-    _specs_for,
-    SymbolEntry,
+    CodeTools,
     DefinitionResult,
     GrepMatch,
+    Language,
     SearchResult,
-    _ParsedFile,
+    SymbolEntry,
     _CacheEntry,
     _context_snippet,
-    _symbol_matches,
     _grep_file_lines,
-    CodeTools,
+    _NodeSpec,
     _parse_language,
+    _ParsedFile,
+    _specs_for,
+    _symbol_matches,
     code_tools,
+    detect_language,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -1138,7 +1139,7 @@ class TestEdgeCases:
         # walk returns one file
         fs.walk.return_value = iter([("/repo", [], ["a.py"])])
         # read_text always fails — the file can't be read at all
-        fs.read_text.side_effect = IOError("read error")
+        fs.read_text.side_effect = OSError("read error")
         ct = CodeTools(fs=fs, root="/repo")
         # Should not raise; file is simply skipped
         result = ct.search_definition("hello")

@@ -26,15 +26,19 @@ from __future__ import annotations
 import json
 import tempfile
 from collections import Counter
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from google.adk.artifacts import FileArtifactService
 
 from contractor.runners.agio import AgioEventType
-from contractor.runners.artifacts import (ARTIFACT_KINDS, artifact_filename,
-                                          save_result_artifacts)
+from contractor.runners.artifacts import (
+    ARTIFACT_KINDS,
+    artifact_filename,
+    save_result_artifacts,
+)
 from contractor.runners.models import TaskResult, TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunner
 from contractor.utils import observability
@@ -136,11 +140,11 @@ async def run_task_pipeline(
     timeout_s: float = 1800.0,
     user_id: str = "eval-user",
     runner_name: str = "eval-task-runner",
-    observability_tags: Optional[list[str]] = None,
-    preloaded_artifacts: Optional[dict[str, str]] = None,
-    output_dir: Optional[Path] = None,
-    artifact_dir: Optional[Path] = None,
-    post_run_fn: Optional[Callable[..., Any]] = None,
+    observability_tags: list[str] | None = None,
+    preloaded_artifacts: dict[str, str] | None = None,
+    output_dir: Path | None = None,
+    artifact_dir: Path | None = None,
+    post_run_fn: Callable[..., Any] | None = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
     and return everything the caller needs to score and analyse the run.

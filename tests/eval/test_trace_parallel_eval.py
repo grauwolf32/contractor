@@ -35,11 +35,12 @@ from contractor.workflows import Workflow, WorkflowContext
 from contractor.workflows.trace_graph import TraceGraphWorkflow
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from tests.eval.conftest import FIXTURES_ROOT, EvalFixture, _load_fixture
-from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
-                                write_eval_results)
-from tests.eval.trace_harness import (Annotation,
-                                      extract_annotations_from_overlay,
-                                      overlay_modified_files)
+from tests.eval.results import CaseResult, EvalRun, FixtureResult, write_eval_results
+from tests.eval.trace_harness import (
+    Annotation,
+    extract_annotations_from_overlay,
+    overlay_modified_files,
+)
 
 WORKFLOW_VARIANTS: list[tuple[str, type[Workflow]]] = [
     ("trace-graph", TraceGraphWorkflow),

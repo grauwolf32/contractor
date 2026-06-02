@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any, override
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
 from google.genai import types
-from typing_extensions import override
 
-from contractor.agents.oas_analyzer.models import (EndpointVulnerability,
-                                                   ServiceBasicInfo)
+from contractor.agents.oas_analyzer.models import (
+    EndpointVulnerability,
+    ServiceBasicInfo,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

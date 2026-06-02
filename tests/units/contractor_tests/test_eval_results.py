@@ -4,10 +4,19 @@ from __future__ import annotations
 import asyncio
 import json
 
-from tests.eval.results import (SCHEMA, AttemptOutcome, CaseResult, EvalRun,
-                                 EvalSink, FixtureResult, derive_headline,
-                                 derive_totals, metrics_from_task, pass_at,
-                                 write_eval_results)
+from tests.eval.results import (
+    SCHEMA,
+    AttemptOutcome,
+    CaseResult,
+    EvalRun,
+    EvalSink,
+    FixtureResult,
+    derive_headline,
+    derive_totals,
+    metrics_from_task,
+    pass_at,
+    write_eval_results,
+)
 
 
 def _outcome(passed, **detail):

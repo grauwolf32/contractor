@@ -8,22 +8,21 @@ directory along with its prompts and tasks.
 
 from __future__ import annotations
 
-from typing import Final, Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Final, Literal
 
 from fsspec import AbstractFileSystem
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
+from contractor.agents.worker_factory import build_worker
 from contractor.callbacks import default_tool
 from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.openapi.openapi import OpenAPIFormat, openapi_tools
-from contractor.tools.vuln import (VulnerabilityReportFormat,
-                                   vulnerability_report_tools)
+from contractor.tools.vuln import VulnerabilityReportFormat, vulnerability_report_tools
 from contractor.utils import load_prompt
-
-from contractor.agents.worker_factory import build_worker
 
 THREAT_MODEL_PROMPT: Final[str] = load_prompt("threat_model_agent")
 
@@ -59,9 +58,9 @@ def build_threat_model_agent(
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
-    model: Optional[LiteLlm] = None,
+    model: LiteLlm | None = None,
     with_openapi: bool = True,
-    elide_tool_results: Optional[Iterable[str]] = None,
+    elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
 ) -> LlmAgent:

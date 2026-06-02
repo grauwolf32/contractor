@@ -39,7 +39,7 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -254,7 +254,7 @@ def _pin_manifest_active(manifest_path: Path, version: str):
         manifest_path.write_text(original, encoding="utf-8")
 
 
-def pin_versions(versions: dict[str, Optional[str]]):
+def pin_versions(versions: dict[str, str | None]):
     """Stack manifest pins for ``{name: version}`` dict.
 
     Name formats: ``task:<key>``, ``prompt:<agent>``, or bare name
@@ -415,8 +415,9 @@ async def _cmd_task(args) -> int:
             timeout = 1800.0
 
         elif args.pipeline == "likec4":
-            from contractor.agents.likec4_builder_agent.agent import \
-                build_likec4_builder_agent
+            from contractor.agents.likec4_builder_agent.agent import (
+                build_likec4_builder_agent,
+            )
             from contractor.tools.fs import MemoryOverlayFileSystem
 
             overlay = MemoryOverlayFileSystem(fs=fs)

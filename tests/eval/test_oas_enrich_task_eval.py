@@ -12,7 +12,7 @@ Scoring compares the enriched schema against the full ground truth.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 
 import pytest
@@ -78,7 +78,7 @@ async def test_oas_enrich_task(fixture, fixture_fs, eval_model: LiteLlm, eval_si
         )
 
     _, prompt_version = load_prompt_with_version("oas_builder_agent")
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     run_dir = (
         FIXTURES_ROOT / fixture.slug / "runs"
         / f"oas_enrich_{prompt_version}_{ts}"

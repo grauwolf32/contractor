@@ -41,7 +41,6 @@ packages = [
 pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 ruff = "^0.14.10"
-isort = "^8.0.1"
 mypy = "^1.19.1"
 matplotlib = "^3.10.8"
 pandas = "^3.0.1"
@@ -61,14 +60,27 @@ markers = [
 [tool.ruff]
 extend-exclude = ["tests/playground", ".claude"]
 
+[tool.ruff.lint]
+# E/F: defaults. I: import sorting (replaces standalone isort). UP: pyupgrade
+# (PEP-604/585 annotations). B: bugbear (real-bug heuristics). C4: comprehensions.
+# SIM: simplifications. RET: return-statement hygiene. PTH (pathlib) is held back
+# deliberately — it touches the sandboxed fs layer and needs review, not autofix.
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RET"]
+# Line length is left to author discretion (no formatter is wired up); enforcing
+# E501 now would flag ~480 pre-existing long lines for no correctness gain.
+# UP040 (PEP-695 `type` aliases) is held back: it rewrites pydantic-consumed
+# aliases (e.g. SubtaskStatus) into lazy TypeAliasType, which is behaviour-
+# sensitive and not worth the risk for a purely stylistic gain.
+ignore = ["E501", "UP040"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["contractor", "cli", "analytics_ui"]
+
 [tool.ruff.lint.per-file-ignores]
 "cli/main.py" = ["E402"]
 # Test/eval modules deliberately import after path setup or in sectioned blocks.
 "tests/eval/test_exploitability_task_eval.py" = ["E402"]
 "tests/units/contractor_tests/runners/test_models.py" = ["E402"]
-
-[tool.isort]
-extend_skip = ["tests/playground", ".claude"]
 
 [tool.mypy]
 python_version = "3.12"

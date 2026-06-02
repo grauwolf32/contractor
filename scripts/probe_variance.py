@@ -124,10 +124,7 @@ def _delta(a: dict, b: dict) -> str:
     for key in _METRIC_KEYS + ("annotations_count", "files_modified_count"):
         if key in a and key in b:
             ma, mb = a[key]["mean"], b[key]["mean"]
-            if ma == 0:
-                pct = "n/a"
-            else:
-                pct = f"{(mb-ma)/ma*100:+.1f}%"
+            pct = "n/a" if ma == 0 else f"{(mb - ma) / ma * 100:+.1f}%"
             lines.append(
                 f"  {key:24s} A={ma:10.1f}  B={mb:10.1f}  Δ={mb-ma:+10.1f}  ({pct})"
             )

@@ -51,7 +51,6 @@ async def precompute_fixture(slug: str, model) -> None:
     logger.info("Starting precompute for %s (source: %s)", slug, fixture.source_root)
 
     from cli.fs import RootedLocalFileSystem
-
     from contractor.agents.swe_agent.agent import build_swe_agent
 
     fs = RootedLocalFileSystem(str(fixture.source_root))

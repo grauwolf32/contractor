@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import posixpath
 import threading
+from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 from fsspec.spec import AbstractFileSystem
 
 from contractor.tools.fs.models import FsEntry
 from contractor.tools.fs.overlay_diff import render_overlay_diff
-from contractor.tools.fs.overlay_patch import (b64decode, b64encode,
-                                               build_overlay_patch, sha256_hex)
+from contractor.tools.fs.overlay_patch import (
+    b64decode,
+    b64encode,
+    build_overlay_patch,
+    sha256_hex,
+)
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
@@ -1039,7 +1045,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                 else:
                     self.cp_file(source, target)
 
-            return
+            return None
 
         return self.cp_file(path1, path2, **kwargs)
 
@@ -1185,8 +1191,7 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                         stack.append((child, depth + 1))
 
         if not topdown:
-            for item in reversed(deferred):
-                yield item
+            yield from reversed(deferred)
 
     def find(
         self,
@@ -1304,10 +1309,8 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         return [path]
 
     def invalidate_cache(self, path: str | None = None) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.base_fs.invalidate_cache(path)
-        except Exception:
-            pass
 
     def changed_paths(self) -> dict[str, list[str]]:
         """

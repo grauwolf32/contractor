@@ -18,19 +18,16 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
-from contractor.agents.trace_verifier_agent.agent import \
-    build_trace_verifier_agent
+from contractor.agents.trace_verifier_agent.agent import build_trace_verifier_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
-from contractor.workflows import (Workflow, WorkflowContext,
-                                  persist_seed_artifact)
+from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
-from contractor.workflows.trace_annotation import (OpenApiPath,
-                                                   extract_openapi_paths)
+from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -51,7 +48,7 @@ class TraceVerifyWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
         await persist_seed_artifact(ctx, filename="oas-openapi-building")
@@ -79,7 +76,7 @@ class TraceVerifyWorkflow(Workflow):
         *,
         api_path: OpenApiPath,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         source_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
         findings = await self._load_findings(

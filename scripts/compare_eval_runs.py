@@ -23,7 +23,7 @@ import os
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -36,7 +36,7 @@ async def _run_one(
     user_message: str,
     case: dict[str, Any],
     model,
-    prompt_version: Optional[str],
+    prompt_version: str | None,
     with_graph_tools: bool,
 ) -> dict[str, Any]:
     from tests.eval.trace_harness import run_trace_agent

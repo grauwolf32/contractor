@@ -21,7 +21,7 @@ malformed annotation.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fsspec import AbstractFileSystem
 
@@ -63,7 +63,7 @@ def _leading_ws(line: str) -> str:
     return line[:i]
 
 
-def _parse_args_spec(args_spec: str) -> tuple[list[tuple[str, str]], Optional[str]]:
+def _parse_args_spec(args_spec: str) -> tuple[list[tuple[str, str]], str | None]:
     """Parse ``user:tainted,token:validated`` into pairs. Returns
     (pairs, error) where error is None on success.
     """
@@ -97,7 +97,7 @@ def _split_csv(value: str) -> list[str]:
     return [x.strip() for x in value.split(",") if x.strip()]
 
 
-def _existing_annotation_above(lines: list[str], def_line: int) -> Optional[str]:
+def _existing_annotation_above(lines: list[str], def_line: int) -> str | None:
     """If the line above `def_line` (1-based) is an annotation comment,
     return its trimmed text; else None.
     """
@@ -121,7 +121,7 @@ def _build_function_locator(fs: AbstractFileSystem, root: str = "/"):
     """
     code_tools = CodeTools(fs=fs, root=root)
 
-    def _locate(file: str, function: str) -> tuple[Optional[int], str]:
+    def _locate(file: str, function: str) -> tuple[int | None, str]:
         bare = function.rsplit(".", 1)[-1]
         result = code_tools.search_definition(
             symbol=bare,
@@ -174,7 +174,8 @@ def annotation_tools(fs: AbstractFileSystem, *, root: str = "/") -> list:
         line, err = locate(file, function)
         if err:
             return {"error": err, "kind": kind}
-        assert line is not None
+        if line is None:
+            raise RuntimeError("locate() returned no line despite reporting no error")
 
         try:
             content = fs.read_text(file, encoding="utf-8", errors="ignore")

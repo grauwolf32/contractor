@@ -120,7 +120,7 @@ async def exchange(instance_url: str, pat: str, timeout: float = 30.0) -> str:
         while asyncio.get_event_loop().time() < deadline:
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             msg = json.loads(raw)
             if msg.get("type") == "next":

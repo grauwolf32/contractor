@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 from uuid import uuid4
 
 import yaml
@@ -22,8 +22,7 @@ from google.genai import types
 
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
-from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
-                                       TaskTemplate)
+from contractor.runners.models import RenderedTask, TaskRunnerEventHandler, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
@@ -31,12 +30,13 @@ from contractor.tools.code import attach_graph_tools_if_local
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.fs.merge import fork_overlay, merge_overlay_forks
 from contractor.utils.settings import build_model
-from contractor.workflows import (Workflow, WorkflowContext,
-                                  persist_seed_artifact)
+from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
-from contractor.workflows.trace_annotation import (OpenApiOperation,
-                                                   OpenApiPath,
-                                                   extract_openapi_paths)
+from contractor.workflows.trace_annotation import (
+    OpenApiOperation,
+    OpenApiPath,
+    extract_openapi_paths,
+)
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -76,7 +76,7 @@ class TraceGraphPathParWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
         await persist_seed_artifact(ctx, filename="oas-openapi-building")
@@ -133,7 +133,7 @@ class TraceGraphPathParWorkflow(Workflow):
                 )
 
         async with asyncio.TaskGroup() as tg:
-            for api_path, overlay in zip(self.paths, forks):
+            for api_path, overlay in zip(self.paths, forks, strict=False):
                 tg.create_task(_run_path(api_path, overlay))
 
         conflicts = merge_overlay_forks(self.overlayfs, forks, pre_fork_files)
@@ -155,7 +155,7 @@ class TraceGraphPathParWorkflow(Workflow):
         overlay: MemoryOverlayFileSystem,
         runner: AgentRunner,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         path_namespace = f"trace-graph-pathpar:{self.namespace}:{api_path.path_key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
@@ -192,7 +192,7 @@ class TraceGraphPathParWorkflow(Workflow):
         runner: AgentRunner,
         base_variables: dict[str, Any],
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         operation_schema = yaml.safe_dump(
             {operation.path: {operation.method: operation.schema}},

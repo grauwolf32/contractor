@@ -834,7 +834,7 @@ def test_write_file_creates_new_file(write_tool_map, write_tmpdir: Path):
     assert res["result"]["ok"] is True
     assert res["result"]["op"] == "write_file"
     assert res["result"]["path"] == target
-    assert res["result"]["size"] == len("hello\nworld\n".encode("utf-8"))
+    assert res["result"]["size"] == len(b"hello\nworld\n")
 
 
 def test_write_file_replaces_existing_content(write_tool_map, write_tmpdir: Path):

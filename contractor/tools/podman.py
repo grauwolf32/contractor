@@ -30,12 +30,16 @@ import logging
 import shutil
 import subprocess
 import threading
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from fsspec import AbstractFileSystem
 from google.adk.code_executors.base_code_executor import BaseCodeExecutor
 from google.adk.code_executors.code_execution_utils import (
-    CodeExecutionInput, CodeExecutionResult, File)
+    CodeExecutionInput,
+    CodeExecutionResult,
+    File,
+)
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
@@ -90,7 +94,7 @@ class KaliSandbox:
         key: str,
         *,
         image: str = DEFAULT_SANDBOX_IMAGE,
-        host_project_path: Optional[str] = None,
+        host_project_path: str | None = None,
         memory: str = "2g",
         cpus: str = "2",
         pids_limit: int = 512,
@@ -195,7 +199,7 @@ class KaliSandbox:
         return res.returncode, out, err
 
     # ── code execution ───────────────────────────────────────────────────
-    def run_python(self, code: str, preinit: Optional[list[str]],
+    def run_python(self, code: str, preinit: list[str] | None,
                    timeout_s: int) -> tuple[_ExecResult, str]:
         self.ensure_started()
         self._seq += 1
@@ -268,7 +272,7 @@ class KaliCodeExecutor(BaseCodeExecutor):
     """ADK code executor backed by :class:`KaliSandbox` (one per agent-run)."""
 
     image: str = DEFAULT_SANDBOX_IMAGE
-    host_project_path: Optional[str] = None
+    host_project_path: str | None = None
 
     def _sandbox(self, invocation_id: str) -> KaliSandbox:
         return get_or_create_sandbox(
@@ -285,8 +289,8 @@ class KaliCodeExecutor(BaseCodeExecutor):
 
 
 async def _save_artifacts(
-    tool_context: Optional[ToolContext], namespace: str,
-    script: Optional[str], output_files: list[File],
+    tool_context: ToolContext | None, namespace: str,
+    script: str | None, output_files: list[File],
     *, seq: int = 0, ext: str = "py",
 ) -> list[str]:
     """Persist the executed script/command + any created files as artifacts.
@@ -320,7 +324,7 @@ async def _save_artifacts(
 
 def code_exec_tools(
     namespace: str,
-    fs: Optional[AbstractFileSystem] = None,
+    fs: AbstractFileSystem | None = None,
     *,
     image: str = DEFAULT_SANDBOX_IMAGE,
     default_timeout_s: int = _DEFAULT_TIMEOUT_S,
@@ -341,9 +345,9 @@ def code_exec_tools(
 
     async def run_python(
         code: str,
-        preinit: Optional[list[str]] = None,
+        preinit: list[str] | None = None,
         timeout_s: int = default_timeout_s,
-        tool_context: Optional[ToolContext] = None,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Execute a Python 3 script in the exploitation sandbox and return its output.
 
@@ -380,7 +384,7 @@ def code_exec_tools(
     async def execute_bash(
         command: str,
         timeout_s: int = default_timeout_s,
-        tool_context: Optional[ToolContext] = None,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Run a shell command in the same exploitation sandbox as run_python.
 

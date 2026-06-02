@@ -24,7 +24,6 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import yaml
@@ -48,7 +47,7 @@ class XbowBenchmark:
     compose_file: Path
     service: str  # the web entrypoint service
     container_port: int
-    host_port: Optional[int]  # None => dynamic, resolve after `up`
+    host_port: int | None  # None => dynamic, resolve after `up`
 
     @property
     def primary_tag(self) -> str:
@@ -81,7 +80,7 @@ def _read_flag(env_file: Path) -> str:
     return ""
 
 
-def _parse_port(entry: object) -> tuple[int, Optional[int]]:
+def _parse_port(entry: object) -> tuple[int, int | None]:
     """Return (container_port, host_port) from a compose ports entry.
 
     "80" / 80            -> (80, None)   dynamic host port
@@ -96,7 +95,7 @@ def _parse_port(entry: object) -> tuple[int, Optional[int]]:
     return int(parts[2]), int(parts[1])
 
 
-def _pick_web_service(services: dict) -> Optional[str]:
+def _pick_web_service(services: dict) -> str | None:
     """The service exposing an HTTP port that isn't a datastore."""
     candidates = []
     for name, spec in services.items():
@@ -166,7 +165,7 @@ class XbowService:
 
     benchmark: XbowBenchmark
     project_name: str = ""
-    _resolved_port: Optional[int] = field(default=None, init=False)
+    _resolved_port: int | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         if not self.project_name:
@@ -225,7 +224,7 @@ class XbowService:
         )
 
     @staticmethod
-    def _podman_port(container: str, cport: int) -> Optional[int]:
+    def _podman_port(container: str, cport: int) -> int | None:
         res = subprocess.run(
             ["podman", "port", container, f"{cport}/tcp"],
             capture_output=True, text=True,
@@ -244,7 +243,7 @@ class XbowService:
     @staticmethod
     def _wait_healthy(url: str, *, timeout: float, interval: float = 2.0) -> None:
         deadline = time.monotonic() + timeout
-        last: Optional[str] = None
+        last: str | None = None
         while time.monotonic() < deadline:
             try:
                 r = httpx.get(url, timeout=5.0)

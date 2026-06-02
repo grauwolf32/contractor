@@ -6,19 +6,23 @@ import itertools
 import json
 import time
 from collections import defaultdict, deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum, unique
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
 from contractor.runners.agio import AgioEventType
-from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
-                                             resolve_tool_args,
-                                             resolve_tool_response,
-                                             snapshot_state)
+from contractor.runners.plugins.base import (
+    BaseAdkPlugin,
+    PluginContext,
+    resolve_tool_args,
+    resolve_tool_response,
+    snapshot_state,
+)
 from contractor.tools.fs.const import FS_COVERAGE_STATE_KEY
 
 # ─── Small helpers ────────────────────────────────────────────────────────────
@@ -57,7 +61,7 @@ def _fingerprint(
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _safe_int(value: Any) -> int:
@@ -311,9 +315,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
     def _extract_usage(llm_response: Any) -> dict[str, int]:
         usage = getattr(llm_response, "usage_metadata", None)
         if usage is None:
-            return {
-                k: 0 for k in ("input", "output", "total", "thoughts", "cached")
-            }
+            return dict.fromkeys(("input", "output", "total", "thoughts", "cached"), 0)
 
         data = snapshot_state(usage)
         return {
@@ -362,7 +364,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         tool_args: dict[str, Any] | None = None,
         args: dict[str, Any] | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         actual_args = resolve_tool_args(tool_args, args)
         raw_inv, raw_agent = self._identity(tool_context)
         inv, agent = self._normalise_identity(raw_inv, raw_agent)
@@ -392,7 +394,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         args: dict[str, Any] | None = None,
         error: Exception | str | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         actual_args = resolve_tool_args(tool_args, args)
         raw_inv, raw_agent = self._identity(tool_context)
         inv, agent = self._normalise_identity(raw_inv, raw_agent)
@@ -429,7 +431,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         tool_response: dict[str, Any] | None = None,
         result: dict[str, Any] | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         actual_args = resolve_tool_args(tool_args, args)
         actual_result = resolve_tool_response(tool_response, result)
         raw_inv, raw_agent = self._identity(tool_context)

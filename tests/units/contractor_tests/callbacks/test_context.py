@@ -5,14 +5,13 @@ from contractor.callbacks.context import (
     SummarizationLimitCallback,
 )
 from tests.units.contractor_tests.helpers import (
+    MockContent,
     mk_callback_context,
     mk_function_call_part,
     mk_function_response_part,
     mk_llm_request,
     mk_text_part,
-    MockContent,
 )
-
 
 # ---------------------------------------------------------------------------
 # SummarizationLimitCallback

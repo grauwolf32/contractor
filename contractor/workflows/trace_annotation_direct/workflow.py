@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 from uuid import uuid4
 
 import yaml
@@ -8,19 +8,19 @@ from google.genai import types
 
 from contractor.agents.trace_agent.agent import TraceFormat, build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
-from contractor.runners.models import (RenderedTask, TaskRunnerEventHandler,
-                                       TaskTemplate)
+from contractor.runners.models import RenderedTask, TaskRunnerEventHandler, TaskTemplate
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils.settings import build_model
-from contractor.workflows import (Workflow, WorkflowContext,
-                                  persist_seed_artifact)
+from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
-from contractor.workflows.trace_annotation import (OpenApiOperation,
-                                                   OpenApiPath,
-                                                   extract_openapi_paths)
+from contractor.workflows.trace_annotation import (
+    OpenApiOperation,
+    OpenApiPath,
+    extract_openapi_paths,
+)
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -58,7 +58,7 @@ class TraceAnnotationDirectWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
         await persist_seed_artifact(ctx, filename="oas-openapi-building")
@@ -112,7 +112,7 @@ class TraceAnnotationDirectWorkflow(Workflow):
         api_path: OpenApiPath,
         *,
         user_id: str = "cli-user",
-        on_event: Optional[TaskRunnerEventHandler] = None,
+        on_event: TaskRunnerEventHandler | None = None,
     ) -> None:
         path_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
@@ -143,7 +143,7 @@ class TraceAnnotationDirectWorkflow(Workflow):
         namespace: str,
         base_variables: dict[str, Any],
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         operation_schema = yaml.safe_dump(
             {operation.path: {operation.method: operation.schema}},

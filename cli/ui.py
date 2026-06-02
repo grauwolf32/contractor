@@ -8,7 +8,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Deque, Optional
+from typing import Any
 
 from rich.console import Console, Group, RenderableType
 from rich.layout import Layout
@@ -43,8 +43,8 @@ def render_artifact_summary(
     output_dir: Path,
     saved_paths: list[Path],
     *,
-    store_dir: Optional[Path] = None,
-    console: Optional[Console] = None,
+    store_dir: Path | None = None,
+    console: Console | None = None,
 ) -> None:
     """Print the post-run artifact summary, grouped by top-level prefix.
 
@@ -107,7 +107,7 @@ def interactive_prompt(
     *,
     title: str = "Interactive prompt",
     hint: str = "Describe what you want the router to do.",
-    console: Optional[Console] = None,
+    console: Console | None = None,
 ) -> str:
     """Show a dedicated input screen and return the user's prompt.
 
@@ -151,21 +151,21 @@ class UiState:
 
     current_task_name: str = "—"
     current_task_index: int = 0
-    current_iteration: Optional[int] = None
-    current_max_attempts: Optional[int] = None
+    current_iteration: int | None = None
+    current_max_attempts: int | None = None
 
-    current_subtask: Optional[str] = None
+    current_subtask: str | None = None
     subtasks_done: int = 0
     subtasks_total: int = 0
 
-    workflow_phase: Optional[str] = None
-    workflow_started_mono: Optional[float] = None
-    task_started_mono: Optional[float] = None
+    workflow_phase: str | None = None
+    workflow_started_mono: float | None = None
+    task_started_mono: float | None = None
 
     input_tokens: int = 0
     output_tokens: int = 0
 
-    events: Deque[EventView] = field(
+    events: deque[EventView] = field(
         default_factory=lambda: deque(maxlen=EVENT_HISTORY_LIMIT)
     )
 
@@ -174,7 +174,7 @@ class LiveRenderer:
     def __init__(self, workflow_name: str) -> None:
         self.console = Console()
         self.state = UiState(workflow_name=workflow_name)
-        self.live: Optional[Live] = None
+        self.live: Live | None = None
         self._spinner = Spinner("dots", style="cyan")
 
     def start(self) -> None:
@@ -384,7 +384,7 @@ class LiveRenderer:
         return f" ({rate:.0f}/s)"
 
     @staticmethod
-    def _format_elapsed(started_mono: Optional[float]) -> str:
+    def _format_elapsed(started_mono: float | None) -> str:
         if started_mono is None:
             return "—"
         secs = int(time.monotonic() - started_mono)
@@ -668,7 +668,7 @@ def _format_tokens(input_tokens: int, output_tokens: int) -> str:
     return f"{_compact(input_tokens)} in / {_compact(output_tokens)} out"
 
 
-def _normalize_event(event: Any) -> Optional[EventView]:
+def _normalize_event(event: Any) -> EventView | None:
     event_type = getattr(event, "type", "") or ""
     payload = getattr(event, "payload", {}) or {}
 
@@ -845,7 +845,7 @@ def _fmt_tool_exception_event(payload: dict[str, Any]) -> EventView:
     )
 
 
-def _fmt_final_text_event(payload: dict[str, Any]) -> Optional[EventView]:
+def _fmt_final_text_event(payload: dict[str, Any]) -> EventView | None:
     text = (payload.get("text") or "").strip()
     if not text:
         return None
@@ -909,7 +909,7 @@ def _fmt_task_failed_event(event: Any, payload: dict[str, Any]) -> EventView:
 
 
 def _fmt_tool_data(
-    value: Any, max_lines: int = 8, max_width: Optional[int] = None
+    value: Any, max_lines: int = 8, max_width: int | None = None
 ) -> str:
     if max_width is None:
         max_width = _body_width()
@@ -965,7 +965,7 @@ def _extract_result_status(xml: str) -> str | None:
 
 
 def _fmt_dict(
-    data: dict[str, Any], max_lines: int = 8, max_width: Optional[int] = None
+    data: dict[str, Any], max_lines: int = 8, max_width: int | None = None
 ) -> str:
     if max_width is None:
         max_width = _body_width()
@@ -978,7 +978,7 @@ def _fmt_dict(
 
 
 def _fmt_list(
-    items: list[Any], max_lines: int = 8, max_width: Optional[int] = None
+    items: list[Any], max_lines: int = 8, max_width: int | None = None
 ) -> str:
     if max_width is None:
         max_width = _body_width()
@@ -1010,7 +1010,7 @@ def _fmt_value(value: Any) -> str:
     return str(value)
 
 
-def _fmt_blob(value: Any, max_lines: int = 8, max_width: Optional[int] = None) -> str:
+def _fmt_blob(value: Any, max_lines: int = 8, max_width: int | None = None) -> str:
     if max_width is None:
         max_width = _body_width()
     if value is None:
@@ -1044,7 +1044,7 @@ def _fmt_blob(value: Any, max_lines: int = 8, max_width: Optional[int] = None) -
 
 
 def _clamp_lines(
-    lines: list[str], max_lines: int = 8, max_width: Optional[int] = None
+    lines: list[str], max_lines: int = 8, max_width: int | None = None
 ) -> str:
     if max_width is None:
         max_width = _body_width()

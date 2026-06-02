@@ -1,9 +1,10 @@
 import inspect
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import lru_cache
-from typing import Any, Callable, Optional
+from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest, LlmResponse
@@ -14,18 +15,18 @@ from google.genai import types
 
 def bfmc_sig(
     callback_context: CallbackContext, llm_request: LlmRequest
-) -> Optional[LlmResponse]: ...
+) -> LlmResponse | None: ...
 def afmc_sig(
     callback_context: CallbackContext, llm_response: LlmResponse
-) -> Optional[LlmResponse]: ...
-def bfac_sig(callback_context: CallbackContext) -> Optional[types.Content]: ...
-def afac_sig(callback_context: CallbackContext) -> Optional[types.Content]: ...
+) -> LlmResponse | None: ...
+def bfac_sig(callback_context: CallbackContext) -> types.Content | None: ...
+def afac_sig(callback_context: CallbackContext) -> types.Content | None: ...
 def bftc_sig(
     tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
-) -> Optional[dict]: ...
+) -> dict | None: ...
 def aftc_sig(
     tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, tool_response: dict
-) -> Optional[dict]: ...
+) -> dict | None: ...
 
 
 class CallbackTypes(StrEnum):
@@ -37,7 +38,7 @@ class CallbackTypes(StrEnum):
     after_tool_callback = "after_tool_callback"
 
 
-@lru_cache()
+@lru_cache
 def _expected_signatures() -> dict["CallbackTypes", inspect.Signature]:
     return {
         CallbackTypes.before_model_callback: inspect.signature(bfmc_sig),
@@ -69,7 +70,7 @@ def _callback_name(func: Callable[..., Any]) -> str:
 class BaseCallback(ABC):
     cb_type: CallbackTypes
     deps: list[str] = field(default_factory=list)
-    agent_name: Optional[str] = None
+    agent_name: str | None = None
 
     def validate(self) -> "BaseCallback":
         if not verify_signature(self.__call__, self.cb_type):

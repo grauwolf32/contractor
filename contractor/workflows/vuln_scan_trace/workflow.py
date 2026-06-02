@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
-from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.agents.codereview_agent.agent import build_codereview_agent
+from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
@@ -40,7 +40,7 @@ class VulnScanTraceWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
 
@@ -103,7 +103,7 @@ class VulnScanTraceWorkflow(Workflow):
         *,
         finding: dict[str, Any],
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         name = finding.get("name", "")
         place = finding.get("place", "")

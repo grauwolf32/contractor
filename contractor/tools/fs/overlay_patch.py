@@ -11,6 +11,7 @@ lives here too, shared by the patch + snapshot serializers.
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -71,10 +72,8 @@ def build_overlay_patch(
 
         patch: Patch = {"op": "delete_path", "path": path, "type": entry_type}
         if entry_type == "file":
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 patch["base_hash"] = sha256_hex(_read_base_cached(path))
-            except FileNotFoundError:
-                pass
         patches.append(patch)
 
     # Creates / modifies

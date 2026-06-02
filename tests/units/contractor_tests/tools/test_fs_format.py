@@ -5,7 +5,6 @@ import pytest
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import FileLoc, FsEntry
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

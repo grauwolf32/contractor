@@ -128,5 +128,4 @@ def resolve_local_refs(
 
     # Now resolve the rest of the schema (paths, etc.)
     # Schemas are already resolved, so remaining $refs to them will be inlined.
-    result = resolve_refs(schema, schema, max_depth=max_depth)
-    return result
+    return resolve_refs(schema, schema, max_depth=max_depth)

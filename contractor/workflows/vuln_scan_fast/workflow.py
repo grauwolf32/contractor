@@ -16,12 +16,12 @@ from __future__ import annotations
 import logging
 import os
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
-from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.agents.codereview_agent.agent import build_codereview_agent
+from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
@@ -48,7 +48,7 @@ class VulnScanFastWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         # ── Step 1: project discovery ─────────────────────────────
         await self._run_discovery(user_id=user_id, on_event=on_event)
@@ -77,7 +77,7 @@ class VulnScanFastWorkflow(Workflow):
     # ── Step 1 ───────────────────────────────────────────────────
 
     async def _run_discovery(
-        self, *, user_id: str, on_event: Optional[TaskRunnerEventHandler],
+        self, *, user_id: str, on_event: TaskRunnerEventHandler | None,
     ) -> None:
         ctx = self.ctx
 
@@ -125,7 +125,7 @@ class VulnScanFastWorkflow(Workflow):
     # ── Step 2 ───────────────────────────────────────────────────
 
     async def _run_fast_scan(
-        self, *, user_id: str, on_event: Optional[TaskRunnerEventHandler],
+        self, *, user_id: str, on_event: TaskRunnerEventHandler | None,
     ) -> None:
         ctx = self.ctx
 
@@ -229,7 +229,7 @@ class VulnScanFastWorkflow(Workflow):
         *,
         findings: list[dict[str, Any]],
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         from contractor.agents.trace_agent.agent import build_trace_agent
         from contractor.runners.agent_runner import AgentRunner
@@ -300,7 +300,7 @@ class VulnScanFastWorkflow(Workflow):
         *,
         findings: list[dict[str, Any]],
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         target_url = os.environ.get("CONTRACTOR_TARGET_URL")
         if not target_url:

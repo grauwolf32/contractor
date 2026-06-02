@@ -10,7 +10,7 @@ already measure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from tests.eval.scoring import Score, _score_sets
 from tests.eval.task_harness import TaskAgentRun, TaskMetrics
@@ -193,7 +193,7 @@ def extract_plan_structure(
 
     subtasks = extract_subtask_records(result)
 
-    metrics: Optional[TaskMetrics] = None
+    metrics: TaskMetrics | None = None
     for ref, m in run.metrics.items():
         if task_key in ref:
             metrics = m
@@ -249,7 +249,7 @@ class PlannerScore:
     """Composite planner evaluation result."""
 
     structure: PlanStructure
-    topic_coverage: Optional[Score] = None
+    topic_coverage: Score | None = None
 
     subtask_count_ok: bool = True
     depth_ok: bool = True
@@ -308,13 +308,13 @@ def score_planner(
     task_key: str,
     *,
     min_subtasks: int = 1,
-    max_subtasks: Optional[int] = None,
+    max_subtasks: int | None = None,
     max_depth: int = 2,
     max_skip_rate: float = 1.0,
-    max_budget_utilization: Optional[float] = None,
-    budget: Optional[int] = None,
+    max_budget_utilization: float | None = None,
+    budget: int | None = None,
     must_complete: bool = True,
-    expected_topics: Optional[list[dict[str, Any]]] = None,
+    expected_topics: list[dict[str, Any]] | None = None,
 ) -> PlannerScore:
     """Score planner behavior for a specific task within a pipeline run."""
     structure = extract_plan_structure(run, task_key)

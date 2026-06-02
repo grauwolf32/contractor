@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
@@ -34,7 +34,7 @@ class VulnScanWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
 

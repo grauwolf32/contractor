@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import os
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -26,8 +26,7 @@ from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
-from contractor.workflows import (Workflow, WorkflowContext,
-                                  persist_seed_artifact)
+from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
@@ -51,7 +50,7 @@ class VulnAssessWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         # ── Steps 1-3: discovery + OAS build + validate ───────────
         await self._run_oas_stage(user_id=user_id, on_event=on_event)
@@ -71,7 +70,7 @@ class VulnAssessWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         ctx = self.ctx
         fs = ctx.fs
@@ -193,7 +192,7 @@ class VulnAssessWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         ctx = self.ctx
 
@@ -213,7 +212,7 @@ class VulnAssessWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> None:
         target_url = os.environ.get("CONTRACTOR_TARGET_URL")
         if not target_url:

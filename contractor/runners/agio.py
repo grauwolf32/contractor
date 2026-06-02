@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 from enum import StrEnum, unique
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -112,24 +112,24 @@ class AgioEvent(BaseModel):
     ts_iso: str             # ISO-8601 UTC string (analyzer-friendly)
 
     # Identity
-    session_id: Optional[str] = None
-    invocation_id: Optional[str] = None  # ADK invocation
-    run_id: Optional[str] = None
-    task_name: Optional[str] = None
-    task_id: Optional[int] = None
-    iteration: Optional[int] = None
-    agent_name: Optional[str] = None
+    session_id: str | None = None
+    invocation_id: str | None = None  # ADK invocation
+    run_id: str | None = None
+    task_name: str | None = None
+    task_id: int | None = None
+    iteration: int | None = None
+    agent_name: str | None = None
 
 
 def make_agio_record(
     event_type: AgioEventType | str,
     *,
-    task_name: Optional[str] = None,
-    task_id: Optional[int] = None,
-    iteration: Optional[int] = None,
-    session_id: Optional[str] = None,
-    invocation_id: Optional[str] = None,
-    agent_name: Optional[str] = None,
+    task_name: str | None = None,
+    task_id: int | None = None,
+    iteration: int | None = None,
+    session_id: str | None = None,
+    invocation_id: str | None = None,
+    agent_name: str | None = None,
     **payload: Any,
 ) -> dict[str, Any]:
     """Build a flat Agio record dict ready for JSONL serialisation."""

@@ -1,8 +1,7 @@
 import unicodedata
-from typing import Optional
 
 
-def norm_unicode(value: Optional[str]) -> Optional[str]:
+def norm_unicode(value: str | None) -> str | None:
     if value is None:
         return None
     return unicodedata.normalize("NFC", value)

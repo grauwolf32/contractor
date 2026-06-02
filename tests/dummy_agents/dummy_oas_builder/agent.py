@@ -3,15 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from contractor.callbacks import default_tool
 from cli.fs import RootedLocalFileSystem
+from contractor.agents.worker_factory import build_worker
+from contractor.callbacks import default_tool
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import memory_tools
 from contractor.tools.openapi import openapi_tools
 from contractor.tools.podman import PodmanContainer
 from contractor.utils.settings import DEFAULT_MODEL
-
-from contractor.agents.worker_factory import build_worker
 
 DUMMY_SWE_PROMPT: Final[str] = (
     "You are a professional, helpful Software Engineer (SWE) agent.\n"

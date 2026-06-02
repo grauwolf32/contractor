@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import Any, Literal, TypeVar
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -179,7 +179,7 @@ class VulnerabilityReportFormat:
         fmt: str,
         *,
         type_hint: bool,
-    ) -> Union[_T, str]:
+    ) -> _T | str:
         """Optionally wrap string output in a Markdown code fence."""
         if not type_hint or not isinstance(output, str):
             return output
@@ -195,9 +195,9 @@ class VulnerabilityReportFormat:
         *,
         preview: bool = False,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         """Format a single report, optionally omitting the details field."""
-        output: Union[str, dict[str, Any]]
+        output: str | dict[str, Any]
 
         if self._format == "json":
             output = _report_to_dict(report, preview=preview)
@@ -222,7 +222,7 @@ class VulnerabilityReportFormat:
         *,
         preview: bool = False,
         type_hint: bool = False,
-    ) -> Union[str, list[dict[str, Any]]]:
+    ) -> str | list[dict[str, Any]]:
         """Format a collection of reports."""
         if self._format == "json":
             # JSON returns a native list — no string wrapping needed.
@@ -353,7 +353,7 @@ class VulnerabilityReportTools:
         self,
         name: str,
         ctx: ToolContext | CallbackContext,
-    ) -> Optional[VulnerabilityReport]:
+    ) -> VulnerabilityReport | None:
         await self.load(ctx)
         return self.reports.get(name)
 
@@ -412,7 +412,7 @@ class VulnerabilityReportTools:
 
 def vulnerability_report_tools(
     name: str,
-    fmt: Optional[VulnerabilityReportFormat] = None,
+    fmt: VulnerabilityReportFormat | None = None,
 ) -> list[Any]:
     """
     Return a list of async tool functions bound to a named report store.
@@ -531,7 +531,7 @@ class VerifiedFinding:
     sink_reached: bool
     entry_point: str
     data_flow: list[str] = field(default_factory=list)
-    path_broken_at: Optional[str] = None
+    path_broken_at: str | None = None
     impact: str = ""
     notes: str = ""
     evidence_request_ids: list[str] = field(default_factory=list)
@@ -664,7 +664,7 @@ class VerifiedFindingFormat:
         finding: VerifiedFinding,
         *,
         preview: bool = False,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         if self._format == "json":
             return _verification_to_dict(finding, preview=preview)
         if self._format == "yaml":
@@ -678,7 +678,7 @@ class VerifiedFindingFormat:
         findings: list[VerifiedFinding],
         *,
         preview: bool = False,
-    ) -> Union[str, list[Any]]:
+    ) -> str | list[Any]:
         if self._format == "json":
             return [_verification_to_dict(f, preview=preview) for f in findings]
         if self._format == "yaml":
@@ -768,7 +768,7 @@ class VerifiedFindingsTools:
 
     async def get_finding(
         self, name: str, ctx: ToolContext | CallbackContext
-    ) -> Optional[VerifiedFinding]:
+    ) -> VerifiedFinding | None:
         await self.load(ctx)
         return self.findings.get(name)
 
@@ -783,11 +783,11 @@ class VerifiedFindingsTools:
         sink_reached: bool,
         entry_point: str,
         data_flow: list[str],
-        path_broken_at: Optional[str],
+        path_broken_at: str | None,
         impact: str,
         notes: str,
         ctx: ToolContext | CallbackContext,
-        evidence_request_ids: Optional[list[str]] = None,
+        evidence_request_ids: list[str] | None = None,
     ) -> VerifiedFinding:
         await self.load(ctx)
         finding = VerifiedFinding(
@@ -811,7 +811,7 @@ class VerifiedFindingsTools:
 
 def verification_tools(
     name: str,
-    fmt: Optional[VerifiedFindingFormat] = None,
+    fmt: VerifiedFindingFormat | None = None,
 ) -> list[Any]:
     """Tools the verifier uses to persist its verdict for a finding.
 
@@ -838,8 +838,8 @@ def verification_tools(
         impact: str,
         notes: str,
         tool_context: ToolContext,
-        path_broken_at: Optional[str] = None,
-        request_ids: Optional[list[str]] = None,
+        path_broken_at: str | None = None,
+        request_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Persist a verifier verdict for a single upstream finding.
 
@@ -934,7 +934,7 @@ def verification_tools(
         tool_context: ToolContext,
         sink_reached: bool = True,
         attacker_control: AttackerControl = "full",
-        request_ids: Optional[list[str]] = None,
+        request_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Simplified verdict submission — use this instead of report_verification.
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, Optional
+from collections.abc import Callable
+from typing import Any, Literal
 
 import fsspec
 from google.adk.tools.tool_context import ToolContext
@@ -9,12 +10,19 @@ from contractor.tools.fs.const import PATH_IS_NOT_A_FILE_ERROR
 from contractor.tools.fs.format import FileFormat
 from contractor.tools.fs.models import InteractionFilter
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
-from contractor.tools.fs.read_tools import (FsspecInteractionFileTools,
-                                            ToolResult, _build_ignore_patterns,
-                                            _push_fs_coverage)
-from contractor.tools.fs.utils import (_ensure_int_or_none,
-                                       _line_ending_for_text, _is_ignored,
-                                       _parse_bool, _split_lines_keepends)
+from contractor.tools.fs.read_tools import (
+    FsspecInteractionFileTools,
+    ToolResult,
+    _build_ignore_patterns,
+    _push_fs_coverage,
+)
+from contractor.tools.fs.utils import (
+    _ensure_int_or_none,
+    _is_ignored,
+    _line_ending_for_text,
+    _parse_bool,
+    _split_lines_keepends,
+)
 from contractor.tools.fs.validation import PathValidationMixin
 from contractor.tools.result import guard
 
@@ -24,9 +32,9 @@ class FsspecWriteTools(PathValidationMixin):
         self,
         fs: fsspec.AbstractFileSystem,
         *,
-        ignored_patterns: Optional[list[str]] = None,
+        ignored_patterns: list[str] | None = None,
         wrap_overlay: bool = True,
-        fmt: Optional[FileFormat] = None,
+        fmt: FileFormat | None = None,
         max_output: int = 80_000,
         max_items: int = 100,
         with_types: bool = True,
@@ -64,7 +72,7 @@ class FsspecWriteTools(PathValidationMixin):
 
     def _normalize_edit_strings(
         self,
-        current_content: Optional[str],
+        current_content: str | None,
         old_string: str,
         new_string: str,
     ) -> tuple[str, str]:
@@ -92,7 +100,7 @@ class FsspecWriteTools(PathValidationMixin):
     def _is_ignored(self, path: str) -> bool:
         return _is_ignored(path, self.patterns)
 
-    def _ensure_interactions_enabled(self) -> Optional[ToolResult]:
+    def _ensure_interactions_enabled(self) -> ToolResult | None:
         if not self.with_interaction_tools:
             return {
                 "error": (
@@ -111,7 +119,7 @@ class FsspecWriteTools(PathValidationMixin):
     def glob(
         self,
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> ToolResult:
         """Delegate to the underlying reader's glob."""
@@ -120,7 +128,7 @@ class FsspecWriteTools(PathValidationMixin):
     def grep(
         self,
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> ToolResult:
         """Delegate to the underlying reader's grep."""
@@ -129,8 +137,8 @@ class FsspecWriteTools(PathValidationMixin):
     def read_file(
         self,
         file_path: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
         with_line_numbers: bool = False,
     ) -> ToolResult:
         return self._reader.read_file(
@@ -197,7 +205,7 @@ class FsspecWriteTools(PathValidationMixin):
 
     def _commit_write(
         self, path: str, content: str, *, encoding: str = "utf-8"
-    ) -> Optional[ToolResult]:
+    ) -> ToolResult | None:
         """Write file text → None on success or {"error": ...} on failure."""
         try:
             self.fs.write_text(path, value=content, encoding=encoding, errors="strict")
@@ -310,7 +318,7 @@ class FsspecWriteTools(PathValidationMixin):
         pattern: str = "**/*",
         interaction: InteractionFilter = InteractionFilter.ANY,
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         disabled = self._ensure_interactions_enabled()
         if disabled is not None:
@@ -329,7 +337,7 @@ class FsspecWriteTools(PathValidationMixin):
         *,
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         disabled = self._ensure_interactions_enabled()
         if disabled is not None:
@@ -347,7 +355,7 @@ class FsspecWriteTools(PathValidationMixin):
         *,
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         disabled = self._ensure_interactions_enabled()
         if disabled is not None:
@@ -712,9 +720,12 @@ class FsspecWriteTools(PathValidationMixin):
             replacement_lines: list[str] = []
         else:
             replacement_lines = _split_lines_keepends(content)
-            if preserve_trailing_newline and replacement_lines:
-                if not replacement_lines[-1].endswith(("\n", "\r")):
-                    replacement_lines[-1] += newline
+            if (
+                preserve_trailing_newline
+                and replacement_lines
+                and not replacement_lines[-1].endswith(("\n", "\r"))
+            ):
+                replacement_lines[-1] += newline
 
         old_segment = "".join(lines[start_idx:end_idx])
         new_segment = "".join(replacement_lines)
@@ -765,9 +776,9 @@ class FsspecWriteTools(PathValidationMixin):
 def rw_file_tools(
     fs: fsspec.AbstractFileSystem,
     *,
-    ignored_patterns: Optional[list[str]] = None,
+    ignored_patterns: list[str] | None = None,
     wrap_overlay: bool = True,
-    fmt: Optional[FileFormat] = None,
+    fmt: FileFormat | None = None,
     max_output: int = 80_000,
     max_items: int = 300,
     with_types: bool = True,
@@ -800,7 +811,7 @@ def rw_file_tools(
 
     def glob(
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> dict[str, Any]:
         """
@@ -814,8 +825,8 @@ def rw_file_tools(
 
     def read_file(
         file: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
         with_line_numbers: bool = False,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
@@ -864,7 +875,7 @@ def rw_file_tools(
 
     def grep(
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
@@ -1218,7 +1229,7 @@ def rw_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that had at least one recorded interaction.
@@ -1238,7 +1249,7 @@ def rw_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that have not been read and did not match grep().
@@ -1312,7 +1323,7 @@ def rw_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that were matched but never read.
@@ -1335,7 +1346,7 @@ def rw_file_tools(
         """
         return guard(lambda: tools.reset_interactions())
 
-    registry = [
+    registry: list[Callable[..., dict[str, Any]]] = [
         ls,
         glob,
         read_file,

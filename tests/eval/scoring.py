@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Composite eval result
@@ -112,7 +113,7 @@ def oas_endpoint_set(schema: dict[str, Any]) -> set[tuple[str, str]]:
     for path, item in paths.items():
         if not isinstance(item, dict):
             continue
-        for method in item.keys():
+        for method in item:
             m = _norm_method(method)
             if m in methods:
                 out.add((m, _norm_path(path)))
@@ -219,9 +220,9 @@ def _normalise_vuln_path(path: str) -> str:
 @dataclass(frozen=True)
 class VulnMatchResult:
     classification: str  # "TP" | "FP" | "FN" | "TN"
-    ground_truth_id: Optional[str]
-    finding_file: Optional[str] = None
-    finding_cwe: Optional[str] = None
+    ground_truth_id: str | None
+    finding_file: str | None = None
+    finding_cwe: str | None = None
 
 
 @dataclass(frozen=True)
@@ -279,16 +280,16 @@ class VulnScore:
 class AgentFinding:
     """A vulnerability finding reported by the agent."""
     file: str
-    cwe: Optional[str] = None
-    line: Optional[int] = None
-    title: Optional[str] = None
-    severity: Optional[str] = None
+    cwe: str | None = None
+    line: int | None = None
+    title: str | None = None
+    severity: str | None = None
 
 
 def _line_in_range(
-    finding_line: Optional[int],
-    gt_start: Optional[int],
-    gt_end: Optional[int] = None,
+    finding_line: int | None,
+    gt_start: int | None,
+    gt_end: int | None = None,
     tolerance: int = LINE_TOLERANCE,
 ) -> bool:
     if finding_line is None or gt_start is None:

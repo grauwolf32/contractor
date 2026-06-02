@@ -1,6 +1,5 @@
 from .models import PathItem, RequestBody, Response, SecurityScheme
-from .openapi import (OpenApiArtifact, openapi_tools, validate_files,
-                      validate_model)
+from .openapi import OpenApiArtifact, openapi_tools, validate_files, validate_model
 from .ref_resolver import resolve_local_refs, resolve_refs
 from .vacuum import openapi_linter_tools
 

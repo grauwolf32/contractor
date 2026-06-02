@@ -21,18 +21,21 @@ from __future__ import annotations
 
 import re
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 
 import pytest
 from google.adk.models.lite_llm import LiteLlm
 
-from contractor.agents.likec4_builder_agent.agent import \
-    build_likec4_builder_agent
+from contractor.agents.likec4_builder_agent.agent import build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.tools.fs import MemoryOverlayFileSystem
-from contractor.tools.likec4 import (DEFAULT_LIKEC4_PATH, Likec4Error,
-                                     Likec4Linter, Likec4NotFoundError)
+from contractor.tools.likec4 import (
+    DEFAULT_LIKEC4_PATH,
+    Likec4Error,
+    Likec4Linter,
+    Likec4NotFoundError,
+)
 from contractor.utils.prompt import load_prompt_with_version
 from tests.eval.conftest import FIXTURES_ROOT
 from tests.eval.results import CaseResult, metrics_from_task
@@ -90,7 +93,7 @@ async def test_likec4_task(fixture, eval_model: LiteLlm, eval_sink):
     precomputed = _load_precomputed(fixture.slug)
 
     _, prompt_version = load_prompt_with_version("likec4_builder_agent")
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     run_dir = (
         FIXTURES_ROOT / fixture.slug / "runs" / f"{prompt_version}_{ts}"
     )

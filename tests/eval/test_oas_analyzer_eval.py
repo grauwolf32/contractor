@@ -13,7 +13,7 @@ import yaml
 
 from contractor.agents.oas_analyzer.agent import root_agent
 from tests.eval.harness import run_agent
-from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
 from tests.eval.scorers import diff_detail, score_oas_analysis
 
 VULN_STATE_KEY = "oas_analyzer::vulnerabilities"
@@ -54,6 +54,7 @@ async def test_oas_analyzer_finds_expected_classes(fixture, eval_model, eval_sin
         root_agent,
         user_message=_user_message(fixture.expected_oas),
         timeout_s=1500.0,
+        artifact_dir=case_artifact_dir("oas_analyzer", fixture.slug, fixture.slug),
     )
 
     vulnerabilities = run.state.get(VULN_STATE_KEY) or []

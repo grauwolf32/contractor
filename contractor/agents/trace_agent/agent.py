@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-from typing import Final, Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Final, Literal
 
 from fsspec import AbstractFileSystem
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
+from contractor.agents.worker_factory import build_worker
 from contractor.callbacks import default_tool
-from contractor.tools.code import (annotation_tools,
-                                   attach_graph_tools_if_local, code_tools)
+from contractor.tools.code import (
+    annotation_tools,
+    attach_graph_tools_if_local,
+    code_tools,
+)
 from contractor.tools.fs import FileFormat, rw_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
-from contractor.tools.vuln import (VulnerabilityReportFormat,
-                                   vulnerability_report_tools)
+from contractor.tools.vuln import VulnerabilityReportFormat, vulnerability_report_tools
 from contractor.utils import load_prompt
-
-from contractor.agents.worker_factory import build_worker
 
 # Output-format knob threaded into the memory/file/vuln formatters. Exported so
 # callers can cast their (str-typed) template format to it at the boundary.
@@ -61,13 +63,13 @@ def build_trace_agent(
     namespace: str,
     _format: TraceFormat = "json",
     max_tokens: int = 80000,
-    model: Optional[LiteLlm] = None,
+    model: LiteLlm | None = None,
     enable_vuln_reporting: bool = False,
-    elide_tool_results: Optional[Iterable[str]] = None,
+    elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
-    prompt: Optional[str] = None,
+    prompt: str | None = None,
     with_graph_tools: bool = False,
-    graph_tools: Optional[list] = None,
+    graph_tools: list | None = None,
 ) -> LlmAgent:
     instruction = prompt if prompt is not None else TRACE_AGENT_PROMPT
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))

@@ -4,8 +4,9 @@ import asyncio
 import json
 import shutil
 import subprocess
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any
 
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
@@ -153,9 +154,9 @@ class OpenApiLinter:
 
     def replace_range_with_snippet(
         self,
-        issue: Dict[str, Any],
+        issue: dict[str, Any],
         source_text: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Returns a copy of the issue where `range` is replaced with `snippet`.
         All other fields are preserved unchanged.
@@ -201,11 +202,11 @@ class OpenApiLinter:
 
     def process_issues(
         self,
-        issues: list[Dict[str, Any]],
+        issues: list[dict[str, Any]],
         source_text: str,
         include_severities: Iterable[int] = (1, 2),
-        limit: Optional[int] = None,
-    ) -> list[Dict[str, Any]]:
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Filters issues by severity, sorts them in descending severity order,
         limits the result size, and replaces `range` with `snippet`.
@@ -239,8 +240,8 @@ class OpenApiLinter:
         self,
         openapi_str: str,
         include_severities: Iterable[int] = (1, 2),
-        limit: Optional[int] = None,
-    ) -> list[Dict[str, Any]]:
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Runs Vacuum spectral-report on an OpenAPI string via stdin.
 
@@ -266,8 +267,7 @@ class OpenApiLinter:
             process = subprocess.run(
                 ["vacuum", "spectral-report", "-i", "-o"],
                 input=openapi_str.encode("utf-8"),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             )
         except Exception as exc:
             raise VacuumExecutionError(f"failed to run vacuum: {exc}") from exc
@@ -318,8 +318,8 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
 
     async def lint_openapi(
         ctx: ToolContext,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """
         Runs Vacuum spectral-report on the current OpenAPI artifact.
 
@@ -335,7 +335,7 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
             A dict with processed issues under `result`, or an `error` dict.
         """
 
-        async def _impl() -> Dict[str, Any]:
+        async def _impl() -> dict[str, Any]:
             try:
                 openapi_str = await linter.load_artifact(ctx)
                 result = await asyncio.to_thread(

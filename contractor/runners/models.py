@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum, unique
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, Mapping
+from typing import Any, Literal
 
 import yaml
 from google.adk.agents import LlmAgent
@@ -233,7 +234,7 @@ class TaskTemplate:
             template_key, version
         )
 
-        with open(body_path, "r", encoding="utf-8") as f:
+        with open(body_path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
         if "task" not in data:
@@ -273,7 +274,7 @@ def _resolve_task_version(
     if not manifest_path.exists():
         raise ValueError(f"Task template {template_key} not found at {manifest_path}")
 
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = yaml.safe_load(f) or {}
 
     if "active" not in manifest or "versions" not in manifest:
@@ -356,7 +357,7 @@ class RenderedTask:
 
     def _format_artifacts(self) -> str:
         fmt: str = "artifacts from previous tasks, stored as memories:\n"
-        for name in self.artifacts.keys():
+        for name in self.artifacts:
             fmt += f"* {name}\n"
         return fmt
 
@@ -406,7 +407,7 @@ class Checkpoint:
         data = {
             "version": _CHECKPOINT_VERSION,
             "workflow": self.workflow,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
             "tasks": [
                 {
                     "task_id": e.task_id,

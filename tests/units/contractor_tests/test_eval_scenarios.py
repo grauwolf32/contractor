@@ -8,8 +8,12 @@ from __future__ import annotations
 import asyncio
 
 from tests.eval.results import AttemptOutcome
-from tests.eval.scenarios import (run_agent_eval, run_eval, run_pipeline_eval,
-                                   run_task_eval)
+from tests.eval.scenarios import (
+    run_agent_eval,
+    run_eval,
+    run_pipeline_eval,
+    run_task_eval,
+)
 
 
 def test_groups_cases_by_fixture_and_tags_scenario():

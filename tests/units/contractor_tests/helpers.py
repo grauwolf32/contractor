@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 
@@ -10,7 +10,7 @@ class MockCtx:
 
 
 def mk_callback_context(
-    initial_state: Optional[dict[str, Any]] = None, invocation_id: Optional[str] = None
+    initial_state: dict[str, Any] | None = None, invocation_id: str | None = None
 ) -> MockCtx:
     """
     CallbackContext нам нужен только с полем .state (dict).
@@ -22,8 +22,8 @@ def mk_callback_context(
 
 
 def mk_tool_context(
-    initial_state: Optional[dict[str, Any]] = None,
-    invocation_id: Optional[str] = "invocation_id",
+    initial_state: dict[str, Any] | None = None,
+    invocation_id: str | None = "invocation_id",
 ) -> MockCtx:
     ctx = MockCtx()
     ctx.state = initial_state or {"callbacks": {}}
@@ -86,26 +86,26 @@ def mk_llm_response(total, prompt, candidates) -> MockRespose:
 @dataclass
 class MockFunctionResponse:
     response: dict[str, Any] = field(default_factory=dict)
-    name: Optional[str] = None
+    name: str | None = None
 
 
 @dataclass
 class MockFunctionCall:
-    name: Optional[str] = None
-    args: Optional[dict[str, Any]] = None
+    name: str | None = None
+    args: dict[str, Any] | None = None
 
 
 @dataclass
 class MockPart:
-    text: Optional[str] = None
-    function_response: Optional[MockFunctionResponse] = None
-    function_call: Optional[MockFunctionCall] = None
+    text: str | None = None
+    function_response: MockFunctionResponse | None = None
+    function_call: MockFunctionCall | None = None
 
 
 @dataclass
 class MockContent:
     role: str = "user"
-    parts: Optional[list[MockPart]] = None
+    parts: list[MockPart] | None = None
 
 
 @dataclass
@@ -113,13 +113,13 @@ class MockLlmRequest:
     contents: list[Any] = field(default_factory=list)
 
 
-def mk_llm_request(contents: Optional[list[Any]] = None) -> MockLlmRequest:
+def mk_llm_request(contents: list[Any] | None = None) -> MockLlmRequest:
     return MockLlmRequest(contents=list(contents or []))
 
 
 def mk_function_response_part(
-    response: Optional[dict[str, Any]] = None,
-    name: Optional[str] = None,
+    response: dict[str, Any] | None = None,
+    name: str | None = None,
 ) -> MockPart:
     return MockPart(
         function_response=MockFunctionResponse(
@@ -129,8 +129,8 @@ def mk_function_response_part(
 
 
 def mk_function_call_part(
-    name: Optional[str] = None,
-    args: Optional[dict[str, Any]] = None,
+    name: str | None = None,
+    args: dict[str, Any] | None = None,
 ) -> MockPart:
     return MockPart(
         function_call=MockFunctionCall(name=name, args=dict(args or {}))

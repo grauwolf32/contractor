@@ -14,9 +14,10 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import matplotlib
 
@@ -239,7 +240,7 @@ def build_tree(records: list[dict[str, Any]]) -> tuple[dict[str, Node], list[str
     def _sort_key(tid: str) -> list[int]:
         return [int(part) if part.isdigit() else 0 for part in tid.split(".")]
 
-    for tid, node in nodes.items():
+    for tid, _node in nodes.items():
         parent = _parent_id(tid)
         if parent is not None:
             nodes[parent].children.append(tid)

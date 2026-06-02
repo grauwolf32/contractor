@@ -13,7 +13,6 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from fsspec import AbstractFileSystem
 from google.adk.models.lite_llm import LiteLlm
@@ -141,7 +140,7 @@ def _patterns_for(path: str) -> list[re.Pattern[str]]:
 
 def _function_after_marker(
     text: str, marker_match: re.Match[str], patterns: list[re.Pattern[str]]
-) -> Optional[str]:
+) -> str | None:
     end = marker_match.end()
     # Advance to start of next line.
     next_nl = text.find("\n", end)
@@ -225,8 +224,9 @@ async def run_trace_agent(
     namespace: str = "trace-eval",
     enable_vuln_reporting: bool = False,
     timeout_s: float = 900.0,
-    prompt_version: Optional[str] = None,
+    prompt_version: str | None = None,
     with_graph_tools: bool = False,
+    artifact_dir: Path | None = None,
 ) -> TraceAgentRun:
     """Build a trace agent over a fresh overlay of the fixture, run it, and
     return both the raw `AgentRun` and the parsed annotations.
@@ -303,6 +303,7 @@ async def run_trace_agent(
             setup=_setup,
             plugins=[plugin],
             metrics_events=metrics_events,
+            artifact_dir=artifact_dir,
         )
     return TraceAgentRun(
         agent_run=run,

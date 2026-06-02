@@ -19,8 +19,9 @@ import os
 import posixpath
 import re
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Any
 from urllib.parse import quote as url_quote
 
 import aiohttp
@@ -88,17 +89,17 @@ class GitlabFileSystemSettings(BaseSettings):
     )
 
     # -- auth (priority: private_token > oauth_token > job_token) --
-    private_token: Optional[str] = Field(
+    private_token: str | None = Field(
         default=None,
         validation_alias="GITLAB_PRIVATE_TOKEN",
         description="GitLab personal/project access token.",
     )
-    oauth_token: Optional[str] = Field(
+    oauth_token: str | None = Field(
         default=None,
         validation_alias="GITLAB_OAUTH_TOKEN",
         description="GitLab OAuth2 token.",
     )
-    job_token: Optional[str] = Field(
+    job_token: str | None = Field(
         default=None,
         validation_alias="CI_JOB_TOKEN",
         description="CI/CD job token.",
@@ -133,13 +134,13 @@ class GitlabFileSystemSettings(BaseSettings):
         ge=0,
         description="Exponential backoff multiplier: sleep = factor * 2^attempt.",
     )
-    retry_statuses: FrozenSet[int] = Field(
+    retry_statuses: frozenset[int] = Field(
         default=frozenset({429, 500, 502, 503, 504}),
         description="HTTP status codes that trigger a retry.",
     )
 
     # -- ssl (not from env, programmatic only) --
-    ssl: Optional[Any] = Field(default=None, exclude=True)
+    ssl: Any | None = Field(default=None, exclude=True)
 
     # -- validators --
     @field_validator("gitlab_url")
@@ -148,7 +149,7 @@ class GitlabFileSystemSettings(BaseSettings):
         return v.rstrip("/")
 
     @model_validator(mode="after")
-    def _resolve_env_tokens(self) -> "GitlabFileSystemSettings":
+    def _resolve_env_tokens(self) -> GitlabFileSystemSettings:
         if not self.private_token:
             self.private_token = os.environ.get("GITLAB_PRIVATE_TOKEN")
         if not self.oauth_token:
@@ -157,7 +158,7 @@ class GitlabFileSystemSettings(BaseSettings):
             self.job_token = os.environ.get("CI_JOB_TOKEN")
         return self
 
-    def auth_headers(self) -> Dict[str, str]:
+    def auth_headers(self) -> dict[str, str]:
         if self.private_token:
             return {"PRIVATE-TOKEN": self.private_token}
         if self.oauth_token:
@@ -196,7 +197,7 @@ class TreeEntry:
         name: str,
         entry_type: str,
         size: int = 0,
-        data: Optional[bytes] = None,
+        data: bytes | None = None,
     ) -> None:
         self.path = path
         self.name = name
@@ -241,7 +242,7 @@ class GitlabAsyncLoader:
         # retry
         self._max_retries = settings.max_retries
         self._backoff_factor = settings.retry_backoff_factor
-        self._retry_statuses: Set[int] = set(settings.retry_statuses)
+        self._retry_statuses: set[int] = set(settings.retry_statuses)
 
     # -------------------- retry wrapper -------------------- #
 
@@ -251,9 +252,9 @@ class GitlabAsyncLoader:
         method: str,
         url: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> aiohttp.ClientResponse:
-        last_exc: Optional[BaseException] = None
+        last_exc: BaseException | None = None
 
         for attempt in range(self._max_retries + 1):
             try:
@@ -272,14 +273,7 @@ class GitlabAsyncLoader:
                 )
                 resp.release()
 
-            except (
-                aiohttp.ClientResponseError,
-                aiohttp.ServerDisconnectedError,
-                aiohttp.ServerTimeoutError,
-                asyncio.TimeoutError,
-                ConnectionError,
-                OSError,
-            ) as exc:
+            except (TimeoutError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError, aiohttp.ServerTimeoutError, ConnectionError, OSError) as exc:
                 last_exc = exc
 
             if attempt < self._max_retries:
@@ -302,14 +296,14 @@ class GitlabAsyncLoader:
     async def fetch_tree(
         self,
         session: aiohttp.ClientSession,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Public: fetch full recursive tree. Used by both loader and fallback."""
-        entries: List[Dict[str, Any]] = []
+        entries: list[dict[str, Any]] = []
         page = 1
 
         while True:
             url = f"{self.api_base}/repository/tree"
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "ref": self.ref,
                 "recursive": "true",
                 "per_page": self.per_page,
@@ -340,7 +334,7 @@ class GitlabAsyncLoader:
         session: aiohttp.ClientSession,
         semaphore: asyncio.Semaphore,
         file_path: str,
-    ) -> Tuple[str, Optional[bytes], Optional[str]]:
+    ) -> tuple[str, bytes | None, str | None]:
         """Download a single file into memory. Returns (path, data|None, error|None)."""
         encoded = url_quote(file_path, safe="")
         url = f"{self.api_base}/repository/files/{encoded}/raw"
@@ -366,7 +360,7 @@ class GitlabAsyncLoader:
 
             except aiohttp.ClientResponseError as exc:
                 return (file_path, None, f"HTTP {exc.status}: {exc.message}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return (file_path, None, "timeout (all retries exhausted)")
             except Exception as exc:  # noqa: BLE001
                 return (file_path, None, f"{type(exc).__name__}: {exc}")
@@ -377,7 +371,7 @@ class GitlabAsyncLoader:
         self,
         session: aiohttp.ClientSession,
         file_path: str,
-    ) -> Tuple[str, Optional[bytes], Optional[str]]:
+    ) -> tuple[str, bytes | None, str | None]:
         """Download a single file — used by fallback, no semaphore needed."""
         encoded = url_quote(file_path, safe="")
         url = f"{self.api_base}/repository/files/{encoded}/raw"
@@ -389,7 +383,7 @@ class GitlabAsyncLoader:
             return (file_path, data, None)
         except aiohttp.ClientResponseError as exc:
             return (file_path, None, f"HTTP {exc.status}: {exc.message}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return (file_path, None, "timeout")
         except Exception as exc:  # noqa: BLE001
             return (file_path, None, f"{type(exc).__name__}: {exc}")
@@ -401,17 +395,17 @@ class GitlabAsyncLoader:
         session: aiohttp.ClientSession,
         search_query: str,
         per_page: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Use GitLab search API to find blobs matching a query.
         GET /projects/:id/search?scope=blobs&search=<query>&ref=<ref>
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         page = 1
 
         while True:
             url = f"{self.api_base}/search"
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "scope": "blobs",
                 "search": search_query,
                 "ref": self.ref,
@@ -446,9 +440,9 @@ class GitlabAsyncLoader:
 
     async def load_all(
         self,
-        on_tree_ready: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
-        on_state_change: Optional[Callable[[LoadingState], None]] = None,
-    ) -> Tuple[List[TreeEntry], List[str]]:
+        on_tree_ready: Callable[[list[dict[str, Any]]], None] | None = None,
+        on_state_change: Callable[[LoadingState], None] | None = None,
+    ) -> tuple[list[TreeEntry], list[str]]:
         connector = aiohttp.TCPConnector(
             limit=self.max_concurrent,
             enable_cleanup_closed=True,
@@ -473,8 +467,8 @@ class GitlabAsyncLoader:
             if on_state_change:
                 on_state_change(LoadingState.LOADING_FILES)
 
-            tree_entries: List[TreeEntry] = []
-            blob_paths: List[str] = []
+            tree_entries: list[TreeEntry] = []
+            blob_paths: list[str] = []
 
             for item in raw_tree:
                 entry_path: str = item["path"]
@@ -497,8 +491,8 @@ class GitlabAsyncLoader:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # 4. Map results
-            data_map: Dict[str, bytes] = {}
-            errors: List[str] = []
+            data_map: dict[str, bytes] = {}
+            errors: list[str] = []
 
             for result in results:
                 if isinstance(result, BaseException):
@@ -533,17 +527,17 @@ class _BackgroundLoader:
     access to loading state.
     """
 
-    def __init__(self, fs: "GitlabFileSystem") -> None:
+    def __init__(self, fs: GitlabFileSystem) -> None:
         self._fs = fs
         self._state = LoadingState.NOT_STARTED
         self._lock = threading.Lock()
         self._ready_event = threading.Event()
         self._tree_ready_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._errors: List[str] = []
+        self._thread: threading.Thread | None = None
+        self._errors: list[str] = []
 
         # Raw tree data available once tree is fetched (before files are loaded)
-        self._raw_tree: Optional[List[Dict[str, Any]]] = None
+        self._raw_tree: list[dict[str, Any]] | None = None
 
     @property
     def state(self) -> LoadingState:
@@ -564,18 +558,18 @@ class _BackgroundLoader:
         return self._tree_ready_event.is_set()
 
     @property
-    def raw_tree(self) -> Optional[List[Dict[str, Any]]]:
+    def raw_tree(self) -> list[dict[str, Any]] | None:
         return self._raw_tree
 
-    def wait_ready(self, timeout: Optional[float] = None) -> bool:
+    def wait_ready(self, timeout: float | None = None) -> bool:
         """Block until loading is complete. Returns True if ready."""
         return self._ready_event.wait(timeout=timeout)
 
-    def wait_tree(self, timeout: Optional[float] = None) -> bool:
+    def wait_tree(self, timeout: float | None = None) -> bool:
         """Block until tree listing is available."""
         return self._tree_ready_event.wait(timeout=timeout)
 
-    def _on_tree_ready(self, raw_tree: List[Dict[str, Any]]) -> None:
+    def _on_tree_ready(self, raw_tree: list[dict[str, Any]]) -> None:
         """Callback from loader when tree is fetched."""
         self._raw_tree = raw_tree
 
@@ -658,16 +652,16 @@ class _GitlabApiFallback:
     when in-memory cache is not yet available.
     """
 
-    def __init__(self, fs: "GitlabFileSystem") -> None:
+    def __init__(self, fs: GitlabFileSystem) -> None:
         self._fs = fs
 
-    def _make_session_and_loader(self) -> Tuple[GitlabAsyncLoader, Dict[str, Any]]:
+    def _make_session_and_loader(self) -> tuple[GitlabAsyncLoader, dict[str, Any]]:
         loader = self._fs._make_loader()
         return loader, {}
 
     # ---- glob via tree API ---- #
 
-    def glob_via_api(self, pattern: str) -> List[str]:
+    def glob_via_api(self, pattern: str) -> list[str]:
         """
         Fetch the tree from GitLab API and apply fnmatch pattern.
         If tree is already available from background loader, use that.
@@ -682,16 +676,16 @@ class _GitlabApiFallback:
         raw_tree = self._fetch_tree_sync()
         return self._match_tree(raw_tree, pattern)
 
-    def _match_tree(self, raw_tree: List[Dict[str, Any]], pattern: str) -> List[str]:
+    def _match_tree(self, raw_tree: list[dict[str, Any]], pattern: str) -> list[str]:
         norm_pattern = _normalize_path(pattern)
-        matches: List[str] = []
+        matches: list[str] = []
         for item in raw_tree:
             entry_path = item["path"]
             if fnmatch.fnmatch(entry_path, norm_pattern):
                 matches.append("/" + entry_path)
         return sorted(set(matches))
 
-    def _fetch_tree_sync(self) -> List[Dict[str, Any]]:
+    def _fetch_tree_sync(self) -> list[dict[str, Any]]:
         loader = self._fs._make_loader()
 
         async def _fetch():
@@ -710,10 +704,10 @@ class _GitlabApiFallback:
     def grep_via_api(
         self,
         pattern: str,
-        path_pattern: Optional[str] = None,
+        path_pattern: str | None = None,
         fixed_string: bool = False,
-        max_count: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        max_count: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Search for pattern in files using GitLab search API.
 
@@ -738,14 +732,14 @@ class _GitlabApiFallback:
 
     def _process_search_results(
         self,
-        raw_results: List[Dict[str, Any]],
+        raw_results: list[dict[str, Any]],
         pattern: str,
-        path_pattern: Optional[str],
+        path_pattern: str | None,
         fixed_string: bool,
-        max_count: Optional[int],
-    ) -> List[Dict[str, Any]]:
+        max_count: int | None,
+    ) -> list[dict[str, Any]]:
         """Process GitLab search API results into a standardized format."""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         if fixed_string:
 
@@ -875,7 +869,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
     def __init__(
         self,
         project_id: str,
-        settings: Optional[GitlabFileSystemSettings] = None,
+        settings: GitlabFileSystemSettings | None = None,
         *,
         autoload: bool = True,
         blocking: bool = False,
@@ -890,15 +884,15 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         self.ref = self._settings.ref
 
         # state
-        self._entries: Dict[str, TreeEntry] = {}
-        self._children: Dict[str, List[str]] = {}
-        self._errors: List[str] = []
+        self._entries: dict[str, TreeEntry] = {}
+        self._children: dict[str, list[str]] = {}
+        self._errors: list[str] = []
 
         # tree-only paths (available before file content is loaded)
-        self._tree_paths: Set[str] = set()
+        self._tree_paths: set[str] = set()
 
         # background loader
-        self._bg_loader: Optional[_BackgroundLoader] = None
+        self._bg_loader: _BackgroundLoader | None = None
         self._fallback: _GitlabApiFallback = _GitlabApiFallback(self)
 
         if autoload:
@@ -952,7 +946,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
 
     def reload(
         self,
-        settings: Optional[GitlabFileSystemSettings] = None,
+        settings: GitlabFileSystemSettings | None = None,
         blocking: bool = False,
     ) -> None:
         """
@@ -982,7 +976,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         else:
             self._start_background_load()
 
-    def wait_ready(self, timeout: Optional[float] = None) -> bool:
+    def wait_ready(self, timeout: float | None = None) -> bool:
         """
         Block until background loading is complete.
 
@@ -1000,15 +994,15 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             return self.is_ready
         return self._bg_loader.wait_ready(timeout=timeout)
 
-    def _build_tree_index(self, raw_tree: List[Dict[str, Any]]) -> None:
+    def _build_tree_index(self, raw_tree: list[dict[str, Any]]) -> None:
         """
         Build a partial index from tree listing only (no file data).
         Called by background loader when tree is ready but files are still loading.
         Thread-safe: called from loader thread.
         """
-        entries: Dict[str, TreeEntry] = {}
-        children: Dict[str, List[str]] = {}
-        tree_paths: Set[str] = set()
+        entries: dict[str, TreeEntry] = {}
+        children: dict[str, list[str]] = {}
+        tree_paths: set[str] = set()
 
         # Root
         root = TreeEntry(path="", name="", entry_type="tree")
@@ -1035,10 +1029,10 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         self._children = children
         self._tree_paths = tree_paths
 
-    def _build_index(self, tree_entries: List[TreeEntry]) -> None:
+    def _build_index(self, tree_entries: list[TreeEntry]) -> None:
         """Build full index with file data."""
-        entries: Dict[str, TreeEntry] = {}
-        children: Dict[str, List[str]] = {}
+        entries: dict[str, TreeEntry] = {}
+        children: dict[str, list[str]] = {}
 
         # Root
         root = TreeEntry(path="", name="", entry_type="tree")
@@ -1064,7 +1058,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
     # ------------------------------------------------------------------ #
 
     @property
-    def load_errors(self) -> List[str]:
+    def load_errors(self) -> list[str]:
         if self._bg_loader and self._bg_loader._errors:
             return list(self._bg_loader._errors)
         return list(self._errors)
@@ -1108,21 +1102,19 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         # If loading and we know the path exists in tree
         if not self.is_ready and norm_path in self._tree_paths:
             logger.debug("Fallback: fetching %s via API (cache not ready)", norm_path)
-            data = self._fallback.read_file_via_api(norm_path)
-            return data
+            return self._fallback.read_file_via_api(norm_path)
 
         # If loading hasn't fetched tree yet, try API directly
         if not self.is_ready and not self._tree_paths:
             logger.debug("Fallback: fetching %s via API (tree not ready)", norm_path)
             try:
-                data = self._fallback.read_file_via_api(norm_path)
-                return data
+                return self._fallback.read_file_via_api(norm_path)
             except FileNotFoundError:
                 raise
             except Exception as exc:
                 raise FileNotFoundError(
                     f"File not available and API fallback failed: {norm_path}: {exc}"
-                )
+                ) from exc
 
         # Entry exists but no data (e.g., skipped during load)
         if entry is not None and entry.is_file and entry.data is None:
@@ -1134,8 +1126,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             logger.debug(
                 "Fallback: fetching %s via API (data not yet loaded)", norm_path
             )
-            data = self._fallback.read_file_via_api(norm_path)
-            return data
+            return self._fallback.read_file_via_api(norm_path)
 
         raise FileNotFoundError(f"File not found: {norm_path}")
 
@@ -1148,21 +1139,19 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             return [self._strip_protocol(p) for p in path]  # type: ignore[return-value]
         return _normalize_path(str(path))
 
-    def invalidate_cache(self, path: Optional[str] = None) -> None:
+    def invalidate_cache(self, path: str | None = None) -> None:
         pass  # in-memory — nothing to invalidate
 
     # ---------- info ----------
 
-    def info(self, path: str, **kwargs: Any) -> Dict[str, Any]:
+    def info(self, path: str, **kwargs: Any) -> dict[str, Any]:
         norm = _normalize_path(path)
         entry = self._entries.get(norm)
-        if entry is None:
-            # If still loading, check via API
-            if not self.is_ready:
-                # Wait for tree at least
-                if self._bg_loader:
-                    self._bg_loader.wait_tree(timeout=30)
-                entry = self._entries.get(norm)
+        if entry is None and not self.is_ready:
+            # Still loading — wait for the tree, then re-check via API.
+            if self._bg_loader:
+                self._bg_loader.wait_tree(timeout=30)
+            entry = self._entries.get(norm)
 
         if entry is None:
             raise FileNotFoundError(f"Path not found: {path}")
@@ -1179,9 +1168,8 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         norm = _normalize_path(path)
 
         # Wait for tree if loading
-        if norm not in self._entries and not self.is_ready:
-            if self._bg_loader:
-                self._bg_loader.wait_tree(timeout=30)
+        if norm not in self._entries and not self.is_ready and self._bg_loader:
+            self._bg_loader.wait_tree(timeout=30)
 
         entry = self._entries.get(norm)
         if entry is None:
@@ -1264,8 +1252,8 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             visited.add(current)
 
             children = self._children.get(current, [])
-            dir_names: List[str] = []
-            file_names: List[str] = []
+            dir_names: list[str] = []
+            file_names: list[str] = []
 
             for child_path in sorted(children):
                 child = self._entries.get(child_path)
@@ -1282,7 +1270,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
 
     # ---------- glob (with fallback) ----------
 
-    def glob(self, path: str, **kwargs: Any) -> List[str]:
+    def glob(self, path: str, **kwargs: Any) -> list[str]:
         pattern = _normalize_path(path)
         if not pattern:
             return []
@@ -1299,8 +1287,8 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         logger.info("glob() falling back to GitLab API (cache not ready)")
         return self._fallback.glob_via_api(pattern)
 
-    def _glob_in_memory(self, pattern: str) -> List[str]:
-        matches: List[str] = []
+    def _glob_in_memory(self, pattern: str) -> list[str]:
+        matches: list[str] = []
         for entry_path in self._entries:
             if not entry_path:
                 continue
@@ -1316,8 +1304,8 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         path: str = "**/*",
         *,
         fixed_string: bool = False,
-        max_count: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        max_count: int | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Search file contents for a pattern.
 
@@ -1356,11 +1344,11 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         pattern: str,
         path_glob: str,
         fixed_string: bool,
-        max_count: Optional[int],
-    ) -> List[Dict[str, Any]]:
+        max_count: int | None,
+    ) -> list[dict[str, Any]]:
         """Search in-memory file contents."""
         norm_glob = _normalize_path(path_glob)
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         if fixed_string:
 
@@ -1392,7 +1380,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             for line_no, line in enumerate(text.split("\n"), start=1):
                 line_stripped = line.rstrip("\r")
                 if matcher(line_stripped):
-                    match_obj: Dict[str, Any] = {
+                    match_obj: dict[str, Any] = {
                         "path": "/" + entry_path,
                         "line_number": line_no,
                         "line": line_stripped,
@@ -1456,17 +1444,16 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
 
         if "b" in mode:
             return io.BytesIO(entry.data)  # type: ignore[arg-type]
-        else:
-            encoding = kwargs.get("encoding", "utf-8")
-            errors = kwargs.get("errors", "strict")
-            text = entry.data.decode(encoding, errors=errors)  # type: ignore[union-attr]
-            return io.StringIO(text)
+        encoding = kwargs.get("encoding", "utf-8")
+        errors = kwargs.get("errors", "strict")
+        text = entry.data.decode(encoding, errors=errors)  # type: ignore[union-attr]
+        return io.StringIO(text)
 
     def cat_file(
         self,
         path: str,
-        start: Optional[int] = None,
-        end: Optional[int] = None,
+        start: int | None = None,
+        end: int | None = None,
         **kwargs: Any,
     ) -> bytes:
         entry = self._get_file_entry(path)

@@ -33,7 +33,7 @@ import shutil
 import sys
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -71,7 +71,7 @@ def _pin_manifest_active(manifest_path: Path, version: str):
         manifest_path.write_text(original, encoding="utf-8")
 
 
-def _pin_versions(versions: dict[str, Optional[str]]):
+def _pin_versions(versions: dict[str, str | None]):
     """Stack manifest pins for a whole {name: version} dict.
 
     ``name`` is either ``task:<key>`` (rewrites
@@ -101,10 +101,9 @@ def _pin_versions(versions: dict[str, Optional[str]]):
 
 
 async def _run_project_information(label: str, fixture, model, namespace_suffix: str):
-    from contractor.agents.swe_agent.agent import build_swe_agent
-
-    from tests.eval.task_harness import run_task_pipeline
     from cli.fs import RootedLocalFileSystem
+    from contractor.agents.swe_agent.agent import build_swe_agent
+    from tests.eval.task_harness import run_task_pipeline
 
     fs = RootedLocalFileSystem(str(fixture.source_root))
 
@@ -140,13 +139,11 @@ async def _run_project_information(label: str, fixture, model, namespace_suffix:
 
 
 async def _run_likec4(label: str, fixture, model, namespace_suffix: str):
-    from contractor.agents.likec4_builder_agent.agent import \
-        build_likec4_builder_agent
+    from cli.fs import RootedLocalFileSystem
+    from contractor.agents.likec4_builder_agent.agent import build_likec4_builder_agent
     from contractor.agents.swe_agent.agent import build_swe_agent
     from contractor.tools.fs import MemoryOverlayFileSystem
-
     from tests.eval.task_harness import run_task_pipeline
-    from cli.fs import RootedLocalFileSystem
 
     fs = RootedLocalFileSystem(str(fixture.source_root))
     overlay = MemoryOverlayFileSystem(fs=fs)
@@ -217,7 +214,7 @@ async def _run_side(
     fixture,
     model,
     pipeline: str,
-    pinned: dict[str, Optional[str]],
+    pinned: dict[str, str | None],
 ) -> dict[str, Any]:
     with _pin_versions(pinned):
         runner_fn = _PIPELINES[pipeline]
@@ -302,8 +299,8 @@ def _render(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _parse_pin(arg: list[str] | None) -> dict[str, Optional[str]]:
-    out: dict[str, Optional[str]] = {}
+def _parse_pin(arg: list[str] | None) -> dict[str, str | None]:
+    out: dict[str, str | None] = {}
     for raw in arg or []:
         if "=" not in raw:
             raise SystemExit(f"bad --pin {raw!r}; expected name=version")
@@ -340,15 +337,14 @@ def main() -> int:
         print(f"unknown fixture: {args.fixture}", file=sys.stderr)
         return 2
 
-    if args.pipeline == "likec4":
-        if shutil.which("likec4") is None and not any(
-            shutil.which(r) for r in ("bunx", "pnpx", "npx")
-        ):
-            print(
-                "likec4 CLI not on PATH and no JS runner available; "
-                "the likec4 pipeline will fail mid-run.",
-                file=sys.stderr,
-            )
+    if args.pipeline == "likec4" and shutil.which("likec4") is None and not any(
+        shutil.which(r) for r in ("bunx", "pnpx", "npx")
+    ):
+        print(
+            "likec4 CLI not on PATH and no JS runner available; "
+            "the likec4 pipeline will fail mid-run.",
+            file=sys.stderr,
+        )
 
     from contractor.utils.settings import DEFAULT_MODEL
 

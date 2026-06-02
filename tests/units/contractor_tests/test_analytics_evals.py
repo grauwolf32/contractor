@@ -9,8 +9,7 @@ from __future__ import annotations
 import pytest
 
 from analytics_ui import evals
-from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
-                                write_eval_results)
+from tests.eval.results import CaseResult, EvalRun, FixtureResult, write_eval_results
 
 
 @pytest.fixture

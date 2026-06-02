@@ -29,7 +29,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-_DT_MIN = _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+_DT_MIN = _dt.datetime.min.replace(tzinfo=_dt.UTC)
 
 
 # ── Metadata helpers ────────────────────────────────────────────────────────
@@ -305,12 +305,10 @@ def assemble(observations, *, include_content: bool) -> list[Invocation]:
         if inv is None:
             continue
         if kind == "LLM":
-            if not inv.system_prompt:
-                if sp := _system_prompt(o):
-                    inv.system_prompt = sp
-            if not inv.tools:
-                if tls := _tools_catalog(o):
-                    inv.tools = tls
+            if not inv.system_prompt and (sp := _system_prompt(o)):
+                inv.system_prompt = sp
+            if not inv.tools and (tls := _tools_catalog(o)):
+                inv.tools = tls
             inv.events.append(_llm_event(o, include_content=include_content))
         elif kind == "TOOL":
             inv.events.append(_tool_event(o, include_content=include_content))

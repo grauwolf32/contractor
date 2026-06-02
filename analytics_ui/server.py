@@ -10,14 +10,16 @@ Run it with ``analytics-ui`` (console script) or ``python -m analytics_ui``.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import socket
 import threading
 import webbrowser
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from analytics_ui import comments, evals, reader, registry, tools_introspect
@@ -61,7 +63,7 @@ def _overview() -> dict[str, Any]:
     }
 
 
-def _route_api(parts: list[str]) -> Optional[Any]:
+def _route_api(parts: list[str]) -> Any | None:
     """Resolve an /api/* path (already split + unquoted) to a JSON payload.
 
     Returns ``None`` for an unknown route (→ 404); raises ``KeyError`` via the
@@ -162,7 +164,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     # -- comments --
 
-    def _comment_id_from_path(self) -> Optional[int]:
+    def _comment_id_from_path(self) -> int | None:
         parts = [p for p in urlparse(self.path).path.split("/") if p]
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "comments":
             try:
@@ -181,7 +183,7 @@ class _Handler(BaseHTTPRequestHandler):
             return {}
 
     def _list_comments(self, q: dict[str, list[str]]) -> None:
-        def first(k: str) -> Optional[str]:
+        def first(k: str) -> str | None:
             v = q.get(k)
             return v[0] if v else None
 
@@ -296,7 +298,7 @@ def serve(
     port: int = 8765,
     *,
     open_browser: bool = True,
-    on_ready: Optional[Callable[[str], None]] = None,
+    on_ready: Callable[[str], None] | None = None,
 ) -> ThreadingHTTPServer:
     port = _find_open_port(host, port)
     httpd = ThreadingHTTPServer((host, port), _Handler)
@@ -309,13 +311,11 @@ def serve(
 
 
 def _try_open(url: str) -> None:
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover
         webbrowser.open(url)
-    except Exception:  # pragma: no cover
-        pass
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="analytics-ui",
         description="Browse Contractor agent prompts, tasks, pipelines and skills.",

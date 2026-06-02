@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def _const(node: ast.AST) -> Any:
@@ -43,7 +43,7 @@ def _kwargs(call: ast.Call) -> dict[str, ast.AST]:
     return {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
 
 
-def _agent_from_builder(func: ast.AST) -> Optional[str]:
+def _agent_from_builder(func: ast.AST) -> str | None:
     """`build_swe_agent` / `build_oas_linter_agent` → `swe_agent` / `oas_linter_agent`."""
     name = None
     if isinstance(func, ast.Name):
@@ -55,7 +55,7 @@ def _agent_from_builder(func: ast.AST) -> Optional[str]:
     return None
 
 
-def _resolve_partial(call: ast.Call) -> Optional[str]:
+def _resolve_partial(call: ast.Call) -> str | None:
     """Agent name for a ``partial(build_x_agent, ...)`` call, else None."""
     if not (isinstance(call.func, ast.Name) and call.func.id == "partial"):
         return None
@@ -118,7 +118,7 @@ class _Extractor(ast.NodeVisitor):
         for child in ast.iter_child_nodes(node):
             self.walk(child, in_cond)
 
-    def _resolve_namespace(self, node: Optional[ast.AST]) -> Optional[str]:
+    def _resolve_namespace(self, node: ast.AST | None) -> str | None:
         if node is None:
             return None
         v = _const(node)
@@ -133,7 +133,7 @@ class _Extractor(ast.NodeVisitor):
             return self.class_consts.get(node.attr)
         return None
 
-    def _resolve_agent(self, node: Optional[ast.AST]) -> Optional[str]:
+    def _resolve_agent(self, node: ast.AST | None) -> str | None:
         if node is None:
             return None
         if isinstance(node, ast.Name):
@@ -169,13 +169,17 @@ class _Extractor(ast.NodeVisitor):
             )
             return
         # sub-workflow constructor: SomethingWorkflow(...)
-        if isinstance(func, ast.Name) and func.id.endswith("Workflow"):
-            if func.id != self.class_name and func.id not in self._seen_sub:
-                self._seen_sub.add(func.id)
-                self.sub_workflows.append(func.id)
+        if (
+            isinstance(func, ast.Name)
+            and func.id.endswith("Workflow")
+            and func.id != self.class_name
+            and func.id not in self._seen_sub
+        ):
+            self._seen_sub.add(func.id)
+            self.sub_workflows.append(func.id)
 
 
-def _class_node(tree: ast.AST, class_name: Optional[str]) -> Optional[ast.ClassDef]:
+def _class_node(tree: ast.AST, class_name: str | None) -> ast.ClassDef | None:
     classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
     if class_name:
         for c in classes:
@@ -190,8 +194,8 @@ def _class_node(tree: ast.AST, class_name: Optional[str]) -> Optional[ast.ClassD
 
 def extract_graph(
     module_file: str,
-    class_name: Optional[str] = None,
-    subworkflow_keys: Optional[dict[str, str]] = None,
+    class_name: str | None = None,
+    subworkflow_keys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build a node/edge graph for one workflow module.
 

@@ -5,7 +5,6 @@ import hashlib
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 import click
 import tree_sitter_language_pack as ts_pack
@@ -18,10 +17,13 @@ from cli.fs import RootedLocalFileSystem
 from cli.metrics import MetricsSink
 from cli.render import _render_event
 from cli.ui import LiveRenderer, interactive_prompt, render_artifact_summary
-from cli.utils import (remove_artifacts, save_artifact, validate_folder_name,
-                       validate_project_path)
-from contractor.runners.task_runner import (TaskRunnerEvent,
-                                            TaskRunnerEventHandler)
+from cli.utils import (
+    remove_artifacts,
+    save_artifact,
+    validate_folder_name,
+    validate_project_path,
+)
+from contractor.runners.task_runner import TaskRunnerEvent, TaskRunnerEventHandler
 from contractor.utils import observability
 from contractor.utils.settings import get_settings
 from contractor.workflows import WorkflowContext, get_workflows
@@ -97,8 +99,8 @@ def _setup_logging() -> None:
 
 
 def _read_artifact_file(
-    _ctx: click.Context, _param: click.Parameter, value: Optional[Path]
-) -> Optional[str]:
+    _ctx: click.Context, _param: click.Parameter, value: Path | None
+) -> str | None:
     """Click callback: validate --artifact path and return its UTF-8 contents."""
     if value is None:
         return None
@@ -163,12 +165,12 @@ async def async_main(
     model: str,
     timeout: int,
     workflow: str,
-    artifact: Optional[str],
-    prompt: Optional[str],
+    artifact: str | None,
+    prompt: str | None,
     output_dir: Path,
     rm_artifacts: bool,
     enable_ui: bool,
-    checkpoint_path: Optional[Path] = None,
+    checkpoint_path: Path | None = None,
 ) -> None:
     ts_pack.init({"cache_dir": ts_pack.cache_dir()})
 
@@ -296,9 +298,9 @@ def main(
     workflow: str,
     project_path: Path,
     folder_name: str,
-    artifact: Optional[str],
-    prompt: Optional[str],
-    output: Optional[Path],
+    artifact: str | None,
+    prompt: str | None,
+    output: Path | None,
     user_id: str,
     model: str,
     timeout: int,

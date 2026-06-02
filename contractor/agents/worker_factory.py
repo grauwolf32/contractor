@@ -11,16 +11,21 @@ the LlmAgent construction here.
 
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.context import (FunctionResultsRemovalCallback,
-                                          SummarizationLimitCallback)
-from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
-                                             RepeatedToolCallCallback)
+from contractor.callbacks.context import (
+    FunctionResultsRemovalCallback,
+    SummarizationLimitCallback,
+)
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
 from contractor.tools.tasks import SubtaskFormatter, _prepare_worker_instructions
@@ -50,9 +55,9 @@ def build_worker(
     _format: Literal["json", "xml", "yaml", "markdown"],
     summarization_bullets: str,
     max_tokens: int = 80000,
-    model: Optional[LiteLlm] = None,
+    model: LiteLlm | None = None,
     with_elide: bool = True,
-    elide_tool_results: Optional[Iterable[str]] = None,
+    elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
     repeated_call_threshold: int = 5,
 ) -> LlmAgent:

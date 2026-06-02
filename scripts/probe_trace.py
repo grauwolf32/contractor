@@ -30,7 +30,7 @@ import os
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -52,7 +52,7 @@ async def _run_one(
     label: str,
     project_root: Path,
     user_message: str,
-    prompt_version: Optional[str],
+    prompt_version: str | None,
     with_graph_tools: bool,
     model,
     timeout_s: float,

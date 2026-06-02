@@ -15,9 +15,13 @@ from unittest import mock
 import pytest
 
 from contractor.tools import podman
-from contractor.tools.podman import (DEFAULT_SANDBOX_IMAGE, KaliSandbox,
-                                     code_exec_tools, get_or_create_sandbox,
-                                     teardown_sandbox)
+from contractor.tools.podman import (
+    DEFAULT_SANDBOX_IMAGE,
+    KaliSandbox,
+    code_exec_tools,
+    get_or_create_sandbox,
+    teardown_sandbox,
+)
 
 
 class _FakePodman:
@@ -62,7 +66,7 @@ def test_container_launched_with_isolation_flags(fake_podman):
     sb.ensure_started()
     cmd = _run_cmd(fake_podman)
     assert "--rm" in cmd
-    assert ["--network", "host"] == cmd[cmd.index("--network"):cmd.index("--network") + 2]
+    assert cmd[cmd.index("--network"):cmd.index("--network") + 2] == ["--network", "host"]
     assert "/host/project:/project:ro" in cmd          # project mounted read-only
     assert cmd[cmd.index("--workdir") + 1] == "/work"  # writable scratch
     assert "--memory" in cmd and "--cpus" in cmd and "--pids-limit" in cmd

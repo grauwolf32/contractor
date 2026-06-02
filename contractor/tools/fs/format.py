@@ -1,7 +1,7 @@
 import json
-from dataclasses import asdict, dataclass
 from collections.abc import Sequence
-from typing import Any, Literal, Optional, Union
+from dataclasses import asdict, dataclass
+from typing import Any, Literal
 
 from contractor.tools.fs.models import FileLoc, FsEntry
 from contractor.utils.formatting import xml_escape
@@ -17,7 +17,7 @@ class FileFormat:
     _format: Literal["str", "json", "xml", "yaml", "markdown"] = "json"
     loc: Literal["lines", "bytes"] = "lines"
 
-    def _format_loc(self, loc: FileLoc) -> Union[str, dict[str, Any]]:
+    def _format_loc(self, loc: FileLoc) -> str | dict[str, Any]:
         if self.loc == "bytes":
             payload: dict[str, Any] = {
                 "byte_start": loc.byte_start,
@@ -44,7 +44,7 @@ class FileFormat:
 
         return payload
 
-    def format_fs_entry(self, entry: FsEntry) -> Union[str, dict[str, Any]]:
+    def format_fs_entry(self, entry: FsEntry) -> str | dict[str, Any]:
         kind = "dir" if entry.is_dir else "file"
         payload: dict[str, Any] = {}
 
@@ -89,8 +89,8 @@ class FileFormat:
 
     def format_file_list(
         self,
-        files: Sequence[Optional[FsEntry]],
-    ) -> Union[str, list[dict[str, Any]]]:
+        files: Sequence[FsEntry | None],
+    ) -> str | list[dict[str, Any]]:
         cleaned = [file for file in files if file is not None]
 
         if self._format == "str":
@@ -107,7 +107,7 @@ class FileFormat:
         lines = content.splitlines(True)
         out_parts: list[str] = []
         out_bytes = 0
-        cut_at_line: Optional[int] = None
+        cut_at_line: int | None = None
 
         for index, line in enumerate(lines):
             line_bytes = len(line.encode("utf-8", errors="ignore"))

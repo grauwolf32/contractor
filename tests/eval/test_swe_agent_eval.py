@@ -14,7 +14,7 @@ import pytest
 
 from contractor.agents.swe_agent.agent import build_swe_agent
 from tests.eval.harness import run_agent
-from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
 from tests.eval.scorers import score_swe_run
 
 NAMESPACE = "swe-eval"
@@ -40,6 +40,7 @@ async def test_swe_agent(swe_case, eval_model, eval_sink):
         agent,
         user_message=case["prompt"],
         timeout_s=600.0,
+        artifact_dir=case_artifact_dir("swe_agent", fixture.slug, case["id"]),
     )
 
     result = score_swe_run(run, case)

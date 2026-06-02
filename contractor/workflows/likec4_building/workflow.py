@@ -1,11 +1,10 @@
 import logging
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 from google.genai import types
 
-from contractor.agents.likec4_builder_agent.agent import \
-    build_likec4_builder_agent
+from contractor.agents.likec4_builder_agent.agent import build_likec4_builder_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
@@ -50,7 +49,7 @@ class LikeC4BuildingWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
         runner = TaskRunner(

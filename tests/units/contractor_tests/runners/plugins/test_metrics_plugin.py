@@ -11,8 +11,15 @@ import pytest
 
 from contractor.runners.agio import AgioEventType
 from contractor.runners.plugins.metrics_plugin import (
-    AdkMetricsPlugin, AgentMetrics, ToolMetrics, _args_hash, _CallOutcome,
-    _CallTracker, _safe_int, default_result_error_detector)
+    AdkMetricsPlugin,
+    AgentMetrics,
+    ToolMetrics,
+    _args_hash,
+    _CallOutcome,
+    _CallTracker,
+    _safe_int,
+    default_result_error_detector,
+)
 
 # ─── Pure helpers ──────────────────────────────────────────────────────────────
 

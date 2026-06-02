@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -110,7 +110,7 @@ def list_agents() -> list[AgentSummary]:
     return out
 
 
-def _agent_manifest(name: str) -> Optional[dict[str, Any]]:
+def _agent_manifest(name: str) -> dict[str, Any] | None:
     manifest = AGENTS_DIR / name / "prompt.yml"
     if not manifest.is_file():
         return None
@@ -129,7 +129,7 @@ def _agent_version_text(name: str, version: str) -> str:
     return _read_text(AGENTS_DIR / name / rel)
 
 
-def get_agent(name: str) -> Optional[dict[str, Any]]:
+def get_agent(name: str) -> dict[str, Any] | None:
     data = _agent_manifest(name)
     if data is None:
         return None
@@ -145,7 +145,7 @@ def get_agent(name: str) -> Optional[dict[str, Any]]:
     }
 
 
-def get_agent_version(name: str, version: str) -> Optional[dict[str, Any]]:
+def get_agent_version(name: str, version: str) -> dict[str, Any] | None:
     data = _agent_manifest(name)
     if data is None:
         return None
@@ -179,7 +179,7 @@ class TaskSummary:
     skills: list[str]
 
 
-def _task_manifest(name: str) -> Optional[dict[str, Any]]:
+def _task_manifest(name: str) -> dict[str, Any] | None:
     manifest = TASKS_DIR / f"{name}.yml"
     if not manifest.is_file():
         return None
@@ -222,7 +222,7 @@ def list_tasks() -> list[TaskSummary]:
     return out
 
 
-def get_task(name: str, version: Optional[str] = None) -> Optional[dict[str, Any]]:
+def get_task(name: str, version: str | None = None) -> dict[str, Any] | None:
     data = _task_manifest(name)
     if data is None:
         return None
@@ -278,7 +278,7 @@ def list_skills() -> list[SkillSummary]:
     return out
 
 
-def get_skill(name: str) -> Optional[dict[str, Any]]:
+def get_skill(name: str) -> dict[str, Any] | None:
     d = SKILLS_DIR / name
     if not d.is_dir():
         return None
@@ -299,7 +299,7 @@ def get_skill(name: str) -> Optional[dict[str, Any]]:
     }
 
 
-def get_skill_reference(name: str, ref: str) -> Optional[dict[str, Any]]:
+def get_skill_reference(name: str, ref: str) -> dict[str, Any] | None:
     # ref is a bare stem; reject path-escape attempts.
     if "/" in ref or "\\" in ref or ".." in ref:
         return None

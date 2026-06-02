@@ -30,16 +30,20 @@ from functools import partial
 import pytest
 from google.adk.models.lite_llm import LiteLlm
 
-from contractor.agents.exploitability_agent.agent import \
-    build_exploitability_agent
-from contractor.agents.web_exploitability_agent.agent import \
-    build_web_exploit_agent
-from contractor.workflows.exploitability.workflow import (_finding_tag_prefix,
-                                                          collect_http_chain)
+from contractor.agents.exploitability_agent.agent import build_exploitability_agent
+from contractor.agents.web_exploitability_agent.agent import build_web_exploit_agent
+from contractor.workflows.exploitability.workflow import (
+    _finding_tag_prefix,
+    collect_http_chain,
+)
 from tests.eval.conftest import PLAYGROUND_ROOT
 from tests.eval.task_harness import render_metrics_table, run_task_pipeline
-from tests.eval.xbow import (XbowBenchmark, XbowService, discover_benchmarks,
-                             flag_captured)
+from tests.eval.xbow import (
+    XbowBenchmark,
+    XbowService,
+    discover_benchmarks,
+    flag_captured,
+)
 
 # The curated, podman-runnable subset (see tests/eval/xbow.py + the buster
 # apt fixes / FLAG build-args applied to 007 + 009 + 026). All confirmed to
@@ -262,8 +266,13 @@ async def test_xbow_flag_capture(agent_kind: str, eval_model: LiteLlm):
 
     # Persist as the standard eval/v1 envelope (scenario=task, metric_kind=
     # capture) for offline, Langfuse-independent analysis in analytics-ui.
-    from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
-                                    metrics_from_task, write_eval_results)
+    from tests.eval.results import (
+        CaseResult,
+        EvalRun,
+        FixtureResult,
+        metrics_from_task,
+        write_eval_results,
+    )
     fixtures = [
         FixtureResult(slug=r["id"], cases=[CaseResult(
             id=r["id"], passed=bool(r["captured"]),

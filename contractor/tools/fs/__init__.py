@@ -1,7 +1,12 @@
 from .format import FileFormat
 from .gitlabfs import GitlabFileSystem, GitlabFileSystemSettings
-from .models import (FileInteractionEntry, FileLoc, FsEntry, InteractionFilter,
-                     InteractionKind)
+from .models import (
+                     FileInteractionEntry,
+                     FileLoc,
+                     FsEntry,
+                     InteractionFilter,
+                     InteractionKind,
+)
 from .overlayfs import MemoryOverlayFileSystem
 from .read_tools import FsspecInteractionFileTools, ro_file_tools
 from .write_tools import FsspecWriteTools, rw_file_tools

@@ -18,7 +18,7 @@ from __future__ import annotations
 import ast
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _CONTRACTOR = Path(__file__).resolve().parents[1] / "contractor"
 TOOLS_DIR = _CONTRACTOR / "tools"
@@ -72,7 +72,7 @@ def _kwargs(call: ast.Call) -> dict[str, ast.AST]:
     return {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
 
 
-def _set_from_node(node: ast.AST, file_sets: dict[str, set[str]]) -> Optional[set[str]]:
+def _set_from_node(node: ast.AST, file_sets: dict[str, set[str]]) -> set[str] | None:
     """Resolve a name set used in a filter: a Name (→ file_sets), an inline set,
     or ``frozenset({...})``."""
     if isinstance(node, ast.Name):
@@ -164,9 +164,9 @@ def _builder_exports(fn: ast.AST) -> dict[str, Any]:
     returns = [n for n in _own_stmts(getattr(fn, "body", []))
                if isinstance(n, ast.Return) and n.value is not None]
 
-    members: list[tuple[str, Optional[str]]] = []
-    target_var: Optional[str] = None
-    ret_list: Optional[ast.List] = None
+    members: list[tuple[str, str | None]] = []
+    target_var: str | None = None
+    ret_list: ast.List | None = None
     for r in returns:
         if isinstance(r.value, ast.Name):
             target_var = r.value.id
@@ -174,7 +174,7 @@ def _builder_exports(fn: ast.AST) -> dict[str, Any]:
             ret_list = r.value  # type: ignore[assignment]
 
     if target_var:
-        def visit(stmts: list[ast.stmt], gate: Optional[str]) -> None:
+        def visit(stmts: list[ast.stmt], gate: str | None) -> None:
             for s in stmts:
                 assign_targets = (
                     s.targets if isinstance(s, ast.Assign)
@@ -242,7 +242,7 @@ def _resolve_builder(name: str) -> list[dict[str, Any]]:
 # ───────────────────────── per-agent resolution ─────────────────────────
 
 
-def _find_build_fn(tree: ast.Module, agent_name: str) -> Optional[ast.AST]:
+def _find_build_fn(tree: ast.Module, agent_name: str) -> ast.AST | None:
     candidates = [n for n in tree.body
                   if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("build_")]
     exact = f"build_{agent_name}"
@@ -253,8 +253,8 @@ def _find_build_fn(tree: ast.Module, agent_name: str) -> Optional[ast.AST]:
 
 
 def _value_source(
-    value: ast.AST, gate: Optional[str], varmap: dict[str, dict], file_sets: dict[str, set[str]]
-) -> Optional[dict[str, Any]]:
+    value: ast.AST, gate: str | None, varmap: dict[str, dict], file_sets: dict[str, set[str]]
+) -> dict[str, Any] | None:
     """Describe what a variable holds: a builder call, a gated builder, a
     filtered view of another var, or an alias of one."""
     idx = _builder_index()
@@ -304,7 +304,7 @@ def _resolve_source(src: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def agent_tools(agent_name: str) -> Optional[dict[str, Any]]:
+def agent_tools(agent_name: str) -> dict[str, Any] | None:
     """Resolve the tool surface of one agent, or None if it can't be parsed."""
     path = AGENTS_DIR / agent_name / "agent.py"
     if not path.is_file():
@@ -321,7 +321,7 @@ def agent_tools(agent_name: str) -> Optional[dict[str, Any]]:
     varmap: dict[str, dict] = {}
     assembly: list[dict[str, Any]] = []  # ordered items feeding `tools`
 
-    def walk(stmts: list[ast.stmt], gate: Optional[str]) -> None:
+    def walk(stmts: list[ast.stmt], gate: str | None) -> None:
         for s in stmts:
             if isinstance(s, ast.If):
                 g = _flag_str(s.test)

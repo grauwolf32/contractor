@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, Callable, Final, Literal, Optional
+from collections.abc import Callable
+from typing import Any, Final, Literal
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest, LlmResponse
@@ -36,7 +37,7 @@ REPEATED_TOOL_CALL_DEFAULT_MESSAGE: Final[str] = (
 def _format_llm_response(
     role: Literal["system", "user"],
     message: str,
-    finish_reason: Optional[types.FinishReason] = None,
+    finish_reason: types.FinishReason | None = None,
 ):
     return LlmResponse(
         content=types.Content(
@@ -55,7 +56,7 @@ class ThinkingBudgetGuardrailCallback(BaseCallback):
         self,
         token_budget: int,
         token_budget_key: str = "total",
-        message: Optional[str] = None,
+        message: str | None = None,
     ):
         self.token_budget = token_budget
         self.token_budget_key = token_budget_key
@@ -80,7 +81,7 @@ class ThinkingBudgetGuardrailCallback(BaseCallback):
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> Optional[LlmResponse]:
+    ) -> LlmResponse | None:
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
         )
@@ -94,14 +95,14 @@ class ThinkingBudgetGuardrailCallback(BaseCallback):
             )
 
         self.save_to_state(callback_context)
-        return
+        return None
 
 
 class ToolMaxCallsGuardrailCallback(BaseCallback):
     cb_type: CallbackTypes = CallbackTypes.before_tool_callback
     deps: list[str] = []
 
-    def __init__(self, max_calls: int, tool_name: str, rvalue: Optional[dict]):
+    def __init__(self, max_calls: int, tool_name: str, rvalue: dict | None):
         self.max_calls = max_calls
         self.tool_name = tool_name
         self.rvalue = TOOL_LIMIT_DEFAULT_RVALUE
@@ -124,15 +125,15 @@ class ToolMaxCallsGuardrailCallback(BaseCallback):
 
     def __call__(
         self, tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
-    ) -> Optional[dict]:
+    ) -> dict | None:
         if tool.name != self.tool_name:
-            return
+            return None
         self.call_count += 1
         self.save_to_state(tool_context)
 
         if self.call_count > self.max_calls:
             return self.rvalue
-        return
+        return None
 
 
 class InvalidToolCallGuardrailCallback(BaseCallback):
@@ -173,7 +174,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
         self,
         callback_context: CallbackContext,
         llm_response: LlmResponse,
-    ) -> Optional[LlmResponse]:
+    ) -> LlmResponse | None:
         content = llm_response.content
         if not content or not content.parts:
             return None
@@ -243,7 +244,7 @@ class MandatoryToolCallback(BaseCallback):
     def __init__(
         self,
         tool_names: list[str],
-        message: Optional[str] = None,
+        message: str | None = None,
         max_nudges: int = 2,
     ):
         self.tool_names = set(tool_names)
@@ -265,7 +266,7 @@ class MandatoryToolCallback(BaseCallback):
         self,
         callback_context: CallbackContext,
         llm_response: LlmResponse,
-    ) -> Optional[LlmResponse]:
+    ) -> LlmResponse | None:
         content = llm_response.content
         if not content or not content.parts:
             return None
@@ -320,12 +321,12 @@ class RepeatedToolCallCallback(BaseCallback):
     cb_type: CallbackTypes = CallbackTypes.before_tool_callback
     deps: list[str] = []
 
-    def __init__(self, threshold: int = 5, message: Optional[str] = None):
+    def __init__(self, threshold: int = 5, message: str | None = None):
         if threshold <= 1:
             raise ValueError(f"threshold must be > 1, got {threshold}")
         self.threshold = threshold
         self.message_template = message or REPEATED_TOOL_CALL_DEFAULT_MESSAGE
-        self.last_signature: Optional[str] = None
+        self.last_signature: str | None = None
         self.run_length: int = 0
         self.history: list[dict[str, Any]] = []
 
@@ -347,7 +348,7 @@ class RepeatedToolCallCallback(BaseCallback):
 
     def __call__(
         self, tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
-    ) -> Optional[dict]:
+    ) -> dict | None:
         if not args:
             return None
 

@@ -9,10 +9,9 @@ truth; both classes inherit it.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
-from contractor.tools.fs.const import (PATH_IS_NOT_A_FILE_ERROR,
-                                       PATH_NOT_FOUND_ERROR)
+from contractor.tools.fs.const import PATH_IS_NOT_A_FILE_ERROR, PATH_NOT_FOUND_ERROR
 from contractor.utils.formatting import norm_unicode_strict
 
 ToolResult = dict[str, Any]
@@ -33,7 +32,7 @@ class PathValidationMixin:
         must_exist: bool = False,
         must_be_file: bool = False,
         check_ignored: bool = True,
-    ) -> tuple[str, Optional[ToolResult]]:
+    ) -> tuple[str, ToolResult | None]:
         # On failure the path is "" with an error dict; callers always check the
         # error before using the path, so returning "" (not None) keeps the path
         # typed ``str`` and avoids spurious Optional-narrowing at every call site.

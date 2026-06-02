@@ -39,7 +39,7 @@ def test_callback_name_uses_qualname_for_function():
 def test_callback_name_uses_class_name_for_lambdas():
     f = lambda: None  # noqa: E731
     # Lambdas have a __name__ ("<lambda>") so we get that.
-    assert "<lambda>" == _callback_name(f) or _callback_name(f).endswith("<lambda>")
+    assert _callback_name(f) == "<lambda>" or _callback_name(f).endswith("<lambda>")
 
 
 def test_callback_name_uses_class_for_callable_object():

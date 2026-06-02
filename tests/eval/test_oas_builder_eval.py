@@ -12,7 +12,7 @@ import yaml
 
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from tests.eval.harness import run_agent
-from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
 from tests.eval.scorers import diff_detail, score_oas_schema
 
 NAMESPACE = "openapi-eval"
@@ -45,6 +45,7 @@ async def test_oas_builder_endpoint_coverage(fixture, fixture_fs, eval_model, ev
         agent,
         user_message=_build_user_message(fixture.slug),
         timeout_s=900.0,
+        artifact_dir=case_artifact_dir("oas_builder", fixture.slug, fixture.slug),
     )
 
     schema_text = run.artifacts.get(ARTIFACT_KEY, "")

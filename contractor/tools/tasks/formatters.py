@@ -3,18 +3,19 @@ from __future__ import annotations
 import ast
 import json
 import re
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Optional, TypeVar, Union
+from typing import Any, Literal, TypeVar
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 from pydantic import ValidationError
 
 from contractor.tools.tasks.models import (
+    _MAX_LITERAL_EVAL_LEN,
     Subtask,
     SubtaskExecutionResult,
-    _MAX_LITERAL_EVAL_LEN,
 )
 
 # Passthrough type for _type_hint: non-str payloads return unchanged, a str may
@@ -22,7 +23,7 @@ from contractor.tools.tasks.models import (
 _T = TypeVar("_T")
 
 
-def _stringify_formatted(value: Union[str, dict[str, Any]]) -> str:
+def _stringify_formatted(value: str | dict[str, Any]) -> str:
     if isinstance(value, dict):
         return json.dumps(value, indent=2)
     return value
@@ -56,7 +57,7 @@ class SubtaskFormatter:
         *args: Any,
         type_hint: bool = False,
         **kwargs: Any,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         formatter = formatters.get(self._format, formatters["json"])
         output = formatter(*args, **kwargs)
         return self._type_hint(output, type_hint)
@@ -158,7 +159,7 @@ class SubtaskFormatter:
         self,
         output: _T,
         type_hint: bool = False,
-    ) -> Union[_T, str]:
+    ) -> _T | str:
         if not isinstance(output, str) or not type_hint:
             return output
         return f"```{self._format}\n{output}\n```"
@@ -166,7 +167,7 @@ class SubtaskFormatter:
     # ── Public formatting API ───────────────────────────────────────
     def format_subtask(
         self, subtask: Subtask, type_hint: bool = False, **kwargs: Any
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         formatters: dict[str, Callable[..., Any]] = {
             "json": self._subtask_to_json,
             "markdown": self._subtask_to_markdown,
@@ -177,7 +178,7 @@ class SubtaskFormatter:
 
     def format_subtasks(
         self, subtasks: list[Subtask], type_hint: bool = False
-    ) -> Union[str, list[dict[str, Any]]]:
+    ) -> str | list[dict[str, Any]]:
         if self._format in {"markdown", "yaml"}:
             output = "\n".join(
                 str(self.format_subtask(subtask)) for subtask in subtasks
@@ -196,7 +197,7 @@ class SubtaskFormatter:
         subtask_result: SubtaskExecutionResult,
         type_hint: bool = False,
         **kwargs: Any,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         formatters: dict[str, Callable[..., Any]] = {
             "json": self._subtask_result_to_json,
             "markdown": self._subtask_result_to_markdown,
@@ -209,7 +210,7 @@ class SubtaskFormatter:
         self,
         subtask_results: list[SubtaskExecutionResult],
         type_hint: bool = False,
-    ) -> Union[str, list[dict[str, Any]]]:
+    ) -> str | list[dict[str, Any]]:
         if self._format in {"markdown", "yaml"}:
             output = "\n".join(
                 str(self.format_subtask_result(r)) for r in subtask_results
@@ -225,7 +226,7 @@ class SubtaskFormatter:
 
     def format_task_record(
         self, subtask: Subtask, subtask_result: SubtaskExecutionResult
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         if self._format == "json":
             record_dict: dict[str, Any] = self._subtask_to_json(subtask)
             tr = self._subtask_result_to_json(subtask_result)
@@ -240,12 +241,12 @@ class SubtaskFormatter:
     @staticmethod
     def _validate_result_payload(
         payload: Any,
-    ) -> Optional[SubtaskExecutionResult]:
+    ) -> SubtaskExecutionResult | None:
         with suppress(ValidationError, TypeError):
             return SubtaskExecutionResult.model_validate(payload)
         return None
 
-    def _extract_fenced_blocks(self, text: str) -> list[tuple[Optional[str], str]]:
+    def _extract_fenced_blocks(self, text: str) -> list[tuple[str | None, str]]:
         return [
             (
                 (m.group("lang") or "").strip().lower() or None,
@@ -257,7 +258,7 @@ class SubtaskFormatter:
     @staticmethod
     def _parse_subtask_result_json(
         output: str,
-    ) -> Optional[SubtaskExecutionResult]:
+    ) -> SubtaskExecutionResult | None:
         output = output.strip()
         if not output:
             return None
@@ -279,7 +280,7 @@ class SubtaskFormatter:
     @staticmethod
     def _parse_subtask_result_yaml(
         output: str,
-    ) -> Optional[SubtaskExecutionResult]:
+    ) -> SubtaskExecutionResult | None:
         output = output.strip()
         if not output:
             return None
@@ -298,7 +299,7 @@ class SubtaskFormatter:
     @staticmethod
     def _parse_subtask_result_markdown(
         output: str,
-    ) -> Optional[SubtaskExecutionResult]:
+    ) -> SubtaskExecutionResult | None:
         output = output.strip()
         if not output:
             return None
@@ -312,7 +313,7 @@ class SubtaskFormatter:
         )
         end_re = re.compile(r"(?m)^\s*---\s*$")
 
-        task_id: Optional[str] = None
+        task_id: str | None = None
         header_match = header_re.search(output)
         if header_match:
             task_id = header_match.group("task_id").strip()
@@ -354,7 +355,7 @@ class SubtaskFormatter:
         return None
 
     @staticmethod
-    def _extract_nested_result_xml(text: str) -> Optional[str]:
+    def _extract_nested_result_xml(text: str) -> str | None:
         m = re.search(
             r"(<result\b.*?</result>)",
             text,
@@ -365,7 +366,7 @@ class SubtaskFormatter:
     @staticmethod
     def _parse_subtask_result_xml(
         output: str,
-    ) -> Optional[SubtaskExecutionResult]:
+    ) -> SubtaskExecutionResult | None:
         output = output.strip()
         if not output:
             return None
@@ -417,7 +418,7 @@ class SubtaskFormatter:
     @staticmethod
     def _apply_fallback_task_id(
         result: SubtaskExecutionResult,
-        fallback_task_id: Optional[str],
+        fallback_task_id: str | None,
     ) -> SubtaskExecutionResult:
         if not result.task_id and fallback_task_id:
             return result.model_copy(update={"task_id": fallback_task_id})
@@ -426,13 +427,13 @@ class SubtaskFormatter:
     def parse_subtask_result(
         self,
         output: str,
-        fallback_task_id: Optional[str] = None,
-    ) -> Optional[SubtaskExecutionResult]:
+        fallback_task_id: str | None = None,
+    ) -> SubtaskExecutionResult | None:
         output = self._sanitize_llm_output(output).strip()
         if not output:
             return None
 
-        parsers: dict[str, Callable[[str], Optional[SubtaskExecutionResult]]] = {
+        parsers: dict[str, Callable[[str], SubtaskExecutionResult | None]] = {
             "json": self._parse_subtask_result_json,
             "markdown": self._parse_subtask_result_markdown,
             "yaml": self._parse_subtask_result_yaml,
@@ -464,7 +465,7 @@ class SubtaskFormatter:
 
     def format_subtask_description(
         self, type_hint: bool = False
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         out: dict[str, str] = {}
         for name, finfo in Subtask.model_fields.items():
             desc = (finfo.description or "").strip()
@@ -474,7 +475,7 @@ class SubtaskFormatter:
 
     def format_subtask_result_description(
         self, type_hint: bool = False
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         out: dict[str, str] = {}
         for name, finfo in SubtaskExecutionResult.model_fields.items():
             desc = (finfo.description or "").strip()
@@ -492,9 +493,9 @@ def _is_empty_worker_response(raw: Any) -> bool:
 
 def _parse_worker_output(
     raw: Any,
-    fmt: "SubtaskFormatter",
+    fmt: SubtaskFormatter,
     fallback_task_id: str,
-) -> Optional["SubtaskExecutionResult"]:
+) -> SubtaskExecutionResult | None:
     """Coerce a worker response into a SubtaskExecutionResult, or None.
 
     Accepts an already-typed result, a dict matching the schema, or a string

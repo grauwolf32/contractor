@@ -14,7 +14,7 @@ from __future__ import annotations
 import inspect
 import logging
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 from analytics_ui import graph, reader
 
@@ -33,7 +33,7 @@ def _class_to_key() -> dict[str, str]:
     return {cls.__name__: key for key, cls in _registry().items()}
 
 
-def _module_file(cls: Any) -> Optional[str]:
+def _module_file(cls: Any) -> str | None:
     try:
         return inspect.getsourcefile(cls)
     except (TypeError, OSError):
@@ -56,7 +56,7 @@ def list_workflows() -> list[dict[str, Any]]:
     return out
 
 
-def get_workflow(key: str) -> Optional[dict[str, Any]]:
+def get_workflow(key: str) -> dict[str, Any] | None:
     cls = _registry().get(key)
     if cls is None:
         return None

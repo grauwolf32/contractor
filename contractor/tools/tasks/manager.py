@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Generator, Optional, Union, cast
+from typing import Any, cast
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
@@ -34,19 +35,19 @@ class StreamlineManager:
     fmt: SubtaskFormatter
 
     # ── State key helpers ───────────────────────────────────────────
-    def _state_key(self, ctx: Union[ToolContext, CallbackContext]) -> str:
+    def _state_key(self, ctx: ToolContext | CallbackContext) -> str:
         global_task_id = ctx.state.get(GLOBAL_TASK_ID_KEY, 0)
         invocation_id = ctx.invocation_id
         return f"task::{global_task_id}::{invocation_id}::{self.name}"
 
-    def _subtasks_key(self, ctx: Union[ToolContext, CallbackContext]) -> str:
+    def _subtasks_key(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::tasks"
 
-    def _current_idx_key(self, ctx: Union[ToolContext, CallbackContext]) -> str:
+    def _current_idx_key(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::idx"
 
     @staticmethod
-    def _task_keys(ctx: Union[ToolContext, CallbackContext]) -> TaskScopedKeys:
+    def _task_keys(ctx: ToolContext | CallbackContext) -> TaskScopedKeys:
         global_task_id = ctx.state.get(GLOBAL_TASK_ID_KEY, 0)
         return TaskScopedKeys(global_task_id)
 
@@ -60,7 +61,7 @@ class StreamlineManager:
         return str(max_root + 1)
 
     # ── Subtask persistence ─────────────────────────────────────────
-    def get_subtasks(self, ctx: Union[ToolContext, CallbackContext]) -> list[Subtask]:
+    def get_subtasks(self, ctx: ToolContext | CallbackContext) -> list[Subtask]:
         key = self._subtasks_key(ctx)
         ctx.state.setdefault(key, [])
         return [Subtask(**sub) for sub in ctx.state[key]]
@@ -68,13 +69,13 @@ class StreamlineManager:
     def _save_subtasks(
         self,
         subtasks: list[Subtask],
-        ctx: Union[ToolContext, CallbackContext],
+        ctx: ToolContext | CallbackContext,
     ) -> None:
         ctx.state[self._subtasks_key(ctx)] = [sub.model_dump() for sub in subtasks]
 
     @contextmanager
     def _subtasks_session(
-        self, ctx: Union[ToolContext, CallbackContext]
+        self, ctx: ToolContext | CallbackContext
     ) -> Generator[list[Subtask], None, None]:
         """Load subtasks, yield the mutable list, persist on clean exit.
 
@@ -87,10 +88,10 @@ class StreamlineManager:
         self._save_subtasks(subtasks, ctx)
 
     # ── Index helpers ───────────────────────────────────────────────
-    def _get_idx(self, ctx: Union[ToolContext, CallbackContext]) -> Optional[int]:
+    def _get_idx(self, ctx: ToolContext | CallbackContext) -> int | None:
         return ctx.state.get(self._current_idx_key(ctx))
 
-    def _set_idx(self, ctx: Union[ToolContext, CallbackContext], idx: int) -> None:
+    def _set_idx(self, ctx: ToolContext | CallbackContext, idx: int) -> None:
         ctx.state[self._current_idx_key(ctx)] = idx
 
     # ── Status transition ───────────────────────────────────────────
@@ -103,8 +104,8 @@ class StreamlineManager:
     def add_subtask(
         self,
         subtask_spec: SubtaskSpec,
-        ctx: Union[ToolContext, CallbackContext],
-    ) -> Optional[Subtask]:
+        ctx: ToolContext | CallbackContext,
+    ) -> Subtask | None:
         with self._subtasks_session(ctx) as subtasks:
             if len(subtasks) >= self.max_tasks:
                 logger.warning(
@@ -138,8 +139,8 @@ class StreamlineManager:
         return new
 
     def get_current_subtask(
-        self, ctx: Union[ToolContext, CallbackContext]
-    ) -> Optional[Subtask]:
+        self, ctx: ToolContext | CallbackContext
+    ) -> Subtask | None:
         subtasks = self.get_subtasks(ctx)
         idx = self._get_idx(ctx)
         if idx is None or idx < 0 or idx >= len(subtasks):
@@ -147,7 +148,7 @@ class StreamlineManager:
         return subtasks[idx]
 
     def get_remaining_subtasks(
-        self, ctx: Union[ToolContext, CallbackContext]
+        self, ctx: ToolContext | CallbackContext
     ) -> list[Subtask]:
         """Return the current subtask and any later ones (the actionable plan).
 
@@ -164,7 +165,7 @@ class StreamlineManager:
 
     def get_records(
         self,
-        ctx: Union[ToolContext, CallbackContext],
+        ctx: ToolContext | CallbackContext,
     ) -> list[Any]:
         pool_key = self._task_keys(ctx).pool
         ctx.state.setdefault(pool_key, [])
@@ -172,8 +173,8 @@ class StreamlineManager:
 
     def save_record(
         self,
-        record: Union[str, dict[str, Any]],
-        ctx: Union[ToolContext, CallbackContext],
+        record: str | dict[str, Any],
+        ctx: ToolContext | CallbackContext,
     ) -> None:
         records = self.get_records(ctx)
         records.append(record)
@@ -182,8 +183,8 @@ class StreamlineManager:
     def skip(
         self,
         reason: str,
-        ctx: Union[ToolContext, CallbackContext],
-    ) -> Optional[Subtask]:
+        ctx: ToolContext | CallbackContext,
+    ) -> Subtask | None:
         """Skip the current subtask. Returns the next subtask or None."""
         idx = self._get_idx(ctx)
         if idx is None:
@@ -208,7 +209,7 @@ class StreamlineManager:
                 return None
 
             # Determine the next subtask, if any
-            next_subtask: Optional[Subtask] = None
+            next_subtask: Subtask | None = None
             if idx + 1 < len(subtasks):
                 self._set_idx(ctx, idx + 1)
                 next_subtask = subtasks[idx + 1]
@@ -231,8 +232,8 @@ class StreamlineManager:
     def decompose_current_subtask(
         self,
         new_subtasks: list[SubtaskSpec],
-        ctx: Union[ToolContext, CallbackContext],
-    ) -> Optional[list[Subtask]]:
+        ctx: ToolContext | CallbackContext,
+    ) -> list[Subtask] | None:
         """
         Returns:
             list[Subtask] on success,
@@ -325,8 +326,8 @@ class StreamlineManager:
     def complete_current_subtask(
         self,
         subtask_result: SubtaskExecutionResult,
-        ctx: Union[ToolContext, CallbackContext],
-    ) -> tuple[bool, Optional[str]]:
+        ctx: ToolContext | CallbackContext,
+    ) -> tuple[bool, str | None]:
         """Apply execution result. Returns (success, error_message)."""
         idx = self._get_idx(ctx)
         if idx is None:
@@ -374,8 +375,8 @@ class StreamlineManager:
     def complete_current_subtask_from_runtime_result(
         self,
         runtime_result: dict[str, Any],
-        ctx: Union[ToolContext, CallbackContext],
-    ) -> tuple[bool, Optional[str]]:
+        ctx: ToolContext | CallbackContext,
+    ) -> tuple[bool, str | None]:
         """Apply a runtime-generated result (e.g. malformed)."""
         idx = self._get_idx(ctx)
         if idx is None:
@@ -432,7 +433,7 @@ class StreamlineManager:
         status: str,
         result: str,
         summary: str,
-        ctx: Union[ToolContext, CallbackContext],
+        ctx: ToolContext | CallbackContext,
     ) -> None:
         keys = self._task_keys(ctx)
         ctx.state[keys.result] = result

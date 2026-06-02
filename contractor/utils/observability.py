@@ -10,8 +10,9 @@ unconditionally from production code.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import Any, Iterator, Mapping, Optional, Sequence
+from typing import Any
 
 from contractor.utils.settings import get_settings
 
@@ -38,8 +39,7 @@ def init() -> None:
         return
     try:
         from langfuse import get_client
-        from openinference.instrumentation.google_adk import \
-            GoogleADKInstrumentor
+        from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
         GoogleADKInstrumentor().instrument()
         get_client()
@@ -50,11 +50,11 @@ def init() -> None:
 
 def tag_trace(
     *,
-    name: Optional[str] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    tags: Optional[Sequence[str]] = None,
-    metadata: Optional[Mapping[str, Any]] = None,
+    name: str | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    tags: Sequence[str] | None = None,
+    metadata: Mapping[str, Any] | None = None,
     input: Any = None,
     output: Any = None,
 ) -> None:
@@ -94,10 +94,10 @@ def tag_trace(
 def run_context(
     *,
     name: str,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    tags: Optional[Sequence[str]] = None,
-    metadata: Optional[Mapping[str, Any]] = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    tags: Sequence[str] | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> Iterator[Any]:
     """Open a top-level span and tag the resulting trace.
 

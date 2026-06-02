@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from google.adk.models.lite_llm import LiteLlm
@@ -32,15 +31,15 @@ class Settings(BaseSettings):
     # ── LLM (LiteLLM proxy) ──────────────────────────────────────────────
     default_model_name: str = Field(default="lm-studio-qwen3.6")
     default_model_timeout: int = Field(default=300)
-    litellm_api_base: Optional[str] = Field(default=None)
-    litellm_api_key: Optional[str] = Field(default=None)
+    litellm_api_base: str | None = Field(default=None)
+    litellm_api_key: str | None = Field(default=None)
 
     # ── LLM sampling (None → backend / model default) ────────────────────
     # Applied to every LiteLlm built via `build_model`. Lower temperature
     # tightens structured-output adherence; leave None to keep the model's
     # own defaults.
-    model_temperature: Optional[float] = Field(default=None)
-    model_top_p: Optional[float] = Field(default=None)
+    model_temperature: float | None = Field(default=None)
+    model_top_p: float | None = Field(default=None)
 
     # ── Tool defaults (global baseline; agent code may override) ─────────
     # These are the fallbacks used when a tool/agent factory is called
@@ -63,24 +62,24 @@ class Settings(BaseSettings):
 
     # ── Observability (Langfuse) ─────────────────────────────────────────
     use_langfuse: bool = Field(default=False)
-    langfuse_host: Optional[str] = Field(default=None)
-    langfuse_public_key: Optional[str] = Field(default=None)
-    langfuse_secret_key: Optional[str] = Field(default=None)
+    langfuse_host: str | None = Field(default=None)
+    langfuse_public_key: str | None = Field(default=None)
+    langfuse_secret_key: str | None = Field(default=None)
 
     # ── Caido proxy ─────────────────────────────────────────────────────
-    caido_url: Optional[str] = Field(default=None)
-    caido_auth_token: Optional[str] = Field(default=None)
+    caido_url: str | None = Field(default=None)
+    caido_auth_token: str | None = Field(default=None)
 
     # ── GitLab fs auth ───────────────────────────────────────────────────
-    gitlab_private_token: Optional[str] = Field(default=None)
-    gitlab_oauth_token: Optional[str] = Field(default=None)
-    ci_job_token: Optional[str] = Field(default=None)
+    gitlab_private_token: str | None = Field(default=None)
+    gitlab_oauth_token: str | None = Field(default=None)
+    ci_job_token: str | None = Field(default=None)
 
     # ── Storage paths (override in k8s) ──────────────────────────────────
     # Base dir for artifact stores. None → CLI default (./artifacts). The CLI
     # namespaces a per-project subdir under this base, so multiple projects
     # don't share one store.
-    artifacts_dir: Optional[Path] = Field(default=None, alias="CONTRACTOR_ARTIFACTS_DIR")
+    artifacts_dir: Path | None = Field(default=None, alias="CONTRACTOR_ARTIFACTS_DIR")
 
 
 @lru_cache(maxsize=1)
@@ -89,8 +88,8 @@ def get_settings() -> Settings:
 
 
 def build_model(
-    model_name: Optional[str] = None,
-    timeout: Optional[int] = None,
+    model_name: str | None = None,
+    timeout: int | None = None,
 ) -> LiteLlm:
     """Construct a ``LiteLlm`` applying the configured sampling defaults.
 

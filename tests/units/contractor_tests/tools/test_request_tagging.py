@@ -73,7 +73,7 @@ class TestFindPlaceholderOffsets:
     def test_multibyte_prefix_shifts_byte_offset(self):
         # 'é' is two UTF-8 bytes, so the target's byte offset is one greater
         # than its character index. Pre-fix (char indices) this was wrong.
-        raw = "GET /?q=é&id=42 HTTP/1.1\r\n\r\n".encode("utf-8")
+        raw = "GET /?q=é&id=42 HTTP/1.1\r\n\r\n".encode()
         offsets = _find_placeholder_offsets(raw, "42")
         start, end = offsets[0]
         # The bytes at the reported offsets really are the target.

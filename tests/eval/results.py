@@ -33,10 +33,11 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, Optional
+from typing import Any, Literal
 
 SCHEMA = "eval/v1"
 
@@ -81,7 +82,7 @@ class CaseResult:
     metrics: dict[str, Any] = field(default_factory=dict)   # representative attempt
     detail: dict[str, Any] = field(default_factory=dict)    # representative attempt
     # Per-attempt breakdown, present only when attempts > 1.
-    runs: Optional[list[dict[str, Any]]] = None
+    runs: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -129,9 +130,9 @@ class EvalRun:
     unit: str                          # agent / task-template / workflow name
     pass_at: int
     metric_kind: MetricKind = "generic"
-    model: Optional[str] = None
-    prompt_version: Optional[str] = None
-    timestamp: Optional[str] = None
+    model: str | None = None
+    prompt_version: str | None = None
+    timestamp: str | None = None
     fixtures: list[FixtureResult] = field(default_factory=list)
     # Free-form run-level extras (e.g. agent_variant, axes, notes).
     meta: dict[str, Any] = field(default_factory=dict)
@@ -205,8 +206,7 @@ def _prf(tp: int, fp: int, fn: int) -> dict[str, float]:
 
 def _iter_cases(fixtures: list[dict[str, Any]]):
     for f in fixtures:
-        for c in f.get("cases") or []:
-            yield c
+        yield from f.get("cases") or []
 
 
 def derive_headline(metric_kind: str, fixtures: list[dict[str, Any]]) -> dict[str, Any]:
@@ -345,11 +345,26 @@ def metrics_from_task(metrics: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ───────────────────────── live trace location ─────────────────────────
+
+
+def case_artifact_dir(unit: str, fixture: str, case_id: str) -> Path:
+    """Directory for a case's *live* on-disk artifact trace, co-located with the
+    eval_sink per-case metrics: ``eval_runs/<unit>/cases/<fixture__case>/artifacts``.
+
+    Pass this as ``artifact_dir`` to ``run_agent`` / ``run_task_pipeline`` so the
+    full ADK artifact tree persists during the run (survives a timeout/crash),
+    sitting next to the ``metrics.json`` that :class:`EvalSink` writes afterward.
+    """
+    return (EVAL_ROOT / _safe_name(unit) / "cases"
+            / _safe_name(f"{fixture}__{case_id}") / "artifacts")
+
+
 # ───────────────────────── serialization ─────────────────────────
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def write_eval_results(run: EvalRun, out_dir: Path | str) -> Path:
@@ -398,12 +413,12 @@ class EvalSink:
         metric_kind: MetricKind,
         fixture: str,
         case: CaseResult,
-        model: Optional[str] = None,
-        prompt_version: Optional[str] = None,
+        model: str | None = None,
+        prompt_version: str | None = None,
         pass_at: int = 1,
-        run_name: Optional[str] = None,
-        meta: Optional[dict[str, Any]] = None,
-        artifacts: Optional[dict[str, str]] = None,
+        run_name: str | None = None,
+        meta: dict[str, Any] | None = None,
+        artifacts: dict[str, str] | None = None,
     ) -> None:
         # Key on metric_kind too: detection/diff/verdict cases carry
         # incompatible `detail` shapes, so two record() calls sharing
@@ -423,8 +438,8 @@ class EvalSink:
         self._persist_case(run["run_name"], fixture, case, artifacts)
 
     @staticmethod
-    def _persist_case(run_name: str, fixture: str, case: "CaseResult",
-                      artifacts: Optional[dict[str, str]]) -> None:
+    def _persist_case(run_name: str, fixture: str, case: CaseResult,
+                      artifacts: dict[str, str] | None) -> None:
         base = EVAL_ROOT / run_name / "cases" / _safe_name(f"{fixture}__{case.id}")
         base.mkdir(parents=True, exist_ok=True)
         (base / "metrics.json").write_text(

@@ -19,8 +19,13 @@ from __future__ import annotations
 import argparse
 import json
 
-from tests.eval.results import (EVAL_ROOT, CaseResult, EvalRun, FixtureResult,
-                                write_eval_results)
+from tests.eval.results import (
+    EVAL_ROOT,
+    CaseResult,
+    EvalRun,
+    FixtureResult,
+    write_eval_results,
+)
 
 
 def _metrics(src: dict) -> dict:

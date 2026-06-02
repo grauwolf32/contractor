@@ -34,10 +34,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal, get_args
 
 import yaml
 
 _CONFIG_FILENAME = "config.yaml"
+
+# The shared ``_format`` knob accepted by every ``build_<agent>`` factory.
+OutputFormat = Literal["json", "xml", "yaml", "markdown"]
+_VALID_OUTPUT_FORMATS = frozenset(get_args(OutputFormat))
 
 
 @dataclass(frozen=True)
@@ -69,7 +74,7 @@ class AgentToolConfig:
     agents only).
     """
 
-    output_format: str = "json"
+    output_format: OutputFormat = "json"
     with_graph_tools: bool = False
     with_code_exec: bool = False
 
@@ -106,7 +111,7 @@ class WorkflowConfig:
         return getattr(self.agents, name, AgentToolConfig())
 
     @classmethod
-    def load(cls, anchor: str | Path) -> "WorkflowConfig":
+    def load(cls, anchor: str | Path) -> WorkflowConfig:
         """Load the ``config.yaml`` sibling of ``anchor``.
 
         ``anchor`` is normally a workflow module's ``__file__``; the config is
@@ -128,10 +133,28 @@ class WorkflowConfig:
         raw_agents = data.get("agents") or {}
         tasks = {name: TaskBudget(**spec) for name, spec in raw_tasks.items()}
         agents = {
-            name: AgentToolConfig(**(spec or {}))
+            name: cls._build_agent_config(name, spec or {}, yaml_path)
             for name, spec in raw_agents.items()
         }
         return cls(budgets=raw_budgets, tasks=tasks, agents=agents)
+
+    @staticmethod
+    def _build_agent_config(
+        name: str, spec: dict, yaml_path: Path
+    ) -> AgentToolConfig:
+        """Build an ``AgentToolConfig``, validating the constrained fields.
+
+        ``output_format`` is typed as a ``Literal`` for the factories; a typo in
+        ``config.yaml`` would otherwise silently violate that contract, so reject
+        it loudly at load time rather than fall back to json downstream.
+        """
+        fmt = spec.get("output_format", "json")
+        if fmt not in _VALID_OUTPUT_FORMATS:
+            raise ValueError(
+                f"{yaml_path}: agent '{name}' has invalid output_format "
+                f"{fmt!r}; expected one of {sorted(_VALID_OUTPUT_FORMATS)}"
+            )
+        return AgentToolConfig(**spec)
 
 
 __all__ = ["TaskBudget", "AgentToolConfig", "WorkflowConfig"]

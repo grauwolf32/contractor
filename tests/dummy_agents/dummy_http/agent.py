@@ -11,7 +11,7 @@ from contractor.callbacks.guardrails import (
 )
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.http import http_tools
-from contractor.tools.memory import memory_tools, MemoryFormat
+from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.utils.settings import DEFAULT_MODEL
 
 DUMMY_AGENT_PROMPT: Final[str] = (

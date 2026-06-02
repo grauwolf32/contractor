@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import re
-from typing import Any, Callable, Iterable, Iterator, Optional, TypeAlias
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any, TypeAlias
 
 import fsspec
 from google.adk.tools.tool_context import ToolContext
 
-from contractor.tools.fs.const import (_IGNORE_DEFAULTS, FS_COVERAGE_STATE_KEY,
-                                       INCORRECT_REGEXP_ERROR,
-                                       PATH_NOT_FOUND_ERROR)
+from contractor.tools.fs.const import (
+    _IGNORE_DEFAULTS,
+    FS_COVERAGE_STATE_KEY,
+    INCORRECT_REGEXP_ERROR,
+    PATH_NOT_FOUND_ERROR,
+)
 from contractor.tools.fs.format import FileFormat
-from contractor.tools.fs.models import (FileInteractionEntry, FsEntry,
-                                        InteractionFilter, InteractionKind)
+from contractor.tools.fs.models import (
+    FileInteractionEntry,
+    FsEntry,
+    InteractionFilter,
+    InteractionKind,
+)
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
 from contractor.tools.fs.validation import PathValidationMixin
 from contractor.tools.result import guard, ok_page
@@ -33,13 +42,11 @@ def _push_fs_coverage(
     state = getattr(tool_context, "state", None)
     if state is None:
         return
-    try:
+    with contextlib.suppress(Exception):
         state[FS_COVERAGE_STATE_KEY] = snapshot
-    except Exception:
-        pass
 
 
-def _build_ignore_patterns(ignored_patterns: Optional[list[str]] = None) -> list[str]:
+def _build_ignore_patterns(ignored_patterns: list[str] | None = None) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
     for pattern in _IGNORE_DEFAULTS + (ignored_patterns or []):
@@ -56,9 +63,9 @@ class FsspecInteractionFileTools(PathValidationMixin):
         fmt: FileFormat,
         *,
         root: str = "/",
-        max_output: Optional[int] = None,
-        max_items: Optional[int] = None,
-        ignored_patterns: Optional[list[str]] = None,
+        max_output: int | None = None,
+        max_items: int | None = None,
+        ignored_patterns: list[str] | None = None,
         with_types: bool = True,
         with_file_info: bool = True,
     ) -> None:
@@ -85,7 +92,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         items: list[str],
         *,
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> tuple[list[str], int, int]:
         offset = max(0, offset)
         resolved_limit = self.max_items if limit is None else max(1, limit)
@@ -144,7 +151,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
             if self._match_glob(file_path, path, pattern)
         )
 
-    def _interaction_entry(self, path: str) -> Optional[FileInteractionEntry]:
+    def _interaction_entry(self, path: str) -> FileInteractionEntry | None:
         return self._interactions.get(path)
 
     def _has_any_interaction(self, path: str) -> bool:
@@ -189,7 +196,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         }
 
     def _resolve_root(self, path: str | None = None) -> str:
-        raw = self.root if not path else path
+        raw = path if path else self.root
         raw = normalize_slashes(raw)
 
         if not raw.startswith("/"):
@@ -272,7 +279,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
     def glob(
         self,
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> ToolResult:
         normalized_path = norm_unicode(path) or "/"
@@ -328,8 +335,8 @@ class FsspecInteractionFileTools(PathValidationMixin):
     def read_file(
         self,
         file_path: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
         with_line_numbers: bool = False,
     ) -> ToolResult:
         normalized_file, err = self._validate_path(
@@ -374,7 +381,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
     def grep(
         self,
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> ToolResult:
         normalized_path = norm_unicode(path) or "/"
@@ -491,7 +498,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         pattern: str = "**/*",
         interaction: InteractionFilter = InteractionFilter.ANY,
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         normalized_path = norm_unicode(path) or "/"
         normalized_pattern = norm_unicode(pattern) or "**/*"
@@ -523,7 +530,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         *,
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         return self.files_with_interactions(
             path=path,
@@ -539,7 +546,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         *,
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> ToolResult:
         normalized_path = norm_unicode(path) or "/"
         normalized_pattern = norm_unicode(pattern) or "**/*"
@@ -568,7 +575,7 @@ def ro_file_tools(
     *,
     max_output: int = 80_000,
     max_items: int = 100,
-    ignored_patterns: Optional[list[str]] = None,
+    ignored_patterns: list[str] | None = None,
     with_types: bool = True,
     with_file_info: bool = True,
     with_interaction_tools: bool = True,
@@ -597,7 +604,7 @@ def ro_file_tools(
 
     def glob(
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
     ) -> dict[str, Any]:
         """
@@ -611,8 +618,8 @@ def ro_file_tools(
 
     def read_file(
         file: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
         with_line_numbers: bool = False,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
@@ -643,7 +650,7 @@ def ro_file_tools(
 
     def grep(
         pattern: str,
-        path: Optional[str] = None,
+        path: str | None = None,
         offset: int = 0,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
@@ -679,7 +686,7 @@ def ro_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that had at least one recorded interaction (read or grep
@@ -706,7 +713,7 @@ def ro_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that have not been read and did not match grep() — the
@@ -733,7 +740,7 @@ def ro_file_tools(
         path: str = "/",
         pattern: str = "**/*",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List files that were matched (e.g. via grep) but never read.
@@ -797,7 +804,7 @@ def ro_file_tools(
 
         return guard(_impl)
 
-    registry = [ls, glob, read_file, grep]
+    registry: list[BackendTool] = [ls, glob, read_file, grep]
 
     if with_interaction_tools:
         registry.extend(

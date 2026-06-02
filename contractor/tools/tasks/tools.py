@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Callable, Final, Literal, Optional, Union
+from typing import Any, Final, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool
@@ -18,6 +19,7 @@ from contractor.tools.tasks.formatters import (
 )
 from contractor.tools.tasks.manager import StreamlineManager
 from contractor.tools.tasks.models import (
+    _SUBTASK_DECOMPOSITION_SCHEMA_JSON,
     DO_NOT_FINISH_WITH_NO_TASKS_DONE,
     NO_ACTIVE_SUBTASKS_MSG,
     NO_REMAINING_SUBTASKS_MSG,
@@ -34,7 +36,6 @@ from contractor.tools.tasks.models import (
     SubtaskDecomposition,
     SubtaskExecutionResult,
     SubtaskSpec,
-    _SUBTASK_DECOMPOSITION_SCHEMA_JSON,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,7 +160,7 @@ EXAMPLE — Incomplete subtask:
 """
 
 
-def _get_agent_ref(worker: Union[LlmAgent, AgentTool]) -> LlmAgent:
+def _get_agent_ref(worker: LlmAgent | AgentTool) -> LlmAgent:
     """Extract the underlying LlmAgent from an AgentTool or return as-is."""
     if isinstance(worker, AgentTool):
         inner = worker.agent
@@ -205,7 +206,7 @@ def instrument_worker(
 def task_tools(
     name: str,
     max_tasks: int,
-    worker: Union[LlmAgent, AgentTool],
+    worker: LlmAgent | AgentTool,
     fmt: SubtaskFormatter,
     *,
     use_skip: bool = True,
@@ -229,7 +230,7 @@ def task_tools(
     mgr = StreamlineManager(name, max_tasks, fmt)
 
     # Pre-create summarizer if needed
-    summarizer_tool: Optional[AgentTool] = None
+    summarizer_tool: AgentTool | None = None
     if use_summarization:
         agent_ref = _get_agent_ref(worker)
         summarizer_agent = LlmAgent(
@@ -265,7 +266,7 @@ def task_tools(
         - Review `get_records` to confirm work is not already done
         - Confirm the subtask produces NEW information
         """
-        subtask: Optional[Subtask] = mgr.add_subtask(
+        subtask: Subtask | None = mgr.add_subtask(
             SubtaskSpec(title=title, description=description), tool_context
         )
         if subtask is None:
@@ -280,7 +281,7 @@ def task_tools(
 
         You MUST call this before `execute_current_subtask`.
         """
-        subtask: Optional[Subtask] = mgr.get_current_subtask(tool_context)
+        subtask: Subtask | None = mgr.get_current_subtask(tool_context)
         if subtask is None:
             return {"error": NO_SUBTASKS_EXIST_MSG}
         return {"result": fmt.format_subtask(subtask, type_hint=use_type_hint)}
@@ -388,7 +389,7 @@ def task_tools(
                 )
             }
 
-        insertion: Optional[list[Subtask]] = mgr.decompose_current_subtask(
+        insertion: list[Subtask] | None = mgr.decompose_current_subtask(
             decomposition.subtasks, tool_context
         )
         if insertion is None:
@@ -523,8 +524,8 @@ def task_tools(
         # responses. `n_retries` is the total attempt budget (not extra tries
         # on top of the first call).
         raw: Any = None
-        subtask_result: Optional[SubtaskExecutionResult] = None
-        malformed_reason: Optional[str] = None
+        subtask_result: SubtaskExecutionResult | None = None
+        malformed_reason: str | None = None
 
         for attempt in range(1, n_retries + 1):
             raw = await worker.run_async(args=args, tool_context=tool_context)
@@ -618,7 +619,8 @@ def task_tools(
             return response
 
         # ── Apply validated result ───────────────────────────────────
-        assert subtask_result is not None  # narrows type after the None-branch return above
+        if subtask_result is None:  # narrows type after the None-branch return above
+            raise RuntimeError("subtask_result unexpectedly None after validation")
         success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
         record = fmt.format_task_record(current, subtask_result)

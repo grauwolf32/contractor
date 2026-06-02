@@ -15,9 +15,10 @@ from __future__ import annotations
 import base64
 import io
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -148,7 +149,7 @@ def chart_compare() -> str:
     har = [c[1]["harness"] for c in cols]
     ax.bar(labels, cap, color=C_CAP, label="captured")
     ax.bar(labels, miss, bottom=cap, color=C_MISS, label="engaged miss")
-    ax.bar(labels, har, bottom=[c + m for c, m in zip(cap, miss)],
+    ax.bar(labels, har, bottom=[c + m for c, m in zip(cap, miss, strict=False)],
            color=C_HARNESS, label="timeout / not-completed")
     for i in range(len(cols)):
         ax.text(i, 13.3, f"{cap[i]}", ha="center", color="#e8eaf0", fontsize=11, weight="bold")
@@ -244,7 +245,7 @@ def table_telemetry() -> str:
 
 
 def render() -> str:
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     caveats = "".join(f"<li>{c}</li>" for c in CAVEATS)
     changes = "".join(f"<tr><td class=k>{a}</td><td>{b}</td></tr>" for a, b in CHANGES)
     return f"""<!DOCTYPE html><html><head><meta charset=utf-8>

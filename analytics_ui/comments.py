@@ -15,9 +15,9 @@ sharing rules.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # analytics_ui/comments.py -> parents[1] == repo root
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +28,7 @@ _MAX_BODY = 20_000
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _connect() -> sqlite3.Connection:
@@ -59,7 +59,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def _row(r: sqlite3.Row) -> dict[str, Any]:
-    return {k: r[k] for k in r.keys()}
+    return {k: r[k] for k in r}
 
 
 class CommentError(ValueError):
@@ -82,9 +82,9 @@ def _validate(kind: str, line_start: Any, line_end: Any, body: Any) -> tuple[int
 
 
 def list_comments(
-    kind: Optional[str] = None,
-    target_id: Optional[str] = None,
-    version: Optional[str] = None,
+    kind: str | None = None,
+    target_id: str | None = None,
+    version: str | None = None,
 ) -> list[dict[str, Any]]:
     where, params = [], []
     if kind:
@@ -134,7 +134,7 @@ def add_comment(
     return _row(row)
 
 
-def update_comment(comment_id: int, body: str) -> Optional[dict[str, Any]]:
+def update_comment(comment_id: int, body: str) -> dict[str, Any] | None:
     text = (body or "").strip()
     if not text:
         raise CommentError("comment body is empty")

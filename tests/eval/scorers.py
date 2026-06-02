@@ -11,10 +11,16 @@ from __future__ import annotations
 from typing import Any
 
 from tests.eval.adk_evals import score_tool_trajectory
-from tests.eval.scoring import (EvalCheck, EvalResult, _score_sets,
-                                score_components, score_endpoints,
-                                score_markdown_sections, score_phrases,
-                                score_vulnerabilities)
+from tests.eval.scoring import (
+    EvalCheck,
+    EvalResult,
+    _score_sets,
+    score_components,
+    score_endpoints,
+    score_markdown_sections,
+    score_phrases,
+    score_vulnerabilities,
+)
 
 
 def diff_detail(result: EvalResult) -> dict[str, Any]:

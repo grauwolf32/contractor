@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from contractor.agents.http_agent.agent import build_http_agent
@@ -11,9 +11,12 @@ from contractor.agents.router_agent.agent import build_router_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.agent_runner import AgentRunner
-from contractor.runners.models import (GLOBAL_TASK_ID_KEY,
-                                       TaskRunnerEventHandler, TaskScopedKeys,
-                                       TaskStatus)
+from contractor.runners.models import (
+    GLOBAL_TASK_ID_KEY,
+    TaskRunnerEventHandler,
+    TaskScopedKeys,
+    TaskStatus,
+)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
@@ -41,7 +44,7 @@ class RouterWorkflow(Workflow):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
         prompt = (ctx.prompt or "").strip()
@@ -146,13 +149,13 @@ class RouterWorkflow(Workflow):
         session_id = uuid4().hex
         # Heterogeneous kwargs shared by both plugin constructors; typed Any so
         # the **splat checks against each plugin's individually-typed params.
-        plugin_kwargs: dict[str, Any] = dict(
-            task_name=ROUTER_TASK_NAME,
-            task_id=ROUTER_TASK_ID,
-            iteration=1,
-            session_id=session_id,
-            emit=runner._emit,
-        )
+        plugin_kwargs: dict[str, Any] = {
+            "task_name": ROUTER_TASK_NAME,
+            "task_id": ROUTER_TASK_ID,
+            "iteration": 1,
+            "session_id": session_id,
+            "emit": runner._emit,
+        }
         plugins = [
             AdkTracePlugin(**plugin_kwargs),
             AdkMetricsPlugin(**plugin_kwargs),

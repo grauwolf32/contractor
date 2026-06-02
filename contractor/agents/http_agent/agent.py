@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import Final, Literal, Optional
+from typing import Final, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
+from contractor.agents.worker_factory import build_worker
 from contractor.callbacks import default_tool
 from contractor.tools.http import http_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.utils import load_prompt
-
-from contractor.agents.worker_factory import build_worker
 
 HTTP_PROMPT: Final[str] = load_prompt("http_agent")
 
@@ -24,8 +23,8 @@ def build_http_agent(
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
-    model: Optional[LiteLlm] = None,
-    proxy: Optional[str] = None,
+    model: LiteLlm | None = None,
+    proxy: str | None = None,
 ) -> LlmAgent:
     httptools = http_tools(name=namespace, proxy=proxy)
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))

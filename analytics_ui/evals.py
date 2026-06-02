@@ -15,8 +15,9 @@ rows from the cases.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 EVAL_ROOT = _REPO_ROOT / "eval_runs"
@@ -28,7 +29,7 @@ SCENARIOS = ("agent", "task", "pipeline")
 # ───────────────────────── discovery ─────────────────────────
 
 
-def _safe_load(path: Path) -> Optional[dict[str, Any]]:
+def _safe_load(path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -54,7 +55,7 @@ def _discover() -> list[tuple[str, Path]]:
     return [(_run_id(p), p) for p in sorted(EVAL_ROOT.rglob(_RESULTS_NAME))]
 
 
-def _resolve(run_id: str) -> Optional[Path]:
+def _resolve(run_id: str) -> Path | None:
     for rid, path in _discover():
         if rid == run_id:
             return path
@@ -77,8 +78,7 @@ def _prf(tp: int, fp: int, fn: int) -> dict[str, float]:
 
 def _iter_cases(fixtures: list[dict[str, Any]]) -> Iterable[dict[str, Any]]:
     for f in fixtures:
-        for c in f.get("cases") or []:
-            yield c
+        yield from f.get("cases") or []
 
 
 def _top_tools(tools: dict[str, Any], n: int = 14) -> list[dict[str, Any]]:
@@ -103,7 +103,7 @@ _VERDICTS = ["exploitable", "not_exploitable", "inconclusive"]
 
 
 def _verdict_matrix(fixtures: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
-    matrix = {e: {a: 0 for a in _VERDICTS + ["other"]} for e in _VERDICTS}
+    matrix = {e: dict.fromkeys(_VERDICTS + ["other"], 0) for e in _VERDICTS}
     for c in _iter_cases(fixtures):
         d = c.get("detail") or {}
         exp, act = d.get("expected_verdict"), d.get("actual_verdict")
@@ -116,7 +116,7 @@ def _fixture_rows(metric_kind: str, fixtures: list[dict[str, Any]]) -> list[dict
     rows = []
     for f in fixtures:
         cases = f.get("cases") or []
-        def _sum(key: str) -> float:
+        def _sum(key: str, cases: list = cases) -> float:
             return sum(float((c.get("metrics") or {}).get(key, 0) or 0) for c in cases)
         skill_reads = sum(int(((c.get("metrics") or {}).get("tool_counts") or {}).get("skills_read", 0) or 0)
                           for c in cases)
@@ -236,7 +236,7 @@ def list_eval_runs() -> list[dict[str, Any]]:
     return out
 
 
-def get_eval_run(run_id: str) -> Optional[dict[str, Any]]:
+def get_eval_run(run_id: str) -> dict[str, Any] | None:
     path = _resolve(run_id)
     if path is None:
         return None

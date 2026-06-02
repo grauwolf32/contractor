@@ -6,7 +6,6 @@ import pytest
 
 from contractor.tools.openapi import resolve_local_refs, resolve_refs
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

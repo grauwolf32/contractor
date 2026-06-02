@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from fsspec import AbstractFileSystem
 from tree_sitter import Node, Parser, Tree
@@ -79,7 +80,7 @@ _EXT_TO_LANG: dict[str, Language] = {
 }
 
 
-def detect_language(path: str) -> Optional[Language]:
+def detect_language(path: str) -> Language | None:
     """Detect language from file extension."""
     suffix = PurePosixPath(path).suffix.lower()
     return _EXT_TO_LANG.get(suffix)
@@ -386,8 +387,8 @@ def _iter_all_files(
     fs: AbstractFileSystem,
     root: str,
     *,
-    max_depth: Optional[int] = None,
-    max_files: Optional[int] = None,
+    max_depth: int | None = None,
+    max_files: int | None = None,
 ) -> Iterator[str]:
     """Yield every file path under *root* using ``fs.walk``.
 
@@ -453,7 +454,7 @@ def _iter_all_files(
         )
 
 
-def _read_text_safe(fs: AbstractFileSystem, path: str) -> Optional[str]:
+def _read_text_safe(fs: AbstractFileSystem, path: str) -> str | None:
     """Read a file as UTF-8 text, returning ``None`` on any error."""
     try:
         return fs.read_text(path, encoding="utf-8", errors="ignore")
@@ -475,7 +476,7 @@ def _extract_name_from_field(
     node: Node,
     source: bytes,
     field_name: str,
-) -> Optional[str]:
+) -> str | None:
     if not field_name:
         return None
 
@@ -545,7 +546,7 @@ def _extract_name_from_node(
     node: Node,
     source: bytes,
     preferred_field: str = "",
-) -> Optional[str]:
+) -> str | None:
     """Best-effort extraction of the defined symbol name from a node."""
     preferred = _extract_name_from_field(node, source, preferred_field)
     if preferred:
@@ -703,9 +704,7 @@ def _symbol_matches(extracted: str, query: str) -> bool:
     extracted_parts = extracted.rsplit(".", 1)
     if len(extracted_parts) == 2 and extracted_parts[1] == query:
         return True
-    if extracted.lower() == query.lower():
-        return True
-    return False
+    return extracted.lower() == query.lower()
 
 
 def _walk_for_definitions(
@@ -824,7 +823,7 @@ class CodeTools:
         Always normalises away double slashes and trailing slashes
         (except for bare "/").
         """
-        raw = self.root if not path else path
+        raw = path if path else self.root
         raw = normalize_slashes(raw)
 
         if not raw.startswith("/"):
@@ -849,7 +848,7 @@ class CodeTools:
         symbol: str,
         *,
         path: str = "",
-        language_filter: Optional[Language] = None,
+        language_filter: Language | None = None,
         max_results: int = 50,
         max_grep_results: int = 20,
     ) -> SearchResult:
@@ -930,8 +929,8 @@ class CodeTools:
         self,
         path: str = "",
         *,
-        language_filter: Optional[Language] = None,
-        node_type_filter: Optional[str] = None,
+        language_filter: Language | None = None,
+        node_type_filter: str | None = None,
     ) -> list[SymbolEntry]:
         """Return all symbol definitions under *path*."""
         search_root = self._resolve_root(path)
@@ -977,7 +976,7 @@ class CodeTools:
             self._resolution_cache.pop(k, None)
 
     # ── Internal ──────────────────────────────────────────────────────
-    def _read_file(self, path: str) -> Optional[bytes]:
+    def _read_file(self, path: str) -> bytes | None:
         """Read file content as bytes."""
         text = _read_text_safe(self.fs, path)
         if text is None:
@@ -989,7 +988,7 @@ class CodeTools:
 
     def _parse_file(
         self, path: str, content: bytes, lang: Language
-    ) -> Optional[_ParsedFile]:
+    ) -> _ParsedFile | None:
         normalized_path = self._normalize_cache_path(path)
         chash = self._content_hash(content)
         cached = self._parse_cache.get(normalized_path)
@@ -1050,7 +1049,7 @@ class CodeTools:
 
 
 # ─── Agent tool factory ──────────────────────────────────────────────
-def _parse_language(language: str) -> Optional[Language] | dict[str, Any]:
+def _parse_language(language: str) -> Language | None | dict[str, Any]:
     """Parse language string, returning an error dict on failure."""
     if not language:
         return None
@@ -1108,7 +1107,7 @@ def code_tools(
         language: str = "",
         node_type: str = "",
         offset: int = 0,
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
         List symbol definitions found under a path.

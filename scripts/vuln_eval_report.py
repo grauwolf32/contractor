@@ -14,7 +14,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Chart helpers (matplotlib -> base64 PNG)
 # ---------------------------------------------------------------------------
@@ -52,14 +51,14 @@ def _bar_chart(
         bars = ax.barh(labels, values, color=color)
         ax.set_xlabel(xlabel)
         if value_labels:
-            for bar, v in zip(bars, values):
+            for bar, v in zip(bars, values, strict=False):
                 ax.text(bar.get_width() + max(values) * 0.01, bar.get_y() + bar.get_height() / 2,
                         f"{v:g}", va="center", fontsize=8)
     else:
         bars = ax.bar(labels, values, color=color)
         ax.set_ylabel(ylabel)
         if value_labels:
-            for bar, v in zip(bars, values):
+            for bar, v in zip(bars, values, strict=False):
                 ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
                         f"{v:g}", ha="center", va="bottom", fontsize=8)
     ax.set_title(title, fontsize=11, fontweight="bold")
@@ -132,11 +131,11 @@ def _pie_chart(
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=figsize)
-    nonzero = [(lbl, v) for lbl, v in zip(labels, values) if v > 0]
+    nonzero = [(lbl, v) for lbl, v in zip(labels, values, strict=False) if v > 0]
     if not nonzero:
         ax.text(0.5, 0.5, "No data", ha="center", va="center")
     else:
-        ls, vs = zip(*nonzero)
+        ls, vs = zip(*nonzero, strict=False)
         palette = colors or ["#4CAF50", "#f44336", "#ff9800", "#b0bec5", "#4a90d9", "#9b59b6"]
         ax.pie(vs, labels=ls, autopct="%1.0f%%", colors=palette[:len(vs)], textprops={"fontsize": 8})
     ax.set_title(title, fontsize=11, fontweight="bold")
@@ -211,7 +210,7 @@ def _radar_chart(
     import matplotlib.pyplot as plt
     import numpy as np
 
-    fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=figsize, subplot_kw={"polar": True})
     n = len(labels)
     angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
     angles += angles[:1]
@@ -237,8 +236,8 @@ def _timeline_chart(
     title: str,
     figsize: tuple = (10, 3),
 ) -> str:
-    import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
 
     categories = {
         "read": ({"read_file", "read_lines", "ls", "glob", "grep", "find_files"}, "#4a90d9"),
@@ -294,10 +293,10 @@ def _agg(fixtures: list[dict]) -> dict[str, Any]:
     r = tp / (tp + fn) if (tp + fn) else 0
     f1 = 2 * p * r / (p + r) if (p + r) else 0
     f2 = 5 * p * r / (4 * p + r) if (4 * p + r) else 0
-    return dict(tp=tp, fp=fp, fn=fn, tn=tn, p=p, r=r, f1=f1, f2=f2,
-                tokens=sum(f["total_tokens"] for f in fixtures),
-                tools=sum(f["total_tool_calls"] for f in fixtures),
-                dur=sum(f["duration_s"] for f in fixtures))
+    return {"tp": tp, "fp": fp, "fn": fn, "tn": tn, "p": p, "r": r, "f1": f1, "f2": f2,
+                "tokens": sum(f["total_tokens"] for f in fixtures),
+                "tools": sum(f["total_tool_calls"] for f in fixtures),
+                "dur": sum(f["duration_s"] for f in fixtures)}
 
 
 def _section_executive(data: dict) -> str:
@@ -393,7 +392,7 @@ def _section_fixture_cards(data: dict) -> str:
             found = [per_cwe[c]["found"] for c in cwes]
             cwe_chart = _stacked_bar(
                 cwes, {"Found (TP)": found,
-                       "Missed (FN)": [e - fo for e, fo in zip(expected, found)]},
+                       "Missed (FN)": [e - fo for e, fo in zip(expected, found, strict=False)]},
                 f"CWE Detection — {short}",
                 colors=["#4CAF50", "#f44336"],
             )

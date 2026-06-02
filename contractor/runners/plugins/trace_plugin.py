@@ -1,17 +1,21 @@
 # contractor/runners/trace_plugin.py
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from google.adk.events import Event
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
 from contractor.runners.agio import AgioEventType
-from contractor.runners.plugins.base import (BaseAdkPlugin, PluginContext,
-                                             resolve_tool_args,
-                                             resolve_tool_response,
-                                             snapshot_state)
+from contractor.runners.plugins.base import (
+    BaseAdkPlugin,
+    PluginContext,
+    resolve_tool_args,
+    resolve_tool_response,
+    snapshot_state,
+)
 
 
 class AdkTracePlugin(BaseAdkPlugin):
@@ -60,7 +64,7 @@ class AdkTracePlugin(BaseAdkPlugin):
         tool_args: dict[str, Any] | None = None,
         args: dict[str, Any] | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
             AgioEventType.ADK_TOOL_CALL,
@@ -82,7 +86,7 @@ class AdkTracePlugin(BaseAdkPlugin):
         tool_response: dict[str, Any] | None = None,
         result: dict[str, Any] | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
             AgioEventType.ADK_TOOL_RESULT,
@@ -104,7 +108,7 @@ class AdkTracePlugin(BaseAdkPlugin):
         args: dict[str, Any] | None = None,
         error: Exception | str | None = None,
         **_: Any,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         invocation_id, agent_name = self._identity(tool_context)
         await self._emit(
             AgioEventType.ADK_TOOL_ERROR,
@@ -124,7 +128,7 @@ class AdkTracePlugin(BaseAdkPlugin):
         *,
         invocation_context: Any,
         event: Event,
-    ) -> Optional[Event]:
+    ) -> Event | None:
         invocation_id, _ = self._identity(invocation_context)
         await self._emit(
             AgioEventType.ADK_EVENT,

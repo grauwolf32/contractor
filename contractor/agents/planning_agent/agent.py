@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import re
-from typing import Final, Literal, Optional
+from typing import Final, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
 from contractor.callbacks import default_tool
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
-                                             RepeatedToolCallCallback)
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.tasks import SubtaskFormatter, task_tools
@@ -35,7 +37,7 @@ def build_planning_agent(
     max_steps: int = 15,
     use_output_schema: bool = False,
     worker_instrumentation: bool = True,
-    model: Optional[LiteLlm] = None,
+    model: LiteLlm | None = None,
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
 
@@ -65,7 +67,7 @@ def build_planning_agent(
         "<<MAX_SUBTASKS>>", str(max_steps)
     )
 
-    planning_agent = LlmAgent(
+    return LlmAgent(
         name=agent_name,
         description=f"planner for queued task {name}",
         instruction=instruction,
@@ -74,4 +76,3 @@ def build_planning_agent(
         **callback_adapter(),
     )
 
-    return planning_agent

@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fsspec import AbstractFileSystem
 from google.adk.artifacts import BaseArtifactService
@@ -22,9 +22,9 @@ class WorkflowContext:
     user_id: str
     artifact_service: BaseArtifactService
     fs: AbstractFileSystem
-    artifact: Optional[str] = None
-    prompt: Optional[str] = None
-    checkpoint_path: Optional[Path] = None
+    artifact: str | None = None
+    prompt: str | None = None
+    checkpoint_path: Path | None = None
     # Per-request model timeout (seconds). Mirrors Settings.default_model_timeout;
     # the CLI passes the configured/overridden value, so workflow-built LiteLlm
     # instances honour it instead of silently dropping the timeout.
@@ -52,7 +52,7 @@ class Workflow(ABC):
         self,
         *,
         user_id: str = "cli-user",
-        on_event: Optional[TaskRunnerEventHandler] = None,
+        on_event: TaskRunnerEventHandler | None = None,
     ) -> Any:
         await self._emit(on_event, "workflow_started", phase="initializing")
         ok = False
@@ -77,10 +77,10 @@ class Workflow(ABC):
         self,
         *,
         user_id: str,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
     ) -> Any: ...
 
-    async def _cleanup(self, *, user_id: str) -> None:
+    async def _cleanup(self, *, user_id: str) -> None:  # noqa: B027 — optional override hook, deliberately a concrete no-op (not abstract)
         """Hook for subclasses to persist supplementary state (overlay FS, etc.).
 
         Called in ``run()``'s finally block, before the ``workflow_finished``
@@ -89,7 +89,7 @@ class Workflow(ABC):
 
     async def _emit(
         self,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
         event_type: str,
         **payload: Any,
     ) -> None:
@@ -124,7 +124,7 @@ class Workflow(ABC):
 
     async def emit_task_skipped(
         self,
-        on_event: Optional[TaskRunnerEventHandler],
+        on_event: TaskRunnerEventHandler | None,
         task_name: str,
         *,
         reason: str = "artifact_already_exists",

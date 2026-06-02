@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from cli.fs import RootedLocalFileSystem
 from contractor.tools.fs.models import FsEntry
 from contractor.tools.fs.overlayfs import MemoryOverlayFileSystem
-from cli.fs import RootedLocalFileSystem
 
 
 @pytest.fixture()
@@ -263,9 +263,10 @@ def test_du_counts_overlay_sizes(overlay_fs: MemoryOverlayFileSystem):
 def test_x_mode_fails_when_target_already_exists_in_base(
     overlay_fs: MemoryOverlayFileSystem,
 ):
-    with pytest.raises(FileExistsError):
-        with overlay_fs.open("/src/a.py", "x", encoding="utf-8") as f:
-            f.write("should fail\n")
+    with pytest.raises(FileExistsError), overlay_fs.open(
+        "/src/a.py", "x", encoding="utf-8"
+    ) as f:
+        f.write("should fail\n")
 
 
 def test_removed_base_file_can_be_recreated_in_overlay(

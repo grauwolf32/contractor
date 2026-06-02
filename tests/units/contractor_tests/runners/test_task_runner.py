@@ -5,9 +5,16 @@ import pytest
 from google.adk.artifacts import BaseArtifactService
 
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
-from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
-                                       RenderedTask, TaskInvocation,
-                                       TaskResult, TaskStatus, TaskTemplate)
+from contractor.runners.models import (
+    Checkpoint,
+    CheckpointEntry,
+    EventType,
+    RenderedTask,
+    TaskInvocation,
+    TaskResult,
+    TaskStatus,
+    TaskTemplate,
+)
 from contractor.runners.task_runner import TaskNotCompletedError, TaskRunner
 
 # ─── _extract_final_text ──────────────────────────────────────────────────────

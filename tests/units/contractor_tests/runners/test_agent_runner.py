@@ -35,8 +35,7 @@ def _nonfinal_event():
 
 
 def _agent(name: str = "trace"):
-    a = SimpleNamespace(name=name)
-    return a
+    return SimpleNamespace(name=name)
 
 
 def _patch_runner(monkeypatch, events: list) -> dict:

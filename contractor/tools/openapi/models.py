@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,23 +12,23 @@ class SecurityScheme(BaseModel):
 
     type: Literal["apiKey", "http", "mutualTLS", "oauth2", "openIdConnect"]
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         description="A short description for security scheme.",
         default=None,
     )
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         description="**REQUIRED** for `apiKey`. The name of the header, query or cookie parameter to be used.",
         default=None,
     )
 
-    security_scheme_in: Optional[Literal["query", "header", "cookie"]] = Field(
+    security_scheme_in: Literal["query", "header", "cookie"] | None = Field(
         alias="in",
         description="**REQUIRED** for `apiKey`. The location of the API key.",
         default=None,
     )
 
-    scheme: Optional[str] = Field(
+    scheme: str | None = Field(
         description=(
             "**REQUIRED** for `http` with the value `basic`.\n"
             "The name of the HTTP Authorization scheme to be used in the Authorization header."
@@ -36,17 +36,17 @@ class SecurityScheme(BaseModel):
         default=None,
     )
 
-    bearerFormat: Optional[str] = Field(  # noqa: N815
+    bearerFormat: str | None = Field(  # noqa: N815
         description="A hint to the client to identify how the bearer token is formatted.",
         default=None,
     )
 
-    flows: Optional[dict[str, Any]] = Field(
+    flows: dict[str, Any] | None = Field(
         description="**REQUIRED** for `oauth2`.",
         default=None,
     )
 
-    openIdConnectUrl: Optional[str] = Field(  # noqa: N815
+    openIdConnectUrl: str | None = Field(  # noqa: N815
         description="**REQUIRED** for `openIdConnect`.",
         default=None,
     )
@@ -93,9 +93,9 @@ class Response(BaseModel):
         description="**REQUIRED**. A short description of the response."
     )
 
-    headers: Optional[dict[str, Any]] = Field(default=None)
-    content: Optional[dict[str, Any]] = Field(default=None)
-    links: Optional[dict[str, str]] = Field(default=None)
+    headers: dict[str, Any] | None = Field(default=None)
+    content: dict[str, Any] | None = Field(default=None)
+    links: dict[str, str] | None = Field(default=None)
 
     model_config = ConfigDict(
         extra="allow",
@@ -147,7 +147,7 @@ class Response(BaseModel):
 class RequestBody(BaseModel):
     """Describes a single request body."""
 
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
     content: dict[str, Any]
     required: bool = Field(default=False)
 
@@ -213,17 +213,17 @@ class RequestBody(BaseModel):
 class Operation(BaseModel):
     """Describes a single API operation on a path."""
 
-    tags: Optional[list[str]] = None
-    summary: Optional[str] = None
-    description: Optional[str] = None
-    externalDocs: Optional[dict[str, str]] = None
+    tags: list[str] | None = None
+    summary: str | None = None
+    description: str | None = None
+    externalDocs: dict[str, str] | None = None
     operationId: str
-    parameters: Optional[list[dict[str, Any]]] = None
-    requestBody: Optional[dict[str, Any]] = None
-    responses: Optional[dict[str, Any]] = None
-    callbacks: Optional[dict[str, Any]] = None
+    parameters: list[dict[str, Any]] | None = None
+    requestBody: dict[str, Any] | None = None
+    responses: dict[str, Any] | None = None
+    callbacks: dict[str, Any] | None = None
     deprecated: bool = False
-    security: Optional[list[dict[str, Any]]] = None
+    security: list[dict[str, Any]] | None = None
 
     model_config = ConfigDict(
         extra="allow",
@@ -270,20 +270,20 @@ class PathItem(BaseModel):
     Describes the operations available on a single path.
     """
 
-    ref: Optional[str] = Field(default=None, alias="$ref")
-    summary: Optional[str] = None
-    description: Optional[str] = None
+    ref: str | None = Field(default=None, alias="$ref")
+    summary: str | None = None
+    description: str | None = None
 
-    get: Optional[Operation] = None
-    put: Optional[Operation] = None
-    post: Optional[Operation] = None
-    delete: Optional[Operation] = None
-    options: Optional[Operation] = None
-    head: Optional[Operation] = None
-    patch: Optional[Operation] = None
-    trace: Optional[Operation] = None
+    get: Operation | None = None
+    put: Operation | None = None
+    post: Operation | None = None
+    delete: Operation | None = None
+    options: Operation | None = None
+    head: Operation | None = None
+    patch: Operation | None = None
+    trace: Operation | None = None
 
-    parameters: Optional[list[dict[str, Any]]] = None
+    parameters: list[dict[str, Any]] | None = None
 
     model_config = ConfigDict(
         extra="allow",

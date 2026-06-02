@@ -23,7 +23,8 @@ to the envelope.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["ok", "err", "ok_page", "guard", "aguard", "is_envelope"]
 

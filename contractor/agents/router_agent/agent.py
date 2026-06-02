@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Final, Literal, Optional, Sequence
+from collections.abc import Sequence
+from typing import Final, Literal
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -8,8 +9,10 @@ from google.adk.tools import AgentTool
 
 from contractor.callbacks import default_tool
 from contractor.callbacks.adapter import CallbackAdapter
-from contractor.callbacks.guardrails import (InvalidToolCallGuardrailCallback,
-                                             RepeatedToolCallCallback)
+from contractor.callbacks.guardrails import (
+    InvalidToolCallGuardrailCallback,
+    RepeatedToolCallCallback,
+)
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.utils import load_prompt
@@ -23,7 +26,7 @@ def build_router_agent(
     namespace: str,
     sub_agents: Sequence[LlmAgent],
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
-    model: Optional[LiteLlm] = None,
+    model: LiteLlm | None = None,
 ) -> LlmAgent:
     """Build a routing agent that dispatches subtasks to one of ``sub_agents``.
 

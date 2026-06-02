@@ -52,8 +52,7 @@ class TokenUsageCallback(BaseCallback):
         ctx.state.setdefault(
             TokenUsageCallback.global_counter_key(), asdict(TokenCounter())
         )
-        counter = TokenCounter(**ctx.state[TokenUsageCallback.global_counter_key()])
-        return counter
+        return TokenCounter(**ctx.state[TokenUsageCallback.global_counter_key()])
 
     @staticmethod
     def _update_global_counter(
@@ -91,7 +90,7 @@ class TokenUsageCallback(BaseCallback):
     ) -> None:
         usage = getattr(llm_response, "usage_metadata", None)
         if usage is None:
-            return None
+            return
 
         token_count = TokenCounter(
             input=usage.prompt_token_count or 0,
@@ -112,7 +111,7 @@ class TokenUsageCallback(BaseCallback):
         if invocation_id == self.invocation_id:
             self.counter.add(token_count)
             self.save_to_state(callback_context)
-            return None
+            return
 
         # смена invocation_id -> сохраняем прошлый current и начинаем новый
         if self.invocation_id is not None:
@@ -122,4 +121,4 @@ class TokenUsageCallback(BaseCallback):
         self.counter = token_count
 
         self.save_to_state(callback_context)
-        return None
+        return

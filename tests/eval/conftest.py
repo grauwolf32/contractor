@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 import yaml
@@ -55,7 +55,7 @@ class EvalFixture:
 
     slug: str
     source_root: Path
-    benchmark: Optional[str]
+    benchmark: str | None
     _fixture_dir: Path = field(repr=False)
     _cache: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
@@ -337,6 +337,6 @@ def exploitability_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, di
 # Public helpers for scripts
 # ---------------------------------------------------------------------------
 
-def select_fixture(slug: str) -> Optional[EvalFixture]:
+def select_fixture(slug: str) -> EvalFixture | None:
     """Helper for tests/scripts that need a specific fixture (not parametrized)."""
     return _load_fixture(slug)

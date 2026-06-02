@@ -3,9 +3,13 @@ from pathlib import Path
 import pytest
 
 from contractor.runners import models as m
-from contractor.runners.models import (RenderedTask, TaskTemplate,
-                                       _artifact_var_name, _normalize_name,
-                                       _resolve_task_version)
+from contractor.runners.models import (
+    RenderedTask,
+    TaskTemplate,
+    _artifact_var_name,
+    _normalize_name,
+    _resolve_task_version,
+)
 
 
 class TestNormalizeName:
@@ -55,7 +59,7 @@ def _write_task_manifest(
     active: str,
     versions: dict[str, str],
 ):
-    manifest = "active: {active}\nversions:\n".format(active=active)
+    manifest = f"active: {active}\nversions:\n"
     for v, body in versions.items():
         manifest += f"  {v}:\n    file: {body}\n"
     (tasks_dir / f"{name}.yml").write_text(manifest, encoding="utf-8")

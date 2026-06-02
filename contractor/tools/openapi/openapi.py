@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Final, Literal, Optional
+from typing import Any, Final, Literal
 
 import fsspec
 import yaml
@@ -12,8 +13,12 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 from pydantic import ValidationError
 
-from contractor.tools.openapi.models import (PathItem, RequestBody, Response,
-                                             SecurityScheme)
+from contractor.tools.openapi.models import (
+    PathItem,
+    RequestBody,
+    Response,
+    SecurityScheme,
+)
 from contractor.tools.result import aguard
 from contractor.utils import DictDiff, deep_merge, dict_diff
 
@@ -169,7 +174,7 @@ class OpenApiArtifact:
             return schema_diff
 
 
-def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
+def validate_model(model, item: dict[str, Any]) -> tuple[bool, str | None]:
     try:
         model.model_validate(item)
 
@@ -203,8 +208,8 @@ def validate_model(model, item: dict[str, Any]) -> tuple[bool, Optional[str]]:
 def validate_files(
     files: list[str],
     fs: fsspec.AbstractFileSystem,
-    ext: Optional[list[str]] = None,
-) -> Optional[str]:
+    ext: list[str] | None = None,
+) -> str | None:
     if ext is None:
         ext = [".json", ".md", ".yaml", ".yml"]
     if not files:
@@ -225,7 +230,7 @@ def validate_files(
     return None
 
 
-def validate_component_key(key: str) -> Optional[str]:
+def validate_component_key(key: str) -> str | None:
     """Return an error message if ``key`` isn't a valid component bucket, else None."""
     if key not in ALLOWED_COMPONENT_KEYS:
         keys = ",".join(sorted(ALLOWED_COMPONENT_KEYS))
@@ -236,8 +241,9 @@ def validate_component_key(key: str) -> Optional[str]:
 def openapi_tools(
     name: str,
     fs: fsspec.AbstractFileSystem,
-    fmt: OpenAPIFormat = OpenAPIFormat("json"),
+    fmt: OpenAPIFormat | None = None,
 ) -> list[Callable]:
+    fmt = fmt or OpenAPIFormat("json")
     oas = OpenApiArtifact(name=name)
 
     async def upsert_path(
@@ -502,8 +508,8 @@ def openapi_tools(
 
     async def set_info(
         title: str,
-        framework: Optional[str],
-        code_language: Optional[str],
+        framework: str | None,
+        code_language: str | None,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
@@ -524,7 +530,7 @@ def openapi_tools(
         """
 
         async def _impl() -> dict[str, Any]:
-            extra: dict[str, Any] = dict()
+            extra: dict[str, Any] = {}
             if framework is not None:
                 extra["x-framework"] = framework
             if code_language is not None:
@@ -553,7 +559,7 @@ def openapi_tools(
         return await aguard(_impl)
 
     async def add_server(
-        url: str, description: Optional[str], tool_context: ToolContext
+        url: str, description: str | None, tool_context: ToolContext
     ) -> dict[str, Any]:
         """
         Add a new server entry to the OpenAPI schema.

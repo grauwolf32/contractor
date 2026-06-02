@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseCallback, CallbackTypes
 
@@ -21,7 +21,7 @@ class CallbackAlreadyExistsException(Exception):
 class CallbackChain:
     cb_type: CallbackTypes
     funcs: list[BaseCallback] = field(default_factory=list)
-    agent_name: Optional[str] = None
+    agent_name: str | None = None
 
     def register(self, func: BaseCallback) -> None:
         func.agent_name = self.agent_name
@@ -32,7 +32,7 @@ class CallbackChain:
             if result := func(*args, **kwargs):
                 return result
 
-        return
+        return None
 
     def as_names(self) -> list[str]:
         return [f.name for f in self.funcs]
@@ -44,9 +44,9 @@ class CallbackAdapter:
 
     chains: dict[CallbackTypes, CallbackChain] = field(default_factory=dict)
     registry: dict[str, BaseCallback] = field(default_factory=dict)
-    agent_name: Optional[str] = None
+    agent_name: str | None = None
 
-    def register(self, func: BaseCallback) -> "CallbackAdapter":
+    def register(self, func: BaseCallback) -> CallbackAdapter:
         if func.name in self.registry:
             raise CallbackAlreadyExistsException(func.name)
 

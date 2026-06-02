@@ -239,7 +239,8 @@ def test_validate_path_reads_file_and_validates(
         # The temp file written by the linter should mirror the fs content.
         for token in cmd:
             if token.endswith(".c4"):
-                seen["src"] = open(token, "rb").read()
+                with open(token, "rb") as fh:
+                    seen["src"] = fh.read()
         return _proc(json.dumps({"valid": True, "errors": [], "stats": {}}))
 
     monkeypatch.setattr("contractor.tools.likec4.subprocess.run", _fake_run)

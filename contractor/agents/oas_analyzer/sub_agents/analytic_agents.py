@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
-from typing import AsyncGenerator, Callable, Literal, Optional
+from typing import Literal, override
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -10,10 +11,11 @@ from google.adk.events.event import Event
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel
-from typing_extensions import override
 
-from contractor.agents.oas_analyzer.models import (EndpointVulnerability,
-                                                   ServiceBasicInfo)
+from contractor.agents.oas_analyzer.models import (
+    EndpointVulnerability,
+    ServiceBasicInfo,
+)
 from contractor.agents.oas_analyzer.prompts.factory import SectionPrompts
 from contractor.utils.settings import DEFAULT_MODEL
 
@@ -26,14 +28,15 @@ class BotFactory:
     def build(
         spec: Literal["appsec", "datasec", "ddos", "review"],
         *,
-        model: Optional[LiteLlm] = None,
-        tools: list[Callable] = [],
-        output_schema: Optional[BaseModel] = None,
-        output_key: Optional[str] = None,
+        model: LiteLlm | None = None,
+        tools: list[Callable] | None = None,
+        output_schema: BaseModel | None = None,
+        output_key: str | None = None,
     ) -> list[LlmAgent]:
+        tools = tools or []
         bots: list[LlmAgent] = []
         section = SectionPrompts().load(name=spec)
-        for task_name, task in section.tasks.items():
+        for task_name, _task in section.tasks.items():
             bots.append(
                 LlmAgent(
                     model=model if model else DEFAULT_MODEL,

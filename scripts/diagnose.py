@@ -16,9 +16,10 @@ import argparse
 import json
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 # ─── Event model ──────────────────────────────────────────────────────────────
 
@@ -32,23 +33,23 @@ class Event:
     payload: dict[str, Any]
 
     @property
-    def session_id(self) -> Optional[str]:
+    def session_id(self) -> str | None:
         return self.payload.get("session_id") or _get(self.payload, "session_id")
 
     @property
-    def invocation_id(self) -> Optional[str]:
+    def invocation_id(self) -> str | None:
         return self.payload.get("invocation_id")
 
     @property
-    def agent_name(self) -> Optional[str]:
+    def agent_name(self) -> str | None:
         return self.payload.get("agent_name")
 
     @property
-    def tool_name(self) -> Optional[str]:
+    def tool_name(self) -> str | None:
         return self.payload.get("tool_name")
 
     @property
-    def args_hash(self) -> Optional[str]:
+    def args_hash(self) -> str | None:
         return self.payload.get("args_hash")
 
 
@@ -134,7 +135,7 @@ class Finding:
     count: int = 0
 
 
-def detect_default_tool_calls(events: list[Event]) -> Optional[Finding]:
+def detect_default_tool_calls(events: list[Event]) -> Finding | None:
     hits = [
         e for e in events
         if e.type in ("metrics_tool_call", "metrics_tool_result")
@@ -174,7 +175,7 @@ def detect_default_tool_calls(events: list[Event]) -> Optional[Finding]:
 
 def detect_retry_streaks(
     events: list[Event], min_streak: int = 3
-) -> Optional[Finding]:
+) -> Finding | None:
     """Same (agent, tool, args_hash) repeated N+ times consecutively per session."""
     by_session: dict[str, list[Event]] = defaultdict(list)
     for e in events:
@@ -184,9 +185,9 @@ def detect_retry_streaks(
         by_session[sid].append(e)
 
     streaks: list[tuple[int, Event]] = []  # (streak_length, first_event_of_streak)
-    for sid, evs in by_session.items():
+    for _sid, evs in by_session.items():
         cur_key: tuple = ()
-        cur_start: Optional[Event] = None
+        cur_start: Event | None = None
         cur_len = 0
         for e in evs:
             k = (e.agent_name, e.tool_name, e.args_hash)
@@ -227,7 +228,7 @@ def detect_retry_streaks(
     )
 
 
-def detect_elided_repeats(events: list[Event]) -> Optional[Finding]:
+def detect_elided_repeats(events: list[Event]) -> Finding | None:
     """Same heavy tool with same args returning {"elided": true} ≥2 times."""
     seen: dict[tuple, int] = defaultdict(int)
     first: dict[tuple, Event] = {}
@@ -272,7 +273,7 @@ def detect_elided_repeats(events: list[Event]) -> Optional[Finding]:
 _BANNED_EXTS = (".yaml", ".yml", ".json", ".md")
 
 
-def detect_suspect_upsert_args(events: list[Event]) -> Optional[Finding]:
+def detect_suspect_upsert_args(events: list[Event]) -> Finding | None:
     """OAS builder anti-patterns documented in oas_builder_agent prompt."""
     issues: list[tuple[str, Event, str]] = []
     for e in events:
@@ -333,7 +334,7 @@ def detect_suspect_upsert_args(events: list[Event]) -> Optional[Finding]:
     )
 
 
-def detect_premature_finish(events: list[Event]) -> Optional[Finding]:
+def detect_premature_finish(events: list[Event]) -> Finding | None:
     """`finish` calls that returned an error (e.g. open subtasks remaining)."""
     hits: list[Event] = []
     for e in events:
@@ -366,7 +367,7 @@ def detect_premature_finish(events: list[Event]) -> Optional[Finding]:
 
 def detect_get_schema_after_upsert(
     events: list[Event], window: int = 5
-) -> Optional[Finding]:
+) -> Finding | None:
     """`get_full_openapi_schema` called within N tool calls after a successful upsert.
 
     Documented anti-pattern in oas_builder_agent prompt: verifying via
@@ -379,7 +380,7 @@ def detect_get_schema_after_upsert(
         by_session[e.session_id or "?"].append(e)
 
     hits: list[Event] = []
-    for sid, evs in by_session.items():
+    for _sid, evs in by_session.items():
         # Walk pairwise. For each upsert_path/upsert_component call, check the
         # next `window` calls in the same session for get_full_openapi_schema.
         for i, e in enumerate(evs):
@@ -409,7 +410,7 @@ def detect_get_schema_after_upsert(
 
 def detect_tool_error_rate(
     events: list[Event], min_calls: int = 5, error_pct_threshold: float = 0.25
-) -> Optional[Finding]:
+) -> Finding | None:
     """Tools whose error rate exceeds a threshold (per agent, per tool)."""
     total: Counter = Counter()
     errors: Counter = Counter()
@@ -443,7 +444,7 @@ def detect_tool_error_rate(
     )
 
 
-def detect_version_outcomes(events: list[Event]) -> Optional[Finding]:
+def detect_version_outcomes(events: list[Event]) -> Finding | None:
     """Cross-tab (template_key, template_version) × (finished, failed)."""
     finished: Counter = Counter()
     failed: Counter = Counter()
@@ -473,7 +474,7 @@ def detect_version_outcomes(events: list[Event]) -> Optional[Finding]:
     )
 
 
-def detect_prompt_versions(events: list[Event]) -> Optional[Finding]:
+def detect_prompt_versions(events: list[Event]) -> Finding | None:
     """Surface the `prompt_versions` snapshot from RUN_STARTED, if present."""
     snapshots: list[tuple[str, dict[str, str]]] = []
     for e in events:
@@ -542,7 +543,7 @@ def render_report(findings: list[Finding], n_events: int, sources: list[Path]) -
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Diagnose contractor metrics.jsonl for known failure-mode fingerprints."
     )

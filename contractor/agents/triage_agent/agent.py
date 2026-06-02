@@ -7,21 +7,20 @@ with its prompts and tasks.
 
 from __future__ import annotations
 
-from typing import Final, Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Final, Literal
 
 from fsspec import AbstractFileSystem
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 
+from contractor.agents.worker_factory import build_worker
 from contractor.callbacks import default_tool
 from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
-from contractor.tools.vuln import (VulnerabilityReportFormat,
-                                   vulnerability_report_tools)
+from contractor.tools.vuln import VulnerabilityReportFormat, vulnerability_report_tools
 from contractor.utils import load_prompt
-
-from contractor.agents.worker_factory import build_worker
 
 TRIAGE_PROMPT: Final[str] = load_prompt("triage_agent")
 
@@ -45,8 +44,8 @@ def build_triage_agent(
     namespace: str,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
-    model: Optional[LiteLlm] = None,
-    elide_tool_results: Optional[Iterable[str]] = None,
+    model: LiteLlm | None = None,
+    elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
 ) -> LlmAgent:

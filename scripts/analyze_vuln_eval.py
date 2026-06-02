@@ -16,12 +16,13 @@ from pathlib import Path
 # Ensure repo root on path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tests.eval.conftest import _load_fixture
-from tests.eval.vuln_scan_harness import run_vuln_scan, AgentKind
-from tests.eval.scoring import AgentFinding, score_vuln_findings
+import re
 
 import yaml
-import re
+
+from tests.eval.conftest import _load_fixture
+from tests.eval.scoring import AgentFinding, score_vuln_findings
+from tests.eval.vuln_scan_harness import AgentKind, run_vuln_scan
 
 _CWE_RE = re.compile(r"CWE-\d+")
 

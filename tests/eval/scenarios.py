@@ -39,10 +39,17 @@ Typical use::
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Any, Awaitable, Callable, Optional, Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any
 
-from tests.eval.results import (AttemptOutcome, EvalRun, FixtureResult,
-                                MetricKind, Scenario, pass_at)
+from tests.eval.results import (
+    AttemptOutcome,
+    EvalRun,
+    FixtureResult,
+    MetricKind,
+    Scenario,
+    pass_at,
+)
 
 # A case to evaluate: (fixture_slug, case_id, case_payload).
 Case = tuple[str, str, Any]
@@ -58,10 +65,10 @@ async def run_eval(
     cases: Sequence[Case],
     attempt: AttemptFn,
     pass_at: int = 1,
-    model: Optional[str] = None,
-    prompt_version: Optional[str] = None,
-    timestamp: Optional[str] = None,
-    meta: Optional[dict[str, Any]] = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    timestamp: str | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> EvalRun:
     """Run every case ``pass_at`` times and assemble the ``eval/v1`` envelope.
 
@@ -69,7 +76,7 @@ async def run_eval(
     seen order). Each case is scored via the shared pass@X repeater, so the
     case passes iff any of its ``pass_at`` attempts passes.
     """
-    by_fixture: "OrderedDict[str, list]" = OrderedDict()
+    by_fixture: OrderedDict[str, list] = OrderedDict()
     for slug, case_id, payload in cases:
         case_result = await _pass_at(case_id, payload, attempt, pass_at)
         by_fixture.setdefault(slug, []).append(case_result)

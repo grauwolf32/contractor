@@ -1,6 +1,7 @@
 import json
 import time
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
@@ -84,8 +85,8 @@ class FunctionResultsRemovalCallback(BaseCallback):
         keep_last_n: int = 0,
         keep_budget_chars: int = 0,
         *,
-        target_tools: Optional[Iterable[str]] = None,
-        exempt_tools: Optional[Iterable[str]] = None,
+        target_tools: Iterable[str] | None = None,
+        exempt_tools: Iterable[str] | None = None,
         deduplicate: bool = True,
     ):
         if keep_last_n < 0 or keep_budget_chars < 0:
@@ -100,7 +101,7 @@ class FunctionResultsRemovalCallback(BaseCallback):
         self.keep_last_n = keep_last_n
         self.keep_budget_chars = keep_budget_chars
         self.deduplicate = deduplicate
-        self.target_tools: Optional[frozenset[str]] = (
+        self.target_tools: frozenset[str] | None = (
             frozenset(target_tools) if target_tools is not None else None
         )
         self.exempt_tools: frozenset[str] = (
@@ -108,13 +109,13 @@ class FunctionResultsRemovalCallback(BaseCallback):
         )
         self.counter = 0
 
-    def _is_eligible(self, tool_name: Optional[str]) -> bool:
+    def _is_eligible(self, tool_name: str | None) -> bool:
         if self.target_tools is not None:
             return tool_name in self.target_tools
         return tool_name not in self.exempt_tools
 
     @staticmethod
-    def _response_size(response: Optional[dict]) -> int:
+    def _response_size(response: dict | None) -> int:
         if not response:
             return 0
         try:
@@ -123,7 +124,7 @@ class FunctionResultsRemovalCallback(BaseCallback):
             return 0
 
     @staticmethod
-    def _args_key(args: Optional[dict]) -> str:
+    def _args_key(args: dict | None) -> str:
         if not args:
             return ""
         try:

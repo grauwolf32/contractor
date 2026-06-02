@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 from uuid import uuid4
 
 from google.adk.agents import LlmAgent
@@ -13,10 +13,13 @@ from google.genai import types
 from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.runners._helpers import _extract_final_text
-from contractor.runners.artifacts import (artifact_names_for_key,
-                                          save_result_artifacts)
-from contractor.runners.models import (ArtifactKind, TaskRunnerEvent,
-                                       TaskRunnerEventHandler, TaskScopedKeys)
+from contractor.runners.artifacts import artifact_names_for_key, save_result_artifacts
+from contractor.runners.models import (
+    ArtifactKind,
+    TaskRunnerEvent,
+    TaskRunnerEventHandler,
+    TaskScopedKeys,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +50,19 @@ class AgentRunner(BaseModel):
         default_factory=InMemorySessionService
     )
 
-    _on_event: Optional[TaskRunnerEventHandler] = PrivateAttr(default=None)
+    _on_event: TaskRunnerEventHandler | None = PrivateAttr(default=None)
 
     async def run(
         self,
         *,
         agent: LlmAgent,
-        message: Union[str, types.Content],
+        message: str | types.Content,
         user_id: str = "cli-user",
-        session_id: Optional[str] = None,
-        initial_state: Optional[dict[str, Any]] = None,
-        plugins: Optional[list[Any]] = None,
-        on_event: Optional[TaskRunnerEventHandler] = None,
-        event_name: Optional[str] = None,
+        session_id: str | None = None,
+        initial_state: dict[str, Any] | None = None,
+        plugins: list[Any] | None = None,
+        on_event: TaskRunnerEventHandler | None = None,
+        event_name: str | None = None,
     ) -> AgentRunResult:
         """Run ``agent`` against ``message`` and return final text + state.
 

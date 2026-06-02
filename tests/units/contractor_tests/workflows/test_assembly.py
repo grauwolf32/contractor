@@ -17,7 +17,6 @@ import pytest
 import yaml
 from google.adk.artifacts import BaseArtifactService
 
-from contractor.runners.agent_runner import AgentRunner
 from contractor.runners.task_runner import TaskRunner
 from contractor.workflows import Workflow, WorkflowContext, get_workflows
 from contractor.workflows.likec4_building import LikeC4BuildingWorkflow
@@ -25,8 +24,7 @@ from contractor.workflows.oas_building import OasBuildingWorkflow
 from contractor.workflows.oas_enrichment import OasEnrichmentWorkflow
 from contractor.workflows.router import RouterWorkflow
 from contractor.workflows.trace_annotation import TraceAnnotationWorkflow
-from contractor.workflows.trace_annotation_direct import \
-    TraceAnnotationDirectWorkflow
+from contractor.workflows.trace_annotation_direct import TraceAnnotationDirectWorkflow
 from contractor.workflows.trace_verify import TraceVerifyWorkflow
 
 # ─── Registry ─────────────────────────────────────────────────────────────────
@@ -281,8 +279,7 @@ class TestTraceAnnotationWorkflow:
 
     @pytest.mark.asyncio
     async def test_per_path_task_assembles(self, monkeypatch):
-        from contractor.workflows.trace_annotation import (OpenApiOperation,
-                                                           OpenApiPath)
+        from contractor.workflows.trace_annotation import OpenApiOperation, OpenApiPath
 
         api_path = OpenApiPath(
             path="/items/{id}",
@@ -700,7 +697,9 @@ class TestVulnAssessWorkflow:
     @pytest.mark.asyncio
     async def test_oas_stage_skipped_when_artifact_exists(self, monkeypatch):
         from contractor.workflows.vuln_assess.workflow import (
-            OAS_ARTIFACT, VulnAssessWorkflow)
+            OAS_ARTIFACT,
+            VulnAssessWorkflow,
+        )
 
         ctx = _make_context()
 

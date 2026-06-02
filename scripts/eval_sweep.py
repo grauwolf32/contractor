@@ -34,10 +34,11 @@ import json
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 import yaml
 
@@ -169,7 +170,7 @@ class RunResult:
     rep: int
     out_dir: str
     status: str                      # "ok" | "error" | "timeout"
-    exit_code: Optional[int]
+    exit_code: int | None
     duration_s: float
     cmd: list[str]
     summary: dict[str, Any] = field(default_factory=dict)
@@ -178,7 +179,7 @@ class RunResult:
 
 def _run_label(axes: list[Axis], combo: tuple[str, ...], rep: int, n_reps: int) -> str:
     parts = []
-    for axis, ver in zip(axes, combo):
+    for axis, ver in zip(axes, combo, strict=False):
         parts.append(f"{axis.kind[0]}{axis.name}-{ver}")
     base = "__".join(parts)
     return f"{base}__rep{rep}" if n_reps > 1 else base
@@ -190,11 +191,11 @@ def spawn_run(
     project_path: Path,
     model: str,
     folder_name: str,
-    artifact: Optional[Path],
+    artifact: Path | None,
     out_dir: Path,
     extra_args: list[str],
-    timeout: Optional[int],
-) -> tuple[str, Optional[int], float, list[str]]:
+    timeout: int | None,
+) -> tuple[str, int | None, float, list[str]]:
     """Spawn the CLI as a subprocess and capture stdout/stderr."""
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -409,7 +410,7 @@ def _default_out_dir() -> Path:
     return REPO_ROOT / "eval_runs" / datetime.datetime.now().strftime("sweep-%Y%m%d-%H%M%S")
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Run a contractor pipeline across multiple prompt/task version "
@@ -520,7 +521,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"    {axis.kind}:{axis.name}  -> {axis.versions}  ({axis.manifest_path})")
     print("  combinations:")
     for i, combo in enumerate(combos):
-        bits = ", ".join(f"{a.name}={v}" for a, v in zip(axes, combo))
+        bits = ", ".join(f"{a.name}={v}" for a, v in zip(axes, combo, strict=False))
         print(f"    #{i}  {bits}")
 
     if args.dry_run:
@@ -529,13 +530,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     # ── Execute ──────────────────────────────────────────────────────────────
     runs: list[RunResult] = []
     started_all = time.time()
-    for combo_idx, combo in enumerate(combos):
-        pins = {axis.manifest_path: ver for axis, ver in zip(axes, combo)}
+    for _combo_idx, combo in enumerate(combos):
+        pins = {axis.manifest_path: ver for axis, ver in zip(axes, combo, strict=False)}
         for rep in range(args.repeat):
             label = _run_label(axes, combo, rep, args.repeat)
             run_out = out_dir / label
             print(f"\n=== [{len(runs) + 1}/{total_runs}] {label} ===")
-            for axis, ver in zip(axes, combo):
+            for axis, ver in zip(axes, combo, strict=False):
                 print(f"   pin {axis.kind}:{axis.name} → {ver}")
 
             with pin_manifest_versions(pins):
@@ -563,7 +564,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
             runs.append(
                 RunResult(
-                    combo={axis.name: ver for axis, ver in zip(axes, combo)},
+                    combo={axis.name: ver for axis, ver in zip(axes, combo, strict=False)},
                     rep=rep,
                     out_dir=str(run_out),
                     status=status,
@@ -589,8 +590,12 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Canonical eval/v1 envelope (scenario=pipeline, metric_kind=generic): each
     # swept combo is a case; it passes if the run finished with no failed task.
-    from tests.eval.results import (CaseResult, EvalRun, FixtureResult,
-                                    write_eval_results)
+    from tests.eval.results import (
+        CaseResult,
+        EvalRun,
+        FixtureResult,
+        write_eval_results,
+    )
     cases = []
     for r in runs:
         s = r.summary or {}

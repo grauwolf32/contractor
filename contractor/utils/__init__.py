@@ -1,13 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .dictutils import DictDiff, deep_merge, dict_diff
-from .prompt import (all_active_prompt_versions, load_prompt,
-                     load_prompt_with_version)
+from .prompt import all_active_prompt_versions, load_prompt, load_prompt_with_version
 
 
 def utc_now_iso() -> str:
     """Return the current UTC time as an ISO-8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 __all__ = [

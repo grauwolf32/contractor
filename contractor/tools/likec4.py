@@ -5,9 +5,10 @@ import json
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from fsspec import AbstractFileSystem
 
@@ -89,7 +90,7 @@ class Likec4Linter:
         )
 
     def validate(
-        self, content: str, *, timeout: Optional[float] = None
+        self, content: str, *, timeout: float | None = None
     ) -> list[dict[str, Any]]:
         """
         Runs `likec4 validate --json --no-layout` against a single in-memory
@@ -132,8 +133,7 @@ class Likec4Linter:
                 process = subprocess.run(
                     cmd,
                     stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     timeout=timeout,
                 )
             except subprocess.TimeoutExpired as exc:
@@ -217,7 +217,7 @@ class Likec4Linter:
         fs: AbstractFileSystem,
         path: str,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> list[dict[str, Any]]:
         """
         Reads a LikeC4 source file from `fs` (overlay-aware) and validates it.

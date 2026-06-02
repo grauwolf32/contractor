@@ -9,8 +9,12 @@ from __future__ import annotations
 import pytest
 from google.genai import types
 
-from contractor.tools.vuln import (VerifiedFinding, VerifiedFindingFormat,
-                                    VerifiedFindingsTools, verification_tools)
+from contractor.tools.vuln import (
+    VerifiedFinding,
+    VerifiedFindingFormat,
+    VerifiedFindingsTools,
+    verification_tools,
+)
 
 
 class InMemoryArtifactCtx:

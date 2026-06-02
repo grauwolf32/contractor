@@ -14,7 +14,10 @@ from google.genai import types
 
 import contractor.workflows.exploitability.workflow as exploit
 from contractor.workflows.exploitability.workflow import (
-    ExploitabilityWorkflow, _finding_tag_prefix, _serialize_chain)
+    ExploitabilityWorkflow,
+    _finding_tag_prefix,
+    _serialize_chain,
+)
 
 
 def test_tag_prefix_is_opaque_and_deterministic():

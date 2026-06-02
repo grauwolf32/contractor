@@ -32,9 +32,10 @@ every result on the caller side.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from contractor.tools.result import guard, ok, ok_page
 from contractor.utils.settings import get_settings
@@ -49,7 +50,7 @@ _FIND_SYMBOL_LIMIT = 50
 # means "keep the original host path". The signature is deliberately
 # minimal so callers can wire any FS convention (rooted sandboxes,
 # repo-relative, URI-prefixed, …) without leaking into this module.
-PathResolver = Callable[[str], Optional[str]]
+PathResolver = Callable[[str], str | None]
 
 
 def _install_utf8_safety() -> None:
@@ -111,7 +112,7 @@ def strip_prefix_resolver(host_root: str, virtual_root: str = "/") -> PathResolv
     root = os.path.normpath(host_root)
     vroot = virtual_root.rstrip("/") or ""
 
-    def _resolve(host_path: str) -> Optional[str]:
+    def _resolve(host_path: str) -> str | None:
         if host_path is None:
             return None
         norm = os.path.normpath(host_path)
@@ -127,7 +128,7 @@ def strip_prefix_resolver(host_root: str, virtual_root: str = "/") -> PathResolv
 
 def _slim_unit(
     unit: dict[str, Any],
-    path_resolver: Optional[PathResolver] = None,
+    path_resolver: PathResolver | None = None,
 ) -> dict[str, Any]:
     """Strip a trailmark CodeUnit dict down to fields useful to an agent.
 
@@ -158,7 +159,7 @@ class GraphEngineHolder:
 
     root: Path
     language: str = DEFAULT_LANGUAGE
-    _engine: Optional[Any] = field(default=None, init=False, repr=False)
+    _engine: Any | None = field(default=None, init=False, repr=False)
 
     def engine(self):  # type: ignore[no-untyped-def]
         if self._engine is None:
@@ -184,7 +185,7 @@ class GraphEngineHolder:
         return self.engine()._store._graph
 
 
-def resolve_local_root(fs: Any) -> Optional[str]:
+def resolve_local_root(fs: Any) -> str | None:
     """Return a host-disk root path for ``fs``, or ``None`` for remote
     backends (``GitlabFileSystem`` and friends) where trailmark cannot
     parse files directly.
@@ -238,7 +239,7 @@ def code_graph_tools(
     root: str | Path,
     *,
     language: str = DEFAULT_LANGUAGE,
-    path_resolver: Optional[PathResolver] = None,
+    path_resolver: PathResolver | None = None,
 ) -> list:
     """Build the code-graph tool set for an LLM agent.
 
@@ -308,7 +309,7 @@ def code_graph_tools(
 
         return guard(_impl)
 
-    def _resolve_id(symbol: str) -> Optional[str]:
+    def _resolve_id(symbol: str) -> str | None:
         graph = holder.graph()
         sym = str(symbol)
         if sym in graph.nodes:
@@ -321,7 +322,7 @@ def code_graph_tools(
 
     def find_callers(
         symbol: str,
-        max_results: Optional[int] = None,
+        max_results: int | None = None,
     ) -> dict[str, Any]:
         """
         Find the direct callers of a symbol (including inferred call edges).
@@ -382,7 +383,7 @@ def code_graph_tools(
 
     def find_callees(
         symbol: str,
-        max_results: Optional[int] = None,
+        max_results: int | None = None,
     ) -> dict[str, Any]:
         """
         Find the direct callees of a symbol (what it calls).
@@ -446,7 +447,7 @@ def code_graph_tools(
     def paths_between(
         src: str,
         dst: str,
-        max_paths: Optional[int] = None,
+        max_paths: int | None = None,
     ) -> dict[str, Any]:
         """
         Find call paths from one symbol to another.
@@ -475,8 +476,8 @@ def code_graph_tools(
 
     def entrypoint_paths_to(
         symbol: str,
-        max_paths: Optional[int] = None,
-        max_depth: Optional[int] = None,
+        max_paths: int | None = None,
+        max_depth: int | None = None,
     ) -> dict[str, Any]:
         """
         Find call paths from any detected entrypoint to a symbol.

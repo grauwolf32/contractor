@@ -9,9 +9,10 @@ import json
 import logging
 import math
 import traceback
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 import matplotlib
 

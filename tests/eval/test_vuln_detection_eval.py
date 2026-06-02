@@ -32,10 +32,14 @@ from typing import Any
 import pytest
 import yaml
 
-from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
 from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
-from tests.eval.vuln_scan_harness import (UNIT_FOR_KIND, AgentKind,
-                                          VulnScanRun, run_vuln_scan)
+from tests.eval.vuln_scan_harness import (
+    UNIT_FOR_KIND,
+    AgentKind,
+    VulnScanRun,
+    run_vuln_scan,
+)
 
 # Where per-run records (reported findings + score) are written so a run is
 # inspectable after the fact (Langfuse only captures the live trace). Lands
@@ -225,6 +229,9 @@ async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
                 timeout_s=1800.0,
                 prompt_version=_prompt_version(),
                 with_graph_tools=True,
+                artifact_dir=case_artifact_dir(
+                    UNIT_FOR_KIND.get(agent_kind, agent_kind),
+                    vuln_fixture.slug, f"{vuln_fixture.slug}-a{attempt}"),
             )
         except Exception as exc:
             print(

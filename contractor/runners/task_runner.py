@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from google.adk.agents import LlmAgent
@@ -16,20 +16,28 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
-from contractor.runners.artifacts import (artifact_names_for_key,
-                                          save_result_artifacts)
-from contractor.runners.models import (Checkpoint, CheckpointEntry, EventType,
-                                       RenderedTask, TaskInvocation,
-                                       TaskResult, TaskRunnerEvent,
-                                       TaskRunnerEventHandler, TaskScopedKeys,
-                                       TaskStatus, TaskTemplate, WorkerBuilder,
-                                       build_active_state)
+from contractor.runners.artifacts import artifact_names_for_key, save_result_artifacts
+from contractor.runners.models import (
+    Checkpoint,
+    CheckpointEntry,
+    EventType,
+    RenderedTask,
+    TaskInvocation,
+    TaskResult,
+    TaskRunnerEvent,
+    TaskRunnerEventHandler,
+    TaskScopedKeys,
+    TaskStatus,
+    TaskTemplate,
+    WorkerBuilder,
+    build_active_state,
+)
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.sandbox_cleanup import SandboxCleanupPlugin
-from contractor.tools.podman import teardown_all as _teardown_sandboxes
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
+from contractor.tools.podman import teardown_all as _teardown_sandboxes
 from contractor.utils import all_active_prompt_versions
 from contractor.utils.settings import DEFAULT_MODEL
 
@@ -60,7 +68,7 @@ class TaskRunner(BaseModel):
 
     name: str = Field(description="Runner name")
     artifact_service: BaseArtifactService
-    checkpoint_path: Optional[Path] = Field(default=None)
+    checkpoint_path: Path | None = Field(default=None)
 
     templates: dict[tuple[str, str], TaskTemplate] = Field(default_factory=dict)
     queue: list[TaskInvocation] = Field(default_factory=list)
@@ -73,7 +81,7 @@ class TaskRunner(BaseModel):
     # Per-run event handler. Set at the start of run() and cleared in finally.
     # Re-entrant run() calls on the same instance are not supported — they
     # share self.queue and self.session_service already.
-    _on_event: Optional[TaskRunnerEventHandler] = PrivateAttr(default=None)
+    _on_event: TaskRunnerEventHandler | None = PrivateAttr(default=None)
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -93,8 +101,8 @@ class TaskRunner(BaseModel):
         iterations: int | None = None,
         max_attempts: int | None = None,
         max_steps: int = 15,
-        namespace: Optional[str] = None,
-        model: Optional[LiteLlm] = None,
+        namespace: str | None = None,
+        model: LiteLlm | None = None,
     ) -> str:
         """Queue a task invocation.
 
@@ -132,7 +140,7 @@ class TaskRunner(BaseModel):
         self,
         *,
         user_id: str = "cli-user",
-        on_event: Optional[TaskRunnerEventHandler] = None,
+        on_event: TaskRunnerEventHandler | None = None,
     ) -> list[TaskResult]:
         self._on_event = on_event
         checkpoint = self._load_checkpoint()

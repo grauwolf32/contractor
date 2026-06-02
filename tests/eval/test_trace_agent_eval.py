@@ -23,7 +23,7 @@ import os
 
 import pytest
 
-from tests.eval.results import CaseResult, metrics_from_events
+from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
 from tests.eval.scorers import diff_detail, score_trace_run
 from tests.eval.trace_harness import run_trace_agent
 
@@ -62,6 +62,7 @@ async def test_trace_agent(trace_case, eval_model, eval_sink):
         timeout_s=float(case.get("timeout_s", 900.0)),
         prompt_version=_resolve_prompt_version(case),
         with_graph_tools=bool(case.get("with_graph_tools", True)),
+        artifact_dir=case_artifact_dir("trace_agent", fixture.slug, case["id"]),
     )
 
     result = score_trace_run(run, case)

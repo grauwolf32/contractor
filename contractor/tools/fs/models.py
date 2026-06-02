@@ -32,11 +32,11 @@ class FileLoc:
     - content: excerpt around the match
     """
 
-    line_start: Optional[int] = None
-    line_end: Optional[int] = None
-    byte_start: Optional[int] = None
-    byte_end: Optional[int] = None
-    content: Optional[str] = None
+    line_start: int | None = None
+    line_end: int | None = None
+    byte_start: int | None = None
+    byte_end: int | None = None
+    content: str | None = None
 
 
 @dataclass(slots=True)
@@ -84,21 +84,21 @@ class FsEntry:
     path: str
     size: int
     is_dir: bool = False
-    filetype: Optional[ContentTypeInfo] = None
-    loc: Optional[FileLoc] = None
+    filetype: ContentTypeInfo | None = None
+    loc: FileLoc | None = None
 
     _magika: ClassVar[Magika] = Magika()
     # Per-fs path-keyed cache. Held weakly so fs instances can be GC'd.
     # Each entry is the dict[path, ContentTypeInfo|None] for that fs.
     _filetype_cache: ClassVar[
-        "WeakKeyDictionary[fsspec.AbstractFileSystem, dict[str, Optional[ContentTypeInfo]]]"
+        "WeakKeyDictionary[fsspec.AbstractFileSystem, dict[str, ContentTypeInfo | None]]"
     ] = WeakKeyDictionary()
 
     @staticmethod
     def identify_type(
         file_path: str,
         fs: fsspec.AbstractFileSystem,
-    ) -> Optional[ContentTypeInfo]:
+    ) -> ContentTypeInfo | None:
         try:
             cache = FsEntry._filetype_cache.setdefault(fs, {})
         except TypeError:
@@ -109,7 +109,7 @@ class FsEntry:
             return cache[file_path]
 
         if not fs.exists(file_path) or not fs.isfile(file_path):
-            result: Optional[ContentTypeInfo] = None
+            result: ContentTypeInfo | None = None
         else:
             try:
                 with fs.open(file_path, mode="rb") as f:
@@ -124,7 +124,7 @@ class FsEntry:
     @staticmethod
     def invalidate_filetype_cache(
         fs: fsspec.AbstractFileSystem,
-        path: Optional[str] = None,
+        path: str | None = None,
     ) -> None:
         """Invalidate cached file-type guesses for *fs*, optionally limited to *path*."""
         try:
@@ -196,11 +196,11 @@ class FsEntry:
         file_path: str,
         fs: fsspec.AbstractFileSystem,
         *,
-        content: Optional[str] = None,
+        content: str | None = None,
         with_types: bool = True,
         excerpt_max_chars: int = 500,
         context_lines: int = 0,
-    ) -> Optional[list["FsEntry"]]:
+    ) -> list["FsEntry"] | None:
         if not fs.exists(file_path) or not fs.isfile(file_path):
             return None
 

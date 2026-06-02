@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import Any, Literal, TypeVar
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -39,7 +39,7 @@ class MemoryFormat:
         output: _T,
         fmt: str,
         type_hint: bool = False,
-    ) -> Union[_T, str]:
+    ) -> _T | str:
         if not type_hint or not isinstance(output, str):
             return output
         return f"```{fmt}\n{output}\n```"
@@ -176,7 +176,7 @@ class MemoryFormat:
         memory: MemoryNote,
         *,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         formatters = {
             "json": self._memory_to_json,
             "markdown": self._memory_to_markdown,
@@ -192,7 +192,7 @@ class MemoryFormat:
         memory: MemoryNote,
         *,
         type_hint: bool = False,
-    ) -> Union[str, dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         formatters = {
             "json": self._memory_preview_to_json,
             "markdown": self._memory_preview_to_markdown,
@@ -209,7 +209,7 @@ class MemoryFormat:
         *,
         type_hint: bool = False,
         preview: bool = False,
-    ) -> Union[str, list[dict[str, Any]]]:
+    ) -> str | list[dict[str, Any]]:
         if self._format == "json":
             if preview:
                 return [self._memory_preview_to_json(m) for m in memories]
@@ -242,7 +242,7 @@ class MemoryFormat:
         tags: list[str],
         *,
         type_hint: bool = False,
-    ) -> Union[str, list[str], dict[str, Any]]:
+    ) -> str | list[str] | dict[str, Any]:
         if self._format == "json":
             return {"tags": tags}
 
@@ -413,7 +413,7 @@ class MemoryTools:
         name: str,
         memory: str,
         description: str,
-        tags: Optional[list[str]],
+        tags: list[str] | None,
         ctx: ToolContext | CallbackContext,
     ):
         await self.load(ctx)
@@ -451,7 +451,7 @@ class MemoryTools:
         name: str,
         text: str,
         ctx: ToolContext | CallbackContext,
-    ) -> Optional[MemoryNote]:
+    ) -> MemoryNote | None:
         note = await self.read_memory(name, ctx)
         if note is None:
             return None
@@ -470,7 +470,7 @@ class MemoryTools:
         self,
         name: str,
         ctx: ToolContext | CallbackContext,
-    ) -> Optional[MemoryNote]:
+    ) -> MemoryNote | None:
         await self.load(ctx)
         return self.notes.get(name)
 
@@ -506,7 +506,7 @@ class MemoryTools:
         name: str,
         tag: str,
         ctx: ToolContext | CallbackContext,
-    ) -> Optional[MemoryNote]:
+    ) -> MemoryNote | None:
         note = await self.read_memory(name, ctx)
         if note is None:
             return None
@@ -518,7 +518,7 @@ class MemoryTools:
 def _resolve_skill_reference(
     name: str,
     skill_memories: list[MemoryNote],
-) -> Optional[MemoryNote]:
+) -> MemoryNote | None:
     """Best-effort match of a skill-reference name against loaded skill notes.
 
     Skill references are stored as ``<skill>/references/<topic>`` with no
@@ -545,14 +545,14 @@ def _resolve_skill_reference(
     return None
 
 
-def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
-    m = MemoryTools(name=name, fmt=fmt)
+def memory_tools(name: str, fmt: MemoryFormat | None = None):
+    m = MemoryTools(name=name, fmt=fmt or MemoryFormat("json"))
 
     async def write_memory(
         name: str,
         memory: str,
         description: str,
-        tags: Optional[list[str]],
+        tags: list[str] | None,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """
@@ -799,7 +799,7 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
 
         return await aguard(_impl)
 
-    registry = [
+    return [
         append_memory,
         write_memory,
         read_memory,
@@ -812,4 +812,3 @@ def memory_tools(name: str, fmt: MemoryFormat = MemoryFormat("json")):
         inbox_read,
     ]
 
-    return registry
