@@ -19,7 +19,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -260,6 +260,7 @@ async def run_eval(
     fixture_slugs: list[str],
     output_dir: Path,
     timeout_s: float,
+    prompt_version: Optional[str] = None,
 ) -> list[FixtureResult]:
     from dotenv import load_dotenv
     for p in (REPO_ROOT / "cli" / ".env", REPO_ROOT / ".env"):
@@ -319,6 +320,7 @@ async def run_eval(
                 agent_kind="trace",
                 namespace=f"vuln-eval-{slug}",
                 timeout_s=timeout_s,
+                prompt_version=prompt_version,
                 with_graph_tools=True,
             )
         except Exception as exc:
@@ -439,8 +441,10 @@ async def run_eval(
                     "files_read": r.get("files_read") or [], "gt_cwes": r.get("gt_cwes") or []})
         fixtures.append(EnvFixture(slug=r.get("slug"), cases=[case]))
     eval_run = EnvRun(
-        scenario="agent", unit="codereview_agent", pass_at=1, metric_kind="detection",
-        model=str(model.model), timestamp=timestamp, fixtures=fixtures,
+        scenario="agent", unit="trace_agent", pass_at=1, metric_kind="detection",
+        model=str(model.model),
+        prompt_version=(results[0].prompt_version if results else prompt_version),
+        timestamp=timestamp, fixtures=fixtures,
     )
     results_path = write_eval_results(eval_run, output_dir)
     print(f"\nResults saved to {results_path}")
@@ -464,10 +468,14 @@ def main():
         help="Output directory for results and report",
     )
     parser.add_argument("--timeout", type=float, default=900.0)
+    parser.add_argument(
+        "--prompt", default=None,
+        help="trace_agent prompt version (e.g. v7, shannon); default = active",
+    )
     args = parser.parse_args()
 
     slugs = [s.strip() for s in args.fixtures.split(",") if s.strip()]
-    asyncio.run(run_eval(slugs, Path(args.output), args.timeout))
+    asyncio.run(run_eval(slugs, Path(args.output), args.timeout, args.prompt))
 
 
 if __name__ == "__main__":
