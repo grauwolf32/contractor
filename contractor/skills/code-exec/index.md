@@ -40,6 +40,17 @@ payload is wrong — **fix that first**. Never run an extraction loop on an orac
 you have not proven separates true from false: it just burns the budget
 returning garbage, one wrong byte at a time. Calibrate, then extract.
 
+Two bugs that silently make a loop never converge — guard against both:
+
+- **Parse defensively.** The TRUE and FALSE branches may return *different
+  content types* (e.g. JSON on success, an HTML error page on failure), so a
+  bare `r.json()` throws on one branch and the byte never matches. Match on
+  `r.text` (substring) or a status/length signal, or wrap `r.json()` in
+  try/except — never assume the response shape.
+- **Binary search needs a MONOTONIC comparator** (`>` / `<`, e.g.
+  `ASCII(...)>mid`). An equality oracle (`...=mid`) is not monotonic, so the
+  search cannot converge — use greater-than and narrow `[lo, hi]`.
+
 ## Idioms
 
 Blind boolean-SQLi extraction (one call replaces hundreds of turns):
