@@ -174,6 +174,25 @@ def test_metrics_from_task_folds_taskmetrics():
     assert folded["tool_counts"] == {"http_request": 3}
 
 
+def test_pass_artifact_root_isolates_passes():
+    """pass@M isolation: each pass gets a distinct artifact-tree root, while
+    no run_id leaves the base dir unchanged (within-pass reuse)."""
+    from pathlib import Path
+
+    from tests.eval.task_harness import _pass_artifact_root
+
+    base = Path("/eval/case/artifacts")
+    # No run_id → base unchanged (one pass: retries/iterations share the tree).
+    assert _pass_artifact_root(base, None) == base
+    # Distinct run_id → distinct, non-overlapping roots (memory can't leak).
+    p0 = _pass_artifact_root(base, 0)
+    p1 = _pass_artifact_root(base, 1)
+    assert p0 == base / "pass-0" and p1 == base / "pass-1"
+    assert p0 != p1 and base not in (p0, p1)
+    # String run_id works too.
+    assert _pass_artifact_root(base, "a2") == base / "pass-a2"
+
+
 # ───────────────────────── envelope + write ─────────────────────────
 
 
