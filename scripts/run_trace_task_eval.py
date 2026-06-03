@@ -169,7 +169,9 @@ async def run_eval(
                 max_steps=20,
                 artifacts=[],
                 skills=["trace"],
-                namespace=f"trace-annotation:{self.namespace}",
+                # Per-path namespace (matches the production workflow): avoids
+                # the shared store accumulating every path's notes + skills.
+                namespace=f"trace-annotation:{self.namespace}:{api_path.path_key}",
                 model=self.llm,
             )
             # Bound each path independently: a stuck path is cancelled and we move
