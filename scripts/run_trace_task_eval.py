@@ -38,26 +38,46 @@ DEFAULT_FIXTURES = "vulnyapi,vaultpay,fastapi,spring"
 
 
 def _score(actual: set, expected: set) -> dict[str, Any]:
-    """Precision/recall/f1 of annotated ``(file, function)`` tuples."""
+    """Precision/recall/f1 of annotated ``(file, function)`` tuples.
+
+    The task annotates every OpenAPI operation, but ``expected_annotated`` is
+    a *partial* label set (only the flows the fixture authored). Counting
+    annotations on un-labeled operations as false positives crushes precision
+    for reasons unrelated to quality. So precision is scored only over the
+    **GT-labeled scope** — annotations whose file appears in ``expected`` —
+    the standard treatment for partial-label evals. Recall is unchanged
+    (matched / expected). The raw, unscoped precision is kept under
+    ``precision_raw`` / ``total_actual`` for transparency.
+    """
     if not expected:
         return {"precision": 1.0, "recall": 0.0, "f1": 0.0, "matched": 0,
                 "total_expected": 0, "total_actual": len(actual),
+                "scored_actual": 0, "precision_raw": 0.0, "out_of_scope": len(actual),
                 "missing": [], "extra": []}
     actual_t = {a.as_tuple() for a in actual}
     expected_t = {e.as_tuple() for e in expected}
+    labeled_files = {f for f, _ in expected_t}
+    # Precision denominator: annotations in files the ground truth labels.
+    scored_t = {(f, fn) for (f, fn) in actual_t if f in labeled_files}
     matched = actual_t & expected_t
-    precision = len(matched) / len(actual_t) if actual_t else 0.0
+    precision = len(matched) / len(scored_t) if scored_t else 0.0
+    precision_raw = len(matched) / len(actual_t) if actual_t else 0.0
     recall = len(matched) / len(expected_t) if expected_t else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
     return {
-        "precision": round(precision, 3),
+        "precision": round(precision, 3),       # scoped to GT-labeled files
+        "precision_raw": round(precision_raw, 3),  # over all annotations
         "recall": round(recall, 3),
         "f1": round(f1, 3),
         "matched": len(matched),
         "total_expected": len(expected_t),
         "total_actual": len(actual_t),
+        "scored_actual": len(scored_t),         # precision denominator
+        "out_of_scope": len(actual_t) - len(scored_t),  # on un-labeled operations
+        # "extra" = only the in-scope false positives (wrong func in a labeled
+        # file); out-of-scope annotations are neither matched nor penalized.
         "missing": sorted(f"{f}::{fn}" for f, fn in (expected_t - actual_t)),
-        "extra": sorted(f"{f}::{fn}" for f, fn in (actual_t - expected_t)),
+        "extra": sorted(f"{f}::{fn}" for f, fn in (scored_t - expected_t)),
     }
 
 
@@ -294,7 +314,10 @@ async def run_eval(
 
         print(f"  duration: {duration:.1f}s  annotations: {len(annotations)}"
               f"  / {len(expected)} expected")
-        print(f"  annot:  P={score['precision']:.3f} R={score['recall']:.3f} F1={score['f1']:.3f}")
+        print(f"  annot:  P={score['precision']:.3f} R={score['recall']:.3f} "
+              f"F1={score['f1']:.3f}  (scoped to {score['scored_actual']} of "
+              f"{score['total_actual']} annots; {score['out_of_scope']} on "
+              f"un-labeled ops; raw P={score['precision_raw']:.3f})")
         if vuln_detail:
             print(f"  vulns:  P={vuln_detail['precision']:.3f} "
                   f"R={vuln_detail['recall']:.3f} F1={vuln_detail['f1']:.3f} "
@@ -312,9 +335,11 @@ async def run_eval(
         case = CaseResult(
             id=r["slug"], passed=r["f1"] >= 0.5, pass_count=int(r["f1"] >= 0.5),
             attempts=1, metrics=r,
-            detail={"precision": r["precision"], "recall": r["recall"], "f1": r["f1"],
+            detail={"precision": r["precision"], "precision_raw": r["precision_raw"],
+                    "recall": r["recall"], "f1": r["f1"],
                     "matched": r["matched"], "total_expected": r["total_expected"],
-                    "total_actual": r["total_actual"], "missing": r["missing"],
+                    "total_actual": r["total_actual"], "scored_actual": r["scored_actual"],
+                    "out_of_scope": r["out_of_scope"], "missing": r["missing"],
                     "extra": r["extra"], "prompt_version": r["prompt_version"]})
         fixtures.append(FixtureResult(slug=r["slug"], cases=[case]))
 
