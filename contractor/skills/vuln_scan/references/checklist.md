@@ -16,6 +16,7 @@ For EVERY endpoint discovered (HTTP handler, CLI command, async consumer, backgr
 | rate_limit | present / absent / weak / N/A | Is abuse/brute-force prevented? |
 | csrf | present / absent / weak / N/A | For cookie/session-auth state-changing endpoints: anti-CSRF token enforced? (N/A for pure bearer-token APIs) |
 | cors_policy | present / absent / weak / N/A | For endpoints returning credentialed responses: origin allowlisted, not wildcard/reflected with credentials? |
+| invariants | present / absent / weak / N/A | For money/quantity/state/workflow ops: atomic, idempotent, amounts bounded, values server-authoritative, steps ordered? (see `business-logic`) |
 
 ## Where to look for controls (check all before marking absent)
 
@@ -40,3 +41,9 @@ An absent or weak control on a sensitive endpoint IS a finding. Sensitive endpoi
 - Database reset / seed / migration endpoints
 - Debug / diagnostic endpoints
 - Expensive operations (search, export, bulk)
+- Operations that move money / change a balance, quantity, quota, credit,
+  vote, or ownership, or advance a multi-step workflow (an absent/weak
+  `invariants` row here is a business-logic finding even when every other
+  control is present — see `business-logic`)
+- Any handler that returns, logs, or persists data (run the secrets &
+  sensitive-data exposure sweep — see `secrets`)
