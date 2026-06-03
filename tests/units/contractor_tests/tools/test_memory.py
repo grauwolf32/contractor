@@ -314,6 +314,41 @@ async def test_search_memory_returns_any_matching_tag():
 
 
 @pytest.mark.asyncio
+async def test_reserved_tags_hidden_from_generic_surface():
+    """skill/inbox notes are reachable only via their dedicated tools."""
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+
+    await tools.write_memory(name="note", memory="m", description="d",
+                             tags=["topic"], ctx=ctx)
+    await tools.write_memory(name="trace/refs/sinks", memory="SKILL BODY",
+                             description="d", tags=["skill", "trace"], ctx=ctx)
+    await tools.write_memory(name="prev-task", memory="INBOX", description="d",
+                             tags=["inbox"], ctx=ctx)
+
+    # list_memories excludes reserved
+    assert {n.name for n in await tools.list_memories(ctx)} == {"note"}
+
+    # read_memory hard-refuses reserved (treated as absent)
+    assert await tools.read_memory("note", ctx) is not None
+    assert await tools.read_memory("trace/refs/sinks", ctx) is None
+    assert await tools.read_memory("prev-task", ctx) is None
+
+    # search_memory excludes reserved notes AND drops reserved tags from query
+    await tools.write_memory(name="note2", memory="m", description="d",
+                             tags=["topic"], ctx=ctx)
+    assert {n.name for n in await tools.search_memory(["topic"], ctx)} == {"note", "note2"}
+    assert await tools.search_memory(["skill"], ctx) == []
+    # a query mixing reserved + real tag still excludes the reserved skill note
+    assert {n.name for n in await tools.search_memory(["skill", "trace"], ctx)} == set()
+
+    # dedicated paths STILL reach reserved notes (skills_read / inbox_read)
+    assert (await tools.read_memory_by_tag("trace/refs/sinks", "skill", ctx)).memory == "SKILL BODY"
+    assert (await tools.read_memory_by_tag("prev-task", "inbox", ctx)).memory == "INBOX"
+    assert {n.name for n in await tools.memories_by_tag("skill", ctx)} == {"trace/refs/sinks"}
+
+
+@pytest.mark.asyncio
 async def test_memories_by_tag_filters_by_single_tag():
     tools = MemoryTools(name="agent")
     ctx = FakeArtifactCtx()
