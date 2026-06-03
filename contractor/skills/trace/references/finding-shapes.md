@@ -1,12 +1,13 @@
 ---
-description: Finding shape A/B/C taxonomy, required fields, severity/confidence heuristics, and `report_vulnerability` field mapping for the trace skill. Each finding must match exactly one shape. Reaching a sink alone is NOT a vulnerability.
+description: Finding shape A/B/C/D taxonomy (taint→sink, missing control, at-rest/response exposure, business-logic invariant break), required fields, severity/confidence heuristics, and `report_vulnerability` field mapping for the trace skill. Each finding must match exactly one shape. Reaching a sink alone is NOT a vulnerability.
 ---
 
-# Finding Shapes (A / B / C)
+# Finding Shapes (A / B / C / D)
 
-A finding must match exactly ONE shape. Shapes B and C are first-class —
-do NOT force a taint→sink narrative when the bug is a missing control or
-an at-rest/in-transit defect.
+A finding must match exactly ONE shape. Shapes B, C, and D are
+first-class — do NOT force a taint→sink narrative when the bug is a
+missing control, an at-rest/in-transit defect, or a violated
+application invariant.
 
 ## Shape A — Tainted flow into a sink
 
@@ -89,13 +90,84 @@ FP guard: a `*_test_*` Stripe key or an obvious placeholder/example value
 Defects on opened files outside the traced flow are Shape C — report
 once with a deterministic slug (file path + symbol).
 
+### Shape C detection sweep (do this on every handler that returns or stores data)
+
+Shape C is the most-missed shape because nothing "flows to a sink" — you
+must actively look. Two passes:
+
+1. **Response sweep.** For each value the handler returns, enumerate the
+   *fields actually serialized* (follow the ORM model / struct / dict, not
+   just the variable name). Returning a whole domain object (`return user`,
+   `jsonify(row)`, `Model.objects...` serialized whole) leaks every field
+   it has. Ask of each field: is it a credential, token, hash, secret,
+   internal flag, audit/owner id, full PAN, email/phone, or other PII? Any
+   sensitive field with no explicit projection/DTO excluding it → Shape C
+   (`output_filter`). A sibling handler that DOES project the same object
+   confirms the gap.
+2. **At-rest / storage sweep.** For each value the handler persists, ask:
+   is a credential stored without a slow KDF+salt; is a card number/SSN/
+   token stored in cleartext or recoverable form; is a secret written to a
+   log/metric/trace; is a security-relevant value (token, OTP, reset code,
+   session id) generated with non-CSPRNG randomness? Each → Shape C
+   (`secret_storage` / `secret.log` / weak-randomness).
+
+Record these even when every access-control row is `present` — a perfectly
+authorized response can still over-expose.
+
+## Shape D — Business-logic / abuse of functionality
+
+Mechanic: a state-changing operation violates an **application invariant**
+even though the per-handler controls (auth, authz, validation) are all
+present. The defect is in WHAT the operation permits, not in a tainted
+sink or a missing checklist row. No taint flow and no `absent` control row
+is required — report on the visible code by naming the invariant and the
+sequence that breaks it.
+
+Look for Shape D whenever the handler touches a resource whose correctness
+depends on rules a framework cannot enforce: money, balances, inventory/
+quantity, credits/points/votes, quotas/limits, ownership transfer, or a
+multi-step workflow.
+
+Detection heuristics (each is a Shape D candidate):
+
+- **Missing idempotency / replay** — a charge / transfer / redeem / submit
+  applies cumulatively when the same request is sent twice (no idempotency
+  key, nonce, or once-only guard) → double-spend / replay.
+  → `control_missing: idempotency`
+- **Check-then-act without atomicity (TOCTOU / race)** — balance / quota /
+  stock is read, validated, then mutated in separate steps with no lock,
+  transaction, `SELECT … FOR UPDATE`, or atomic decrement → concurrent
+  requests pass the check together (negative balance, over-redeem,
+  oversell). → `control_missing: atomicity`
+- **Unbounded / unsigned amount** — quantity/amount/price not constrained
+  for sign and range → a negative amount reverses the transfer; a huge one
+  overflows or drains. → `control_missing: input_validation` (Shape D when
+  the impact is an invariant break, not a sink)
+- **Client-trusted value** — price, total, discount, role, status, balance,
+  or another user's id taken from the request body and used as truth
+  instead of being recomputed / looked up server-side → tampering.
+  → `control_missing: business_logic`
+- **Workflow / state-machine bypass** — a step that must follow a prior one
+  (pay before ship, verify before activate, 2FA before sensitive action) is
+  independently reachable or can be reordered → `control_missing: state_machine`
+- **Quota / limit not enforced server-side** — a per-user cap (trials,
+  invites, votes, withdrawals) is enforced optimistically/in the client but
+  not on the server. → `control_missing: business_logic`
+
+Boundary with other shapes: if the root cause is a missing cryptographic
+signature/nonce on a *credential or token*, prefer Shape C/`signature_verify`;
+if it is a missing application-level once-only/atomicity guard on an
+*operation*, it is Shape D. If tainted input controls a sink, that is
+Shape A — Shape D is for invariant breaks that need no taint.
+
 ## Required fields per finding (§7 report)
 
   shape:                A | B | C
   control_missing:      one of {auth, authz, signature_verify,
       expiry_check, role_check, ownership_check, csrf,
       path_confinement, input_validation, output_filter,
-      secret_storage, cookie_flags, tls, rate_limit, other}
+      secret_storage, cookie_flags, tls, rate_limit,
+      idempotency, atomicity, state_machine, business_logic, other}
   evidence_lines:       file:line, file:line, ...
   exploit_precondition: e.g. unauthenticated | any authenticated user |
                         knows victim id | can set header X
@@ -127,10 +199,15 @@ handler, given the exploit precondition you recorded.
              arbitrary file read of secrets, account takeover by anyone
   high     — authenticated RCE, IDOR exposing other users' PII or
              secrets, SSRF reaching internal/metadata, privileged action
-             without authz, password/token reset bypass
+             without authz, password/token reset bypass, financial
+             invariant break by any user (double-spend, negative transfer,
+             balance/quota race), cleartext storage of credentials/PAN
   medium   — IDOR exposing non-PII business data, open redirect, stored
              XSS in an authenticated-only surface, weak crypto on
-             session/token, missing CSRF on state-changing endpoint
+             session/token, missing CSRF on state-changing endpoint,
+             workflow-step bypass or per-user limit not enforced
+             server-side, sensitive field over-exposed in an
+             authenticated-only response
   low      — reflected XSS gated behind auth, log of low-sensitivity
              secret, cookie missing one flag where transport already
              mitigates, rate-limit gap on a non-sensitive operation
