@@ -52,7 +52,14 @@ class Settings(BaseSettings):
     http_retry_base_delay: float = Field(default=0.5)
     http_retry_max_delay: float = Field(default=8.0)
     fs_max_items: int = Field(default=100)
-    fs_max_output: int = Field(default=80_000)
+    # read_file output is capped at the byte budget OR the line cap below,
+    # whichever binds first (mirrors gemini-cli/opencode/openclaw). A/B eval
+    # (oas + trace) showed no degradation vs the old 80KB/no-line-cap default;
+    # the cap rarely binds since the trace agent reads targeted files.
+    fs_max_output: int = Field(default=50_000)
+    # Default per-read line cap when read_file is called without an explicit
+    # `limit`. None disables the line cap (byte cap only).
+    fs_max_read_lines: int | None = Field(default=2000)
     code_max_walk_depth: int = Field(default=50)
     code_max_files_per_walk: int = Field(default=100_000)
     graph_max_results: int = Field(default=200)

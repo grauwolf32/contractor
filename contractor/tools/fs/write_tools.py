@@ -25,6 +25,7 @@ from contractor.tools.fs.utils import (
 )
 from contractor.tools.fs.validation import PathValidationMixin
 from contractor.tools.result import guard
+from contractor.utils.settings import get_settings
 
 
 class FsspecWriteTools(PathValidationMixin):
@@ -35,7 +36,7 @@ class FsspecWriteTools(PathValidationMixin):
         ignored_patterns: list[str] | None = None,
         wrap_overlay: bool = True,
         fmt: FileFormat | None = None,
-        max_output: int = 80_000,
+        max_output: int | None = None,
         max_items: int = 100,
         with_types: bool = True,
         with_file_info: bool = True,
@@ -54,7 +55,10 @@ class FsspecWriteTools(PathValidationMixin):
             with_types=with_types,
             with_file_info=with_file_info,
         )
-        self.max_output = max_output
+        # Resolve the byte cap (used here for diff output); None → settings.
+        self.max_output = (
+            get_settings().fs_max_output if max_output is None else max_output
+        )
         self.max_items = max_items
         self.with_types = with_types
         self.with_file_info = with_file_info
@@ -63,7 +67,7 @@ class FsspecWriteTools(PathValidationMixin):
         self._reader = FsspecInteractionFileTools(
             fs=self.fs,
             fmt=self.fmt,
-            max_output=max_output,
+            max_output=self.max_output,
             max_items=max_items,
             ignored_patterns=self.patterns,
             with_types=with_types,
@@ -779,7 +783,7 @@ def rw_file_tools(
     ignored_patterns: list[str] | None = None,
     wrap_overlay: bool = True,
     fmt: FileFormat | None = None,
-    max_output: int = 80_000,
+    max_output: int | None = None,
     max_items: int = 300,
     with_types: bool = True,
     with_file_info: bool = True,
