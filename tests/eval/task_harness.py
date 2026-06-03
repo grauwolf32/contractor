@@ -46,6 +46,18 @@ from contractor.utils import observability
 QueueFn = Callable[[TaskRunner], Awaitable[None] | None]
 
 
+def _pass_artifact_root(artifact_dir: Path | str, run_id: str | int | None) -> Path:
+    """Per-pass artifact root for pass@M isolation.
+
+    With a ``run_id`` the tree is nested under ``pass-<run_id>`` so separate
+    passes that share a base ``artifact_dir`` get isolated FileArtifactService
+    roots (memory is not reused across passes). Without one the base dir is used
+    unchanged — within a single pass, all retries/iterations share it.
+    """
+    d = Path(artifact_dir)
+    return d / f"pass-{run_id}" if run_id is not None else d
+
+
 @dataclass
 class TaskMetrics:
     """Per-task aggregate of plugin-emitted events.
@@ -144,6 +156,7 @@ async def run_task_pipeline(
     preloaded_artifacts: dict[str, str] | None = None,
     output_dir: Path | None = None,
     artifact_dir: Path | None = None,
+    run_id: str | int | None = None,
     post_run_fn: Callable[..., Any] | None = None,
 ) -> TaskAgentRun:
     """Build a ``TaskRunner``, hand it to ``queue_fn`` for population, run it,
@@ -162,6 +175,15 @@ async def run_task_pipeline(
     ``namespace`` is used only for the Langfuse trace context; it does
     NOT override per-task ``namespace=`` passed to ``add_task`` (those
     keep the same isolation the production pipelines use).
+
+    ``run_id`` isolates one *pass* of a pass@M task eval. One
+    ``run_task_pipeline`` call IS one pass: within it, all ``max_attempts``
+    retries and ``iterations`` share the artifact tree (so memory is reused
+    across retries — the intended behavior the planner relies on). Across
+    passes, give each call a distinct ``run_id`` and the artifact tree is
+    nested under ``<artifact_dir>/pass-<run_id>`` with a per-pass Langfuse
+    session — a fresh ``FileArtifactService`` root, so memory does NOT leak
+    between passes even when the per-task namespaces are identical.
     """
     import asyncio
     import contextlib
@@ -177,10 +199,12 @@ async def run_task_pipeline(
     # artifact tree (HTTP sessions, memory versions, verifications, code-exec)
     # for offline analysis — e.g. under ``eval_runs/<run>/<case>/artifacts``.
     if artifact_dir is not None:
-        artifact_dir = Path(artifact_dir)
+        artifact_dir = _pass_artifact_root(artifact_dir, run_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         _dir_cm: Any = contextlib.nullcontext(str(artifact_dir))
     else:
+        # No artifact_dir → a fresh TemporaryDirectory per call already
+        # isolates each pass (separate FileArtifactService root).
         _dir_cm = tempfile.TemporaryDirectory(prefix="task-eval-artifacts-")
 
     with _dir_cm as tmpdir:
@@ -212,9 +236,10 @@ async def run_task_pipeline(
         if observability_tags:
             tags.extend(observability_tags)
 
+        session_id = namespace if run_id is None else f"{namespace}:pass-{run_id}"
         with observability.run_context(
             name=f"eval.task_runner.{runner_name}",
-            session_id=namespace,
+            session_id=session_id,
             tags=tags,
             metadata={
                 "runner_name": runner_name,

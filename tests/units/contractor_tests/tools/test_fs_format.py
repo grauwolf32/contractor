@@ -176,3 +176,62 @@ def test_format_output_handles_max_smaller_than_footer():
 
 def test_format_output_empty_input_returns_empty():
     assert FileFormat.format_output("", max_output=100) == ""
+
+
+# ---------------------------------------------------------------------------
+# format_output — resume offset footer
+# ---------------------------------------------------------------------------
+
+
+def _parse_resume_offset(out: str) -> int:
+    marker = "resume with read_file offset="
+    assert marker in out
+    tail = out.split(marker, 1)[1]
+    return int(tail.split(" ", 1)[0].rstrip("#").strip())
+
+
+def test_format_output_emits_resume_offset_when_base_offset_given():
+    text = "".join(f"line{i}\n" for i in range(50))
+    out = FileFormat.format_output(text, max_output=250, base_offset=0)
+    assert "### truncated at line:" in out  # existing info preserved
+    assert "lines left in the file:" in out
+    assert "resume with read_file offset=" in out
+
+
+def test_format_output_resume_offset_round_trips_without_gap_or_overlap():
+    # base_offset=0: the offset must point at the first dropped line so a
+    # follow-up read_file(offset=...) continues seamlessly.
+    lines = [f"line{i}\n" for i in range(50)]
+    text = "".join(lines)
+    out = FileFormat.format_output(text, max_output=250, base_offset=0)
+
+    resume = _parse_resume_offset(out)
+    body = out.split("\n\n###", 1)[0]
+    emitted = body.count("\n")  # full lines kept (each ends with \n)
+    assert resume == emitted  # no gap, no overlap with the emitted body
+    # The line at `resume` is exactly the first one not shown.
+    assert lines[resume] not in body
+    assert lines[resume - 1] in body
+
+
+def test_format_output_resume_offset_is_absolute_when_base_offset_nonzero():
+    # Caller already skipped 100 lines; the resume offset must be absolute.
+    text = "".join(f"line{i}\n" for i in range(50))
+    out = FileFormat.format_output(text, max_output=250, base_offset=100)
+    assert _parse_resume_offset(out) >= 100
+
+
+def test_format_output_omits_resume_offset_by_default():
+    # Non-paginated callers (e.g. diff output) must not get a misleading offset.
+    text = "".join(f"line{i}\n" for i in range(50))
+    out = FileFormat.format_output(text, max_output=80)
+    assert "resume with read_file offset=" not in out
+    assert "### truncated at line:" in out
+
+
+def test_format_output_omits_resume_offset_when_no_line_fits():
+    # A single line wider than the budget emits nothing; a resume offset would
+    # equal the requested offset and loop, so it must be suppressed.
+    text = "x" * 500 + "\n" + "more\n"
+    out = FileFormat.format_output(text, max_output=50, base_offset=7)
+    assert "resume with read_file offset=" not in out

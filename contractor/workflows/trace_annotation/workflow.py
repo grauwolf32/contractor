@@ -191,7 +191,12 @@ class TraceAnnotationWorkflow(Workflow):
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
         operation_ids, operation_schema_yaml = self._build_path_task_payload(api_path)
-        workflow_namespace = f"trace-annotation:{self.namespace}"
+        # Per-path memory namespace (matches trace_annotation_direct / trace_graph).
+        # A shared namespace accumulated every path's notes + the injected skill
+        # bodies into one ever-growing store (O(n²) context across paths), which
+        # was the dominant cost on large specs; skills are re-injected per path
+        # via add_task(skills=...).
+        workflow_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
 
         runner.add_variable(name="operation_id", value=operation_ids)
         runner.add_variable(name="operation_schema", value=operation_schema_yaml)

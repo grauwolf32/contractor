@@ -268,6 +268,18 @@ class MemoryFormat:
         return {"tags": tags}
 
 
+# Tags reserved for system-managed memory. Notes carrying any of these are
+# reachable only through their dedicated tools (skills_list/skills_read,
+# inbox_list/inbox_read) — they are hidden from the generic memory surface
+# (list_memories/search_memory/read_memory) so worker notes aren't polluted
+# by skill bodies and the agent doesn't pull skills via read_memory.
+_RESERVED_TAGS: frozenset[str] = frozenset({"skill", "inbox"})
+
+
+def _is_reserved(note: MemoryNote) -> bool:
+    return bool(_RESERVED_TAGS.intersection(note.tags))
+
+
 @dataclass
 class MemoryTools:
     name: str
@@ -399,7 +411,10 @@ class MemoryTools:
         ctx: ToolContext | CallbackContext,
     ) -> list[MemoryNote]:
         await self.load(ctx)
-        return sorted(self.notes.values(), key=lambda m: (m.ordinal, m.name))
+        return sorted(
+            (m for m in self.notes.values() if not _is_reserved(m)),
+            key=lambda m: (m.ordinal, m.name),
+        )
 
     async def list_tags(self, ctx: ToolContext | CallbackContext) -> list[str]:
         await self.load(ctx)
@@ -472,7 +487,12 @@ class MemoryTools:
         ctx: ToolContext | CallbackContext,
     ) -> MemoryNote | None:
         await self.load(ctx)
-        return self.notes.get(name)
+        note = self.notes.get(name)
+        # Reserved notes (skills/inbox) are not readable here — steer the agent
+        # to skills_read / inbox_read. Treated as absent.
+        if note is not None and _is_reserved(note):
+            return None
+        return note
 
     async def search_memory(
         self,
@@ -480,12 +500,17 @@ class MemoryTools:
         ctx: ToolContext | CallbackContext,
     ) -> list[MemoryNote]:
         await self.load(ctx)
-        normalized = set(tags)
+        # Drop reserved tags from the query and exclude reserved notes, so this
+        # generic surface never returns skills/inbox.
+        normalized = set(tags) - _RESERVED_TAGS
+        if not normalized:
+            return []
         return sorted(
             [
                 memory
                 for memory in self.notes.values()
-                if any(tag in memory.tags for tag in normalized)
+                if not _is_reserved(memory)
+                and any(tag in memory.tags for tag in normalized)
             ],
             key=lambda m: (m.ordinal, m.name),
         )
@@ -507,7 +532,11 @@ class MemoryTools:
         tag: str,
         ctx: ToolContext | CallbackContext,
     ) -> MemoryNote | None:
-        note = await self.read_memory(name, ctx)
+        # Dedicated path for reserved categories (skills_read / inbox_read):
+        # bypass the reserved-tag filter in read_memory and read self.notes
+        # directly, then enforce the requested tag.
+        await self.load(ctx)
+        note = self.notes.get(name)
         if note is None:
             return None
         if tag not in note.tags:
@@ -626,7 +655,8 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
             The full stored memory, including content, tags, insertion order, and timestamps.
 
         Behavior:
-            - Prefer skills_read or inbox_read when the memory must belong to a specific category.
+            - Skills and inbox entries are NOT readable here — use skills_read
+              or inbox_read for those (they are treated as not found).
         """
 
         async def _impl() -> Any:

@@ -1,7 +1,7 @@
 slug: vaultpay
 language: typescript
 framework: express
-source_root: tests/playground/typescript/vault-pay
+source_root: tests/playground/typescript/vault-pay/vault-pay
 description: >
   TypeScript/Express P2P money-transfer + ledger fixture. Multi-currency
   accounts, transfers with idempotency, card storage, promo redemption,

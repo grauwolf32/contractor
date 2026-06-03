@@ -47,17 +47,30 @@ Always include the primary CWE ID (e.g. `CWE-89`) in the `details` field.
 | Plaintext Password Storage       | CWE-256     |
 | Weak Hashing (MD5/SHA1)          | CWE-328     |
 | Sensitive Data in Response       | CWE-200     |
+| Personal/Financial Data Exposure (PII/PAN) | CWE-359 |
+| Missing Encryption of Sensitive Data (at rest) | CWE-311 |
 | Verbose Error / Stack Trace      | CWE-209     |
 | Missing Cookie Flags             | CWE-614     |
 | Weak PRNG for Security           | CWE-330     |
 | Cleartext Transmission           | CWE-319     |
 | CORS Misconfiguration            | CWE-346     |
 
+## Shape D — Business-Logic / Invariant Violation
+
+| Vulnerability Class                       | Primary CWE | Control Missing  |
+|-------------------------------------------|-------------|------------------|
+| Race Condition / TOCTOU (check-then-act)  | CWE-362     | atomicity        |
+| Replayable / Non-Idempotent Operation     | CWE-837     | idempotency      |
+| Workflow / State-Machine Bypass           | CWE-841     | state_machine    |
+| Client-Trusted Security-Critical Value    | CWE-602     | business_logic   |
+| Unbounded / Negative Amount or Quantity   | CWE-20      | input_validation |
+| Business Logic Error (general)            | CWE-840     | business_logic   |
+
 ## Details Field Template
 
 ```
 CWE-{ID}: {vulnerability class}
-shape: {A|B|C}
+shape: {A|B|C|D}
 control_missing: {control name}
 evidence_lines: {file}:{line}, ...
 exploit_precondition: {e.g. unauthenticated, any authenticated user}

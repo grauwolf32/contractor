@@ -46,7 +46,12 @@ def _run_id(path: Path) -> str:
 
 
 def _run_name(path: Path) -> str:
-    return "root" if path.parent == EVAL_ROOT else path.parent.name
+    """Human label for a run. Uses the full path under EVAL_ROOT so nested
+    envelopes keep their context — e.g. a run's ``vuln_detection/`` sub-envelope
+    reads ``trace-task-v7 / vuln_detection`` instead of a bare, ambiguous
+    ``vuln_detection`` that collides across every run."""
+    rel = path.parent.relative_to(EVAL_ROOT)
+    return "root" if rel == Path(".") else " / ".join(rel.parts)
 
 
 def _discover() -> list[tuple[str, Path]]:

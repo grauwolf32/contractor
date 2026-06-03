@@ -1,5 +1,5 @@
 ---
-description: Trace-and-annotate skill — sink/source taxonomy, finding shapes (A/B/C), per-handler control checklist, annotation discipline. Detail files live under `trace/references/<topic>` — read on demand via skills_read.
+description: Trace-and-annotate skill — sink/source taxonomy, finding shapes (A/B/C/D), per-handler control checklist, annotation discipline. Detail files live under `trace/references/<topic>` — read on demand via skills_read.
 ---
 
 # Trace Annotation Skill
@@ -89,8 +89,12 @@ Each finding must match exactly one shape.
 | A     | tainted/derived input controls structure/path/command/query shape at a sink, and a blocking control is missing or weak |
 | B     | a sensitive operation is reachable without a required control                                                          |
 | C     | a sensitive value is stored, transmitted, logged, or returned without required protection                              |
+| D     | a money/quantity/state/workflow operation violates an application invariant (no atomicity/idempotency, client-trusted value, step bypass) — controls present, logic broken |
 
-Load `trace/references/finding-shapes` before reporting.
+Load `trace/references/finding-shapes` before reporting. Shapes C and D
+are the most-missed: run the **response/at-rest sweep** (Shape C) and the
+**invariants** check (Shape D) on every handler that returns/persists data
+or moves money/quantity/state — they need no taint flow.
 
 ### Phase 6 — Verify evidence
 
@@ -113,9 +117,10 @@ If not, downgrade confidence or do not report.
   not enough.
 - **Parameterized ORM/driver calls are not raw SQL.** Mislabeling these
   as `db.query.raw` / `db.exec.raw` is the #1 false-positive source.
-- **Shape B and C are first-class.** Do not force a taint→sink story
+- **Shape B, C, and D are first-class.** Do not force a taint→sink story
   onto access-control gaps, plaintext secrets, cookie flag defects,
-  logging leaks, or unfiltered responses.
+  logging leaks, unfiltered responses, or business-logic invariant breaks
+  (race/idempotency/client-trusted value/workflow bypass).
 - **Validation is not authorization.** A schema may prove a field is
   well-formed; it does not prove the caller may access the resource.
 - **Authentication is not ownership.** A valid user identity must still
@@ -162,6 +167,10 @@ Names only — full catalogue and per-sink checklists in
   Shape C — sensitive value at rest / in transit / in response without
             protection (plaintext credentials, hardcoded secrets, cookie
             flag gaps, unfiltered response, secret logged, weak randomness).
+  Shape D — money/quantity/state/workflow operation violates an application
+            invariant despite controls being present (missing atomicity →
+            balance/quota race, missing idempotency → double-spend, negative/
+            unbounded amount, client-trusted price/role, workflow-step bypass).
 
 Full per-shape mechanics, required fields, severity/confidence
 heuristics, and `report_vulnerability` field mapping →

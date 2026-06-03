@@ -1,5 +1,5 @@
 ---
-description: Per-handler control checklist for the trace skill. Walk this list before reporting; each absent/weak row on a sensitive operation is a Shape B candidate.
+description: Per-handler control checklist for the trace skill. Walk this list before reporting; each absent/weak row on a sensitive operation is a finding candidate — Shape B (missing access/anti-abuse control), C (over-exposed/unprotected value), or D (violated state/financial invariant).
 ---
 
 # Per-Handler Control Checklist
@@ -19,6 +19,7 @@ function does not count unless the current target reaches it.
 | output_filter      | domain object passed through a projection/sanitizer      |
 | rate_limit / csrf  | applicable to write/state-changing operations            |
 | cors               | response ACAO not reflected/`*`-with-credentials          |
+| invariants         | money/quantity/state ops are atomic, idempotent, bounded, server-authoritative |
 
 ## Status semantics
 
@@ -159,6 +160,50 @@ allowlist (exact origins), or credentials are not enabled for a wildcard.
 
 → Origin Validation Error (CWE-346).
 
+### invariants / business-logic
+
+This row is `N/A` for pure reads and stateless operations. It applies when
+the handler changes a resource whose correctness depends on application
+rules the framework cannot enforce — money, balances, inventory/quantity,
+credits/points/votes, quotas/limits, ownership transfer, or a multi-step
+workflow. A handler can have every other row `present` and still be broken
+here. An `absent`/`weak` invariants row is a **Shape D** finding (see
+`trace/references/finding-shapes`), not Shape B.
+
+`present` when the operation:
+- mutates state atomically (single UPDATE with a guard, transaction, row
+  lock / `SELECT … FOR UPDATE`, or atomic decrement) — not read-check-write
+- is idempotent or replay-protected (idempotency key, nonce, once-only
+  flag) for charge/transfer/redeem/submit
+- recomputes or server-looks-up security/financial values (price, total,
+  role, status, balance, owner) instead of trusting the request body
+- bounds amounts/quantities for sign and range
+- enforces per-user limits/quotas on the server
+- enforces step order for workflows (cannot ship before pay, activate
+  before verify, act before 2FA)
+
+`weak` when:
+- balance/quota/stock is read and validated, then mutated in a separate
+  step with no lock/transaction → `weak (check-then-act, no atomicity)`
+- a per-user cap is checked but the check itself races → `weak (limit not atomic)`
+- amount validated for type but not for sign → `weak (negative amount allowed)`
+- a workflow guard exists but a later step is also independently reachable
+  → `weak (step reachable out of order)`
+
+To evaluate: identify the invariant ("a user cannot spend more than their
+balance", "a coupon redeems once", "price is set by the catalog"), then
+look for a concurrent or repeated request sequence, or a tampered field,
+that violates it. Name that sequence in the finding.
+
+### output_filter (response sensitivity sweep)
+
+Do not infer this row from the handler returning "a model" — enumerate the
+fields actually serialized (follow the ORM model / struct, not the variable
+name) and check each for credentials, tokens, hashes, internal flags,
+owner/audit ids, full PAN, or PII. See the **Shape C detection sweep** in
+`trace/references/finding-shapes` — run it on every handler that returns or
+persists data, even when access control is fully `present`.
+
 ## Dominance rule (a control only counts if it dominates the operation)
 
 A control is `present` only when it **dominates** the sensitive operation:
@@ -201,7 +246,7 @@ siblings under Uncertainties rather than over-claiming project-wide.
 | CSRF token is set in template          | not present unless server validates it                          |
 | Policy helper is imported              | not present unless called on this path                          |
 
-## Sensitivity gate (when does an absent/weak row become Shape B?)
+## Sensitivity gate (when does an absent/weak row become a finding?)
 
 Sensitive operations:
 
@@ -219,21 +264,30 @@ Sensitive operations:
   can be manipulated to set a role, capability, group, or admin status
   (privilege escalation, CWE-269)
 - expensive operation where abuse has security or availability impact
+- any operation that moves money / changes a balance, quantity, quota,
+  credit, vote, or ownership, or advances a multi-step workflow — even when
+  auth/authz/validation are all present, the `invariants` row may be
+  `absent`/`weak` → **Shape D** (atomicity / idempotency / business_logic)
+- any handler that returns or persists a domain object — run the response /
+  at-rest sweep; over-exposed or cleartext sensitive data → **Shape C**
 
-If the row is `absent` or `weak` on a sensitive operation, raise a
-Shape B finding with `control_missing` set to the appropriate tag.
+If the row is `absent` or `weak` on a sensitive operation, raise a finding:
+Shape B for a missing access/anti-abuse control, Shape C for an over-exposed
+or unprotected sensitive value, Shape D for a violated state/financial
+invariant — with `control_missing` set to the appropriate tag.
 
-## Shape B candidate mapping
+## Checklist row → finding mapping
 
-| Checklist row      | Typical `control_missing`                |
+| Checklist row      | Typical `control_missing` (shape)        |
 | ------------------ | ---------------------------------------- |
 | authentication     | `auth`                                   |
 | authorization      | `authz` or `role_check`                  |
 | ownership/scoping  | `ownership_check`                        |
 | input_validation   | `input_validation`                       |
-| output_filter      | `output_filter`                          |
+| output_filter      | `output_filter` (over-exposure, Shape C) |
 | rate_limit / csrf  | `rate_limit` or `csrf`                   |
 | cors               | `cors` (CORS misconfig, Shape C)         |
+| invariants         | `atomicity` / `idempotency` / `state_machine` / `business_logic` (Shape D) |
 
 Token verification defects may use `signature_verify` or
 `expiry_check`. Use the more specific tag when available.
