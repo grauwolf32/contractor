@@ -376,7 +376,11 @@ class FsspecInteractionFileTools(PathValidationMixin):
             )
         else:
             sliced = "\n".join(lines)
-        return {"result": self.fmt.format_output(sliced, self.max_output)}
+        return {
+            "result": self.fmt.format_output(
+                sliced, self.max_output, base_offset=start_line - 1
+            )
+        }
 
     def grep(
         self,

@@ -103,7 +103,20 @@ class FileFormat:
         return [self.format_fs_entry(file) for file in cleaned]  # type: ignore[return-value]
 
     @staticmethod
-    def format_output(content: str, max_output: int) -> str:
+    def format_output(
+        content: str,
+        max_output: int,
+        *,
+        base_offset: int | None = None,
+    ) -> str:
+        """Truncate *content* to ``max_output`` bytes on a line boundary.
+
+        When ``base_offset`` is given (the 0-based line offset of *content*
+        within the original file), the truncation footer also advertises a
+        ready-to-use ``offset`` so the agent can resume with
+        ``read_file(offset=<offset>)``. It is left ``None`` for non-paginated
+        callers (e.g. diff output) so no misleading offset is emitted.
+        """
         lines = content.splitlines(True)
         out_parts: list[str] = []
         out_bytes = 0
@@ -121,11 +134,20 @@ class FileFormat:
         if cut_at_line is None:
             return "".join(out_parts)
 
-        remaining = max(0, len(lines) - cut_at_line)
-        footer = (
-            f"\n\n### truncated at line: {cut_at_line} ### "
-            f"lines left in the file: {remaining} ###"
-        )
+        def _footer(emitted: int) -> str:
+            remaining = max(0, len(lines) - cut_at_line)
+            segments = [
+                f"### truncated at line: {cut_at_line} ###",
+                f"lines left in the file: {remaining} ###",
+            ]
+            # Only advertise a resume offset when at least one line was
+            # emitted; otherwise the offset would equal the requested one
+            # (a single line wider than the budget) and re-reading would loop.
+            if base_offset is not None and emitted > 0:
+                segments.append(f"resume with read_file offset={base_offset + emitted} ###")
+            return "\n\n" + " ".join(segments)
+
+        footer = _footer(len(out_parts))
         footer_bytes = len(footer.encode("utf-8", errors="ignore"))
 
         if footer_bytes > max_output:
@@ -135,4 +157,7 @@ class FileFormat:
             removed = out_parts.pop()
             out_bytes -= len(removed.encode("utf-8", errors="ignore"))
 
+        # Recompute so the resume offset reflects the lines actually kept
+        # after trimming for the footer (prevents skipping a popped line).
+        footer = _footer(len(out_parts))
         return "".join(out_parts) + footer
