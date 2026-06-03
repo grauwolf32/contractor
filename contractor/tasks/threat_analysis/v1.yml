@@ -17,6 +17,9 @@ task:
 
     Before start, analyze existing memories and records.
 
+  skills:
+    - stride
+
   instructions: >
 
     ## Core Principles

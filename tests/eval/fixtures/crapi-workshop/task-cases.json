@@ -33,5 +33,13 @@
     ],
     "min_keyword_recall": 1.0,
     "timeout_s": 2400
+  },
+  {
+    "id": "threat_analysis-stride",
+    "task": "threat_analysis",
+    "min_threats": 3,
+    "min_stride_categories": 3,
+    "min_shape_recall": 0.6,
+    "timeout_s": 3000
   }
 ]

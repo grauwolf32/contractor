@@ -8,6 +8,7 @@ to precision/recall/etc.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from tests.eval.adk_evals import score_tool_trajectory
@@ -368,3 +369,133 @@ def score_likec4_build(
             "keyword_score": keyword_score,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Threat analysis (STRIDE) task
+# ---------------------------------------------------------------------------
+
+_STRIDE_LETTERS = frozenset("STRIDE")
+_VALID_SEVERITY = frozenset({"critical", "high", "medium", "low", "info"})
+_VALID_CONFIDENCE = frozenset({"high", "medium", "low"})
+_STRIDE_TITLE_RE = re.compile(r"\[\s*([STRIDE])\s*\]")
+_STRIDE_DETAIL_RE = re.compile(r"stride\s*[:=]\s*\[?\s*([STRIDE])", re.IGNORECASE)
+_PATH_PARAM_RE = re.compile(r"\{[^}]*\}")
+
+
+def _norm_endpoint(text: str) -> str:
+    """Lowercase + collapse ``{param}`` placeholders so path templates match
+    regardless of the parameter name (``/a/{id}`` == ``/a/{userId}``)."""
+    return _PATH_PARAM_RE.sub("{}", text.lower())
+
+
+def _report_stride(report: dict[str, Any]) -> str | None:
+    """Best-effort STRIDE letter from the report title or details body."""
+    m = _STRIDE_TITLE_RE.search(str(report.get("title", "")))
+    if m:
+        return m.group(1).upper()
+    m = _STRIDE_DETAIL_RE.search(str(report.get("details", "")))
+    return m.group(1).upper() if m else None
+
+
+def _is_well_formed(report: dict[str, Any]) -> bool:
+    """A report is well-formed when it carries a place + title, a parseable
+    STRIDE letter, and the mandatory anchor sections in its details body."""
+    details = str(report.get("details", "")).lower()
+    has_anchors = "entry_point" in details and "trust_boundary" in details
+    return bool(
+        report.get("place")
+        and report.get("title")
+        and _report_stride(report)
+        and has_anchors
+    )
+
+
+def score_threat_analysis(
+    reports: list[dict[str, Any]],
+    case: dict,
+    expected_vulns: list[dict[str, Any]] | None = None,
+) -> EvalResult:
+    """Score the STRIDE ``threat_analysis`` task.
+
+    There is no per-fixture threat ground truth, so scoring is structural
+    (count, STRIDE breadth, mandated report shape, valid enums) with one soft
+    coverage signal: how many known-vulnerable OpenAPI paths the threat model
+    references. Thresholds are case-tunable via ``task-cases.json``.
+    """
+    min_threats = int(case.get("min_threats", 3))
+    min_stride = int(case.get("min_stride_categories", 3))
+    min_shape_recall = float(case.get("min_shape_recall", 0.8))
+    min_endpoint_recall = float(case.get("min_endpoint_recall", 0.25))
+
+    n = len(reports)
+    strides = {s for r in reports if (s := _report_stride(r))}
+    well_formed = [r for r in reports if _is_well_formed(r)]
+    shape_recall = (len(well_formed) / n) if n else 0.0
+    bad_enums = [
+        str(r.get("name", "?"))
+        for r in reports
+        if str(r.get("severity", "")).lower() not in _VALID_SEVERITY
+        or str(r.get("confidence", "")).lower() not in _VALID_CONFIDENCE
+    ]
+
+    checks = [
+        EvalCheck(
+            name="threat_count",
+            passed=n >= min_threats,
+            details=f"reports={n} min={min_threats}",
+        ),
+        EvalCheck(
+            name="stride_coverage",
+            passed=len(strides) >= min_stride,
+            details=f"distinct_stride={sorted(strides)} min={min_stride}",
+        ),
+        EvalCheck(
+            name="report_shape",
+            passed=shape_recall >= min_shape_recall,
+            details=(
+                f"well_formed={len(well_formed)}/{n} "
+                f"recall={shape_recall:.2f} min={min_shape_recall}"
+            ),
+        ),
+        EvalCheck(
+            name="valid_enums",
+            passed=not bad_enums,
+            details=("all valid" if not bad_enums else f"invalid: {bad_enums[:5]}"),
+        ),
+    ]
+
+    meta: dict[str, Any] = {
+        "report_count": n,
+        "stride_letters": sorted(strides),
+        "shape_recall": round(shape_recall, 3),
+    }
+
+    # Soft coverage: do the threats reference the known-vulnerable endpoints?
+    if expected_vulns:
+        expected_paths = {
+            _norm_endpoint(str(v["path"])) for v in expected_vulns if v.get("path")
+        }
+        expected_paths.discard("")
+        # Match against every text field a path could surface in — endpoints
+        # are frequently named in the title/summary, not just place/details.
+        blob = _norm_endpoint(
+            "\n".join(
+                f"{r.get('title', '')}\n{r.get('summary', '')}\n"
+                f"{r.get('place', '')}\n{r.get('details', '')}"
+                for r in reports
+            )
+        )
+        covered = {p for p in expected_paths if p and p in blob}
+        endpoint_score = _score_sets(covered, expected_paths)
+        meta["endpoint_score"] = endpoint_score
+        checks.append(
+            EvalCheck(
+                name="endpoint_coverage",
+                passed=endpoint_score.recall >= min_endpoint_recall,
+                details=endpoint_score.explain("endpoints")
+                + f" min={min_endpoint_recall}",
+            )
+        )
+
+    return EvalResult(checks=checks, meta=meta)
