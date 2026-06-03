@@ -115,6 +115,11 @@ async def run_eval(
     from tests.eval.trace_harness import (
         extract_annotations_from_overlay,
     )
+    from tests.eval.trace_vuln_scoring import (
+        extract_from_run_dir,
+        load_expected,
+        score_vulns,
+    )
 
     prompt_text, resolved_version = load_prompt_with_version("trace_agent", prompt_version)
 
@@ -252,6 +257,22 @@ async def run_eval(
         score = _score(annotations, expected)
         metrics = metrics_from_task(_aggregate_metrics(events))
 
+        # Vuln-finding score: union reported findings (result text + report tool)
+        # and match against the fixture's expected vulns (general AppSec families).
+        vgt = REPO_ROOT / "tests" / "eval" / "fixtures" / slug / "vulnerabilities.expected.json"
+        vuln_detail: dict[str, Any] = {}
+        if vgt.is_file():
+            reported = extract_from_run_dir(case_dir / "artifacts")
+            vs = score_vulns(reported, load_expected(vgt))
+            vuln_detail = {
+                "tp": vs.tp, "fp": vs.fp, "fn": vs.fn,
+                "precision": vs.precision, "recall": vs.recall, "f1": vs.f1,
+                "per_family": vs.per_family,
+                "reported": [{"family": r.family, "path": r.path, "title": r.title}
+                             for r in reported],
+                "matched": vs.matched, "missed": vs.missed, "extra": vs.extra,
+            }
+
         fr = {
             "slug": slug,
             "prompt_version": resolved_version,
@@ -261,6 +282,7 @@ async def run_eval(
             "annotation_count": len(annotations),
             "annotations": sorted(f"{a.file}::{a.function}" for a in annotations),
             "timed_out": timed_out,
+            "vuln": vuln_detail,
             **score,
             **metrics,
         }
@@ -270,7 +292,11 @@ async def run_eval(
 
         print(f"  duration: {duration:.1f}s  annotations: {len(annotations)}"
               f"  / {len(expected)} expected")
-        print(f"  P={score['precision']:.3f} R={score['recall']:.3f} F1={score['f1']:.3f}")
+        print(f"  annot:  P={score['precision']:.3f} R={score['recall']:.3f} F1={score['f1']:.3f}")
+        if vuln_detail:
+            print(f"  vulns:  P={vuln_detail['precision']:.3f} "
+                  f"R={vuln_detail['recall']:.3f} F1={vuln_detail['f1']:.3f} "
+                  f"(TP={vuln_detail['tp']} FP={vuln_detail['fp']} FN={vuln_detail['fn']})")
         print(f"  tools: {metrics.get('total_tool_calls', 0)}  "
               f"tokens: {metrics.get('total_tokens', 0)}  "
               f"llm_calls: {metrics.get('llm_calls', 0)}  "
@@ -298,7 +324,38 @@ async def run_eval(
         meta={"max_attempts": max_attempts, "iterations": iterations},
     )
     results_path = write_eval_results(eval_run, output_dir)
-    print(f"\nResults saved to {results_path}")
+    print(f"\nAnnotation results saved to {results_path}")
+
+    # Second envelope: vuln-detection (scenario=task, metric_kind=detection).
+    vuln_fixtures = []
+    for r in results:
+        v = r.get("vuln") or {}
+        if not v:
+            continue
+        passed = v["tp"] > 0 and v["f1"] >= 0.3
+        case = CaseResult(
+            id=r["slug"], passed=passed, pass_count=int(passed), attempts=1,
+            metrics={k: r.get(k) for k in (
+                "total_tokens", "input_tokens", "output_tokens",
+                "total_tool_calls", "llm_calls", "tool_errors",
+                "duration_s", "tool_counts") if k in r},
+            detail={"tp": v["tp"], "fp": v["fp"], "fn": v["fn"],
+                    "precision": v["precision"], "recall": v["recall"], "f1": v["f1"],
+                    "per_cwe": v["per_family"], "per_family": v["per_family"],
+                    "reported_findings": v["reported"], "matches": v["matched"],
+                    "missed": v["missed"], "extra": v["extra"],
+                    "prompt_version": r["prompt_version"]})
+        vuln_fixtures.append(FixtureResult(slug=r["slug"], cases=[case]))
+    if vuln_fixtures:
+        vuln_run = EvalRun(
+            scenario="task", unit="trace_annotation", pass_at=1, metric_kind="detection",
+            model=model_alias,
+            prompt_version=(results[0]["prompt_version"] if results else prompt_version),
+            timestamp=timestamp, fixtures=vuln_fixtures,
+            meta={"max_attempts": max_attempts, "iterations": iterations,
+                  "scoring": "vuln-family-vs-expected"})
+        vpath = write_eval_results(vuln_run, output_dir / "vuln_detection")
+        print(f"Vuln-detection results saved to {vpath}")
     return results
 
 
