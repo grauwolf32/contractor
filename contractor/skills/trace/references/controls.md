@@ -1,5 +1,5 @@
 ---
-description: Per-handler control checklist for the trace skill. Walk this list before reporting; each absent/weak row on a sensitive operation is a Shape B candidate.
+description: Per-handler control checklist for the trace skill. Walk this list before reporting; each absent/weak row on a sensitive operation is a finding candidate — Shape B (missing access/anti-abuse control), C (over-exposed/unprotected value), or D (violated state/financial invariant).
 ---
 
 # Per-Handler Control Checklist
@@ -246,7 +246,7 @@ siblings under Uncertainties rather than over-claiming project-wide.
 | CSRF token is set in template          | not present unless server validates it                          |
 | Policy helper is imported              | not present unless called on this path                          |
 
-## Sensitivity gate (when does an absent/weak row become Shape B?)
+## Sensitivity gate (when does an absent/weak row become a finding?)
 
 Sensitive operations:
 
@@ -276,9 +276,9 @@ Shape B for a missing access/anti-abuse control, Shape C for an over-exposed
 or unprotected sensitive value, Shape D for a violated state/financial
 invariant — with `control_missing` set to the appropriate tag.
 
-## Shape B candidate mapping
+## Checklist row → finding mapping
 
-| Checklist row      | Typical `control_missing`                |
+| Checklist row      | Typical `control_missing` (shape)        |
 | ------------------ | ---------------------------------------- |
 | authentication     | `auth`                                   |
 | authorization      | `authz` or `role_check`                  |

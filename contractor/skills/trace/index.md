@@ -117,9 +117,10 @@ If not, downgrade confidence or do not report.
   not enough.
 - **Parameterized ORM/driver calls are not raw SQL.** Mislabeling these
   as `db.query.raw` / `db.exec.raw` is the #1 false-positive source.
-- **Shape B and C are first-class.** Do not force a taint→sink story
+- **Shape B, C, and D are first-class.** Do not force a taint→sink story
   onto access-control gaps, plaintext secrets, cookie flag defects,
-  logging leaks, or unfiltered responses.
+  logging leaks, unfiltered responses, or business-logic invariant breaks
+  (race/idempotency/client-trusted value/workflow bypass).
 - **Validation is not authorization.** A schema may prove a field is
   well-formed; it does not prove the caller may access the resource.
 - **Authentication is not ownership.** A valid user identity must still

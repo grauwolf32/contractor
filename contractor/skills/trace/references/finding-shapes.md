@@ -162,7 +162,7 @@ Shape A — Shape D is for invariant breaks that need no taint.
 
 ## Required fields per finding (§7 report)
 
-  shape:                A | B | C
+  shape:                A | B | C | D
   control_missing:      one of {auth, authz, signature_verify,
       expiry_check, role_check, ownership_check, csrf,
       path_confinement, input_validation, output_filter,
@@ -240,11 +240,13 @@ The `report_vulnerability` tool stores: `name`, `place_type`, `place`,
                   `authz-deleteUser`)
                 Shape C: `<defect_class>-<file_basename>-<symbol>`
                   (e.g. `hardcoded-secret-config-API_KEY`)
+                Shape D: `<control_missing>-<handler_symbol>` (e.g.
+                  `atomicity-transfer`, `idempotency-redeemCoupon`)
                 Lowercase; `[a-z0-9._-]` only; no spaces.
   place_type  — `file` for code findings; `url` only when reporting
                 against a deployed endpoint URL.
   place       — the source file containing the vulnerable function or
-                defect (entrypoint handler file for A/B; defect site for
+                defect (entrypoint handler file for A/B/D; defect site for
                 C). NEVER report against spec files (OpenAPI YAML, proto,
                 swagger), documentation, or configuration that merely
                 describes the endpoint — find and cite the source function.
@@ -259,6 +261,7 @@ The `report_vulnerability` tool stores: `name`, `place_type`, `place`,
                   - shape, control_missing, exploit_precondition
                   - evidence_lines (every cited file:line)
                   - source / path / sink (Shape A only)
+                  - violated invariant + violating sequence (Shape D only)
                   - short reproduction or reasoning paragraph
 
 `details` is the only freeform field — it must remain self-contained so
@@ -267,7 +270,7 @@ the finding can be triaged without re-reading source.
 ## Reporting template (§7)
 
 ```
-- shape:                <A|B|C>
+- shape:                <A|B|C|D>
   control_missing:      <closed-set tag>
   evidence_lines:       <file:line, ...>
   exploit_precondition: <preconditions>
@@ -280,6 +283,9 @@ the finding can be triaged without re-reading source.
   source:               <where input enters>
   path:                 <fn A → fn B → fn C>
   sink:                 <kind + arg>
+  # Shape D only:
+  invariant:            <rule that must hold, e.g. "balance never negative">
+  violating_sequence:   <e.g. two concurrent POST /transfer on one balance>
 ```
 
 ## When NOT to report
