@@ -56,6 +56,26 @@ specific category to check:
 | LikeC4 external dep × dependency tag | category-specific (see tag catalog) |
 | Auth/login/reset/promo endpoint | D (no rate limit), I (enumeration oracle) |
 
+## Entry-Point Catalog — build it from the BEST available source
+
+Endpoint-level threats (E/IDOR, I/info-disclosure, S/auth-bypass on a route)
+are the highest-yield STRIDE classes — and they require an entry-point catalog.
+**Do not tie that catalog to the OpenAPI artifact existing.** Derive it from the
+best source available, in order:
+
+1. **OpenAPI** spec, when present — methods, paths, security requirements.
+2. **project_information** — its handler / route / controller inventory and the
+   data-model + authn/authz sections. This is the primary source when there is
+   no OAS. Read it first.
+3. **Code search** — route decorators (`@app.route`, `@GetMapping`,
+   `@RestController`, `app.get(`), controller classes, URL maps.
+
+A missing OpenAPI artifact is **never** a reason to skip endpoint-level
+S/T/I/E. A threat model that only reports config/secret/crypto-primitive
+findings (hardcoded keys, weak token RNG, TLS flags) and no per-endpoint
+authorization or info-disclosure threat has under-modeled the system — go back
+and enumerate the HTTP entry points, then run STRIDE over each.
+
 ## Object-Reference (IDOR/BOLA) Discipline — high-yield, easy to miss
 
 Every endpoint that takes an **object reference** (path/query param like
@@ -106,7 +126,8 @@ One vulnerability report per threat. Title `[<S|T|R|I|D|E>] <short title>`.
 
 ## Coverage Stop Condition
 
-Stop when every OpenAPI endpoint, every dependency tag, and every LikeC4
-trust-boundary crossing has been considered at least once (each recorded as
-"threat raised" or "no credible threat: <reason>"), and all credible threats
+Stop when every **HTTP entry point** (from the catalog built above — OAS if
+present, else project_information / code), every dependency tag, and every
+LikeC4 trust-boundary crossing has been considered at least once (each recorded
+as "threat raised" or "no credible threat: <reason>"), and all credible threats
 are persisted. Then produce final output — do not open new subtasks.
