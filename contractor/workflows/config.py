@@ -44,6 +44,7 @@ with ``TaskRunner(..., observations=CFG.observations)``. Example block::
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -168,24 +169,15 @@ class WorkflowConfig:
     ) -> ObservationConfig:
         """Build an ``ObservationConfig`` from the ``observations:`` block.
 
-        Validates ``tracked_tools`` (the one non-bool field) and normalises it
-        to a tuple so the resulting config is frozen/hashable.
+        Delegates to :meth:`ObservationConfig.resolve`, which validates the
+        block, normalises ``tracked_tools`` to a tuple, and applies the
+        ``CONTRACTOR_EVAL_OBSERVATIONS`` env overlay (A/B arm without YAML
+        edits). Errors are re-raised with the ``yaml_path`` for context.
         """
-        spec = dict(spec)
-        tracked = spec.get("tracked_tools")
-        if tracked is not None:
-            if not (isinstance(tracked, list) and all(isinstance(x, str) for x in tracked)):
-                raise ValueError(
-                    f"{yaml_path}: observations.tracked_tools must be a list[str] "
-                    f"or null, got {tracked!r}"
-                )
-            spec["tracked_tools"] = tuple(tracked)
         try:
-            return ObservationConfig(**spec)
-        except TypeError as exc:
-            raise ValueError(
-                f"{yaml_path}: invalid observations config: {exc}"
-            ) from exc
+            return ObservationConfig.resolve(spec, os.environ)
+        except ValueError as exc:
+            raise ValueError(f"{yaml_path}: {exc}") from exc
 
     @staticmethod
     def _build_agent_config(

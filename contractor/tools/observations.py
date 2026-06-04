@@ -22,6 +22,8 @@ it downward without an import cycle.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -30,6 +32,10 @@ from typing import Any, Final
 # ``tool_context.state`` via ADK ``AgentTool`` state-delta propagation.
 WORKER_USAGE_STATE_KEY: Final[str] = "worker_usage"
 SKILLS_READ_STATE_KEY: Final[str] = "skills_read"
+
+# Env var carrying a JSON object that overlays the workflow's ``observations:``
+# block — flip A/B arms (or ablate knobs) without editing any config.yaml.
+OBSERVATIONS_ENV_VAR: Final[str] = "CONTRACTOR_EVAL_OBSERVATIONS"
 
 
 @dataclass(frozen=True)
@@ -64,6 +70,50 @@ class ObservationConfig:
     malformed_only: bool = False
     in_record: bool = True
     in_result: bool = True
+
+    @classmethod
+    def resolve(
+        cls, section: Mapping[str, Any] | None, env: Mapping[str, str]
+    ) -> ObservationConfig:
+        """Build a config from a YAML ``observations:`` block + env overlay.
+
+        The ``CONTRACTOR_EVAL_OBSERVATIONS`` env var (a JSON object) overlays the
+        YAML section field-by-field, so an A/B harness can flip arms or ablate
+        individual knobs without touching any ``config.yaml``. ``tracked_tools``
+        is normalised to a tuple (or ``None``) so the result stays frozen and
+        hashable. Raises ``ValueError`` on malformed input (bad JSON, wrong
+        types, or unknown keys).
+        """
+        merged: dict[str, Any] = dict(section or {})
+
+        raw = env.get(OBSERVATIONS_ENV_VAR)
+        if raw:
+            try:
+                overlay = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"{OBSERVATIONS_ENV_VAR} is not valid JSON: {exc}"
+                ) from exc
+            if not isinstance(overlay, dict):
+                raise ValueError(
+                    f"{OBSERVATIONS_ENV_VAR} must be a JSON object, got "
+                    f"{type(overlay).__name__}"
+                )
+            merged.update(overlay)
+
+        tracked = merged.get("tracked_tools")
+        if tracked is not None:
+            if not (isinstance(tracked, list) and all(isinstance(x, str) for x in tracked)):
+                raise ValueError(
+                    f"observations.tracked_tools must be a list[str] or null, "
+                    f"got {tracked!r}"
+                )
+            merged["tracked_tools"] = tuple(tracked)
+
+        try:
+            return cls(**merged)
+        except TypeError as exc:
+            raise ValueError(f"invalid observations config: {exc}") from exc
 
     def as_tag(self) -> dict[str, Any]:
         """JSON-friendly dict identifying the A/B arm, for tagging metrics runs.

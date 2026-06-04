@@ -14,6 +14,7 @@ import pytest
 
 import contractor.tools.tasks as m
 from contractor.tools.observations import (
+    OBSERVATIONS_ENV_VAR,
     SKILLS_READ_STATE_KEY,
     WORKER_USAGE_STATE_KEY,
     ObservationConfig,
@@ -24,6 +25,12 @@ from contractor.tools.tasks import SubtaskExecutionResult, SubtaskFormatter
 from contractor.tools.tasks.models import Subtask
 from contractor.workflows.config import WorkflowConfig
 from tests.units.contractor_tests.helpers import MockAgentTool, mk_tool_context
+
+
+@pytest.fixture(autouse=True)
+def _no_observations_env(monkeypatch):
+    """Keep config-loader tests hermetic from a real CONTRACTOR_EVAL_OBSERVATIONS."""
+    monkeypatch.delenv(OBSERVATIONS_ENV_VAR, raising=False)
 
 # ---------------------------------------------------------------------------
 # project_usage — the pure projector
@@ -195,6 +202,55 @@ def test_config_observations_unknown_key(tmp_path):
     body = "observations:\n  enabled: true\n  bogus: 1\n"
     with pytest.raises(ValueError, match="invalid observations config"):
         WorkflowConfig.load(_write_cfg(tmp_path, body))
+
+
+# ---------------------------------------------------------------------------
+# ObservationConfig.resolve — env overlay
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_no_env_returns_section():
+    cfg = ObservationConfig.resolve({"enabled": True}, env={})
+    assert cfg == ObservationConfig(enabled=True)
+
+
+def test_resolve_env_overlays_section_fieldwise():
+    cfg = ObservationConfig.resolve(
+        {"enabled": False, "include_tool_errors": False},
+        env={OBSERVATIONS_ENV_VAR: '{"enabled": true, "malformed_only": true}'},
+    )
+    assert cfg.enabled is True  # overridden
+    assert cfg.malformed_only is True  # added
+    assert cfg.include_tool_errors is False  # untouched section value preserved
+
+
+def test_resolve_env_normalises_tracked_tools_to_tuple():
+    cfg = ObservationConfig.resolve(
+        {}, env={OBSERVATIONS_ENV_VAR: '{"enabled": true, "tracked_tools": ["a"]}'}
+    )
+    assert cfg.tracked_tools == ("a",)
+
+
+def test_resolve_env_invalid_json():
+    with pytest.raises(ValueError, match="not valid JSON"):
+        ObservationConfig.resolve({}, env={OBSERVATIONS_ENV_VAR: "{not json"})
+
+
+def test_resolve_env_must_be_object():
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        ObservationConfig.resolve({}, env={OBSERVATIONS_ENV_VAR: "true"})
+
+
+def test_resolve_env_unknown_key():
+    with pytest.raises(ValueError, match="invalid observations config"):
+        ObservationConfig.resolve({}, env={OBSERVATIONS_ENV_VAR: '{"nope": 1}'})
+
+
+def test_config_load_applies_env_overlay(tmp_path, monkeypatch):
+    monkeypatch.setenv(OBSERVATIONS_ENV_VAR, '{"enabled": true, "malformed_only": true}')
+    cfg = WorkflowConfig.load(_write_cfg(tmp_path, "budgets: {}\n"))
+    assert cfg.observations.enabled is True
+    assert cfg.observations.malformed_only is True
 
 
 # ---------------------------------------------------------------------------
