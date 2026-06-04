@@ -4,3 +4,11 @@ budgets:
 tasks:
   oas_enrich: { iterations: 3, max_attempts: 6, max_steps: 30 }
   oas_validate: { iterations: 2, max_attempts: 2, max_steps: 20 }
+# Deterministic worker-usage observations fed back to the planner. Disabled by
+# default (omit the block); uncomment to A/B. `malformed_only` restricts
+# injection to unparseable worker results — ground truth where it's needed most.
+# observations:
+#   enabled: true
+#   include_tool_errors: false
+#   malformed_only: false
+#   tracked_tools: null   # null = all tools; or e.g. ["skills_read", "read_file"]

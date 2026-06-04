@@ -120,6 +120,7 @@ class RouterWorkflow(Workflow):
             model=llm,
             max_steps=CFG.budgets.max_steps,
             worker_instrumentation=False,
+            observations=CFG.observations,
         )
 
         runner = AgentRunner(

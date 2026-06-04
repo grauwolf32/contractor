@@ -23,6 +23,7 @@ class OasEnrichmentWorkflow(Workflow):
             name="oas_builder",
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
+            observations=CFG.observations,
         )
 
         llm = build_model(ctx.model, ctx.timeout)

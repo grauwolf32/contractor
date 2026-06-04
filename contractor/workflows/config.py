@@ -27,6 +27,19 @@ the fs/memory/openapi/report tool formatters) and ``with_graph_tools`` (attach
 the trailmark call-graph tools). Workflows read these via ``CFG.agent(name)``,
 which falls back to an all-default ``AgentToolConfig`` when the agent is not
 declared in ``config.yaml`` — so behaviour is unchanged unless tuned.
+
+``observations`` is a workflow-global :class:`ObservationConfig` parsed from the
+``observations:`` block (read as ``CFG.observations``). It toggles injecting
+deterministic worker-usage facts (tools called / files touched / skills read)
+into the planner's records and tool results. All-default is *disabled*, so a
+workflow with no ``observations:`` block behaves exactly as before. Wire it in
+with ``TaskRunner(..., observations=CFG.observations)``. Example block::
+
+    observations:
+      enabled: true
+      tracked_tools: ["skills_read", "read_file", "search_code"]  # null = all
+      include_tool_errors: false
+      malformed_only: false   # true -> only inject on malformed worker output
 """
 
 from __future__ import annotations
@@ -37,6 +50,8 @@ from types import SimpleNamespace
 from typing import Literal, get_args
 
 import yaml
+
+from contractor.tools.observations import ObservationConfig
 
 _CONFIG_FILENAME = "config.yaml"
 
@@ -96,10 +111,14 @@ class WorkflowConfig:
         budgets: dict[str, int] | None = None,
         tasks: dict[str, TaskBudget] | None = None,
         agents: dict[str, AgentToolConfig] | None = None,
+        observations: ObservationConfig | None = None,
     ) -> None:
         self.budgets = SimpleNamespace(**(budgets or {}))
         self.tasks = SimpleNamespace(**(tasks or {}))
         self.agents = SimpleNamespace(**(agents or {}))
+        # Workflow-global planner observation toggles; all-default = disabled,
+        # so a workflow with no ``observations:`` block behaves as before.
+        self.observations = observations or ObservationConfig()
 
     def agent(self, name: str) -> AgentToolConfig:
         """Return the :class:`AgentToolConfig` for ``name``.
@@ -136,7 +155,37 @@ class WorkflowConfig:
             name: cls._build_agent_config(name, spec or {}, yaml_path)
             for name, spec in raw_agents.items()
         }
-        return cls(budgets=raw_budgets, tasks=tasks, agents=agents)
+        observations = cls._build_observation_config(
+            data.get("observations") or {}, yaml_path
+        )
+        return cls(
+            budgets=raw_budgets, tasks=tasks, agents=agents, observations=observations
+        )
+
+    @staticmethod
+    def _build_observation_config(
+        spec: dict, yaml_path: Path
+    ) -> ObservationConfig:
+        """Build an ``ObservationConfig`` from the ``observations:`` block.
+
+        Validates ``tracked_tools`` (the one non-bool field) and normalises it
+        to a tuple so the resulting config is frozen/hashable.
+        """
+        spec = dict(spec)
+        tracked = spec.get("tracked_tools")
+        if tracked is not None:
+            if not (isinstance(tracked, list) and all(isinstance(x, str) for x in tracked)):
+                raise ValueError(
+                    f"{yaml_path}: observations.tracked_tools must be a list[str] "
+                    f"or null, got {tracked!r}"
+                )
+            spec["tracked_tools"] = tuple(tracked)
+        try:
+            return ObservationConfig(**spec)
+        except TypeError as exc:
+            raise ValueError(
+                f"{yaml_path}: invalid observations config: {exc}"
+            ) from exc
 
     @staticmethod
     def _build_agent_config(

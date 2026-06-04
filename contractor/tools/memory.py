@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, TypeVar
 from xml.sax.saxutils import escape as xml_escape
@@ -11,6 +12,7 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from contractor.tools.observations import SKILLS_READ_STATE_KEY
 from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
 
@@ -544,6 +546,27 @@ class MemoryTools:
         return note
 
 
+def _push_skill_read(tool_context: ToolContext | None, skill_name: str) -> None:
+    """Record a successful skill read into session state (deterministic).
+
+    Mirrors ``_push_fs_coverage`` in the fs tools: the tool itself writes the
+    *canonical resolved* skill name (so aliases like ``"sinks"`` collapse to
+    ``"trace/references/sinks"``), and only on a confirmed hit — never a
+    not-found query. Dedupes, preserves read order. The write becomes an ADK
+    state delta forwarded to the planner by ``AgentTool``.
+    """
+    if tool_context is None:
+        return
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return
+    with contextlib.suppress(Exception):
+        seen = list(state.get(SKILLS_READ_STATE_KEY) or [])
+        if skill_name not in seen:
+            seen.append(skill_name)
+            state[SKILLS_READ_STATE_KEY] = seen
+
+
 def _resolve_skill_reference(
     name: str,
     skill_memories: list[MemoryNote],
@@ -778,6 +801,7 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
                     s.name for s in await m.memories_by_tag("skill", tool_context)
                 ]
                 return err(f"skill memory {name!r} not found", available=available)
+            _push_skill_read(tool_context, memory.name)
             return m.fmt.format_memory(memory)
 
         return await aguard(_impl)

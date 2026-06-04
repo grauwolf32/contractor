@@ -15,6 +15,8 @@ from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import AgentTool
 
+from contractor.tools.observations import ObservationConfig
+
 _checkpoint_logger = logging.getLogger(__name__ + ".checkpoint")
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ class TaskInvocation:
 
     namespace: str | None = None
     model: LiteLlm | None = None
+    observations: ObservationConfig | None = None
 
     def effective_namespace(self, fallback: str) -> str:
         return self.namespace or fallback

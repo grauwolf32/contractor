@@ -52,6 +52,7 @@ class VulnScanWorkflow(Workflow):
             name="contractor",
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
+            observations=CFG.observations,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)

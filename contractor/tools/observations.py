@@ -1,0 +1,120 @@
+"""Deterministic worker-usage observations for the streamline planner.
+
+A worker run produces hard, non-LLM facts — which tools it called (and how
+often / with what error rate), which files it touched, which skill files it
+read. Capturing those and surfacing them back to the planner (alongside, but
+visually distinct from, the worker's self-reported ``output``/``summary``) gives
+the planner ground truth to reason over and reduces hallucinated planning.
+
+Design: **capture is always-on and cheap** — the metrics plugin and the
+``skills_read`` tool write raw facts into ADK session state regardless of this
+config (the writes never reach the LLM). These knobs only gate the *projection*
+of those facts into the planner-visible record / tool result, so the disabled
+default reproduces the pre-feature behaviour exactly. That single-point gating
+is what makes the feature cleanly A/B-testable: one config object, one
+consumption site (``execute_current_subtask``), no multi-layer threading.
+
+This module is a dependency-free leaf so the plugin layer
+(``runners/plugins/metrics_plugin``), the memory tools, the task tools, the
+planner factory, the task runner, and the workflow config loader can all import
+it downward without an import cycle.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Final
+
+# State keys under which raw, per-subtask usage is accumulated during a worker
+# run. Written inside the worker invocation; forwarded to the planner's
+# ``tool_context.state`` via ADK ``AgentTool`` state-delta propagation.
+WORKER_USAGE_STATE_KEY: Final[str] = "worker_usage"
+SKILLS_READ_STATE_KEY: Final[str] = "skills_read"
+
+
+@dataclass(frozen=True)
+class ObservationConfig:
+    """Per-planner toggles for injecting deterministic worker-usage facts.
+
+    All-default is *disabled* — identical to the pre-feature behaviour — so a
+    workflow only opts in via its ``config.yaml`` ``observations:`` block. The
+    granular knobs exist to ablate the feature in A/B runs.
+
+    Fields:
+        enabled: master switch (``with_observations``).
+        track_tools / track_files / track_skills: which signals to project.
+        tracked_tools: ``None`` projects every tool; a tuple restricts to an
+            allowlist (e.g. only ``skills_read`` / fs tools).
+        include_tool_errors: project per-tool error counts, not just call
+            counts (most diagnostic in the malformed path).
+        malformed_only: project observations *only* for malformed/unparseable
+            worker results, never for successful ones — the A/B arm that adds
+            ground truth exactly where the worker output can't be trusted.
+        in_record / in_result: which surfaces receive the projection — the
+            persisted task record (history + summarizer) and/or the immediate
+            ``observed_usage`` field of the tool result.
+    """
+
+    enabled: bool = False
+    track_tools: bool = True
+    tracked_tools: tuple[str, ...] | None = None
+    include_tool_errors: bool = False
+    track_skills: bool = True
+    track_files: bool = True
+    malformed_only: bool = False
+    in_record: bool = True
+    in_result: bool = True
+
+
+def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
+    """Project raw per-subtask usage from session ``state`` into a compact dict.
+
+    Returns ``None`` when observations are disabled. Otherwise returns a dict
+    holding only the sections enabled by ``cfg`` — each section may be empty
+    (e.g. the worker made no tool calls), which is itself signal in the
+    malformed path ("produced unparseable output *and* did no work"). Callers
+    decide whether to prune empties (success path) or keep them (malformed).
+
+    Pure: reads ``state`` via ``.get`` (works for an ADK ``State`` or a plain
+    dict), no mutation, no I/O — unit-testable with a literal ``state`` dict.
+    """
+    if not cfg.enabled:
+        return None
+
+    snapshot = state.get(WORKER_USAGE_STATE_KEY) or {}
+    out: dict[str, Any] = {}
+
+    if cfg.track_tools:
+        tools = snapshot.get("tools") or {}
+        if cfg.tracked_tools is not None:
+            allow = set(cfg.tracked_tools)
+            tools = {name: data for name, data in tools.items() if name in allow}
+        out["tools"] = {
+            name: (
+                {"calls": int(data.get("calls", 0)), "errors": int(data.get("errors", 0))}
+                if cfg.include_tool_errors
+                else int(data.get("calls", 0))
+            )
+            for name, data in tools.items()
+        }
+
+    if cfg.track_files:
+        fs = snapshot.get("fs_coverage")
+        out["files"] = dict(fs) if isinstance(fs, dict) else fs
+
+    if cfg.track_skills:
+        out["skills_read"] = list(state.get(SKILLS_READ_STATE_KEY) or [])
+
+    return out
+
+
+def has_observations(usage: dict[str, Any] | None) -> bool:
+    """True when ``usage`` carries at least one non-empty section.
+
+    Used by the success path to prune empty projections (no point telling the
+    planner "the worker did nothing" when it succeeded); the malformed path
+    deliberately ignores this, since emptiness there is diagnostic.
+    """
+    if not usage:
+        return False
+    return any(bool(section) for section in usage.values())

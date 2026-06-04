@@ -225,17 +225,57 @@ class SubtaskFormatter:
         return [self._subtask_result_to_json(r) for r in subtask_results]
 
     def format_task_record(
-        self, subtask: Subtask, subtask_result: SubtaskExecutionResult
+        self,
+        subtask: Subtask,
+        subtask_result: SubtaskExecutionResult,
+        usage: dict[str, Any] | None = None,
     ) -> str | dict[str, Any]:
+        """Combine plan subtask + worker result into one record.
+
+        When ``usage`` (deterministic observations) is provided it is attached
+        as a structurally distinct ``usage`` field (json) or a labelled
+        ``[observed_usage]`` block (text formats) — kept separate from the
+        worker's self-reported ``output``/``summary`` so the planner reads it as
+        ground truth, not another worker claim.
+        """
         if self._format == "json":
             record_dict: dict[str, Any] = self._subtask_to_json(subtask)
             tr = self._subtask_result_to_json(subtask_result)
             tr.pop("task_id", None)
             record_dict.update(tr)
+            if usage:
+                record_dict["usage"] = usage
             return record_dict
         task_str = str(self.format_subtask(subtask))
         result_str = str(self.format_subtask_result(subtask_result))
-        return task_str + result_str
+        out = task_str + result_str
+        if usage:
+            out += self._render_usage_block(usage)
+        return out
+
+    @staticmethod
+    def _render_usage_block(usage: dict[str, Any]) -> str:
+        """Compact, single-line rendering of usage for non-json record formats."""
+        tools = usage.get("tools") or {}
+        if tools and all(isinstance(v, dict) for v in tools.values()):
+            tools_str = ", ".join(
+                f"{n}(calls={d.get('calls', 0)},errors={d.get('errors', 0)})"
+                for n, d in tools.items()
+            )
+        else:
+            tools_str = ", ".join(f"{n}x{c}" for n, c in tools.items())
+        files = usage.get("files")
+        if isinstance(files, dict):
+            files_str = ", ".join(f"{k}:{v}" for k, v in files.items())
+        else:
+            files_str = str(files) if files else ""
+        skills = usage.get("skills_read") or []
+        return (
+            "\n[observed_usage] "
+            f"tools: {tools_str or 'none'}; "
+            f"files: {files_str or 'none'}; "
+            f"skills_read: {', '.join(skills) if skills else 'none'}\n"
+        )
 
     # ── Result parsing ──────────────────────────────────────────────
     @staticmethod
