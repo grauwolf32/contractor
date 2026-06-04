@@ -164,11 +164,15 @@ class TaskRunner(BaseModel):
                 completed_tasks=0,
                 user_id=user_id,
                 prompt_versions=all_active_prompt_versions(),
+                observations=self.observations.as_tag(),
                 task_invocations=[
                     {
                         "ref": item.ref,
                         "template_key": item.template_key,
                         "template_version": item.template_version,
+                        "observations": (
+                            item.observations or self.observations
+                        ).as_tag(),
                     }
                     for item in self.queue
                 ],
@@ -793,6 +797,7 @@ class TaskRunner(BaseModel):
             params=item.params,
             artifacts=item.artifacts,
             published_artifacts=artifact_names_for_key(template.key),
+            observations=(item.observations or self.observations).as_tag(),
         )
 
         carry_state: dict[str, Any] = {}

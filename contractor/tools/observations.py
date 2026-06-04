@@ -65,6 +65,28 @@ class ObservationConfig:
     in_record: bool = True
     in_result: bool = True
 
+    def as_tag(self) -> dict[str, Any]:
+        """JSON-friendly dict identifying the A/B arm, for tagging metrics runs.
+
+        Emitted into ``metrics.jsonl`` (RUN_STARTED / TASK_STARTED) so each run
+        is self-describing — analysis can group/compare arms without out-of-band
+        knowledge of which config produced a run. ``tracked_tools`` is rendered
+        as a list (or ``None``) so the record round-trips through JSON.
+        """
+        return {
+            "enabled": self.enabled,
+            "track_tools": self.track_tools,
+            "tracked_tools": (
+                list(self.tracked_tools) if self.tracked_tools is not None else None
+            ),
+            "include_tool_errors": self.include_tool_errors,
+            "track_skills": self.track_skills,
+            "track_files": self.track_files,
+            "malformed_only": self.malformed_only,
+            "in_record": self.in_record,
+            "in_result": self.in_result,
+        }
+
 
 def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
     """Project raw per-subtask usage from session ``state`` into a compact dict.

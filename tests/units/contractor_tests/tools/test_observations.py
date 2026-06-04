@@ -94,6 +94,22 @@ def test_project_usage_empty_state_when_enabled():
     assert has_observations(out) is False
 
 
+def test_as_tag_is_json_friendly():
+    import json
+
+    tag = ObservationConfig(
+        enabled=True, malformed_only=True, tracked_tools=("a", "b")
+    ).as_tag()
+    # tuple -> list so the tag round-trips through JSON unchanged
+    assert tag["tracked_tools"] == ["a", "b"]
+    assert tag["enabled"] is True and tag["malformed_only"] is True
+    assert json.loads(json.dumps(tag)) == tag
+
+
+def test_as_tag_tracked_tools_none():
+    assert ObservationConfig(enabled=True).as_tag()["tracked_tools"] is None
+
+
 def test_has_observations():
     assert has_observations(None) is False
     assert has_observations({}) is False
