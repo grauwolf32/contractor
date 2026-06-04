@@ -117,6 +117,7 @@ async def run_eval(
     from contractor.agents.trace_agent.agent import build_trace_agent
     from contractor.runners.models import TaskRunnerEvent
     from contractor.runners.task_runner import TaskRunner
+    from contractor.tools.observations import ObservationConfig
     from contractor.utils import load_prompt_with_version
     from contractor.workflows import WorkflowContext
     from contractor.workflows.trace_annotation.workflow import (
@@ -140,6 +141,9 @@ async def run_eval(
         load_expected,
         score_vulns,
     )
+
+    obs_arm = ObservationConfig.resolve(None, os.environ).as_tag()
+    print(f"  observations arm: {json.dumps(obs_arm)}")
 
     prompt_text, resolved_version = load_prompt_with_version("trace_agent", prompt_version)
 
@@ -175,6 +179,10 @@ async def run_eval(
                 name="contractor",
                 artifact_service=ctx.artifact_service,
                 checkpoint_path=ctx.checkpoint_path,
+                # A/B arm: resolve deterministic-observation toggles from
+                # CONTRACTOR_EVAL_OBSERVATIONS (env). Off by default, so the
+                # baseline arm is identical to the pre-feature eval.
+                observations=ObservationConfig.resolve(None, os.environ),
             )
             runner.add_variable(name="project_path", value=ctx.folder_name)
             operation_ids, operation_schema_yaml = self._build_path_task_payload(api_path)
@@ -304,6 +312,7 @@ async def run_eval(
             "annotation_count": len(annotations),
             "annotations": sorted(f"{a.file}::{a.function}" for a in annotations),
             "timed_out": timed_out,
+            "observations": obs_arm,
             "vuln": vuln_detail,
             **score,
             **metrics,
