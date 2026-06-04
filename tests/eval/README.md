@@ -187,6 +187,7 @@ Per-case fixtures (`trace_case`, `swe_case`, `planner_case`,
 | `test_swe_agent_eval` | agent | swe_agent | generic |
 | `test_oas_build_task_eval` / `oas_enrich` / `project_information` / `likec4` | task | task template | diff |
 | `test_exploitability_task_eval` | task | exploitability_assessment | verdict |
+| `test_threat_analysis_task_eval` | task | threat_analysis (STRIDE) | diff (structural + endpoint coverage) |
 | `test_planner_eval` | task | planner | diff |
 | `test_xbow_eval` | task | xbow:web_exploit / xbow:exploit | capture |
 | `test_trace_parallel_eval` | pipeline | trace (graph variants) | diff |

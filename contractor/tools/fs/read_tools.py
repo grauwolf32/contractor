@@ -65,6 +65,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         root: str = "/",
         max_output: int | None = None,
         max_items: int | None = None,
+        max_lines: int | None = None,
         ignored_patterns: list[str] | None = None,
         with_types: bool = True,
         with_file_info: bool = True,
@@ -75,6 +76,9 @@ class FsspecInteractionFileTools(PathValidationMixin):
         self.root = root
         self.max_output = s.fs_max_output if max_output is None else max_output
         self.max_items = s.fs_max_items if max_items is None else max_items
+        # Default line cap when read_file gets no explicit `limit`. Falls back
+        # to the (possibly None) settings value, i.e. "no cap" unless configured.
+        self.max_lines = s.fs_max_read_lines if max_lines is None else max_lines
         self.with_types = with_types
         self.with_file_info = with_file_info
 
@@ -358,6 +362,10 @@ class FsspecInteractionFileTools(PathValidationMixin):
 
         lines = content.splitlines()
 
+        # No explicit limit → apply the configured default line cap (if any).
+        if limit is None:
+            limit = self.max_lines
+
         start_line = 1
         if offset is not None:
             offset = max(0, offset)
@@ -577,7 +585,7 @@ def ro_file_tools(
     fs: fsspec.AbstractFileSystem,
     fmt: FileFormat,
     *,
-    max_output: int = 80_000,
+    max_output: int | None = None,
     max_items: int = 100,
     ignored_patterns: list[str] | None = None,
     with_types: bool = True,

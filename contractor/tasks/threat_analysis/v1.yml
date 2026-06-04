@@ -17,6 +17,9 @@ task:
 
     Before start, analyze existing memories and records.
 
+  skills:
+    - stride
+
   instructions: >
 
     ## Core Principles
@@ -100,9 +103,13 @@ task:
        If any of these can be lifted directly from an artifact, copy
        the reference rather than restating the content.
 
-    2. Build the threat surface by cross-correlating artifacts:
-         - LikeC4 boundary crossing × OpenAPI endpoint  → S / T / I / E threats on that endpoint.
-         - OpenAPI endpoint with security: [] × sensitive response → I (Info Disclosure).
+    2. Build the threat surface by cross-correlating artifacts. "Endpoint"
+       below means an HTTP entry point from the OpenAPI artifact when present,
+       otherwise one derived from project_information's handler/route/controller
+       inventory (read it first) or code search — enumerate them either way:
+         - Trust boundary crossing × endpoint           → S / T / I / E threats on that endpoint.
+         - Endpoint reachable without auth (security: [] or `permitAll`) → I (Info Disclosure) / E (anon access).
+         - Endpoint with an object-reference path param (e.g. /x/<id>) reaching a data op → E (IDOR/BOLA), I.
          - LikeC4 external dep × dependency tag         → category-specific threats.
          - Project-information crypto/auth location × LikeC4 trust zone → S / E threats.
          - Project-information secrets handling × dependency `secrets`/`cryptography` → I / T threats.
@@ -160,9 +167,15 @@ task:
     STOP execution when ALL are satisfied:
       1. The asset inventory, entry-point catalog, and trust-boundary
          map have been written to memory.
-      2. Every endpoint in the OpenAPI artifact has been considered at
-         least once (recorded as either "threat raised" or "no credible
-         threat" with a one-line reason).
+      2. Every HTTP entry point has been considered at least once
+         (recorded as either "threat raised" or "no credible threat"
+         with a one-line reason). The entry-point set comes from the
+         OpenAPI artifact when present; when it is absent or empty you
+         MUST still build the catalog from project_information's
+         handler/route/controller inventory and code search — a missing
+         OpenAPI spec is NOT a reason to skip endpoint-level S/T/I/E
+         (authorization / IDOR / info-disclosure) threats. Do not stop
+         after only config / secret / auth-primitive findings.
       3. Every external dependency tag in the dependency artifact has
          been considered at least once.
       4. Every LikeC4 trust-boundary crossing has been considered at

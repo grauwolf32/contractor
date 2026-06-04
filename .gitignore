@@ -14,7 +14,9 @@ old/*
 */__pycache__/*
 __pycache__/*
 *.env
-eval_runs/*
+# eval run outputs (analytics-ui reads these locally; never tracked).
+# Covers the canonical eval_runs/ and any eval_runs_* A/B scratch dirs.
+/eval_runs*/
 tests/eval/fixtures/*/runs/
 scripts/output/*
 .research/
