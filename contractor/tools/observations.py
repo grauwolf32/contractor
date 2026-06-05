@@ -34,6 +34,11 @@ WORKER_USAGE_STATE_KEY: Final[str] = "worker_usage"
 SKILLS_READ_STATE_KEY: Final[str] = "skills_read"
 MEMORIES_WRITTEN_STATE_KEY: Final[str] = "memories_written"
 MEMORIES_READ_STATE_KEY: Final[str] = "memories_read"
+FILE_PATHS_STATE_KEY: Final[str] = "file_paths"
+
+# Cap on the number of file paths projected (bound planner context; the fs
+# `files` counts still convey total coverage when the list is truncated).
+_FILE_PATHS_CAP: Final[int] = 25
 
 # Env var carrying a JSON object that overlays the workflow's ``observations:``
 # block — flip A/B arms (or ablate knobs) without editing any config.yaml.
@@ -69,6 +74,7 @@ class ObservationConfig:
     include_tool_errors: bool = False
     track_skills: bool = True
     track_files: bool = True
+    track_file_paths: bool = False
     track_memories: bool = False
     malformed_only: bool = False
     in_record: bool = True
@@ -135,6 +141,7 @@ class ObservationConfig:
             "include_tool_errors": self.include_tool_errors,
             "track_skills": self.track_skills,
             "track_files": self.track_files,
+            "track_file_paths": self.track_file_paths,
             "track_memories": self.track_memories,
             "malformed_only": self.malformed_only,
             "in_record": self.in_record,
@@ -177,6 +184,13 @@ def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
     if cfg.track_files:
         fs = snapshot.get("fs_coverage")
         out["files"] = dict(fs) if isinstance(fs, dict) else fs
+
+    if cfg.track_file_paths:
+        fp = state.get(FILE_PATHS_STATE_KEY) or {}
+        read = list(fp.get("read") or [])
+        out["files_read_paths"] = read[:_FILE_PATHS_CAP]
+        if len(read) > _FILE_PATHS_CAP:
+            out["files_read_paths"].append(f"... (+{len(read) - _FILE_PATHS_CAP} more)")
 
     if cfg.track_skills:
         out["skills_read"] = list(state.get(SKILLS_READ_STATE_KEY) or [])

@@ -117,6 +117,30 @@ def test_as_tag_includes_track_memories():
     assert ObservationConfig(enabled=True, track_memories=True).as_tag()["track_memories"] is True
 
 
+def test_project_usage_file_paths_off_by_default():
+    out = project_usage(_state(), ObservationConfig(enabled=True))
+    assert "files_read_paths" not in out
+
+
+def test_project_usage_track_file_paths():
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+
+    st = {FILE_PATHS_STATE_KEY: {"read": ["routers/users.py", "services/user.py"],
+                                 "matched": ["routers/users.py"]}}
+    out = project_usage(st, ObservationConfig(enabled=True, track_file_paths=True))
+    assert out["files_read_paths"] == ["routers/users.py", "services/user.py"]
+
+
+def test_project_usage_file_paths_capped():
+    from contractor.tools.observations import _FILE_PATHS_CAP, FILE_PATHS_STATE_KEY
+
+    paths = [f"f{i}.py" for i in range(_FILE_PATHS_CAP + 5)]
+    st = {FILE_PATHS_STATE_KEY: {"read": paths, "matched": []}}
+    out = project_usage(st, ObservationConfig(enabled=True, track_file_paths=True))
+    assert len(out["files_read_paths"]) == _FILE_PATHS_CAP + 1  # cap + truncation marker
+    assert "more)" in out["files_read_paths"][-1]
+
+
 def test_project_usage_empty_state_when_enabled():
     # No worker activity at all — sections present but empty (signal for the
     # malformed path).

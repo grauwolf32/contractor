@@ -24,6 +24,7 @@ from contractor.tools.fs.models import (
 )
 from contractor.tools.fs.utils import _ensure_int_or_none, _is_ignored
 from contractor.tools.fs.validation import PathValidationMixin
+from contractor.tools.observations import FILE_PATHS_STATE_KEY
 from contractor.tools.result import guard, ok_page
 from contractor.utils.formatting import norm_unicode, normalize_slashes
 from contractor.utils.fs import join_path
@@ -44,6 +45,26 @@ def _push_fs_coverage(
         return
     with contextlib.suppress(Exception):
         state[FS_COVERAGE_STATE_KEY] = snapshot
+
+
+def _push_fs_paths(
+    tool_context: ToolContext | None,
+    read_paths: list[str],
+    matched_paths: list[str],
+) -> None:
+    """Surface the concrete file paths read/matched (names, not just counts).
+
+    Parallel to ``_push_fs_coverage`` but carries paths so observations can show
+    *which* files the worker inspected. Gated downstream by
+    ``ObservationConfig.track_file_paths``; the write is cheap/always-on.
+    """
+    if tool_context is None:
+        return
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return
+    with contextlib.suppress(Exception):
+        state[FILE_PATHS_STATE_KEY] = {"read": read_paths, "matched": matched_paths}
 
 
 def _build_ignore_patterns(ignored_patterns: list[str] | None = None) -> list[str]:
@@ -240,6 +261,14 @@ class FsspecInteractionFileTools(PathValidationMixin):
                 for path, entry in sorted(self._interactions.items())
             },
         }
+
+    def read_paths(self) -> list[str]:
+        """Paths the worker actually opened (read), sorted."""
+        return sorted(p for p, e in self._interactions.items() if e.has_read)
+
+    def matched_paths(self) -> list[str]:
+        """Paths with a grep match, sorted."""
+        return sorted(p for p, e in self._interactions.items() if e.has_match)
 
     def coverage_stats(self) -> dict[str, int]:
         files_read = 0
@@ -656,6 +685,7 @@ def ro_file_tools(
                 with_line_numbers=bool(with_line_numbers),
             )
             _push_fs_coverage(tool_context, tools.coverage_stats())
+            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
             return result
 
         return guard(_impl)
@@ -677,6 +707,7 @@ def ro_file_tools(
             off = _ensure_int_or_none(offset) or 0
             result = tools.grep(pattern=pattern, path=path, offset=off)
             _push_fs_coverage(tool_context, tools.coverage_stats())
+            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
             return result
 
         return guard(_impl)

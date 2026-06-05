@@ -36,6 +36,7 @@ ARMS: list[tuple[str, dict]] = [
     ("full", {"enabled": True, "include_tool_errors": True}),
     ("lean_no_errors", {"enabled": True, "include_tool_errors": False}),
     ("lean_memories", {"enabled": True, "include_tool_errors": False, "track_memories": True}),
+    ("lean_paths", {"enabled": True, "include_tool_errors": False, "track_file_paths": True}),
     ("record_only", {"enabled": True, "include_tool_errors": True, "in_result": False}),
     ("malformed_only", {"enabled": True, "include_tool_errors": True, "malformed_only": True}),
     ("files_skills", {"enabled": True, "track_tools": False, "track_files": True, "track_skills": True}),

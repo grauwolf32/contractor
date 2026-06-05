@@ -275,6 +275,10 @@ class SubtaskFormatter:
             ("files", files_str or "none"),
             ("skills_read", ", ".join(usage.get("skills_read") or []) or "none"),
         ]
+        if "files_read_paths" in usage:
+            fields.append(
+                ("files_read_paths", ", ".join(usage.get("files_read_paths") or []) or "none")
+            )
         if "memories_written" in usage or "memories_read" in usage:
             fields.append(
                 ("memories_written", ", ".join(usage.get("memories_written") or []) or "none")
