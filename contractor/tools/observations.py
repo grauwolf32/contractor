@@ -32,6 +32,8 @@ from typing import Any, Final
 # ``tool_context.state`` via ADK ``AgentTool`` state-delta propagation.
 WORKER_USAGE_STATE_KEY: Final[str] = "worker_usage"
 SKILLS_READ_STATE_KEY: Final[str] = "skills_read"
+MEMORIES_WRITTEN_STATE_KEY: Final[str] = "memories_written"
+MEMORIES_READ_STATE_KEY: Final[str] = "memories_read"
 
 # Env var carrying a JSON object that overlays the workflow's ``observations:``
 # block — flip A/B arms (or ablate knobs) without editing any config.yaml.
@@ -67,6 +69,7 @@ class ObservationConfig:
     include_tool_errors: bool = False
     track_skills: bool = True
     track_files: bool = True
+    track_memories: bool = False
     malformed_only: bool = False
     in_record: bool = True
     in_result: bool = True
@@ -132,6 +135,7 @@ class ObservationConfig:
             "include_tool_errors": self.include_tool_errors,
             "track_skills": self.track_skills,
             "track_files": self.track_files,
+            "track_memories": self.track_memories,
             "malformed_only": self.malformed_only,
             "in_record": self.in_record,
             "in_result": self.in_result,
@@ -176,6 +180,10 @@ def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
 
     if cfg.track_skills:
         out["skills_read"] = list(state.get(SKILLS_READ_STATE_KEY) or [])
+
+    if cfg.track_memories:
+        out["memories_written"] = list(state.get(MEMORIES_WRITTEN_STATE_KEY) or [])
+        out["memories_read"] = list(state.get(MEMORIES_READ_STATE_KEY) or [])
 
     return out
 

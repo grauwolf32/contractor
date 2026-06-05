@@ -270,12 +270,20 @@ class SubtaskFormatter:
         else:
             files_str = str(files) if files else ""
         skills = usage.get("skills_read") or []
-        return (
+        block = (
             "\n[observed_usage] "
             f"tools: {tools_str or 'none'}; "
             f"files: {files_str or 'none'}; "
-            f"skills_read: {', '.join(skills) if skills else 'none'}\n"
+            f"skills_read: {', '.join(skills) if skills else 'none'}"
         )
+        if "memories_written" in usage or "memories_read" in usage:
+            mw = usage.get("memories_written") or []
+            mr = usage.get("memories_read") or []
+            block += (
+                f"; memories_written: {', '.join(mw) if mw else 'none'}"
+                f"; memories_read: {', '.join(mr) if mr else 'none'}"
+            )
+        return block + "\n"
 
     # ── Result parsing ──────────────────────────────────────────────
     @staticmethod

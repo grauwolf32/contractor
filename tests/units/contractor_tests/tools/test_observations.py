@@ -93,6 +93,30 @@ def test_project_usage_section_toggles():
     assert out == {"skills_read": ["trace/references/sinks"]}
 
 
+def test_project_usage_memories_off_by_default():
+    out = project_usage(_state(), ObservationConfig(enabled=True))
+    assert "memories_written" not in out and "memories_read" not in out
+
+
+def test_project_usage_track_memories():
+    from contractor.tools.observations import (
+        MEMORIES_READ_STATE_KEY,
+        MEMORIES_WRITTEN_STATE_KEY,
+    )
+
+    st = {
+        MEMORIES_WRITTEN_STATE_KEY: ["finding_sqli_login"],
+        MEMORIES_READ_STATE_KEY: ["endpoint_inventory", "auth_model"],
+    }
+    out = project_usage(st, ObservationConfig(enabled=True, track_memories=True))
+    assert out["memories_written"] == ["finding_sqli_login"]
+    assert out["memories_read"] == ["endpoint_inventory", "auth_model"]
+
+
+def test_as_tag_includes_track_memories():
+    assert ObservationConfig(enabled=True, track_memories=True).as_tag()["track_memories"] is True
+
+
 def test_project_usage_empty_state_when_enabled():
     # No worker activity at all — sections present but empty (signal for the
     # malformed path).

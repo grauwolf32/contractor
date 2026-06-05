@@ -12,6 +12,8 @@ from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
 from contractor.tools.observations import (
+    MEMORIES_READ_STATE_KEY,
+    MEMORIES_WRITTEN_STATE_KEY,
     SKILLS_READ_STATE_KEY,
     WORKER_USAGE_STATE_KEY,
     ObservationConfig,
@@ -543,6 +545,8 @@ def task_tools(
         if obs.enabled:
             tool_context.state[WORKER_USAGE_STATE_KEY] = {}
             tool_context.state[SKILLS_READ_STATE_KEY] = []
+            tool_context.state[MEMORIES_WRITTEN_STATE_KEY] = []
+            tool_context.state[MEMORIES_READ_STATE_KEY] = []
 
         for attempt in range(1, n_retries + 1):
             raw = await worker.run_async(args=args, tool_context=tool_context)

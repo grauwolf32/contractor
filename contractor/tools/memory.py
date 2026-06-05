@@ -12,7 +12,11 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
-from contractor.tools.observations import SKILLS_READ_STATE_KEY
+from contractor.tools.observations import (
+    MEMORIES_READ_STATE_KEY,
+    MEMORIES_WRITTEN_STATE_KEY,
+    SKILLS_READ_STATE_KEY,
+)
 from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
 
@@ -567,6 +571,25 @@ def _push_skill_read(tool_context: ToolContext | None, skill_name: str) -> None:
             state[SKILLS_READ_STATE_KEY] = seen
 
 
+def _push_memory(tool_context: ToolContext | None, state_key: str, name: str) -> None:
+    """Record a successful memory write/read into session state (deterministic).
+
+    Mirrors ``_push_skill_read``: records the memory *name* the worker actually
+    wrote or read, only on success. Dedupes, preserves order. Gated downstream by
+    ``ObservationConfig.track_memories``; the write itself is cheap/always-on.
+    """
+    if tool_context is None:
+        return
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return
+    with contextlib.suppress(Exception):
+        seen = list(state.get(state_key) or [])
+        if name not in seen:
+            seen.append(name)
+            state[state_key] = seen
+
+
 def _resolve_skill_reference(
     name: str,
     skill_memories: list[MemoryNote],
@@ -631,6 +654,7 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
 
         async def _impl() -> Any:
             await m.write_memory(name, memory, description, tags, tool_context)
+            _push_memory(tool_context, MEMORIES_WRITTEN_STATE_KEY, name)
             return "ok"
 
         return await aguard(_impl)
@@ -655,6 +679,7 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
             memory = await m.append_memory(name, text, tool_context)
             if memory is None:
                 return err(f"memory {name} not found")
+            _push_memory(tool_context, MEMORIES_WRITTEN_STATE_KEY, name)
             return m.fmt.format_memory(memory)
 
         return await aguard(_impl)
@@ -686,6 +711,7 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
             memory = await m.read_memory(name, tool_context)
             if memory is None:
                 return err(f"memory {name} not found")
+            _push_memory(tool_context, MEMORIES_READ_STATE_KEY, name)
             return m.fmt.format_memory(memory)
 
         return await aguard(_impl)
