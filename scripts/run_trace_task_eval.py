@@ -212,6 +212,12 @@ async def run_eval(
             except TimeoutError:
                 print(f"    [path {api_path.path_key}] timed out "
                       f"(>{per_path_timeout_s:.0f}s) — skipping to next path")
+            except Exception as exc:
+                # A single path failing (e.g. TaskNotCompletedError after the
+                # worker exhausts retries) must not abort the whole fixture —
+                # skip it and keep annotations already written to the overlay.
+                print(f"    [path {api_path.path_key}] failed: {exc!r} "
+                      f"— skipping to next path")
 
     results: list[dict[str, Any]] = []
 
