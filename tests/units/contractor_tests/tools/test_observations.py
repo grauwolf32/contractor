@@ -173,14 +173,26 @@ def test_format_task_record_json_no_usage_when_none():
     assert "usage" not in rec
 
 
-def test_format_task_record_xml_appends_block():
+def test_format_task_record_xml_uses_record_format():
     rec = SubtaskFormatter(_format="xml").format_task_record(
         _SUBTASK, _RESULT, usage=_USAGE
     )
     assert isinstance(rec, str)
-    assert "[observed_usage]" in rec
-    assert "read_file" in rec
-    assert "skills_read: sk" in rec
+    # observation rendered in the record's own (xml) format, under the record
+    assert rec.rstrip().endswith("</observed_usage>")
+    assert "<observed_usage>" in rec
+    assert "<tools>read_file x2</tools>" in rec
+    assert "<skills_read>sk</skills_read>" in rec
+    # and it comes after the <result> element (placed under the record)
+    assert rec.index("<observed_usage>") > rec.index("</result>")
+
+
+def test_format_task_record_markdown_block():
+    rec = SubtaskFormatter(_format="markdown").format_task_record(
+        _SUBTASK, _RESULT, usage=_USAGE
+    )
+    assert "**Observed usage**" in rec
+    assert "- tools: read_file x2" in rec
 
 
 # ---------------------------------------------------------------------------

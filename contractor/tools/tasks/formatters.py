@@ -233,10 +233,11 @@ class SubtaskFormatter:
         """Combine plan subtask + worker result into one record.
 
         When ``usage`` (deterministic observations) is provided it is attached
-        as a structurally distinct ``usage`` field (json) or a labelled
-        ``[observed_usage]`` block (text formats) — kept separate from the
-        worker's self-reported ``output``/``summary`` so the planner reads it as
-        ground truth, not another worker claim.
+        in the record's own format — a ``usage`` field (json), an
+        ``<observed_usage>`` element (xml), or an ``observed_usage`` block (yaml
+        / markdown) — kept structurally distinct from the worker's self-reported
+        ``output``/``summary`` so the planner reads it as ground truth, not
+        another worker claim.
         """
         if self._format == "json":
             record_dict: dict[str, Any] = self._subtask_to_json(subtask)
@@ -254,8 +255,8 @@ class SubtaskFormatter:
         return out
 
     @staticmethod
-    def _render_usage_block(usage: dict[str, Any]) -> str:
-        """Compact, single-line rendering of usage for non-json record formats."""
+    def _usage_fields(usage: dict[str, Any]) -> list[tuple[str, str]]:
+        """Flatten a usage dict into ordered (label, value-string) pairs."""
         tools = usage.get("tools") or {}
         if tools and all(isinstance(v, dict) for v in tools.values()):
             tools_str = ", ".join(
@@ -263,27 +264,42 @@ class SubtaskFormatter:
                 for n, d in tools.items()
             )
         else:
-            tools_str = ", ".join(f"{n}x{c}" for n, c in tools.items())
+            tools_str = ", ".join(f"{n} x{c}" for n, c in tools.items())
         files = usage.get("files")
         if isinstance(files, dict):
             files_str = ", ".join(f"{k}:{v}" for k, v in files.items())
         else:
             files_str = str(files) if files else ""
-        skills = usage.get("skills_read") or []
-        block = (
-            "\n[observed_usage] "
-            f"tools: {tools_str or 'none'}; "
-            f"files: {files_str or 'none'}; "
-            f"skills_read: {', '.join(skills) if skills else 'none'}"
-        )
+        fields = [
+            ("tools", tools_str or "none"),
+            ("files", files_str or "none"),
+            ("skills_read", ", ".join(usage.get("skills_read") or []) or "none"),
+        ]
         if "memories_written" in usage or "memories_read" in usage:
-            mw = usage.get("memories_written") or []
-            mr = usage.get("memories_read") or []
-            block += (
-                f"; memories_written: {', '.join(mw) if mw else 'none'}"
-                f"; memories_read: {', '.join(mr) if mr else 'none'}"
+            fields.append(
+                ("memories_written", ", ".join(usage.get("memories_written") or []) or "none")
             )
-        return block + "\n"
+            fields.append(
+                ("memories_read", ", ".join(usage.get("memories_read") or []) or "none")
+            )
+        return fields
+
+    def _render_usage_block(self, usage: dict[str, Any]) -> str:
+        """Render observations in the record's active format, under the record."""
+        fields = self._usage_fields(usage)
+        if self._format == "xml":
+            inner = "\n".join(
+                f"    <{k}>{xml_escape(v)}</{k}>" for k, v in fields
+            )
+            return f"\n<observed_usage>\n{inner}\n</observed_usage>"
+        if self._format == "yaml":
+            payload = {"observed_usage": dict(fields)}
+            return "\n" + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+        if self._format == "markdown":
+            lines = "\n".join(f"- {k}: {v}" for k, v in fields)
+            return f"\n**Observed usage**\n{lines}\n"
+        # Defensive fallback (json takes the dict path; this is unreachable).
+        return "\n[observed_usage] " + "; ".join(f"{k}: {v}" for k, v in fields) + "\n"
 
     # ── Result parsing ──────────────────────────────────────────────
     @staticmethod
