@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # pass@3 A/B on the one evaluable trace case with large files in-repo.
-# default (80KB, no line cap) vs new (50KB OR 2000 lines). 3 attempts/arm.
+# default 80KB byte cap vs new 50KB. 3 attempts/arm.
+# NOTE: the new 50KB/2000-line caps are now the committed Settings defaults, so
+# both arms pin the 2000-line cap and this isolates the BYTE cap. The pre-PR
+# "no line cap" baseline is no longer env-reproducible (no None sentinel).
 set -uo pipefail
-cd /home/ruslan/src/contractor
+cd "$(dirname "$0")/.." || exit 1
 export CONTRACTOR_RUN_EVAL=1 DEFAULT_MODEL_TIMEOUT=600
 NODE="tests/eval/test_trace_agent_eval.py::test_trace_agent[cvebench-cve-2024-5084/hashform-file-upload-rce]"
 OUT=eval_runs_pass3
@@ -10,10 +13,13 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 
 run_attempt () {
   local arm="$1" i="$2"
-  if [ "$arm" = "new" ]; then export FS_MAX_OUTPUT=50000 FS_MAX_READ_LINES=2000
-  else unset FS_MAX_OUTPUT FS_MAX_READ_LINES; fi
+  # Default arm must EXPORT 80000 — unsetting now falls back to the new 50000
+  # default and the arms would be identical.
+  export FS_MAX_READ_LINES=2000
+  if [ "$arm" = "new" ]; then export FS_MAX_OUTPUT=50000
+  else export FS_MAX_OUTPUT=80000; fi
   rm -rf eval_runs
-  echo "=== arm=$arm attempt=$i  FS_MAX_OUTPUT=${FS_MAX_OUTPUT:-<default 80000>} FS_MAX_READ_LINES=${FS_MAX_READ_LINES:-<none>}  $(date +%H:%M:%S) ==="
+  echo "=== arm=$arm attempt=$i  FS_MAX_OUTPUT=${FS_MAX_OUTPUT} FS_MAX_READ_LINES=${FS_MAX_READ_LINES}  $(date +%H:%M:%S) ==="
   poetry run pytest "$NODE" -p no:cacheprovider -q --no-header -o addopts="" >"$OUT/$arm-$i.log" 2>&1
   local rc=$?
   echo "  pytest rc=$rc (0=pass, 1=fail)"

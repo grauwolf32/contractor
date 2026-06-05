@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# A/B eval: default read limits vs new (50KB OR 2000 lines, whichever first).
-# Arm A = current defaults. Arm B = FS_MAX_OUTPUT=50000 + FS_MAX_READ_LINES=2000.
+# A/B eval: 80KB byte cap (pre-PR baseline) vs new 50KB cap.
+# Arm A (default) = FS_MAX_OUTPUT=80000. Arm B (new) = FS_MAX_OUTPUT=50000.
+# NOTE: the new 50KB/2000-line caps are now the committed Settings defaults, so
+# this A/B isolates the BYTE cap only; both arms run at the 2000-line default.
+# The original "no line cap" baseline is no longer reproducible via env (the
+# setting has no None sentinel), so don't read this as an old-vs-new line-cap test.
 # Same 15 trace cases + 4 OAS fixtures both arms. Project default model.
 set -uo pipefail
-cd /home/ruslan/src/contractor
+cd "$(dirname "$0")/.." || exit 1
 
 export CONTRACTOR_RUN_EVAL=1
 export DEFAULT_MODEL_TIMEOUT=600   # applied to BOTH arms; cannot bias the A/B
@@ -35,12 +39,16 @@ NODES=( "${TRACE[@]}" "${OAS[@]}" )
 
 run_arm () {
   local name="$1" newlimits="$2"
+  # Both arms pin the line cap to the committed default so the byte cap is the
+  # only variable. The default arm must EXPORT 80000 explicitly — unsetting it
+  # now falls back to the new 50000 default, which would make the arms identical.
+  export FS_MAX_READ_LINES=2000
   if [ "$newlimits" = "1" ]; then
-    export FS_MAX_OUTPUT=50000 FS_MAX_READ_LINES=2000
+    export FS_MAX_OUTPUT=50000
   else
-    unset FS_MAX_OUTPUT FS_MAX_READ_LINES
+    export FS_MAX_OUTPUT=80000
   fi
-  echo "############# ARM=$name  FS_MAX_OUTPUT=${FS_MAX_OUTPUT:-<default 80000>} FS_MAX_READ_LINES=${FS_MAX_READ_LINES:-<none>}  $(date) #############"
+  echo "############# ARM=$name  FS_MAX_OUTPUT=${FS_MAX_OUTPUT} FS_MAX_READ_LINES=${FS_MAX_READ_LINES}  $(date) #############"
   rm -rf eval_runs
   poetry run pytest "${NODES[@]}" -p no:cacheprovider -q --no-header -o addopts="" 2>&1
   echo "############# ARM=$name pytest exit=$? $(date) #############"

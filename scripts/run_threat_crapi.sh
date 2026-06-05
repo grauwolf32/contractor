@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-cd /home/ruslan/src/contractor
+cd "$(dirname "$0")/.." || exit 1
 export CONTRACTOR_RUN_EVAL=1 DEFAULT_MODEL_TIMEOUT=600
 for slug in crapi-workshop crapi-identity; do
   echo "############# $slug $(date) #############"

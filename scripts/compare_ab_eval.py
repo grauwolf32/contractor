@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/ruslan/src/contractor")
+ROOT = Path(__file__).resolve().parents[1]
 # Override arm dirs from argv: compare_ab_eval.py <armA_label>:<dir> <armB_label>:<dir>
 _argv = sys.argv[1:]
 if len(_argv) == 2 and all(":" in a for a in _argv):
@@ -71,9 +71,9 @@ def main() -> int:
             by_unit[unit][1] += int(bool(npass))
             by_unit[unit][2] += 1
             if dp and not npass:
-                tag = "❌REGRESS"; regressions.append((unit, case_key, dc, nc))
+                regressions.append((unit, case_key, dc, nc))
             elif npass and not dp:
-                tag = "✅GAIN"; improvements.append((unit, case_key, dc, nc))
+                improvements.append((unit, case_key, dc, nc))
         label = f"{unit}/{case_key}"[:54]
         print(f"{label:54} {str(dp):>8} {str(npass):>8} {tag}")
 
@@ -86,7 +86,7 @@ def main() -> int:
     for unit, ck, dc, nc in regressions:
         print(f"  {unit}/{ck}\n      default: {score_str(dc)}\n      new    : {score_str(nc)}")
     print(f"\n=== improvements (failed default, passed new): {len(improvements)} ===")
-    for unit, ck, dc, nc in improvements:
+    for unit, ck, _dc, _nc in improvements:
         print(f"  {unit}/{ck}")
 
     print("\n=== score deltas on cases both arms ran ===")
