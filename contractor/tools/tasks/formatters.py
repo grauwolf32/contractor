@@ -415,7 +415,10 @@ class SubtaskFormatter:
             else:
                 value = first_line.strip()
             if key == "status":
-                value = value.splitlines()[0].strip()
+                # An empty Status value ('' or '\n') yields [] from splitlines();
+                # indexing [0] would crash the whole subtask parse (audit MEDIUM).
+                status_lines = value.splitlines()
+                value = status_lines[0].strip() if status_lines else ""
             data[key] = value
 
         with suppress(ValidationError, TypeError):

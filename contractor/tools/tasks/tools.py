@@ -725,7 +725,11 @@ def task_tools(
         if status == "done":
             has_new = any(t.status == "new" for t in subtasks)
             has_any = len(subtasks) > 0
-            if has_new or not has_any:
+            # Require at least one actually-completed subtask. Without this, a plan
+            # whose subtasks all ended incomplete/malformed/skipped/decomposed (none
+            # 'new', none 'done') could still finish(done) (audit MEDIUM).
+            has_done = any(t.status == "done" for t in subtasks)
+            if has_new or not has_any or not has_done:
                 return {"error": DO_NOT_FINISH_WITH_NO_TASKS_DONE}
 
         summary = ""

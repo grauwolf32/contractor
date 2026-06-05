@@ -48,6 +48,11 @@ def extract_openapi_paths(
 ) -> list[OpenApiPath]:
     """Extract all paths and their operations from an OpenAPI schema."""
     paths: list[OpenApiPath] = []
+    # Empty / paths-less / non-dict artifacts (e.g. yaml.safe_load("") -> None)
+    # must yield no paths rather than crash with KeyError/AttributeError (audit MEDIUM).
+    if not isinstance(openapi, dict) or not isinstance(openapi.get("paths"), dict):
+        logger.warning("OpenAPI artifact has no 'paths' mapping; no paths extracted")
+        return paths
     securitySchemes = openapi.get("components", {}).get("securitySchemes", {})
 
     for path, path_item in openapi["paths"].items():

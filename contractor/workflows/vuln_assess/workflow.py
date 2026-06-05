@@ -30,6 +30,7 @@ from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifac
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
+from contractor.workflows.trace_graph_pathpar.workflow import PATH_NAMESPACE_PREFIX
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -284,7 +285,10 @@ class VulnAssessWorkflow(Workflow):
                 continue
             paths = extract_openapi_paths(openapi=openapi)
             for api_path in paths:
-                ns = f"trace-annotation:{ns_suffix}:{api_path.path_key}"
+                # Must match the namespace the trace stage (TraceGraphPathParWorkflow,
+                # run in _run_trace_stage) writes vuln reports under — shared constant
+                # so the read/write keys can't drift (audit: HIGH, namespace mismatch).
+                ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{api_path.path_key}"
                 part = await ctx.artifact_service.load_artifact(
                     app_name=ctx.app_name,
                     user_id=user_id,
