@@ -108,8 +108,16 @@ class FileFormat:
         max_output: int,
         *,
         base_offset: int | None = None,
+        max_lines: int | None = None,
     ) -> str:
         """Truncate *content* to ``max_output`` bytes on a line boundary.
+
+        Truncation fires on whichever cap binds first: the ``max_output`` byte
+        budget or (when given) the ``max_lines`` line cap. Routing the line cap
+        through here — rather than pre-slicing the content — ensures the
+        truncation footer (and its resume offset) is emitted in *both* cases;
+        a caller that pre-trimmed to ``max_lines`` and handed in a short-line
+        slice that fits the byte budget would otherwise return silently.
 
         When ``base_offset`` is given (the 0-based line offset of *content*
         within the original file), the truncation footer also advertises a
@@ -123,6 +131,9 @@ class FileFormat:
         cut_at_line: int | None = None
 
         for index, line in enumerate(lines):
+            if max_lines is not None and index >= max_lines:
+                cut_at_line = index
+                break
             line_bytes = len(line.encode("utf-8", errors="ignore"))
             if out_bytes + line_bytes > max_output:
                 cut_at_line = index
@@ -135,9 +146,13 @@ class FileFormat:
             return "".join(out_parts)
 
         def _footer(emitted: int) -> str:
-            remaining = max(0, len(lines) - cut_at_line)
+            # All three fields derive from `emitted` (the lines actually kept
+            # after any footer-fit trim), so they stay mutually consistent —
+            # `cut_at_line` is the pre-trim cut point and would over-state what
+            # was emitted / under-state what remains.
+            remaining = max(0, len(lines) - emitted)
             segments = [
-                f"### truncated at line: {cut_at_line} ###",
+                f"### truncated at line: {emitted} ###",
                 f"lines left in the file: {remaining} ###",
             ]
             # Only advertise a resume offset when at least one line was

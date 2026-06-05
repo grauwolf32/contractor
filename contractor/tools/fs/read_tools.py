@@ -107,6 +107,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         self.fmt.with_file_info = with_file_info
 
         self._interactions: dict[str, FileInteractionEntry] = {}
+        self._interaction_invocation_id: str | None = None
         self.patterns = _build_ignore_patterns(ignored_patterns)
 
     def _is_ignored(self, path: str) -> bool:
@@ -245,6 +246,24 @@ class FsspecInteractionFileTools(PathValidationMixin):
         entry.touch(operation, interaction=interaction)
 
     def reset_interactions(self) -> None:
+        self._interactions.clear()
+
+    def reset_interactions_for_invocation(self, invocation_id: str | None) -> None:
+        """Clear accumulated interactions when entering a new ADK invocation.
+
+        The streamline worker (and this single file-tools instance) is reused
+        across every subtask in a planner iteration, while ``coverage_stats`` /
+        ``read_paths`` report cumulatively. Without a per-run reset the
+        deterministic observations projected back to the planner would carry
+        forward files touched in earlier subtasks (or earlier retry attempts).
+        Each worker ``run_async`` gets a fresh ``invocation_id`` (``AgentTool``
+        spins up a new Runner + session), so resetting on a changed id scopes
+        coverage/paths to exactly the current worker run. A ``None`` id (no
+        tool_context) is a no-op so direct/test callers keep cumulative state.
+        """
+        if invocation_id is None or invocation_id == self._interaction_invocation_id:
+            return
+        self._interaction_invocation_id = invocation_id
         self._interactions.clear()
 
     def get_interactions(self) -> dict[str, Any]:
@@ -403,8 +422,11 @@ class FsspecInteractionFileTools(PathValidationMixin):
             lines = lines[offset:]
             start_line = offset + 1
 
-        if limit is not None:
-            lines = lines[: max(1, limit)]
+        # Hand the full post-offset slice (not a pre-trimmed one) plus the line
+        # cap to format_output, so the truncation footer fires whether the byte
+        # OR the line cap binds — and the "lines left" / resume offset reflect
+        # the true remaining count rather than the capped slice length.
+        effective_limit = max(1, limit) if limit is not None else None
 
         if with_line_numbers:
             sliced = "\n".join(
@@ -415,7 +437,10 @@ class FsspecInteractionFileTools(PathValidationMixin):
             sliced = "\n".join(lines)
         return {
             "result": self.fmt.format_output(
-                sliced, self.max_output, base_offset=start_line - 1
+                sliced,
+                self.max_output,
+                base_offset=start_line - 1,
+                max_lines=effective_limit,
             )
         }
 
@@ -678,6 +703,9 @@ def ro_file_tools(
         """
 
         def _impl() -> dict[str, Any]:
+            tools.reset_interactions_for_invocation(
+                getattr(tool_context, "invocation_id", None)
+            )
             result = tools.read_file(
                 file_path=file,
                 offset=_ensure_int_or_none(offset),
@@ -704,6 +732,9 @@ def ro_file_tools(
         """
 
         def _impl() -> dict[str, Any]:
+            tools.reset_interactions_for_invocation(
+                getattr(tool_context, "invocation_id", None)
+            )
             off = _ensure_int_or_none(offset) or 0
             result = tools.grep(pattern=pattern, path=path, offset=off)
             _push_fs_coverage(tool_context, tools.coverage_stats())

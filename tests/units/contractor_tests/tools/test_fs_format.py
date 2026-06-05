@@ -235,3 +235,52 @@ def test_format_output_omits_resume_offset_when_no_line_fits():
     text = "x" * 500 + "\n" + "more\n"
     out = FileFormat.format_output(text, max_output=50, base_offset=7)
     assert "resume with read_file offset=" not in out
+
+
+# ---------------------------------------------------------------------------
+# format_output — line cap (max_lines)
+# ---------------------------------------------------------------------------
+
+
+def test_format_output_line_cap_emits_footer_even_when_under_byte_budget():
+    # Short-line file: 100 lines fit easily under the byte budget, but the line
+    # cap binds — the footer (and resume offset) must still fire so the agent
+    # learns the read was incomplete. Regression for silent line-cap truncation.
+    text = "".join(f"l{i}\n" for i in range(100))
+    out = FileFormat.format_output(text, max_output=1_000_000, base_offset=0, max_lines=30)
+    assert "### truncated at line: 30 ###" in out
+    assert "lines left in the file: 70 ###" in out
+    assert "resume with read_file offset=30 ###" in out
+    # Body holds exactly the first 30 lines.
+    body = out.split("\n\n###", 1)[0]
+    assert body.count("\n") == 30
+
+
+def test_format_output_line_cap_under_count_returns_whole_content():
+    text = "".join(f"l{i}\n" for i in range(10))
+    out = FileFormat.format_output(text, max_output=1_000_000, base_offset=0, max_lines=50)
+    assert out == text  # cap doesn't bind → no footer
+
+
+def test_format_output_byte_cap_wins_when_more_restrictive_than_line_cap():
+    # Byte budget cuts before the line cap; footer still consistent.
+    text = "".join(f"line{i}\n" for i in range(50))
+    out = FileFormat.format_output(text, max_output=80, base_offset=0, max_lines=40)
+    assert "### truncated at line:" in out
+    body = out.split("\n\n###", 1)[0]
+    assert body.count("\n") < 40  # byte cap, not the 40-line cap, bound
+
+
+def test_format_output_footer_counts_consistent_after_trim_pop():
+    # When the footer itself forces lines to be popped, the 'truncated at line'
+    # label, 'lines left' count and resume offset must all agree on the lines
+    # actually emitted (regression: they used to read the pre-trim cut point).
+    lines = [f"line{i}\n" for i in range(50)]
+    out = FileFormat.format_output("".join(lines), max_output=250, base_offset=0)
+    resume = _parse_resume_offset(out)
+    body = out.split("\n\n###", 1)[0]
+    emitted = body.count("\n")
+    truncated_at = int(out.split("### truncated at line:", 1)[1].split("###", 1)[0].strip())
+    left = int(out.split("lines left in the file:", 1)[1].split("###", 1)[0].strip())
+    assert truncated_at == emitted == resume
+    assert left == len(lines) - emitted

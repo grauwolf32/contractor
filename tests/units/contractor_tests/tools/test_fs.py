@@ -490,9 +490,14 @@ def test_read_file_full_and_paginated(tools_json, tmpdir_path: Path):
     assert "line0" in full["result"]
     assert "ERROR: boom" in full["result"]
 
+    # offset=1, limit=2 keeps lines 2-3, but line 4 ("tail") remains — the line
+    # cap must emit a truncation footer with a resume offset, not silently drop it.
     page = tools_json["read_file"](f, offset=1, limit=2)
     assert "error" not in page
-    assert page["result"].splitlines() == ["hello world", "ERROR: boom"]
+    body = page["result"]
+    assert body.splitlines()[:2] == ["hello world", "ERROR: boom"]
+    assert "lines left in the file: 1 ###" in body
+    assert "resume with read_file offset=3 ###" in body
 
 
 def test_read_file_with_line_numbers(tools_json, tmpdir_path: Path):
@@ -506,7 +511,9 @@ def test_read_file_with_line_numbers(tools_json, tmpdir_path: Path):
 
     page = tools_json["read_file"](f, offset=1, limit=2, with_line_numbers=True)
     assert "error" not in page
-    assert page["result"].splitlines() == ["2 | hello world", "3 | ERROR: boom"]
+    body = page["result"]
+    assert body.splitlines()[:2] == ["2 | hello world", "3 | ERROR: boom"]
+    assert "resume with read_file offset=3 ###" in body
 
 
 def test_read_file_errors(tools_json, tmpdir_path: Path):
@@ -515,6 +522,37 @@ def test_read_file_errors(tools_json, tmpdir_path: Path):
 
     not_a_file = tools_json["read_file"](abs_path(tmpdir_path / "src"))
     assert "error" in not_a_file
+
+
+def test_read_file_observations_reset_across_invocations(
+    tools_json, tmpdir_path: Path
+):
+    # The worker (and this file-tools instance) is reused across subtasks, but
+    # the deterministic observations pushed to the planner must reflect only the
+    # current worker run. A fresh ADK invocation_id marks a new run; the next
+    # read must clear the prior run's accumulated paths/coverage.
+    from contractor.tools.fs.const import FS_COVERAGE_STATE_KEY
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+    from tests.units.contractor_tests.helpers import mk_tool_context
+
+    a = abs_path(tmpdir_path / "src" / "a.py")
+    b = abs_path(tmpdir_path / "src" / "b.txt")
+
+    ctx1 = mk_tool_context(invocation_id="inv-1")
+    tools_json["read_file"](a, tool_context=ctx1)
+    assert ctx1.state[FILE_PATHS_STATE_KEY]["read"] == [a]
+    assert ctx1.state[FS_COVERAGE_STATE_KEY]["files_read"] == 1
+
+    # New invocation reading only b.txt — a.py must NOT leak into this run.
+    ctx2 = mk_tool_context(invocation_id="inv-2")
+    tools_json["read_file"](b, tool_context=ctx2)
+    assert ctx2.state[FILE_PATHS_STATE_KEY]["read"] == [b]
+    assert ctx2.state[FS_COVERAGE_STATE_KEY]["files_read"] == 1
+
+    # Same invocation accumulates as before (within-run coverage is cumulative).
+    tools_json["read_file"](a, tool_context=ctx2)
+    assert ctx2.state[FILE_PATHS_STATE_KEY]["read"] == [a, b]
+    assert ctx2.state[FS_COVERAGE_STATE_KEY]["files_read"] == 2
 
 
 def test_read_file_truncation_footer(fs, tmpdir_path: Path):
