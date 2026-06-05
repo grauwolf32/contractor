@@ -4,3 +4,10 @@ tasks:
   annotate: { iterations: 1, max_attempts: 3, max_steps: 20 }
 agents:
   trace_agent: { with_graph_tools: true, output_format: json }
+# Deterministic worker observations fed back to the planner. Enabled in the
+# "lean" config (include_tool_errors stays off — error counts measurably hurt
+# in A/B). Across fixtures (fastapi/vulnyapi/vaultpay) this lifts vuln-detection
+# F1 consistently with no change to annotation accuracy; cost is roughly neutral.
+observations:
+  enabled: true
+  include_tool_errors: false
