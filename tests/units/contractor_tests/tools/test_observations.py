@@ -179,19 +179,19 @@ def test_format_task_record_xml_uses_record_format():
     )
     assert isinstance(rec, str)
     # observation rendered in the record's own (xml) format, under the record
-    assert rec.rstrip().endswith("</observed_usage>")
-    assert "<observed_usage>" in rec
+    assert rec.rstrip().endswith("</observations>")
+    assert "<observations>" in rec
     assert "<tools>read_file x2</tools>" in rec
     assert "<skills_read>sk</skills_read>" in rec
     # and it comes after the <result> element (placed under the record)
-    assert rec.index("<observed_usage>") > rec.index("</result>")
+    assert rec.index("<observations>") > rec.index("</result>")
 
 
 def test_format_task_record_markdown_block():
     rec = SubtaskFormatter(_format="markdown").format_task_record(
         _SUBTASK, _RESULT, usage=_USAGE
     )
-    assert "**Observed usage**" in rec
+    assert "**Observations**" in rec
     assert "- tools: read_file x2" in rec
 
 
@@ -347,7 +347,7 @@ def _writes_usage(status, output, summary):
 
 
 @pytest.mark.anyio
-async def test_execute_success_injects_observed_usage(monkeypatch):
+async def test_execute_success_injects_observations(monkeypatch):
     worker = _mk_worker()
     worker.run_async.side_effect = _writes_usage("done", "did it", "ok")
     tool = _mk_tools(monkeypatch, worker=worker, observations=ObservationConfig(enabled=True))
@@ -356,8 +356,8 @@ async def test_execute_success_injects_observed_usage(monkeypatch):
 
     res = await tool["execute_current_subtask"](tool_context=ctx)
 
-    assert res["observed_usage"]["tools"] == {"read_file": 2}
-    assert res["observed_usage"]["skills_read"] == ["trace/references/sinks"]
+    assert res["observations"]["tools"] == {"read_file": 2}
+    assert res["observations"]["skills_read"] == ["trace/references/sinks"]
     assert res["record"]["usage"]["files"] == {"a.py": 1}
 
 
@@ -371,7 +371,7 @@ async def test_execute_disabled_has_no_usage(monkeypatch):
 
     res = await tool["execute_current_subtask"](tool_context=ctx)
 
-    assert "observed_usage" not in res
+    assert "observations" not in res
     assert "usage" not in res["record"]
 
 
@@ -386,7 +386,7 @@ async def test_malformed_only_suppresses_success_but_keeps_malformed(monkeypatch
     ctx = mk_tool_context()
     tool["add_subtask"](title="t", description="d", tool_context=ctx)
     res_ok = await tool["execute_current_subtask"](tool_context=ctx)
-    assert "observed_usage" not in res_ok
+    assert "observations" not in res_ok
 
     # malformed path: still injected
     worker2 = _mk_worker()
@@ -396,7 +396,7 @@ async def test_malformed_only_suppresses_success_but_keeps_malformed(monkeypatch
     tool2["add_subtask"](title="t", description="d", tool_context=ctx2)
     res_bad = await tool2["execute_current_subtask"](tool_context=ctx2)
     assert res_bad["record"]["status"] == "malformed"
-    assert res_bad["observed_usage"]["tools"] == {"read_file": 2}
+    assert res_bad["observations"]["tools"] == {"read_file": 2}
 
 
 @pytest.mark.anyio
@@ -425,8 +425,8 @@ async def test_per_subtask_reset_isolates_usage(monkeypatch):
     tool["add_subtask"](title="t1", description="d", tool_context=ctx)
 
     r0 = await tool["execute_current_subtask"](tool_context=ctx)
-    assert r0["observed_usage"]["tools"] == {"read_file": 5}
+    assert r0["observations"]["tools"] == {"read_file": 5}
 
     r1 = await tool["execute_current_subtask"](tool_context=ctx)
     # reset cleared the carried-over snapshot; second run did no work -> pruned
-    assert "observed_usage" not in r1
+    assert "observations" not in r1

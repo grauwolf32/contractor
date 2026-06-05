@@ -234,7 +234,7 @@ class SubtaskFormatter:
 
         When ``usage`` (deterministic observations) is provided it is attached
         in the record's own format — a ``usage`` field (json), an
-        ``<observed_usage>`` element (xml), or an ``observed_usage`` block (yaml
+        ``<observations>`` element (xml), or an ``observations`` block (yaml
         / markdown) — kept structurally distinct from the worker's self-reported
         ``output``/``summary`` so the planner reads it as ground truth, not
         another worker claim.
@@ -291,15 +291,15 @@ class SubtaskFormatter:
             inner = "\n".join(
                 f"    <{k}>{xml_escape(v)}</{k}>" for k, v in fields
             )
-            return f"\n<observed_usage>\n{inner}\n</observed_usage>"
+            return f"\n<observations>\n{inner}\n</observations>"
         if self._format == "yaml":
-            payload = {"observed_usage": dict(fields)}
+            payload = {"observations": dict(fields)}
             return "\n" + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
         if self._format == "markdown":
             lines = "\n".join(f"- {k}: {v}" for k, v in fields)
-            return f"\n**Observed usage**\n{lines}\n"
+            return f"\n**Observations**\n{lines}\n"
         # Defensive fallback (json takes the dict path; this is unreachable).
-        return "\n[observed_usage] " + "; ".join(f"{k}: {v}" for k, v in fields) + "\n"
+        return "\n[observations] " + "; ".join(f"{k}: {v}" for k, v in fields) + "\n"
 
     # ── Result parsing ──────────────────────────────────────────────
     @staticmethod

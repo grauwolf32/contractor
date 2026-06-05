@@ -60,7 +60,7 @@ class ObservationConfig:
             ground truth exactly where the worker output can't be trusted.
         in_record / in_result: which surfaces receive the projection — the
             persisted task record (history + summarizer) and/or the immediate
-            ``observed_usage`` field of the tool result.
+            ``observations`` field of the tool result.
     """
 
     enabled: bool = False

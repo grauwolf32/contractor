@@ -645,7 +645,7 @@ def task_tools(
                 ),
             }
             if usage is not None and obs.in_result:
-                response["observed_usage"] = usage
+                response["observations"] = usage
             if not success and error_msg:
                 response["error"] = error_msg
             return response
@@ -672,7 +672,7 @@ def task_tools(
         response: dict[str, Any] = {"record": record}
 
         if inject and obs.in_result:
-            response["observed_usage"] = usage
+            response["observations"] = usage
 
         if not success and error_msg:
             response["error"] = error_msg
