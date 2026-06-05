@@ -349,6 +349,31 @@ async def test_reserved_tags_hidden_from_generic_surface():
 
 
 @pytest.mark.asyncio
+async def test_write_memory_refuses_to_clobber_reserved_note():
+    """An ordinary write to a skill/inbox name must be rejected, not silently
+    overwrite the system note (which the agent can't even see to avoid)."""
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+
+    await tools.write_memory(name="trace", memory="SKILL BODY", description="d",
+                             tags=["skill", "trace"], ctx=ctx)
+
+    with pytest.raises(ValueError, match="reserved"):
+        await tools.write_memory(name="trace", memory="my notes", description="d",
+                                 tags=["progress"], ctx=ctx)
+
+    # The skill note and its reserved tag survive untouched.
+    survived = await tools.read_memory_by_tag("trace", "skill", ctx)
+    assert survived.memory == "SKILL BODY"
+    assert "skill" in survived.tags
+
+    # A write that preserves the reserved tag (the injection path) is allowed.
+    await tools.write_memory(name="trace", memory="UPDATED", description="d",
+                             tags=["skill", "trace"], ctx=ctx)
+    assert (await tools.read_memory_by_tag("trace", "skill", ctx)).memory == "UPDATED"
+
+
+@pytest.mark.asyncio
 async def test_memories_by_tag_filters_by_single_tag():
     tools = MemoryTools(name="agent")
     ctx = FakeArtifactCtx()

@@ -443,6 +443,21 @@ class MemoryTools:
         now = utc_now_iso()
         existing = self.notes.get(name)
 
+        # Don't let an agent clobber a system-managed skill/inbox note by name.
+        # These are hidden from the generic read/list/search surface, so the
+        # agent cannot even see the collision; silently overwriting would drop
+        # the skill body and re-tag it as ordinary memory. A write that itself
+        # carries a reserved tag (the injection path) is allowed through.
+        if (
+            existing is not None
+            and _is_reserved(existing)
+            and not _RESERVED_TAGS.intersection(normalized_tags)
+        ):
+            raise ValueError(
+                f"name {name!r} is reserved for system-managed memory "
+                f"(skill/inbox); choose a different name"
+            )
+
         if existing is not None:
             note = MemoryNote(
                 name=name,
