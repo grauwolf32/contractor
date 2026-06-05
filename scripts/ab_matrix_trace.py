@@ -60,6 +60,10 @@ def _row(name: str, r: dict) -> str:
 
 async def main() -> None:
     fixture = os.environ.get("AB_FIXTURE", "vulnyapi")
+    arm_filter = os.environ.get("AB_ARMS")  # comma-separated subset of arm names
+    if arm_filter:
+        wanted = {a.strip() for a in arm_filter.split(",") if a.strip()}
+        globals()["ARMS"] = [(n, o) for n, o in ARMS if n in wanted]
     out = REPO / "eval_runs" / "ab_matrix" / fixture
     out.mkdir(parents=True, exist_ok=True)
     per_path = float(os.environ.get("AB_PER_PATH_TIMEOUT", "900"))
