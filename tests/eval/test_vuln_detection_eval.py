@@ -33,7 +33,12 @@ import pytest
 import yaml
 
 from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
-from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
+from tests.eval.scoring import (
+    AgentFinding,
+    VulnScore,
+    dedupe_findings,
+    score_vuln_findings,
+)
 from tests.eval.vuln_scan_harness import (
     UNIT_FOR_KIND,
     AgentKind,
@@ -109,6 +114,17 @@ def _min_recall() -> float:
 
 def _min_precision() -> float:
     return float(os.environ.get("CONTRACTOR_EVAL_VULN_MIN_PRECISION", "0.10"))
+
+
+def _vuln_dedup_on() -> bool:
+    """Whether deterministic finding dedup/merge (QW7/K) is enabled.
+
+    Gated by ``CONTRACTOR_VULN_DEDUP`` — default OFF reproduces the current
+    scoring exactly. Truthy values: ``1``, ``true``, ``yes``, ``on``.
+    """
+    return os.environ.get("CONTRACTOR_VULN_DEDUP", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +257,15 @@ async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
             continue
 
         findings = _extract_findings(run)
+        if _vuln_dedup_on():
+            before = len(findings)
+            findings = dedupe_findings(findings)
+            if len(findings) < before:
+                print(
+                    f"\n  [{vuln_fixture.slug}] attempt {attempt}/{n} "
+                    f"vuln-dedup merged {before - len(findings)} near-duplicate "
+                    f"finding(s): {before} -> {len(findings)}"
+                )
         score = score_vuln_findings(findings, gt)
         attempts.append((run, findings, score))
         _dump_record(
