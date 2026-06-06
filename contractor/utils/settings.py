@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # Default per-read line cap when read_file is called without an explicit
     # `limit`. None disables the line cap (byte cap only).
     fs_max_read_lines: int | None = Field(default=2000)
+    # Cumulative char budget for retained heavy-tool function results in the
+    # FunctionResultsRemovalCallback (env: FS_HEAVY_KEEP_BUDGET_CHARS). When > 0,
+    # large/stale heavy-tool results are elided once the running total of kept
+    # response sizes would exceed this budget, even if the count cap
+    # (keep_last_n) is not yet reached. Default 0 disables the budget axis, so
+    # retention stays count-only (historical behaviour).
+    fs_heavy_keep_budget_chars: int = Field(default=0)
     code_max_walk_depth: int = Field(default=50)
     code_max_files_per_walk: int = Field(default=100_000)
     graph_max_results: int = Field(default=200)
