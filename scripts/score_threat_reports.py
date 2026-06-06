@@ -12,12 +12,14 @@ import glob
 import json
 import os
 import sys
+from pathlib import Path
 
 import yaml
 
-from tests.eval.scorers import score_threat_analysis
+ROOT = str(Path(__file__).resolve().parents[1])
+sys.path.insert(0, ROOT)
 
-ROOT = "/home/ruslan/src/contractor"
+from tests.eval.scorers import score_threat_analysis  # noqa: E402
 
 
 def latest_reports(case_dir: str) -> list[dict]:

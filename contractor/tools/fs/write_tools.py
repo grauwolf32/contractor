@@ -15,6 +15,7 @@ from contractor.tools.fs.read_tools import (
     ToolResult,
     _build_ignore_patterns,
     _push_fs_coverage,
+    _push_fs_paths,
 )
 from contractor.tools.fs.utils import (
     _ensure_int_or_none,
@@ -380,6 +381,15 @@ class FsspecWriteTools(PathValidationMixin):
 
     def coverage_stats(self) -> dict[str, int]:
         return self._reader.coverage_stats()
+
+    def read_paths(self) -> list[str]:
+        return self._reader.read_paths()
+
+    def matched_paths(self) -> list[str]:
+        return self._reader.matched_paths()
+
+    def reset_interactions_for_invocation(self, invocation_id: str | None) -> None:
+        self._reader.reset_interactions_for_invocation(invocation_id)
 
     def insert_line(
         self,
@@ -866,6 +876,9 @@ def rw_file_tools(
         """
 
         def _impl() -> dict[str, Any]:
+            tools.reset_interactions_for_invocation(
+                getattr(tool_context, "invocation_id", None)
+            )
             result = tools.read_file(
                 file_path=file,
                 offset=_ensure_int_or_none(offset),
@@ -873,6 +886,7 @@ def rw_file_tools(
                 with_line_numbers=bool(with_line_numbers),
             )
             _push_fs_coverage(tool_context, tools.coverage_stats())
+            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
             return result
 
         return guard(_impl)
@@ -891,9 +905,13 @@ def rw_file_tools(
         """
 
         def _impl() -> dict[str, Any]:
+            tools.reset_interactions_for_invocation(
+                getattr(tool_context, "invocation_id", None)
+            )
             off = _ensure_int_or_none(offset) or 0
             result = tools.grep(pattern=pattern, path=path, offset=off)
             _push_fs_coverage(tool_context, tools.coverage_stats())
+            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
             return result
 
         return guard(_impl)

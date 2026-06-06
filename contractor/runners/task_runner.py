@@ -37,6 +37,7 @@ from contractor.runners.plugins.sandbox_cleanup import SandboxCleanupPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
 from contractor.runners.skills import inject_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
+from contractor.tools.observations import ObservationConfig
 from contractor.tools.podman import teardown_all as _teardown_sandboxes
 from contractor.utils import all_active_prompt_versions
 from contractor.utils.settings import DEFAULT_MODEL
@@ -77,6 +78,10 @@ class TaskRunner(BaseModel):
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
+    # Runner-level default planner observations; a per-task ``observations`` on
+    # ``add_task`` overrides it. Lets a workflow opt in once with
+    # ``TaskRunner(..., observations=CFG.observations)`` instead of per task.
+    observations: ObservationConfig = Field(default_factory=ObservationConfig)
 
     # Per-run event handler. Set at the start of run() and cleared in finally.
     # Re-entrant run() calls on the same instance are not supported — they
@@ -103,6 +108,7 @@ class TaskRunner(BaseModel):
         max_steps: int = 15,
         namespace: str | None = None,
         model: LiteLlm | None = None,
+        observations: ObservationConfig | None = None,
     ) -> str:
         """Queue a task invocation.
 
@@ -132,6 +138,7 @@ class TaskRunner(BaseModel):
             max_steps=max_steps,
             namespace=namespace,
             model=model,
+            observations=observations,
         )
         self.queue.append(item)
         return item.id
@@ -157,11 +164,15 @@ class TaskRunner(BaseModel):
                 completed_tasks=0,
                 user_id=user_id,
                 prompt_versions=all_active_prompt_versions(),
+                observations=self.observations.as_tag(),
                 task_invocations=[
                     {
                         "ref": item.ref,
                         "template_key": item.template_key,
                         "template_version": item.template_version,
+                        "observations": (
+                            item.observations or self.observations
+                        ).as_tag(),
                     }
                     for item in self.queue
                 ],
@@ -424,6 +435,7 @@ class TaskRunner(BaseModel):
             worker=worker,
             model=item.effective_model(self.default_model),
             max_steps=item.max_steps,
+            observations=item.observations or self.observations,
         )
 
     # ── Event emission ────────────────────────────────────────────────────
@@ -785,6 +797,7 @@ class TaskRunner(BaseModel):
             params=item.params,
             artifacts=item.artifacts,
             published_artifacts=artifact_names_for_key(template.key),
+            observations=(item.observations or self.observations).as_tag(),
         )
 
         carry_state: dict[str, Any] = {}

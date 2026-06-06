@@ -14,6 +14,7 @@ from contractor.callbacks.guardrails import (
 )
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools.memory import MemoryFormat, memory_tools
+from contractor.tools.observations import ObservationConfig
 from contractor.tools.tasks import SubtaskFormatter, task_tools
 from contractor.utils import load_prompt
 from contractor.utils.settings import DEFAULT_MODEL
@@ -38,6 +39,7 @@ def build_planning_agent(
     use_output_schema: bool = False,
     worker_instrumentation: bool = True,
     model: LiteLlm | None = None,
+    observations: ObservationConfig | None = None,
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
 
@@ -48,6 +50,7 @@ def build_planning_agent(
         fmt=SubtaskFormatter(_format=_format),
         use_output_schema=use_output_schema,
         worker_instrumentation=worker_instrumentation,
+        observations=observations,
     )
 
     tools = [default_tool, *planning_tools, *mem_tools]

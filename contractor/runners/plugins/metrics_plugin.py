@@ -7,6 +7,7 @@ import json
 import time
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum, unique
@@ -24,6 +25,7 @@ from contractor.runners.plugins.base import (
     snapshot_state,
 )
 from contractor.tools.fs.const import FS_COVERAGE_STATE_KEY
+from contractor.tools.observations import WORKER_USAGE_STATE_KEY
 
 # ─── Small helpers ────────────────────────────────────────────────────────────
 
@@ -419,6 +421,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             error=repr(error) if error is not None else None,
             **timing,
         )
+        self._write_usage_snapshot(inv, tool_context)
         return None
 
     async def after_tool_callback(
@@ -470,6 +473,7 @@ class AdkMetricsPlugin(BaseAdkPlugin):
         )
 
         await self._maybe_record_fs_coverage(inv, agent, tool_context)
+        self._write_usage_snapshot(inv, tool_context)
         return None
 
     async def _maybe_record_fs_coverage(
@@ -494,6 +498,41 @@ class AdkMetricsPlugin(BaseAdkPlugin):
             agent_name=agent,
             fs_coverage=agent_bucket.fs_coverage,
         )
+
+    # ── Deterministic usage snapshot (observations) ───────────────────────
+
+    def _usage_snapshot(self, inv: str) -> dict[str, Any]:
+        """Flatten this invocation's per-agent metrics into a compact usage dict.
+
+        Aggregates tool call/error counts across every agent in the invocation
+        and folds in the latest fs-coverage snapshot. Keyed by the invocation
+        id, so for the worker's child invocation this reflects only the worker's
+        own tools — not the planner's task-management tools.
+        """
+        by_agent = self._metrics.get(inv, {})
+        tools: dict[str, dict[str, int]] = {}
+        for m in by_agent.values():
+            for name, tm in m.tools.items():
+                agg = tools.setdefault(name, {"calls": 0, "errors": 0})
+                agg["calls"] += tm.calls_total
+                agg["errors"] += tm.exception_errors_total + tm.result_errors_total
+        fs = next((m.fs_coverage for m in by_agent.values() if m.fs_coverage), None)
+        return {"tools": tools, "fs_coverage": dict(fs) if fs else None}
+
+    def _write_usage_snapshot(self, inv: str, tool_context: ToolContext) -> None:
+        """Persist the invocation's usage snapshot into session state.
+
+        Mirrors the fs-coverage mechanism: the write becomes an ADK state delta
+        and is forwarded to the parent (planner) ``tool_context.state`` by
+        ``AgentTool``, so ``execute_current_subtask`` can read it back after the
+        worker run. Always written (cheap); projection is gated downstream by
+        ``ObservationConfig``.
+        """
+        state = getattr(tool_context, "state", None)
+        if state is None:
+            return
+        with suppress(Exception):
+            state[WORKER_USAGE_STATE_KEY] = self._usage_snapshot(inv)
 
     # ── LLM callback ──────────────────────────────────────────────────────
 

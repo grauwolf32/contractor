@@ -225,17 +225,85 @@ class SubtaskFormatter:
         return [self._subtask_result_to_json(r) for r in subtask_results]
 
     def format_task_record(
-        self, subtask: Subtask, subtask_result: SubtaskExecutionResult
+        self,
+        subtask: Subtask,
+        subtask_result: SubtaskExecutionResult,
+        usage: dict[str, Any] | None = None,
     ) -> str | dict[str, Any]:
+        """Combine plan subtask + worker result into one record.
+
+        When ``usage`` (deterministic observations) is provided it is attached
+        in the record's own format — a ``usage`` field (json), an
+        ``<observations>`` element (xml), or an ``observations`` block (yaml
+        / markdown) — kept structurally distinct from the worker's self-reported
+        ``output``/``summary`` so the planner reads it as ground truth, not
+        another worker claim.
+        """
         if self._format == "json":
             record_dict: dict[str, Any] = self._subtask_to_json(subtask)
             tr = self._subtask_result_to_json(subtask_result)
             tr.pop("task_id", None)
             record_dict.update(tr)
+            if usage:
+                record_dict["usage"] = usage
             return record_dict
         task_str = str(self.format_subtask(subtask))
         result_str = str(self.format_subtask_result(subtask_result))
-        return task_str + result_str
+        out = task_str + result_str
+        if usage:
+            out += self._render_usage_block(usage)
+        return out
+
+    @staticmethod
+    def _usage_fields(usage: dict[str, Any]) -> list[tuple[str, str]]:
+        """Flatten a usage dict into ordered (label, value-string) pairs."""
+        tools = usage.get("tools") or {}
+        if tools and all(isinstance(v, dict) for v in tools.values()):
+            tools_str = ", ".join(
+                f"{n}(calls={d.get('calls', 0)},errors={d.get('errors', 0)})"
+                for n, d in tools.items()
+            )
+        else:
+            tools_str = ", ".join(f"{n} x{c}" for n, c in tools.items())
+        files = usage.get("files")
+        if isinstance(files, dict):
+            files_str = ", ".join(f"{k}:{v}" for k, v in files.items())
+        else:
+            files_str = str(files) if files else ""
+        fields = [
+            ("tools", tools_str or "none"),
+            ("files", files_str or "none"),
+            ("skills_read", ", ".join(usage.get("skills_read") or []) or "none"),
+        ]
+        if "files_read_paths" in usage:
+            fields.append(
+                ("files_read_paths", ", ".join(usage.get("files_read_paths") or []) or "none")
+            )
+        if "memories_written" in usage or "memories_read" in usage:
+            fields.append(
+                ("memories_written", ", ".join(usage.get("memories_written") or []) or "none")
+            )
+            fields.append(
+                ("memories_read", ", ".join(usage.get("memories_read") or []) or "none")
+            )
+        return fields
+
+    def _render_usage_block(self, usage: dict[str, Any]) -> str:
+        """Render observations in the record's active format, under the record."""
+        fields = self._usage_fields(usage)
+        if self._format == "xml":
+            inner = "\n".join(
+                f"    <{k}>{xml_escape(v)}</{k}>" for k, v in fields
+            )
+            return f"\n<observations>\n{inner}\n</observations>"
+        if self._format == "yaml":
+            payload = {"observations": dict(fields)}
+            return "\n" + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+        if self._format == "markdown":
+            lines = "\n".join(f"- {k}: {v}" for k, v in fields)
+            return f"\n**Observations**\n{lines}\n"
+        # Defensive fallback (json takes the dict path; this is unreachable).
+        return "\n[observations] " + "; ".join(f"{k}: {v}" for k, v in fields) + "\n"
 
     # ── Result parsing ──────────────────────────────────────────────
     @staticmethod
@@ -347,7 +415,10 @@ class SubtaskFormatter:
             else:
                 value = first_line.strip()
             if key == "status":
-                value = value.splitlines()[0].strip()
+                # An empty Status value ('' or '\n') yields [] from splitlines();
+                # indexing [0] would crash the whole subtask parse (audit MEDIUM).
+                status_lines = value.splitlines()
+                value = status_lines[0].strip() if status_lines else ""
             data[key] = value
 
         with suppress(ValidationError, TypeError):

@@ -45,6 +45,11 @@ logger.setLevel(logging.DEBUG)
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
+# Per-path namespace prefix used for this workflow's trace artifacts and
+# vulnerability reports. Shared with vuln_assess._collect_vuln_reports so the
+# write key (here) and the read key (there) cannot drift apart.
+PATH_NAMESPACE_PREFIX: str = "trace-graph-pathpar"
+
 
 class TraceGraphPathParWorkflow(Workflow):
     """Path-level parallel variant of ``TraceGraphWorkflow``.
@@ -157,7 +162,7 @@ class TraceGraphPathParWorkflow(Workflow):
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
     ) -> None:
-        path_namespace = f"trace-graph-pathpar:{self.namespace}:{api_path.path_key}"
+        path_namespace = f"{PATH_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
 
         await inject_skills(

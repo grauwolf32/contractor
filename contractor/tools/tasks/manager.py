@@ -327,8 +327,13 @@ class StreamlineManager:
         self,
         subtask_result: SubtaskExecutionResult,
         ctx: ToolContext | CallbackContext,
+        usage: dict[str, Any] | None = None,
     ) -> tuple[bool, str | None]:
-        """Apply execution result. Returns (success, error_message)."""
+        """Apply execution result. Returns (success, error_message).
+
+        ``usage`` carries deterministic worker observations to persist into the
+        record (and thus ``get_records`` / the finish summarizer).
+        """
         idx = self._get_idx(ctx)
         if idx is None:
             return False, NO_SUBTASKS_EXIST_MSG
@@ -359,7 +364,7 @@ class StreamlineManager:
             if can_advance and subtask_result.status not in ("incomplete",):
                 self._set_idx(ctx, idx + 1)
 
-        record = self.fmt.format_task_record(current, subtask_result)
+        record = self.fmt.format_task_record(current, subtask_result, usage=usage)
         self.save_record(record, ctx)
 
         logger.info(
@@ -376,8 +381,13 @@ class StreamlineManager:
         self,
         runtime_result: dict[str, Any],
         ctx: ToolContext | CallbackContext,
+        usage: dict[str, Any] | None = None,
     ) -> tuple[bool, str | None]:
-        """Apply a runtime-generated result (e.g. malformed)."""
+        """Apply a runtime-generated result (e.g. malformed).
+
+        ``usage`` carries deterministic worker observations to persist into the
+        record — most valuable here, where the worker's own output is unusable.
+        """
         idx = self._get_idx(ctx)
         if idx is None:
             return False, NO_SUBTASKS_EXIST_MSG
@@ -415,6 +425,8 @@ class StreamlineManager:
             "output": runtime_result["output"],
             "summary": runtime_result["summary"],
         }
+        if usage:
+            record["usage"] = usage
         self.save_record(record, ctx)
 
         logger.info(

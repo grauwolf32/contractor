@@ -24,6 +24,7 @@ A single event list therefore contains both runner-lifecycle events
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from collections import Counter
 from collections.abc import Awaitable, Callable
@@ -41,6 +42,7 @@ from contractor.runners.artifacts import (
 )
 from contractor.runners.models import TaskResult, TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunner
+from contractor.tools.observations import ObservationConfig
 from contractor.utils import observability
 
 QueueFn = Callable[[TaskRunner], Awaitable[None] | None]
@@ -209,7 +211,13 @@ async def run_task_pipeline(
 
     with _dir_cm as tmpdir:
         artifact_service = FileArtifactService(root_dir=tmpdir)
-        runner = TaskRunner(name=runner_name, artifact_service=artifact_service)
+        runner = TaskRunner(
+            name=runner_name,
+            artifact_service=artifact_service,
+            # A/B arm for any task eval: resolved from CONTRACTOR_EVAL_OBSERVATIONS
+            # (off by default, so the baseline arm is the pre-feature eval).
+            observations=ObservationConfig.resolve(None, os.environ),
+        )
 
         maybe_coro = queue_fn(runner)
         if maybe_coro is not None and hasattr(maybe_coro, "__await__"):

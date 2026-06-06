@@ -11,6 +11,16 @@ from google.adk.tools import AgentTool
 from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
+from contractor.tools.observations import (
+    FILE_PATHS_STATE_KEY,
+    MEMORIES_READ_STATE_KEY,
+    MEMORIES_WRITTEN_STATE_KEY,
+    SKILLS_READ_STATE_KEY,
+    WORKER_USAGE_STATE_KEY,
+    ObservationConfig,
+    has_observations,
+    project_usage,
+)
 from contractor.tools.tasks.formatters import (
     SubtaskFormatter,
     _is_empty_worker_response,
@@ -217,7 +227,9 @@ def task_tools(
     worker_instrumentation: bool = True,
     max_records: int = 20,
     n_retries: int = 3,
+    observations: ObservationConfig | None = None,
 ) -> list[Callable[..., Any]]:
+    obs = observations or ObservationConfig()
     if worker_instrumentation:
         agent_ref = _get_agent_ref(worker)
         worker = instrument_worker(
@@ -527,6 +539,17 @@ def task_tools(
         subtask_result: SubtaskExecutionResult | None = None
         malformed_reason: str | None = None
 
+        # Reset per-subtask observation accumulators so the projected usage
+        # reflects only this worker run. The worker session is seeded with a
+        # copy of planner state, so without this the prior subtask's facts would
+        # carry forward (and a zero-tool run would read stale data).
+        if obs.enabled:
+            tool_context.state[WORKER_USAGE_STATE_KEY] = {}
+            tool_context.state[SKILLS_READ_STATE_KEY] = []
+            tool_context.state[MEMORIES_WRITTEN_STATE_KEY] = []
+            tool_context.state[MEMORIES_READ_STATE_KEY] = []
+            tool_context.state[FILE_PATHS_STATE_KEY] = {}
+
         for attempt in range(1, n_retries + 1):
             raw = await worker.run_async(args=args, tool_context=tool_context)
 
@@ -593,19 +616,28 @@ def task_tools(
                     "raw_type": type(raw).__name__,
                 },
             )
+            # Malformed is where observations matter most: the worker output is
+            # untrustworthy, so the deterministic facts are the only signal.
+            # Keep them even when empty — "produced garbage AND did no work" is
+            # itself diagnostic for the planner. `malformed_only` does not
+            # suppress here; it only suppresses the success path.
+            usage = project_usage(tool_context.state, obs)
             runtime_result = {
                 "task_id": current.task_id,
                 "status": "malformed",
                 "output": str(raw_dump),
                 "summary": SUBTASK_RESULT_MALFORMED,
             }
+            record_usage = usage if (usage is not None and obs.in_record) else None
             success, error_msg = mgr.complete_current_subtask_from_runtime_result(
-                runtime_result, tool_context
+                runtime_result, tool_context, usage=record_usage
             )
             record: dict[str, Any] = {
                 **current.model_dump(),
                 **runtime_result,
             }
+            if record_usage:
+                record["usage"] = record_usage
             response: dict[str, Any] = {
                 "record": record,
                 "error": SUBTASK_RESULT_MALFORMED,
@@ -614,6 +646,8 @@ def task_tools(
                     status="malformed",
                 ),
             }
+            if usage is not None and obs.in_result:
+                response["observations"] = usage
             if not success and error_msg:
                 response["error"] = error_msg
             return response
@@ -621,10 +655,26 @@ def task_tools(
         # ── Apply validated result ───────────────────────────────────
         if subtask_result is None:  # narrows type after the None-branch return above
             raise RuntimeError("subtask_result unexpectedly None after validation")
-        success, error_msg = mgr.complete_current_subtask(subtask_result, tool_context)
 
-        record = fmt.format_task_record(current, subtask_result)
+        # Project deterministic observations. On the success path, prune empty
+        # projections (no point reporting "did nothing" when it succeeded) and
+        # honour `malformed_only`, which restricts observations to the malformed
+        # path only.
+        usage = project_usage(tool_context.state, obs)
+        inject = (
+            usage is not None and not obs.malformed_only and has_observations(usage)
+        )
+        record_usage = usage if (inject and obs.in_record) else None
+
+        success, error_msg = mgr.complete_current_subtask(
+            subtask_result, tool_context, usage=record_usage
+        )
+
+        record = fmt.format_task_record(current, subtask_result, usage=record_usage)
         response: dict[str, Any] = {"record": record}
+
+        if inject and obs.in_result:
+            response["observations"] = usage
 
         if not success and error_msg:
             response["error"] = error_msg
@@ -675,7 +725,11 @@ def task_tools(
         if status == "done":
             has_new = any(t.status == "new" for t in subtasks)
             has_any = len(subtasks) > 0
-            if has_new or not has_any:
+            # Require at least one actually-completed subtask. Without this, a plan
+            # whose subtasks all ended incomplete/malformed/skipped/decomposed (none
+            # 'new', none 'done') could still finish(done) (audit MEDIUM).
+            has_done = any(t.status == "done" for t in subtasks)
+            if has_new or not has_any or not has_done:
                 return {"error": DO_NOT_FINISH_WITH_NO_TASKS_DONE}
 
         summary = ""

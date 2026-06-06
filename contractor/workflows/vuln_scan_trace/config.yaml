@@ -7,3 +7,10 @@ tasks:
 agents:
   codereview_agent: { with_graph_tools: true, output_format: json }
   trace_agent: { with_graph_tools: true, output_format: json }
+# Lean deterministic worker observations (see trace_annotation A/B: vuln-F1 lift,
+# annotation unchanged; tool error counts hurt, so kept off). Workflow-global, so
+# it applies to both the scan and trace tasks in this pipeline.
+observations:
+  enabled: true
+  include_tool_errors: false
+  track_file_paths: true

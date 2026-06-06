@@ -27,16 +27,32 @@ the fs/memory/openapi/report tool formatters) and ``with_graph_tools`` (attach
 the trailmark call-graph tools). Workflows read these via ``CFG.agent(name)``,
 which falls back to an all-default ``AgentToolConfig`` when the agent is not
 declared in ``config.yaml`` — so behaviour is unchanged unless tuned.
+
+``observations`` is a workflow-global :class:`ObservationConfig` parsed from the
+``observations:`` block (read as ``CFG.observations``). It toggles injecting
+deterministic worker-usage facts (tools called / files touched / skills read)
+into the planner's records and tool results. All-default is *disabled*, so a
+workflow with no ``observations:`` block behaves exactly as before. Wire it in
+with ``TaskRunner(..., observations=CFG.observations)``. Example block::
+
+    observations:
+      enabled: true
+      tracked_tools: ["skills_read", "read_file", "search_code"]  # null = all
+      include_tool_errors: false
+      malformed_only: false   # true -> only inject on malformed worker output
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Literal, get_args
 
 import yaml
+
+from contractor.tools.observations import ObservationConfig
 
 _CONFIG_FILENAME = "config.yaml"
 
@@ -96,10 +112,14 @@ class WorkflowConfig:
         budgets: dict[str, int] | None = None,
         tasks: dict[str, TaskBudget] | None = None,
         agents: dict[str, AgentToolConfig] | None = None,
+        observations: ObservationConfig | None = None,
     ) -> None:
         self.budgets = SimpleNamespace(**(budgets or {}))
         self.tasks = SimpleNamespace(**(tasks or {}))
         self.agents = SimpleNamespace(**(agents or {}))
+        # Workflow-global planner observation toggles; all-default = disabled,
+        # so a workflow with no ``observations:`` block behaves as before.
+        self.observations = observations or ObservationConfig()
 
     def agent(self, name: str) -> AgentToolConfig:
         """Return the :class:`AgentToolConfig` for ``name``.
@@ -136,7 +156,28 @@ class WorkflowConfig:
             name: cls._build_agent_config(name, spec or {}, yaml_path)
             for name, spec in raw_agents.items()
         }
-        return cls(budgets=raw_budgets, tasks=tasks, agents=agents)
+        observations = cls._build_observation_config(
+            data.get("observations") or {}, yaml_path
+        )
+        return cls(
+            budgets=raw_budgets, tasks=tasks, agents=agents, observations=observations
+        )
+
+    @staticmethod
+    def _build_observation_config(
+        spec: dict, yaml_path: Path
+    ) -> ObservationConfig:
+        """Build an ``ObservationConfig`` from the ``observations:`` block.
+
+        Delegates to :meth:`ObservationConfig.resolve`, which validates the
+        block, normalises ``tracked_tools`` to a tuple, and applies the
+        ``CONTRACTOR_EVAL_OBSERVATIONS`` env overlay (A/B arm without YAML
+        edits). Errors are re-raised with the ``yaml_path`` for context.
+        """
+        try:
+            return ObservationConfig.resolve(spec, os.environ)
+        except ValueError as exc:
+            raise ValueError(f"{yaml_path}: {exc}") from exc
 
     @staticmethod
     def _build_agent_config(

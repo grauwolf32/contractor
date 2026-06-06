@@ -2,3 +2,9 @@ budgets:
   max_tokens: 80000
 tasks:
   verify: { iterations: 1, max_attempts: 2, max_steps: 20 }
+# Lean deterministic worker observations (see trace_annotation A/B: vuln-F1 lift,
+# annotation unchanged; tool error counts hurt, so kept off).
+observations:
+  enabled: true
+  include_tool_errors: false
+  track_file_paths: true
