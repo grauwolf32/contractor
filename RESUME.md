@@ -32,6 +32,12 @@ Untracked: `audit_report.html` (the multi-agent audit), `scripts/xbow_consecutiv
 - **lean+paths** recovers precision (vuln FP ~21→~13) vs lean, replicated n=2 on 35b-mtp,
   at equal/lower cost. (Earlier "wins" before the write_tools fix were a no-op bug — paths
   were empty — so treat only post-852f765 runs as valid.)
+- **Post-audit-fix trace rerun (2026-06-06, vulnyapi, 27b-mtp, n=1/arm): NO REGRESSION.**
+  lean_paths quality=0.630 (annotF1=0.642 P=.531 R=.810; vulnF1=0.612 TP15/FP17/FN2; 3.58M tok)
+  vs lean_no_errors quality=0.628 (vulnF1=0.607; 3.32M tok). Δquality=0.002 = a tie at n=1;
+  lean_paths nominally best but +8% tokens. Annotation F1 identical → paths only nudge vuln
+  detection. Confirms the tasks-area audit fixes didn't degrade trace quality. Logs:
+  `eval_runs/ab_matrix/vulnyapi/{lean_paths,lean_no_errors}/`.
 - **Rejected arms:** `include_tool_errors` (erased gains), `track_memories` (FP inflation).
 - **27b-dense-mtp** = best annotator (0.750). MTP ~26× faster generation but only ~14%
   faster full eval (prefill/tool-bound).
@@ -77,9 +83,9 @@ directly (see below) instead of the wrapper, and keep a single instance (`lms un
    the clean run. Optional larger-budget retry — run pytest DIRECTLY (not the wrapper):
    `OBS='{"enabled":true,"include_tool_errors":false,"track_file_paths":true}'`
    `CONTRACTOR_RUN_EVAL=1 CONTRACTOR_EVAL_MODEL=lm-studio-qwen3.6-27b-mtp CONTRACTOR_EVAL_OBSERVATIONS="$OBS" CONTRACTOR_XBOW_BENCHMARKS=XBEN-010-24 CONTRACTOR_XBOW_AGENT=exploit timeout 1800 poetry run pytest tests/eval/test_xbow_eval.py -s -q -k exploit`
-2. **REMAINING — rerun trace lean+paths post-audit-fix** (confirms tasks-area fixes didn't regress):
-   `AB_FIXTURE=vulnyapi AB_ARMS="lean_no_errors,lean_paths" CONTRACTOR_EVAL_MODEL=lm-studio-qwen3.6-27b-mtp poetry run python scripts/ab_matrix_trace.py`
-3. **Then:** open a PR for the branch when ready (currently on main, not pushed).
+2. **DONE — trace lean+paths post-audit-fix rerun.** No regression (see Eval findings above).
+3. **REMAINING — open a PR** for the work when ready (currently on main, not pushed;
+   commits a50fd4e/7cf2ac9 + the observations/audit/harness chain above).
 
 ## Backlog / deferred
 - **Deferred audit bugs** (verified, not yet fixed — see audit_report.html): ratelimits
