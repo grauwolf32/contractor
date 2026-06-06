@@ -11,3 +11,4 @@ agents:
 observations:
   enabled: true
   include_tool_errors: false
+  track_file_paths: true

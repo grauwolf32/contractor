@@ -6,3 +6,9 @@ tasks:
   project_information: { iterations: 1, max_attempts: 3, max_steps: 20 }
   likec4_build: { iterations: 3, max_attempts: 6, max_steps: 20 }
   likec4_validate: { iterations: 1, max_attempts: 2, max_steps: 20 }
+# Lean + file-paths observations (see observations A/B: lean buys vuln-detection
+# recall; file paths recover precision/coverage at flat-or-lower cost).
+observations:
+  enabled: true
+  include_tool_errors: false
+  track_file_paths: true

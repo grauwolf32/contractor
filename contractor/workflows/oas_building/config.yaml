@@ -7,3 +7,9 @@ tasks:
   project_information: { iterations: 1, max_attempts: 2, max_steps: 20 }
   oas_update: { iterations: 2, max_attempts: 4, max_steps: 20 }
   oas_validate: { iterations: 1, max_attempts: 1, max_steps: 20 }
+# Lean + file-paths observations (see observations A/B: lean buys vuln-detection
+# recall; file paths recover precision/coverage at flat-or-lower cost).
+observations:
+  enabled: true
+  include_tool_errors: false
+  track_file_paths: true
