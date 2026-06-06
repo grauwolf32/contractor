@@ -42,6 +42,7 @@ class FsspecWriteTools(PathValidationMixin):
         with_types: bool = True,
         with_file_info: bool = True,
         with_interaction_tools: bool = False,
+        capture_in_scope: bool = False,
     ) -> None:
         self.base_fs = fs
         self.fs = (
@@ -73,6 +74,7 @@ class FsspecWriteTools(PathValidationMixin):
             ignored_patterns=self.patterns,
             with_types=with_types,
             with_file_info=with_file_info,
+            capture_in_scope=capture_in_scope,
         )
 
     def _normalize_edit_strings(
@@ -387,6 +389,9 @@ class FsspecWriteTools(PathValidationMixin):
 
     def matched_paths(self) -> list[str]:
         return self._reader.matched_paths()
+
+    def in_scope_paths(self) -> list[str]:
+        return self._reader.in_scope_paths()
 
     def reset_interactions_for_invocation(self, invocation_id: str | None) -> None:
         self._reader.reset_interactions_for_invocation(invocation_id)
@@ -798,6 +803,7 @@ def rw_file_tools(
     with_types: bool = True,
     with_file_info: bool = True,
     with_interaction_tools: bool = False,
+    capture_in_scope: bool = False,
 ) -> list[Callable[..., dict[str, Any]]]:
     tools = FsspecWriteTools(
         fs=fs,
@@ -809,6 +815,7 @@ def rw_file_tools(
         with_types=with_types,
         with_file_info=with_file_info,
         with_interaction_tools=with_interaction_tools,
+        capture_in_scope=capture_in_scope,
     )
 
     def ls(path: str) -> dict[str, Any]:
@@ -886,7 +893,12 @@ def rw_file_tools(
                 with_line_numbers=bool(with_line_numbers),
             )
             _push_fs_coverage(tool_context, tools.coverage_stats())
-            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
+            _push_fs_paths(
+                tool_context,
+                tools.read_paths(),
+                tools.matched_paths(),
+                tools.in_scope_paths(),
+            )
             return result
 
         return guard(_impl)
@@ -911,7 +923,12 @@ def rw_file_tools(
             off = _ensure_int_or_none(offset) or 0
             result = tools.grep(pattern=pattern, path=path, offset=off)
             _push_fs_coverage(tool_context, tools.coverage_stats())
-            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
+            _push_fs_paths(
+                tool_context,
+                tools.read_paths(),
+                tools.matched_paths(),
+                tools.in_scope_paths(),
+            )
             return result
 
         return guard(_impl)

@@ -141,6 +141,88 @@ def test_project_usage_file_paths_capped():
     assert "more)" in out["files_read_paths"][-1]
 
 
+# ---------------------------------------------------------------------------
+# coverage gap — unvisited in-scope files
+# ---------------------------------------------------------------------------
+
+
+def test_project_usage_coverage_gap_off_by_default():
+    out = project_usage(_state(), ObservationConfig(enabled=True))
+    assert "unvisited_in_scope_paths" not in out
+
+
+def test_project_usage_coverage_gap_lists_unvisited():
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+
+    st = {
+        FILE_PATHS_STATE_KEY: {
+            "read": ["a.py", "b.py"],
+            "matched": [],
+            "in_scope": ["a.py", "b.py", "c.py", "sub/d.py"],
+        }
+    }
+    out = project_usage(st, ObservationConfig(enabled=True, track_coverage_gap=True))
+    # exactly the in-scope files not yet read, sorted, deterministic
+    assert out["unvisited_in_scope_paths"] == ["c.py", "sub/d.py"]
+
+
+def test_project_usage_coverage_gap_empty_when_all_read():
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+
+    st = {
+        FILE_PATHS_STATE_KEY: {
+            "read": ["a.py", "b.py"],
+            "matched": [],
+            "in_scope": ["a.py", "b.py"],
+        }
+    }
+    out = project_usage(st, ObservationConfig(enabled=True, track_coverage_gap=True))
+    assert out["unvisited_in_scope_paths"] == []
+
+
+def test_project_usage_coverage_gap_missing_in_scope_is_empty():
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+
+    # No in_scope key (e.g. worker never invoked an fs tool) -> empty, no crash.
+    st = {FILE_PATHS_STATE_KEY: {"read": ["a.py"], "matched": []}}
+    out = project_usage(st, ObservationConfig(enabled=True, track_coverage_gap=True))
+    assert out["unvisited_in_scope_paths"] == []
+
+    # Entirely empty state also yields an empty list.
+    out2 = project_usage({}, ObservationConfig(enabled=True, track_coverage_gap=True))
+    assert out2["unvisited_in_scope_paths"] == []
+
+
+def test_project_usage_coverage_gap_capped():
+    from contractor.tools.observations import _COVERAGE_GAP_CAP, FILE_PATHS_STATE_KEY
+
+    in_scope = [f"f{i:03d}.py" for i in range(_COVERAGE_GAP_CAP + 5)]
+    st = {FILE_PATHS_STATE_KEY: {"read": [], "matched": [], "in_scope": in_scope}}
+    out = project_usage(st, ObservationConfig(enabled=True, track_coverage_gap=True))
+    paths = out["unvisited_in_scope_paths"]
+    assert len(paths) == _COVERAGE_GAP_CAP + 1  # cap + truncation marker
+    assert "more)" in paths[-1]
+    # the kept slice is the deterministic sorted prefix
+    assert paths[:_COVERAGE_GAP_CAP] == sorted(in_scope)[:_COVERAGE_GAP_CAP]
+
+
+def test_project_usage_coverage_gap_disabled_master_switch():
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+
+    st = {FILE_PATHS_STATE_KEY: {"read": [], "matched": [], "in_scope": ["a.py"]}}
+    assert project_usage(st, ObservationConfig(enabled=False, track_coverage_gap=True)) is None
+
+
+def test_as_tag_includes_track_coverage_gap():
+    assert (
+        ObservationConfig(enabled=True, track_coverage_gap=True).as_tag()[
+            "track_coverage_gap"
+        ]
+        is True
+    )
+    assert ObservationConfig().as_tag()["track_coverage_gap"] is False
+
+
 def test_project_usage_empty_state_when_enabled():
     # No worker activity at all — sections present but empty (signal for the
     # malformed path).

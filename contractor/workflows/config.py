@@ -40,6 +40,7 @@ with ``TaskRunner(..., observations=CFG.observations)``. Example block::
       tracked_tools: ["skills_read", "read_file", "search_code"]  # null = all
       include_tool_errors: false
       malformed_only: false   # true -> only inject on malformed worker output
+      track_coverage_gap: false  # true -> list in-scope files not yet read
 """
 
 from __future__ import annotations
