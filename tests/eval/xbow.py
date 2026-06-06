@@ -159,6 +159,58 @@ def discover_benchmarks(benchmarks_root: Path) -> list[XbowBenchmark]:
     return found
 
 
+_BUSTER_BASE_ENSURED = False
+
+
+def ensure_buster_base() -> None:
+    """Make ``python:2.7.18-slim`` (Debian buster, EOL) buildable.
+
+    Many XBOW benchmarks build ``FROM python:2.7.18-slim``. buster is EOL, so its
+    apt repos 404 (moved to archive.debian.org) and the benchmark's ``apt-get
+    install`` fails -> build ``exit 100``. We rebuild that image tag locally with
+    apt pointed at archive.debian.org (buster main; security/updates dropped) and
+    the expired-Release check disabled, so any current OR future buster-based
+    benchmark builds. Idempotent (once per process), best-effort — benchmarks on
+    other base images are unaffected.
+    """
+    global _BUSTER_BASE_ENSURED
+    if _BUSTER_BASE_ENSURED:
+        return
+    _BUSTER_BASE_ENSURED = True
+    import tempfile
+
+    target = "docker.io/library/python:2.7.18-slim"
+    orig = "localhost/python27-orig:latest"
+
+    def _exists(img: str) -> bool:
+        return subprocess.run(
+            ["podman", "image", "exists", img],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode == 0
+
+    try:
+        if not _exists(orig):
+            if not _exists(target):
+                subprocess.run(["podman", "pull", target], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["podman", "tag", target, orig], check=True)
+        containerfile = (
+            "FROM localhost/python27-orig:latest\n"
+            "RUN sed -i "
+            "-e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' "
+            "-e '/security\\.debian\\.org/d' -e '/buster-updates/d' "
+            "/etc/apt/sources.list "
+            "&& printf 'Acquire::Check-Valid-Until \"false\";\\n' "
+            "> /etc/apt/apt.conf.d/99no-check-valid\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            Path(td, "Containerfile").write_text(containerfile)
+            subprocess.run(["podman", "build", "-t", target, td], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass  # best-effort; non-buster benchmarks build regardless
+
+
 @dataclass
 class XbowService:
     """Bring one XBOW benchmark up via podman-compose for dynamic testing."""
@@ -166,15 +218,48 @@ class XbowService:
     benchmark: XbowBenchmark
     project_name: str = ""
     _resolved_port: int | None = field(default=None, init=False)
+    _compose_file: str | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         if not self.project_name:
             self.project_name = f"xbow-{self.benchmark.id.lower()}"
 
+    def _effective_compose_file(self) -> str:
+        """Compose file path safe for podman-compose.
+
+        docker-compose accepts ``expose: "host:container"`` but podman-compose
+        rejects it ("invalid range format for --expose"), which wedges the ~24
+        db-having benchmarks. If such mappings are present we emit a sanitized
+        sibling compose (mapping -> bare container port) and use that; otherwise
+        the original file is used unchanged. Sibling (not temp) so the relative
+        ``build.context`` still resolves. Cached.
+        """
+        if self._compose_file is not None:
+            return self._compose_file
+        src = Path(self.benchmark.compose_file)
+        self._compose_file = str(src)
+        try:
+            data = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+            changed = False
+            for svc in (data.get("services") or {}).values():
+                exp = svc.get("expose") if isinstance(svc, dict) else None
+                if isinstance(exp, list):
+                    fixed = [str(e).split(":")[-1] for e in exp]
+                    if fixed != [str(e) for e in exp]:
+                        svc["expose"] = fixed
+                        changed = True
+            if changed:
+                out = src.with_name("docker-compose.podman.yml")
+                out.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+                self._compose_file = str(out)
+        except Exception:
+            pass
+        return self._compose_file
+
     def _compose(self, *args: str) -> list[str]:
         return [
             "podman-compose",
-            "-f", str(self.benchmark.compose_file),
+            "-f", self._effective_compose_file(),
             "-p", self.project_name,
             *args,
         ]
@@ -182,6 +267,7 @@ class XbowService:
     def up(self, *, timeout: float = 120.0, quiet: bool = True) -> None:
         import os
 
+        ensure_buster_base()  # make buster-based benchmarks buildable (EOL apt fix)
         env = dict(os.environ)
         if self.benchmark.flag:
             env["FLAG"] = self.benchmark.flag  # build-arg `args: - FLAG`
