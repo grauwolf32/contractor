@@ -1,4 +1,4 @@
-active: v7
+active: converge
 versions:
   # converge: v7 + commit discipline (HARD RULE 9 + anti-pattern) to stop the
   # annotate->restore->re-annotate thrash that collapsed recall on large
