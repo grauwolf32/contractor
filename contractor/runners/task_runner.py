@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -427,7 +428,12 @@ class TaskRunner(BaseModel):
         self, item: TaskInvocation, task: RenderedTask
     ) -> LlmAgent:
         ns = item.effective_namespace(self.name)
-        worker = item.worker_builder(namespace=ns, _format=task.format)
+        obs = item.observations or self.observations
+        worker = item.worker_builder(
+            namespace=ns,
+            _format=task.format,
+            **self._coverage_gap_kwargs(item.worker_builder, obs),
+        )
         return build_planning_agent(
             _format="xml",
             name=item.ref,
@@ -435,8 +441,31 @@ class TaskRunner(BaseModel):
             worker=worker,
             model=item.effective_model(self.default_model),
             max_steps=item.max_steps,
-            observations=item.observations or self.observations,
+            observations=obs,
         )
+
+    @staticmethod
+    def _coverage_gap_kwargs(
+        worker_builder: WorkerBuilder, obs: ObservationConfig
+    ) -> dict[str, bool]:
+        """Extra ``worker_builder`` kwargs that turn on the in-scope walk.
+
+        The coverage-gap observation needs the worker's fs tools to capture the
+        full in-scope file set (``capture_in_scope=True``), which is otherwise
+        off (zero traversal). We opt in *only* when ``track_coverage_gap`` is
+        enabled **and** the builder actually accepts the kwarg — so the default
+        (feature off) path passes nothing and stays byte-identical, and builders
+        without fs tools (oas_linter, http, …) are never handed an unknown arg.
+        """
+        if not obs.track_coverage_gap:
+            return {}
+        try:
+            params = inspect.signature(worker_builder).parameters
+        except (TypeError, ValueError):
+            return {}
+        if "capture_in_scope" not in params:
+            return {}
+        return {"capture_in_scope": True}
 
     # ── Event emission ────────────────────────────────────────────────────
 

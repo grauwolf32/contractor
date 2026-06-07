@@ -555,6 +555,52 @@ def test_read_file_observations_reset_across_invocations(
     assert ctx2.state[FS_COVERAGE_STATE_KEY]["files_read"] == 2
 
 
+def test_in_scope_capture_off_by_default(fs_root_fixture):
+    # Default: no in-scope walk; the pushed file_paths carries an empty in_scope
+    # so the coverage-gap projection is a no-op (default-off == byte-for-byte).
+    from contractor.tools.observations import FILE_PATHS_STATE_KEY
+    from tests.units.contractor_tests.helpers import mk_tool_context
+
+    fmt = FileFormat(_format="json", loc="lines", with_types=False)
+    tools = {
+        fn.__name__: fn
+        for fn in ro_file_tools(fs=RootedLocalFileSystem(fs_root_fixture), fmt=fmt)
+    }
+    ctx = mk_tool_context(invocation_id="inv-1")
+    tools["read_file"]("/file.txt", tool_context=ctx)
+
+    assert ctx.state[FILE_PATHS_STATE_KEY]["in_scope"] == []
+
+
+def test_in_scope_capture_enabled_lists_project_files(fs_root_fixture):
+    # With capture_in_scope=True the (rooted) project tree is walked and the full
+    # in-scope set is pushed, enabling the coverage-gap projection.
+    from contractor.tools.observations import (
+        FILE_PATHS_STATE_KEY,
+        ObservationConfig,
+        project_usage,
+    )
+    from tests.units.contractor_tests.helpers import mk_tool_context
+
+    fmt = FileFormat(_format="json", loc="lines", with_types=False)
+    tools = {
+        fn.__name__: fn
+        for fn in ro_file_tools(
+            fs=RootedLocalFileSystem(fs_root_fixture), fmt=fmt, capture_in_scope=True
+        )
+    }
+    ctx = mk_tool_context(invocation_id="inv-1")
+    tools["read_file"]("/file.txt", tool_context=ctx)
+
+    fp = ctx.state[FILE_PATHS_STATE_KEY]
+    assert set(fp["in_scope"]) == {"/file.txt", "/dir/inner.txt"}
+    assert fp["read"] == ["/file.txt"]
+
+    # End-to-end: the coverage-gap projection lists the unread in-scope file.
+    out = project_usage(ctx.state, ObservationConfig(enabled=True, track_coverage_gap=True))
+    assert out["unvisited_in_scope_paths"] == ["/dir/inner.txt"]
+
+
 def test_read_file_truncation_footer(fs, tmpdir_path: Path):
     fmt = FileFormat(_format="json", loc="lines", with_types=False, with_file_info=True)
     tools = ro_file_tools(fs=fs, fmt=fmt, max_output=25, with_types=False)
