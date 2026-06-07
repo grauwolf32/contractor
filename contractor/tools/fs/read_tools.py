@@ -4,7 +4,7 @@ import contextlib
 import fnmatch
 import re
 from collections.abc import Callable, Iterable, Iterator
-from typing import Any, TypeAlias
+from typing import Any, Final, TypeAlias
 
 import fsspec
 from google.adk.tools.tool_context import ToolContext
@@ -34,6 +34,11 @@ ToolResult: TypeAlias = dict[str, Any]
 BackendTool: TypeAlias = Callable[..., ToolResult]
 PatchPayload: TypeAlias = dict[str, Any] | str
 
+# Hard cap on the in-scope file walk (``in_scope_paths``). This walk feeds the
+# always-on coverage-gap capture, so it must never run away on a huge tree; the
+# coverage-gap projection caps the *surfaced* list far lower (25).
+_IN_SCOPE_WALK_LIMIT: Final[int] = 2000
+
 
 def _push_fs_coverage(
     tool_context: ToolContext | None, snapshot: dict[str, int]
@@ -51,12 +56,16 @@ def _push_fs_paths(
     tool_context: ToolContext | None,
     read_paths: list[str],
     matched_paths: list[str],
+    in_scope_paths: list[str],
 ) -> None:
-    """Surface the concrete file paths read/matched (names, not just counts).
+    """Surface the concrete file paths read/matched/in-scope (names, not counts).
 
     Parallel to ``_push_fs_coverage`` but carries paths so observations can show
-    *which* files the worker inspected. Gated downstream by
-    ``ObservationConfig.track_file_paths``; the write is cheap/always-on.
+    *which* files the worker inspected (``read``/``matched``) and which ones it
+    could still reach (``in_scope`` — drives the coverage-gap projection). Gated
+    downstream by ``ObservationConfig.track_file_paths`` /
+    ``track_coverage_gap``; the write is cheap/always-on (the in-scope walk is
+    memoized by the tools instance, so it costs one walk per worker run).
     """
     if tool_context is None:
         return
@@ -64,7 +73,11 @@ def _push_fs_paths(
     if state is None:
         return
     with contextlib.suppress(Exception):
-        state[FILE_PATHS_STATE_KEY] = {"read": read_paths, "matched": matched_paths}
+        state[FILE_PATHS_STATE_KEY] = {
+            "read": read_paths,
+            "matched": matched_paths,
+            "in_scope": in_scope_paths,
+        }
 
 
 def _build_ignore_patterns(ignored_patterns: list[str] | None = None) -> list[str]:
@@ -90,11 +103,16 @@ class FsspecInteractionFileTools(PathValidationMixin):
         ignored_patterns: list[str] | None = None,
         with_types: bool = True,
         with_file_info: bool = True,
+        capture_in_scope: bool = False,
     ) -> None:
         s = get_settings()
         self.fs = fs
         self.fmt = fmt
         self.root = root
+        # Opt-in: only walk the tree for the coverage-gap observation when a
+        # caller asks for it. Off by default so the always-on capture path stays
+        # cheap (no traversal) and the feature is a true no-op when disabled.
+        self.capture_in_scope = capture_in_scope
         self.max_output = s.fs_max_output if max_output is None else max_output
         self.max_items = s.fs_max_items if max_items is None else max_items
         # Default line cap when read_file gets no explicit `limit`. Falls back
@@ -108,6 +126,9 @@ class FsspecInteractionFileTools(PathValidationMixin):
 
         self._interactions: dict[str, FileInteractionEntry] = {}
         self._interaction_invocation_id: str | None = None
+        # Memoized full in-scope file walk (see ``in_scope_paths``); invalidated
+        # on a per-invocation reset so it can't go stale across worker runs.
+        self._in_scope_cache: list[str] | None = None
         self.patterns = _build_ignore_patterns(ignored_patterns)
 
     def _is_ignored(self, path: str) -> bool:
@@ -247,6 +268,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
 
     def reset_interactions(self) -> None:
         self._interactions.clear()
+        self._in_scope_cache = None
 
     def reset_interactions_for_invocation(self, invocation_id: str | None) -> None:
         """Clear accumulated interactions when entering a new ADK invocation.
@@ -265,6 +287,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
             return
         self._interaction_invocation_id = invocation_id
         self._interactions.clear()
+        self._in_scope_cache = None
 
     def get_interactions(self) -> dict[str, Any]:
         return {
@@ -288,6 +311,36 @@ class FsspecInteractionFileTools(PathValidationMixin):
     def matched_paths(self) -> list[str]:
         """Paths with a grep match, sorted."""
         return sorted(p for p, e in self._interactions.items() if e.has_match)
+
+    def in_scope_paths(self) -> list[str]:
+        """In-scope source files under the sandbox root, sorted (bounded).
+
+        The (non-ignored) file set the worker *could* read — used by the
+        coverage-gap observation to compute "in-scope minus read". Memoized for
+        the lifetime of this tools instance (reset alongside interactions on a
+        new invocation), so the walk runs at most once per worker run rather
+        than on every read/grep.
+
+        Returns ``[]`` (and skips the walk entirely) unless ``capture_in_scope``
+        was requested at construction — keeping the disabled default free of any
+        traversal. The walk is **hard-bounded** at ``_IN_SCOPE_WALK_LIMIT``
+        files so it can never run away on a huge tree (or an unexpectedly broad
+        root); the coverage-gap projection caps the surfaced list far lower.
+        """
+        if not self.capture_in_scope:
+            return []
+        if self._in_scope_cache is None:
+            collected: list[str] = []
+            # Collect up to a generous ceiling, then sort and cap — so the
+            # retained subset is the deterministic lexicographically-first
+            # _IN_SCOPE_WALK_LIMIT files, not an arbitrary walk-order slice.
+            _ceiling = _IN_SCOPE_WALK_LIMIT * 10
+            for path in self._iter_all_files(self.root):
+                collected.append(path)
+                if len(collected) >= _ceiling:
+                    break
+            self._in_scope_cache = sorted(collected)[:_IN_SCOPE_WALK_LIMIT]
+        return self._in_scope_cache
 
     def coverage_stats(self) -> dict[str, int]:
         files_read = 0
@@ -645,6 +698,7 @@ def ro_file_tools(
     with_types: bool = True,
     with_file_info: bool = True,
     with_interaction_tools: bool = True,
+    capture_in_scope: bool = False,
 ) -> list[Callable[..., dict[str, Any]]]:
     tools = FsspecInteractionFileTools(
         fs=fs,
@@ -654,6 +708,7 @@ def ro_file_tools(
         ignored_patterns=ignored_patterns,
         with_types=with_types,
         with_file_info=with_file_info,
+        capture_in_scope=capture_in_scope,
     )
 
     def ls(path: str) -> dict[str, Any]:
@@ -713,7 +768,12 @@ def ro_file_tools(
                 with_line_numbers=bool(with_line_numbers),
             )
             _push_fs_coverage(tool_context, tools.coverage_stats())
-            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
+            _push_fs_paths(
+                tool_context,
+                tools.read_paths(),
+                tools.matched_paths(),
+                tools.in_scope_paths(),
+            )
             return result
 
         return guard(_impl)
@@ -738,7 +798,12 @@ def ro_file_tools(
             off = _ensure_int_or_none(offset) or 0
             result = tools.grep(pattern=pattern, path=path, offset=off)
             _push_fs_coverage(tool_context, tools.coverage_stats())
-            _push_fs_paths(tool_context, tools.read_paths(), tools.matched_paths())
+            _push_fs_paths(
+                tool_context,
+                tools.read_paths(),
+                tools.matched_paths(),
+                tools.in_scope_paths(),
+            )
             return result
 
         return guard(_impl)

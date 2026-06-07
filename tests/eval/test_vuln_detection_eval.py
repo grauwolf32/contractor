@@ -33,7 +33,13 @@ import pytest
 import yaml
 
 from tests.eval.results import CaseResult, case_artifact_dir, metrics_from_events
-from tests.eval.scoring import AgentFinding, VulnScore, score_vuln_findings
+from tests.eval.scoring import (
+    AgentFinding,
+    VulnScore,
+    dedupe_findings,
+    partition_findings_by_read,
+    score_vuln_findings,
+)
 from tests.eval.vuln_scan_harness import (
     UNIT_FOR_KIND,
     AgentKind,
@@ -111,6 +117,28 @@ def _min_precision() -> float:
     return float(os.environ.get("CONTRACTOR_EVAL_VULN_MIN_PRECISION", "0.10"))
 
 
+def _emitted_vs_read_on() -> bool:
+    """Whether the emitted-vs-read cross-check (QW1/AC2) is enabled.
+
+    Gated by ``CONTRACTOR_EMITTED_VS_READ`` — default OFF reproduces the
+    current scoring exactly. Truthy values: ``1``, ``true``, ``yes``, ``on``.
+    """
+    return os.environ.get("CONTRACTOR_EMITTED_VS_READ", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _vuln_dedup_on() -> bool:
+    """Whether deterministic finding dedup/merge (QW7/K) is enabled.
+
+    Gated by ``CONTRACTOR_VULN_DEDUP`` — default OFF reproduces the current
+    scoring exactly. Truthy values: ``1``, ``true``, ``yes``, ``on``.
+    """
+    return os.environ.get("CONTRACTOR_VULN_DEDUP", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Finding extraction
 # ---------------------------------------------------------------------------
@@ -182,6 +210,51 @@ def _extract_findings(run: VulnScanRun) -> list[AgentFinding]:
     return findings
 
 
+def _extract_read_paths(run: VulnScanRun) -> set[str]:
+    """Collect the file paths the worker actually opened/read during a run.
+
+    Two complementary sources, unioned for robustness:
+
+    1. The ``read_file`` / ``grep`` tool-call arguments captured by the harness
+       (``run.agent_run.tool_calls``). ``read_file`` takes ``file``; ``grep``
+       takes ``path``. These are the ground-truth record of what the worker
+       requested and don't depend on any state-propagation quirk.
+    2. The ``file_paths`` session-state key (``{"read": [...], "matched": [...]}``)
+       pushed by ``_push_fs_paths`` in ``contractor/tools/fs/read_tools.py``.
+       This carries the fs tool's own resolved read set (uncapped, unlike the
+       observations projection which caps at 25). For the single-agent vuln
+       harness there is one ADK invocation, so this set is cumulative for the run.
+
+    The two are unioned; ``partition_findings_by_read`` normalises paths on both
+    sides, so leading-slash / ``./`` differences between the sources don't matter.
+    """
+    paths: set[str] = set()
+
+    for call in run.agent_run.tool_calls:
+        if call.name == "read_file":
+            p = call.args.get("file")
+            if isinstance(p, str) and p:
+                paths.add(p)
+        elif call.name == "grep":
+            # grep records a *match* interaction, not a read; the path arg is a
+            # directory/file root. Including it is sound for grounding because a
+            # finding's file having been grep'd is also evidence the worker
+            # observed that location. Only add concrete (non-root) paths.
+            p = call.args.get("path")
+            if isinstance(p, str) and p and p != "/":
+                paths.add(p)
+
+    state = run.agent_run.state or {}
+    fp = state.get("file_paths") or {}
+    if isinstance(fp, dict):
+        for key in ("read", "matched"):
+            for p in fp.get(key) or []:
+                if isinstance(p, str) and p:
+                    paths.add(p)
+
+    return paths
+
+
 # ---------------------------------------------------------------------------
 # Scan prompt
 # ---------------------------------------------------------------------------
@@ -241,6 +314,24 @@ async def test_vuln_detection(vuln_fixture, eval_model, eval_sink):
             continue
 
         findings = _extract_findings(run)
+        if _vuln_dedup_on():
+            before = len(findings)
+            findings = dedupe_findings(findings)
+            if len(findings) < before:
+                print(
+                    f"\n  [{vuln_fixture.slug}] attempt {attempt}/{n} "
+                    f"vuln-dedup merged {before - len(findings)} near-duplicate "
+                    f"finding(s): {before} -> {len(findings)}"
+                )
+        if _emitted_vs_read_on():
+            read_paths = _extract_read_paths(run)
+            findings, ungrounded = partition_findings_by_read(findings, read_paths)
+            if ungrounded:
+                print(
+                    f"\n  [{vuln_fixture.slug}] attempt {attempt}/{n} "
+                    f"emitted-vs-read dropped {len(ungrounded)} ungrounded "
+                    f"finding(s): {sorted({f.file for f in ungrounded})}"
+                )
         score = score_vuln_findings(findings, gt)
         attempts.append((run, findings, score))
         _dump_record(

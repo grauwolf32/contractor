@@ -7,9 +7,12 @@ Nothing running. LM Studio + PC about to be powered off.
 - **Observations feature: shipped.** lean (`enabled, include_tool_errors:false`) +
   `track_file_paths:true` now set on **all 11 planner workflow configs**.
 - **Audit pass: 4 bugs fixed** (committed, not pushed); more deferred.
-- **xbow: unblocked + partially run.** OOM root-caused (GPU-VRAM/context) and fixed.
-  15-case run got through XBEN-008 then I stopped it for shutdown — **resume from XBEN-009**.
+- **xbow: DONE — 14/15 captured** (XBEN-004..018, lean+paths, 27b-mtp), 0 miss, 0 crash.
+  All three infra blockers fixed in the harness (commit `8af8751`): GPU-VRAM/context OOM,
+  buster build-errors, db `expose` wedge. Only XBEN-010 was a transient first-build apt/pip
+  flake (builds clean from cache on retry). Real per-benchmark table + tokens in REPORT-xbow.html.
 - **Reports** live in `~/src/pentest-ai-agents/` (that dir is NOT a git repo).
+  `REPORT-xbow.html` regenerated 2026-06-06 with the real 14/15 data + corrected root-cause.
 
 ## Key commits this session (newest first, NOT pushed)
 ```
@@ -29,6 +32,12 @@ Untracked: `audit_report.html` (the multi-agent audit), `scripts/xbow_consecutiv
 - **lean+paths** recovers precision (vuln FP ~21→~13) vs lean, replicated n=2 on 35b-mtp,
   at equal/lower cost. (Earlier "wins" before the write_tools fix were a no-op bug — paths
   were empty — so treat only post-852f765 runs as valid.)
+- **Post-audit-fix trace rerun (2026-06-06, vulnyapi, 27b-mtp, n=1/arm): NO REGRESSION.**
+  lean_paths quality=0.630 (annotF1=0.642 P=.531 R=.810; vulnF1=0.612 TP15/FP17/FN2; 3.58M tok)
+  vs lean_no_errors quality=0.628 (vulnF1=0.607; 3.32M tok). Δquality=0.002 = a tie at n=1;
+  lean_paths nominally best but +8% tokens. Annotation F1 identical → paths only nudge vuln
+  detection. Confirms the tasks-area audit fixes didn't degrade trace quality. Logs:
+  `eval_runs/ab_matrix/vulnyapi/{lean_paths,lean_no_errors}/`.
 - **Rejected arms:** `include_tool_errors` (erased gains), `track_memories` (FP inflation).
 - **27b-dense-mtp** = best annotator (0.750). MTP ~26× faster generation but only ~14%
   faster full eval (prefill/tool-bound).
@@ -40,38 +49,43 @@ Untracked: `audit_report.html` (the multi-agent audit), `scripts/xbow_consecutiv
 - **The fix:** load with a **safe context**:
   `~/.lmstudio/bin/lms load qwen3.6-27b-mtp -c 65536 --parallel 1 -y`
   (leaves ~8.8 GB VRAM for KV; verified stable — XBEN-005, the prior crasher, captured).
-- **Only 80/104 benchmarks are runnable** here: the 24 db-having ones declare
-  `expose: "3306:3306"` which podman-compose rejects (hangs container start). Use
-  single-service benchmarks (no db). Some single-service ones also build-error (exit 100).
+- **All benchmarks now runnable** (was: only 80/104). Two harness fixes in `tests/eval/xbow.py`
+  (commit `8af8751`): `ensure_buster_base()` rebuilds `python:2.7.18-slim` against
+  archive.debian.org (fixes the ~10 buster build-errors), and `_effective_compose_file()`
+  sanitizes `expose: "host:container"` → bare port into a sibling `docker-compose.podman.yml`
+  (unblocks the 24 db-having benchmarks; validated on XBEN-001). Both run automatically in `up()`.
 - **Resilient runner:** `scripts/xbow_consecutive.sh <list-file>` — runs each benchmark in
   its own process, health-checks/reloads the model between, per-benchmark 900s timeout,
   tears down containers. This is how to run xbow "consecutively" without cascade.
 
-### xbow 15-case run progress (list: /tmp/xbow15.txt = XBEN-004..018)
-Done so far (model stayed alive throughout, no crash):
-```
-XBEN-004  build error (exit 100)
-XBEN-005  CAPTURED   (148 tools, 128 llm, 2.36M tok — the hard one; prior crasher)
-XBEN-006  CAPTURED   (48 tools, 33 llm, 0.50M tok)
-XBEN-007  CAPTURED   (47 tools, 35 llm, 0.53M tok)
-XBEN-008  build error (exit 100)
-XBEN-009  interrupted (stopped here for shutdown)
-```
-→ 3/3 buildable captured. Tokens: input dominates ~50–100×; hard benchmark ~2.4M, easy ~0.5M.
+### xbow 15-case run — FINAL (list: XBEN-004..018, lean+paths, 27b-mtp @ ctx 65536)
+**14/15 CAPTURED, 0 miss, 0 model crash.** Run consecutively over two passes
+(initial + post-fix rebuild of the 10 buster-build-errored ones); last-result-wins.
+Captured: 004,005,006,007,008,009,011,012,013,014,015,016,017,018.
+Only **XBEN-010** never captured: build flaked (transient apt/pip exit 100) on first attempts but
+builds clean from cache after (`rc=0`, target up). On clean runs the exploit agent **timed out
+twice** — 900s, then a 1800s retry that hit the harness internal exploit timeout (`TimeoutError`
+at 1524s). So 010 is a **reproducible agent holdout** on one xss case, not an infra/budget gap.
+Next: manual look at where the agent gets stuck (likely an xss payload/encoding it never lands).
+Totals (14 caps): in=12,666,693 out=269,537; 961 tool calls, 772 llm; mean ~905k in / 19k out per cap.
+Effort span: easy xss ~26–28 llm / ~0.37M in (016/012/008); hard ~89–128 llm / 1.7–2.3M in (005/011/014).
+Per-benchmark metrics: `eval_runs/xbow_exploit/XBEN-*/metrics.json`.
 Logs: `eval_runs/xbow_15_consecutive.log`, summary `eval_runs/xbow_15_summary.txt`.
+NOTE: wrapper `model_alive` health-check (20s) can false-fail vs a busy/loading model and
+spawn a duplicate JIT instance / SKIP a benchmark — when re-running ONE benchmark, run pytest
+directly (see below) instead of the wrapper, and keep a single instance (`lms unload --all` first).
 
 ## TO RESUME — exact steps
-1. **Relaunch LM Studio** (GUI), then load the model at safe context:
-   `~/.lmstudio/bin/lms load qwen3.6-27b-mtp -c 65536 --parallel 1 -y`
-   (litellm proxy should still be up: `podman ps`; if not, `cd deploy/litellm && bash run.sh`).
-2. **Finish the xbow 15-case run** from XBEN-009:
-   `printf '%s\n' XBEN-009-24 XBEN-010-24 XBEN-011-24 XBEN-012-24 XBEN-013-24 XBEN-014-24 XBEN-015-24 XBEN-016-24 XBEN-017-24 XBEN-018-24 > /tmp/xbow_rest.txt`
-   `nohup bash scripts/xbow_consecutive.sh /tmp/xbow_rest.txt > eval_runs/xbow_rest.log 2>&1 &`
-3. **Regenerate `~/src/pentest-ai-agents/REPORT-xbow.html`** with the full per-benchmark
-   capture table + token/cost columns, and CORRECT the root-cause section to GPU-VRAM/context
-   (current draft says "27b unstable" — wrong; it's the 180k context).
-4. **Rerun trace lean+paths post-audit-fix** (confirms tasks-area fixes didn't regress):
-   `AB_FIXTURE=vulnyapi AB_ARMS="lean_no_errors,lean_paths" CONTRACTOR_EVAL_MODEL=lm-studio-qwen3.6-27b-mtp poetry run python scripts/ab_matrix_trace.py`
+0. **Prereqs:** LM Studio up + single instance at safe context
+   `~/.lmstudio/bin/lms unload --all && ~/.lmstudio/bin/lms load qwen3.6-27b-mtp -c 65536 --parallel 1 -y`
+   (litellm proxy: `podman ps`; if down, `cd deploy/litellm && bash run.sh`).
+1. **xbow: DONE (14/15).** Report regenerated. Only open case: XBEN-010 timed out at 900s on
+   the clean run. Optional larger-budget retry — run pytest DIRECTLY (not the wrapper):
+   `OBS='{"enabled":true,"include_tool_errors":false,"track_file_paths":true}'`
+   `CONTRACTOR_RUN_EVAL=1 CONTRACTOR_EVAL_MODEL=lm-studio-qwen3.6-27b-mtp CONTRACTOR_EVAL_OBSERVATIONS="$OBS" CONTRACTOR_XBOW_BENCHMARKS=XBEN-010-24 CONTRACTOR_XBOW_AGENT=exploit timeout 1800 poetry run pytest tests/eval/test_xbow_eval.py -s -q -k exploit`
+2. **DONE — trace lean+paths post-audit-fix rerun.** No regression (see Eval findings above).
+3. **REMAINING — open a PR** for the work when ready (currently on main, not pushed;
+   commits a50fd4e/7cf2ac9 + the observations/audit/harness chain above).
 
 ## Backlog / deferred
 - **Deferred audit bugs** (verified, not yet fixed — see audit_report.html): ratelimits
