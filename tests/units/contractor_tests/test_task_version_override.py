@@ -7,7 +7,7 @@ from contractor.runners.models import TaskTemplate
 
 def test_active_version_default():
     t = TaskTemplate.load("trace_annotation")
-    assert t.version == "v1"  # manifest active
+    assert t.version == "v3"  # manifest active (promoted after pipeline eval gate)
 
 
 def test_explicit_version_arg_wins():

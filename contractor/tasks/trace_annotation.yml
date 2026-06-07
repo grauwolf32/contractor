@@ -1,4 +1,4 @@
-active: v1
+active: v3
 versions:
   v1:
     file: trace_annotation/v1.yml
