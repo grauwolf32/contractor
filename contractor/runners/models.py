@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -292,7 +293,13 @@ def _resolve_task_version(
             f"Task manifest {manifest_path} 'versions:' must be a mapping"
         )
 
-    resolved = version or manifest["active"]
+    # Explicit arg wins; then an env override (CONTRACTOR_TASK_VERSION_<NAME>,
+    # for A/B eval-gating a task version without flipping `active`); then active.
+    resolved = (
+        version
+        or os.environ.get(f"CONTRACTOR_TASK_VERSION_{template_key.upper()}")
+        or manifest["active"]
+    )
     if resolved not in versions:
         available = ", ".join(sorted(versions.keys())) or "(none)"
         raise ValueError(

@@ -1,0 +1,98 @@
+task:
+  name: "annotate_request_trace_for_vulnerability_analysis"
+
+  objective: >
+    Given a single OpenAPI operation, locate the request entrypoint, trace the
+    relevant execution path, drive structured trace annotations onto the
+    functions on that path, and produce a structured analysis of data flow and
+    security-relevant behavior.
+
+    Focus only on paths where request-derived data is processed, validated,
+    transformed, or reaches sensitive operations.
+
+    Target operation: {operation_id}
+    Schema: {operation_schema}
+
+  instructions: >
+
+    ## What to accomplish
+
+    - Locate the request entrypoint for the target operation.
+    - Trace request-derived data forward through the code until it reaches a
+      sink or a terminal business operation.
+    - Annotate the functions that carry trace value: the entrypoint, explicit
+      validation points, sinks (or their wrappers), and key transformations.
+    - Analyze the security-relevant behavior on that path: which controls are
+      present, weak, or absent, and which findings the visible code supports.
+
+    Prefer concrete, code-backed paths over speculation. Annotate only where it
+    adds clear trace value. Distinguish observed code behavior from inference
+    and uncertainty. Do not introduce files or components not already observed.
+
+    ## Where the domain knowledge lives
+
+    The sink catalogue, the per-sink vulnerability checklist, the finding-shape
+    taxonomy, the per-handler control checklist, and the annotation forms live
+    in the injected `trace` skill — the worker loads them on demand. Do NOT
+    restate that knowledge here, and do NOT prescribe tools or edit mechanics:
+    how to read, search, and annotate is the worker's concern, not the plan's.
+
+    ## State management
+
+    - Treat already-discovered files, functions, and flows as working context;
+      do not extend them beyond shown evidence.
+    - Do not re-investigate something already confirmed; reuse earlier results
+      and memory instead of repeating discovery.
+
+    ## Scope control (anti-drift)
+
+    - Do NOT introduce new goals (refactoring, instrumentation design, building
+      a tracing framework, improving the code).
+    - Stay within: locate entrypoint, trace data flow, annotate, analyze
+      security.
+
+    ## Planning rules
+
+    - Assign investigation goals, not search mechanics — describe what must be
+      learned, not which low-level reads to perform; let the worker choose the
+      concrete actions.
+    - Prefer fewer, meaningful steps over many micro-steps.
+    - Each step must produce NEW information and resolve one real uncertainty
+      about control flow, data flow, validation, sink reachability, or
+      vulnerability evidence. Do not create steps for directory listing or
+      existence checks unless strictly necessary.
+
+    ## Completion criteria (stop condition)
+
+    STOP and produce final output once ALL are satisfied:
+    1. Entrypoint is identified.
+    2. Request parameters are mapped (body/query/path/headers).
+    3. At least one complete, unambiguous data-flow path is traced to a sink or
+       a terminal business operation.
+    4. Validation (or its absence) is identified.
+    5. The security mechanism (auth/authz) is identified.
+
+    Do not create new subtasks after these are met. If results are partial but
+    sufficient, complete rather than retrying.
+
+  output_format: |
+    Produce the structured trace report with these sections (headers verbatim):
+
+    ## Annotations Inserted
+    - <file>:<line>  function=<name>  kinds=<trace|validate|sink ...>
+
+    ## Trace
+    Entrypoint: <file:line>  function=<name>
+    Data flow:  <param> -> <fn A> -> <fn B> -> ... -> <sink_or_terminal>
+                (mark the argument state at each step)
+
+    ## Per-Handler Control Checklist
+    Use the row set from the `trace` skill's controls reference.
+    Status per row: present (file:line) | absent | weak | N/A.
+
+    ## Findings
+    One block per finding using the field set from the `trace` skill's
+    finding-shapes reference, or the literal line: No findings supported by code.
+
+    ## Uncertainties
+    Items that materially affect the trace. Omit the section if none.
