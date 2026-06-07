@@ -1,0 +1,9 @@
+slug: realvuln-extremely-vulnerable-flask-app
+language: python
+framework: flask
+source_root: tests/playground/realvuln-repos/realvuln-extremely-vulnerable-flask-app
+benchmark: realvuln
+repo_url: https://github.com/manuelz120/extremely-vulnerable-flask-app
+commit_sha: d5d8875559e21222bbbaadb7b9f0af592c6eb7fa
+description: 'RealVuln benchmark: extremely-vulnerable-flask-app — python/flask app
+  with 32 known vulnerabilities and 4 FP traps.'
