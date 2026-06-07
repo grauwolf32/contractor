@@ -36,10 +36,10 @@ def _user_message(case: dict) -> str:
     return (
         f"Trace the request flow that begins at `{func}` in `{where}`. "
         f"{intent} "
-        "Insert `# @trace target=... args=... calls=...` comments above each "
-        "function definition you confidently identify as part of the path. "
-        "Use the `insert_line` tool to mutate files. Stop once the path is "
-        "covered."
+        "Annotate each function you confidently identify as part of the path "
+        "with the `annotate_trace` tool (one call per function). Annotate each "
+        "function once and move on — do not restore a file to re-annotate with "
+        "tweaked arguments. Stop once the path is covered."
     )
 
 
