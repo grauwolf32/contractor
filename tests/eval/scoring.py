@@ -323,6 +323,50 @@ def _finding_matches_gt(finding: AgentFinding, gt: dict[str, Any]) -> bool:
     return True
 
 
+def partition_findings_by_read(
+    findings: list[AgentFinding],
+    read_paths: Iterable[str],
+) -> tuple[list[AgentFinding], list[AgentFinding]]:
+    """Split findings into (grounded, ungrounded) by emitted-vs-read cross-check.
+
+    A finding is *grounded* when the file it points at (``finding.file``) was
+    actually opened/read by the worker — i.e. it appears in ``read_paths``.
+    A finding whose file was NEVER read is *ungrounded*: a likely hallucination
+    (e.g. a CRUD endpoint or file absent from the source). This is a purely
+    deterministic, side-effect-free filter — it never inspects content.
+
+    Path comparison uses :func:`_normalise_vuln_path` on both sides (strip
+    leading ``./`` and ``/``, normalise slashes) so the finding's ``place`` and
+    the worker's read paths match regardless of leading-slash conventions.
+
+    Findings whose ``file`` is empty or whose location is URL-shaped (contains
+    ``://``) are passed through as **grounded** — only file-type places are
+    checkable against the read set (URL-type places come from live HTTP probing,
+    not source reads, so this filter has nothing to say about them).
+
+    Edge case — empty ``read_paths``: every file-type finding is ungrounded.
+    This is intentional and faithful: if the read set is genuinely empty there
+    is no evidence the worker read anything, so no file finding can be grounded.
+    Callers that cannot reliably derive a read set should keep the gate OFF
+    rather than pass an empty set and silently drop every finding.
+    """
+    read_norm = {_normalise_vuln_path(p) for p in read_paths if p}
+
+    grounded: list[AgentFinding] = []
+    ungrounded: list[AgentFinding] = []
+    for finding in findings:
+        place = finding.file or ""
+        # URL-shaped or empty places are not file-checkable → pass through.
+        if not place or "://" in place:
+            grounded.append(finding)
+            continue
+        if _normalise_vuln_path(place) in read_norm:
+            grounded.append(finding)
+        else:
+            ungrounded.append(finding)
+    return grounded, ungrounded
+
+
 def score_vuln_findings(
     findings: list[AgentFinding],
     ground_truth: list[dict[str, Any]],
