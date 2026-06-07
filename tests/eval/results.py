@@ -100,10 +100,20 @@ class CaseResult:
 
 @dataclass
 class FixtureResult:
-    """A group of cases (usually one fixture / target codebase)."""
+    """A group of cases (usually one fixture / target codebase).
+
+    ``tokens`` / ``latency_ms`` are *optional* per-fixture cost measurements
+    (total tokens spent and wall-clock latency for the run that produced this
+    fixture). They are summed into the envelope ``totals`` by
+    :func:`derive_totals` only when at least one fixture supplies them; left
+    ``None`` everywhere they are absent, so the envelope is unchanged for
+    producers that don't measure cost.
+    """
 
     slug: str
     cases: list[CaseResult] = field(default_factory=list)
+    tokens: int | None = None
+    latency_ms: float | None = None
 
     @property
     def cases_total(self) -> int:
@@ -114,12 +124,19 @@ class FixtureResult:
         return sum(1 for c in self.cases if c.passed)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "slug": self.slug,
             "cases_total": self.cases_total,
             "cases_passed": self.cases_passed,
             "cases": [c.to_dict() for c in self.cases],
         }
+        # Emit cost fields only when measured, so the per-fixture shape is
+        # byte-for-byte unchanged for producers that don't supply them.
+        if self.tokens is not None:
+            d["tokens"] = int(self.tokens)
+        if self.latency_ms is not None:
+            d["latency_ms"] = float(self.latency_ms)
+        return d
 
 
 @dataclass
@@ -257,7 +274,7 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
                 if isinstance(v, (int, float)):
                     tools[k] += int(v)
             skill_reads += int(tc.get("skills_read", 0) or 0)
-    return {
+    totals: dict[str, Any] = {
         "fixtures": len(fixtures),
         "cases": len(cases),
         "input_tokens": in_tok,
@@ -271,6 +288,16 @@ def derive_totals(fixtures: list[dict[str, Any]]) -> dict[str, Any]:
         "duration_s": _round(dur, 1),
         "tool_counts": dict(tools),
     }
+    # Optional per-fixture cost (QW4/F2): surface summed tokens + latency only
+    # when at least one fixture measured it. Absent on all → no new keys, so the
+    # envelope is byte-for-byte back-compatible for non-measuring producers.
+    cost_tokens = [f["tokens"] for f in fixtures if f.get("tokens") is not None]
+    cost_latency = [f["latency_ms"] for f in fixtures if f.get("latency_ms") is not None]
+    if cost_tokens:
+        totals["tokens"] = sum(int(t) for t in cost_tokens)
+    if cost_latency:
+        totals["latency_ms"] = _round(sum(float(latency) for latency in cost_latency), 1)
+    return totals
 
 
 # ───────────────────────── metrics helper ─────────────────────────
