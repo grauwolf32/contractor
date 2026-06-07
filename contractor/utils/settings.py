@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # (keep_last_n) is not yet reached. Default 0 disables the budget axis, so
     # retention stays count-only (historical behaviour).
     fs_heavy_keep_budget_chars: int = Field(default=0)
+    # Override the count cap (keep_last_n) for retained heavy-tool results in the
+    # FunctionResultsRemovalCallback (env: FS_HEAVY_KEEP_LAST_N). When > 0 it
+    # *overrides* the caller's elide_keep_last_n (e.g. set very high to
+    # effectively disable count-based elision for an experiment). Default 0 means
+    # "unset — use the caller's value" (historical behaviour, typically 15).
+    fs_heavy_keep_last_n: int = Field(default=0)
     code_max_walk_depth: int = Field(default=50)
     code_max_files_per_walk: int = Field(default=100_000)
     graph_max_results: int = Field(default=200)

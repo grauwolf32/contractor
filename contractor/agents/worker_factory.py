@@ -126,9 +126,13 @@ def build_worker(
                 if elide_keep_budget_chars is not None
                 else get_settings().fs_heavy_keep_budget_chars
             )
+            # Settings override (env FS_HEAVY_KEEP_LAST_N) wins when > 0 — lets an
+            # experiment loosen/disable count-based elision without code changes;
+            # otherwise the caller's elide_keep_last_n (default 15) is used.
+            keep_last_n = get_settings().fs_heavy_keep_last_n or elide_keep_last_n
             callback_adapter.register(
                 FunctionResultsRemovalCallback(
-                    keep_last_n=elide_keep_last_n,
+                    keep_last_n=keep_last_n,
                     keep_budget_chars=keep_budget_chars,
                     target_tools=elide_targets,
                 )
