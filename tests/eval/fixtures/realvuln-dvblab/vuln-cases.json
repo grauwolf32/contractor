@@ -431,5 +431,22 @@
     "function": "get_profile",
     "severity": "medium",
     "description": "Safe JSON deserialization: json.loads(self.profile) uses Python's standard json module which only deserializes to basic Python types (dicts, lists, strings, numbers). Unlike yaml.load or pickle, json.loads cannot instantiate arbitrary objects and is safe from deserialization attacks."
+  },
+  {
+    "id": "dvblab-023",
+    "is_vulnerable": true,
+    "vulnerability_class": "vulnerable_dependency",
+    "primary_cwe": "CWE-1395",
+    "acceptable_cwes": [
+      "CWE-1395",
+      "CWE-502",
+      "CWE-1104"
+    ],
+    "file": "backend/requirements.txt",
+    "start_line": 8,
+    "end_line": 8,
+    "function": null,
+    "severity": "high",
+    "description": "Vulnerable dependency: PyYAML 5.3.1 is affected by CVE-2020-14343 (arbitrary code execution via yaml.load with the unsafe FullLoader/Loader). REACHABLE in this app: backend/routes/auth_routes.py:157 calls yaml.load(profile_yaml, Loader=yaml.Loader) on attacker-controlled input from the /api/profile/import endpoint, so the dependency CVE compounds the code-level insecure deserialization (dvblab-012). GT previously listed only the code-level sink, not the outdated-dependency angle (added by G3-1 GT-completeness pass)."
   }
 ]
