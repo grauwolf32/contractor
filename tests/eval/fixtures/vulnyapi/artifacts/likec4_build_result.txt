@@ -1,0 +1,568 @@
+## Coverage
+- Containers modeled: 6 (Auth Router, Users Router, Notes Router, Webhooks Router, Admin Router, Files Router)
+- External systems modeled: 4 (Arbitrary Webhook Target, SMS Provider (Twilio/etc.), JWT Secret, Bcrypt / passlib)
+- Data stores modeled: 2
+  - SQLite Database — tags: #pii, #secrets, #tokens, #credentials, #business
+  - Disk File Storage — tag: #business
+- Trust boundaries encoded:
+  1. Internet → Public API over HTTP (no TLS, port 4444) — anonymous_user → vulnyapi
+  2. Authenticated access via Bearer JWT or pg_session_id cookie — authenticated_user → vulnyapi
+  3. Admin access via unvalidated X-Is-Admin header (no RBAC enforcement) — administrator → admin_router
+  4. Internal → External: webhooks to user-supplied URL (SSRF risk, no allowlist) — webhooks_router → arbitrary_webhook_target
+  5. Identity boundary: auth_service ↔ jwt_secret (HS256 with hardcoded fallback), auth_service ↔ bcrypt_hasher
+  6. Data exposure boundary: admin_router returns password_hash + session tokens to unauthenticated callers
+- Views produced: systemLandscape, containers, security, auth-flow (dynamic/sequence)
+
+## Validation
+- Last LikeC4 validation status: ok (0 issues)
+- Outstanding warnings: none
+
+## Uncertainties
+- The SMS gateway is a mock (logs to stdout); the real Twilio/etc. integration is not present in code but modeled as placeholder for completeness.
+- No rate-limiting, CSRF protection, or RBAC middleware exists — these are noted as absences rather than modeled elements.
+- The SQLite database path (data/base.db) and upload directory (data/uploads/) are relative; absolute paths depend on runtime working directory.
+
+## LikeC4 Source
+```likec4
+specification {
+  // Element kinds
+  element actor    { style { shape person } }
+  element system   { style { shape rectangle } }
+  element container {
+    technology "default tech"
+    style { shape rectangle }
+  }
+  element service  { style { shape rectangle } }
+  element database { style { shape storage } }
+  element storage  { style { shape storage } }
+  element external {
+    notation "External System"
+    style { shape rectangle; color muted }
+  }
+
+  // Relationship kinds — declare before using `-[kind]->`
+  relationship authenticates {
+    description "Authenticates identity credentials"
+  }
+  relationship calls {
+    description "Makes an HTTP/RPC call"
+  }
+  relationship reads {
+    description "Reads data from a store"
+  }
+  relationship stores {
+    description "Writes data to a store"
+  }
+
+  // Tags — data classification and trust zones
+  tag pii
+  tag secrets
+  tag tokens
+  tag credentials
+  tag audit
+  tag business
+  tag external
+  tag public
+  tag internal
+  tag admin
+  tag identity
+
+  // Custom colors for security emphasis
+  color red    #EF4444
+  color amber  #F59E0B
+}
+
+
+model {
+  // ── Actors ────────────────────────────────────────────────────────────
+
+  anonymous_user = actor "Anonymous User" {
+    description '''
+      Unauthenticated external caller. Can reach public endpoints:
+      POST /register, POST /login, POST /password/reset/request,
+      POST /password/reset/confirm, GET /admin/users (no auth required).
+      Evidence: routers/auth.py:14-56, routers/admin.py:14-28.
+    '''
+    tag #external
+  }
+
+  authenticated_user = actor "Authenticated User" {
+    description '''
+      Logged-in user with valid JWT or pg_session_id cookie.
+      Can access protected endpoints: GET /users/{id}, POST /notes,
+      DELETE /notes/{id}, POST /webhooks/test, POST /files/upload.
+      Evidence: helpers/auth.py:39-51 (current_user dependency).
+    '''
+    tag #internal
+  }
+
+  administrator = actor "Administrator" {
+    description '''
+      Intended admin role with is_admin=True on User row.
+      However, no RBAC enforcement exists — the X-Admin-Console header
+      is never validated against user.is_admin. Any caller can reach
+      GET /admin/users without authentication or authorization.
+      Evidence: routers/admin.py:14-28, helpers/auth.py (no RBAC check).
+    '''
+    tag #admin
+  }
+
+
+  // ── System boundary ─────────────────────────────────────────────────
+
+  vulnyapi = system "VulnyAPI" {
+    description '''
+      Intentionally-vulnerable FastAPI application for security-analyser
+      evaluation. Binds 0.0.0.0:4444 with no TLS. No rate limiting,
+      no CSRF protection, no RBAC middleware.
+      Evidence: app.py:15-40.
+    '''
+
+    // ── Containers (one per router module) ────────────────────────────
+
+    auth_router = container "Auth Router" {
+      technology "FastAPI / Uvicorn"
+      description '''
+        Authentication endpoints: POST /register, POST /login,
+        POST /password/reset/request, POST /password/reset/confirm.
+        Registration response exposes password_hash (RegisteredUser).
+        Login sets pg_session_id cookie without Secure/SameSite flags.
+        Evidence: routers/auth.py:14-56.
+      '''
+      tag #public
+    }
+
+    users_router = container "Users Router" {
+      technology "FastAPI / Uvicorn"
+      description '''
+        User profile endpoints: GET /users/{user_id},
+        GET /users/{user_id}/notes. Requires authentication (CurrentUser).
+        No ownership check — any authenticated user can read another's notes.
+        Evidence: routers/users.py:12-36.
+      '''
+      tag #internal
+    }
+
+    notes_router = container "Notes Router" {
+      technology "FastAPI / Uvicorn"
+      description '''
+        Note CRUD + search: POST /notes, DELETE /notes/{note_id},
+        GET /notes/search (unauthenticated — SQL injection via q param).
+        Delete has no ownership check. Search uses raw string-interpolated SQL.
+        Evidence: routers/notes.py:12-40.
+      '''
+      tag #internal
+    }
+
+    webhooks_router = container "Webhooks Router" {
+      technology "FastAPI / Uvicorn + httpx"
+      description '''
+        Webhook test endpoint: POST /webhooks/test. Accepts arbitrary URL
+        and JSON payload, forwards via httpx.post with 5s timeout.
+        SSRF risk — no allowlist or loopback/internal-IP blocking.
+        Evidence: routers/webhooks.py:12-30.
+      '''
+      tag #internal
+    }
+
+    admin_router = container "Admin Router" {
+      technology "FastAPI / Uvicorn"
+      description '''
+        Admin user listing: GET /admin/users. No authentication or RBAC —
+        any unauthenticated caller can access. Returns full User rows including
+        password_hash and latest session token (AdminUserRow).
+        Evidence: routers/admin.py:14-28.
+      '''
+      tag #public
+    }
+
+    files_router = container "Files Router" {
+      technology "FastAPI / Uvicorn"
+      description '''
+        File upload endpoint: POST /files/upload. Saves to disk under
+        data/uploads/user-{id}/ with user-supplied filename (path traversal risk).
+        Requires authentication (CurrentUser).
+        Evidence: routers/files.py:16-38.
+      '''
+      tag #internal
+    }
+
+
+    // ── Internal services ────────────────────────────────────────────
+
+    auth_service = service "Auth Service" {
+      description '''
+        AuthService: register, authenticate, issue_jwt (HS256),
+        issue_session_cookie (uuid4 hex, no expiry), password reset flow
+        with 6-digit OTP via SMS gateway. Old sessions not invalidated
+        after password change.
+        Evidence: services/auth.py:17-90.
+      '''
+      tag #identity
+    }
+
+    users_service = service "Users Service" {
+      description '''
+        UserService: CRUD on User entity — get, get_by_username,
+        get_by_phone, create, list_all, set_password_hash.
+        Evidence: services/users.py:9-42.
+      '''
+      tag #identity
+    }
+
+    notes_service = service "Notes Service" {
+      description '''
+        NoteService: CRUD + search() using raw SQL with string interpolation
+        (SQL injection vector). No parameterized queries for search.
+        Evidence: services/notes.py:9-42.
+      '''
+      tag #business
+    }
+
+    sms_gateway = service "SMS Gateway" {
+      description '''
+        Mock SMS gateway — logs OTP codes instead of sending real messages.
+        Placeholder for Twilio/etc. in production. Used during password reset.
+        Evidence: services/sms.py:7-12.
+      '''
+      tag #external
+    }
+
+
+    // ── Data store ───────────────────────────────────────────────────
+
+    sqlite_db = database "SQLite Database" {
+      description '''
+        File-based SQLite at data/base.db. Tables: user (id, username, email,
+        phone, password_hash [bcrypt], is_admin, created_at), note (id, owner_id,
+        title, body, is_private, created_at), reset_code (id, user_id, code
+        [plaintext 6-digit OTP], expires_at, used) — ResetCode table stores
+        plaintext 6-digit OTP codes for password-reset flow; no hashing or
+        encryption applied to the code field. session (id, user_id, token [hex],
+        created_at — no expiry), uploaded_file (id, owner_id, filename, size).
+        Evidence: adapters/db.py:7-18, models/domain.py:6-52, services/auth.py:62.
+      '''
+      tag #pii
+      tag #secrets
+      tag #tokens
+      tag #credentials
+      tag #business
+    }
+
+    disk_file_storage = storage "Disk File Storage" {
+      description '''
+        Uploaded files stored at data/uploads/user-{id}/ with user-supplied
+        filename. No path sanitization — the filename is directly concatenated
+        into the target path (path traversal risk: attacker can write outside
+        the intended directory using ../ sequences). Files are written via
+        open(target_path, "wb") without extension or content-type validation.
+        Evidence: routers/files.py:16-38.
+      '''
+      tag #business
+    }
+
+
+    // ── External systems ─────────────────────────────────────────────
+
+    arbitrary_webhook_target = external "Arbitrary Webhook Target" {
+      description '''
+        User-supplied URL target for webhook test endpoint. No allowlist,
+        no loopback/internal-IP blocking — SSRF risk allowing internal
+        network scanning and cloud metadata access.
+        Evidence: routers/webhooks.py:12-30.
+      '''
+      tag #external
+    }
+
+    sms_provider_placeholder = external "SMS Provider (Twilio/etc.)" {
+      description '''
+        Production SMS provider placeholder. Currently replaced by mock
+        SmsGateway that logs to stdout. Would send OTP codes for password reset.
+        Evidence: services/sms.py:1-12, services/auth.py:68.
+      '''
+      tag #external
+    }
+
+
+    // ── Cryptographic dependencies (explicit elements) ───────────────
+
+    jwt_secret = external "JWT Secret" {
+      description '''
+        Hardcoded HS256 signing secret with insecure fallback.
+        JWT_SECRET = os.environ.get("VULNYAPI_JWT_SECRET", "dev-secret-change-me").
+        If env var unset, anyone can forge valid JWTs — full impersonation.
+        24-hour TTL, no revocation path.
+        Evidence: utils/security.py:17-19.
+      '''
+      tag #secrets
+    }
+
+    bcrypt_hasher = external "Bcrypt / passlib" {
+      description '''
+        Password hashing via passlib CryptContext(schemes=["bcrypt"]).
+        Automatic salt generation. No password complexity validation upstream.
+        Evidence: utils/security.py:21-32.
+      '''
+      tag #external
+    }
+
+
+    // ── Relationships (internal) ─────────────────────────────────────
+
+    auth_router -[calls]-> auth_service "delegates authentication to"
+    users_router -[calls]-> users_service "delegates user CRUD"
+    users_router -[calls]-> notes_service "delegates note listing"
+    notes_router -[calls]-> notes_service "delegates note CRUD + search"
+
+    auth_service -[calls]-> bcrypt_hasher "hash_password / verify_password (bcrypt via passlib)"
+    auth_service -[calls]-> jwt_secret {
+        title "issue_token (HS256 encode/decode with hardcoded fallback secret)"
+        tag #secrets
+    }
+    auth_service -[calls]-> sms_gateway "send OTP via SMS gateway"
+
+    auth_service -[reads]-> sqlite_db {
+        title "SELECT User, Session, ResetCode (password hashes + session tokens)"
+        tag #secrets
+        tag #tokens
+    }
+    auth_service -[stores]-> sqlite_db {
+        title "INSERT User, Session, ResetCode (credentials + OTP codes)"
+        tag #secrets
+        tag #tokens
+    }
+
+    users_service -[reads]-> sqlite_db {
+        title "SELECT User (PII: username, email, phone)"
+        tag #pii
+    }
+    users_service -[stores]-> sqlite_db {
+        title "INSERT/UPDATE User (credentials + PII)"
+        tag #secrets
+        tag #pii
+    }
+
+    notes_service -[reads]-> sqlite_db {
+        title "SELECT Note (raw SQL for search — SQL injection vector)"
+        tag #business
+    }
+    notes_service -[stores]-> sqlite_db {
+        title "INSERT/DELETE Note"
+        tag #business
+    }
+
+    files_router -[stores]-> disk_file_storage {
+        title "writes uploaded file bytes to data/uploads/user-{id}/ (path traversal via unsanitized filename)"
+        tag #business
+    }
+    files_router -[stores]-> sqlite_db {
+        title "INSERT UploadedFile record (owner_id, filename, size)"
+        tag #business
+    }
+
+
+    // ── Relationships (inbound entry points — trust boundary crossings) ──
+
+    anonymous_user -[calls]-> vulnyapi {
+        title "internet → public API over HTTP (no TLS, port 4444)"
+        tag #public
+    }
+
+    authenticated_user -[calls]-> vulnyapi {
+        title "authenticated access via Bearer JWT or pg_session_id cookie"
+        tag #internal
+    }
+
+    // ── Relationships (external actors -> containers) ──────────────────
+
+    anonymous_user -[calls]-> auth_router "POST /register, POST /login, POST /password/reset/*"
+    anonymous_user -[calls]-> admin_router "GET /admin/users (no auth — CRITICAL)"
+    anonymous_user -[calls]-> notes_router "GET /notes/search (unauthenticated SQLi via q param)"
+
+    authenticated_user -[authenticates]-> auth_router {
+        title "authenticates via JWT or pg_session_id cookie"
+        tag #identity
+    }
+    authenticated_user -[calls]-> users_router "GET /users/{id}, GET /users/{id}/notes"
+    authenticated_user -[calls]-> notes_router "POST /notes, DELETE /notes/{note_id}"
+    authenticated_user -[calls]-> webhooks_router "POST /webhooks/test (SSRF via arbitrary URL)"
+    authenticated_user -[calls]-> files_router "POST /files/upload (path traversal risk)"
+
+    administrator -[calls]-> admin_router {
+        title "admin access via unvalidated X-Is-Admin header (no RBAC enforcement — any caller reaches GET /admin/users)"
+        tag #admin
+    }
+
+
+    // ── Relationships (outbound) ─────────────────────────────────────
+
+    webhooks_router -[calls]-> arbitrary_webhook_target "httpx.post to user-supplied URL (SSRF risk, no allowlist)"
+    sms_gateway -[calls]-> sms_provider_placeholder "mock logs; production would call Twilio API"
+
+
+    // ── Relationships (data exposure) ────────────────────────────────
+
+    auth_router -[reads]-> sqlite_db "exposes password_hash in RegisteredUser response"
+    admin_router -[reads]-> sqlite_db "returns all users with password_hash + session tokens"
+  }
+}
+
+
+views {
+
+  // ── View 1: systemLandscape — full overview ────────────────────────
+
+  view systemLandscape {
+    title "System Landscape"
+    include **
+    autoLayout lr
+  }
+
+
+  // ── View 2: containers — internal detail ───────────────────────────
+
+  view containers of vulnyapi {
+    title "Internal Containers & Services"
+    include *
+    include -> *
+    include <- *
+    style sqlite_db { color amber }
+    autoLayout lr
+  }
+
+
+  // ── View 3: security — external attack surface and trust boundaries ─
+
+  view security {
+    title "External Attack Surface & Trust Boundaries"
+
+    // ── Include all elements and relationships for full coverage ───────
+    include **
+
+    // ── Explicitly include public-facing entry points (attack surface) ─
+    include * where tag is #public
+    include anonymous_user -> vulnyapi.**
+    include authenticated_user -> vulnyapi.**
+    include administrator -> vulnyapi.**
+
+    // ── Include trust-zone crossing relationships ─────────────────────
+    // Public → Internal crossings (internet to app)
+    include * -> * where source.tag is #public and target.tag is #internal
+    // Internal → External crossings (app to outside world)
+    include * -> * where source.tag is #internal and target.tag is #external
+
+    // ── Include identity boundary elements ────────────────────────────
+    include jwt_secret
+    include auth_service
+    include sqlite_db
+
+    // ── Include data stores with sensitive tags ───────────────────────
+    include * where tag is #pii or tag is #secrets or tag is #tokens or tag is #credentials
+
+    // ── Styling: critical elements in red (data exposure / secrets) ───
+    style sqlite_db { color red }
+    style jwt_secret { color red }
+    style * where tag is #pii { color red }
+    style * where tag is #secrets { color red }
+    style * where tag is #tokens { color red }
+    style * where tag is #credentials { color red }
+
+    // ── Styling: external systems in blue (third-party / outside trust) ─
+    style arbitrary_webhook_target { color blue }
+    style sms_provider_placeholder { color blue }
+    style bcrypt_hasher { color blue }
+    style * where tag is #external { color blue }
+
+    // ── Styling: admin surface in red (zero-auth critical risk) ───────
+    style admin_router { color red }
+    style administrator { color red }
+
+    // ── Styling: identity boundary elements in amber ──────────────────
+    style auth_service { color amber }
+    style * where tag is #identity { color amber }
+
+    // ── Styling: public entry points highlighted ──────────────────────
+    style auth_router { color red }
+    style anonymous_user { color red }
+
+    autoLayout lr
+  }
+
+
+  // ── Dynamic View: Authentication Flow (JWT + cookie) ────────────────
+
+  dynamic view auth-flow {
+    title "Authentication Flow — Registration, Login/JWT Issuance, and Request Auth"
+    variant sequence
+
+    // ════════════════════════════════════════════════════════════════════
+    // PHASE 1: User Registration
+    //   POST /register → AuthService.register() → bcrypt hash → INSERT User
+    //   Evidence: routers/auth.py:20-34, services/auth.py:25-32
+    // ════════════════════════════════════════════════════════════════════
+
+    anonymous_user -> auth_router "POST /register (username, email, phone, password)"
+    auth_router -> auth_service "svc.register(username, email, phone, password)"
+    auth_service -> bcrypt_hasher "hash_password(password) → bcrypt hash"
+    auth_service <- bcrypt_hasher "returns password_hash"
+    auth_service -> sqlite_db "INSERT User (username, email, phone, password_hash, is_admin=False)"
+    sqlite_db -> auth_service "returns created User row"
+    auth_service -> auth_router "returns User object"
+    // SECURITY: RegisteredUser response_model exposes password_hash to caller
+    auth_router -> anonymous_user "201 {id, username, email, phone, password_hash [EXPOSED], created_at}"
+
+    // ════════════════════════════════════════════════════════════════════
+    // PHASE 2: Login — JWT issuance + session cookie
+    //   POST /login → AuthService.authenticate() → bcrypt verify → issue_jwt (HS256)
+    //                → issue_session_cookie (uuid4 hex, no expiry) → set pg_session_id cookie
+    //   Evidence: routers/auth.py:37-48, services/auth.py:34-50, utils/security.py:34-51
+    // ════════════════════════════════════════════════════════════════════
+
+    anonymous_user -> auth_router "POST /login (username, password)"
+    auth_router -> auth_service "svc.authenticate(username, password)"
+    auth_service -> sqlite_db "SELECT User WHERE username = ?"
+    sqlite_db -> auth_service "returns User row with password_hash"
+    auth_service -> bcrypt_hasher "verify_password(password, user.password_hash)"
+    auth_service <- bcrypt_hasher "returns True/False"
+
+    // On success: issue JWT (HS256 with hardcoded fallback secret)
+    auth_service -> jwt_secret "issue_token(user.id) → HS256 encode(sub=user_id, exp=24h)"
+    jwt_secret -> auth_service "returns signed JWT string"
+
+    // On success: create session row for cookie-based auth
+    auth_service -> sqlite_db "INSERT Session (user_id, token=uuid4().hex, created_at) — no expiry"
+    sqlite_db -> auth_service "commits session row"
+
+    // Return both JWT and set cookie
+    auth_service -> auth_router "returns User + access_token + cookie_token"
+    auth_router -> anonymous_user "200 {access_token: JWT} + Set-Cookie: pg_session_id=<hex>; httponly=True (no Secure/SameSite)"
+
+    // ════════════════════════════════════════════════════════════════════
+    // PHASE 3: Subsequent authenticated request — dual auth path
+    //   helpers/auth.py checks Bearer JWT OR pg_session_id cookie
+    //   Path A: _user_from_jwt → decode_token (HS256 verify) → SELECT User by id
+    //   Path B: _user_from_cookie → SELECT Session WHERE token=? → SELECT User by session.user_id
+    //   Evidence: helpers/auth.py:19-58
+    // ════════════════════════════════════════════════════════════════════
+
+    authenticated_user -> auth_router "GET /users/{id} (Authorization: Bearer <JWT> OR Cookie: pg_session_id=<hex>)"
+
+    // Path A — JWT-based authentication
+    auth_router -> jwt_secret "_user_from_jwt: decode_token(JWT) → HS256 verify, extract sub=user_id"
+    jwt_secret -> auth_router "returns user_id (or None if invalid/expired)"
+    auth_router -> sqlite_db "SELECT User WHERE id = ? (from JWT sub claim)"
+    sqlite_db -> auth_router "returns User row"
+
+    // Path B — Cookie-based authentication (alternative, OR'd with JWT)
+    auth_router -> sqlite_db "_user_from_cookie: SELECT Session WHERE token = pg_session_id"
+    sqlite_db -> auth_router "returns Session row with user_id"
+    auth_router -> sqlite_db "SELECT User WHERE id = session.user_id"
+    sqlite_db -> auth_router "returns User row"
+
+    // Both paths converge — if either succeeds, request is authenticated
+    auth_router -> authenticated_user "200 response (or 401 if both JWT and cookie fail)"
+
+  }
+
+}
+```
