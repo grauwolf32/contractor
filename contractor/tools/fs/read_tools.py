@@ -331,11 +331,15 @@ class FsspecInteractionFileTools(PathValidationMixin):
             return []
         if self._in_scope_cache is None:
             collected: list[str] = []
+            # Collect up to a generous ceiling, then sort and cap — so the
+            # retained subset is the deterministic lexicographically-first
+            # _IN_SCOPE_WALK_LIMIT files, not an arbitrary walk-order slice.
+            _ceiling = _IN_SCOPE_WALK_LIMIT * 10
             for path in self._iter_all_files(self.root):
                 collected.append(path)
-                if len(collected) >= _IN_SCOPE_WALK_LIMIT:
+                if len(collected) >= _ceiling:
                     break
-            self._in_scope_cache = sorted(collected)
+            self._in_scope_cache = sorted(collected)[:_IN_SCOPE_WALK_LIMIT]
         return self._in_scope_cache
 
     def coverage_stats(self) -> dict[str, int]:

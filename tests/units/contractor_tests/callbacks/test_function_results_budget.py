@@ -141,8 +141,13 @@ def _build(wf_module, **overrides):
 
 def test_build_worker_defaults_budget_to_settings(monkeypatch):
     import contractor.agents.worker_factory as wf
+    from contractor.utils.settings import Settings
 
     captured = _capture_build_worker(monkeypatch)
+    # Isolate from ambient env so we assert the field default, not a stray
+    # FS_HEAVY_KEEP_BUDGET_CHARS in the environment.
+    monkeypatch.delenv("FS_HEAVY_KEEP_BUDGET_CHARS", raising=False)
+    monkeypatch.setattr(wf, "get_settings", lambda: Settings())
     # Default Settings.fs_heavy_keep_budget_chars is 0 → no-op (count-only).
     _build(wf)
 

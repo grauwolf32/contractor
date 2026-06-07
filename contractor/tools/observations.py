@@ -229,8 +229,19 @@ def _coverage_gap(state: Any) -> list[str]:
     in_scope = fp.get("in_scope")
     if not in_scope:
         return []
-    read = set(fp.get("read") or [])
-    unvisited = sorted(p for p in set(in_scope) if p not in read)
+    def _norm(p: str) -> str:
+        # in_scope paths are absolute (from the fs walk); read paths are recorded
+        # as the agent passed them (often relative, leading slash stripped). Align
+        # both so an already-read file isn't surfaced as unvisited on a mismatch.
+        p = p.strip()
+        if p.startswith("./"):
+            p = p[2:]
+        return p.lstrip("/")
+
+    read = {_norm(p) for p in (fp.get("read") or [])}
+    # Compare on the normalised form (handles relative-vs-absolute read paths)
+    # but keep the original in-scope path in the output.
+    unvisited = sorted(p for p in in_scope if _norm(p) not in read)
     out = unvisited[:_COVERAGE_GAP_CAP]
     if len(unvisited) > _COVERAGE_GAP_CAP:
         out.append(f"... (+{len(unvisited) - _COVERAGE_GAP_CAP} more)")

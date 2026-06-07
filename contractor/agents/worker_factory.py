@@ -98,8 +98,8 @@ def build_worker(
         Cumulative char budget for retained heavy-tool results. When
         *None* (the default), ``Settings.fs_heavy_keep_budget_chars`` is
         used (itself defaulting to ``0`` = budget axis disabled, i.e.
-        count-only retention). When > 0, large/stale results are evicted
-        once the running total would exceed this budget, even if
+        count-only retention). When > 0, results are evicted oldest-first
+        once the running total of retained results would exceed this budget, even if
         ``elide_keep_last_n`` is not yet reached.
     repeated_call_threshold:
         Number of identical consecutive calls before the guardrail

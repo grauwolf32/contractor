@@ -473,15 +473,23 @@ def dedupe_findings(
 
     Anything that differs in file, CWE, or has a clearly different title is a
     *distinct* finding and is KEPT. Findings are never merged across files.
-    Input order of surviving representatives is preserved (first occurrence
-    position of each cluster), so the output is stable.
+    Findings are processed most-severe-first, so the kept representative is the
+    most severe member and the result is deterministic and idempotent
+    (independent of input order).
     """
     # Bucket by (normalised file, normalised cwe) first — these never merge
     # across each other. Within a bucket, greedily cluster by title similarity.
     clusters: list[tuple[tuple[str, str], list[AgentFinding]]] = []
     index_by_bucket: dict[tuple[str, str], list[int]] = {}
 
-    for finding in findings:
+    # Process most-severe-first (stable) so each cluster's anchor IS the kept
+    # representative — makes dedup order-independent and idempotent.
+    ordered = sorted(
+        findings,
+        key=lambda f: (_severity_score(f.severity), f.line is not None, bool(f.cwe)),
+        reverse=True,
+    )
+    for finding in ordered:
         bucket = (_normalise_vuln_path(finding.file), _norm_cwe(finding.cwe))
         placed = False
         for cluster_idx in index_by_bucket.get(bucket, []):
