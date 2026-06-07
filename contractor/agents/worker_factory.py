@@ -29,7 +29,7 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
 from contractor.tools.tasks import SubtaskFormatter, _prepare_worker_instructions
-from contractor.utils.settings import DEFAULT_MODEL
+from contractor.utils.settings import DEFAULT_MODEL, get_settings
 
 
 def build_summarization_message(
@@ -59,6 +59,7 @@ def build_worker(
     with_elide: bool = True,
     elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
+    elide_keep_budget_chars: int | None = None,
     repeated_call_threshold: int = 5,
 ) -> LlmAgent:
     """Construct an :class:`LlmAgent` with the standard callback stack.
@@ -93,6 +94,13 @@ def build_worker(
         is used.
     elide_keep_last_n:
         Number of recent eligible results to keep un-elided.
+    elide_keep_budget_chars:
+        Cumulative char budget for retained heavy-tool results. When
+        *None* (the default), ``Settings.fs_heavy_keep_budget_chars`` is
+        used (itself defaulting to ``0`` = budget axis disabled, i.e.
+        count-only retention). When > 0, large/stale results are evicted
+        once the running total would exceed this budget, even if
+        ``elide_keep_last_n`` is not yet reached.
     repeated_call_threshold:
         Number of identical consecutive calls before the guardrail
         fires.
@@ -113,9 +121,15 @@ def build_worker(
             else list(DEFAULT_HEAVY_TOOLS)
         )
         if elide_targets:
+            keep_budget_chars = (
+                elide_keep_budget_chars
+                if elide_keep_budget_chars is not None
+                else get_settings().fs_heavy_keep_budget_chars
+            )
             callback_adapter.register(
                 FunctionResultsRemovalCallback(
                     keep_last_n=elide_keep_last_n,
+                    keep_budget_chars=keep_budget_chars,
                     target_tools=elide_targets,
                 )
             )
