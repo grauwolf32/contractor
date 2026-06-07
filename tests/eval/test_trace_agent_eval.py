@@ -49,6 +49,28 @@ def _resolve_prompt_version(case: dict) -> str | None:
     )
 
 
+def _with_oas() -> bool:
+    """X1: feed the OpenAPI spec as an attack-surface map (env-gated A/B).
+    Default off reproduces the code-direct behaviour exactly."""
+    return os.environ.get("CONTRACTOR_EVAL_WITH_OAS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _oas_block(fixture) -> str:
+    if not _with_oas():
+        return ""
+    oas = getattr(fixture, "expected_oas", None)
+    if not oas:
+        return ""
+    import yaml
+    spec = yaml.safe_dump(oas, sort_keys=False, allow_unicode=True)
+    return (
+        "\n\nThe target's OpenAPI specification (use it as the attack-surface "
+        "map — endpoints, parameters, schemas):\n" + spec
+    )
+
+
 @pytest.mark.eval
 @pytest.mark.asyncio
 async def test_trace_agent(trace_case, eval_model, eval_sink):
@@ -62,7 +84,7 @@ async def test_trace_agent(trace_case, eval_model, eval_sink):
     for i in range(n):
         run = await run_trace_agent(
             fixture_root=fixture.source_root,
-            user_message=_user_message(case),
+            user_message=_user_message(case) + _oas_block(fixture),
             model=eval_model,
             namespace=f"trace-eval-{fixture.slug}-{case['id']}-a{i + 1}",
             timeout_s=float(case.get("timeout_s", 900.0)),
