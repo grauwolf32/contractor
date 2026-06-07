@@ -45,6 +45,7 @@ def build_codereview_agent(
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
     prompt: str | None = None,
+    capture_in_scope: bool = False,
 ) -> LlmAgent:
     instruction = prompt if prompt is not None else CODEREVIEW_PROMPT
 
@@ -53,6 +54,7 @@ def build_codereview_agent(
         fs,
         fmt=FileFormat(_format=_format),
         with_interaction_tools=True,
+        capture_in_scope=capture_in_scope,
     )
     ctools = code_tools(fs=fs)
     gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []

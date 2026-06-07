@@ -279,6 +279,13 @@ class SubtaskFormatter:
             fields.append(
                 ("files_read_paths", ", ".join(usage.get("files_read_paths") or []) or "none")
             )
+        if "unvisited_in_scope_paths" in usage:
+            fields.append(
+                (
+                    "unvisited_in_scope_paths",
+                    ", ".join(usage.get("unvisited_in_scope_paths") or []) or "none",
+                )
+            )
         if "memories_written" in usage or "memories_read" in usage:
             fields.append(
                 ("memories_written", ", ".join(usage.get("memories_written") or []) or "none")

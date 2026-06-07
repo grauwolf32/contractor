@@ -323,6 +323,195 @@ def _finding_matches_gt(finding: AgentFinding, gt: dict[str, Any]) -> bool:
     return True
 
 
+def partition_findings_by_read(
+    findings: list[AgentFinding],
+    read_paths: Iterable[str],
+) -> tuple[list[AgentFinding], list[AgentFinding]]:
+    """Split findings into (grounded, ungrounded) by emitted-vs-read cross-check.
+
+    A finding is *grounded* when the file it points at (``finding.file``) was
+    actually opened/read by the worker — i.e. it appears in ``read_paths``.
+    A finding whose file was NEVER read is *ungrounded*: a likely hallucination
+    (e.g. a CRUD endpoint or file absent from the source). This is a purely
+    deterministic, side-effect-free filter — it never inspects content.
+
+    Path comparison uses :func:`_normalise_vuln_path` on both sides (strip
+    leading ``./`` and ``/``, normalise slashes) so the finding's ``place`` and
+    the worker's read paths match regardless of leading-slash conventions.
+
+    Findings whose ``file`` is empty or whose location is URL-shaped (contains
+    ``://``) are passed through as **grounded** — only file-type places are
+    checkable against the read set (URL-type places come from live HTTP probing,
+    not source reads, so this filter has nothing to say about them).
+
+    Edge case — empty ``read_paths``: every file-type finding is ungrounded.
+    This is intentional and faithful: if the read set is genuinely empty there
+    is no evidence the worker read anything, so no file finding can be grounded.
+    Callers that cannot reliably derive a read set should keep the gate OFF
+    rather than pass an empty set and silently drop every finding.
+    """
+    read_norm = {_normalise_vuln_path(p) for p in read_paths if p}
+
+    grounded: list[AgentFinding] = []
+    ungrounded: list[AgentFinding] = []
+    for finding in findings:
+        place = finding.file or ""
+        # URL-shaped or empty places are not file-checkable → pass through.
+        if not place or "://" in place:
+            grounded.append(finding)
+            continue
+        if _normalise_vuln_path(place) in read_norm:
+            grounded.append(finding)
+        else:
+            ungrounded.append(finding)
+    return grounded, ungrounded
+
+
+_SEVERITY_RANK = {
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "moderate": 3,
+    "low": 2,
+    "info": 1,
+    "informational": 1,
+}
+
+# Stop-words stripped from titles before token comparison so that boilerplate
+# phrasing ("possible SQL injection vulnerability in handler") doesn't dominate
+# the Jaccard score over the substantive tokens.
+_TITLE_STOPWORDS = frozenset({
+    "a", "an", "the", "in", "on", "of", "to", "for", "and", "or", "at",
+    "is", "are", "via", "with", "by", "from",
+    "vulnerability", "vuln", "issue", "finding", "possible", "potential",
+})
+
+_TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# Default Jaccard threshold for collapsing near-identical titles within a
+# (file, cwe) group. >= this fraction of shared tokens => same underlying issue.
+TITLE_JACCARD_THRESHOLD = 0.6
+
+
+def _severity_score(severity: str | None) -> int:
+    """Map a severity label to an orderable rank (higher = more severe)."""
+    if not severity:
+        return 0
+    return _SEVERITY_RANK.get(severity.strip().lower(), 0)
+
+
+def _norm_cwe(cwe: str | None) -> str:
+    """Normalise a CWE id for grouping (case-folded, whitespace-stripped)."""
+    return (cwe or "").strip().upper()
+
+
+def _title_tokens(title: str | None) -> frozenset[str]:
+    """Tokenise a title into a normalised stop-word-filtered token set."""
+    if not title:
+        return frozenset()
+    toks = _TITLE_TOKEN_RE.findall(title.lower())
+    return frozenset(t for t in toks if t not in _TITLE_STOPWORDS)
+
+
+def _titles_near_identical(
+    a: str | None, b: str | None, threshold: float = TITLE_JACCARD_THRESHOLD
+) -> bool:
+    """Whether two titles are near-identical by normalised-token Jaccard.
+
+    Two empty/blank titles are treated as identical (both describe the same
+    file+cwe with no distinguishing text). A blank vs non-blank title is NOT
+    near-identical — the non-blank one carries distinguishing information.
+    """
+    ta, tb = _title_tokens(a), _title_tokens(b)
+    if not ta and not tb:
+        return True
+    if not ta or not tb:
+        return False
+    inter = len(ta & tb)
+    union = len(ta | tb)
+    return union > 0 and (inter / union) >= threshold
+
+
+def _more_severe(candidate: AgentFinding, current: AgentFinding) -> bool:
+    """Whether ``candidate`` should replace ``current`` as a group's representative.
+
+    Ranks by severity, then by whether a line number / cwe is present (more
+    specific findings win), so the kept representative is the most informative.
+    """
+    cand_key = (
+        _severity_score(candidate.severity),
+        candidate.line is not None,
+        bool(candidate.cwe),
+    )
+    cur_key = (
+        _severity_score(current.severity),
+        current.line is not None,
+        bool(current.cwe),
+    )
+    return cand_key > cur_key
+
+
+def dedupe_findings(
+    findings: list[AgentFinding],
+    *,
+    threshold: float = TITLE_JACCARD_THRESHOLD,
+) -> list[AgentFinding]:
+    """Collapse near-duplicate findings, keeping the strongest representative.
+
+    Pure, deterministic, side-effect-free. Duplicates are findings that point
+    at the *same underlying issue* reported more than once. The merge is
+    deliberately conservative — it only ever collapses findings that share **all**
+    of:
+
+    * the same normalised file path (:func:`_normalise_vuln_path`), and
+    * the same primary CWE (case-folded; empty CWE only merges with empty CWE), and
+    * near-identical titles (normalised-token Jaccard ``>= threshold``).
+
+    Within such a cluster the single kept representative is the most severe /
+    most specific finding (see :func:`_more_severe`): higher severity wins,
+    ties broken toward a present line number then a present CWE.
+
+    Anything that differs in file, CWE, or has a clearly different title is a
+    *distinct* finding and is KEPT. Findings are never merged across files.
+    Findings are processed most-severe-first, so the kept representative is the
+    most severe member and the result is deterministic and idempotent
+    (independent of input order).
+    """
+    # Bucket by (normalised file, normalised cwe) first — these never merge
+    # across each other. Within a bucket, greedily cluster by title similarity.
+    clusters: list[tuple[tuple[str, str], list[AgentFinding]]] = []
+    index_by_bucket: dict[tuple[str, str], list[int]] = {}
+
+    # Process most-severe-first (stable) so each cluster's anchor IS the kept
+    # representative — makes dedup order-independent and idempotent.
+    ordered = sorted(
+        findings,
+        key=lambda f: (_severity_score(f.severity), f.line is not None, bool(f.cwe)),
+        reverse=True,
+    )
+    for finding in ordered:
+        bucket = (_normalise_vuln_path(finding.file), _norm_cwe(finding.cwe))
+        placed = False
+        for cluster_idx in index_by_bucket.get(bucket, []):
+            rep = clusters[cluster_idx][1][0]
+            if _titles_near_identical(rep.title, finding.title, threshold):
+                clusters[cluster_idx][1].append(finding)
+                placed = True
+                break
+        if not placed:
+            clusters.append((bucket, [finding]))
+            index_by_bucket.setdefault(bucket, []).append(len(clusters) - 1)
+
+    out: list[AgentFinding] = []
+    for _bucket, members in clusters:
+        rep = members[0]
+        for other in members[1:]:
+            if _more_severe(other, rep):
+                rep = other
+        out.append(rep)
+    return out
+
+
 def score_vuln_findings(
     findings: list[AgentFinding],
     ground_truth: list[dict[str, Any]],

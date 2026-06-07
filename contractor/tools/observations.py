@@ -40,6 +40,11 @@ FILE_PATHS_STATE_KEY: Final[str] = "file_paths"
 # `files` counts still convey total coverage when the list is truncated).
 _FILE_PATHS_CAP: Final[int] = 25
 
+# Cap on the number of unvisited in-scope file paths projected for the
+# coverage-gap signal (same bounding rationale as ``_FILE_PATHS_CAP``; a
+# truncation marker conveys how many more remain).
+_COVERAGE_GAP_CAP: Final[int] = 25
+
 # Env var carrying a JSON object that overlays the workflow's ``observations:``
 # block — flip A/B arms (or ablate knobs) without editing any config.yaml.
 OBSERVATIONS_ENV_VAR: Final[str] = "CONTRACTOR_EVAL_OBSERVATIONS"
@@ -60,6 +65,10 @@ class ObservationConfig:
             allowlist (e.g. only ``skills_read`` / fs tools).
         include_tool_errors: project per-tool error counts, not just call
             counts (most diagnostic in the malformed path).
+        track_coverage_gap: project the in-scope source files the worker has
+            *not* yet read — ``(in-scope files) - (files read)`` — capped at
+            ``_COVERAGE_GAP_CAP``. A recall/breadth lever: it lets the planner
+            drive the worker toward unvisited files instead of re-reading.
         malformed_only: project observations *only* for malformed/unparseable
             worker results, never for successful ones — the A/B arm that adds
             ground truth exactly where the worker output can't be trusted.
@@ -75,6 +84,7 @@ class ObservationConfig:
     track_skills: bool = True
     track_files: bool = True
     track_file_paths: bool = False
+    track_coverage_gap: bool = False
     track_memories: bool = False
     malformed_only: bool = False
     in_record: bool = True
@@ -142,6 +152,7 @@ class ObservationConfig:
             "track_skills": self.track_skills,
             "track_files": self.track_files,
             "track_file_paths": self.track_file_paths,
+            "track_coverage_gap": self.track_coverage_gap,
             "track_memories": self.track_memories,
             "malformed_only": self.malformed_only,
             "in_record": self.in_record,
@@ -192,6 +203,9 @@ def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
         if len(read) > _FILE_PATHS_CAP:
             out["files_read_paths"].append(f"... (+{len(read) - _FILE_PATHS_CAP} more)")
 
+    if cfg.track_coverage_gap:
+        out["unvisited_in_scope_paths"] = _coverage_gap(state)
+
     if cfg.track_skills:
         out["skills_read"] = list(state.get(SKILLS_READ_STATE_KEY) or [])
 
@@ -199,6 +213,38 @@ def project_usage(state: Any, cfg: ObservationConfig) -> dict[str, Any] | None:
         out["memories_written"] = list(state.get(MEMORIES_WRITTEN_STATE_KEY) or [])
         out["memories_read"] = list(state.get(MEMORIES_READ_STATE_KEY) or [])
 
+    return out
+
+
+def _coverage_gap(state: Any) -> list[str]:
+    """Compute the unvisited in-scope file list from session ``state``.
+
+    ``(in-scope source files) - (files already read)``, sorted and capped at
+    ``_COVERAGE_GAP_CAP`` with a trailing ``... (+N more)`` marker when
+    truncated. Both sets come from the always-on ``file_paths`` state the fs
+    read tools push (``in_scope`` = the worker's full glob scope, ``read`` =
+    paths it opened). Pure and deterministic: empty/missing state -> ``[]``.
+    """
+    fp = state.get(FILE_PATHS_STATE_KEY) or {}
+    in_scope = fp.get("in_scope")
+    if not in_scope:
+        return []
+    def _norm(p: str) -> str:
+        # in_scope paths are absolute (from the fs walk); read paths are recorded
+        # as the agent passed them (often relative, leading slash stripped). Align
+        # both so an already-read file isn't surfaced as unvisited on a mismatch.
+        p = p.strip()
+        if p.startswith("./"):
+            p = p[2:]
+        return p.lstrip("/")
+
+    read = {_norm(p) for p in (fp.get("read") or [])}
+    # Compare on the normalised form (handles relative-vs-absolute read paths)
+    # but keep the original in-scope path in the output.
+    unvisited = sorted(p for p in in_scope if _norm(p) not in read)
+    out = unvisited[:_COVERAGE_GAP_CAP]
+    if len(unvisited) > _COVERAGE_GAP_CAP:
+        out.append(f"... (+{len(unvisited) - _COVERAGE_GAP_CAP} more)")
     return out
 
 

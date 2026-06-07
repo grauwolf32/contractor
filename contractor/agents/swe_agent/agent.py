@@ -37,9 +37,12 @@ def build_swe_agent(
     elide_tool_results: Iterable[str] | None = None,
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
+    capture_in_scope: bool = False,
 ):
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
-    fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
+    fs_tools = ro_file_tools(
+        fs, fmt=FileFormat(_format=_format), capture_in_scope=capture_in_scope
+    )
     ctools = code_tools(fs=fs)
     gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
 
