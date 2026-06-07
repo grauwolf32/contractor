@@ -32,6 +32,7 @@ This module owns:
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -48,6 +49,23 @@ MetricKind = Literal["detection", "verdict", "capture", "diff", "generic"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_ROOT = _REPO_ROOT / "eval_runs"
+
+
+def _compute_run_stamp() -> str:
+    """A per-process run id used to namespace the *archive* of every run so
+    results are never overwritten. ``CONTRACTOR_EVAL_RUN_STAMP`` overrides it
+    (e.g. to label an A/B: ``0607-qw3off``); otherwise ``mmdd-HHMMSS`` (UTC).
+    Computed once at import — one pytest process == one run == one stamp.
+    """
+    env = os.environ.get("CONTRACTOR_EVAL_RUN_STAMP")
+    if env:
+        return "".join(c if c.isalnum() or c in "-_" else "_" for c in env)
+    return datetime.now(UTC).strftime("%m%d-%H%M%S")
+
+
+# Per-run archive namespace (never overwritten). Re-read via the module global
+# so tests can monkeypatch it; production sets it once at import.
+RUN_STAMP = _compute_run_stamp()
 
 
 # ───────────────────────── per-attempt / per-case ─────────────────────────
@@ -375,16 +393,37 @@ def metrics_from_task(metrics: dict[str, Any]) -> dict[str, Any]:
 # ───────────────────────── live trace location ─────────────────────────
 
 
-def case_artifact_dir(unit: str, fixture: str, case_id: str) -> Path:
+def _run_slug(scenario: str, unit: str, fixture: str | None = None) -> str:
+    """``<scenario>-<unit>[-eval-<fixture>]`` — the per-fixture archive folder."""
+    slug = f"{scenario}-{_safe_name(unit)}"
+    if fixture:
+        slug += f"-eval-{_safe_name(fixture)}"
+    return slug
+
+
+def run_archive_dir(
+    scenario: str, unit: str, fixture: str | None = None, *, stamp: str | None = None
+) -> Path:
+    """Dated, never-overwritten archive dir for one run:
+    ``eval_runs/<RUN_STAMP>/<scenario>-<unit>-eval-<fixture>/``.
+
+    ``RUN_STAMP`` is per-process, so every run lands in its own folder and no
+    eval information is ever overwritten (the data-loss fix). The flat
+    ``eval_runs/<unit>/`` path is kept separately as a "latest" pointer.
+    """
+    return EVAL_ROOT / (stamp or RUN_STAMP) / _run_slug(scenario, unit, fixture)
+
+
+def case_artifact_dir(unit: str, fixture: str, case_id: str, *, scenario: str = "agent") -> Path:
     """Directory for a case's *live* on-disk artifact trace, co-located with the
-    eval_sink per-case metrics: ``eval_runs/<unit>/cases/<fixture__case>/artifacts``.
+    eval_sink per-case metrics under the dated archive:
+    ``eval_runs/<RUN_STAMP>/<scenario>-<unit>-eval-<fixture>/cases/<case>/artifacts``.
 
     Pass this as ``artifact_dir`` to ``run_agent`` / ``run_task_pipeline`` so the
     full ADK artifact tree persists during the run (survives a timeout/crash),
     sitting next to the ``metrics.json`` that :class:`EvalSink` writes afterward.
     """
-    return (EVAL_ROOT / _safe_name(unit) / "cases"
-            / _safe_name(f"{fixture}__{case_id}") / "artifacts")
+    return run_archive_dir(scenario, unit, fixture) / "cases" / _safe_name(case_id) / "artifacts"
 
 
 # ───────────────────────── serialization ─────────────────────────
@@ -460,14 +499,14 @@ class EvalSink:
         })
         run["fixtures"].setdefault(fixture, []).append(case)
         run["pass_at"] = max(run["pass_at"], pass_at)
-        # Persist this case immediately (crash-safe): per-case metrics + any
-        # agent artifacts under eval_runs/<unit>/cases/<fixture>__<case>/.
-        self._persist_case(run["run_name"], fixture, case, artifacts)
+        # Persist this case immediately (crash-safe) into the dated, never-
+        # overwritten archive: eval_runs/<RUN_STAMP>/<scenario>-<unit>-eval-<fixture>/cases/<case>/.
+        self._persist_case(scenario, unit, fixture, case, artifacts)
 
     @staticmethod
-    def _persist_case(run_name: str, fixture: str, case: CaseResult,
+    def _persist_case(scenario: str, unit: str, fixture: str, case: CaseResult,
                       artifacts: dict[str, str] | None) -> None:
-        base = EVAL_ROOT / run_name / "cases" / _safe_name(f"{fixture}__{case.id}")
+        base = run_archive_dir(scenario, unit, fixture) / "cases" / _safe_name(case.id)
         base.mkdir(parents=True, exist_ok=True)
         (base / "metrics.json").write_text(
             json.dumps({"fixture": fixture, **case.to_dict()}, indent=2, ensure_ascii=False),
@@ -484,10 +523,22 @@ class EvalSink:
         for run in self._runs.values():
             fixtures = [FixtureResult(slug=s, cases=cs)
                         for s, cs in run["fixtures"].items()]
-            eval_run = EvalRun(
-                scenario=run["scenario"], unit=run["unit"], pass_at=run["pass_at"],
-                metric_kind=run["metric_kind"], model=run["model"],
-                prompt_version=run["prompt_version"], fixtures=fixtures, meta=run["meta"],
-            )
-            paths.append(write_eval_results(eval_run, run["run_name"]))
+
+            def _mk(fxs: list[FixtureResult], _run: dict[str, Any] = run) -> EvalRun:
+                return EvalRun(
+                    scenario=_run["scenario"], unit=_run["unit"], pass_at=_run["pass_at"],
+                    metric_kind=_run["metric_kind"], model=_run["model"],
+                    prompt_version=_run["prompt_version"], fixtures=fxs, meta=_run["meta"],
+                )
+
+            # (1) "latest" pointer — overwritten each run, at the stable
+            #     eval_runs/<unit>/ path that analytics-ui reads (back-compat).
+            paths.append(write_eval_results(_mk(fixtures), run["run_name"]))
+            # (2) dated, per-fixture archive — NEVER overwritten (one folder per
+            #     run via RUN_STAMP), so eval history is never lost.
+            for fx in fixtures:
+                paths.append(write_eval_results(
+                    _mk([fx]),
+                    run_archive_dir(run["scenario"], run["unit"], fx.slug),
+                ))
         return paths

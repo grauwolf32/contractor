@@ -228,13 +228,14 @@ def test_envelope_shape_and_embedded_snapshot():
 def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
     import tests.eval.results as R
     monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
 
     sink = EvalSink()
     sink.record(scenario="task", unit="oas_build", metric_kind="diff",
                 fixture="vulnyapi", case=CaseResult("vulnyapi", True, 1, 1, detail={"f1": 1.0}),
                 model="m", pass_at=2, artifacts={"oas_build/result": "openapi: 3.0.0"})
-    # per-case persistence happens immediately on record()
-    case_dir = tmp_path / "oas_build" / "cases" / "vulnyapi__vulnyapi"
+    # per-case persistence happens immediately on record(), into the dated archive
+    case_dir = tmp_path / "STAMP" / "task-oas_build-eval-vulnyapi" / "cases" / "vulnyapi"
     assert (case_dir / "metrics.json").is_file()
     assert (case_dir / "oas_build_result").read_text() == "openapi: 3.0.0"
     assert json.loads((case_dir / "metrics.json").read_text())["passed"] is True
@@ -242,21 +243,25 @@ def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
                 fixture="petstore", case=CaseResult("petstore", False, 0, 1, detail={"f1": 0.0}))
     sink.record(scenario="agent", unit="swe_edit_agent", metric_kind="generic",
                 fixture="fx", case=CaseResult("fx", True, 1, 1))
-    paths = sink.flush()
-    assert len(paths) == 2   # two (scenario, unit) groups
-    names = sorted(p.parent.name for p in paths)
-    assert names == ["oas_build", "swe_edit_agent"]
+    sink.flush()
+    # "latest" pointers at the flat path (analytics-ui back-compat)
     oas = json.loads((tmp_path / "oas_build" / "eval_results.json").read_text())
     assert oas["scenario"] == "task" and oas["pass_at"] == 2   # max pass_at wins
     assert len(oas["fixtures"]) == 2 and oas["headline"]["pass_rate"] == 0.5
+    assert (tmp_path / "swe_edit_agent" / "eval_results.json").is_file()
+    # dated, per-fixture archives — never overwritten (the data-loss fix)
+    assert (tmp_path / "STAMP" / "task-oas_build-eval-vulnyapi" / "eval_results.json").is_file()
+    assert (tmp_path / "STAMP" / "task-oas_build-eval-petstore" / "eval_results.json").is_file()
+    assert (tmp_path / "STAMP" / "agent-swe_edit_agent-eval-fx" / "eval_results.json").is_file()
 
 
 def test_case_artifact_dir_colocated_with_eval_sink(tmp_path, monkeypatch):
     import tests.eval.results as R
     monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
     from tests.eval.results import case_artifact_dir
     d = case_artifact_dir("trace_agent", "vulnyapi", "c1")
-    assert d == tmp_path / "trace_agent" / "cases" / "vulnyapi__c1" / "artifacts"
+    assert d == tmp_path / "STAMP" / "agent-trace_agent-eval-vulnyapi" / "cases" / "c1" / "artifacts"
 
 
 def test_write_eval_results_roundtrip(tmp_path):

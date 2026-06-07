@@ -150,7 +150,7 @@ async def test_likec4_task(fixture, eval_model: LiteLlm, eval_sink):
         runner_name=f"likec4-{fixture.slug}",
         preloaded_artifacts=precomputed,
         output_dir=run_dir,
-        artifact_dir=case_artifact_dir("likec4_build", fixture.slug, case["id"]),
+        artifact_dir=case_artifact_dir("likec4_build", fixture.slug, case["id"], scenario="task"),
     )
 
     if overlay_fs.exists(DEFAULT_LIKEC4_PATH):

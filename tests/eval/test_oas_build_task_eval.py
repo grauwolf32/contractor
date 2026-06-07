@@ -107,7 +107,7 @@ async def test_oas_build_task(fixture, fixture_fs, eval_model: LiteLlm, eval_sin
         runner_name=f"oas-build-{fixture.slug}",
         preloaded_artifacts=precomputed,
         output_dir=run_dir,
-        artifact_dir=case_artifact_dir("oas_build", fixture.slug, fixture.slug),
+        artifact_dir=case_artifact_dir("oas_build", fixture.slug, fixture.slug, scenario="task"),
     )
 
     result_text = run.artifacts.get(oas_artifact_key, "")
