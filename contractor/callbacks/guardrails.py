@@ -180,6 +180,7 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
             return None
 
         new_parts: list[types.Part] = []
+        modified = False
 
         for part in content.parts:
             fc = part.function_call
@@ -215,10 +216,16 @@ class InvalidToolCallGuardrailCallback(BaseCallback):
 
             new_parts.append(part)
             self.history.append(metadata)
+            modified = True
 
-        content.parts = new_parts
         self.save_to_state(callback_context)
 
+        if not modified:
+            # Nothing was rewritten — return None so downstream
+            # after_model callbacks (e.g. MandatoryToolCallback) still run.
+            return None
+
+        content.parts = new_parts
         return llm_response
 
 
