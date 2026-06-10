@@ -67,7 +67,15 @@ _QUIET_LOGGERS = (
     "opentelemetry",
 )
 
-_UI_STOP_EVENTS = frozenset({"run_finished", "task_failed", "workflow_finished"})
+# Only the single, truly-terminal workflow event stops the live UI. Both
+# ``run_finished`` (per TaskRunner.run(), fired once per finding in multi-run
+# workflows) and ``task_failed`` (per-finding failure that the workflow catches
+# and continues past) happen mid-workflow — stopping on them froze the UI and,
+# because the handler returned early, suppressed every later event from both the
+# live render and the print fallback. ``workflow_finished`` is emitted exactly
+# once in ``Workflow.run()``'s finally block (even on abort), so it is the only
+# safe place to tear the renderer down.
+_UI_STOP_EVENTS = frozenset({"workflow_finished"})
 
 # High-volume / non-user-facing events. Persisted to metrics.jsonl when they
 # match, but never forwarded to the live UI (they would just flood it).
@@ -201,7 +209,13 @@ async def async_main(
         checkpoint_path=checkpoint_path,
     )
 
-    runner = workflow_cls(ctx)
+    try:
+        runner = workflow_cls(ctx)
+    except ValueError as exc:
+        # Some workflows (e.g. ExploitabilityWorkflow without a target URL)
+        # validate their context in __init__. Surface that as a clean CLI
+        # error instead of an uncaught traceback.
+        raise click.UsageError(str(exc)) from exc
     handler = _build_event_handler(output_dir, workflow, enable_ui=enable_ui)
 
     with observability.run_context(

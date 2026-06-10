@@ -18,13 +18,12 @@ class TaskDescription:
     examples: str = ""
 
     def format(self) -> str:
-        return (
-            f"OBJECTIVE:\n{self.objective}\n\nINSTRUCTIONS:\n{self.instructions}\n\n"
-            if self.instructions
-            else f"EXAMPLES:\n{self.examples}\n\n"
-            if self.examples
-            else ""
-        )
+        sections = [f"OBJECTIVE:\n{self.objective}\n\n"]
+        if self.instructions:
+            sections.append(f"INSTRUCTIONS:\n{self.instructions}\n\n")
+        if self.examples:
+            sections.append(f"EXAMPLES:\n{self.examples}\n\n")
+        return "".join(sections)
 
 
 @dataclass
