@@ -467,3 +467,98 @@ def test_filetype_cache_is_invalidated_on_overlay_write(
     # If the cache survived, second would still report the original label;
     # the invalidation hook must drop the entry on write.
     assert second.filetype.label != initial_label
+
+
+# ---------------------------------------------------------------------------
+# glob: path-aware matching over the merged view (regression for the
+# PurePosixPath.match-based implementation, which had no recursive `**`
+# and only ls-ed one level for non-`**` patterns)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def glob_tree(tmp_path: Path) -> Path:
+    (tmp_path / "src" / "deep" / "deeper").mkdir(parents=True)
+    (tmp_path / "a" / "x").mkdir(parents=True)
+    (tmp_path / "a" / "y").mkdir(parents=True)
+    for rel in (
+        "top.py",
+        "src/main.py",
+        "src/deep/mid.py",
+        "src/deep/deeper/mod.py",
+        "a/x/b.py",
+        "a/y/b.py",
+        "a/x/note.txt",
+    ):
+        (tmp_path / rel).write_text("# stub\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture()
+def glob_base_fs(glob_tree: Path) -> RootedLocalFileSystem:
+    return RootedLocalFileSystem(str(glob_tree))
+
+
+@pytest.fixture()
+def glob_overlay_fs(glob_base_fs: RootedLocalFileSystem) -> MemoryOverlayFileSystem:
+    return MemoryOverlayFileSystem(glob_base_fs)
+
+
+def test_glob_recursive_matches_root_level_files(
+    glob_overlay_fs: MemoryOverlayFileSystem,
+):
+    # `**` must match zero directories too, so /top.py is included.
+    matched = glob_overlay_fs.glob("/**/*.py")
+
+    assert "/top.py" in matched
+    assert "/src/main.py" in matched
+    assert "/src/deep/deeper/mod.py" in matched
+    assert "/a/x/note.txt" not in matched
+
+
+def test_glob_recursive_under_subdir(glob_overlay_fs: MemoryOverlayFileSystem):
+    matched = glob_overlay_fs.glob("/src/**/*.py")
+
+    assert matched == ["/src/deep/deeper/mod.py", "/src/deep/mid.py", "/src/main.py"]
+
+
+def test_glob_multi_level_non_recursive_pattern(
+    glob_overlay_fs: MemoryOverlayFileSystem,
+):
+    # `*` stays within one segment but the static prefix is multi-level.
+    assert glob_overlay_fs.glob("a/*/b.py") == ["/a/x/b.py", "/a/y/b.py"]
+
+
+def test_glob_matches_overlay_added_file(glob_overlay_fs: MemoryOverlayFileSystem):
+    glob_overlay_fs.write_text(
+        "/src/deep/added.py", "print('added')\n", encoding="utf-8"
+    )
+
+    assert "/src/deep/added.py" in glob_overlay_fs.glob("/src/**/*.py")
+
+
+def test_glob_excludes_tombstoned_file(glob_overlay_fs: MemoryOverlayFileSystem):
+    glob_overlay_fs.rm("/src/deep/mid.py")
+
+    matched = glob_overlay_fs.glob("/src/**/*.py")
+
+    assert "/src/deep/mid.py" not in matched
+    assert "/src/deep/deeper/mod.py" in matched
+
+
+def test_glob_parity_with_rooted_local_fs_when_overlay_unchanged(
+    glob_base_fs: RootedLocalFileSystem,
+    glob_overlay_fs: MemoryOverlayFileSystem,
+):
+    patterns = [
+        "/**/*.py",
+        "/src/**/*.py",
+        "a/*/b.py",
+        "*.py",
+        "/src/*.py",
+        "**/note.txt",
+        "/missing/**/*.py",
+    ]
+
+    for pattern in patterns:
+        assert glob_overlay_fs.glob(pattern) == glob_base_fs.glob(pattern), pattern
