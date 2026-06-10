@@ -238,6 +238,11 @@ Several workflows diverge from the planner+worker pattern:
 
 ## 4. The streamline planner
 
+> For a focused deep dive on this section — the per-task lifecycle, the
+> planner action-picker loop, the subtask state machine, `execute_current_subtask`
+> internals, and the session-state shape, all with Mermaid diagrams — see
+> [planner.md](planner.md).
+
 The planning agent
 ([contractor/agents/planning_agent/agent.py](../contractor/agents/planning_agent/agent.py))
 is a `LlmAgent` whose tools are the *streamline manager* operations —
