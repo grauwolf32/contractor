@@ -35,8 +35,8 @@ from contractor.tools.tasks.models import (
     NO_REMAINING_SUBTASKS_MSG,
     NO_SUBTASKS_EXIST_MSG,
     SKIP_REASON_MUST_NOT_BE_EMPTY,
-    SUBTASK_DECOMPOSE_EMPTY_LIST,
     SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE,
+    SUBTASK_DECOMPOSE_OVER_CAPACITY,
     SUBTASK_NOT_CURRENT_MSG,
     SUBTASK_REQUIRES_DECOMPOSITION_MSG,
     SUBTASK_REQUIRES_RESOLUTION_MSG,
@@ -53,6 +53,30 @@ logger = logging.getLogger(__name__)
 # Sentinel attribute used by `instrument_worker` to snapshot the original
 # instruction text and stay idempotent across repeated calls.
 _INSTRUCTION_SNAPSHOT_ATTR: Final[str] = "_streamline_original_instruction"
+
+# Per-record cap applied wherever raw worker output is stored or re-fed to an
+# LLM (malformed records, the finish-time summarizer payload). Keeps a single
+# runaway record from blowing the context window.
+_MAX_RECORD_FIELD_LEN: Final[int] = 20_000
+_TRUNCATION_MARKER: Final[str] = "\n… [truncated]"
+
+
+def _truncate_text(text: str, limit: int = _MAX_RECORD_FIELD_LEN) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + _TRUNCATION_MARKER
+
+
+def _truncate_record(record: Any) -> Any:
+    """Cap the string payloads of a single execution record."""
+    if isinstance(record, str):
+        return _truncate_text(record)
+    if isinstance(record, dict):
+        return {
+            key: _truncate_text(value) if isinstance(value, str) else value
+            for key, value in record.items()
+        }
+    return record
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -245,11 +269,14 @@ def task_tools(
     summarizer_tool: AgentTool | None = None
     if use_summarization:
         agent_ref = _get_agent_ref(worker)
+        # Summarization is a pure text-in/text-out step: no tools, so the
+        # summarizer neither wastes context on tool schemas nor wanders off
+        # into tool calls.
         summarizer_agent = LlmAgent(
             name="task_summarizer",
             description="Produces structured summaries of completed task executions.",
             instruction=TASK_RESULT_SUMMARIZATION_INSTRUCTIONS,
-            tools=agent_ref.tools,
+            tools=[],
             model=agent_ref.model,
         )
         summarizer_tool = AgentTool(summarizer_agent)
@@ -405,9 +432,20 @@ def task_tools(
             decomposition.subtasks, tool_context
         )
         if insertion is None:
+            # Given the precondition checks above, the manager only refuses
+            # here when the children would exceed the subtask limit. Report
+            # remaining capacity so the planner can retry with fewer children
+            # instead of being told (wrongly) that the limit is fully spent.
+            remaining = mgr.max_tasks - len(mgr.get_subtasks(tool_context))
+            if remaining >= 1:
+                return {
+                    "error": SUBTASK_DECOMPOSE_OVER_CAPACITY.format(
+                        requested=len(decomposition.subtasks),
+                        max_tasks=max_tasks,
+                        remaining=remaining,
+                    )
+                }
             return {"error": TASK_LIMIT_REACHED_MSG.format(max_tasks=max_tasks)}
-        if len(insertion) == 0:
-            return {"error": SUBTASK_DECOMPOSE_EMPTY_LIST}
         return {"result": fmt.format_subtasks(insertion)}
 
     def skip(task_id: str, reason: str, tool_context: ToolContext) -> dict[str, Any]:
@@ -625,7 +663,9 @@ def task_tools(
             runtime_result = {
                 "task_id": current.task_id,
                 "status": "malformed",
-                "output": str(raw_dump),
+                # Cap the stored raw output — malformed responses can be huge
+                # and the record is re-fed to LLMs via get_records / finish.
+                "output": _truncate_text(str(raw_dump)),
                 "summary": SUBTASK_RESULT_MALFORMED,
             }
             record_usage = usage if (usage is not None and obs.in_record) else None
@@ -736,9 +776,15 @@ def task_tools(
         if use_summarization and summarizer_tool is not None:
             objective_key = StreamlineManager._task_keys(tool_context).objective
             objective = tool_context.state.get(objective_key, "")
+            # Same cap as `get_records`: most-recent `max_records`, each record
+            # truncated, so a long run cannot blow the summarizer's context.
+            records = [
+                _truncate_record(rec)
+                for rec in mgr.get_records(tool_context)[-max_records:]
+            ]
             payload = {
                 "objective": objective,
-                "records": mgr.get_records(tool_context),
+                "records": records,
                 "result": result,
                 "status": status,
             }

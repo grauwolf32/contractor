@@ -111,7 +111,61 @@ def test_summarization_respects_custom_summarization_key():
 def test_summarization_to_state_shape():
     cb = SummarizationLimitCallback(message="m", max_tokens=100)
     state = cb.to_state()
-    assert set(state.keys()) == {"max_tokens", "token_count", "message", "history"}
+    assert set(state.keys()) == {
+        "max_tokens",
+        "token_count",
+        "message",
+        "history",
+        "fired_invocation_id",
+    }
+
+
+def test_summarization_message_injected_once_per_invocation():
+    # Latch: the per-invocation token counter only grows within an invocation,
+    # so once over the limit every subsequent request would re-trigger without
+    # the latch. The message must be appended exactly once per invocation.
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+
+    cb = SummarizationLimitCallback(message="summarize now", max_tokens=1000)
+
+    first = mk_llm_request()
+    cb(ctx, first)
+    assert len(first.contents) == 1
+
+    second = mk_llm_request()
+    cb(ctx, second)
+    assert second.contents == []  # latched — not appended again
+
+    third = mk_llm_request()
+    cb(ctx, third)
+    assert third.contents == []
+
+    state = ctx.state["callbacks"][f"::{cb.name}"]
+    assert len(state["history"]) == 1
+    assert state["fired_invocation_id"] == ctx.invocation_id
+
+
+def test_summarization_latch_rearms_on_new_invocation():
+    cb = SummarizationLimitCallback(message="m", max_tokens=1000)
+
+    ctx1 = mk_callback_context()
+    _seed_token_state(ctx1, total=2000)
+    req1 = mk_llm_request()
+    cb(ctx1, req1)
+    assert len(req1.contents) == 1
+
+    # New invocation (fresh invocation_id): TokenUsageCallback resets its
+    # per-invocation counter then, so the latch must re-arm as well.
+    ctx2 = mk_callback_context()
+    _seed_token_state(ctx2, total=2000)
+    req2 = mk_llm_request()
+    cb(ctx2, req2)
+    assert len(req2.contents) == 1
+
+    state = ctx2.state["callbacks"][f"::{cb.name}"]
+    assert len(state["history"]) == 2
+    assert state["fired_invocation_id"] == ctx2.invocation_id
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +453,72 @@ def test_dedup_plus_budget():
     assert pairs[0][1].parts[0].function_response.response["reason"] == "stale"
     assert pairs[1][1].parts[0].function_response.response == _big_response(80, "b")
     assert pairs[2][1].parts[0].function_response.response == _big_response(80, "c")
+
+
+def test_unmatched_responses_same_tool_are_not_deduped():
+    # Two function_responses for the same tool with NO matching function_call
+    # in the contents (e.g. calls trimmed out upstream). They must each get a
+    # unique sentinel signature and never be elided as duplicates of each
+    # other — eliding them would drop live, non-duplicate context.
+    ctx = mk_callback_context()
+    cb = FunctionResultsRemovalCallback(keep_last_n=99)
+
+    r1 = MockContent(
+        role="tool",
+        parts=[mk_function_response_part(response={"v": 1}, name="stateful_tool")],
+    )
+    r2 = MockContent(
+        role="tool",
+        parts=[mk_function_response_part(response={"v": 2}, name="stateful_tool")],
+    )
+    request = mk_llm_request([r1, r2])
+
+    cb(ctx, request)
+
+    assert r1.parts[0].function_response.response == {"v": 1}
+    assert r2.parts[0].function_response.response == {"v": 2}
+    assert cb.counter == 0
+
+
+def test_unmatched_response_does_not_dedup_against_argless_call():
+    # One properly matched argless call (signature (name, "")) plus one
+    # unmatched response for the same tool: the unmatched one gets a sentinel
+    # signature, so neither elides the other.
+    ctx = mk_callback_context()
+    cb = FunctionResultsRemovalCallback(keep_last_n=99)
+
+    call, matched_resp = _make_call_response_pair("tick", {}, {"v": "matched"})
+    unmatched_resp = MockContent(
+        role="tool",
+        parts=[mk_function_response_part(response={"v": "unmatched"}, name="tick")],
+    )
+    request = mk_llm_request([call, matched_resp, unmatched_resp])
+
+    cb(ctx, request)
+
+    assert matched_resp.parts[0].function_response.response == {"v": "matched"}
+    assert unmatched_resp.parts[0].function_response.response == {"v": "unmatched"}
+    assert cb.counter == 0
+
+
+def test_argless_duplicate_calls_dedup_as_stale():
+    # Pinned semantics (per the class docstring): "same tool called with
+    # identical arguments" includes identical EMPTY arguments, so repeated
+    # matched argless calls dedup — only the most recent response survives.
+    ctx = mk_callback_context()
+    cb = FunctionResultsRemovalCallback(keep_last_n=99)
+
+    c1_call, c1_resp = _make_call_response_pair("tick", {}, {"v": "old"})
+    c2_call, c2_resp = _make_call_response_pair("tick", {}, {"v": "new"})
+    request = mk_llm_request([c1_call, c1_resp, c2_call, c2_resp])
+
+    cb(ctx, request)
+
+    assert c2_resp.parts[0].function_response.response == {"v": "new"}
+    fr_old = c1_resp.parts[0].function_response
+    assert fr_old.response["elided"] is True
+    assert fr_old.response["reason"] == "stale"
+    assert cb.counter == 1
 
 
 def test_to_state_includes_new_fields():

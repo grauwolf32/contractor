@@ -334,6 +334,20 @@ def test_subtask_decomposition_model_requires_at_least_one():
         SubtaskDecomposition.model_validate({"subtasks": []})
 
 
+def test_subtask_decomposition_model_rejects_more_than_three():
+    specs = [{"title": f"t{i}", "description": f"d{i}"} for i in range(4)]
+    with pytest.raises(ValidationError):
+        SubtaskDecomposition.model_validate({"subtasks": specs})
+
+
+def test_task_limit_msg_instructs_resolving_subtasks_before_finish():
+    msg = m.TASK_LIMIT_REACHED_MSG.format(max_tasks=5)
+    # finish(status="done") refuses while 'new' subtasks remain, so the
+    # message must not push the planner into an immediate finish call.
+    assert "immediately" not in msg
+    assert "Execute or skip" in msg
+
+
 # ---------------------------
 # Behavior tests
 # ---------------------------
@@ -820,6 +834,80 @@ async def test_execute_current_subtask_blocks_when_current_is_incomplete(monkeyp
 
 
 @pytest.mark.anyio
+async def test_decompose_over_capacity_suggests_fewer_children(monkeypatch):
+    worker = _mk_worker()
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, max_tasks=3, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    # 2 subtasks exist, limit is 3 → only 1 more fits, but 3 are requested.
+    res = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={
+            "subtasks": [
+                {"title": f"s{i}", "description": f"sd{i}"} for i in range(3)
+            ]
+        },
+        tool_context=ctx,
+    )
+    assert res["error"] == m.SUBTASK_DECOMPOSE_OVER_CAPACITY.format(
+        requested=3, max_tasks=3, remaining=1
+    )
+
+    # A single child still fits.
+    res_ok = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={"subtasks": [{"title": "s", "description": "sd"}]},
+        tool_context=ctx,
+    )
+    assert "error" not in res_ok
+
+
+@pytest.mark.anyio
+async def test_decompose_at_full_limit_returns_limit_reached(monkeypatch):
+    worker = _mk_worker()
+
+    async def _incomplete(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="incomplete",
+            output="blocked",
+            summary="need more steps",
+        )
+
+    worker.run_async.side_effect = _incomplete
+
+    tool = _mk_tools(monkeypatch, worker=worker, max_tasks=2, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    # Limit fully spent → no number of children would fit.
+    res = tool["decompose_subtask"](
+        task_id="0",
+        decomposition={"subtasks": [{"title": "s", "description": "sd"}]},
+        tool_context=ctx,
+    )
+    assert res["error"] == m.TASK_LIMIT_REACHED_MSG.format(max_tasks=2)
+
+
+@pytest.mark.anyio
 async def test_decompose_subtask_rejects_string_input(monkeypatch):
     worker = _mk_worker()
     tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
@@ -1041,3 +1129,103 @@ async def test_finish_done_succeeds_after_all_tasks_resolved(monkeypatch):
     assert ctx._invocation_context.end_invocation is True
     assert ctx.state["task::0::status"] == "done"
     assert ctx.state["task::0::result"] == "completed successfully"
+
+
+# ---------------------------
+# Summarizer construction + record truncation
+# ---------------------------
+
+
+@pytest.mark.anyio
+async def test_finish_summarizer_has_no_tools_and_caps_records(monkeypatch):
+    from contractor.tools.tasks import tools as _tools_mod
+
+    captured: dict = {}
+
+    class StubLlmAgent:
+        def __init__(self, **kwargs):
+            captured["agent_kwargs"] = kwargs
+
+        async def run_async(self, *, args, tool_context):
+            captured["request"] = args["request"]
+            return "summary-text"
+
+    worker = _mk_worker()
+    worker.tools = [lambda: None]  # the summarizer must NOT inherit these
+
+    monkeypatch.setattr(_tools_mod, "LlmAgent", StubLlmAgent)
+    monkeypatch.setattr(_tools_mod, "_get_agent_ref", lambda w: worker)
+
+    async def _done(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output="ok",
+            summary="ok",
+        )
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(
+        monkeypatch, worker=worker, use_skip=False, use_summarization=True
+    )
+    ctx = _attach_invocation_context(mk_tool_context())
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    # Seed the records pool well past max_records (default 20), including one
+    # oversized record that must be truncated for the summarizer payload.
+    pool_key = m.StreamlineManager._task_keys(ctx).pool
+    giant = "z" * (_tools_mod._MAX_RECORD_FIELD_LEN + 5_000)
+    ctx.state[pool_key] = ctx.state[pool_key] + [f"rec-{i}" for i in range(30)] + [
+        {"task_id": "x", "status": "done", "output": giant, "summary": "big"}
+    ]
+
+    res = await tool["finish"](
+        status="done",
+        result="completed successfully",
+        tool_context=ctx,
+    )
+    assert res["result"] == "ok"
+
+    # The summarizer agent was built with an empty toolset.
+    assert captured["agent_kwargs"]["tools"] == []
+
+    payload = json.loads(captured["request"])
+    # Only the most recent max_records (20) records are passed on.
+    assert len(payload["records"]) == 20
+    # The oversized record's output field was truncated with a marker.
+    big_rec = payload["records"][-1]
+    assert big_rec["output"].endswith(_tools_mod._TRUNCATION_MARKER)
+    assert len(big_rec["output"]) <= _tools_mod._MAX_RECORD_FIELD_LEN + len(
+        _tools_mod._TRUNCATION_MARKER
+    )
+    # The summarizer output landed in the task summary slot.
+    assert ctx.state["task::0::summary"] == "summary-text"
+
+
+@pytest.mark.anyio
+async def test_execute_malformed_raw_output_is_truncated_in_record(monkeypatch):
+    from contractor.tools.tasks import tools as _tools_mod
+
+    worker = _mk_worker()
+    giant = "not-parseable " + "z" * (_tools_mod._MAX_RECORD_FIELD_LEN + 5_000)
+
+    async def _bad(*, args, tool_context):
+        return giant
+
+    worker.run_async.side_effect = _bad
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    exec_res = await tool["execute_current_subtask"](tool_context=ctx)
+
+    rec = exec_res["record"]
+    assert rec["status"] == "malformed"
+    assert rec["output"].endswith(_tools_mod._TRUNCATION_MARKER)
+    assert len(rec["output"]) <= _tools_mod._MAX_RECORD_FIELD_LEN + len(
+        _tools_mod._TRUNCATION_MARKER
+    )
