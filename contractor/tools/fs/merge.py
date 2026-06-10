@@ -36,6 +36,9 @@ def fork_overlay(
     fork = MemoryOverlayFileSystem(base_fs, skip_instance_cache=True)
     if patch and patch.get("patches"):
         fork.load(patch)
+    # Record the tombstones replayed from the patch so merge_overlay_forks can
+    # tell deletes that *predate* the fork from deletes made inside the fork.
+    fork._pre_fork_deleted = frozenset(fork._deleted)  # type: ignore[attr-defined]
     return fork
 
 
@@ -43,6 +46,7 @@ def merge_overlay_forks(
     target: MemoryOverlayFileSystem,
     forks: Sequence[MemoryOverlayFileSystem],
     pre_fork_files: dict[str, bytes],
+    pre_fork_deleted: frozenset[str] | set[str] | None = None,
 ) -> list[str]:
     """Merge writes produced by parallel forks back into *target*.
 
@@ -64,6 +68,13 @@ def merge_overlay_forks(
     pre_fork_files:
         ``dict(target._files)`` captured **before** forking. Used to
         distinguish pre-existing content from new work.
+    pre_fork_deleted:
+        Tombstone paths that already existed at the fork point. Only fork
+        deletes *outside* this set propagate to *target*, so a path the
+        target restored after forking is not re-deleted by a stale fork
+        tombstone. When ``None`` (default), the set is derived per fork from
+        what ``fork_overlay`` recorded; forks created some other way fall
+        back to propagating every tombstone (the historical behaviour).
 
     Returns
     -------
@@ -104,7 +115,10 @@ def merge_overlay_forks(
 
         for fork in forks:
             target._dirs.update(fork._dirs)
-            new_deletes = fork._deleted - set(pre_fork_files)
+            baseline = pre_fork_deleted
+            if baseline is None:
+                baseline = getattr(fork, "_pre_fork_deleted", frozenset())
+            new_deletes = fork._deleted - baseline
             target._deleted.update(new_deletes)
 
     return conflicts

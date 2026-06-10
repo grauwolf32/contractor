@@ -168,3 +168,60 @@ class TestMergeOverlayForks:
         assert conflicts == []
         for i in range(5):
             assert overlay.read_text(f"/src/op{i}.py") == f"# operation {i}\n"
+
+
+# ── delete propagation ───────────────────────────────────────────────
+
+
+class TestMergeDeletePropagation:
+    def test_pre_fork_delete_does_not_repropagate(self, base_fs, overlay):
+        # Delete a base file *before* forking…
+        overlay.rm("/src/a.py")
+        pre = dict(overlay._files)
+        patch = overlay.save()
+        fork = fork_overlay(base_fs, patch)
+
+        # …then restore it in the target while the fork runs.
+        overlay.restore("/src/a.py")
+        assert overlay.exists("/src/a.py")
+
+        conflicts = merge_overlay_forks(overlay, [fork], pre)
+
+        assert conflicts == []
+        # The fork's stale (pre-fork) tombstone must not re-delete the file.
+        assert overlay.exists("/src/a.py")
+
+    def test_delete_made_inside_fork_propagates(self, base_fs, overlay):
+        overlay.rm("/src/a.py")
+        pre = dict(overlay._files)
+        patch = overlay.save()
+        fork = fork_overlay(base_fs, patch)
+
+        fork.rm("/src/b.py")
+
+        conflicts = merge_overlay_forks(overlay, [fork], pre)
+
+        assert conflicts == []
+        assert not overlay.exists("/src/a.py")  # pre-fork delete still in target
+        assert not overlay.exists("/src/b.py")  # fork delete propagated
+
+    def test_explicit_pre_fork_deleted_overrides_fork_state(self, base_fs, overlay):
+        overlay.rm("/src/a.py")
+        pre = dict(overlay._files)
+        pre_deleted = set(overlay._deleted)
+        patch = overlay.save()
+
+        # A fork built without fork_overlay records no parent state, so the
+        # caller-provided baseline is what separates old from new deletes.
+        fork = MemoryOverlayFileSystem(base_fs, skip_instance_cache=True)
+        fork.load(patch)
+        fork.rm("/src/b.py")
+
+        overlay.restore("/src/a.py")
+        conflicts = merge_overlay_forks(
+            overlay, [fork], pre, pre_fork_deleted=pre_deleted
+        )
+
+        assert conflicts == []
+        assert overlay.exists("/src/a.py")
+        assert not overlay.exists("/src/b.py")

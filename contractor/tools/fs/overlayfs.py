@@ -20,6 +20,7 @@ from contractor.tools.fs.overlay_patch import (
     build_overlay_patch,
     sha256_hex,
 )
+from contractor.utils.settings import get_settings
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
@@ -1239,29 +1240,55 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         included; tombstoned (deleted-in-overlay) files are excluded because
         ``walk`` already merges the overlay view.
         """
+        matches, _truncated = self.glob_scanned(path)
+        return matches
+
+    def glob_scanned(
+        self, path: str, max_files: int | None = None
+    ) -> tuple[list[str], bool]:
+        """``glob`` plus a truncation flag.
+
+        The tree walk is hard-bounded at *max_files* scanned files (default:
+        ``Settings.fs_max_files_per_walk``) so a glob over a huge base tree
+        cannot run away. The flag is ``True`` when the ceiling was hit, i.e.
+        the match list may be incomplete.
+        """
         if not path:
-            return []
+            return [], False
 
         pattern = self._norm(path).lstrip("/")
         if not pattern:
-            return []
+            return [], False
 
         # Reject obvious traversal attempts.
         if ".." in pattern.split("/"):
-            return []
+            return [], False
+
+        if max_files is None:
+            max_files = get_settings().fs_max_files_per_walk
 
         regex = glob_to_regex(pattern)
         matches: set[str] = set()
+        scanned = 0
+        truncated = False
 
         for root, _dirs, files in self.walk(self.root_marker):
             rel_root = "" if root == self.root_marker else root.lstrip("/")
 
             for name in files:
+                if scanned >= max_files:
+                    truncated = True
+                    break
+                scanned += 1
+
                 rel_path = f"{rel_root}/{name}" if rel_root else name
                 if regex.match(rel_path):
                     matches.add("/" + rel_path)
 
-        return sorted(matches)
+            if truncated:
+                break
+
+        return sorted(matches), truncated
 
     def du(
         self,

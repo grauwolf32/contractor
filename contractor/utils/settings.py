@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # Default per-read line cap when read_file is called without an explicit
     # `limit`. None disables the line cap (byte cap only).
     fs_max_read_lines: int | None = Field(default=2000)
+    # Hard cap on files scanned by a single fs glob/grep tree walk
+    # (env: FS_MAX_FILES_PER_WALK). When the ceiling is hit the walk stops
+    # early and the tool output carries a truncation notice — mirrors
+    # code_max_files_per_walk for the code-tools walker.
+    fs_max_files_per_walk: int = Field(default=100_000)
     # Cumulative char budget for retained heavy-tool function results in the
     # FunctionResultsRemovalCallback (env: FS_HEAVY_KEEP_BUDGET_CHARS). When > 0,
     # large/stale heavy-tool results are elided once the running total of kept

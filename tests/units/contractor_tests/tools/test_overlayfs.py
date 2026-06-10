@@ -562,3 +562,40 @@ def test_glob_parity_with_rooted_local_fs_when_overlay_unchanged(
 
     for pattern in patterns:
         assert glob_overlay_fs.glob(pattern) == glob_base_fs.glob(pattern), pattern
+
+
+def test_glob_scanned_truncates_when_ceiling_hit(
+    glob_overlay_fs: MemoryOverlayFileSystem,
+):
+    # The fixture tree has 7 files; a ceiling of 2 must stop the walk early.
+    matched, truncated = glob_overlay_fs.glob_scanned("/**/*", max_files=2)
+
+    assert truncated is True
+    assert len(matched) <= 2
+
+
+def test_glob_scanned_no_truncation_under_ceiling(
+    glob_overlay_fs: MemoryOverlayFileSystem,
+):
+    matched, truncated = glob_overlay_fs.glob_scanned("/src/**/*.py", max_files=100)
+
+    assert truncated is False
+    assert matched == ["/src/deep/deeper/mod.py", "/src/deep/mid.py", "/src/main.py"]
+
+
+def test_glob_scanned_default_ceiling_comes_from_settings(
+    glob_overlay_fs: MemoryOverlayFileSystem,
+    monkeypatch,
+):
+    import contractor.tools.fs.overlayfs as overlayfs_module
+    from contractor.utils.settings import Settings
+
+    monkeypatch.setattr(
+        overlayfs_module,
+        "get_settings",
+        lambda: Settings(fs_max_files_per_walk=1),
+    )
+
+    matched, truncated = glob_overlay_fs.glob_scanned("/**/*")
+    assert truncated is True
+    assert len(matched) <= 1
