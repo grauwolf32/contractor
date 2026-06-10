@@ -615,6 +615,96 @@ Concretely:
 > keeps a single mechanism — strategy-by-env — for the whole class of
 > experiments, rather than a branch per idea.
 
+### 9.4 The other three seams (execution / records / scheduler)
+
+`planner_builder` (§9.3) decides *which* root agent, tools, and prompt drive an
+attempt — that covers V1, V2, V7. The remaining variants change what happens
+*inside* the loop, and need three more injectable seams. Each is orthogonal to
+the others and to `planner_builder`, and each **defaults to today's behaviour**,
+so the `streamline` bundle stays byte-identical. A `PlannerStrategy` is the
+composition of all of them:
+
+```mermaid
+flowchart TB
+  STRAT["PlannerStrategy bundle (one registry entry)"]
+  STRAT --> PB["planner_builder + prompt_version + toolset — §9.3"]
+  STRAT --> EP["execution_policy"]
+  STRAT --> RP["records_policy"]
+  STRAT --> SC["scheduler"]
+  PB --> SPAWN["_spawn_planning_agent"]
+  EP --> TT["task_tools → execute_current_subtask"]
+  RP --> GR["task_tools → get_records / save_record"]
+  SC --> MGR["StreamlineManager.get_current_subtask + advance"]
+  SC --> RUN["TaskRunner: parallel exec (V5 only)"]
+```
+
+**Execution policy** — *what `execute_current_subtask` does around the worker
+call.* Today that closure (in `tools/tasks/tools.py`) is hardcoded: a parse-retry
+loop (`n_retries`) ending in either a validated `SubtaskExecutionResult` or the
+malformed fallback (§5). Extract that core behind an injected policy:
+
+```python
+class ExecutionPolicy(Protocol):
+    async def execute(
+        self, *, current: Subtask, worker: AgentTool,
+        fmt: SubtaskFormatter, tool_context: ToolContext, n_retries: int,
+    ) -> SubtaskExecutionResult | None: ...   # None → malformed fallback
+```
+
+| Variant | Policy behaviour |
+| ------- | ---------------- |
+| default | today's parse-retry loop |
+| **V8** re-execute-once | on an `incomplete` result, re-invoke the worker once with the prior output appended to args; surrender `incomplete` only if the second pass also fails |
+| **V4** best-of-N | run the worker N×, then merge / pick before returning one result |
+| **V3** critic (per-subtask) | after a `done` result, run the verifier; downgrade to `incomplete` if it fails |
+
+Injected via `task_tools(..., execution_policy=...)`. The **finish-gate** scope of
+V3 is a *different* hook — it wraps the `finish` closure (verify the final
+`result` before `status=done` is written), not the per-subtask path — so the
+cheapest V3 lands in `finish`, not the execution policy.
+
+**Records policy** — *what the planner and worker see as history.* Today
+`get_records` returns `pool[-max_records:]` and `finish` summarizes the same
+slice once. Extract the view:
+
+```python
+class RecordsPolicy(Protocol):
+    def on_record(self, record: dict) -> None: ...      # optional incremental update
+    def view(self, pool: list, *, max_records: int) -> list | str: ...
+```
+
+| Variant | Policy behaviour |
+| ------- | ---------------- |
+| default | `view = pool[-max_records:]`; `on_record` is a no-op |
+| **V6** rolling summary | `on_record` folds each record into a running compressed summary; `view` returns that summary instead of the raw tail |
+
+Injected via `task_tools(..., records_policy=...)`; `on_record` hooks the
+`StreamlineManager.save_record` call site.
+
+**Scheduler** — *which subtask is current, and whether siblings run in parallel.*
+The deepest seam: today `StreamlineManager.get_current_subtask` returns
+`subtasks[idx]` and the manager advances `idx` linearly. A scheduler abstracts
+selection — and, for parallelism, the runner too:
+
+```python
+class Scheduler(Protocol):
+    def next(self, subtasks: list[Subtask]) -> Subtask | None: ...   # which is current
+```
+
+| Variant | Needs |
+| ------- | ----- |
+| default (linear) | `next` = first unresolved by index |
+| **V5** DAG | a `depends_on` field on `Subtask` / `SubtaskSpec`; `next` = first dep-ready subtask; **plus** runner-level concurrent execution of independent ready subtasks (reuse the `trace_graph_pathpar` fork/merge machinery) |
+
+Unlike the execution and records policies — local refactors of `task_tools`
+closures that ship cheaply — V5 spans the manager *and* the runner and is
+genuinely second-wave. Do the two cheap seams first.
+
+> **Not a policy:** V10 (plan carry-forward, §8.4) is a runner-level toggle in
+> `_build_task_initial_state` — keep the prior attempt's subtask list instead of
+> rebuilding an empty plan — so it rides on the strategy bundle as a plain flag,
+> not one of these three injection points.
+
 ---
 
 ## 10. Running the experiments
