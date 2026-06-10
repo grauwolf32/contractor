@@ -31,6 +31,7 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.findings import load_findings_artifact
 from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
 from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
 
@@ -222,31 +223,9 @@ class TraceVerifyWorkflow(Workflow):
         ``name`` filled in from the key when absent. Empty / missing /
         malformed artifacts return an empty list (the path is then skipped).
         """
-        artifact_key = f"user:vulnerability-reports/{source_namespace}"
-        part = await self.ctx.artifact_service.load_artifact(
+        return await load_findings_artifact(
+            self.ctx.artifact_service,
             app_name=self.ctx.app_name,
             user_id=user_id,
-            filename=artifact_key,
+            filename=f"user:vulnerability-reports/{source_namespace}",
         )
-        if part is None or not part.text:
-            return []
-        try:
-            raw = yaml.safe_load(part.text) or {}
-        except yaml.YAMLError as exc:
-            logger.warning(
-                "could not parse %s as YAML: %s — skipping path",
-                artifact_key,
-                exc,
-            )
-            return []
-        if not isinstance(raw, dict):
-            return []
-
-        findings: list[dict[str, Any]] = []
-        for name, item in raw.items():
-            if not isinstance(item, dict):
-                continue
-            entry = dict(item)
-            entry.setdefault("name", name)
-            findings.append(entry)
-        return findings

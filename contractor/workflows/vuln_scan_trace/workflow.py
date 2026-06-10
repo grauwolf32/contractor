@@ -13,8 +13,6 @@ import logging
 from functools import partial
 from typing import Any
 
-import yaml
-
 from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
 from contractor.runners.artifacts import artifact_key_slug
@@ -22,6 +20,7 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.findings import load_findings_artifact
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -180,31 +179,12 @@ class VulnScanTraceWorkflow(Workflow):
         namespace: str,
     ) -> list[dict[str, Any]]:
         """Load vulnerability reports from the scan phase artifacts."""
-        artifact_key = f"user:vulnerability-reports/{namespace}"
-        part = await self.ctx.artifact_service.load_artifact(
+        findings = await load_findings_artifact(
+            self.ctx.artifact_service,
             app_name=self.ctx.app_name,
             user_id=user_id,
-            filename=artifact_key,
+            filename=f"user:vulnerability-reports/{namespace}",
         )
-        if part is None or not getattr(part, "text", None):
-            return []
-
-        try:
-            raw = yaml.safe_load(part.text or "") or {}
-        except yaml.YAMLError as exc:
-            logger.warning("could not parse scan results: %s", exc)
-            return []
-
-        if not isinstance(raw, dict):
-            return []
-
-        findings: list[dict[str, Any]] = []
-        for name, item in raw.items():
-            if not isinstance(item, dict):
-                continue
-            entry = dict(item)
-            entry.setdefault("name", name)
-            findings.append(entry)
 
         # Sort by severity: critical first
         sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}

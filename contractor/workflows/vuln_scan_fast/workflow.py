@@ -26,6 +26,7 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model, get_settings
 from contractor.workflows import Workflow, WorkflowContext
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.findings import load_findings_artifact
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -172,29 +173,12 @@ class VulnScanFastWorkflow(Workflow):
     async def _load_and_dedup_findings(
         self, *, user_id: str,
     ) -> list[dict[str, Any]]:
-        ctx = self.ctx
-        part = await ctx.artifact_service.load_artifact(
-            app_name=ctx.app_name,
+        findings = await load_findings_artifact(
+            self.ctx.artifact_service,
+            app_name=self.ctx.app_name,
             user_id=user_id,
             filename=VULN_REPORTS_KEY,
         )
-        if part is None or not part.text:
-            return []
-
-        try:
-            raw = yaml.safe_load(part.text) or {}
-        except yaml.YAMLError:
-            return []
-        if not isinstance(raw, dict):
-            return []
-
-        findings: list[dict[str, Any]] = []
-        for name, item in raw.items():
-            if not isinstance(item, dict):
-                continue
-            entry = dict(item)
-            entry.setdefault("name", name)
-            findings.append(entry)
 
         before = len(findings)
         findings = self._dedup(findings)

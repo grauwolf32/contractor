@@ -27,6 +27,7 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model, get_settings
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.findings import load_yaml_dict_artifact
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from contractor.workflows.trace_graph_pathpar.workflow import PATH_NAMESPACE_PREFIX
@@ -264,18 +265,14 @@ class VulnAssessWorkflow(Workflow):
         ctx = self.ctx
         merged: dict[str, Any] = {}
 
-        part = await ctx.artifact_service.load_artifact(
-            app_name=ctx.app_name,
-            user_id=user_id,
-            filename="vulnerability-reports-seed",
+        merged.update(
+            await load_yaml_dict_artifact(
+                ctx.artifact_service,
+                app_name=ctx.app_name,
+                user_id=user_id,
+                filename="vulnerability-reports-seed",
+            )
         )
-        if part and part.text:
-            try:
-                raw = yaml.safe_load(part.text) or {}
-                if isinstance(raw, dict):
-                    merged.update(raw)
-            except yaml.YAMLError:
-                pass
 
         for ns_suffix in ["openapi"]:
             oas_part = await ctx.artifact_service.load_artifact(
@@ -295,18 +292,14 @@ class VulnAssessWorkflow(Workflow):
                 # run in _run_trace_stage) writes vuln reports under — shared constant
                 # so the read/write keys can't drift (audit: HIGH, namespace mismatch).
                 ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{api_path.path_key}"
-                part = await ctx.artifact_service.load_artifact(
-                    app_name=ctx.app_name,
-                    user_id=user_id,
-                    filename=f"user:vulnerability-reports/{ns}",
+                merged.update(
+                    await load_yaml_dict_artifact(
+                        ctx.artifact_service,
+                        app_name=ctx.app_name,
+                        user_id=user_id,
+                        filename=f"user:vulnerability-reports/{ns}",
+                    )
                 )
-                if part and part.text:
-                    try:
-                        reports = yaml.safe_load(part.text) or {}
-                        if isinstance(reports, dict):
-                            merged.update(reports)
-                    except yaml.YAMLError:
-                        continue
 
         if not merged:
             return ""
