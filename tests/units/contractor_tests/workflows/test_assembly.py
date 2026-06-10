@@ -369,6 +369,45 @@ class TestTraceAnnotationWorkflow:
         assert item.skills == ["trace"]
         # No artifacts — the trace template reads from the overlay-FS instead.
         assert item.artifacts == []
+        # Stable per-path publish key — fanned-out paths must not overwrite
+        # each other's result/summary/records artifacts (mirrors trace_verify).
+        assert item.artifact_key == "trace_annotation/openapi/items_id"
+
+    @pytest.mark.asyncio
+    async def test_per_path_artifact_keys_are_distinct(self, monkeypatch):
+        from contractor.workflows.trace_annotation import OpenApiOperation, OpenApiPath
+
+        api_paths = [
+            OpenApiPath(
+                path=path,
+                operations=[
+                    OpenApiOperation(
+                        operation_id=f"op{i}", method="get", path=path, schema={}
+                    )
+                ],
+            )
+            for i, path in enumerate(["/items/{id}", "/items", "/users/{id}"])
+        ]
+
+        workflow = TraceAnnotationWorkflow(_make_context())
+        runners: list = []
+        original_init = TaskRunner.__init__
+
+        def capture_init(self, **kwargs):
+            original_init(self, **kwargs)
+            runners.append(self)
+
+        monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+        monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+
+        for api_path in api_paths:
+            await workflow._run_path_analysis(api_path, user_id="u")
+
+        keys = [runner.queue[0].artifact_key for runner in runners]
+        assert len(keys) == len(api_paths)
+        assert len(set(keys)) == len(keys)
+        for key in keys:
+            assert key.startswith("trace_annotation/openapi/")
 
 
 # ─── TraceAnnotationDirectWorkflow ────────────────────────────────────────────

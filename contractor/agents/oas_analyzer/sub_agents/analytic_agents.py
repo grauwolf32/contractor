@@ -30,7 +30,7 @@ class BotFactory:
         *,
         model: LiteLlm | None = None,
         tools: list[Callable] | None = None,
-        output_schema: BaseModel | None = None,
+        output_schema: type[BaseModel] | None = None,
         output_key: str | None = None,
     ) -> list[LlmAgent]:
         tools = tools or []
@@ -132,7 +132,7 @@ class AnalyticAgent(BaseAgent):
             output_key="oas_analyzer::service_information",
         )[0]
         sub_agents = []
-        for spec in {"appsec", "datasec", "ddos"}:
+        for spec in ("appsec", "datasec", "ddos"):
             sub_agents.extend(BotFactory.build(spec=spec, tools=[save_vulnerability]))
 
         super().__init__(

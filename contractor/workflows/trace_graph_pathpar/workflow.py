@@ -42,7 +42,6 @@ from contractor.workflows.trace_annotation import (
 CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
