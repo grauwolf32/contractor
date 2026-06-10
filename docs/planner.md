@@ -240,6 +240,9 @@ stateDiagram-v2
 The critical invariant: **`incomplete` and `malformed` can never be
 re-executed** — only decomposed or skipped. Re-running a partially-failed
 subtask in place is exactly the loop the streamline design exists to prevent.
+(V8 in §8.2 tests *relaxing* this for `incomplete` only — a single in-place
+retry — on the theory that many `incomplete`s on small models are transient,
+not structural.)
 
 ---
 
@@ -448,16 +451,37 @@ through the same `eval/v1` pass@N harness as the baseline.
 | # | Variant | What changes vs. baseline | Hypothesis (small-model lens) | Metric |
 | - | ------- | ------------------------- | ----------------------------- | ------ |
 | **V0** | **Direct (no planner)** | `AgentRunner`, single worker, no subtask machine (already exists for `trace-direct`) | The decomposition tax isn't worth it on small/medium tasks | f1 + tokens/run — the honest floor |
-| **V1** | **Plan-once** | `decompose_subtask` disabled; the planner must lay out the whole plan upfront, no mid-run re-planning | Reactive decomposition is mostly churn/loops on a small model; upfront planning is cheaper and no worse | malformed/retry count, steps/task, f1 |
+| **V1** | **Plan-once** | `decompose_subtask` removed from the toolset **and** a paired `plan_once` prompt (prompt v5's action table references decomposition throughout — tool and prompt must change together; see §9.3); the planner lays out the whole plan upfront, no mid-run re-planning | Reactive decomposition is mostly churn/loops on a small model; upfront planning is cheaper and no worse | malformed/retry count, steps/task, f1 |
 | **V2** | **ReAct / interleaved** | Drop the explicit subtask list; think→act→observe loop, subtasks emerge | Committing to a plan before the model has seen the code hurts; emergent beats pre-planned | f1, recall, step-budget hit-rate |
 | **V7** | **Proactive complexity-gated decompose** | Planner estimates subtask size *before* executing and splits big ones upfront, rather than waiting for `incomplete` | Catches "too big to finish in one worker pass" before the wasted attempt | first-pass `done` rate, malformed count |
+| **V9** | **Worker-proposed decomposition** | Extend `SubtaskExecutionResult` with an optional `suggested_subtasks`; on `incomplete` the worker (which just read the code) proposes the split, and the planner may adopt, edit, or ignore it | The planner decomposes blind — it never touches domain tools, so it structurally lacks the information for a good split; the worker has it. This is the information-flow fix V7 only approximates. | child first-pass `done` rate vs. baseline decomposition |
 
-### 8.2 Verification variants
+> **V2 attribution caveat.** ReAct changes more than control flow — it dissolves
+> the schema-instrumented planner/worker boundary, the malformed-fallback
+> machinery (§5), *and* the records pool at once. Worth running (it tests the
+> paradigm), but if it wins you won't cleanly know *why* — budget follow-up
+> ablations.
+
+### 8.2 Trust the worker's verdict — three challengers
+
+The baseline commits to a single decision here: **the planner trusts the
+worker's self-reported `status`**. `execute_current_subtask` parses the reply
+and advances on `done`; nothing re-checks whether the deliverable actually
+satisfies the subtask. V3, V4, and V8 are three challengers to that *one*
+decision at three price points — re-ask a judge, ask N workers, or re-ask the
+same worker once. Test them as one axis (trust mechanism), not three unrelated
+variants.
 
 | # | Variant | What changes vs. baseline | Hypothesis | Metric |
 | - | ------- | ------------------------- | ---------- | ------ |
-| **V3** | **Critic-in-the-loop** | After a worker returns `done`, a verifier agent gates accept/redo (lift the existing `trace_verifier_agent` *inside* the loop) | The baseline trusts the worker's self-reported status; a gate catches both over-claiming (precision) and silent misses before `finish` | precision, verdict accuracy, false-`done` rate |
+| **V3** | **Critic gate** | A verifier gates a `done` result, at one of three scopings (cheapest first): (a) **acceptance-line** — verify only that the evidence satisfies the subtask's one `Acceptance:` line; (b) **finish-gate** — one verifier call per task, gating the final result before `finish` succeeds; (c) **per-subtask** — gate every `done`. Reuse `trace_verifier_agent`. | Catches over-claiming (precision) and silent misses. The acceptance-line scope is far easier for a small model than open-ended verification — and you already force an `Acceptance:` line that nothing currently machine-checks. | precision, verdict accuracy, false-`done` rate, cost per scope |
 | **V4** | **Best-of-N worker** | Run the worker N× on the same subtask; planner merges/picks (self-consistency) | The recall lever for hard fixtures (the crApi-workshop BOLA/injection misses) | recall@N, unique-findings union, cost |
+| **V8** | **Re-execute-once on `incomplete`** | Allow exactly one in-place re-execution of an `incomplete` subtask, with the prior record injected as context ("you tried this and got X"); a second `incomplete` falls back to decompose/skip as today. A tiny FSM change (`incomplete → new`, once). | Many `incomplete`s on small models are *stochastic* (sampling noise, a flaky tool call), not structural; forcing decomposition on a transient failure spends budget for nothing. | fraction of re-executions reaching `done` vs. tokens saved over decomposing |
+
+> **V8 relaxes the §4 invariant** for exactly one retry; the loop-prevention
+> rationale still holds at the second failure. A high re-execution success
+> fraction also weakens V7's case — the failures it splits were transient, not
+> too-big.
 
 ### 8.3 Context-passing variants
 
@@ -465,6 +489,19 @@ through the same `eval/v1` pass@N harness as the baseline.
 | - | ------- | ------------------------- | ---------- | ------ |
 | **V5** | **DAG / dependency-scheduled** | Subtasks declare dependencies; the runner topo-schedules and runs independent siblings in parallel (reuses the `trace_graph_pathpar` overlay fork/merge machinery) | Strict sequential execution wastes wallclock when subtasks are independent | wallclock, f1 parity |
 | **V6** | **Rolling-summary context** | Replace the last-20 records pool fed to `get_records` with a continuously-compressed running summary | The records pool bloats context on long plans; continuous compression keeps a small model on-task | f1 on large fixtures, tokens/run |
+
+### 8.4 Retry / resume
+
+The baseline rebuilds an **empty plan every attempt** (§6) — a retry discards
+every `done` subtask and redoes its work.
+
+| # | Variant | What changes vs. baseline | Hypothesis | Metric |
+| - | ------- | ------------------------- | ---------- | ------ |
+| **V10** | **Plan carry-forward across attempts** | `_build_task_initial_state` keeps the previous attempt's subtask list — `done` subtasks preserved, the failing one reset or pre-decomposed — turning *retry* into *resume* | On multi-iteration / multi-attempt tasks this may be the single biggest tokens/run reduction available | tokens/run on multi-attempt tasks, f1 parity |
+
+> Risk: carrying forward a *poisoned* plan. Mitigate by carrying forward only
+> when the previous attempt failed at the `finish` stage (the plan was sound, the
+> output wasn't) rather than mid-plan — or gate it behind its own env flag.
 
 ---
 
@@ -483,31 +520,43 @@ the experiments honest — you're testing a *decision*, not just trying a knob:
 | Decision (today) | Embodied in | Revisited by |
 | ---------------- | ----------- | ------------ |
 | Plan is a flat, ordered list, executed strictly sequentially | `StreamlineManager` idx advance | V2, V5 |
-| Decomposition is **reactive** (only on `incomplete`/`malformed`) and **flat** (insert-after-parent, depth-1 by prompt) | §5.1, prompt Rule 5 | V1, V7 |
-| The planner **trusts the worker's self-reported status** — nobody re-checks the deliverable | `execute_current_subtask` | V3 |
-| One worker pass per subtask | `execute_current_subtask` retry loop is parse-only | V4 |
+| Decomposition is **reactive** (only on `incomplete`/`malformed`) and **flat** (insert-after-parent, depth-1 by prompt) | §5.1, prompt Rule 5 | V1, V7, V9 |
+| The planner **trusts the worker's self-reported `status`** — one pass, no re-check of the deliverable | `execute_current_subtask` | **V3 · V4 · V8** — one decision, three price points (a *trust-mechanism* axis: judge / ask-N / re-ask-once) |
 | Context to the worker = seeded planner state + last-20 records pool | `get_records`, §6 | V6 |
-| Whole-task retry; fresh planner per attempt (empty plan each time) | §2, §6 | (orthogonal — kept) |
+| Whole-task retry rebuilds an **empty plan** each attempt | §2, §6 | V10 |
 
-### 9.2 Recommended first batch
+### 9.2 Recommended sequence
 
-Given the small-model mission and the existing failure data, the highest-signal
-order is **V0 → V1 → V3**, with **V2** as the genuine architectural alternative:
+Two things come *before* any variant; then build cheapest-and-highest-signal
+first.
 
-- **V0 + V1 answer the foundational question** that isn't cleanly answered yet:
-  *does the streamline planner beat no-planner, and does reactive decomposition
-  earn its cost?* Both are nearly free — V0 already exists, V1 is one disabled
-  tool.
-- **V3 (critic)** is the likely biggest *quality* win. The trace-eval failure
-  modes (over-annotation precision loss vs. complete misses) are exactly what a
-  gate before `finish` addresses, and the verifier agent already exists — it's
-  wiring, not new modeling.
-- **V2 (ReAct)** is the only variant that tests whether *committed pre-planning*
-  is the right paradigm at all. If it wins, that reframes the project.
+1. **Seam first** (§9.3) — nothing is A/B-able without it.
+2. **Baseline telemetry next** (§10.1) — several of this doc's hypotheses are
+   checkable from baseline counters *before* a single variant is built. That
+   tells you which variants are even worth building.
+3. **V0 vs V1 as a 2×2 against baseline.** V0-vs-baseline answers "does planning
+   pay at all"; V1-vs-baseline answers "does *reactive* planning pay over
+   upfront." Together they decompose the decomposition tax into its two
+   components. Both cheap — run them together.
+4. **V8 (re-execute-once)** jumps the queue: it's nearly free (one FSM transition
+   + one prompt edit), targets the documented primary failure mode
+   (over-decomposition), and its telemetry is already needed for V1's analysis.
+5. **V3 at the cheapest scope first** — finish-gate or acceptance-line, not
+   per-subtask. One verifier call per task may capture most of the
+   precision/miss win at a fraction of the cost; only escalate scope if it
+   doesn't.
+6. **V9 piggybacks** on whichever decompose-heavy variant survives.
 
-V4/V5/V6 are second-wave — costlier to build and to run. V5 is attractive
-because it reuses the `trace_graph_pathpar` overlay fork/merge machinery rather
-than inventing scheduling.
+**V2 (ReAct)** stays the architectural wildcard — run it to test the paradigm,
+but read it with the attribution caveat in §8.1. **V4 / V5 / V6 / V10** are
+second-wave (costlier to build and run). V5 is attractive because it reuses the
+`trace_graph_pathpar` overlay fork/merge machinery rather than inventing
+scheduling.
+
+> V3, V4, and V8 all challenge the same committed decision (§9.1) at different
+> prices. Run them as a single *trust-mechanism* axis in the eval matrix, not as
+> three unrelated experiments — the comparison you want is across price points
+> for the same win.
 
 ### 9.3 The enabling seam (build this first, once)
 
@@ -516,6 +565,13 @@ swappable the way the **worker** already is. Today the worker is a
 `worker_builder` partial on `TaskInvocation`, but the **planner is hardwired** —
 `_spawn_planning_agent` imports and calls `build_planning_agent` directly. The
 seam is symmetric to the worker one:
+
+**The contract a strategy must honour is small.** Per §6, the runner reads only
+the fixed keys `task::{id}::status/result/summary/pool` and stops when the agent
+sets `end_invocation`. So *any* planner strategy — even one with no
+`StreamlineManager` at all (V2) — drives the runner, retry loop, artifact
+publishing, and eval harness unchanged, **as long as it writes those keys and
+ends the invocation**. That is the entire interface of `planner_builder`.
 
 ```mermaid
 flowchart LR
@@ -537,11 +593,19 @@ Concretely:
 1. **Add a `planner_builder` partial to `TaskInvocation`** (mirror
    `worker_builder`), defaulting to today's `build_planning_agent`.
    `_spawn_planning_agent` calls it instead of importing `build_planning_agent`.
-2. **Register strategies and route by env** — `CONTRACTOR_PLANNER_STRATEGY=streamline|plan_once|react|critic|…`,
+2. **Make each registry entry a bundle `(builder, prompt_version, toolset)`, not
+   a bare builder.** Prompts travel with strategies: prompt v5's action table
+   references decomposition throughout, so V1 ("plan-once") is *not* just
+   `decompose_subtask` removed — drop the tool while keeping v5 and you get a
+   planner that calls a tool that no longer exists, and the A/B confounds a
+   prompt mismatch with the strategy. Parameterize the planner's prompt version
+   (today `build_planning_agent` hardcodes `load_prompt("planning_agent")` at
+   import) so the paired prompt ships with the strategy.
+3. **Route by env** — `CONTRACTOR_PLANNER_STRATEGY=streamline|plan_once|react|critic|…`,
    exactly the pattern already used for `CONTRACTOR_TASK_VERSION_<NAME>` and
    prompt versions. A sweep becomes one env var; results land in the same
    `eval/v1` envelope, and the strategy becomes an axis in the experiment matrix.
-3. **Keep the promotion discipline.** Production stays on `streamline` until an
+4. **Keep the promotion discipline.** Production stays on `streamline` until an
    eval promotes a challenger — same rule as prompt-version naming: register the
    variant, leave the default active until the numbers say otherwise. Don't
    overfit a variant to a fixture's quirks (general planner behaviour only, not
@@ -553,7 +617,35 @@ Concretely:
 
 ---
 
-## 10. Where to look next
+## 10. Running the experiments
+
+Two things to do before any variant runs — both cheap, and both change what you
+can *conclude*, not just what you can score.
+
+### 10.1 Instrument the baseline first
+
+Add per-run counters before building anything: **decompose count**, **skip-reason
+histogram**, **malformed rate**, and **transient-failure proxies** — e.g. how
+often a decomposed parent's *single* child succeeds immediately (a strong signal
+the parent's failure was transient, not structural, which pre-supports V8).
+Without these you can *score* a variant but not *diagnose* it. And several of
+this doc's hypotheses ("reactive decomposition is mostly churn") are checkable
+from baseline telemetry **before V1 is built at all** — free signal that tells
+you which variants are even worth the work.
+
+### 10.2 Budget for variance
+
+Small models at 27–80b are high-variance; pass@N with too few seeds will happily
+promote noise. **Pre-register N and the promotion threshold**: a challenger must
+beat baseline f1 by a margin that *exceeds the baseline's own seed-to-seed
+spread*. This matters more here than in a typical eval because several variants
+(V1, V8, V10) are expected to deliver **cost wins at f1 parity** — and "parity"
+is meaningless without a defined tolerance. Measure the baseline's spread first
+(it's the same run as §10.1), then set the bar.
+
+---
+
+## 11. Where to look next
 
 | Topic | File |
 | ----- | ---- |
