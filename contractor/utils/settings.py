@@ -17,15 +17,30 @@ from google.adk.models.lite_llm import LiteLlm
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The documented config file is `cli/.env`. A bare `load_dotenv()` walks up
+# from *this* module (contractor/utils/ → repo root) and never descends into
+# cli/, so non-CLI entrypoints (tests, scripts) used to miss it — only the CLI
+# worked because cli/main.py loads it first. Anchor it explicitly; the bare
+# call stays as a CWD-relative fallback. Neither overrides already-set env
+# vars, so CLI behaviour is unchanged.
+_CLI_ENV_FILE = Path(__file__).resolve().parents[2] / "cli" / ".env"
+
+if _CLI_ENV_FILE.is_file():
+    load_dotenv(_CLI_ENV_FILE)
 load_dotenv()
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Later entries take precedence: a CWD-local .env can override the
+        # anchored cli/.env; actual env vars override both.
+        env_file=(_CLI_ENV_FILE, ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        # Aliased fields (e.g. target_url ← CONTRACTOR_TARGET_URL) stay
+        # constructible by field name too (tests, programmatic overrides).
+        populate_by_name=True,
     )
 
     # ── LLM (LiteLLM proxy) ──────────────────────────────────────────────
@@ -85,6 +100,13 @@ class Settings(BaseSettings):
     langfuse_host: str | None = Field(default=None)
     langfuse_public_key: str | None = Field(default=None)
     langfuse_secret_key: str | None = Field(default=None)
+
+    # ── Live target (exploitability / vuln workflows) ────────────────────
+    # Base URL of the running target app probed by the exploit stage, and an
+    # optional outbound HTTP proxy for the agent's requests. Aliased so the
+    # historical CONTRACTOR_-prefixed env vars keep working.
+    target_url: str | None = Field(default=None, alias="CONTRACTOR_TARGET_URL")
+    proxy: str | None = Field(default=None, alias="CONTRACTOR_PROXY")
 
     # ── Caido proxy ─────────────────────────────────────────────────────
     caido_url: str | None = Field(default=None)

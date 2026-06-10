@@ -195,6 +195,32 @@ class TestOasBuildingWorkflow:
         assert "dependency_information" not in _template_keys(queue)
         # Downstream tasks still queued — they will read the existing artifact.
         assert "oas_update" in _template_keys(queue)
+        # Refs stay name-based even when the upstream task is skipped, so a
+        # --resume checkpoint written by a full run still matches (regression:
+        # positional default refs shifted when a task was conditionally added).
+        assert _refs(queue) == {"project_information", "oas_update", "oas_validate"}
+
+    @pytest.mark.asyncio
+    async def test_refs_are_stable_template_names(self, monkeypatch):
+        workflow = OasBuildingWorkflow(_make_context())
+        queue = await _capture_queue(workflow, monkeypatch=monkeypatch)
+        assert _refs(queue) == {
+            "dependency_information",
+            "project_information",
+            "oas_update",
+            "oas_validate",
+        }
+
+    @pytest.mark.asyncio
+    async def test_runner_name_is_ctx_app_name(self, monkeypatch):
+        # Regression: the runner used `name="oas_builder"` while the skip
+        # checks and CLI export use ctx.app_name — it only worked because
+        # FileArtifactService ignores app_name in its storage layout.
+        captured = _patch_task_runners(monkeypatch)
+        ctx = _make_context()
+        workflow = OasBuildingWorkflow(ctx)
+        await workflow._run_impl(user_id="u", on_event=None)
+        assert [r.name for r in captured] == [ctx.app_name]
 
 
 # ─── OasEnrichmentWorkflow ────────────────────────────────────────────────────
@@ -220,6 +246,14 @@ class TestOasEnrichmentWorkflow:
         produced = _template_keys(queue) | external_inputs
         for artifact_ref in _all_artifact_refs(queue):
             assert _producing_task_key(artifact_ref) in produced
+
+    @pytest.mark.asyncio
+    async def test_runner_name_is_ctx_app_name(self, monkeypatch):
+        captured = _patch_task_runners(monkeypatch)
+        ctx = _make_context()
+        workflow = OasEnrichmentWorkflow(ctx)
+        await workflow._run_impl(user_id="u", on_event=None)
+        assert [r.name for r in captured] == [ctx.app_name]
 
 
 # ─── LikeC4BuildingWorkflow ───────────────────────────────────────────────────
@@ -248,6 +282,25 @@ class TestLikeC4BuildingWorkflow:
             "likec4_build",
             "likec4_validate",
         }
+        # Stable name-based refs (not positional) so --resume checkpoints
+        # survive the conditional skip of the discovery tasks.
+        assert _refs(queue) == {
+            "dependency_information",
+            "project_information",
+            "likec4_build",
+            "likec4_validate",
+        }
+
+    @pytest.mark.asyncio
+    async def test_runner_name_is_ctx_app_name(self, monkeypatch):
+        monkeypatch.setattr(
+            LikeC4BuildingWorkflow, "_seed_overlay_from_artifact", AsyncMock()
+        )
+        captured = _patch_task_runners(monkeypatch)
+        ctx = _make_context()
+        workflow = LikeC4BuildingWorkflow(ctx)
+        await workflow._run_impl(user_id="u", on_event=None)
+        assert [r.name for r in captured] == [ctx.app_name]
 
     @pytest.mark.asyncio
     async def test_artifact_references_resolve(self, monkeypatch):
@@ -677,6 +730,44 @@ class TestVulnScanFastWorkflow:
         h_py = next(f for f in deduped if f["place"] == "h.py")
         assert h_py["confidence"] == "high"
 
+    def test_dedup_survives_trailing_cwe_marker(self):
+        # Regression: `details` ending exactly in "CWE-" crashed the old
+        # `.split("CWE-")[1].split()[0]` extraction with IndexError.
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
+
+        findings = [
+            {"name": "a", "place": "h.py", "details": "see CWE-", "confidence": "low"},
+        ]
+        deduped = VulnScanFastWorkflow._dedup(findings)
+        assert [f["name"] for f in deduped] == ["a"]
+
+    def test_dedup_survives_null_and_nonstring_fields(self):
+        # Regression: explicit-null YAML fields (`details:` / `place:`) load
+        # as None and crashed with TypeError/AttributeError; non-string
+        # scalars are coerced.
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
+
+        findings = [
+            {"name": "a", "place": None, "details": None, "confidence": "high"},
+            {"name": "b", "place": "x.py", "details": 42},
+            {"name": "c"},  # fields absent entirely
+        ]
+        deduped = VulnScanFastWorkflow._dedup(findings)
+        # a and c share the ("", "") bucket; the higher-confidence a wins.
+        assert {f["name"] for f in deduped} == {"a", "b"}
+
+    def test_dedup_extracts_cwe_through_punctuation(self):
+        # "CWE-89:" and "CWE-89 " must land in the same bucket (the old
+        # whitespace split kept the colon, splitting the bucket in two).
+        from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
+
+        findings = [
+            {"name": "a", "place": "y.py", "details": "CWE-89: SQLi", "confidence": "low"},
+            {"name": "b", "place": "y.py", "details": "blah CWE-89 again", "confidence": "high"},
+        ]
+        deduped = VulnScanFastWorkflow._dedup(findings)
+        assert [f["name"] for f in deduped] == ["b"]
+
     @pytest.mark.asyncio
     async def test_discovery_assembles_two_tasks(self, monkeypatch):
         from contractor.workflows.vuln_scan_fast import VulnScanFastWorkflow
@@ -685,7 +776,14 @@ class TestVulnScanFastWorkflow:
         workflow = VulnScanFastWorkflow(_make_context())
         await workflow._run_discovery(user_id="u", on_event=None)
 
-        assert _template_keys(_flat_queue(captured)) == {
+        queue = _flat_queue(captured)
+        assert _template_keys(queue) == {
+            "dependency_information",
+            "project_information",
+        }
+        # Stable name-based refs (not positional) so --resume checkpoints
+        # survive the conditional skip of either discovery task.
+        assert _refs(queue) == {
             "dependency_information",
             "project_information",
         }
@@ -707,19 +805,53 @@ class TestVulnScanFastWorkflow:
 # ─── ExploitabilityWorkflow ─────────────────────────────────────────────────────
 
 
+def _patch_settings(monkeypatch, **overrides):
+    """Route a workflow module's ``get_settings`` to a hermetic ``Settings``.
+
+    ``_env_file=None`` keeps the developer's real ``cli/.env`` out of unit
+    tests; ``overrides`` are plain field-name kwargs (populate_by_name=True).
+    """
+    from contractor.utils.settings import Settings
+    from contractor.workflows.exploitability import workflow as exploit_wf
+    from contractor.workflows.vuln_assess import workflow as vuln_assess_wf
+    from contractor.workflows.vuln_scan_fast import workflow as vuln_scan_fast_wf
+
+    # Pin Caido off unless a test opts in — the anchored cli/.env (or the
+    # developer's env) may configure a live proxy, and unit tests must not
+    # reach for it.
+    overrides.setdefault("caido_url", None)
+    overrides.setdefault("caido_auth_token", None)
+    settings = Settings(_env_file=None, **overrides)
+    for module in (exploit_wf, vuln_assess_wf, vuln_scan_fast_wf):
+        monkeypatch.setattr(module, "get_settings", lambda: settings)
+    return settings
+
+
 class TestExploitabilityWorkflow:
     def test_requires_target_url(self, monkeypatch):
         from contractor.workflows.exploitability import ExploitabilityWorkflow
 
-        monkeypatch.delenv("CONTRACTOR_TARGET_URL", raising=False)
+        _patch_settings(monkeypatch, target_url=None)
         with pytest.raises(ValueError, match="CONTRACTOR_TARGET_URL"):
             ExploitabilityWorkflow(_make_context())
+
+    def test_target_url_and_proxy_come_from_settings(self, monkeypatch):
+        from contractor.workflows.exploitability import ExploitabilityWorkflow
+
+        _patch_settings(
+            monkeypatch,
+            target_url="http://localhost:5002",
+            proxy="http://127.0.0.1:8888",
+        )
+        workflow = ExploitabilityWorkflow(_make_context())
+        assert workflow.target_base_url == "http://localhost:5002"
+        assert workflow.proxy == "http://127.0.0.1:8888"
 
     @pytest.mark.asyncio
     async def test_assess_finding_assembles_task(self, monkeypatch):
         from contractor.workflows.exploitability import ExploitabilityWorkflow
 
-        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        _patch_settings(monkeypatch, target_url="http://localhost:5002")
         captured = _patch_task_runners(monkeypatch)
         workflow = ExploitabilityWorkflow(_make_context())
         await workflow._assess_finding(
@@ -743,7 +875,7 @@ class TestExploitabilityWorkflow:
     async def test_assess_finding_skips_unnamed(self, monkeypatch):
         from contractor.workflows.exploitability import ExploitabilityWorkflow
 
-        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        _patch_settings(monkeypatch, target_url="http://localhost:5002")
         captured = _patch_task_runners(monkeypatch)
         workflow = ExploitabilityWorkflow(_make_context())
         await workflow._assess_finding(finding={"name": ""}, user_id="u", on_event=None)
@@ -753,7 +885,7 @@ class TestExploitabilityWorkflow:
     async def test_load_findings_parses_seed(self, monkeypatch):
         from contractor.workflows.exploitability import ExploitabilityWorkflow
 
-        monkeypatch.setenv("CONTRACTOR_TARGET_URL", "http://localhost:5002")
+        _patch_settings(monkeypatch, target_url="http://localhost:5002")
         ctx = _make_context()
         ctx.artifact_service.load_artifact = AsyncMock(
             return_value=MagicMock(
@@ -778,7 +910,16 @@ class TestVulnAssessWorkflow:
         workflow = VulnAssessWorkflow(_make_context())
         await workflow._run_oas_stage(user_id="u", on_event=None)
 
-        assert _template_keys(_flat_queue(captured)) == {
+        queue = _flat_queue(captured)
+        assert _template_keys(queue) == {
+            "dependency_information",
+            "project_information",
+            "oas_update",
+            "oas_validate",
+        }
+        # Stable name-based refs (not positional) so --resume checkpoints
+        # survive the conditional skip of the discovery tasks.
+        assert _refs(queue) == {
             "dependency_information",
             "project_information",
             "oas_update",
@@ -821,3 +962,78 @@ class TestVulnAssessWorkflow:
 
         # Whole OAS stage short-circuits — no tasks queued.
         assert _flat_queue(captured) == []
+
+
+# ─── TraceGraphPathParWorkflow ──────────────────────────────────────────────────
+
+
+class TestTraceGraphPathParWorkflow:
+    """Regression: a single failed path makes ``asyncio.TaskGroup`` cancel
+    its siblings and re-raise, which used to skip the overlay merge + save
+    entirely — losing every already-completed path's annotations."""
+
+    _OAS_YAML = yaml.safe_dump(
+        {
+            "openapi": "3.0.0",
+            "paths": {
+                "/a": {"get": {"operationId": "getA"}},
+                "/b": {"get": {"operationId": "getB"}},
+            },
+        }
+    )
+
+    def _make_workflow(self, monkeypatch):
+        from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
+        from contractor.workflows.trace_graph_pathpar import workflow as wf_module
+
+        ctx = _make_context()
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == "oas-openapi-building":
+                return MagicMock(text=self._OAS_YAML, inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+
+        # Graph tools need a host-disk root — irrelevant to this test.
+        monkeypatch.setattr(wf_module, "attach_graph_tools_if_local", lambda fs: [])
+        merge_mock = MagicMock(return_value=[])
+        monkeypatch.setattr(wf_module, "merge_overlay_forks", merge_mock)
+
+        workflow = TraceGraphPathParWorkflow(ctx)
+        save_mock = AsyncMock()
+        monkeypatch.setattr(workflow, "_save_overlay_artifacts", save_mock)
+        return workflow, merge_mock, save_mock
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_still_merges_and_saves(self, monkeypatch):
+        workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
+        completed: list[str] = []
+
+        async def fake_path_analysis(*, api_path, **kwargs):
+            if api_path.path == "/b":
+                raise RuntimeError("boom")
+            completed.append(api_path.path)
+
+        monkeypatch.setattr(workflow, "_run_path_analysis", fake_path_analysis)
+
+        with pytest.raises(ExceptionGroup):
+            await workflow._run_impl(user_id="u", on_event=None)
+
+        # The completed sibling's fork is still merged and persisted.
+        merge_mock.assert_called_once()
+        save_mock.assert_awaited_once_with("u")
+
+    @pytest.mark.asyncio
+    async def test_happy_path_merges_and_saves_exactly_once(self, monkeypatch):
+        workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
+
+        async def fake_path_analysis(*, api_path, **kwargs):
+            return None
+
+        monkeypatch.setattr(workflow, "_run_path_analysis", fake_path_analysis)
+
+        await workflow._run_impl(user_id="u", on_event=None)
+
+        merge_mock.assert_called_once()
+        save_mock.assert_awaited_once_with("u")

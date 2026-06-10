@@ -14,7 +14,7 @@ Steps 1 is skipped when its artifact exists.  Step 5 requires
 from __future__ import annotations
 
 import logging
-import os
+import re
 from functools import partial
 from typing import Any
 
@@ -23,7 +23,7 @@ import yaml
 from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-from contractor.utils.settings import build_model
+from contractor.utils.settings import build_model, get_settings
 from contractor.workflows import Workflow, WorkflowContext
 from contractor.workflows.config import WorkflowConfig
 
@@ -100,6 +100,10 @@ class VulnScanFastWorkflow(Workflow):
         ):
             runner.add_task(
                 name="dependency_information",
+                # Stable explicit refs: the default positional ref
+                # (`{name}:{len(queue)}`) shifts between runs when the sibling
+                # task is conditionally skipped, breaking --resume checkpoints.
+                ref="dependency_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information", model=self.llm,
@@ -112,6 +116,7 @@ class VulnScanFastWorkflow(Workflow):
         ):
             runner.add_task(
                 name="project_information",
+                ref="project_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
@@ -208,10 +213,14 @@ class VulnScanFastWorkflow(Workflow):
         buckets: dict[tuple[str, str], dict[str, Any]] = {}
 
         for f in findings:
+            # Coerce defensively: explicit-null YAML fields (`details:`) come
+            # back as None, and `str()` guards against non-string scalars.
+            place = str(f.get("place") or "")
+            details = str(f.get("details") or "")
+            cwe = re.search(r"CWE-(\d+)", details)
             key = (
-                f.get("place", "").strip("/").lower(),
-                (f.get("details", "").split("CWE-")[1].split()[0]
-                 if "CWE-" in f.get("details", "") else ""),
+                place.strip("/").lower(),
+                cwe.group(1) if cwe else "",
             )
             existing = buckets.get(key)
             if existing is None:
@@ -246,10 +255,11 @@ class VulnScanFastWorkflow(Workflow):
         )
 
         for finding in findings:
-            fname = finding.get("name", "")
-            place = finding.get("place", "")
-            title = finding.get("title", "")
-            details = finding.get("details", "")
+            # `or ""` guards explicit-null YAML fields (None) before slicing.
+            fname = str(finding.get("name") or "")
+            place = str(finding.get("place") or "")
+            title = str(finding.get("title") or "")
+            details = str(finding.get("details") or "")
 
             ns = f"trace-confirm:{fname}"
 
@@ -304,7 +314,7 @@ class VulnScanFastWorkflow(Workflow):
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
     ) -> None:
-        target_url = os.environ.get("CONTRACTOR_TARGET_URL")
+        target_url = get_settings().target_url
         if not target_url:
             logger.warning(
                 "CONTRACTOR_TARGET_URL not set — skipping exploit stage"

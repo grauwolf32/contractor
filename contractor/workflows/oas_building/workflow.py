@@ -20,8 +20,11 @@ class OasBuildingWorkflow(Workflow):
         on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
+        # The runner name doubles as the ADK app_name; keep it equal to
+        # ctx.app_name so artifact_exists() skip-checks and CLI export probe
+        # the same scope the tasks publish under.
         runner = TaskRunner(
-            name="oas_builder",
+            name=ctx.app_name,
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
             observations=CFG.observations,
@@ -61,6 +64,10 @@ class OasBuildingWorkflow(Workflow):
         ):
             runner.add_task(
                 name="dependency_information",
+                # Stable explicit refs: the default positional ref
+                # (`{name}:{len(queue)}`) shifts between runs when an upstream
+                # task is conditionally skipped, breaking --resume checkpoints.
+                ref="dependency_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information",
@@ -74,6 +81,7 @@ class OasBuildingWorkflow(Workflow):
         ):
             runner.add_task(
                 name="project_information",
+                ref="project_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
@@ -85,6 +93,7 @@ class OasBuildingWorkflow(Workflow):
 
         runner.add_task(
             name="oas_update",
+            ref="oas_update",
             worker_builder=oas_builder,
             **CFG.tasks.oas_update.as_kwargs(),
             artifacts=[
@@ -97,6 +106,7 @@ class OasBuildingWorkflow(Workflow):
 
         runner.add_task(
             name="oas_validate",
+            ref="oas_validate",
             worker_builder=oas_linter,
             **CFG.tasks.oas_validate.as_kwargs(),
             artifacts=[

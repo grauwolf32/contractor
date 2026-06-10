@@ -139,19 +139,27 @@ class TraceGraphPathParWorkflow(Workflow):
                     on_event=on_event,
                 )
 
-        async with asyncio.TaskGroup() as tg:
-            for api_path, overlay in zip(self.paths, forks, strict=False):
-                tg.create_task(_run_path(api_path, overlay))
+        # Merge + persist in a `finally` (the trace_annotation `_cleanup`
+        # precedent — done inline here because vuln_assess drives this
+        # workflow via `_run_impl` directly, bypassing `run()`/`_cleanup`):
+        # a single failed path makes the TaskGroup cancel its siblings and
+        # re-raise, and without the `finally` every already-completed path's
+        # annotations were lost. On the happy path this block is the one and
+        # only merge/save, so nothing runs twice.
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for api_path, overlay in zip(self.paths, forks, strict=False):
+                    tg.create_task(_run_path(api_path, overlay))
+        finally:
+            conflicts = merge_overlay_forks(self.overlayfs, forks, pre_fork_files)
+            if conflicts:
+                logger.warning(
+                    "Overlay merge produced %d conflicting files: %s",
+                    len(conflicts),
+                    conflicts,
+                )
 
-        conflicts = merge_overlay_forks(self.overlayfs, forks, pre_fork_files)
-        if conflicts:
-            logger.warning(
-                "Overlay merge produced %d conflicting files: %s",
-                len(conflicts),
-                conflicts,
-            )
-
-        await self._save_overlay_artifacts(user_id)
+            await self._save_overlay_artifacts(user_id)
 
     # ── per-path orchestration (operations sequential) ────────────────
 
