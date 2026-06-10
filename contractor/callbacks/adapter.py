@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .base import BaseCallback, CallbackTypes
+
+if TYPE_CHECKING:
+    from google.adk.agents import LlmAgent
 
 
 class CallbackDependencyException(Exception):
@@ -75,3 +78,42 @@ class CallbackAdapter:
         # ``LlmAgent(**callback_adapter())`` splat type-checks against LlmAgent's
         # individually-typed callback params.
         return {cb_type.value: chain for cb_type, chain in self.chains.items()}
+
+
+def chain_after_model_callback(agent: LlmAgent, callback: BaseCallback) -> None:
+    """Append ``callback`` behind the agent's existing after_model chain.
+
+    ``CallbackChain`` stops at the first truthy return, so registering an
+    enforcement callback inside the worker chain can leave it unreachable
+    (the chain rarely returns ``None`` past a rewriting guardrail). This
+    runs the agent's current ``after_model_callback`` first and invokes
+    ``callback`` only when it returned ``None``.
+    """
+    if callback.cb_type is not CallbackTypes.after_model_callback:
+        raise ValueError(
+            f"Callback {callback.name} is {callback.cb_type}, expected "
+            f"{CallbackTypes.after_model_callback}"
+        )
+
+    adapter = CallbackAdapter(agent_name=agent.name)
+    adapter.register(callback)
+    new_cb = adapter()[CallbackTypes.after_model_callback.value]
+
+    existing = agent.after_model_callback
+    if existing is None:
+        agent.after_model_callback = new_cb
+        return
+
+    def _chained(callback_context, llm_response, _orig=existing, _new=new_cb):  # type: ignore[no-untyped-def]
+        result = _orig(
+            callback_context=callback_context,
+            llm_response=llm_response,
+        )
+        if result is not None:
+            return result
+        return _new(
+            callback_context=callback_context,
+            llm_response=llm_response,
+        )
+
+    agent.after_model_callback = _chained

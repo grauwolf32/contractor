@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, TypeVar
+from typing import Any, Final, Literal, Protocol, TypeVar
 from xml.sax.saxutils import escape as xml_escape
 
 import yaml
@@ -22,6 +22,16 @@ _T = TypeVar("_T")
 # ---------------------------------------------------------------------------
 # Type aliases
 # ---------------------------------------------------------------------------
+
+# Tool-name subsets agents use to wire vuln tooling selectively. The
+# read-only set is the slice of ``vulnerability_report_tools`` that reads
+# upstream findings without authoring new ones; the verdict set is the
+# ``verification_tools`` a verdict-producing agent must eventually call
+# (enforced via ``MandatoryToolCallback``).
+READ_ONLY_VULN_TOOL_NAMES: Final[frozenset[str]] = frozenset(
+    {"get_vulnerability", "list_vulnerabilities"}
+)
+VERDICT_TOOL_NAMES: Final[tuple[str, ...]] = ("submit_verdict", "report_verification")
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Confidence = Literal["low", "medium", "high"]
