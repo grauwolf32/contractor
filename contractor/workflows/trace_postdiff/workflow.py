@@ -42,6 +42,7 @@ from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.namespaces import TRACE_POSTDIFF_NAMESPACE_PREFIX
+from contractor.workflows.path_groups import PathGroup, group_paths_by_prefix
 from contractor.workflows.trace_annotation import (
     OpenApiOperation,
     OpenApiPath,
@@ -137,7 +138,20 @@ class TracePostDiffWorkflow(Workflow):
         openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
-        for api_path in self.paths:
+        # Group by route prefix: the group is the unit of memory namespace,
+        # skill injection, and the analytics stage, so sibling paths share
+        # discovered context instead of re-navigating from scratch.
+        groups = group_paths_by_prefix(
+            self.paths, depth=CFG.budgets.group_depth
+        )
+        logger.info(
+            "trace-postdiff: %d paths in %d route group(s) (group_depth=%d)",
+            len(self.paths),
+            len(groups),
+            CFG.budgets.group_depth,
+        )
+
+        for group in groups:
             fs_state_artifact = await ctx.artifact_service.load_artifact(
                 app_name=ctx.app_name,
                 user_id=user_id,
@@ -146,8 +160,8 @@ class TracePostDiffWorkflow(Workflow):
             if fs_state_artifact:
                 self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
 
-            await self._run_path_analysis(
-                api_path,
+            await self._run_group_analysis(
+                group,
                 user_id=user_id,
                 on_event=on_event,
             )
@@ -183,21 +197,21 @@ class TracePostDiffWorkflow(Workflow):
             if before.get(path) != content
         }
 
-    async def _run_path_analysis(
+    async def _run_group_analysis(
         self,
-        api_path: OpenApiPath,
+        group: PathGroup,
         *,
         user_id: str = "cli-user",
         on_event: TaskRunnerEventHandler | None = None,
     ) -> None:
-        path_namespace = (
-            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
+        group_namespace = (
+            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:{self.namespace}:{group.key}"
         )
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
 
         await inject_skills(
             ["trace"],
-            namespace=path_namespace,
+            namespace=group_namespace,
             artifact_service=self.ctx.artifact_service,
             app_name=self.ctx.app_name,
             user_id=user_id,
@@ -206,29 +220,29 @@ class TracePostDiffWorkflow(Workflow):
         before = dict(self.overlayfs._files)  # noqa: SLF001
 
         # ── Stage A: annotate-only trace, one run per operation ──────────
-        for idx, operation in enumerate(api_path.operations):
+        for idx, operation in enumerate(group.operations):
             await self._run_operation_trace(
                 operation=operation,
                 idx=idx,
-                namespace=path_namespace,
+                namespace=group_namespace,
                 base_variables=base_variables,
                 user_id=user_id,
                 on_event=on_event,
             )
 
-        # ── Stage B: post-diff analytics over this path's annotations ────
+        # ── Stage B: post-diff analytics over this group's annotations ───
         changed = self._changed_since(before)
         if not changed:
             logger.info(
-                "trace-postdiff: no annotations produced for path %r — "
+                "trace-postdiff: no annotations produced for group %r — "
                 "skipping analytics stage",
-                api_path.path,
+                group.key,
             )
             return
 
-        await self._run_path_analytics(
-            api_path,
-            namespace=path_namespace,
+        await self._run_group_analytics(
+            group,
+            namespace=group_namespace,
             changed_files=changed,
             user_id=user_id,
             on_event=on_event,
@@ -285,27 +299,26 @@ class TracePostDiffWorkflow(Workflow):
             event_name=event_name,
         )
 
-    async def _run_path_analytics(
+    async def _run_group_analytics(
         self,
-        api_path: OpenApiPath,
+        group: PathGroup,
         *,
         namespace: str,
         changed_files: set[str],
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
     ) -> None:
-        path_diff = filter_diff_by_files(
+        group_diff = filter_diff_by_files(
             self.overlayfs.diff(context_lines=4), changed_files
         )
-        path_diff = truncate_diff(
-            path_diff, CFG.budgets.analytics_diff_max_chars
+        group_diff = truncate_diff(
+            group_diff, CFG.budgets.analytics_diff_max_chars
         )
 
         target_summary = yaml.safe_dump(
             {
-                api_path.path: {
-                    op.method: op.schema for op in api_path.operations
-                }
+                path.path: {op.method: op.schema for op in path.operations}
+                for path in group.paths
             },
             sort_keys=False,
         )
@@ -314,7 +327,7 @@ class TracePostDiffWorkflow(Workflow):
             template=self._analytics_template,
             variables={
                 "target_summary": target_summary,
-                "trace_diff": path_diff,
+                "trace_diff": group_diff,
             },
             params={},
             artifacts={},
@@ -332,7 +345,7 @@ class TracePostDiffWorkflow(Workflow):
 
         session_id = uuid4().hex
         event_name = (
-            f"trace_postdiff:{self.namespace}:{api_path.path_key}:analytics"
+            f"trace_postdiff:{self.namespace}:{group.key}:analytics"
         )
         await self._runner.run(
             agent=agent,
@@ -340,7 +353,7 @@ class TracePostDiffWorkflow(Workflow):
             user_id=user_id,
             session_id=session_id,
             initial_state={},
-            plugins=self._plugins(event_name, len(api_path.operations), session_id),
+            plugins=self._plugins(event_name, len(group.operations), session_id),
             on_event=on_event,
             event_name=event_name,
         )

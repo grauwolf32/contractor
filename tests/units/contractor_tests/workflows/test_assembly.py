@@ -549,6 +549,68 @@ class TestTraceVerifyWorkflow:
             "trace-postdiff",
         }
 
+    def test_candidate_namespaces_include_route_group_keys(self):
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        workflow = TraceVerifyWorkflow(_make_context())
+        api_path = OpenApiPath(path="/users/{user-id}/orders", operations=[])
+
+        candidates = workflow._candidate_namespaces(api_path)
+        for prefix in TRACE_NAMESPACE_PREFIXES:
+            # Full path key plus depth-1 and depth-2 group keys.
+            assert f"{prefix}:openapi:users_user-id_orders" in candidates
+            assert f"{prefix}:openapi:users" in candidates
+            assert f"{prefix}:openapi:users_user-id" in candidates
+
+    @pytest.mark.asyncio
+    async def test_group_namespace_verified_once_across_sibling_paths(
+        self, monkeypatch
+    ):
+        """A grouped producer (group_depth=1) writes one findings artifact
+        for all sibling paths; verify must queue it once, not once per
+        member path."""
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        ctx = _make_context()
+        findings_yaml = self._make_findings_yaml("bola-users")
+        group_namespace = "trace-postdiff:openapi:users"
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == f"user:vulnerability-reports/{group_namespace}":
+                return MagicMock(text=findings_yaml, inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        workflow = TraceVerifyWorkflow(ctx)
+
+        captured: list = []
+        original_init = TaskRunner.__init__
+
+        def capture_init(self, **kwargs):
+            original_init(self, **kwargs)
+            captured.append(self)
+
+        monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+        monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+
+        sibling_paths = [
+            OpenApiPath(path="/users/{user-id}", operations=[]),
+            OpenApiPath(path="/users/export", operations=[]),
+        ]
+        queued = 0
+        for api_path in sibling_paths:
+            queued += await workflow._verify_path_findings(
+                api_path=api_path,
+                user_id="u",
+                on_event=None,
+            )
+
+        # Both siblings resolve to the same group namespace — one runner,
+        # one queued finding.
+        assert queued == 1
+        assert len(captured) == 1
+        assert captured[0].queue[0].namespace == group_namespace
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("prefix", TRACE_NAMESPACE_PREFIXES)
     async def test_discovers_findings_under_every_known_prefix(
@@ -1051,12 +1113,12 @@ class TestTraceGraphPathParWorkflow:
         workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
         completed: list[str] = []
 
-        async def fake_path_analysis(*, api_path, **kwargs):
-            if api_path.path == "/b":
+        async def fake_group_analysis(*, group, **kwargs):
+            if any(p.path == "/b" for p in group.paths):
                 raise RuntimeError("boom")
-            completed.append(api_path.path)
+            completed.append(group.key)
 
-        monkeypatch.setattr(workflow, "_run_path_analysis", fake_path_analysis)
+        monkeypatch.setattr(workflow, "_run_group_analysis", fake_group_analysis)
 
         with pytest.raises(ExceptionGroup):
             await workflow._run_impl(user_id="u", on_event=None)
@@ -1069,10 +1131,10 @@ class TestTraceGraphPathParWorkflow:
     async def test_happy_path_merges_and_saves_exactly_once(self, monkeypatch):
         workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
 
-        async def fake_path_analysis(*, api_path, **kwargs):
+        async def fake_group_analysis(*, group, **kwargs):
             return None
 
-        monkeypatch.setattr(workflow, "_run_path_analysis", fake_path_analysis)
+        monkeypatch.setattr(workflow, "_run_group_analysis", fake_group_analysis)
 
         await workflow._run_impl(user_id="u", on_event=None)
 

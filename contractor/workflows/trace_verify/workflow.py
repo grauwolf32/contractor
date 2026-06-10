@@ -33,6 +33,7 @@ from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifac
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.findings import load_findings_artifact
 from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
+from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
 
 CFG = WorkflowConfig.load(__file__)
@@ -49,6 +50,10 @@ class TraceVerifyWorkflow(Workflow):
         super().__init__(ctx)
         self.llm = build_model(ctx.model, ctx.timeout)
         self.paths: list[OpenApiPath] = []
+        # Group-keyed namespaces cover several sibling paths; remember the
+        # ones already verified so a group's findings are queued once, not
+        # once per member path.
+        self._processed_namespaces: set[str] = set()
 
     async def _run_impl(
         self,
@@ -91,9 +96,22 @@ class TraceVerifyWorkflow(Workflow):
 
     def _candidate_namespaces(self, api_path: OpenApiPath) -> list[str]:
         """Every namespace a trace producer may have written findings under
-        for ``api_path``, one per known prefix, in probe order."""
+        for ``api_path``, in probe order.
+
+        Producers key findings by ``path_key`` (per-path runs) or by a
+        route-prefix group key (``group_depth >= 1`` in trace-postdiff /
+        pathpar). The producer's depth isn't knowable here, so depth-1 and
+        depth-2 group keys are probed alongside the path key — each probe
+        is just an artifact lookup, so extra candidates are cheap.
+        """
+        keys = [api_path.path_key]
+        for depth in (1, 2):
+            group_key = group_key_for_path(api_path.path, depth)
+            if group_key not in keys:
+                keys.append(group_key)
         return [
-            f"{prefix}:{self.namespace}:{api_path.path_key}"
+            f"{prefix}:{self.namespace}:{key}"
+            for key in keys
             for prefix in TRACE_NAMESPACE_PREFIXES
         ]
 
@@ -107,6 +125,8 @@ class TraceVerifyWorkflow(Workflow):
         ``(source_namespace, findings)`` pairs for the non-empty ones."""
         discovered: list[tuple[str, list[dict[str, Any]]]] = []
         for source_namespace in self._candidate_namespaces(api_path):
+            if source_namespace in self._processed_namespaces:
+                continue
             findings = await self._load_findings(
                 user_id=user_id, source_namespace=source_namespace
             )
@@ -137,6 +157,7 @@ class TraceVerifyWorkflow(Workflow):
 
         total = 0
         for source_namespace, findings in discovered:
+            self._processed_namespaces.add(source_namespace)
             total += len(findings)
             await self._verify_namespace_findings(
                 api_path=api_path,

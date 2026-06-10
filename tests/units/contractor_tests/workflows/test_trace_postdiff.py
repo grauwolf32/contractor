@@ -38,14 +38,14 @@ OPENAPI_DOC = {
 }
 
 
-def _make_context(tmp_path: Path) -> WorkflowContext:
+def _make_context(tmp_path: Path, doc: dict = OPENAPI_DOC) -> WorkflowContext:
     (tmp_path / "app.py").write_text("def handler():\n    pass\n")
 
     artifact_service = MagicMock(spec=BaseArtifactService)
 
     async def load_artifact(*, app_name, user_id, filename):
         if filename == "oas-openapi-building":
-            return types.Part.from_text(text=yaml.safe_dump(OPENAPI_DOC))
+            return types.Part.from_text(text=yaml.safe_dump(doc))
         return None
 
     artifact_service.load_artifact = AsyncMock(side_effect=load_artifact)
@@ -132,7 +132,9 @@ class TestSurfaces:
 
 @pytest.mark.asyncio
 class TestTwoStageRun:
-    async def _run(self, tmp_path, monkeypatch, *, annotate: bool):
+    async def _run(
+        self, tmp_path, monkeypatch, *, annotate: bool, doc: dict = OPENAPI_DOC
+    ):
         """Run the workflow with both agent builders and the runner faked.
 
         When ``annotate`` is set, the fake trace stage writes an annotation
@@ -140,7 +142,7 @@ class TestTwoStageRun:
         """
         import contractor.workflows.trace_postdiff.workflow as wf_mod
 
-        ctx = _make_context(tmp_path)
+        ctx = _make_context(tmp_path, doc)
         workflow = TracePostDiffWorkflow(ctx)
 
         trace_builds: list[dict] = []
@@ -162,10 +164,12 @@ class TestTwoStageRun:
         async def fake_run(self, *, agent, message, event_name, **kwargs):
             runs.append({"agent": agent, "message": message, "event": event_name})
             if agent._is_trace and annotate:
+                # Unique content per run so every group sees fresh changes.
                 workflow.overlayfs.pipe_file(
                     "/app.py",
                     b"# @trace target=getUser args=user_id:tainted calls=\n"
-                    b"def handler():\n    pass\n",
+                    b"def handler():\n    pass\n"
+                    + f"# run {len(runs)}\n".encode(),
                 )
 
         monkeypatch.setattr(wf_mod, "build_trace_agent", fake_trace_agent)
@@ -187,7 +191,8 @@ class TestTwoStageRun:
         assert len(trace_builds) == 2
         for build in trace_builds:
             assert build["enable_vuln_reporting"] is False
-            assert build["namespace"] == "trace-postdiff:openapi:users_user-id"
+            # group_depth=1 → namespace keyed by the route prefix.
+            assert build["namespace"] == "trace-postdiff:openapi:users"
 
     async def test_analytics_stage_receives_annotation_diff(
         self, tmp_path, monkeypatch
@@ -197,8 +202,7 @@ class TestTwoStageRun:
         )
         assert len(analytics_builds) == 1
         assert (
-            analytics_builds[0]["namespace"]
-            == "trace-postdiff:openapi:users_user-id"
+            analytics_builds[0]["namespace"] == "trace-postdiff:openapi:users"
         )
 
         analytics_runs = [r for r in runs if r["event"].endswith(":analytics")]
@@ -217,3 +221,36 @@ class TestTwoStageRun:
         assert len(trace_builds) == 2
         assert analytics_builds == []
         assert all(not r["event"].endswith(":analytics") for r in runs)
+
+    async def test_sibling_paths_share_group_and_analytics_run(
+        self, tmp_path, monkeypatch
+    ):
+        doc = {
+            "openapi": "3.0.0",
+            "info": {"title": "t", "version": "1"},
+            "paths": {
+                "/users/{user-id}": {
+                    "get": {"operationId": "getUser", "responses": {"200": {}}},
+                },
+                "/users/export": {
+                    "get": {"operationId": "exportUsers", "responses": {"200": {}}},
+                },
+                "/admin/stats": {
+                    "get": {"operationId": "adminStats", "responses": {"200": {}}},
+                },
+            },
+        }
+        _, trace_builds, analytics_builds, runs = await self._run(
+            tmp_path, monkeypatch, annotate=True, doc=doc
+        )
+        # Three operations traced, but only two route groups analyzed.
+        assert len(trace_builds) == 3
+        assert {b["namespace"] for b in trace_builds} == {
+            "trace-postdiff:openapi:users",
+            "trace-postdiff:openapi:admin",
+        }
+        assert {b["namespace"] for b in analytics_builds} == {
+            "trace-postdiff:openapi:users",
+            "trace-postdiff:openapi:admin",
+        }
+        assert len(analytics_builds) == 2

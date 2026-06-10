@@ -28,6 +28,7 @@ from contractor.utils.settings import build_model, get_settings
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.findings import load_yaml_dict_artifact
+from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from contractor.workflows.trace_graph_pathpar.workflow import PATH_NAMESPACE_PREFIX
@@ -287,19 +288,31 @@ class VulnAssessWorkflow(Workflow):
             except yaml.YAMLError:
                 continue
             paths = extract_openapi_paths(openapi=openapi)
+            probed: set[str] = set()
             for api_path in paths:
                 # Must match the namespace the trace stage (TraceGraphPathParWorkflow,
                 # run in _run_trace_stage) writes vuln reports under — shared constant
                 # so the read/write keys can't drift (audit: HIGH, namespace mismatch).
-                ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{api_path.path_key}"
-                merged.update(
-                    await load_yaml_dict_artifact(
-                        ctx.artifact_service,
-                        app_name=ctx.app_name,
-                        user_id=user_id,
-                        filename=f"user:vulnerability-reports/{ns}",
+                # The trace stage keys by path_key (group_depth=0) or by a
+                # route-prefix group key (group_depth>=1) — probe both.
+                keys = [api_path.path_key]
+                for depth in (1, 2):
+                    group_key = group_key_for_path(api_path.path, depth)
+                    if group_key not in keys:
+                        keys.append(group_key)
+                for key in keys:
+                    ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{key}"
+                    if ns in probed:
+                        continue
+                    probed.add(ns)
+                    merged.update(
+                        await load_yaml_dict_artifact(
+                            ctx.artifact_service,
+                            app_name=ctx.app_name,
+                            user_id=user_id,
+                            filename=f"user:vulnerability-reports/{ns}",
+                        )
                     )
-                )
 
         if not merged:
             return ""

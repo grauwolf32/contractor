@@ -1,3 +1,7 @@
 budgets:
   max_tokens: 100000
   max_concurrency: 3
+  # Route segments that define a fork/coverage group; 0 = one fork per
+  # path (historical behavior). Raise to 1 on large APIs so sibling
+  # paths share a namespace and budget.
+  group_depth: 0
