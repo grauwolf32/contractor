@@ -1,0 +1,4 @@
+active: v1
+versions:
+  v1:
+    file: sink_nomination/v1.yml

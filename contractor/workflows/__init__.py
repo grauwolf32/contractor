@@ -171,6 +171,7 @@ def get_workflows() -> dict[str, type[Workflow]]:
     from .vuln_scan import VulnScanWorkflow
     from .vuln_scan_fast import VulnScanFastWorkflow
     from .vuln_scan_trace import VulnScanTraceWorkflow
+    from .vuln_sweep import VulnSweepWorkflow
 
     return {
         "oas_build": OasBuildingWorkflow,
@@ -187,6 +188,7 @@ def get_workflows() -> dict[str, type[Workflow]]:
         "vuln-scan": VulnScanWorkflow,
         "vuln-scan-fast": VulnScanFastWorkflow,
         "vuln-scan-trace": VulnScanTraceWorkflow,
+        "vuln-sweep": VulnSweepWorkflow,
         "router": RouterWorkflow,
     }
 

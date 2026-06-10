@@ -49,6 +49,7 @@ class TestRegistry:
             "vuln-scan",
             "vuln-scan-fast",
             "vuln-scan-trace",
+            "vuln-sweep",
             "router",
         }
 

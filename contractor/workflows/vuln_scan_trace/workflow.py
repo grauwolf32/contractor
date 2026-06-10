@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Any
+from typing import Any, ClassVar
 
 from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
@@ -31,6 +31,9 @@ class VulnScanTraceWorkflow(Workflow):
     """BFS discovery → DFS confirmation workflow."""
 
     namespace: str = "vuln-scan-trace"
+    # Methods read config via ``self.CFG`` so subclasses (vuln-sweep) can
+    # point inherited phases at their own sibling config.yaml.
+    CFG: ClassVar[WorkflowConfig] = CFG
 
     def __init__(self, ctx: WorkflowContext) -> None:
         super().__init__(ctx)
@@ -50,27 +53,27 @@ class VulnScanTraceWorkflow(Workflow):
         scan_builder = partial(
             build_codereview_agent,
             name="codereview_agent",
-            _format=CFG.agent("codereview_agent").output_format,
+            _format=self.CFG.agent("codereview_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=CFG.budgets.scan_max_tokens,
-            with_graph_tools=CFG.agent("codereview_agent").with_graph_tools,
+            max_tokens=self.CFG.budgets.scan_max_tokens,
+            with_graph_tools=self.CFG.agent("codereview_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
             name="contractor",
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
-            observations=CFG.observations,
+            observations=self.CFG.observations,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
 
         runner.add_task(
             name="vuln_scan",
-            ref="vuln-scan-trace:scan",
+            ref=f"{self.namespace}:scan",
             worker_builder=scan_builder,
-            **CFG.tasks.scan.as_kwargs(),
+            **self.CFG.tasks.scan.as_kwargs(),
             namespace=scan_namespace,
             skills=["vuln_scan"],
             model=self.llm,
@@ -119,19 +122,19 @@ class VulnScanTraceWorkflow(Workflow):
         trace_builder = partial(
             build_trace_agent,
             name="trace_agent",
-            _format=CFG.agent("trace_agent").output_format,
+            _format=self.CFG.agent("trace_agent").output_format,
             fs=ctx.fs,
             model=self.llm,
-            max_tokens=CFG.budgets.trace_max_tokens,
+            max_tokens=self.CFG.budgets.trace_max_tokens,
             enable_vuln_reporting=True,
-            with_graph_tools=CFG.agent("trace_agent").with_graph_tools,
+            with_graph_tools=self.CFG.agent("trace_agent").with_graph_tools,
         )
 
         runner = TaskRunner(
             name="contractor",
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
-            observations=CFG.observations,
+            observations=self.CFG.observations,
         )
 
         runner.add_variable(name="project_path", value=ctx.folder_name)
@@ -151,13 +154,13 @@ class VulnScanTraceWorkflow(Workflow):
 
         runner.add_task(
             name="trace_annotation",
-            ref=f"vuln-scan-trace:trace:{name}",
+            ref=f"{self.namespace}:trace:{name}",
             # Unique, stable per-finding publish key — one trace task is queued
             # per finding and the shared template key would make each finding
             # overwrite the previous one's artifacts.
             artifact_key=f"trace_annotation/{artifact_key_slug(name)}",
             worker_builder=trace_builder,
-            **CFG.tasks.trace.as_kwargs(),
+            **self.CFG.tasks.trace.as_kwargs(),
             namespace=trace_namespace,
             skills=["trace"],
             model=self.llm,

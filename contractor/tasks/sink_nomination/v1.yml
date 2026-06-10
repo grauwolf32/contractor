@@ -1,0 +1,63 @@
+task:
+  name: "nominate_candidate_sinks_for_one_vulnerability_class"
+
+  objective: >
+    Sweep the project for candidate sinks of ONE vulnerability class and
+    nominate every plausible candidate. This is the recall pass of a
+    two-pass pipeline: a downstream trace stage will deep-trace each
+    nomination and discard the false ones, but it can only examine what
+    you nominate — a sink missed here is lost for the whole pipeline.
+
+    Sink class: {sink_class}
+
+    Class guidance:
+    {class_guidance}
+
+    Project root: {project_path}
+
+  instructions: >
+    You are NOMINATING, not confirming. Do not deep-trace data flows, do
+    not build exploit narratives, and do not discard a candidate because
+    you could not prove reachability — uncertainty lowers confidence, it
+    does not suppress the nomination.
+
+    Sweep method:
+
+    1. ENUMERATE the surface for this class. Start from entry points
+       (route handlers, controllers, tasks) and from class-specific
+       patterns (see the class guidance above and the injected skill's
+       sink catalogue). Use grep/glob broadly; use the graph tools
+       (attack_surface, find_callers) where available to enumerate
+       handlers and reach wrappers that grep misses.
+
+    2. TRIAGE each hit with a short read (the surrounding function is
+       enough). Nominate when the site plausibly belongs to the class.
+       For ABSENCE-style classes (e.g. missing access control), the
+       nomination unit is the handler: nominate every handler whose
+       visible code lacks the expected control — absence of evidence of
+       a control IS the signal, do not require a taint flow.
+
+    3. REPORT every nomination via report_vulnerability:
+       - name: short unique slug (class-prefixed, e.g. "{sink_class}-...")
+       - place: the source file containing the candidate
+       - details: the candidate line/function, why it belongs to this
+         class, and the CWE ID if clear (e.g. CWE-89)
+       - confidence: honest — "low" is expected and fine for a sweep
+       - severity: from the operation's sensitivity, not from certainty
+
+    Coverage discipline: sweep the WHOLE project surface for this one
+    class before finishing — do not stop after the first few hits, and
+    do not drift into other vulnerability classes (parallel sweeps cover
+    them). After the sweep, call list_vulnerabilities and verify every
+    enumerated candidate was either nominated or consciously ruled out.
+
+  output_format: >
+    Return the total number of nominations for this class, plus the
+    list of (name, place, confidence) entries, and a short note on any
+    areas of the project that could not be swept.
+
+  skills:
+    - vuln_scan
+
+  iterations: 1
+  format: json
