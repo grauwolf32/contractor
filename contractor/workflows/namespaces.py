@@ -22,10 +22,16 @@ TRACE_GRAPH_NAMESPACE_PREFIX: str = "trace-graph"
 # ``trace-graph-pathpar`` (TraceGraphPathParWorkflow).
 TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX: str = "trace-graph-pathpar"
 
+# ``trace-postdiff`` (TracePostDiffWorkflow) — annotate-only trace stage
+# followed by a post-diff analytics stage; the analytics agent is the
+# finding producer for this prefix.
+TRACE_POSTDIFF_NAMESPACE_PREFIX: str = "trace-postdiff"
+
 # Every prefix a trace producer may have written findings under, in the
 # order consumers should probe them.
 TRACE_NAMESPACE_PREFIXES: tuple[str, ...] = (
     TRACE_ANNOTATION_NAMESPACE_PREFIX,
     TRACE_GRAPH_NAMESPACE_PREFIX,
     TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+    TRACE_POSTDIFF_NAMESPACE_PREFIX,
 )

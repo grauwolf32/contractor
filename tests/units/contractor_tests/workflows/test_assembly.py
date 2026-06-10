@@ -43,6 +43,7 @@ class TestRegistry:
             "trace-direct",
             "trace-graph",
             "trace-graph-pathpar",
+            "trace-postdiff",
             "trace-verify",
             "vuln-assess",
             "vuln-scan",
@@ -545,6 +546,7 @@ class TestTraceVerifyWorkflow:
             "trace-annotation",
             "trace-graph",
             "trace-graph-pathpar",
+            "trace-postdiff",
         }
 
     @pytest.mark.asyncio
