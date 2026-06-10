@@ -12,7 +12,7 @@ All file:line references are against the tree as analyzed; treat them as the
 > 2. Per-workflow `*_max_tokens` (summarization trigger) — context retained before compression.
 > 3. Per-task `iterations` / `max_attempts` / `max_steps` — convergence vs. cost.
 > 4. Planner `max_steps` (subtask budget) — decomposition granularity.
-> 5. **Sampling params (temperature, top_p, reasoning_effort) — currently unset; see [§5](#5-sampling-params--currently-unset-lever).**
+> 5. **Sampling params (`MODEL_TEMPERATURE` / `MODEL_TOP_P`) — wired via `Settings`, default unset; see [§5](#5-sampling-params-settings-routed-default-unset).**
 > 6. Context-elision (`elide_keep_last_n`) and rate limits (`tpm`/`rpm`).
 
 ---
@@ -75,6 +75,22 @@ Three editing surfaces:
 | `caido_url` / `caido_auth_token` | resp. | `None` | Routes HTTP-tool traffic through Caido proxy (latency cost; needed for exploit proof chains). |
 | `gitlab_private_token` / `gitlab_oauth_token` / `ci_job_token` | resp. | `None` | Repo access for remote/CI projects. |
 | `artifacts_dir` | `CONTRACTOR_ARTIFACTS_DIR` | `None` → `<repo>/artifacts` | Shared cross-project artifact store. |
+| `target_url` / `proxy` | `CONTRACTOR_TARGET_URL` / `CONTRACTOR_PROXY` | `None` | Live target base URL + outbound HTTP proxy for exploit/vuln workflows. |
+| `model_temperature` / `model_top_p` | `MODEL_TEMPERATURE` / `MODEL_TOP_P` | `None` | Sampling defaults applied by `build_model()` to every `LiteLlm`; `None` keeps backend defaults (see §5). |
+
+**Tool-default fields** (same file — global baselines, overridable per call-site;
+defaults equal the historical hardcoded constants unless noted):
+
+| Field | Env var | Default |
+|-------|---------|---------|
+| `http_timeout` / `http_body_preview_chars` / `http_history_size` | `HTTP_*` | `30.0` / `2048` / `20` |
+| `http_retry_attempts` / `http_retry_base_delay` / `http_retry_max_delay` | `HTTP_RETRY_*` | `3` / `0.5` / `8.0` |
+| `fs_max_output` / `fs_max_read_lines` / `fs_max_items` | `FS_MAX_OUTPUT` / `FS_MAX_READ_LINES` / `FS_MAX_ITEMS` | `50_000` chars / `2000` lines / `100` |
+| `fs_max_files_per_walk` | `FS_MAX_FILES_PER_WALK` | `100_000` |
+| `fs_heavy_keep_last_n` / `fs_heavy_keep_budget_chars` | `FS_HEAVY_KEEP_LAST_N` / `FS_HEAVY_KEEP_BUDGET_CHARS` | `0` (= use caller's `elide_keep_last_n`) / `0` (budget axis off) |
+| `code_max_walk_depth` / `code_max_files_per_walk` | `CODE_*` | `50` / `100_000` |
+| `graph_max_results` / `graph_max_paths` / `graph_max_path_depth` | `GRAPH_*` | `200` / `25` / `30` |
+| `likec4_validate_timeout` | `LIKEC4_VALIDATE_TIMEOUT` | `120.0` s |
 
 ---
 
@@ -89,29 +105,30 @@ Three editing surfaces:
 
 **Per-model alias** — each defines `tpm: 1000000`, `rpm: 20`. Available aliases:
 `lm-studio-nemotron`, `lm-studio-openai`, `lm-studio-qwen3.5`, `lm-studio-glm`,
-`lm-studio-qwen3.5-opus`, `lm-studio-qwen3.5-hauhau`, `lm-studio-qwen3.6` (default).
+`lm-studio-qwen3.5-opus`, `lm-studio-qwen3.5-hauhau`, `lm-studio-qwen3.6` (default),
+`lm-studio-qwen3.6-mtp`, `lm-studio-qwen3.6-27b-mtp`.
 
 > `rpm: 20` is the binding throughput limit for parallel/multi-task workflows; raise it
 > if the backend can sustain more concurrency, otherwise tasks serialize behind it.
 
 ---
 
-## 5. Sampling params — currently UNSET lever
+## 5. Sampling params (Settings-routed, default unset)
 
-Grep across `contractor/`, `cli/`, and `deploy/` finds **no** `temperature`, `top_p`,
-`top_k`, `reasoning_effort`, `thinking`, or `GenerateContentConfig` configuration.
-Every `LlmAgent` is built with `LiteLlm(model=...)` only (`worker_factory.py:127-134`),
-so sampling falls entirely to LiteLLM/backend defaults.
+`temperature` / `top_p` are now wired through `Settings` (`model_temperature` /
+`model_top_p`, env `MODEL_TEMPERATURE` / `MODEL_TOP_P`). `build_model()` in
+`contractor/utils/settings.py` forwards them to every `LiteLlm` it constructs —
+including the shared `DEFAULT_MODEL` — but only when set; the default `None`
+keeps LiteLLM/backend defaults, so behaviour is unchanged until you opt in.
 
-This is an **unexploited tuning surface**:
+Tuning notes:
 - Lower `temperature` (e.g. 0–0.3) for the deterministic structured-output tasks
-  (OAS build/enrich, trace annotation, vuln verdicts) would likely improve schema
-  adherence and reduce retry/`malformed` churn.
-- A reasoning/thinking budget (where the backend supports it) is the natural place to
-  trade latency for depth on `vuln_scan` / `exploitability`.
-
-To wire it in: pass a `generate_content_config` (ADK) or LiteLLM `extra`/sampling
-kwargs through `build_worker(...)`, or set defaults per-alias in `litellm_config.yaml`.
+  (OAS build/enrich, trace annotation, vuln verdicts) likely improves schema
+  adherence and reduces retry/`malformed` churn — set it in `cli/.env`.
+- `reasoning_effort` / thinking budgets remain **unwired** — adding one (where the
+  backend supports it) is the natural place to trade latency for depth on
+  `vuln_scan` / `exploitability`. Per-alias defaults in `litellm_config.yaml` are
+  the alternative injection point.
 
 ---
 
@@ -119,13 +136,14 @@ kwargs through `build_worker(...)`, or set defaults per-alias in `litellm_config
 
 The `build_worker` factory defaults (`contractor/agents/worker_factory.py`):
 
-| Param | Default (line) | Effect |
-|-------|----------------|--------|
-| `max_tokens` | `80000` (52) | Token budget before the **summarization** message is injected (context compression trigger). |
-| `with_elide` | `True` (54) | Register tool-result elision callback. |
-| `elide_keep_last_n` | `15` (56) | Recent heavy-tool results kept un-elided; lower = cheaper, less recall. |
-| `repeated_call_threshold` | `5` (57) | Identical-consecutive-call count before loop advisory. |
-| `model` | `DEFAULT_MODEL` (53) | Per-agent model override. |
+| Param | Default | Effect |
+|-------|---------|--------|
+| `max_tokens` | `80000` | Token budget before the **summarization** message is injected (context compression trigger). |
+| `with_elide` | `True` | Register tool-result elision callback. |
+| `elide_keep_last_n` | `15` | Recent heavy-tool results kept un-elided; lower = cheaper, less recall. (`FS_HEAVY_KEEP_LAST_N` > 0 overrides it globally.) |
+| `elide_keep_budget_chars` | `None` → `Settings.fs_heavy_keep_budget_chars` (0 = off) | Optional cumulative char budget for retained heavy-tool results (evicts oldest-first). |
+| `repeated_call_threshold` | `5` | Identical-consecutive-call count before loop advisory. |
+| `model` | `DEFAULT_MODEL` | Per-agent model override. |
 
 Per-workflow overrides live in `contractor/workflows/<mode>/config.yaml`
 (`budgets:` for the `*_max_tokens` token budgets, `tasks:` for the retry/iter/step
@@ -135,18 +153,18 @@ budget (`max_steps`):
 
 | Workflow (`<mode>/config.yaml`) | `budgets.*_max_tokens` | Task budgets (`iter`/`att`/`steps`) |
 |-----------------|----------------|--------------------------------------|
-| `oas_enrichment` | 120k (enrich agents) | enrich `3/6/30`; update `2/2/20` |
-| `oas_building` | 100k (swe/builder) | build `2/4/20`; others `1/2/20` |
-| `likec4_building` | 100k | `1/2/20`-class stages |
-| `trace_annotation` | 80k | `1/3/20` |
+| `oas_enrichment` | 120k (builder/validator) | enrich `3/6/30`; validate `2/2/20` |
+| `oas_building` | 100k (swe/builder/validator) | update `2/4/20`; dep/proj info `1/2/20`; validate `1/1/20` |
+| `likec4_building` | 100k swe / 120k builder | build `3/6/20`; dep/proj info `1/3/20`; validate `1/2/20` |
+| `trace_annotation` | 80k | annotate `1/3/20` |
 | `trace_annotation_direct` | 100k | — |
-| `trace_graph` / `trace_graph_pathpar` | 100k | — |
+| `trace_graph` / `trace_graph_pathpar` | 100k (pathpar adds `budgets.max_concurrency: 3`) | — |
 | `trace_verify` | 80k | `1/2/20` |
 | `vuln_scan` | 80k | `1/2/75` |
-| `vuln_scan_fast` | 80k scan / 100k assess | scan `1/2/50`; assess `1/2/20` |
+| `vuln_scan_fast` | 80k scan / 100k swe | scan `1/2/50`; dep/proj info `1/2/20` |
 | `vuln_scan_trace` | 80k scan / 80k trace | scan `1/2/75`; trace `1/1/30` |
-| `vuln_assess` | 100k | assess `1/2/20`; one stage `2/4/20`; final `1/1/20` |
-| `exploitability` | 80k | `1/2/25` |
+| `vuln_assess` | 100k (swe/builder/validator) | update `2/4/20`; dep/proj info `1/2/20`; validate `1/1/20` |
+| `exploitability` | 80k | assess `1/2/25` |
 | `router` | 120k | `budgets.max_steps` (20) |
 
 Notes:
@@ -167,6 +185,19 @@ so behaviour is unchanged unless tuned.
 |-----|---------|--------|
 | `output_format` | `json` | The shared `_format` knob for fs/memory/openapi/report tool output (`json` / `xml` / `yaml` / `markdown`; unsupported renderers fall back to json). |
 | `with_graph_tools` | `false` | Attach the trailmark call-graph tools (callers/callees/paths/attack-surface). Enabled for the `codereview_agent` / `trace_agent` in the scan + trace workflows. |
+| `with_code_exec` | `false` | Attach the podman-backed `run_python` / `execute_bash` sandbox tools (exploit agents only; enabled in `exploitability`). |
+
+### Worker observations (`config.yaml` `observations:` block)
+
+Each `config.yaml` may also carry a workflow-global `observations:` block
+(`CFG.observations`, an `ObservationConfig` from `contractor/tools/observations.py`):
+deterministic worker-usage facts (tool/file/skill counts, optional unread-file
+coverage gap) injected back into the planner's task records/results. All-default is
+disabled; most workflows now enable the "lean + file-paths" arm
+(`enabled: true`, `include_tool_errors: false`, `track_file_paths: true`) — A/Bs
+showed a consistent vuln-detection F1 lift at roughly neutral cost, while tool
+*error* counts hurt. The `CONTRACTOR_EVAL_OBSERVATIONS` env var (JSON object)
+overlays the block field-by-field for A/B runs without editing YAML.
 
 ---
 
@@ -174,17 +205,22 @@ so behaviour is unchanged unless tuned.
 
 | Param | Default | Semantics |
 |-------|---------|-----------|
-| `iterations` (`models.py:90`) | `1` | **Successful** runs required before a task is "done". |
-| `max_attempts` (`models.py:91`) | `1` (resolved to `max(1, iterations)`) | Upper bound on tries; exhausting it without enough successes → `TaskNotCompletedError`. |
-| `max_steps` (`models.py:92`) | `15` | Per-attempt planner subtask budget (overridden per task above). |
-| `default_iterations` / `format` (template) | `1` / `json` | From task YAML; resolution logic at `task_runner.py:366-381` enforces `max_attempts ≥ iterations ≥ 1`. |
+| `iterations` (`models.py:100`) | `1` | **Successful** runs required before a task is "done". |
+| `max_attempts` (`models.py:101`) | `1` (resolved to `max(1, iterations)`) | Upper bound on tries; exhausting it without enough successes → `TaskNotCompletedError`. |
+| `max_steps` (`models.py:102`) | `15` | Per-attempt planner subtask budget (overridden per task above). |
+| `default_iterations` / `format` (template) | `1` / `json` | From task YAML; `task_runner.py` `_resolve_retry_params` enforces `max_attempts ≥ iterations ≥ 1`. |
 
 > **Resilience gap:** default `max_attempts == iterations`, so a single transient failure
 > kills a task unless the workflow explicitly sets a buffer (as enrich/build do). Raising
 > `max_attempts` above `iterations` is the cheap reliability knob.
 
-Task templates (`contractor/tasks/*.yml`) all currently use `iterations: 1` and
-`format: json`; `skills:` is set only on `likec4_*` (likec4) and `vuln_scan*` (vuln_scan).
+Task templates are now **versioned** like agent prompts: `contractor/tasks/<name>.yml`
+is a manifest (`active:` + `versions:`) selecting a body from `contractor/tasks/<name>/v*.yml`
+(e.g. `trace_annotation` active is `v3`). `CONTRACTOR_TASK_VERSION_<NAME>` (e.g.
+`CONTRACTOR_TASK_VERSION_TRACE_ANNOTATION=v3`) overrides the active version per task —
+the A/B lever for task-prompt variants. All template bodies currently use
+`iterations: 1` and `format: json`; `skills:` is set on `likec4_*`, `vuln_scan*`,
+and `threat_analysis`.
 
 ---
 
@@ -192,12 +228,12 @@ Task templates (`contractor/tasks/*.yml`) all currently use `iterations: 1` and
 
 | Param | Default | Effect |
 |-------|---------|--------|
-| `max_steps` (planner, `agent.py:35`) | `15` | Total subtask budget (`add_subtask` + `decompose_subtask` share it). Substituted into `<<MAX_SUBTASKS>>`. |
-| Bootstrap ratio (prompt `v5.md:72`) | `0.7` | ≤70% of budget for initial subtasks; reserves 30% for mid-run decomposition. |
+| `max_steps` (planner, `agent.py:34`) | `15` | Total subtask budget (`add_subtask` + `decompose_subtask` share it). Substituted into `<<MAX_SUBTASKS>>`. |
+| Bootstrap ratio (prompt `v5.md:73`) | `0.7` | ≤70% of budget for initial subtasks; reserves 30% for mid-run decomposition. |
 | Decomposition cardinality | `1–3` children | Branching width when refining an `incomplete`/`malformed` subtask. |
-| `max_records` (`tools/tasks/tools.py:217`) | `20` | Subtask history records returned to planner — context vs. recall. |
-| `n_retries` (worker parse, `tools.py:218`) | `3` | Parse-retry budget for malformed worker output before decompose/skip. |
-| `_MAX_LITERAL_EVAL_LEN` (`models.py:88`) | `50000` | Char cap for literal-eval JSON recovery of large outputs. |
+| `max_records` (`tools/tasks/tools.py:254`) | `20` | Subtask history records returned to planner — context vs. recall. |
+| `n_retries` (worker parse, `tools.py:255`) | `3` | Parse-retry budget for malformed worker output before decompose/skip. |
+| `_MAX_LITERAL_EVAL_LEN` (`tools/tasks/models.py:100`) | `50000` | Char cap for literal-eval JSON recovery of large outputs. |
 
 Subtask state machine (`tools/tasks/models.py`) is strict: `incomplete`/`malformed`
 can only be decomposed or skipped, never re-executed; `finish` requires no `new` subtasks.
@@ -232,29 +268,35 @@ can only be decomposed or skipped, never re-executed; `finish` requires no `new`
 | `TpmRatelimitCallback.tpm_limit` (+ `tpm_limit_key`) | Tokens/min cap; sleeps `60-elapsed+1`s when breached. |
 | `RpmRatelimitCallback.rpm_limit` | Requests/min cap; same sleep. |
 
-> Note: `RepeatedToolCallCallback` uses an `assert threshold > 1` — per project rule
-> [no `assert` in production code], that's a latent cleanup target, not a tuning knob.
+> Note: the TPM/RPM callbacks throttle with a *blocking* `time.sleep`, which stalls the
+> whole asyncio event loop — wire them up only for single-agent runs (see the class
+> docstring in `ratelimits.py`).
 
 ---
 
 ## 10. Tool caps (`contractor/tools/`)
 
-| Tool / const | Default | Effect |
+Most caps are now **Settings-routed** (env-tunable via `cli/.env`, see §3); the
+constructors fall back to `get_settings()` when no explicit value is passed, so
+production defaults are unchanged unless tuned.
+
+| Tool / knob | Default (Settings field / env) | Effect |
 |--------------|---------|--------|
-| `fs` `max_output` (`read_tools.py:58`) | `80000` chars | Truncates directory listings. |
-| `fs` `max_items` (`read_tools.py:59`) | `100` | Listing pagination. |
-| code `_MAX_WALK_DEPTH` | `50` | Dir nesting cap (symlink-loop guard). |
-| code `_MAX_FILES_PER_WALK` | `100000` | Runaway-scan guard. |
-| graph `DEFAULT_MAX_RESULTS` | `200` | Symbol search results. |
-| graph `DEFAULT_MAX_PATHS` | `25` | Call-path enumeration cap. |
-| graph `_MAX_PATH_DEPTH` | `30` | Path depth cap (exponential-blowup guard). |
+| `fs` read/output byte cap | `50_000` chars (`fs_max_output` / `FS_MAX_OUTPUT`) | `read_file` / listing output budget; binds together with the line cap, whichever first. |
+| `fs` read line cap | `2000` lines (`fs_max_read_lines` / `FS_MAX_READ_LINES`; `None` disables) | Default per-read `limit`. |
+| `fs` `max_items` | `100` (`fs_max_items`) | Listing pagination. |
+| `fs` walk ceiling | `100000` (`fs_max_files_per_walk`) | Hard cap on files scanned per glob/grep tree walk (truncation notice on hit). |
+| code walk depth / files | `50` / `100000` (`code_max_walk_depth` / `code_max_files_per_walk`) | Dir nesting cap (symlink-loop guard) / runaway-scan guard. |
+| graph max results | `200` (`graph_max_results`) | Symbol search results. |
+| graph max paths | `25` (`graph_max_paths`) | Call-path enumeration cap. |
+| graph path depth | `30` (`graph_max_path_depth`) | Path depth cap (exponential-blowup guard). |
 | `list_symbols` page size | `300` (hardcoded) | Symbol-listing pagination. |
-| HTTP `timeout` | `30.0`s | Per-request. |
-| HTTP `body_preview_chars` | `2048` (512 in exploit agents) | Inline body preview; rest via `http_read_body`. |
-| HTTP `history_size` | `20` | Session request history. |
+| HTTP `timeout` | `30.0`s (`http_timeout`) | Per-request. |
+| HTTP `body_preview_chars` | `2048` (`http_body_preview_chars`; 512 in exploit agents) | Inline body preview; rest via `http_read_body`. |
+| HTTP `history_size` | `20` (`http_history_size`) | Session request history. |
 | HTTP `verify_ssl` | `True` (False behind Caido) | TLS verification. |
-| HTTP `RetryConfig` | `attempts=3`, `base_delay=0.5`, `max_delay=8.0`, statuses `(408,425,429,500,502,503,504)` | Transient-failure backoff. |
-| likec4 `validate` timeout | `120.0`s | Linter subprocess ceiling. |
+| HTTP `RetryConfig` | `attempts=3`, `base_delay=0.5`, `max_delay=8.0` (`http_retry_*`), statuses `(408,425,429,500,502,503,504)` | Transient-failure backoff. |
+| likec4 `validate` timeout | `120.0`s (`likec4_validate_timeout`) | Linter subprocess ceiling. |
 
 ---
 
@@ -264,9 +306,13 @@ Each agent dir has `prompt.yml` with an `active:` version selecting `prompts/v*.
 (`load_prompt(name)` / `load_prompt_with_version(name, version)`). Switching the active
 version is a pure quality lever. The trace eval already A/Bs versions via
 `CONTRACTOR_EVAL_TRACE_PROMPT_VERSION`; the same pattern works for any agent.
-Versioned agents include: `planning_agent`, `trace_agent`, `codereview_agent` (active `v3`),
-`exploitability_agent`, `web_exploitability_agent`, `swe_edit_agent`, `http_agent`,
-`threat_model_agent`, `oas_*`.
+Versioned agents and their current actives: `planning_agent` (`v5`), `trace_agent`
+(`converge`), `codereview_agent` (`v3`), `exploitability_agent` (`shannon`),
+`web_exploitability_agent` (`v4`), `swe_edit_agent` (`v2`), `http_agent` (`v1`),
+`threat_model_agent` (`v1`), `oas_builder_agent` (`v4`), `oas_linter_agent` (`v1`).
+
+Task templates carry the same mechanism (§7): manifest `active:` per
+`contractor/tasks/<name>.yml`, overridable via `CONTRACTOR_TASK_VERSION_<NAME>`.
 
 ---
 
@@ -280,8 +326,8 @@ Versioned agents include: `planning_agent`, `trace_agent`, `codereview_agent` (a
 - Keep `use_langfuse=False`.
 
 **Quality / completeness up (accept cost):**
-- Set `temperature≈0` for structured tasks (§5) — likely the highest ROI change available,
-  since it directly cuts `malformed`/retry churn.
+- Set `MODEL_TEMPERATURE≈0` for structured tasks (§5) — now a one-line `.env` change;
+  it directly cuts `malformed`/retry churn.
 - Raise `iterations` (2–3) on the tasks whose output you most need to converge
   (enrich already uses 3; trace/vuln verdicts are candidates).
 - Raise `max_attempts` above `iterations` everywhere to survive transient failures cheaply.

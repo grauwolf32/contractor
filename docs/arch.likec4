@@ -18,10 +18,10 @@ model {
       technology "Python + Click"
       description '''
 - Entry point exposed as the `contractor` command.
-- Accepts project path, model, pipeline selection, optional artifact, folder name, prompt, output directory.
-- Validates input paths and incompatible option combinations (e.g. `--artifact` with non-enrich/trace pipelines).
+- Accepts project path, model, workflow selection (`--workflow`), optional artifact, folder name, prompt, output directory.
+- Validates input paths; `--artifact` is optional — workflows that need a seed can reuse one already in the artifact store.
 - Resolves the selected model/provider route through LiteLLM-compatible configuration.
-- Builds the pipeline by selecting a `Pipeline` subclass from the registry and constructing a `PipelineContext`.
+- Builds the workflow by selecting a `Workflow` subclass from the registry and constructing a `WorkflowContext`.
 - Registers on_event handlers so emitted runner/plugin events can be normalised and exported.
 - Writes final artifacts and metrics.jsonl to the output directory after the run completes.
 '''
@@ -30,16 +30,22 @@ model {
     pipelineRegistry = component "Pipeline Registry" {
       technology "Python class registry"
       description '''
-- Maps pipeline names to `Pipeline` subclasses (`contractor/pipelines/__init__.py::get_pipelines`).
-- Current pipelines:
-    `oas_build`         → `OasBuildingPipeline`
-    `oas_update`        → `OasEnrichmentPipeline`
-    `likec4`        → `LikeC4BuildingPipeline`
-    `trace`         → `TraceAnnotationPipeline`        (planner-driven)
-    `trace-direct`  → `TraceAnnotationDirectPipeline`  (single-agent, AgentRunner)
-    `trace-graph`   → `TraceGraphPipeline`             (trace-direct + graph tools)
-    `trace-verify`  → `TraceVerifyPipeline`            (per-finding static verifier)
-    `router`        → `RouterPipeline`                 (prompt-driven dispatcher)
+- Maps workflow names to `Workflow` subclasses (`contractor/workflows/__init__.py::get_workflows`).
+- Current workflows:
+    `oas_build`           → `OasBuildingWorkflow`
+    `oas_update`          → `OasEnrichmentWorkflow`
+    `exploit`             → `ExploitabilityWorkflow`        (per-finding live verification)
+    `likec4`              → `LikeC4BuildingWorkflow`
+    `trace`               → `TraceAnnotationWorkflow`       (planner-driven)
+    `trace-direct`        → `TraceAnnotationDirectWorkflow` (single-agent, AgentRunner)
+    `trace-graph`         → `TraceGraphWorkflow`            (trace-direct + graph tools)
+    `trace-graph-pathpar` → `TraceGraphPathParWorkflow`     (trace-graph, paths in parallel)
+    `trace-verify`        → `TraceVerifyWorkflow`           (per-finding static verifier)
+    `vuln-assess`         → `VulnAssessWorkflow`            (discovery → OAS → trace → exploit)
+    `vuln-scan`           → `VulnScanWorkflow`
+    `vuln-scan-fast`      → `VulnScanFastWorkflow`          (high-recall scan → dedup → confirm)
+    `vuln-scan-trace`     → `VulnScanTraceWorkflow`
+    `router`              → `RouterWorkflow`                (prompt-driven dispatcher)
 '''
     }
 
@@ -49,6 +55,7 @@ model {
 - Adds `dependency_information` task using SWE worker.
 - Adds `project_information` task using SWE worker with dependency artifact as input.
 - Adds `oas_update` task using OAS builder worker with multiple iterations and upstream artifacts.
+- Adds `oas_validate` task using the OAS linter worker as a verification pass.
 '''
     }
 
@@ -57,6 +64,7 @@ model {
       description '''
 - Optionally pre-saves user-supplied OpenAPI text as `oas-openapi-building` artifact.
 - Adds `oas_enrich` task using OAS builder worker.
+- Adds `oas_validate` task using the OAS linter worker as a verification pass.
 '''
     }
 
@@ -76,7 +84,7 @@ model {
     tracePipeline = component "Trace Pipeline" {
       technology "TaskRunner per operation (planner-driven)"
       description '''
-- `TraceAnnotationPipeline`: full planner+worker stack — for each OpenAPI path it
+- `TraceAnnotationWorkflow`: full planner+worker stack — for each OpenAPI path it
   spawns a `TaskRunner` and adds a `trace_annotation` task per operation.
 - The TaskRunner runs the planning agent as root; the planner delegates annotation
   subtasks to the trace agent (wrapped as a tool via workerAdapter).
@@ -91,7 +99,7 @@ model {
     traceDirectPipeline = component "Trace-Direct Pipeline" {
       technology "AgentRunner per operation (single-agent)"
       description '''
-- `TraceAnnotationDirectPipeline`: bypasses the planner entirely.
+- `TraceAnnotationDirectWorkflow`: bypasses the planner entirely.
 - One `trace_agent` invocation per OpenAPI operation, driven by `AgentRunner`.
 - Same overlay / artifact contract as `trace`, but cheaper and faster
   because there is no planner loop or subtask state machine.
@@ -101,7 +109,7 @@ model {
     traceGraphPipeline = component "Trace-Graph Pipeline" {
       technology "AgentRunner + trailmark call-graph tools"
       description '''
-- `TraceGraphPipeline`: thin variant of `trace-direct` that constructs
+- `TraceGraphWorkflow`: thin variant of `trace-direct` that constructs
   `trace_agent` with `with_graph_tools=True`.
 - Trailmark parses the project lazily on the first agent call and the
   cached engine is reused across operations.
@@ -113,7 +121,7 @@ model {
     traceVerifyPipeline = component "Trace-Verify Pipeline" {
       technology "TaskRunner — per-finding fan-out"
       description '''
-- `TraceVerifyPipeline` (OpenAnt Stage-2 style): downstream of `trace` / `trace-direct`.
+- `TraceVerifyWorkflow` (OpenAnt Stage-2 style): downstream of `trace` / `trace-direct`.
 - For each OpenAPI path, loads the per-path `VulnerabilityReport` artifact and queues
   one task per finding for `trace_verifier_agent`.
 - Verifier is code-evidence-only — no HTTP probes.
@@ -155,16 +163,16 @@ model {
 - Minimal runner for a single `LlmAgent` invocation: no planner, no subtask state machine.
 - Renders one task template, attaches metrics/trace plugins, runs the agent once
   against an ADK session, returns the final response.
-- Used by `trace-direct`, `trace-graph` (one invocation per OpenAPI operation) and
-  by `router` for the trailing free-form router run.
+- Used by `trace-direct`, `trace-graph`, and `trace-graph-pathpar` (one invocation
+  per OpenAPI operation) and by `router` for the trailing free-form router run.
 '''
     }
 
     planningAgent = container "Planning Agent" {
       technology "Google ADK LlmAgent + LiteLLM"
       description '''
-- Root agent for every TaskRunner-driven pipeline (build, enrich, likec4, trace,
-  trace-verify, router).
+- Root agent for every TaskRunner-driven pipeline (oas_build, oas_update, likec4,
+  trace, trace-verify, router).
 - Strict subtask state machine: add → execute → done | incomplete | malformed | skipped.
 - On incomplete/malformed: must call `decompose_subtask` (1-3 children) — silent retries
   are forbidden.
@@ -319,7 +327,7 @@ model {
 - Read: `ls`, `glob`, `grep`, `read_file`, `search_def`.
 - Write (where allowed): `insert_line`, `edit`, `replace_range`, plus the trace-specific
   `annotate_trace` / `annotate_validate` / `annotate_sink`.
-- Filesystem is always sandboxed: build/enrich/likec4/router see a `RootedLocalFileSystem`;
+- Filesystem is always sandboxed: oas_build/oas_update/likec4/router see a `RootedLocalFileSystem`;
   the trace family additionally wraps it in `MemoryOverlayFileSystem` so writes are
   captured as an artifact diff and never reach the host tree.
 - Optional graph tools (`call_graph`, `callers_of`, `callees_of`) are attached on
@@ -424,7 +432,7 @@ model {
     }
 
     localProject = storage "Target Project Directory" {
-      technology "Local filesystem (rooted, read-only for build/enrich; overlaid for trace/likec4)"
+      technology "Local filesystem (rooted, read-only for oas_build/oas_update; overlaid for trace/likec4)"
       description "Repository/codebase being analysed by worker and trace agents."
     }
 
@@ -450,8 +458,8 @@ model {
   user -> cli "runs contractor"
 
   cli -> pipelineRegistry "selects pipeline class by name"
-  pipelineRegistry -> buildPipeline "build"
-  pipelineRegistry -> enrichPipeline "enrich"
+  pipelineRegistry -> buildPipeline "oas_build"
+  pipelineRegistry -> enrichPipeline "oas_update"
   pipelineRegistry -> likec4Pipeline "likec4"
   pipelineRegistry -> tracePipeline "trace"
   pipelineRegistry -> traceDirectPipeline "trace-direct"
@@ -462,9 +470,9 @@ model {
   cli -> outputDir "exports final artifacts and metrics.jsonl"
   cli -> litellmProxy "resolves model alias"
 
-  buildPipeline -> taskRunner "queue dependency_information / project_information / oas_update"
+  buildPipeline -> taskRunner "queue dependency_information / project_information / oas_update / oas_validate"
   enrichPipeline -> artifactStore "optionally seed oas-openapi-building"
-  enrichPipeline -> taskRunner "queue oas_enrich"
+  enrichPipeline -> taskRunner "queue oas_enrich / oas_validate"
 
   likec4Pipeline -> overlayfs "mount overlay rooted at DEFAULT_LIKEC4_PATH"
   likec4Pipeline -> artifactStore "seed/save likec4-architecture.c4"
@@ -751,12 +759,13 @@ views {
   dynamic buildRun {
     title "Dynamic — build pipeline run"
 
-    user -> cli "Invoke `contractor --pipeline build`"
-    cli -> pipelineRegistry "Resolve build pipeline"
-    pipelineRegistry -> buildPipeline "Construct OasBuildingPipeline"
+    user -> cli "Invoke `contractor --workflow oas_build`"
+    cli -> pipelineRegistry "Resolve build workflow"
+    pipelineRegistry -> buildPipeline "Construct OasBuildingWorkflow"
     buildPipeline -> taskRunner "Enqueue dependency_information"
     buildPipeline -> taskRunner "Enqueue project_information"
     buildPipeline -> taskRunner "Enqueue oas_update (multi-iteration)"
+    buildPipeline -> taskRunner "Enqueue oas_validate"
     taskRunner -> runnerCore "Run planning agent as root"
     runnerCore -> planningAgent "Execute subtask state machine"
     planningAgent -> workerAdapter "Delegate current subtask"
@@ -773,9 +782,9 @@ views {
   dynamic traceRun {
     title "Dynamic — trace pipeline run (planner-driven)"
 
-    user -> cli "Invoke `contractor --pipeline trace --artifact openapi.yaml`"
-    cli -> pipelineRegistry "Resolve trace pipeline"
-    pipelineRegistry -> tracePipeline "Construct TraceAnnotationPipeline"
+    user -> cli "Invoke `contractor --workflow trace --artifact openapi.yaml`"
+    cli -> pipelineRegistry "Resolve trace workflow"
+    pipelineRegistry -> tracePipeline "Construct TraceAnnotationWorkflow"
     tracePipeline -> artifactStore "Load oas-openapi-building"
     tracePipeline -> overlayfs "Initialise memory overlay over project"
     tracePipeline -> taskRunner "Per-path: queue trace_annotation per operation"
@@ -796,9 +805,9 @@ views {
   dynamic traceDirectRun {
     title "Dynamic — trace-direct / trace-graph run"
 
-    user -> cli "Invoke `contractor --pipeline trace-direct` (or trace-graph)"
-    cli -> pipelineRegistry "Resolve direct trace pipeline"
-    pipelineRegistry -> traceDirectPipeline "Construct TraceAnnotationDirectPipeline"
+    user -> cli "Invoke `contractor --workflow trace-direct` (or trace-graph)"
+    cli -> pipelineRegistry "Resolve direct trace workflow"
+    pipelineRegistry -> traceDirectPipeline "Construct TraceAnnotationDirectWorkflow"
     traceDirectPipeline -> artifactStore "Load oas-openapi-building"
     traceDirectPipeline -> overlayfs "Initialise memory overlay"
     traceDirectPipeline -> agentRunner "Per-operation: invoke trace_agent directly"
@@ -814,9 +823,9 @@ views {
   dynamic traceVerifyRun {
     title "Dynamic — trace-verify run (Stage-2 verifier)"
 
-    user -> cli "Invoke `contractor --pipeline trace-verify --artifact openapi.yaml`"
-    cli -> pipelineRegistry "Resolve trace-verify pipeline"
-    pipelineRegistry -> traceVerifyPipeline "Construct TraceVerifyPipeline"
+    user -> cli "Invoke `contractor --workflow trace-verify --artifact openapi.yaml`"
+    cli -> pipelineRegistry "Resolve trace-verify workflow"
+    pipelineRegistry -> traceVerifyPipeline "Construct TraceVerifyWorkflow"
     traceVerifyPipeline -> artifactStore "Load per-path VulnerabilityReports from prior trace run"
     traceVerifyPipeline -> taskRunner "Per-finding: queue trace_verify task"
     taskRunner -> runnerCore "Run planning agent with trace_verifier_agent as worker"
@@ -854,7 +863,7 @@ views {
 
 // Notes:
 // 1. The planning agent is the root agent for every TaskRunner-driven pipeline
-//    (build, enrich, likec4, trace, trace-verify, router). It always sits between
+//    (oas_build, oas_update, likec4, trace, trace-verify, router). It always sits between
 //    the TaskRunner and the worker agents.
 // 2. `trace-direct` and `trace-graph` bypass the planner entirely — they use the
 //    bare `AgentRunner` (`contractor/runners/agent_runner.py`) and run `trace_agent`

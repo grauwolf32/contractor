@@ -4,8 +4,8 @@ A consolidated catalog of every tunable parameter in Contractor — env-driven
 `Settings`, per-workflow `config.yaml`, task templates, planner/subtask caps,
 callbacks, tool limits, CLI flags, eval overrides, and the LiteLLM deploy.
 
-Generated 2026-06-07. Line numbers are indicative; treat the source file as
-authoritative.
+Generated 2026-06-07, last synced 2026-06-11. Line numbers are indicative;
+treat the source file as authoritative.
 
 **Where config lives (mental model):**
 
@@ -89,6 +89,7 @@ every one has a per-call override in the tool signature.
 | `FS_MAX_ITEMS` | `100` | Max directory entries returned by listings |
 | `FS_MAX_OUTPUT` | `50_000` bytes | `read_file` (and write) output byte cap |
 | `FS_MAX_READ_LINES` | `2000` (`None`=off) | Default per-read line cap when `limit` omitted |
+| `FS_MAX_FILES_PER_WALK` | `100_000` | Max files scanned per fs glob/grep tree walk (walk stops early + truncation notice; mirrors `CODE_MAX_FILES_PER_WALK`) |
 | `FS_HEAVY_KEEP_BUDGET_CHARS` | `0` (disabled) | Char budget for retained heavy-tool results (elision) |
 | `FS_HEAVY_KEEP_LAST_N` | `0` (→ caller's, ~15) | Override count cap for retained heavy-tool results |
 
@@ -229,7 +230,9 @@ enables `track_coverage_gap`, `track_memories`, `malformed_only`, or
 `name`, `objective`, `instructions`, `output_format`, `artifacts` (def `[]`),
 `skills` (def `[]`), `iterations` (def `1`), `format` (def `json`). Keys
 `context`/`constraints` appear in some bodies but are **ignored by the loader**
-(prose only). Manifest = `active:` + `versions:` map of `vN → {file}`.
+(prose only). Manifest = `active:` + `versions:` map of `vN → {file}`. Version
+resolution: explicit arg > `CONTRACTOR_TASK_VERSION_<NAME>` env override (e.g.
+`CONTRACTOR_TASK_VERSION_TRACE_ANNOTATION=v3`) > manifest `active:`.
 
 Run-time budgets (set by assembler / `add_task`, not the YAML body):
 `iterations` (def 1), `max_attempts` (def `max(1, iterations)`), `max_steps`
@@ -245,7 +248,7 @@ Run-time budgets (set by assembler / `add_task`, not the YAML body):
 | likec4_build | v1 | 1 | json | likec4 |
 | likec4_validate | v2 | 1 | json | likec4 |
 | threat_analysis | v1 | 1 | json | stride |
-| trace_annotation | v1 | 1 | json | — |
+| trace_annotation | **v3** | 1 | json | — |
 | trace_verify | v1 | 1 | json | — |
 | exploitability_assessment | v4 | 1 | json | — |
 | vuln_scan | v3 | 1 | json | vuln_scan |
@@ -367,6 +370,8 @@ No numeric tunables. `AdkMetricsPlugin`: `result_error_detector` (heuristic),
 |---|---|---|
 | `CONTRACTOR_EVAL_TRACE_PROMPT_VERSION` | per-case | Pin trace_agent prompt version |
 | `CONTRACTOR_EVAL_TRACE_PASS_AT` | `1` | pass@N loop count |
+| `CONTRACTOR_EVAL_WITH_OAS` | off | Feed the OpenAPI spec into the prompt as an attack-surface map (X1 A/B) |
+| `CONTRACTOR_TASK_VERSION_TRACE_ANNOTATION` | unset (→ `active: v3`) | Pin trace task-template version (generic mechanism, §4) |
 
 ### 8.3 Vuln detection eval
 
@@ -399,7 +404,10 @@ No numeric tunables. `AdkMetricsPlugin`: `result_error_detector` (heuristic),
 
 ### 8.6 Harness arg defaults (not env, but tunable)
 
-trace `timeout_s=900.0`; task `timeout_s=1800.0`. A/B drivers (`scripts/ab_*.py`):
+harness `run_agent` default `timeout_s=600.0`; per-eval overrides: trace 900,
+planner / project-info / vuln-detection 1800, threat / oas_enrich / oas_build
+2400, oas_analyzer / xbow 1500, exploitability 300–900 (per-case `timeout_s`
+in meta.yaml wins where supported). A/B drivers (`scripts/ab_*.py`):
 `AB_FIXTURE(S)`, `AB_ARMS`, `AB_TIMEOUT` (21600/3600/3000), `AB_PER_PATH_TIMEOUT`
 (900/420), `AB_MAX_ATTEMPTS` (2).
 

@@ -106,8 +106,8 @@ Defined in [contractor/runners/models.py](../contractor/runners/models.py):
 
 | Object             | Purpose                                                         |
 | ------------------ | --------------------------------------------------------------- |
-| `TaskTemplate`     | YAML-loaded blueprint: title, objective, instructions, default artifacts, default skills, iterations, output format. |
-| `TaskInvocation`   | A queued instance of a template: ref, params, model, namespace, retry budget, worker builder. |
+| `TaskTemplate`     | YAML-loaded blueprint: title, objective, instructions, default artifacts, default skills, iterations, output format. Versioned: `contractor/tasks/<name>.yml` is a manifest (`active:` + `versions:`) pointing at per-version bodies under `<name>/`; pin one via `add_task(version=...)` or `CONTRACTOR_TASK_VERSION_<NAME>`. |
+| `TaskInvocation`   | A queued instance of a template: ref, params, model, namespace, retry budget, artifact key, worker builder. |
 | `RenderedTask`     | A `TaskTemplate` with all `{var}` placeholders substituted from variables, params, and loaded artifact contents. |
 | `TaskRunnerEvent`  | Lifecycle event emitted to the UI/metrics: `task_started`, `iteration_finished`, `task_failed`, etc. |
 | `TaskScopedKeys`   | Helper for the `task::{id}::{field}` keyspace inside the ADK session state. |
@@ -121,22 +121,37 @@ state machine:
 1. **Render** — `_render_task` substitutes variables, params, and the
    contents of all required input artifacts into the template.
 2. **Emit `TASK_STARTED`** — UI sees the new task immediately.
-3. **For each attempt up to `max_attempts`**:
-   1. `_spawn_planning_agent` — fresh planner + worker, new namespace.
-   2. `_inject_skills` and `_inject_artifacts` — populate the memory
-      namespace with reference notes and the Inbox.
-   3. `_build_task_initial_state` — prime the ADK session state with
+3. **`_inject_skills` and `_inject_artifacts`** — populate the memory
+   namespace with reference notes and the Inbox. This happens once per
+   task: the namespace, skill list, and artifact texts are invariant
+   across attempts.
+4. **For each attempt up to `max_attempts`**:
+   1. `_spawn_planning_agent` — fresh planner + worker pair.
+   2. `_build_task_initial_state` — prime the ADK session state with
       the per-task keys (`status=running`, empty `result/summary/pool`,
-      etc.).
-   4. `_run_single_iteration` — run the ADK Runner against the planner
+      etc.), carrying forward the previous attempt's state minus the
+      stale planner-internal subtask keys.
+   3. `_run_single_iteration` — run the ADK Runner against the planner
       until it terminates or hits the step budget.
-   5. Emit `ITERATION_RESULT`.
-   6. If `state[TaskScopedKeys.status] == DONE`, publish artifacts via
-      `_publish_task_artifacts`. After `iterations` successful runs in
+   4. Emit `ITERATION_RESULT`. An exception raised by an iteration
+      consumes an attempt (reported on the event) instead of aborting
+      the whole workflow.
+   5. If `state[TaskScopedKeys.status] == DONE`, publish artifacts via
+      `_publish_task_artifacts` under the invocation's artifact key
+      (`artifact_key` on `add_task`; default: the template key — fan-out
+      workflows queuing several tasks from one template must pass a
+      unique key per task). After `iterations` successful runs in
       total (cumulative across attempts, not necessarily consecutive),
       emit `TASK_FINISHED` and return.
-4. **Exhausted retries** — emit `TASK_FAILED` and raise
+5. **Exhausted retries** — emit `TASK_FAILED` and raise
    `TaskNotCompletedError`.
+
+Two runner-level guarantees sit around this loop. When the runner has a
+`checkpoint_path`, each completed task is recorded there and restored on
+a re-run — an entry is only honoured if its template key/version still
+match the invocation *and* all of its published artifacts are still
+present in the store. And event delivery is best-effort telemetry: a
+failing event handler is logged and never aborts the run.
 
 ### 3.3 Session state shape
 
@@ -152,11 +167,17 @@ subtasks.
   "_global_task_id": 0,
   "task::0::objective": "...",
   "task::0::status":    "running" | "done",
+  "task::0::current":   None,       # current-subtask pointer
   "task::0::result":    "...",      # written by streamline `finish`
   "task::0::summary":   "...",      # written by streamline `finish`
   "task::0::pool":      [ records ] # appended by streamline manager
 }
 ```
+
+The planner's *subtask-level* state (plan + index) lives under deeper,
+invocation-scoped keys (`task::{id}::{invocation_id}::…`, see
+`StreamlineManager._state_key`), so every attempt starts with a fresh
+plan while the fixed keys above carry the task-level contract.
 
 ### 3.4 Workflows
 
@@ -167,43 +188,47 @@ accepts any of these keys:
 
 OpenAPI / architecture:
 
-- [oas_building.py](../contractor/workflows/oas_building/workflow.py) — `oas_build`
-- [oas_enrichment.py](../contractor/workflows/oas_enrichment/workflow.py) — `oas_update`
-- [likec4_building.py](../contractor/workflows/likec4_building/workflow.py) — `likec4`
+- [oas_building/](../contractor/workflows/oas_building/workflow.py) — `oas_build`
+- [oas_enrichment/](../contractor/workflows/oas_enrichment/workflow.py) — `oas_update`
+- [likec4_building/](../contractor/workflows/likec4_building/workflow.py) — `likec4`
 
 Trace & annotate:
 
-- [trace_annotation.py](../contractor/workflows/trace_annotation/workflow.py) — `trace` (planner-driven, per-operation overlay FS)
-- [trace_annotation_direct.py](../contractor/workflows/trace_annotation_direct/workflow.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
-- [trace_graph.py](../contractor/workflows/trace_graph/workflow.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
-- [trace_graph_pathpar.py](../contractor/workflows/trace_graph_pathpar/workflow.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-pipelines.md](insights-parallel-vuln-pipelines.md))
-- [trace_verify.py](../contractor/workflows/trace_verify/workflow.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
+- [trace_annotation/](../contractor/workflows/trace_annotation/workflow.py) — `trace` (planner-driven, per-operation overlay FS)
+- [trace_annotation_direct/](../contractor/workflows/trace_annotation_direct/workflow.py) — `trace-direct` (single-agent variant via `AgentRunner`, skips the planner)
+- [trace_graph/](../contractor/workflows/trace_graph/workflow.py) — `trace-graph` (thin variant of `trace-direct` that enables trailmark call-graph tools)
+- [trace_graph_pathpar/](../contractor/workflows/trace_graph_pathpar/workflow.py) — `trace-graph-pathpar` (path-level parallel variant of `trace-graph`; identical annotation semantics, paths run concurrently over forked overlays — see [insights-parallel-vuln-pipelines.md](insights-parallel-vuln-pipelines.md))
+- [trace_verify/](../contractor/workflows/trace_verify/workflow.py) — `trace-verify` (per-finding static verifier, OpenAnt Stage-2 style)
 
 Vulnerability detection:
 
-- [vuln_scan.py](../contractor/workflows/vuln_scan/workflow.py) — `vuln-scan` (breadth-first scan against source code)
-- [vuln_scan_fast.py](../contractor/workflows/vuln_scan_fast/workflow.py) — `vuln-scan-fast` (Workflow B: high-recall scan → dedup → trace-confirm → exploit)
-- [vuln_scan_trace.py](../contractor/workflows/vuln_scan_trace/workflow.py) — `vuln-scan-trace` (BFS discovery → DFS confirmation)
-- [vuln_assess.py](../contractor/workflows/vuln_assess/workflow.py) — `vuln-assess` (Workflow A: discovery → OAS → trace → exploit)
-- [exploitability.py](../contractor/workflows/exploitability/workflow.py) — `exploit` (per-finding exploitability assessment against a live target)
+- [vuln_scan/](../contractor/workflows/vuln_scan/workflow.py) — `vuln-scan` (breadth-first scan against source code)
+- [vuln_scan_fast/](../contractor/workflows/vuln_scan_fast/workflow.py) — `vuln-scan-fast` (Workflow B: high-recall scan → dedup → trace-confirm → exploit)
+- [vuln_scan_trace/](../contractor/workflows/vuln_scan_trace/workflow.py) — `vuln-scan-trace` (BFS discovery → DFS confirmation)
+- [vuln_assess/](../contractor/workflows/vuln_assess/workflow.py) — `vuln-assess` (Workflow A: discovery → OAS → trace → exploit)
+- [exploitability/](../contractor/workflows/exploitability/workflow.py) — `exploit` (per-finding exploitability assessment against a live target)
 
 Prompt-driven:
 
-- [router.py](../contractor/workflows/router/workflow.py) — `router`
+- [router/](../contractor/workflows/router/workflow.py) — `router`
 
 Several workflows diverge from the planner+worker pattern:
 
 - **`router`** skips the templated task queue and runs a single planner
   whose worker is a *router agent* that dispatches to one of several
   specialised sub-agents (SWE, OAS builder, OAS linter, trace, HTTP).
-- **`trace-direct` / `trace-graph`** use the bare `AgentRunner`
+- **`trace-direct` / `trace-graph` / `trace-graph-pathpar`** use the
+  bare `AgentRunner`
   (`contractor/runners/agent_runner.py`) instead of `TaskRunner`: one
   `trace_agent` invocation per OpenAPI operation, no planner, no
   subtask state machine. The workflow wraps the project filesystem in
   `MemoryOverlayFileSystem` so worker writes (the inlined `@trace`
   annotations) are captured as an artifact diff rather than mutating
   the host tree.
-- **`trace-verify`** is downstream of `trace` / `trace-direct`: it
+- **`trace-verify`** is downstream of any trace producer (`trace`,
+  `trace-direct`, `trace-graph`, `trace-graph-pathpar`): it probes
+  every known trace namespace prefix
+  ([contractor/workflows/namespaces.py](../contractor/workflows/namespaces.py)),
   loads each per-path `VulnerabilityReport` artifact and queues one
   task per finding for `trace_verifier_agent`, which produces a
   code-evidence-only verdict paired with the upstream finding by
@@ -216,8 +241,9 @@ Several workflows diverge from the planner+worker pattern:
 The planning agent
 ([contractor/agents/planning_agent/agent.py](../contractor/agents/planning_agent/agent.py))
 is a `LlmAgent` whose tools are the *streamline manager* operations —
-`add_subtask`, `execute_current_subtask`, `decompose_subtask`,
-`get_records`, `skip`, `finish` — plus the shared memory tools.
+`add_subtask`, `get_current_subtask`, `list_subtasks`,
+`execute_current_subtask`, `decompose_subtask`, `get_records`, `skip`,
+`finish` — plus the shared memory tools.
 
 The planner does not do the work itself. It maintains a list of
 subtasks, asks the worker (also an `LlmAgent`, wrapped as an
@@ -272,18 +298,22 @@ passing it through the planner factory — no per-agent glue is needed.
 (`n_retries`, default 3). It accepts the response as either a typed
 `SubtaskExecutionResult`, a dict matching the schema, or a string in
 the configured format (`json` / `yaml` / `markdown` / `xml`) that the
-`SubtaskFormatter` can parse. If all retries fail to produce a valid
-result, the subtask is marked `malformed` and the planner is forced to
-either decompose it or skip it.
+`SubtaskFormatter` can parse. A response whose `task_id` does not match
+the current subtask also consumes a retry. If all retries fail to
+produce a valid result, the subtask is marked `malformed` and the
+planner is forced to either decompose it or skip it.
 
 ### 4.3 Records and summary
 
 Every executed subtask appends a *record* (the merged subtask + result)
 to `task::{id}::pool`. When the planner calls `finish`, a built-in
-*summarizer agent* (a sibling `LlmAgent` sharing the worker's tools and
+*summarizer agent* (a tool-less sibling `LlmAgent` sharing the worker's
 model) condenses `objective + records + result + status` into a
-structured human-readable summary. That summary is written to
-`task::{id}::summary` and persisted as the `summary` artifact.
+structured human-readable summary. The payload is capped — only the
+most recent `max_records` (default 20) records, each truncated, are fed
+to the summarizer, so a long run cannot blow its context. That summary
+is written to `task::{id}::summary` and persisted as the `summary`
+artifact.
 
 ### 4.4 Memory contract
 
@@ -304,8 +334,8 @@ planner starts:
 - **Inbox memories**, tagged `inbox` and `previous-task-result`,
   containing the textual content of every artifact the task declared as
   required.
-- **Skill memories**, tagged with the skill name (e.g. `likec4`),
-  containing the contents of every markdown file under
+- **Skill memories**, tagged `skill` plus the skill name (e.g.
+  `likec4`), containing the contents of every markdown file under
   [contractor/skills/<skill>/](../contractor/skills/).
 
 ---
@@ -323,7 +353,7 @@ to the planner as tool errors.
 | From          | Allowed transitions                            | Triggered by                                         |
 | ------------- | ---------------------------------------------- | ---------------------------------------------------- |
 | `new`         | `done`, `incomplete`, `malformed`, `skipped`   | `execute_current_subtask`, `skip`                    |
-| `incomplete`  | `decomposed`, `skipped`                        | `decompose_subtask`, `skip` (last-only)              |
+| `incomplete`  | `decomposed`, `skipped`                        | `decompose_subtask`, `skip` (last-only, or when the subtask budget is exhausted) |
 | `malformed`   | `decomposed`, `skipped`                        | `decompose_subtask`, `skip`                          |
 | `done`        | (terminal)                                     | —                                                    |
 | `decomposed`  | (terminal parent state)                        | child subtasks proceed independently                 |
@@ -335,8 +365,8 @@ Notes from the diagram:
   `malformed`, or `skipped` — it cannot be re-executed in place.
 - **`incomplete`** means the worker reported partial progress. The
   planner *must* call `decompose_subtask` (or `skip`, only if it is the
-  very last subtask). Re-running it directly is forbidden; the planner
-  prompt explicitly states this.
+  very last subtask or the subtask budget is exhausted). Re-running it
+  directly is forbidden; the planner prompt explicitly states this.
 - **`malformed`** is the runtime fallback when worker output fails to
   parse after all retries. The raw output is preserved in `output` for
   inspection. Same options apply: decompose or skip.
@@ -361,8 +391,9 @@ Notes from the diagram:
 
 The planner's `finish` tool is the only way to set
 `task::{id}::status = done`. It refuses to mark `done` if any subtask
-is still `new`, which prevents the planner from terminating before all
-explicit work has been resolved. After `finish`, the ADK invocation is
+is still `new`, if no subtasks exist at all, or if not a single subtask
+finished `done` — which prevents the planner from terminating before
+any explicit work has been resolved. After `finish`, the ADK invocation is
 forcibly ended via `tool_context._invocation_context.end_invocation =
 True` so the planner cannot keep emitting tool calls.
 

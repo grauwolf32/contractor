@@ -10,7 +10,7 @@
 The trace workflow processes API operations sequentially — each operation runs a full LLM agent session (multiple tool calls, file reads, annotation writes). With 10-20 operations, wallclock time scales linearly.
 
 ### Approach: Path-Level Parallelism
-Each API path gets its own forked `MemoryOverlayFileSystem`. Paths run concurrently via `asyncio.TaskGroup` with a semaphore (`max_concurrency=3`). Operations within a path remain sequential so sibling operations see each other's annotations.
+Each API path gets its own forked `MemoryOverlayFileSystem`. Paths run concurrently via `asyncio.TaskGroup` with a semaphore (`max_concurrency`, default 3 — `budgets.max_concurrency` in the workflow's `config.yaml`). Operations within a path remain sequential so sibling operations see each other's annotations.
 
 ```
 Before:  path1 → path2 → path3 → path4  (serial, 4x wallclock)
@@ -22,11 +22,11 @@ After:   path1 ┐
 
 ### Key Technical Decisions
 
-**Overlay fork/merge pattern.** Each parallel fork starts from a snapshot of the shared overlay. After all forks complete, writes are merged back. Conflict resolution: when two forks modify the same file, take the version with the most content (more `@trace` annotations = more complete trace). In practice, conflicts are rare — different API paths trace different code.
+**Overlay fork/merge pattern.** Each parallel fork starts from a snapshot of the shared overlay. After all forks complete, writes are merged back. Conflict resolution: when two forks modify the same file, take the version with the most content (more `@trace` annotations = more complete trace); identical content from multiple forks is not a conflict. Fork deletes only propagate when they post-date the fork point — `fork_overlay` records the pre-fork tombstone baseline. In practice, conflicts are rare — different API paths trace different code. Merge + persist run in a `finally`: a single failed path makes the `TaskGroup` cancel its siblings, but annotations from already-completed forks are still merged and saved instead of being lost.
 
 **Shared graph tools eliminate re-parse overhead.** Trailmark (call-graph engine) parses the project via tree-sitter on first use. Naively, each forked overlay triggers a separate parse — causing 7.7x slowdown in eval. Fix: build graph tools once from the base FS before forking, pass them to all agents via a new `graph_tools` parameter on `build_trace_agent`. Trailmark only reads the base FS (read-only), so sharing is safe. Result: overhead dropped from 637s to 72s.
 
-**Per-fork `AgentRunner` instances.** `AgentRunner` stores `_on_event` as instance state — two concurrent `.run()` calls would overwrite each other. Each parallel path creates its own runner.
+**Per-fork `AgentRunner` instances.** `AgentRunner` originally stored `_on_event` as instance state — two concurrent `.run()` calls would overwrite each other. `on_event` has since moved to a per-call `run()` parameter, but each parallel path still creates its own runner (with its own in-memory session service).
 
 ### Eval Results (fastapi fixture, 2 paths)
 
