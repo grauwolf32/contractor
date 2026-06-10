@@ -32,6 +32,7 @@ This module owns:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections import Counter
 from collections.abc import Awaitable, Callable
@@ -39,6 +40,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = "eval/v1"
 
@@ -458,9 +461,25 @@ def _safe_name(unit: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in unit)
 
 
+def _default_run_name(scenario: str, unit: str, metric_kind: str) -> str:
+    """Default "latest pointer" dir for one ``(scenario, unit, metric_kind)``
+    bucket: ``<scenario>-<unit>[-<metric_kind>]`` (metric_kind only when it
+    isn't the ``generic`` default), matching the established
+    ``<scenario>-<unit>-eval-<fixture>`` archive naming. Buckets are keyed on
+    all three fields, so the default name must carry all three — a bare
+    ``_safe_name(unit)`` made two buckets sharing a unit overwrite each
+    other's ``eval_runs/<unit>/eval_results.json`` in the same flush.
+    """
+    name = _run_slug(scenario, unit)
+    if metric_kind != "generic":
+        name += f"-{metric_kind}"
+    return name
+
+
 class EvalSink:
     """Accumulates per-case results across a pytest session and, on flush,
-    writes one ``eval_results.json`` envelope per ``(scenario, unit)`` group.
+    writes one ``eval_results.json`` envelope per ``(scenario, unit,
+    metric_kind)`` group.
 
     Per-fixture pytest evals are isolated test invocations, so they can't build
     an aggregate run themselves. Each records a single :class:`CaseResult` here
@@ -494,9 +513,24 @@ class EvalSink:
         run = self._runs.setdefault(key, {
             "scenario": scenario, "unit": unit, "metric_kind": metric_kind,
             "model": model, "prompt_version": prompt_version, "pass_at": pass_at,
-            "run_name": run_name or _safe_name(unit), "meta": meta or {},
+            "run_name": run_name or _default_run_name(scenario, unit, metric_kind),
+            "meta": meta or {},
             "fixtures": {},
         })
+        # The first record() seeds model/prompt_version for the whole bucket;
+        # backfill missing values and warn loudly when later cases disagree
+        # (the envelope can only carry one value per run).
+        for field_name, value in (("model", model), ("prompt_version", prompt_version)):
+            if value is None:
+                continue
+            if run[field_name] is None:
+                run[field_name] = value
+            elif run[field_name] != value:
+                logger.warning(
+                    "eval_sink: bucket %r already has %s=%r; case %r recorded %r "
+                    "(first value wins in the envelope)",
+                    key, field_name, run[field_name], case.id, value,
+                )
         run["fixtures"].setdefault(fixture, []).append(case)
         run["pass_at"] = max(run["pass_at"], pass_at)
         # Persist this case immediately (crash-safe) into the dated, never-
@@ -532,7 +566,8 @@ class EvalSink:
                 )
 
             # (1) "latest" pointer — overwritten each run, at the stable
-            #     eval_runs/<unit>/ path that analytics-ui reads (back-compat).
+            #     eval_runs/<scenario>-<unit>[-<metric_kind>]/ path (or the
+            #     caller-supplied run_name) that analytics-ui reads.
             paths.append(write_eval_results(_mk(fixtures), run["run_name"]))
             # (2) dated, per-fixture archive — NEVER overwritten (one folder per
             #     run via RUN_STAMP), so eval history is never lost.

@@ -244,15 +244,89 @@ def test_eval_sink_groups_by_scenario_unit(tmp_path, monkeypatch):
     sink.record(scenario="agent", unit="swe_edit_agent", metric_kind="generic",
                 fixture="fx", case=CaseResult("fx", True, 1, 1))
     sink.flush()
-    # "latest" pointers at the flat path (analytics-ui back-compat)
-    oas = json.loads((tmp_path / "oas_build" / "eval_results.json").read_text())
+    # "latest" pointers at <scenario>-<unit>[-<metric_kind>] (metric_kind
+    # suffix only when non-generic)
+    oas = json.loads((tmp_path / "task-oas_build-diff" / "eval_results.json").read_text())
     assert oas["scenario"] == "task" and oas["pass_at"] == 2   # max pass_at wins
     assert len(oas["fixtures"]) == 2 and oas["headline"]["pass_rate"] == 0.5
-    assert (tmp_path / "swe_edit_agent" / "eval_results.json").is_file()
+    assert (tmp_path / "agent-swe_edit_agent" / "eval_results.json").is_file()
     # dated, per-fixture archives — never overwritten (the data-loss fix)
     assert (tmp_path / "STAMP" / "task-oas_build-eval-vulnyapi" / "eval_results.json").is_file()
     assert (tmp_path / "STAMP" / "task-oas_build-eval-petstore" / "eval_results.json").is_file()
     assert (tmp_path / "STAMP" / "agent-swe_edit_agent-eval-fx" / "eval_results.json").is_file()
+
+
+def test_eval_sink_buckets_sharing_unit_get_distinct_run_dirs(tmp_path, monkeypatch):
+    """Two buckets sharing a unit (different scenario / metric_kind) must not
+    overwrite each other's latest-pointer envelope in the same flush."""
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
+
+    sink = EvalSink()
+    sink.record(scenario="agent", unit="trace", metric_kind="diff",
+                fixture="fx", case=CaseResult("a", True, 1, 1, detail={"f1": 1.0}))
+    sink.record(scenario="agent", unit="trace", metric_kind="detection",
+                fixture="fx", case=CaseResult("a", False, 0, 1, detail={"tp": 0, "fp": 0, "fn": 1}))
+    sink.record(scenario="pipeline", unit="trace", metric_kind="diff",
+                fixture="fx", case=CaseResult("a", True, 1, 1, detail={"f1": 0.5}))
+    paths = sink.flush()
+
+    latest = {p for p in paths if p.parent.parent == tmp_path}
+    assert latest == {
+        tmp_path / "agent-trace-diff" / "eval_results.json",
+        tmp_path / "agent-trace-detection" / "eval_results.json",
+        tmp_path / "pipeline-trace-diff" / "eval_results.json",
+    }
+    # each bucket kept its own case (no cross-bucket overwrite)
+    assert json.loads((tmp_path / "agent-trace-diff" / "eval_results.json").read_text())[
+        "fixtures"][0]["cases"][0]["passed"] is True
+    assert json.loads((tmp_path / "agent-trace-detection" / "eval_results.json").read_text())[
+        "fixtures"][0]["cases"][0]["passed"] is False
+
+
+def test_eval_sink_explicit_run_name_still_wins(tmp_path, monkeypatch):
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
+    sink = EvalSink()
+    sink.record(scenario="agent", unit="trace", metric_kind="diff", fixture="fx",
+                case=CaseResult("a", True, 1, 1), run_name="my-custom-run")
+    sink.flush()
+    assert (tmp_path / "my-custom-run" / "eval_results.json").is_file()
+
+
+def test_eval_sink_warns_on_model_disagreement(tmp_path, monkeypatch, caplog):
+    import logging
+
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
+    sink = EvalSink()
+    sink.record(scenario="agent", unit="u", metric_kind="generic", fixture="fx",
+                case=CaseResult("a", True, 1, 1), model="model-a", prompt_version="v1")
+    with caplog.at_level(logging.WARNING, logger="tests.eval.results"):
+        sink.record(scenario="agent", unit="u", metric_kind="generic", fixture="fx",
+                    case=CaseResult("b", True, 1, 1), model="model-b", prompt_version="v1")
+    assert any("model-b" in r.message and "model-a" in r.message for r in caplog.records)
+    # first value wins in the envelope
+    sink.flush()
+    env = json.loads((tmp_path / "agent-u" / "eval_results.json").read_text())
+    assert env["model"] == "model-a" and env["prompt_version"] == "v1"
+
+
+def test_eval_sink_backfills_missing_model(tmp_path, monkeypatch):
+    import tests.eval.results as R
+    monkeypatch.setattr(R, "EVAL_ROOT", tmp_path)
+    monkeypatch.setattr(R, "RUN_STAMP", "STAMP")
+    sink = EvalSink()
+    sink.record(scenario="agent", unit="u", metric_kind="generic", fixture="fx",
+                case=CaseResult("a", True, 1, 1))                       # no model yet
+    sink.record(scenario="agent", unit="u", metric_kind="generic", fixture="fx",
+                case=CaseResult("b", True, 1, 1), model="model-a")       # backfilled
+    sink.flush()
+    env = json.loads((tmp_path / "agent-u" / "eval_results.json").read_text())
+    assert env["model"] == "model-a"
 
 
 def test_case_artifact_dir_colocated_with_eval_sink(tmp_path, monkeypatch):

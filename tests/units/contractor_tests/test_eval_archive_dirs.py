@@ -1,8 +1,9 @@
 """Dated, never-overwritten eval archive (the data-loss fix).
 
 Each run lands in its own ``eval_runs/<RUN_STAMP>/<scenario>-<unit>-eval-<fixture>/``
-folder so results are never overwritten; the flat ``eval_runs/<unit>/`` path is
-kept as a "latest" pointer for analytics-ui back-compat.
+folder so results are never overwritten; the flat
+``eval_runs/<scenario>-<unit>[-<metric_kind>]/`` path is kept as a "latest"
+pointer for analytics-ui.
 """
 from __future__ import annotations
 
@@ -54,8 +55,8 @@ def test_flush_writes_latest_and_dated_archive(monkeypatch, tmp_path):
                 model="m", pass_at=3)
     sink.flush()
 
-    # latest pointer — combined, both fixtures, at the flat path
-    latest = tmp_path / "trace_agent" / "eval_results.json"
+    # latest pointer — combined, both fixtures, at <scenario>-<unit>-<metric_kind>
+    latest = tmp_path / "agent-trace_agent-diff" / "eval_results.json"
     assert latest.exists()
     assert {f["slug"] for f in json.loads(latest.read_text())["fixtures"]} == \
         {"crapi-workshop", "vulnyapi"}
