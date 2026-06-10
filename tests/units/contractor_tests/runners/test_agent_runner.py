@@ -5,6 +5,8 @@ logic without an LLM."""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -238,6 +240,42 @@ class TestEmission:
         with pytest.raises(RuntimeError, match="kaboom"):
             await runner.run(agent=_agent(), message="hi", on_event=on_event)
 
+        assert runner._on_event is None
+
+    @pytest.mark.asyncio
+    async def test_raising_handler_does_not_abort_run(self, monkeypatch, caplog):
+        # Event delivery is best-effort telemetry: a broken handler (full
+        # disk, UI rendering, …) must not abort the agent run.
+        _patch_runner(monkeypatch, [_final_event("ok")])
+        runner = _make_runner()
+
+        async def bad_handler(ev: TaskRunnerEvent) -> None:
+            raise OSError("No space left on device")
+
+        with caplog.at_level(
+            logging.ERROR, logger="contractor.runners.agent_runner",
+        ):
+            result = await runner.run(
+                agent=_agent(), message="hi", on_event=bad_handler,
+            )
+
+        assert result.final_text == "ok"
+        assert any(
+            "event handler failed" in rec.getMessage() for rec in caplog.records
+        )
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_from_handler_propagates(self, monkeypatch):
+        _patch_runner(monkeypatch, [_final_event("ok")])
+        runner = _make_runner()
+
+        async def cancelling_handler(ev: TaskRunnerEvent) -> None:
+            raise asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await runner.run(
+                agent=_agent(), message="hi", on_event=cancelling_handler,
+            )
         assert runner._on_event is None
 
 

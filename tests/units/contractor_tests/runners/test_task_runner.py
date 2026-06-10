@@ -780,6 +780,113 @@ class TestCheckpointIntegration:
         single.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_restore_skipped_on_template_key_mismatch(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        # Entry was recorded for a different template — a stale checkpoint
+        # after a workflow edit must not silently skip the task.
+        cp = Checkpoint(workflow="test")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="other", template_version="v1",
+            published_artifacts={"result": "other/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.task_runner",
+        ):
+            await r.run(user_id="u")
+
+        # Mismatch → re-run, with a warning naming both templates.
+        single.assert_awaited_once()
+        messages = [rec.getMessage() for rec in caplog.records]
+        assert any(
+            "a:0" in m and "other@v1" in m and "t@v1" in m for m in messages
+        )
+
+    @pytest.mark.asyncio
+    async def test_restore_skipped_on_template_version_mismatch(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        cp = Checkpoint(workflow="test")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="t", template_version="v0",
+            published_artifacts={"result": "t/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.task_runner",
+        ):
+            await r.run(user_id="u")
+
+        single.assert_awaited_once()
+        messages = [rec.getMessage() for rec in caplog.records]
+        assert any("a:0" in m and "t@v0" in m and "t@v1" in m for m in messages)
+
+    @pytest.mark.asyncio
+    async def test_restore_still_happens_on_template_match(
+        self, tmp_path, monkeypatch,
+    ):
+        # Sanity companion to the mismatch tests: same template_key AND
+        # template_version → restore proceeds, task is skipped.
+        cp = Checkpoint(workflow="test")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="t", template_version="v1",
+            published_artifacts={"result": "t/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+
+        inv = _make_invocation(ref="a:0", iterations=1, max_attempts=1)
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        r.queue.append(inv)
+        results = await r.run(user_id="u")
+
+        single.assert_not_awaited()
+        assert results[0].result == "(restored from checkpoint)"
+
+    @pytest.mark.asyncio
+    async def test_load_checkpoint_failure_still_clears_handler(
+        self, tmp_path, monkeypatch,
+    ):
+        # _load_checkpoint runs inside the try block, so the finally that
+        # clears _on_event must run even if it raises.
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            r, "_load_checkpoint",
+            MagicMock(side_effect=RuntimeError("checkpoint exploded")),
+        )
+
+        async def on_event(event):
+            pass
+
+        with pytest.raises(RuntimeError, match="checkpoint exploded"):
+            await r.run(user_id="u", on_event=on_event)
+
+        assert r._on_event is None
+
+    @pytest.mark.asyncio
     async def test_no_checkpoint_path_runs_normally(self, tmp_path, monkeypatch):
         r = TaskRunner(
             name="test",
@@ -856,6 +963,68 @@ class TestRunLifecycleEvents:
         ]
         assert len(finished) == 1
         assert finished[0].kwargs["ok"] is False
+
+
+# ─── Event handler failures (best-effort telemetry) ──────────────────────────
+
+
+def _real_emit_runner(monkeypatch) -> TaskRunner:
+    """A TaskRunner with I/O stubbed but a REAL _emit, so handler failures
+    flow through the production guard."""
+    r = TaskRunner(name="test", artifact_service=MagicMock(spec=BaseArtifactService))
+    r.templates[("t", "v1")] = _make_template(default_iterations=1)
+    rendered = RenderedTask(
+        key="t", title="T", objective="", instructions="",
+        output_format="", format="json",
+    )
+    monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+    monkeypatch.setattr(r, "_render_task", MagicMock(return_value=rendered))
+    monkeypatch.setattr(r, "_publish_task_artifacts", AsyncMock())
+    return r
+
+
+class TestEmitHandlerFailures:
+    @pytest.mark.asyncio
+    async def test_raising_handler_does_not_abort_run(self, monkeypatch, caplog):
+        # An observability failure (e.g. MetricsSink hitting a full disk) is
+        # best-effort telemetry — the workflow must complete anyway.
+        r = _real_emit_runner(monkeypatch)
+        monkeypatch.setattr(
+            r, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", True, 1, task_id=0)),
+        )
+        r.queue.append(_make_invocation(ref="a:0", iterations=1, max_attempts=1))
+
+        async def bad_handler(event):
+            raise OSError("No space left on device")
+
+        with caplog.at_level(
+            logging.ERROR, logger="contractor.runners.task_runner",
+        ):
+            results = await r.run(user_id="u", on_event=bad_handler)
+
+        assert len(results) == 1
+        assert results[0].status == "done"
+        assert any(
+            "event handler failed" in rec.getMessage() for rec in caplog.records
+        )
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_from_handler_propagates(self, monkeypatch):
+        # CancelledError must never be swallowed by the emit guard.
+        r = _real_emit_runner(monkeypatch)
+        monkeypatch.setattr(
+            r, "_run_single_iteration",
+            AsyncMock(return_value=_result_for("t", True, 1, task_id=0)),
+        )
+        r.queue.append(_make_invocation(ref="a:0", iterations=1, max_attempts=1))
+
+        async def cancelling_handler(event):
+            raise asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await r.run(user_id="u", on_event=cancelling_handler)
+        assert r._on_event is None
 
 
 # ─── Per-task event payloads (characterization) ──────────────────────────────

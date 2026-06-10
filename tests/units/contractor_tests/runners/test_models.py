@@ -362,6 +362,38 @@ class TestCheckpoint:
         path.write_text(json.dumps({"version": 999, "tasks": []}), encoding="utf-8")
         assert Checkpoint.load(path) is None
 
+    def test_load_returns_none_for_entry_missing_required_field(
+        self, tmp_path, caplog,
+    ):
+        import json
+        import logging
+        path = tmp_path / "partial.json"
+        path.write_text(
+            json.dumps({
+                "version": 1,
+                "workflow": "test",
+                # Valid JSON, wrong shape: entry lacks ref/template_key/….
+                "tasks": [{"task_id": 0}],
+            }),
+            encoding="utf-8",
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.models.checkpoint",
+        ):
+            assert Checkpoint.load(path) is None
+        assert any(
+            "ignoring corrupt checkpoint" in r.getMessage() for r in caplog.records
+        )
+
+    def test_load_returns_none_for_non_dict_entries(self, tmp_path):
+        import json
+        path = tmp_path / "shape.json"
+        path.write_text(
+            json.dumps({"version": 1, "workflow": "test", "tasks": ["oops"]}),
+            encoding="utf-8",
+        )
+        assert Checkpoint.load(path) is None
+
     def test_save_is_atomic(self, tmp_path):
         path = tmp_path / "checkpoint.json"
         cp = Checkpoint(workflow="test", entries=[self._entry()])

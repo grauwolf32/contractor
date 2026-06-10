@@ -180,11 +180,13 @@ class TaskRunner(BaseModel):
         on_event: TaskRunnerEventHandler | None = None,
     ) -> list[TaskResult]:
         self._on_event = on_event
-        checkpoint = self._load_checkpoint()
 
         try:
             results: list[TaskResult] = []
             total_tasks = len(self.queue)
+            # Inside the try so the `finally` below still clears `_on_event`
+            # (and tears down sandboxes) if checkpoint loading fails.
+            checkpoint = self._load_checkpoint()
 
             await self._emit(
                 EventType.RUN_STARTED,
@@ -325,6 +327,24 @@ class TaskRunner(BaseModel):
             return None
         entry = checkpoint.get(item.ref)
         if entry is None:
+            return None
+
+        # A checkpoint entry recorded for a different template (or version)
+        # is stale: restoring it would silently skip the edited task and feed
+        # old artifacts downstream. Re-run instead.
+        if (
+            entry.template_key != item.template_key
+            or entry.template_version != item.template_version
+        ):
+            logger.warning(
+                "checkpoint entry %s was recorded for template %s@%s but the "
+                "invocation now expects %s@%s — re-running",
+                item.ref,
+                entry.template_key,
+                entry.template_version,
+                item.template_key,
+                item.template_version,
+            )
             return None
 
         # Validate against the invocation's *own* publish key, not whatever
@@ -512,11 +532,21 @@ class TaskRunner(BaseModel):
     ) -> None:
         if self._on_event is None:
             return
-        await self._on_event(
-            TaskRunnerEvent(
-                type=type, task_name=task_name, task_id=task_id, payload=payload
-            )
+        event = TaskRunnerEvent(
+            type=type, task_name=task_name, task_id=task_id, payload=payload
         )
+        try:
+            await self._on_event(event)
+        except asyncio.CancelledError:
+            # Cancellation must keep unwinding the run — never swallow it.
+            raise
+        except Exception:
+            # Event delivery is best-effort telemetry: a broken handler
+            # (disk-full MetricsSink, UI rendering, …) must never abort an
+            # hours-long workflow.
+            logger.exception(
+                "event handler failed for %s event (task %s)", event.type, task_name
+            )
 
     # ── Session management ────────────────────────────────────────────────
 

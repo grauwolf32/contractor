@@ -456,24 +456,33 @@ class Checkpoint:
             _checkpoint_logger.warning("ignoring corrupt checkpoint %s: %s", path, exc)
             return None
 
-        if data.get("version") != _CHECKPOINT_VERSION:
+        # Structurally malformed data (valid JSON but not the expected shape —
+        # entries missing task_id/ref/template_key, non-dict entries, …) must
+        # follow the same "ignoring corrupt checkpoint" path, not raise.
+        try:
+            if data.get("version") != _CHECKPOINT_VERSION:
+                _checkpoint_logger.warning(
+                    "ignoring checkpoint %s with unsupported version %s",
+                    path,
+                    data.get("version"),
+                )
+                return None
+
+            return cls(
+                workflow=data.get("workflow", ""),
+                entries=[
+                    CheckpointEntry(
+                        task_id=t["task_id"],
+                        ref=t["ref"],
+                        template_key=t["template_key"],
+                        template_version=t["template_version"],
+                        published_artifacts=t.get("published_artifacts", {}),
+                    )
+                    for t in data.get("tasks", [])
+                ],
+            )
+        except (KeyError, TypeError, AttributeError) as exc:
             _checkpoint_logger.warning(
-                "ignoring checkpoint %s with unsupported version %s",
-                path,
-                data.get("version"),
+                "ignoring corrupt checkpoint %s: %r", path, exc
             )
             return None
-
-        return cls(
-            workflow=data.get("workflow", ""),
-            entries=[
-                CheckpointEntry(
-                    task_id=t["task_id"],
-                    ref=t["ref"],
-                    template_key=t["template_key"],
-                    template_version=t["template_version"],
-                    published_artifacts=t.get("published_artifacts", {}),
-                )
-                for t in data.get("tasks", [])
-            ],
-        )

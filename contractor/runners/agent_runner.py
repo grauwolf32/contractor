@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -189,11 +190,20 @@ class AgentRunner(BaseModel):
             return
         task_name = payload.pop("task_name", self.name)
         task_id = payload.pop("task_id", 0)
-        await self._on_event(
-            TaskRunnerEvent(
-                type=event_type,
-                task_name=task_name,
-                task_id=task_id,
-                payload=payload,
-            )
+        event = TaskRunnerEvent(
+            type=event_type,
+            task_name=task_name,
+            task_id=task_id,
+            payload=payload,
         )
+        try:
+            await self._on_event(event)
+        except asyncio.CancelledError:
+            # Cancellation must keep unwinding the run — never swallow it.
+            raise
+        except Exception:
+            # Event delivery is best-effort telemetry: a broken handler must
+            # never abort the agent run.
+            logger.exception(
+                "event handler failed for %s event (task %s)", event_type, task_name
+            )
