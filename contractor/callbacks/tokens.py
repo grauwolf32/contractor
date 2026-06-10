@@ -11,11 +11,6 @@ from .base import BaseCallback, CallbackTypes
 logger = logging.getLogger(__name__)
 
 
-class TokenUsageCallbackException(Exception):
-    def __init__(self) -> None:
-        super().__init__("token usage callback not found!")
-
-
 @dataclass
 class TokenCounter:
     input: int = 0
@@ -72,6 +67,8 @@ class TokenUsageCallback(BaseCallback):
         self, ctx: ToolContext | CallbackContext, counter: TokenCounter
     ):
         history = TokenUsageCallback.get_history(ctx)
+        if self.invocation_id is None:
+            return history
         history[self.invocation_id] = asdict(counter)
         ctx.state[TokenUsageCallback.global_history_key()] = history
         return history
@@ -98,27 +95,30 @@ class TokenUsageCallback(BaseCallback):
             total=usage.total_token_count or 0,
         )
 
-        current = self.counter
         self._update_global_counter(callback_context, token_count)
 
         invocation_id = self.get_invocation_id(callback_context)
 
-        # если invocation_id ещё не задан — пытаемся подхватить из ответа
+        # invocation_id not adopted yet — pick it up from the context.
         if self.invocation_id is None and self.is_empty():
             self.invocation_id = invocation_id
 
-        # тот же invocation_id -> копим current
         if invocation_id == self.invocation_id:
+            # Same invocation_id -> keep accumulating the current counter.
             self.counter.add(token_count)
-            self.save_to_state(callback_context)
-            return
+        else:
+            # invocation_id changed -> start a fresh counter. The previous
+            # invocation's totals are already in history (flushed below on
+            # every call).
+            self.invocation_id = invocation_id
+            self.counter = token_count
 
-        # смена invocation_id -> сохраняем прошлый current и начинаем новый
-        if self.invocation_id is not None:
-            self._update_history(callback_context, current)
-
-        self.invocation_id = invocation_id
-        self.counter = token_count
+        # Flush the in-progress invocation to history on every call. The
+        # history is keyed by invocation_id, so this overwrites (never
+        # double-counts) and keeps the *final* invocation's entry up to date —
+        # there is no "invocation changed" event after the last response, so
+        # waiting for the id to change would undercount by one invocation.
+        self._update_history(callback_context, self.counter)
 
         self.save_to_state(callback_context)
         return

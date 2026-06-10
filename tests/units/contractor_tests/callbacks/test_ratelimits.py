@@ -234,6 +234,54 @@ class TestRpmRatelimit:
         sleep_mock.assert_not_called()
         assert cb.request_count == 3
 
+    def test_window_rolls_after_60s_without_sleeping(self, monkeypatch):
+        # Once 60s elapse under budget, the window rolls forward (count +
+        # timer reset) without sleeping — exercises the `elif els >= 60`
+        # branch, mirroring TpmRatelimitCallback.
+        monkeypatch.setattr(
+            "time.time", MagicMock(side_effect=[1000.0, 1010.0, 1070.0])
+        )
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
+
+        cb = RpmRatelimitCallback(rpm_limit=3)
+        ctx = mk_callback_context()
+        cb(ctx, MagicMock())  # init @1000, count=1
+        cb(ctx, MagicMock())  # @1010, count=2
+        cb(ctx, MagicMock())  # @1070 els=70>=60, under limit → roll, no sleep
+
+        sleep_mock.assert_not_called()
+        assert cb.timer_start == 1070
+        assert cb.request_count == 1  # the rolling request starts the window
+        assert cb.history == []
+
+    def test_requests_do_not_accumulate_across_stale_windows(self, monkeypatch):
+        # Regression (mirrors TestTpmAccumulation/H1 in spirit): pre-fix there
+        # was no stale-window reset branch, so request_count accumulated
+        # across dead windows and a later sub-limit burst was treated as a
+        # limit violation (count reset only via the throttle branch).
+        monkeypatch.setattr(
+            "time.time",
+            MagicMock(side_effect=[1000.0, 1001.0, 1070.0, 1071.0, 1072.0]),
+        )
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
+
+        cb = RpmRatelimitCallback(rpm_limit=3)
+        ctx = mk_callback_context()
+        cb(ctx, MagicMock())  # init @1000, count=1
+        cb(ctx, MagicMock())  # @1001, count=2
+        cb(ctx, MagicMock())  # @1070 count=3 (at limit), stale → roll, count=1
+        cb(ctx, MagicMock())  # @1071, count=2
+        cb(ctx, MagicMock())  # @1072, count=3 — still within the new window
+
+        # Pre-fix: the @1071 call hit count=4 > 3 and took the throttle
+        # branch (history entry + spurious reset).
+        sleep_mock.assert_not_called()
+        assert cb.history == []
+        assert cb.timer_start == 1070
+        assert cb.request_count == 3
+
     def test_exceeding_limit_triggers_sleep_and_resets(self, monkeypatch):
         # Four time.time() reads: init, 2nd req, 3rd req, 4th req triggers
         # sleep, then a fifth read to set the new window's timer_start.

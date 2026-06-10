@@ -51,11 +51,20 @@ def _expected_signatures() -> dict["CallbackTypes", inspect.Signature]:
 
 
 def verify_signature(cb_func: Callable, cb_type: "CallbackTypes") -> bool:
-    # expected = _expected_signatures().get(cb_type)
-    # if expected is None:
-    #    raise ValueError(f"Unknown callback type: {cb_type}")
-    # return inspect.signature(cb_func) == expected
-    return True
+    """Check that ``cb_func`` accepts the parameters ADK passes for ``cb_type``.
+
+    Compares parameter names and kinds only: return-type and parameter
+    annotations legitimately vary across callbacks (e.g. ``-> None`` vs
+    ``-> LlmResponse | None``), so full ``inspect.Signature`` equality would
+    reject valid callbacks.
+    """
+    expected = _expected_signatures().get(cb_type)
+    if expected is None:
+        raise ValueError(f"Unknown callback type: {cb_type}")
+    actual = inspect.signature(cb_func)
+    return [(p.name, p.kind) for p in actual.parameters.values()] == [
+        (p.name, p.kind) for p in expected.parameters.values()
+    ]
 
 
 def _callback_name(func: Callable[..., Any]) -> str:

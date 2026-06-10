@@ -10,6 +10,7 @@ unconditionally from production code.
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
@@ -45,6 +46,9 @@ def init() -> None:
         get_client()
     except Exception as exc:
         logger.warning("Langfuse init failed: %s", exc)
+    # Intentionally set even after a failed init: retrying on every call
+    # would re-attempt the import/instrumentation (and re-log the warning)
+    # for the whole run. A broken Langfuse degrades to no-op observability.
     _initialized = True
 
 
@@ -118,8 +122,19 @@ def run_context(
         yield None
         return
 
+    # Enter/exit the span manually so a broken Langfuse client degrades to a
+    # no-op span instead of crashing the run (this module never raises).
+    span_cm = None
+    span = None
     try:
-        with client.start_as_current_span(name=name) as span:
+        span_cm = client.start_as_current_span(name=name)
+        span = span_cm.__enter__()
+    except Exception as exc:
+        logger.warning("run_context: failed to open span: %s", exc)
+        span_cm = None
+
+    try:
+        if span is not None:
             tag_trace(
                 name=name,
                 user_id=user_id,
@@ -127,8 +142,15 @@ def run_context(
                 tags=tags,
                 metadata=metadata,
             )
-            yield span
+        yield span
     finally:
+        if span_cm is not None:
+            try:
+                # Inside `finally`, sys.exc_info() is the in-flight exception
+                # (if any), so the span still records the failure status.
+                span_cm.__exit__(*sys.exc_info())
+            except Exception as exc:
+                logger.warning("run_context: failed to close span: %s", exc)
         flush()
 
 

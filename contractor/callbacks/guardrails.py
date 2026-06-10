@@ -13,7 +13,6 @@ from .base import BaseCallback, CallbackTypes
 from .tokens import TokenUsageCallback
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 TOKEN_BUDGET_DEFAULT_MESSAGE: Final[str] = (

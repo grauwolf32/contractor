@@ -9,12 +9,22 @@ from .base import BaseCallback, CallbackTypes
 from .tokens import TokenCounter, TokenUsageCallback
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 
 
 class TpmRatelimitCallback(BaseCallback):
+    """Throttle LLM calls to a tokens-per-minute budget.
+
+    WARNING: throttling uses a *blocking* ``time.sleep``. ``CallbackChain``
+    composes callbacks synchronously and short-circuits on any truthy return
+    value, so this callback cannot be converted to a coroutine (the returned
+    coroutine object would be treated as a chain result and skip downstream
+    callbacks). While it sleeps it blocks the asyncio event loop, stalling
+    *every* concurrently running agent — wire it up only for single-agent
+    runs, or make ``CallbackChain`` awaitable-aware first.
+    """
+
     cb_type: CallbackTypes = CallbackTypes.before_model_callback
     deps: list[str] = [TOKEN_USAGE_CALLBACK_NAME]
 
@@ -90,6 +100,13 @@ class TpmRatelimitCallback(BaseCallback):
 
 
 class RpmRatelimitCallback(BaseCallback):
+    """Throttle LLM calls to a requests-per-minute budget.
+
+    WARNING: throttling uses a *blocking* ``time.sleep`` — see
+    ``TpmRatelimitCallback`` for why this cannot be a coroutine and what it
+    means for concurrently running agents.
+    """
+
     cb_type: CallbackTypes = CallbackTypes.before_model_callback
     deps: list[str] = []
 
@@ -121,6 +138,8 @@ class RpmRatelimitCallback(BaseCallback):
         els = current_time - (self.timer_start or 0)
 
         if self.request_count > self.rpm_limit:
+            # Window budget spent: sleep out the remainder of the window, then
+            # start a fresh window counting the current request.
             delay = 60 - els + 1
             if delay > 0:
                 time.sleep(delay)
@@ -133,6 +152,13 @@ class RpmRatelimitCallback(BaseCallback):
                 }
             )
             self.timer_start = int(time.time())
+            self.request_count = 1
+        elif els >= 60:
+            # Window elapsed under budget: roll it forward without sleeping —
+            # mirrors TpmRatelimitCallback. Without this, request_count keeps
+            # accumulating across stale windows and a later burst is throttled
+            # against requests from long-dead windows.
+            self.timer_start = current_time
             self.request_count = 1
 
         self.save_to_state(callback_context)
