@@ -56,6 +56,12 @@ SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE: Final[str] = (
     "If it is already resolved ('done', 'skipped', or 'decomposed'), move on "
     "to the next subtask."
 )
+SUBTASK_SKIP_NOT_SKIPPABLE: Final[str] = (
+    "Subtask `{task_id}` has status '{status}' and was NOT skipped. "
+    "Only subtasks with status 'new', 'incomplete', or 'malformed' can be "
+    "skipped. It is already resolved — move on to the next subtask, or call "
+    "`finish` if the objective is complete."
+)
 SUBTASK_RESULT_MALFORMED: Final[str] = (
     "The worker returned a result that could not be completely parsed into the "
     "expected format. The raw output has been stored for reference. "

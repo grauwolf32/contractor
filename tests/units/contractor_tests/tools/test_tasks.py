@@ -91,6 +91,9 @@ def _mk_worker():
     worker.tools = []
     worker.model = "gpt-3.5-turbo"
     worker.instruction = ""
+    # Uninstrumented workers must declare input_schema themselves (the
+    # RouterWorkflow contract); task_tools validates this at assembly time.
+    worker.input_schema = Subtask
     return worker
 
 
@@ -695,6 +698,87 @@ async def test_skip_incomplete_last_is_allowed(monkeypatch):
     records = tool["get_records"](tool_context=ctx)["result"]
     assert records[-1]["task_id"] == "0"
     assert records[-1]["status"] == "skipped"
+
+
+@pytest.mark.anyio
+async def test_skip_resolved_current_subtask_returns_error(monkeypatch):
+    worker = _mk_worker()
+
+    async def _done(*, args, tool_context):
+        return _result_json(
+            task_id=args["task_id"],
+            status="done",
+            output="ok",
+            summary="ok",
+        )
+
+    worker.run_async.side_effect = _done
+
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
+    ctx = mk_tool_context()
+
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    await tool["execute_current_subtask"](tool_context=ctx)
+
+    # The last subtask is 'done' and still current — the rejected skip must
+    # surface as an error naming the cause, not as the no-active-subtasks
+    # success message.
+    res = tool["skip"](task_id="0", reason="redundant", tool_context=ctx)
+    assert res["error"] == m.SUBTASK_SKIP_NOT_SKIPPABLE.format(
+        task_id="0", status="done"
+    )
+
+    # State untouched: subtask stays 'done', no skip record was appended.
+    all_tasks = tool["list_subtasks"](tool_context=ctx, view="all")["result"]
+    assert all_tasks[0]["status"] == "done"
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert all(r["status"] != "skipped" for r in records)
+
+
+# ---------------------------
+# task_tools assembly validation
+# ---------------------------
+
+
+def test_task_tools_uninstrumented_requires_worker_input_schema():
+    worker = _mk_worker()
+    worker.input_schema = None
+
+    with pytest.raises(ValueError, match="input_schema"):
+        m.task_tools(
+            name="tm",
+            max_tasks=10,
+            worker=worker,
+            fmt=m.SubtaskFormatter(_format="markdown"),
+            worker_instrumentation=False,
+            use_input_schema=True,
+            use_summarization=False,
+        )
+
+
+def test_task_tools_uninstrumented_accepts_worker_with_input_schema(monkeypatch):
+    worker = _mk_worker()  # sets input_schema = Subtask
+    tool = _mk_tools(monkeypatch, worker=worker)
+    assert "execute_current_subtask" in tool
+
+
+def test_task_tools_uninstrumented_allows_missing_schema_when_disabled(monkeypatch):
+    from contractor.tools.tasks import tools as _tools_mod
+
+    monkeypatch.setattr(_tools_mod, "AgentTool", MockAgentTool)
+
+    worker = _mk_worker()
+    worker.input_schema = None
+    tools = m.task_tools(
+        name="tm",
+        max_tasks=10,
+        worker=worker,
+        fmt=m.SubtaskFormatter(_format="markdown"),
+        worker_instrumentation=False,
+        use_input_schema=False,
+        use_summarization=False,
+    )
+    assert any(fn.__name__ == "execute_current_subtask" for fn in tools)
 
 
 @pytest.mark.anyio

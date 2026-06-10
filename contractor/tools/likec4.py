@@ -64,12 +64,14 @@ class Likec4Linter:
     and running `likec4 validate --json --no-layout --file <tmp> <tmpdir>`. The
     agent owns the source string (typically kept in its memory store) and
     passes it in directly — no on-disk artifact is needed.
+
+    The likec4 command is resolved lazily on first use (and cached), so
+    constructing the linter never raises — a missing binary surfaces as
+    `Likec4NotFoundError` from `validate`/`validate_path` instead.
     """
 
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
-
-    def __post_init__(self) -> None:
-        self._resolve_command()
+    _cmd_prefix: list[str] | None = field(default=None, init=False)
 
     @staticmethod
     def _resolve_command() -> list[str]:
@@ -88,6 +90,16 @@ class Likec4Linter:
             "likec4 not found in PATH and no fallback runner available "
             "(tried: likec4, bunx, pnpx, npx)"
         )
+
+    def _command(self) -> list[str]:
+        """Resolve the likec4 command prefix, caching it after first success.
+
+        Raises:
+            Likec4NotFoundError: If no usable runner is found in PATH.
+        """
+        if self._cmd_prefix is None:
+            self._cmd_prefix = self._resolve_command()
+        return self._cmd_prefix
 
     def validate(
         self, content: str, *, timeout: float | None = None
@@ -113,7 +125,7 @@ class Likec4Linter:
         """
         if timeout is None:
             timeout = get_settings().likec4_validate_timeout
-        cmd_prefix = self._resolve_command()
+        cmd_prefix = self._command()
 
         with tempfile.TemporaryDirectory(prefix="likec4-") as tmp:
             tmp_path = Path(tmp)
@@ -251,6 +263,10 @@ def likec4_tools(
     The agent maintains its LikeC4 source as a single file on `fs` (overlay-
     backed for the build agent), so `validate_likec4` re-reads from disk on
     every call and no separate in-memory copy of the source is needed.
+
+    Building the tool list never raises when the likec4 binary is missing:
+    the command is resolved lazily, so a missing binary surfaces as an
+    {"error": ...} tool result on the first `validate_likec4` call instead.
 
     Args:
         fs: fsspec filesystem (typically an overlay over the project root).

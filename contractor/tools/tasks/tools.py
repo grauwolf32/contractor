@@ -41,7 +41,9 @@ from contractor.tools.tasks.models import (
     SUBTASK_REQUIRES_DECOMPOSITION_MSG,
     SUBTASK_REQUIRES_RESOLUTION_MSG,
     SUBTASK_RESULT_MALFORMED,
+    SUBTASK_SKIP_NOT_SKIPPABLE,
     TASK_LIMIT_REACHED_MSG,
+    InvalidStatusTransitionError,
     Subtask,
     SubtaskDecomposition,
     SubtaskExecutionResult,
@@ -259,6 +261,17 @@ def task_tools(
         worker = instrument_worker(
             agent_ref, fmt, use_type_hint, use_input_schema, use_output_schema
         )
+    elif use_input_schema and getattr(_get_agent_ref(worker), "input_schema", None) is None:
+        # With instrumentation off, `execute_current_subtask` still passes
+        # the Subtask dict as args, which ADK's AgentTool only accepts when
+        # the agent declares an input_schema. Fail loudly at assembly time
+        # instead of surfacing as an obscure KeyError('request') at runtime.
+        raise ValueError(
+            "task_tools(worker_instrumentation=False) with use_input_schema=True "
+            "requires the worker agent to have `input_schema` set (e.g. "
+            "`worker.input_schema = Subtask`). Set it before calling task_tools, "
+            "or pass use_input_schema=False."
+        )
 
     if not isinstance(worker, AgentTool):
         worker = AgentTool(worker)
@@ -461,7 +474,8 @@ def task_tools(
                     are NOT acceptable.
 
         Returns:
-            The next subtask, or a message if no more remain.
+            The next subtask, a message if no more remain, or an error if
+            the current subtask is already resolved and cannot be skipped.
 
         IMPORTANT CONSTRAINTS:
             - You MUST have attempted execution first or have clear evidence
@@ -497,7 +511,17 @@ def task_tools(
                 )
             }
 
-        next_subtask = mgr.skip(reason, tool_context)
+        try:
+            next_subtask = mgr.skip(reason, tool_context)
+        except InvalidStatusTransitionError:
+            # The current subtask is already resolved ('done'/'decomposed'/
+            # 'skipped') — report the rejection instead of pretending the
+            # skip happened.
+            return {
+                "error": SUBTASK_SKIP_NOT_SKIPPABLE.format(
+                    task_id=current.task_id, status=current.status
+                )
+            }
         if next_subtask is None:
             return {"result": NO_ACTIVE_SUBTASKS_MSG}
         return {"result": "ok", "next-subtask": fmt.format_subtask(next_subtask)}
