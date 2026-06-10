@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -5,6 +7,7 @@ import pytest
 from google.adk.artifacts import BaseArtifactService
 
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
+from contractor.runners.artifacts import InvalidArtifactKeyError, artifact_names_for_key
 from contractor.runners.models import (
     Checkpoint,
     CheckpointEntry,
@@ -83,13 +86,24 @@ class TestDecodePartText:
         )
         assert _decode_part_text(part) == "payload"
 
-    def test_inline_bytes_invalid_utf8_ignores_errors(self):
+    def test_inline_bytes_invalid_utf8_replaces_and_warns(self, caplog):
         part = SimpleNamespace(
             text=None,
             inline_data=SimpleNamespace(data=b"\xff\xfehello"),
         )
-        # `errors="ignore"` drops the invalid bytes; the readable suffix survives.
-        assert _decode_part_text(part) == "hello"
+        # `errors="replace"` keeps the readable suffix and marks the invalid
+        # bytes as U+FFFD instead of silently dropping them — with a warning.
+        with caplog.at_level(logging.WARNING, logger="contractor.runners._helpers"):
+            assert _decode_part_text(part) == "��hello"
+        assert any("not valid UTF-8" in r.getMessage() for r in caplog.records)
+
+    def test_inline_bytes_valid_utf8_no_warning(self, caplog):
+        part = SimpleNamespace(
+            text=None, inline_data=SimpleNamespace(data=b"hello"),
+        )
+        with caplog.at_level(logging.WARNING, logger="contractor.runners._helpers"):
+            assert _decode_part_text(part) == "hello"
+        assert not caplog.records
 
     def test_missing_inline_data_returns_empty(self):
         part = SimpleNamespace(text=None, inline_data=None)
@@ -99,15 +113,18 @@ class TestDecodePartText:
 # ─── TaskRunner._resolve_retry_params ────────────────────────────────────────
 
 
-def _make_template(default_iterations=1) -> TaskTemplate:
+def _make_template(
+    default_iterations=1, default_artifacts=None, instructions="",
+) -> TaskTemplate:
     return TaskTemplate(
         key="t",
         version="v1",
         title="T",
         objective="",
-        instructions="",
+        instructions=instructions,
         output_format="",
         default_iterations=default_iterations,
+        default_artifacts=default_artifacts or [],
     )
 
 
@@ -336,6 +353,337 @@ class TestRetryLoop:
             item=invocation, task_id=1, user_id="u", total_tasks=1,
         )
         assert single.await_count == 2
+
+
+# ─── TaskRunner retry loop: exceptions ───────────────────────────────────────
+
+
+class TestRetryLoopExceptions:
+    @pytest.mark.asyncio
+    async def test_exception_consumes_attempt_then_succeeds(
+        self, runner, monkeypatch
+    ):
+        # A transient exception on attempt 1 must count as a failed attempt,
+        # not abort the run — attempt 2 succeeds.
+        invocation = _make_invocation(iterations=1, max_attempts=2)
+        single = AsyncMock(side_effect=[
+            RuntimeError("transient LLM error"),
+            _result_for("t", True, 2),
+        ])
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        result = await runner._run_task_with_retries(
+            item=invocation, task_id=1, user_id="u", total_tasks=1,
+        )
+        assert result.status == "done"
+        assert single.await_count == 2
+        runner._publish_task_artifacts.assert_awaited_once()
+
+        # The exception attempt emits the same ITERATION_RESULT event as a
+        # status!=DONE failure, extended with error info.
+        failures = [
+            c for c in runner._emit.await_args_list
+            if c.args
+            and c.args[0] is EventType.ITERATION_RESULT
+            and c.kwargs.get("completed") is False
+        ]
+        assert len(failures) == 1
+        assert failures[0].kwargs["error_type"] == "RuntimeError"
+        assert "transient LLM error" in failures[0].kwargs["error_message"]
+        assert failures[0].kwargs["successful_runs"] == 0
+        assert failures[0].kwargs["iteration"] == 1
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_by_exceptions_chains_last_exception(
+        self, runner, monkeypatch
+    ):
+        invocation = _make_invocation(iterations=1, max_attempts=2)
+        single = AsyncMock(side_effect=[
+            RuntimeError("boom-1"),
+            RuntimeError("boom-2"),
+        ])
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        with pytest.raises(TaskNotCompletedError) as exc_info:
+            await runner._run_task_with_retries(
+                item=invocation, task_id=1, user_id="u", total_tasks=1,
+            )
+        assert single.await_count == 2
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+        assert str(exc_info.value.__cause__) == "boom-2"
+        assert "boom-2" in str(exc_info.value)
+        assert exc_info.value.last_error == "boom-2"
+        runner._publish_task_artifacts.assert_not_awaited()
+
+        failed = [
+            c for c in runner._emit.await_args_list
+            if c.args and c.args[0] is EventType.TASK_FAILED
+        ]
+        assert len(failed) == 1
+        assert failed[0].kwargs["last_error"] == "boom-2"
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_propagates_without_consuming_attempts(
+        self, runner, monkeypatch
+    ):
+        invocation = _make_invocation(iterations=1, max_attempts=3)
+        single = AsyncMock(side_effect=asyncio.CancelledError())
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        with pytest.raises(asyncio.CancelledError):
+            await runner._run_task_with_retries(
+                item=invocation, task_id=1, user_id="u", total_tasks=1,
+            )
+        # No retries: cancellation unwinds immediately.
+        assert single.await_count == 1
+        types = [c.args[0] for c in runner._emit.await_args_list if c.args]
+        assert EventType.ITERATION_RESULT not in types
+        assert EventType.TASK_FAILED not in types
+
+
+# ─── Missing declared input artifacts ────────────────────────────────────────
+
+
+class TestMissingDeclaredArtifacts:
+    def _runner(self) -> TaskRunner:
+        return TaskRunner(
+            name="test", artifact_service=MagicMock(spec=BaseArtifactService),
+        )
+
+    @pytest.mark.asyncio
+    async def test_missing_artifact_warns_and_substitutes_empty(self, caplog):
+        r = self._runner()
+        r.artifact_service.load_artifact = AsyncMock(return_value=None)
+
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.task_runner",
+        ):
+            loaded = await r._load_artifacts(
+                "u", ["up/result"], task_ref="task-a",
+            )
+
+        # Empty-string substitution is preserved (seeds may legitimately come
+        # from the persistent store) — but it is no longer silent.
+        assert loaded == {"up/result": ""}
+        messages = [rec.getMessage() for rec in caplog.records]
+        assert any("task-a" in m and "up/result" in m for m in messages)
+
+        # The empty text still renders cleanly via {artifact__*} substitution.
+        template = _make_template(
+            default_artifacts=["up/result"],
+            instructions="ctx: [{artifact__up__result}]",
+        )
+        rendered = r._render_task(template, {}, loaded)
+        assert "ctx: []" in rendered.instructions
+
+    @pytest.mark.asyncio
+    async def test_present_artifact_loads_without_warning(self, caplog):
+        r = self._runner()
+        part = SimpleNamespace(text="content", inline_data=None)
+        r.artifact_service.load_artifact = AsyncMock(return_value=part)
+
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.task_runner",
+        ):
+            loaded = await r._load_artifacts(
+                "u", ["up/result"], task_ref="task-a",
+            )
+
+        assert loaded == {"up/result": "content"}
+        assert not caplog.records
+
+
+# ─── add_task artifacts override ─────────────────────────────────────────────
+
+
+class TestAddTaskArtifactsOverride:
+    def _runner_with_template(self, monkeypatch, template) -> TaskRunner:
+        r = TaskRunner(
+            name="test", artifact_service=MagicMock(spec=BaseArtifactService),
+        )
+        monkeypatch.setattr(r, "_ensure_template", MagicMock(return_value=template))
+        return r
+
+    def test_empty_list_overrides_template_defaults(self, monkeypatch):
+        template = _make_template(default_artifacts=["up/result"])
+        r = self._runner_with_template(monkeypatch, template)
+
+        r.add_task("t", worker_builder=lambda **_: MagicMock(), artifacts=[])
+
+        assert r.queue[0].artifacts == []
+
+    def test_none_falls_back_to_template_defaults(self, monkeypatch):
+        template = _make_template(default_artifacts=["up/result"])
+        r = self._runner_with_template(monkeypatch, template)
+
+        r.add_task("t", worker_builder=lambda **_: MagicMock())
+
+        assert r.queue[0].artifacts == ["up/result"]
+
+
+# ─── Per-invocation artifact keys (fan-out) ──────────────────────────────────
+
+
+def _dict_artifact_service(store: dict[str, str]) -> MagicMock:
+    """An artifact service backed by a plain dict, so publish/load round-trip."""
+
+    async def save(*, app_name, user_id, session_id, filename, artifact):
+        store[filename] = artifact.text
+
+    async def load(*, app_name, user_id, session_id, filename):
+        if filename in store:
+            return SimpleNamespace(text=store[filename], inline_data=None)
+        return None
+
+    svc = MagicMock(spec=BaseArtifactService)
+    svc.save_artifact = AsyncMock(side_effect=save)
+    svc.load_artifact = AsyncMock(side_effect=load)
+    return svc
+
+
+def _fanout_runner(store, monkeypatch, **kwargs) -> TaskRunner:
+    """TaskRunner with a dict-backed artifact service and a REAL
+    ``_publish_task_artifacts``, so per-key publishing is exercised."""
+    r = TaskRunner(
+        name="test", artifact_service=_dict_artifact_service(store), **kwargs,
+    )
+    template = _make_template(default_iterations=1)
+    r.templates[("t", "v1")] = template
+
+    rendered = RenderedTask(
+        key="t", title="T", objective="", instructions="",
+        output_format="", format="json",
+    )
+    monkeypatch.setattr(r, "_ensure_template", MagicMock(return_value=template))
+    monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+    monkeypatch.setattr(r, "_render_task", MagicMock(return_value=rendered))
+    monkeypatch.setattr(r, "_emit", AsyncMock())
+    return r
+
+
+def _completed_result(text: str, *, task_id: int) -> TaskResult:
+    result = _result_for("t", True, task_id, task_id=task_id)
+    result.result = text
+    return result
+
+
+class TestPerInvocationArtifactKeys:
+    @pytest.mark.asyncio
+    async def test_distinct_artifact_keys_publish_non_colliding(self, monkeypatch):
+        # Two invocations of the same template with distinct artifact_keys
+        # must not overwrite each other's published artifacts.
+        store: dict[str, str] = {}
+        r = _fanout_runner(store, monkeypatch)
+
+        r.add_task(
+            "t", ref="t:f1", artifact_key="t/f1",
+            worker_builder=lambda **_: MagicMock(),
+        )
+        r.add_task(
+            "t", ref="t:f2", artifact_key="t/f2",
+            worker_builder=lambda **_: MagicMock(),
+        )
+        single = AsyncMock(side_effect=[
+            _completed_result("R1", task_id=0),
+            _completed_result("R2", task_id=1),
+        ])
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        results = await r.run(user_id="u")
+
+        assert len(results) == 2
+        assert store["t/f1/result"] == "R1"
+        assert store["t/f2/result"] == "R2"
+        assert "t/result" not in store
+
+    def test_build_iteration_result_publishes_under_effective_key(
+        self, monkeypatch,
+    ):
+        # The result's published_artifacts (what checkpoints record and events
+        # report) must follow the invocation's artifact_key, defaulting to the
+        # template key when unset.
+        r = _fanout_runner({}, monkeypatch)
+        rendered = RenderedTask(
+            key="t", title="T", objective="", instructions="",
+            output_format="", format="json",
+        )
+        keyed = _make_invocation(iterations=1, max_attempts=1)
+        keyed.artifact_key = "t/f1"
+        result = r._build_iteration_result(keyed, rendered, 0, "s", "", {}, {})
+        assert result.published_artifacts == artifact_names_for_key("t/f1")
+
+        plain = _make_invocation(iterations=1, max_attempts=1)
+        result = r._build_iteration_result(plain, rendered, 0, "s", "", {}, {})
+        assert result.published_artifacts == artifact_names_for_key("t")
+
+    @pytest.mark.asyncio
+    async def test_default_key_is_template_key(self, monkeypatch):
+        # No artifact_key → unchanged behavior: publish under the template key.
+        store: dict[str, str] = {}
+        r = _fanout_runner(store, monkeypatch)
+
+        r.add_task("t", ref="t:0", worker_builder=lambda **_: MagicMock())
+        single = AsyncMock(return_value=_completed_result("R", task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        results = await r.run(user_id="u")
+
+        assert len(results) == 1
+        assert r.queue[0].artifact_key is None
+        assert r.queue[0].effective_artifact_key == "t"
+        assert store["t/result"] == "R"
+
+    def test_invalid_artifact_key_rejected(self, monkeypatch):
+        r = _fanout_runner({}, monkeypatch)
+        with pytest.raises(InvalidArtifactKeyError):
+            r.add_task(
+                "t", ref="t:0", artifact_key="../escape",
+                worker_builder=lambda **_: MagicMock(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_restore_validates_own_key_not_siblings(
+        self, tmp_path, monkeypatch,
+    ):
+        # Both siblings are checkpointed as done, but only f2's artifacts (and
+        # a stale shared-key artifact) survive in the store. f1 must re-run —
+        # neither the sibling's artifacts nor the shared key may validate its
+        # restore — while f2 restores from its own key.
+        cp = Checkpoint(workflow="test")
+        for ref in ("t:f1", "t:f2"):
+            cp.mark_done(CheckpointEntry(
+                task_id=0, ref=ref, template_key="t", template_version="v1",
+                published_artifacts=dict(artifact_names_for_key("t")),
+            ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        store = {
+            "t/result": "stale shared", "t/summary": "", "t/records": "[]",
+            "t/f2/result": "R2", "t/f2/summary": "", "t/f2/records": "[]",
+        }
+        r = _fanout_runner(
+            store, monkeypatch, checkpoint_path=tmp_path / "checkpoint.json",
+        )
+
+        r.add_task(
+            "t", ref="t:f1", artifact_key="t/f1",
+            worker_builder=lambda **_: MagicMock(),
+        )
+        r.add_task(
+            "t", ref="t:f2", artifact_key="t/f2",
+            worker_builder=lambda **_: MagicMock(),
+        )
+        single = AsyncMock(return_value=_completed_result("R1", task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+
+        results = await r.run(user_id="u")
+
+        # f1 re-ran (own artifacts were missing) and re-published under its key.
+        single.assert_awaited_once()
+        assert store["t/f1/result"] == "R1"
+        # f2 restored from checkpoint against its own artifacts.
+        assert results[1].result == "(restored from checkpoint)"
+        assert results[1].published_artifacts == artifact_names_for_key("t/f2")
 
 
 # ─── Checkpoint integration ─────────────────────────────────────────────────

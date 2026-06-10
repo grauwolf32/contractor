@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from google.adk.artifacts import BaseArtifactService
@@ -25,6 +26,20 @@ def validate_artifact_key(key: str) -> str:
             "artifact key must not contain path traversal segments"
         )
     return cleaned
+
+
+_SLUG_RE = re.compile(r"[^a-zA-Z0-9_-]+")
+
+
+def artifact_key_slug(value: str) -> str:
+    """Collapse an arbitrary identifier (finding name, namespace, …) into a
+    single safe artifact-key segment.
+
+    Deterministic for a given input — fan-out workflows use it to derive
+    stable per-task artifact keys that survive ``--resume``.
+    """
+    slug = _SLUG_RE.sub("_", (value or "").strip()).strip("_")
+    return slug or "item"
 
 
 def artifact_filename(key: str, kind: ArtifactKind) -> str:

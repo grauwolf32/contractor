@@ -91,6 +91,12 @@ class TaskInvocation:
     artifacts: list[str] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
 
+    # Publish key for result/summary/records artifacts. ``None`` keeps the
+    # historical behavior (``template_key``); fan-out workflows that queue
+    # several tasks from the same template set a unique, stable key per task
+    # so siblings don't overwrite each other's artifacts.
+    artifact_key: str | None = None
+
     iterations: int = 1
     max_attempts: int = 1
     max_steps: int = 15
@@ -101,6 +107,11 @@ class TaskInvocation:
 
     def effective_namespace(self, fallback: str) -> str:
         return self.namespace or fallback
+
+    @property
+    def effective_artifact_key(self) -> str:
+        """Key under which this invocation's artifacts are published."""
+        return self.artifact_key or self.template_key
 
     def effective_model(self, fallback: LiteLlm) -> LiteLlm:
         return self.model or fallback

@@ -8,6 +8,7 @@ from contractor.runners.artifacts import (
     InvalidArtifactKeyError,
     _records_to_text,
     artifact_filename,
+    artifact_key_slug,
     artifact_names_for_key,
     save_result_artifacts,
     validate_artifact_key,
@@ -44,6 +45,27 @@ class TestValidateArtifactKey:
         # The check is on path *segments*, not substrings — `a..b` is one segment.
         assert validate_artifact_key("a..b") == "a..b"
         assert validate_artifact_key("foo/bar..baz") == "foo/bar..baz"
+
+
+class TestArtifactKeySlug:
+    def test_keeps_safe_chars(self):
+        assert artifact_key_slug("sqli-list_2") == "sqli-list_2"
+
+    def test_collapses_unsafe_runs_to_single_underscore(self):
+        assert artifact_key_slug("trace-annotation:openapi:items") == (
+            "trace-annotation_openapi_items"
+        )
+        assert artifact_key_slug("a / b") == "a_b"
+
+    def test_stable_and_key_safe(self):
+        slug = artifact_key_slug("../weird name!")
+        assert slug == artifact_key_slug("../weird name!")
+        # The slug is a single segment that passes key validation.
+        assert validate_artifact_key(f"t/{slug}") == f"t/{slug}"
+
+    @pytest.mark.parametrize("value", ["", "   ", "::", "__"])
+    def test_degenerate_inputs_fall_back(self, value):
+        assert artifact_key_slug(value) == "item"
 
 
 class TestArtifactFilename:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import inspect
 import logging
@@ -17,7 +18,11 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from contractor.agents.planning_agent.agent import build_planning_agent
 from contractor.runners._helpers import _decode_part_text, _extract_final_text
-from contractor.runners.artifacts import artifact_names_for_key, save_result_artifacts
+from contractor.runners.artifacts import (
+    artifact_names_for_key,
+    save_result_artifacts,
+    validate_artifact_key,
+)
 from contractor.runners.models import (
     Checkpoint,
     CheckpointEntry,
@@ -52,14 +57,24 @@ logger = logging.getLogger(__name__)
 class TaskNotCompletedError(Exception):
     """Raised when a task exhausts all retry attempts without completing."""
 
-    def __init__(self, ref: str, iterations: int, max_attempts: int) -> None:
+    def __init__(
+        self,
+        ref: str,
+        iterations: int,
+        max_attempts: int,
+        last_error: str | None = None,
+    ) -> None:
         self.ref = ref
         self.iterations = iterations
         self.max_attempts = max_attempts
-        super().__init__(
+        self.last_error = last_error
+        message = (
             f"Task '{ref}' was not completed "
             f"{iterations} time(s) after {max_attempts} attempt(s)."
         )
+        if last_error:
+            message += f" Last error: {last_error}"
+        super().__init__(message)
 
 
 # ─── Main Runner ──────────────────────────────────────────────────────────────
@@ -103,6 +118,7 @@ class TaskRunner(BaseModel):
         ref: str | None = None,
         params: dict[str, Any] | None = None,
         artifacts: list[str] | None = None,
+        artifact_key: str | None = None,
         skills: list[str] | None = None,
         iterations: int | None = None,
         max_attempts: int | None = None,
@@ -116,8 +132,18 @@ class TaskRunner(BaseModel):
         ``version`` pins a specific template version (must be declared in the
         task's manifest at ``contractor/tasks/<name>.yml``). When omitted, the
         manifest's ``active`` version is used.
+
+        ``artifact_key`` overrides the key under which the task's
+        ``result``/``summary``/``records`` artifacts are published (default:
+        the template key). Workflows that queue multiple tasks from the same
+        template must pass a unique, stable key per task — derived from the
+        finding/operation identifier, not queue position — so siblings don't
+        overwrite each other's artifacts and ``--resume`` validation stays
+        per-task.
         """
         template = self._ensure_template(name, version=version)
+        if artifact_key is not None:
+            artifact_key = validate_artifact_key(artifact_key)
         task_ref = ref or f"{name}:{len(self.queue)}"
         self._assert_unique_ref(task_ref)
 
@@ -132,7 +158,10 @@ class TaskRunner(BaseModel):
             template_version=template.version,
             worker_builder=worker_builder,
             params=params or {},
-            artifacts=list(artifacts or template.default_artifacts),
+            artifacts=list(
+                artifacts if artifacts is not None else template.default_artifacts
+            ),
+            artifact_key=artifact_key,
             skills=list(skills if skills is not None else template.default_skills),
             iterations=eff_iterations,
             max_attempts=eff_max_attempts,
@@ -298,7 +327,11 @@ class TaskRunner(BaseModel):
         if entry is None:
             return None
 
-        for artifact_name in entry.published_artifacts.values():
+        # Validate against the invocation's *own* publish key, not whatever
+        # the entry recorded — with shared template keys a sibling task's
+        # artifacts would otherwise "validate" this task's restore.
+        published_artifacts = artifact_names_for_key(item.effective_artifact_key)
+        for artifact_name in published_artifacts.values():
             part = await self.artifact_service.load_artifact(
                 app_name=self.name,
                 user_id=user_id,
@@ -330,7 +363,7 @@ class TaskRunner(BaseModel):
             max_attempts=item.max_attempts,
             params=item.params,
             artifacts=item.artifacts,
-            published_artifacts=entry.published_artifacts,
+            published_artifacts=published_artifacts,
             total_tasks=total_tasks,
             completed_tasks=task_id,
             restored=True,
@@ -353,7 +386,7 @@ class TaskRunner(BaseModel):
             records=[],
             params=copy.deepcopy(item.params),
             input_artifacts={},
-            published_artifacts=entry.published_artifacts,
+            published_artifacts=published_artifacts,
         )
 
         await self._emit(
@@ -367,7 +400,7 @@ class TaskRunner(BaseModel):
             result=result.result,
             summary="",
             records=[],
-            published_artifacts=entry.published_artifacts,
+            published_artifacts=published_artifacts,
             total_tasks=total_tasks,
             completed_tasks=task_id,
             restored=True,
@@ -511,34 +544,51 @@ class TaskRunner(BaseModel):
 
     # ── Artifact I/O ──────────────────────────────────────────────────────
 
-    async def _load_artifact_text(self, user_id: str, artifact_ref: str) -> str:
+    async def _load_artifact_text(
+        self, user_id: str, artifact_ref: str
+    ) -> str | None:
+        """Load an artifact's text, or ``None`` when it was never published."""
         part = await self.artifact_service.load_artifact(
             app_name=self.name,
             user_id=user_id,
             session_id=None,
             filename=artifact_ref,
         )
+        if part is None:
+            return None
         return _decode_part_text(part)
 
     async def _load_artifacts(
-        self, user_id: str, artifact_refs: list[str]
+        self, user_id: str, artifact_refs: list[str], *, task_ref: str | None = None
     ) -> dict[str, str]:
-        return {
-            ref: await self._load_artifact_text(user_id=user_id, artifact_ref=ref)
-            for ref in artifact_refs
-        }
+        texts: dict[str, str] = {}
+        for ref in artifact_refs:
+            text = await self._load_artifact_text(user_id=user_id, artifact_ref=ref)
+            if text is None:
+                # Keep the empty-string substitution (seeds may legitimately
+                # come from the persistent store), but never silently: a typo'd
+                # ref or a never-published upstream looks identical otherwise.
+                logger.warning(
+                    "Task '%s' declares input artifact '%s' but it is not "
+                    "present in the artifact store — substituting empty text",
+                    task_ref or "<unknown>",
+                    ref,
+                )
+                text = ""
+            texts[ref] = text
+        return texts
 
     async def _publish_task_artifacts(
         self,
         user_id: str,
-        template_key: str,
+        key: str,
         result: TaskResult,
     ) -> None:
         await save_result_artifacts(
             artifact_service=self.artifact_service,
             app_name=self.name,
             user_id=user_id,
-            key=template_key,
+            key=key,
             result=result.result or "",
             summary=result.summary or "",
             records=result.records or [],
@@ -624,7 +674,7 @@ class TaskRunner(BaseModel):
             status=final_state.get(keys.status),
             params=copy.deepcopy(item.params),
             input_artifacts=copy.deepcopy(input_artifacts),
-            published_artifacts=artifact_names_for_key(rendered_task.key),
+            published_artifacts=artifact_names_for_key(item.effective_artifact_key),
         )
 
     async def _run_single_iteration(
@@ -797,7 +847,9 @@ class TaskRunner(BaseModel):
         total_tasks: int,
     ) -> TaskResult:
         template = self.templates[item.template_cache_key]
-        input_artifacts = await self._load_artifacts(user_id, item.artifacts)
+        input_artifacts = await self._load_artifacts(
+            user_id, item.artifacts, task_ref=item.ref
+        )
         rendered_task = self._render_task(
             template,
             item.params,
@@ -825,24 +877,57 @@ class TaskRunner(BaseModel):
             max_attempts=item.max_attempts,
             params=item.params,
             artifacts=item.artifacts,
-            published_artifacts=artifact_names_for_key(template.key),
+            published_artifacts=artifact_names_for_key(item.effective_artifact_key),
             observations=(item.observations or self.observations).as_tag(),
         )
 
         carry_state: dict[str, Any] = {}
         last_result: TaskResult | None = None
+        last_exc: Exception | None = None
         successful_runs = 0
 
         for iteration in range(1, item.max_attempts + 1):
-            result = await self._run_single_iteration(
-                item=item,
-                rendered_task=rendered_task,
-                input_artifacts=input_artifacts,
-                task_id=task_id,
-                user_id=user_id,
-                carry_state=carry_state,
-                iteration=iteration,
-            )
+            try:
+                result = await self._run_single_iteration(
+                    item=item,
+                    rendered_task=rendered_task,
+                    input_artifacts=input_artifacts,
+                    task_id=task_id,
+                    user_id=user_id,
+                    carry_state=carry_state,
+                    iteration=iteration,
+                )
+            except asyncio.CancelledError:
+                # Cancellation is not a task failure — let it unwind the run.
+                raise
+            except Exception as exc:
+                # Transient LLM/network/tooling errors must consume an attempt
+                # instead of aborting the whole multi-task workflow (documented
+                # invariant: failures keep retrying until max_attempts).
+                last_exc = exc
+                logger.exception(
+                    "Task '%s' iteration %d/%d raised %s; "
+                    "counting as a failed attempt",
+                    item.ref,
+                    iteration,
+                    item.max_attempts,
+                    type(exc).__name__,
+                )
+                await emit(
+                    EventType.ITERATION_RESULT,
+                    iteration=iteration,
+                    session_id=None,
+                    status=None,
+                    result=None,
+                    summary=None,
+                    completed=False,
+                    iterations_required=item.iterations,
+                    max_attempts=item.max_attempts,
+                    successful_runs=successful_runs,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                continue
 
             last_result = result
             completed = self._is_task_completed(task_id, result.state)
@@ -864,7 +949,9 @@ class TaskRunner(BaseModel):
 
             if completed:
                 successful_runs = next_successful_runs
-                await self._publish_task_artifacts(user_id, template.key, result)
+                await self._publish_task_artifacts(
+                    user_id, item.effective_artifact_key, result
+                )
 
                 if successful_runs >= item.iterations:
                     await emit(
@@ -884,10 +971,12 @@ class TaskRunner(BaseModel):
             EventType.TASK_FAILED,
             max_attempts=item.max_attempts,
             last_result=last_result,
+            last_error=str(last_exc) if last_exc is not None else None,
         )
 
         raise TaskNotCompletedError(
             ref=item.ref,
             iterations=item.iterations,
             max_attempts=item.max_attempts,
-        )
+            last_error=str(last_exc) if last_exc is not None else None,
+        ) from last_exc

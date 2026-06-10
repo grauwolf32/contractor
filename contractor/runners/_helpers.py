@@ -6,8 +6,12 @@ runners package, prefer pulling text from public ``AgentRunResult`` /
 
 from __future__ import annotations
 
+import logging
+
 from google.adk.events import Event
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_final_text(event: Event) -> str:
@@ -37,5 +41,12 @@ def _decode_part_text(part: types.Part | None) -> str:
     if isinstance(data, str):
         return data
     if isinstance(data, (bytes, bytearray)):
-        return data.decode("utf-8", errors="ignore")
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            logger.warning(
+                "Artifact part bytes are not valid UTF-8; decoding with "
+                "errors='replace' — invalid bytes appear as U+FFFD"
+            )
+            return data.decode("utf-8", errors="replace")
     return ""
