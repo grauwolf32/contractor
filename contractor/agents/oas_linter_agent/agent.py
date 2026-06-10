@@ -48,7 +48,10 @@ def build_oas_linter_agent(
     return build_worker(
         name=name,
         instruction=OAS_LINTER_PROMPT,
-        description="software engineering agent",
+        description=(
+            "OpenAPI schema linter — runs lint_openapi and repairs the "
+            "serious schema issues it reports."
+        ),
         tools=tools,
         _format=_format,
         summarization_bullets=_SUMMARIZATION_BULLETS,

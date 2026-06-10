@@ -17,15 +17,30 @@ from google.adk.models.lite_llm import LiteLlm
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The documented config file is `cli/.env`. A bare `load_dotenv()` walks up
+# from *this* module (contractor/utils/ → repo root) and never descends into
+# cli/, so non-CLI entrypoints (tests, scripts) used to miss it — only the CLI
+# worked because cli/main.py loads it first. Anchor it explicitly; the bare
+# call stays as a CWD-relative fallback. Neither overrides already-set env
+# vars, so CLI behaviour is unchanged.
+_CLI_ENV_FILE = Path(__file__).resolve().parents[2] / "cli" / ".env"
+
+if _CLI_ENV_FILE.is_file():
+    load_dotenv(_CLI_ENV_FILE)
 load_dotenv()
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Later entries take precedence: a CWD-local .env can override the
+        # anchored cli/.env; actual env vars override both.
+        env_file=(_CLI_ENV_FILE, ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        # Aliased fields (e.g. target_url ← CONTRACTOR_TARGET_URL) stay
+        # constructible by field name too (tests, programmatic overrides).
+        populate_by_name=True,
     )
 
     # ── LLM (LiteLLM proxy) ──────────────────────────────────────────────
@@ -60,6 +75,11 @@ class Settings(BaseSettings):
     # Default per-read line cap when read_file is called without an explicit
     # `limit`. None disables the line cap (byte cap only).
     fs_max_read_lines: int | None = Field(default=2000)
+    # Hard cap on files scanned by a single fs glob/grep tree walk
+    # (env: FS_MAX_FILES_PER_WALK). When the ceiling is hit the walk stops
+    # early and the tool output carries a truncation notice — mirrors
+    # code_max_files_per_walk for the code-tools walker.
+    fs_max_files_per_walk: int = Field(default=100_000)
     # Cumulative char budget for retained heavy-tool function results in the
     # FunctionResultsRemovalCallback (env: FS_HEAVY_KEEP_BUDGET_CHARS). When > 0,
     # large/stale heavy-tool results are elided once the running total of kept
@@ -67,6 +87,12 @@ class Settings(BaseSettings):
     # (keep_last_n) is not yet reached. Default 0 disables the budget axis, so
     # retention stays count-only (historical behaviour).
     fs_heavy_keep_budget_chars: int = Field(default=0)
+    # Override the count cap (keep_last_n) for retained heavy-tool results in the
+    # FunctionResultsRemovalCallback (env: FS_HEAVY_KEEP_LAST_N). When > 0 it
+    # *overrides* the caller's elide_keep_last_n (e.g. set very high to
+    # effectively disable count-based elision for an experiment). Default 0 means
+    # "unset — use the caller's value" (historical behaviour, typically 15).
+    fs_heavy_keep_last_n: int = Field(default=0)
     code_max_walk_depth: int = Field(default=50)
     code_max_files_per_walk: int = Field(default=100_000)
     graph_max_results: int = Field(default=200)
@@ -79,6 +105,13 @@ class Settings(BaseSettings):
     langfuse_host: str | None = Field(default=None)
     langfuse_public_key: str | None = Field(default=None)
     langfuse_secret_key: str | None = Field(default=None)
+
+    # ── Live target (exploitability / vuln workflows) ────────────────────
+    # Base URL of the running target app probed by the exploit stage, and an
+    # optional outbound HTTP proxy for the agent's requests. Aliased so the
+    # historical CONTRACTOR_-prefixed env vars keep working.
+    target_url: str | None = Field(default=None, alias="CONTRACTOR_TARGET_URL")
+    proxy: str | None = Field(default=None, alias="CONTRACTOR_PROXY")
 
     # ── Caido proxy ─────────────────────────────────────────────────────
     caido_url: str | None = Field(default=None)

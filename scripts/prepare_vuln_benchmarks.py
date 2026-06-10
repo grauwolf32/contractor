@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -239,14 +240,24 @@ def clone_realvuln_repo(slug: str, url: str, sha: str) -> Path:
         raise RuntimeError(f"Clone failed for {slug}")
 
     if sha:
-        subprocess.run(
+        fetch = subprocess.run(
             ["git", "-C", str(repo_path), "fetch", "--depth=1", "origin", sha],
             capture_output=True, text=True, timeout=60,
         )
-        subprocess.run(
+        checkout = subprocess.run(
             ["git", "-C", str(repo_path), "checkout", sha],
             capture_output=True, text=True, timeout=30,
         )
+        # A failed fetch alone is tolerable (the sha may already be in the
+        # depth-1 clone, e.g. when it is the branch head); the checkout is
+        # what actually proves the pin. A failed checkout means the fixture
+        # would silently be built from HEAD — invalid ground truth — so
+        # remove the clone and fail loudly, like the clone path above.
+        if checkout.returncode != 0:
+            err = (checkout.stderr or fetch.stderr or "").strip()[:200]
+            print(f"FAILED: {err}")
+            shutil.rmtree(repo_path, ignore_errors=True)
+            raise RuntimeError(f"Checkout of pinned commit {sha} failed for {slug}")
         print(f"OK (pinned to {sha[:8]})")
     else:
         print("OK (HEAD)")

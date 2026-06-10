@@ -1,10 +1,14 @@
 from typing import Any
 
+import pytest
+
 from contractor.callbacks.base import (
     BaseCallback,
     CallbackTypes,
     _callback_name,
+    verify_signature,
 )
+from contractor.callbacks.tokens import TokenUsageCallback
 from tests.units.contractor_tests.helpers import mk_callback_context
 
 
@@ -141,3 +145,45 @@ def test_get_dependencies_returns_deps_list():
     cb = _DummyCb()
     cb.deps = ["TokenUsageCallback"]
     assert cb.get_dependencies() == ["TokenUsageCallback"]
+
+
+# ---------------------------------------------------------------------------
+# verify_signature / validate
+# ---------------------------------------------------------------------------
+
+
+class TestVerifySignature:
+    """verify_signature compares parameter names/kinds against the ADK
+    callback signature for the declared cb_type (return annotations are
+    deliberately ignored — they legitimately vary across callbacks)."""
+
+    def test_accepts_matching_callback(self):
+        cb = TokenUsageCallback()  # (callback_context, llm_response)
+        assert verify_signature(cb.__call__, CallbackTypes.after_model_callback)
+
+    def test_rejects_callback_under_wrong_cb_type(self):
+        cb = TokenUsageCallback()
+        # before_tool expects (tool, args, tool_context) — names differ.
+        assert not verify_signature(cb.__call__, CallbackTypes.before_tool_callback)
+
+    def test_validate_returns_self_for_valid_callback(self):
+        cb = TokenUsageCallback()
+        assert cb.validate() is cb
+
+    def test_validate_raises_on_mismatched_signature(self):
+        class _MisdeclaredCb(BaseCallback):
+            # Declares before_model but accepts after_model's parameters.
+            cb_type: CallbackTypes = CallbackTypes.before_model_callback
+            deps: list[str] = []
+
+            def __init__(self):
+                pass
+
+            def to_state(self) -> dict[str, Any]:
+                return {}
+
+            def __call__(self, callback_context, llm_response) -> None:
+                return None
+
+        with pytest.raises(TypeError, match="Invalid signature"):
+            _MisdeclaredCb().validate()

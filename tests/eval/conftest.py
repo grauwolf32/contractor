@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -185,11 +186,30 @@ def _load_case_params(case_type: str) -> list[tuple[str, str]]:
 # Pytest hooks
 # ---------------------------------------------------------------------------
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _run_eval_env_enabled(value: str | None) -> bool:
+    """Parse ``CONTRACTOR_RUN_EVAL`` as a boolean — ``0``/``false``/empty stay off."""
+    return value is not None and value.strip().lower() in _TRUTHY
+
+
+def _markexpr_selects_eval(markexpr: str | None) -> bool:
+    """True only when the ``-m`` expression actually mentions the ``eval`` marker.
+
+    Conservative word-match: ``-m eval`` / ``-m "eval and trace"`` opt in, while
+    an unrelated expression like ``-m "not slow"`` must NOT silently enable the
+    LLM-bound suite. ``-m "not eval"`` matches too, which is harmless — pytest
+    deselects the eval items itself in that case.
+    """
+    return bool(markexpr) and re.search(r"\beval\b", markexpr) is not None
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Auto-skip eval tests unless explicitly opted in."""
-    if config.getoption("-m"):
+    if _markexpr_selects_eval(config.getoption("-m")):
         return
-    if os.environ.get("CONTRACTOR_RUN_EVAL"):
+    if _run_eval_env_enabled(os.environ.get("CONTRACTOR_RUN_EVAL")):
         return
     skip_eval = pytest.mark.skip(
         reason="eval tests are slow + LLM-bound; run with `pytest -m eval` "
@@ -244,7 +264,8 @@ def eval_sink():
 
     Per-fixture eval tests call ``eval_sink.record(...)`` once with their scored
     :class:`~tests.eval.results.CaseResult`; the aggregated envelopes land in
-    ``eval_runs/<unit>/eval_results.json`` for analytics-ui.
+    ``eval_runs/<scenario>-<unit>[-<metric_kind>]/eval_results.json`` for
+    analytics-ui.
     """
     from tests.eval.results import EvalSink
 
@@ -337,6 +358,6 @@ def exploitability_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, di
 # Public helpers for scripts
 # ---------------------------------------------------------------------------
 
-def select_fixture(slug: str) -> EvalFixture | None:
+def select_fixture(slug: str) -> EvalFixture:
     """Helper for tests/scripts that need a specific fixture (not parametrized)."""
     return _load_fixture(slug)

@@ -15,7 +15,6 @@ with a warning.
 from __future__ import annotations
 
 import logging
-import os
 from functools import partial
 from typing import Any
 
@@ -25,9 +24,11 @@ from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.agents.oas_linter_agent.agent import build_oas_linter_agent
 from contractor.agents.swe_agent.agent import build_swe_agent
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
-from contractor.utils.settings import build_model
+from contractor.utils.settings import build_model, get_settings
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.findings import load_yaml_dict_artifact
+from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
 from contractor.workflows.trace_graph_pathpar.workflow import PATH_NAMESPACE_PREFIX
@@ -114,6 +115,10 @@ class VulnAssessWorkflow(Workflow):
         ):
             runner.add_task(
                 name="dependency_information",
+                # Stable explicit refs: the default positional ref
+                # (`{name}:{len(queue)}`) shifts between runs when an upstream
+                # task is conditionally skipped, breaking --resume checkpoints.
+                ref="dependency_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.dependency_information.as_kwargs(),
                 namespace="dependency_information", model=self.llm,
@@ -126,6 +131,7 @@ class VulnAssessWorkflow(Workflow):
         ):
             runner.add_task(
                 name="project_information",
+                ref="project_information",
                 worker_builder=swe_builder,
                 **CFG.tasks.project_information.as_kwargs(),
                 artifacts=["dependency_information/result"],
@@ -136,6 +142,7 @@ class VulnAssessWorkflow(Workflow):
 
         runner.add_task(
             name="oas_update",
+            ref="oas_update",
             worker_builder=oas_builder,
             **CFG.tasks.oas_update.as_kwargs(),
             artifacts=[
@@ -148,6 +155,7 @@ class VulnAssessWorkflow(Workflow):
         # Step 3 [VERIFY]
         runner.add_task(
             name="oas_validate",
+            ref="oas_validate",
             worker_builder=oas_linter,
             **CFG.tasks.oas_validate.as_kwargs(),
             artifacts=[
@@ -216,7 +224,7 @@ class VulnAssessWorkflow(Workflow):
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
     ) -> None:
-        target_url = os.environ.get("CONTRACTOR_TARGET_URL")
+        target_url = get_settings().target_url
         if not target_url:
             logger.warning(
                 "CONTRACTOR_TARGET_URL not set — skipping exploit stage"
@@ -258,18 +266,14 @@ class VulnAssessWorkflow(Workflow):
         ctx = self.ctx
         merged: dict[str, Any] = {}
 
-        part = await ctx.artifact_service.load_artifact(
-            app_name=ctx.app_name,
-            user_id=user_id,
-            filename="vulnerability-reports-seed",
+        merged.update(
+            await load_yaml_dict_artifact(
+                ctx.artifact_service,
+                app_name=ctx.app_name,
+                user_id=user_id,
+                filename="vulnerability-reports-seed",
+            )
         )
-        if part and part.text:
-            try:
-                raw = yaml.safe_load(part.text) or {}
-                if isinstance(raw, dict):
-                    merged.update(raw)
-            except yaml.YAMLError:
-                pass
 
         for ns_suffix in ["openapi"]:
             oas_part = await ctx.artifact_service.load_artifact(
@@ -284,23 +288,31 @@ class VulnAssessWorkflow(Workflow):
             except yaml.YAMLError:
                 continue
             paths = extract_openapi_paths(openapi=openapi)
+            probed: set[str] = set()
             for api_path in paths:
                 # Must match the namespace the trace stage (TraceGraphPathParWorkflow,
                 # run in _run_trace_stage) writes vuln reports under — shared constant
                 # so the read/write keys can't drift (audit: HIGH, namespace mismatch).
-                ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{api_path.path_key}"
-                part = await ctx.artifact_service.load_artifact(
-                    app_name=ctx.app_name,
-                    user_id=user_id,
-                    filename=f"user:vulnerability-reports/{ns}",
-                )
-                if part and part.text:
-                    try:
-                        reports = yaml.safe_load(part.text) or {}
-                        if isinstance(reports, dict):
-                            merged.update(reports)
-                    except yaml.YAMLError:
+                # The trace stage keys by path_key (group_depth=0) or by a
+                # route-prefix group key (group_depth>=1) — probe both.
+                keys = [api_path.path_key]
+                for depth in (1, 2):
+                    group_key = group_key_for_path(api_path.path, depth)
+                    if group_key not in keys:
+                        keys.append(group_key)
+                for key in keys:
+                    ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{key}"
+                    if ns in probed:
                         continue
+                    probed.add(ns)
+                    merged.update(
+                        await load_yaml_dict_artifact(
+                            ctx.artifact_service,
+                            app_name=ctx.app_name,
+                            user_id=user_id,
+                            filename=f"user:vulnerability-reports/{ns}",
+                        )
+                    )
 
         if not merged:
             return ""

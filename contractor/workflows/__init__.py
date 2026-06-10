@@ -165,11 +165,13 @@ def get_workflows() -> dict[str, type[Workflow]]:
     from .trace_annotation_direct import TraceAnnotationDirectWorkflow
     from .trace_graph import TraceGraphWorkflow
     from .trace_graph_pathpar import TraceGraphPathParWorkflow
+    from .trace_postdiff import TracePostDiffWorkflow
     from .trace_verify import TraceVerifyWorkflow
     from .vuln_assess import VulnAssessWorkflow
     from .vuln_scan import VulnScanWorkflow
     from .vuln_scan_fast import VulnScanFastWorkflow
     from .vuln_scan_trace import VulnScanTraceWorkflow
+    from .vuln_sweep import VulnSweepWorkflow
 
     return {
         "oas_build": OasBuildingWorkflow,
@@ -180,11 +182,13 @@ def get_workflows() -> dict[str, type[Workflow]]:
         "trace-direct": TraceAnnotationDirectWorkflow,
         "trace-graph": TraceGraphWorkflow,
         "trace-graph-pathpar": TraceGraphPathParWorkflow,
+        "trace-postdiff": TracePostDiffWorkflow,
         "trace-verify": TraceVerifyWorkflow,
         "vuln-assess": VulnAssessWorkflow,
         "vuln-scan": VulnScanWorkflow,
         "vuln-scan-fast": VulnScanFastWorkflow,
         "vuln-scan-trace": VulnScanTraceWorkflow,
+        "vuln-sweep": VulnSweepWorkflow,
         "router": RouterWorkflow,
     }
 

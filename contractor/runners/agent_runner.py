@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -10,7 +11,7 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
 
 from contractor.runners._helpers import _extract_final_text
 from contractor.runners.artifacts import artifact_names_for_key, save_result_artifacts
@@ -40,6 +41,10 @@ class AgentRunner(BaseModel):
 
     Emits ``TaskRunnerEvent`` so callers can reuse the same handler /
     plugin contracts as ``TaskRunner``.
+
+    The event handler is threaded through the run call chain rather than
+    stored on the instance, so concurrent ``run()`` calls on one runner
+    don't clobber each other's handlers.
     """
 
     model_config = {"arbitrary_types_allowed": True}
@@ -49,8 +54,6 @@ class AgentRunner(BaseModel):
     session_service: InMemorySessionService = Field(
         default_factory=InMemorySessionService
     )
-
-    _on_event: TaskRunnerEventHandler | None = PrivateAttr(default=None)
 
     async def run(
         self,
@@ -70,76 +73,75 @@ class AgentRunner(BaseModel):
         caller wants to override the agent's own name (e.g. to surface a
         higher-level identifier in the UI).
         """
-        self._on_event = on_event
         emit_name = event_name or agent.name
-        try:
-            session_id = session_id or uuid4().hex
+        session_id = session_id or uuid4().hex
 
-            content = (
-                types.Content(role="user", parts=[types.Part(text=message)])
-                if isinstance(message, str)
-                else message
-            )
+        content = (
+            types.Content(role="user", parts=[types.Part(text=message)])
+            if isinstance(message, str)
+            else message
+        )
 
-            await self._emit(
-                "agent_run_started",
-                task_name=emit_name,
-                agent_name=agent.name,
-                session_id=session_id,
-            )
+        await self._emit(
+            on_event,
+            "agent_run_started",
+            task_name=emit_name,
+            agent_name=agent.name,
+            session_id=session_id,
+        )
 
-            has_initial_state = bool(initial_state)
-            if has_initial_state:
-                await self.session_service.create_session(
-                    app_name=self.name,
-                    user_id=user_id,
-                    state=initial_state,
-                    session_id=session_id,
-                )
-
-            runner = Runner(
-                agent=agent,
+        has_initial_state = bool(initial_state)
+        if has_initial_state:
+            await self.session_service.create_session(
                 app_name=self.name,
-                session_service=self.session_service,
-                artifact_service=self.artifact_service,
-                plugins=plugins or [],
-                auto_create_session=not has_initial_state,
+                user_id=user_id,
+                state=initial_state,
+                session_id=session_id,
             )
 
-            final_text = ""
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id,
-                new_message=content,
-            ):
-                event_text = _extract_final_text(event)
-                if not event_text:
-                    continue
-                final_text = event_text
-                await self._emit(
-                    "final_text",
-                    task_name=emit_name,
-                    agent_name=agent.name,
-                    session_id=session_id,
-                    text=event_text,
-                )
+        runner = Runner(
+            agent=agent,
+            app_name=self.name,
+            session_service=self.session_service,
+            artifact_service=self.artifact_service,
+            plugins=plugins or [],
+            auto_create_session=not has_initial_state,
+        )
 
-            final_state = await self._get_session_state(user_id, session_id)
-
+        final_text = ""
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+        ):
+            event_text = _extract_final_text(event)
+            if not event_text:
+                continue
+            final_text = event_text
             await self._emit(
-                "agent_run_finished",
+                on_event,
+                "final_text",
                 task_name=emit_name,
                 agent_name=agent.name,
                 session_id=session_id,
+                text=event_text,
             )
 
-            return AgentRunResult(
-                final_text=final_text,
-                session_id=session_id,
-                final_state=final_state,
-            )
-        finally:
-            self._on_event = None
+        final_state = await self._get_session_state(user_id, session_id)
+
+        await self._emit(
+            on_event,
+            "agent_run_finished",
+            task_name=emit_name,
+            agent_name=agent.name,
+            session_id=session_id,
+        )
+
+        return AgentRunResult(
+            final_text=final_text,
+            session_id=session_id,
+            final_state=final_state,
+        )
 
     # ── Artifact publishing ───────────────────────────────────────────────
 
@@ -184,16 +186,30 @@ class AgentRunner(BaseModel):
 
     # ── Event emission ────────────────────────────────────────────────────
 
-    async def _emit(self, event_type: str, **payload: Any) -> None:
-        if self._on_event is None:
+    async def _emit(
+        self,
+        on_event: TaskRunnerEventHandler | None,
+        event_type: str,
+        **payload: Any,
+    ) -> None:
+        if on_event is None:
             return
         task_name = payload.pop("task_name", self.name)
         task_id = payload.pop("task_id", 0)
-        await self._on_event(
-            TaskRunnerEvent(
-                type=event_type,
-                task_name=task_name,
-                task_id=task_id,
-                payload=payload,
-            )
+        event = TaskRunnerEvent(
+            type=event_type,
+            task_name=task_name,
+            task_id=task_id,
+            payload=payload,
         )
+        try:
+            await on_event(event)
+        except asyncio.CancelledError:
+            # Cancellation must keep unwinding the run — never swallow it.
+            raise
+        except Exception:
+            # Event delivery is best-effort telemetry: a broken handler must
+            # never abort the agent run.
+            logger.exception(
+                "event handler failed for %s event (task %s)", event_type, task_name
+            )

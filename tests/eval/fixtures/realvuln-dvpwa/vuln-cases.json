@@ -424,5 +424,21 @@
     "function": null,
     "severity": "low",
     "description": "The application bundles jQuery v3.2.1, which has documented CVEs including prototype pollution (CVE-2019-11358) and XSS (CVE-2020-11022, CVE-2020-11023). Exploiting the XSS CVEs requires passing attacker-controlled strings to vulnerable jQuery DOM manipulation methods (.html(), .append(), etc.). The existing templates do not show obvious such patterns, and the dominant XSS risk is server-side via autoescape=False (dvpwa-002 through dvpwa-007). However, having a known-CVE library bundled in the application is a genuine low-severity hardening concern."
+  },
+  {
+    "id": "dvpwa-023",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "sqli/templates/evaluate.jinja2",
+    "start_line": 25,
+    "end_line": 25,
+    "function": null,
+    "severity": "medium",
+    "description": "Stored XSS via {{ student.name }} rendered without the |e filter on line 25 (the 'Back to student' link) under global autoescape=False (dvpwa-007). Student names are user-supplied via POST /students/ with no auth (same vector as dvpwa-003). Note line 9 of the same template correctly escapes with {{ student.name | e }}, but line 25 does not. Line 28 {{ course.name }} is NOT a sink: the Course NamedTuple exposes only id/title/description, so course.name is Undefined and renders empty (added by G3-1 GT-completeness pass)."
   }
 ]

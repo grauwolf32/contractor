@@ -28,6 +28,15 @@ class SummarizationLimitCallback(BaseCallback):
         self.token_count: int = 0
         self.history: list[Any] = []
         self.summarization_key = summarization_key
+        # Latch: once the message has been injected for an invocation, do not
+        # inject it again for that invocation. The per-invocation token
+        # counter (TokenUsageCallback) only grows within an invocation and is
+        # reset only when the invocation changes, so there is no mid-invocation
+        # event to re-arm on — "once per invocation" is the correct semantics.
+        # The latch re-arms automatically when invocation_id changes (the
+        # counter resets then too).
+        self.fired: bool = False
+        self.fired_invocation_id: str | None = None
 
     def to_state(self) -> dict[str, Any]:
         return {
@@ -35,6 +44,7 @@ class SummarizationLimitCallback(BaseCallback):
             "token_count": self.token_count,
             "message": self.message,
             "history": self.history,
+            "fired_invocation_id": self.fired_invocation_id,
         }
 
     def __call__(
@@ -50,10 +60,19 @@ class SummarizationLimitCallback(BaseCallback):
             self.save_to_state(callback_context)
             return
 
+        invocation_id = self.get_invocation_id(callback_context)
+        if self.fired and self.fired_invocation_id == invocation_id:
+            # Already injected for this invocation — don't append the message
+            # to every subsequent request.
+            self.save_to_state(callback_context)
+            return
+
         llm_request.contents.append(
             types.Content(role="user", parts=[types.Part(text=self.message)])
         )
 
+        self.fired = True
+        self.fired_invocation_id = invocation_id
         self.history.append(int(time.time()))
         self.save_to_state(callback_context)
         return
@@ -156,7 +175,11 @@ class FunctionResultsRemovalCallback(BaseCallback):
             if i < len(calls) and calls[i][0] == name:
                 result[(ci, pi)] = calls[i]
             else:
-                result[(ci, pi)] = (name, "")
+                # No matching call: give the response a per-index sentinel
+                # signature so unmatched responses never collide with each
+                # other (or with a real argless call) and are never elided
+                # as "stale" duplicates.
+                result[(ci, pi)] = (name, f"<unmatched:{i}>")
         return result
 
     def to_state(self) -> dict[str, Any]:

@@ -20,7 +20,13 @@ NO_ACTIVE_SUBTASKS_MSG: Final[str] = (
 TASK_LIMIT_REACHED_MSG: Final[str] = (
     "The maximum number of subtasks ({max_tasks}) has been reached. "
     "You MUST NOT create new subtasks. "
-    "Summarize the records collected so far and call `finish` immediately."
+    "Execute or skip the remaining subtasks first, then call `finish` "
+    "with a summary of the records collected so far."
+)
+SUBTASK_DECOMPOSE_OVER_CAPACITY: Final[str] = (
+    "Decomposing into {requested} subtasks would exceed the subtask limit "
+    "({max_tasks}): only {remaining} more subtask(s) can be added. "
+    "Retry with fewer children."
 )
 SUBTASK_NOT_CURRENT_MSG: Final[str] = (
     "Subtask `{task_id}` is NOT the current subtask. "
@@ -49,6 +55,12 @@ SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE: Final[str] = (
     "If the subtask is 'new', execute it first. "
     "If it is already resolved ('done', 'skipped', or 'decomposed'), move on "
     "to the next subtask."
+)
+SUBTASK_SKIP_NOT_SKIPPABLE: Final[str] = (
+    "Subtask `{task_id}` has status '{status}' and was NOT skipped. "
+    "Only subtasks with status 'new', 'incomplete', or 'malformed' can be "
+    "skipped. It is already resolved — move on to the next subtask, or call "
+    "`finish` if the objective is complete."
 )
 SUBTASK_RESULT_MALFORMED: Final[str] = (
     "The worker returned a result that could not be completely parsed into the "
@@ -138,6 +150,7 @@ class SubtaskDecomposition(BaseModel):
     subtasks: list[SubtaskSpec] = Field(
         ...,
         min_length=1,
+        max_length=3,
         description=(
             "Ordered list of 1-3 executable subtasks. Requirements:\n"
             "- Each subtask MUST be independently executable\n"

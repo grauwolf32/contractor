@@ -58,6 +58,15 @@ def format_vulnerability(vulnerability: EndpointVulnerability) -> str:
     )
 
 
+# Explicit severity ranking: most severe first; unknown severities sort last.
+_SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+_UNKNOWN_SEVERITY_RANK = len(_SEVERITY_RANK)
+
+
+def _severity_rank(severity: str) -> int:
+    return _SEVERITY_RANK.get(severity, _UNKNOWN_SEVERITY_RANK)
+
+
 def format_vulnerabilities(vulnerabilities: list[dict]) -> str:
     """
     Format the vulnerabilities into a string.
@@ -72,7 +81,9 @@ def format_vulnerabilities(vulnerabilities: list[dict]) -> str:
         vulns_by_tag[vulnerability["tag"]].append(vulnerability)
 
     for tag in vulns_by_tag:
-        vulns_by_tag[tag] = sorted(vulns_by_tag[tag], key=lambda x: x["severity"])
+        vulns_by_tag[tag] = sorted(
+            vulns_by_tag[tag], key=lambda x: _severity_rank(x["severity"])
+        )
 
     for tag in tags:
         result += f"\n\n## {tag} \n\n"

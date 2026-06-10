@@ -6,16 +6,17 @@ from tests.units.contractor_tests.helpers import mk_callback_context, mk_llm_res
 
 def test_series_same_interaction_then_change_and_more():
     """
-    1) Несколько запросов в рамках одного invocation_id, потом invocation_id меняется, и ещё запросы.
-    Проверяем:
-      - common суммируется всегда
-      - current суммируется только в рамках текущего invocation_id
-      - при смене invocation_id прошлый current уходит в history под старым id
+    Several requests within one invocation_id, then the invocation_id
+    changes, then more requests. Checks:
+      - the global counter always accumulates
+      - the current counter accumulates only within the current invocation_id
+      - history tracks the per-invocation totals, including the in-progress
+        invocation (flushed on every call, keyed by invocation_id)
     """
     ctx = mk_callback_context()
     token_usage_callback = TokenUsageCallback()
     ctx.invocation_id = "A"
-    # interaction A: 2 вызова
+    # interaction A: 2 calls
     token_usage_callback(ctx, mk_llm_response(total=10, prompt=6, candidates=4))
     token_usage_callback(ctx, mk_llm_response(total=3, prompt=1, candidates=2))
     state_key = "::" + token_usage_callback.name
@@ -28,10 +29,13 @@ def test_series_same_interaction_then_change_and_more():
     assert g.output == 6
     assert g.total == 13
 
+    # The in-progress invocation is already visible in history — consumers
+    # reading mid-run (or after the final invocation) never undercount.
     h = TokenUsageCallback.get_history(ctx)
-    assert h == {}
+    assert h == {"A": {"input": 7, "output": 6, "total": 13}}
 
-    # interaction B: первый вызов с новым id переносит A->history и ставит current = token_count(B)
+    # interaction B: the first call with a new id starts a fresh current
+    # counter; A's totals stay frozen in history.
     ctx.invocation_id = "B"
     new_invocation_id = ctx.invocation_id
     token_usage_callback(ctx, mk_llm_response(total=5, prompt=2, candidates=3))
@@ -46,9 +50,13 @@ def test_series_same_interaction_then_change_and_more():
     assert g.total == 18
 
     h = TokenUsageCallback.get_history(ctx)
-    assert h == {"A": {"input": 7, "output": 6, "total": 13}}
+    assert h == {
+        "A": {"input": 7, "output": 6, "total": 13},
+        "B": {"input": 2, "output": 3, "total": 5},
+    }
 
-    # interaction B: ещё один вызов — current накапливается
+    # interaction B: one more call — the current counter accumulates and the
+    # history entry follows it.
     token_usage_callback(ctx, mk_llm_response(total=2, prompt=1, candidates=1))
 
     s = ctx.state["callbacks"][state_key]
@@ -61,7 +69,29 @@ def test_series_same_interaction_then_change_and_more():
     assert g.total == 20
 
     h = TokenUsageCallback.get_history(ctx)
-    assert h == {"A": {"input": 7, "output": 6, "total": 13}}
+    assert h == {
+        "A": {"input": 7, "output": 6, "total": 13},
+        "B": {"input": 3, "output": 4, "total": 7},
+    }
+
+
+def test_history_includes_final_invocation_without_id_change():
+    # Regression: history used to be written only when invocation_id changed,
+    # so the LAST invocation of a run was never flushed and consumers
+    # undercounted by one invocation. The flush-on-every-call seam keeps the
+    # final invocation's entry present and accurate without double-counting.
+    ctx = mk_callback_context()
+    ctx.invocation_id = "only"
+    cb = TokenUsageCallback()
+
+    cb(ctx, mk_llm_response(total=10, prompt=6, candidates=4))
+    cb(ctx, mk_llm_response(total=3, prompt=1, candidates=2))
+
+    h = TokenUsageCallback.get_history(ctx)
+    assert h == {"only": {"input": 7, "output": 6, "total": 13}}
+    # History totals equal the global counter — nothing lost, nothing doubled.
+    g = TokenUsageCallback.get_global_counter(ctx)
+    assert h["only"] == {"input": g.input, "output": g.output, "total": g.total}
 
 
 # ─── TokenCounter ────────────────────────────────────────────────────────────

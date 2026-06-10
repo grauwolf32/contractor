@@ -165,16 +165,37 @@ class HTTPClient:
         self._next_request_id: int = 1
         self._state_lock = asyncio.Lock()
 
-        self._client = httpx.AsyncClient(
-            proxy=proxy,
-            timeout=httpx.Timeout(timeout),
-            verify=verify_ssl,
+        # Connection config for the short-lived per-request httpx clients.
+        # A persistent AsyncClient used to be created here, but ``http_tools``
+        # returns only tool closures with no teardown seam reachable from the
+        # agent factories, so the pool leaked on every agent build. Creating a
+        # fresh client per request (closed via ``async with``) eliminates the
+        # leak; we forfeit keep-alive pooling, which is acceptable for this
+        # CLI's request profile. Cookies persist across requests via a shared
+        # ``httpx.Cookies`` jar (passed by reference into each client).
+        self._proxy = proxy
+        self._timeout = httpx.Timeout(timeout)
+        self._verify_ssl = verify_ssl
+        self._user_agent = user_agent
+        self._cookies = httpx.Cookies()
+
+    def _new_client(self, timeout: float | None = None) -> httpx.AsyncClient:
+        """Build a short-lived client; the caller is responsible for closing it
+        (use ``async with``). The shared cookie jar is passed by reference so
+        cookies set/received in one request are visible to the next."""
+        return httpx.AsyncClient(
+            proxy=self._proxy,
+            timeout=httpx.Timeout(timeout) if timeout is not None else self._timeout,
+            verify=self._verify_ssl,
             follow_redirects=True,
-            headers={"User-Agent": user_agent},
+            headers={"User-Agent": self._user_agent},
+            cookies=self._cookies,
         )
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        """No-op: clients are per-request and closed via ``async with``. Kept
+        for backward compatibility with the ``async with HTTPClient(...)`` and
+        explicit-``aclose`` call sites."""
 
     async def __aenter__(self) -> HTTPClient:
         return self
@@ -196,15 +217,15 @@ class HTTPClient:
         return f"http/{self.name}/responses/{request_id:08d}.json"
 
     def get_cookies(self) -> dict[str, str]:
-        return dict(self._client.cookies.items())
+        return dict(self._cookies.items())
 
     def set_cookies(
         self, cookies: Mapping[str, str], *, replace: bool = False
     ) -> None:
         if replace:
-            self._client.cookies.clear()
+            self._cookies.clear()
         for k, v in cookies.items():
-            self._client.cookies.set(str(k), str(v))
+            self._cookies.set(str(k), str(v))
 
     def set_default_headers(
         self, headers: Mapping[str, str], *, replace: bool = False
@@ -248,7 +269,7 @@ class HTTPClient:
         return items
 
     def clear_session_state(self) -> None:
-        self._client.cookies.clear()
+        self._cookies.clear()
         self._default_headers.clear()
         self._auth = None
         self._history.clear()
@@ -408,6 +429,7 @@ class HTTPClient:
 
     def _build_request(
         self,
+        client: httpx.AsyncClient,
         *,
         method: str,
         url: str,
@@ -444,47 +466,42 @@ class HTTPClient:
         else:
             raise HTTPClientError(f"unsupported body_type: {body_type!r}")
 
-        return self._client.build_request(**kwargs)
+        return client.build_request(**kwargs)
 
     async def _send_with_retries(
         self,
+        client: httpx.AsyncClient,
         request: httpx.Request,
         *,
         follow_redirects: bool,
-        timeout: float | None,
     ) -> httpx.Response:
-        saved_timeout = self._client.timeout
-        if timeout is not None:
-            self._client.timeout = httpx.Timeout(timeout)
-
+        # The per-request timeout is baked into ``client`` at creation time
+        # (see ``_new_client``), so there is no client-wide timeout to mutate.
         last_error: BaseException | None = None
-        try:
-            for attempt in range(1, self.retry_config.attempts + 1):
-                try:
-                    response = await self._client.send(
-                        request, follow_redirects=follow_redirects
-                    )
-                    if response.status_code not in self.retry_config.retry_on_statuses:
-                        return response
-                    last_error = HTTPClientError(
-                        f"Retryable HTTP status {response.status_code} "
-                        f"for {request.method} {request.url}"
-                    )
-                except (
-                    httpx.TimeoutException,
-                    httpx.NetworkError,
-                    httpx.RemoteProtocolError,
-                ) as exc:
-                    last_error = exc
+        for attempt in range(1, self.retry_config.attempts + 1):
+            try:
+                response = await client.send(
+                    request, follow_redirects=follow_redirects
+                )
+                if response.status_code not in self.retry_config.retry_on_statuses:
+                    return response
+                last_error = HTTPClientError(
+                    f"Retryable HTTP status {response.status_code} "
+                    f"for {request.method} {request.url}"
+                )
+            except (
+                httpx.TimeoutException,
+                httpx.NetworkError,
+                httpx.RemoteProtocolError,
+            ) as exc:
+                last_error = exc
 
-                if attempt < self.retry_config.attempts:
-                    delay = min(
-                        self.retry_config.base_delay * (2 ** (attempt - 1)),
-                        self.retry_config.max_delay,
-                    )
-                    await asyncio.sleep(delay)
-        finally:
-            self._client.timeout = saved_timeout
+            if attempt < self.retry_config.attempts:
+                delay = min(
+                    self.retry_config.base_delay * (2 ** (attempt - 1)),
+                    self.retry_config.max_delay,
+                )
+                await asyncio.sleep(delay)
 
         if last_error is None:
             raise HTTPClientError("Request failed for an unknown reason")
@@ -515,19 +532,25 @@ class HTTPClient:
             tagged[REQUEST_TAG_HEADER] = request_tag
             headers = tagged
 
-        request = self._build_request(
-            method=method,
-            url=url,
-            headers=headers,
-            query=query,
-            body=body,
-            body_type=body_type,
-        )
-
         start = time.monotonic()
-        response = await self._send_with_retries(
-            request, follow_redirects=follow_redirects, timeout=timeout
-        )
+        async with self._new_client(timeout) as client:
+            request = self._build_request(
+                client,
+                method=method,
+                url=url,
+                headers=headers,
+                query=query,
+                body=body,
+                body_type=body_type,
+            )
+            response = await self._send_with_retries(
+                client, request, follow_redirects=follow_redirects
+            )
+            # The per-request client seeds its jar from ``self._cookies`` but
+            # httpx copies (does not share) it, so Set-Cookie responses land in
+            # the client's jar only. Merge them back before the client closes so
+            # cookies persist across the per-request client boundary.
+            self._cookies.update(client.cookies)
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
         content_type = response.headers.get("content-type", "")

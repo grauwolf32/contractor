@@ -426,6 +426,9 @@ def _mk_worker():
     worker.tools = []
     worker.model = "gpt-3.5-turbo"
     worker.instruction = ""
+    # Uninstrumented workers must declare input_schema themselves (the
+    # RouterWorkflow contract); task_tools validates this at assembly time.
+    worker.input_schema = Subtask
     return worker
 
 

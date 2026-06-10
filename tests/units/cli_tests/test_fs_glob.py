@@ -75,3 +75,31 @@ class TestGlobEdgeCases:
     def test_character_class(self, fs):
         # Character classes are honored and stay within the top-level segment.
         assert fs.glob("*.[pt]*") == ["/top.py"]
+
+
+class TestGlobWalkCeiling:
+    # The fixture tree has 4 files total.
+
+    def test_truncates_when_ceiling_hit(self, fs):
+        matches, truncated = fs.glob_scanned("**/*", max_files=2)
+        assert truncated is True
+        assert len(matches) <= 2
+
+    def test_no_truncation_under_ceiling(self, fs):
+        matches, truncated = fs.glob_scanned("**/*.py", max_files=100)
+        assert truncated is False
+        assert matches == ["/sub/b.py", "/sub/deep/c.py", "/top.py"]
+
+    def test_default_ceiling_comes_from_settings(self, fs, monkeypatch):
+        import cli.fs as cli_fs_module
+        from contractor.utils.settings import Settings
+
+        monkeypatch.setattr(
+            cli_fs_module,
+            "get_settings",
+            lambda: Settings(fs_max_files_per_walk=1),
+        )
+
+        matches, truncated = fs.glob_scanned("**/*")
+        assert truncated is True
+        assert len(matches) <= 1

@@ -32,6 +32,8 @@ from contractor.tools.fs.merge import fork_overlay, merge_overlay_forks
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX
+from contractor.workflows.path_groups import PathGroup, group_paths_by_prefix
 from contractor.workflows.trace_annotation import (
     OpenApiOperation,
     OpenApiPath,
@@ -41,14 +43,14 @@ from contractor.workflows.trace_annotation import (
 CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
 # Per-path namespace prefix used for this workflow's trace artifacts and
-# vulnerability reports. Shared with vuln_assess._collect_vuln_reports so the
-# write key (here) and the read key (there) cannot drift apart.
-PATH_NAMESPACE_PREFIX: str = "trace-graph-pathpar"
+# vulnerability reports. Shared (via contractor.workflows.namespaces) with
+# vuln_assess._collect_vuln_reports and trace_verify so the write key (here)
+# and the read keys (there) cannot drift apart.
+PATH_NAMESPACE_PREFIX: str = TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX
 
 
 class TraceGraphPathParWorkflow(Workflow):
@@ -110,74 +112,93 @@ class TraceGraphPathParWorkflow(Workflow):
         # so the tool closures are safe to share across parallel forks.
         self._shared_graph_tools = attach_graph_tools_if_local(self.overlayfs)
 
+        # Group by route prefix — the group is the fork/concurrency unit and
+        # the memory-namespace unit, so sibling paths share context and a
+        # budget instead of competing as N independent runs. group_depth=0
+        # keeps the historical one-fork-per-path behavior.
+        groups = group_paths_by_prefix(
+            self.paths, depth=CFG.budgets.group_depth
+        )
+
         # Snapshot pre-fork state for merge.
         pre_fork_patch = self.overlayfs.save()
         pre_fork_files = dict(self.overlayfs._files)
 
-        forks = [fork_overlay(self.fs, pre_fork_patch) for _ in self.paths]
+        forks = [fork_overlay(self.fs, pre_fork_patch) for _ in groups]
         sem = asyncio.Semaphore(self.max_concurrency)
 
         logger.info(
-            "Running %d paths in parallel (max_concurrency=%d)",
+            "Running %d route group(s) covering %d path(s) in parallel "
+            "(max_concurrency=%d, group_depth=%d)",
+            len(groups),
             len(self.paths),
             self.max_concurrency,
+            CFG.budgets.group_depth,
         )
 
-        async def _run_path(api_path: OpenApiPath, overlay: MemoryOverlayFileSystem) -> None:
+        async def _run_group(group: PathGroup, overlay: MemoryOverlayFileSystem) -> None:
             async with sem:
                 runner = AgentRunner(
                     name=ctx.app_name,
                     artifact_service=ctx.artifact_service,
                 )
-                await self._run_path_analysis(
-                    api_path=api_path,
+                await self._run_group_analysis(
+                    group=group,
                     overlay=overlay,
                     runner=runner,
                     user_id=user_id,
                     on_event=on_event,
                 )
 
-        async with asyncio.TaskGroup() as tg:
-            for api_path, overlay in zip(self.paths, forks, strict=False):
-                tg.create_task(_run_path(api_path, overlay))
+        # Merge + persist in a `finally` (the trace_annotation `_cleanup`
+        # precedent — done inline here because vuln_assess drives this
+        # workflow via `_run_impl` directly, bypassing `run()`/`_cleanup`):
+        # a single failed path makes the TaskGroup cancel its siblings and
+        # re-raise, and without the `finally` every already-completed path's
+        # annotations were lost. On the happy path this block is the one and
+        # only merge/save, so nothing runs twice.
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for group, overlay in zip(groups, forks, strict=False):
+                    tg.create_task(_run_group(group, overlay))
+        finally:
+            conflicts = merge_overlay_forks(self.overlayfs, forks, pre_fork_files)
+            if conflicts:
+                logger.warning(
+                    "Overlay merge produced %d conflicting files: %s",
+                    len(conflicts),
+                    conflicts,
+                )
 
-        conflicts = merge_overlay_forks(self.overlayfs, forks, pre_fork_files)
-        if conflicts:
-            logger.warning(
-                "Overlay merge produced %d conflicting files: %s",
-                len(conflicts),
-                conflicts,
-            )
+            await self._save_overlay_artifacts(user_id)
 
-        await self._save_overlay_artifacts(user_id)
+    # ── per-group orchestration (operations sequential) ───────────────
 
-    # ── per-path orchestration (operations sequential) ────────────────
-
-    async def _run_path_analysis(
+    async def _run_group_analysis(
         self,
         *,
-        api_path: OpenApiPath,
+        group: PathGroup,
         overlay: MemoryOverlayFileSystem,
         runner: AgentRunner,
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
     ) -> None:
-        path_namespace = f"{PATH_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
+        group_namespace = f"{PATH_NAMESPACE_PREFIX}:{self.namespace}:{group.key}"
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
 
         await inject_skills(
             ["trace"],
-            namespace=path_namespace,
+            namespace=group_namespace,
             artifact_service=self.ctx.artifact_service,
             app_name=self.ctx.app_name,
             user_id=user_id,
         )
 
-        for idx, operation in enumerate(api_path.operations):
+        for idx, operation in enumerate(group.operations):
             await self._run_operation_trace(
                 operation=operation,
                 idx=idx,
-                namespace=path_namespace,
+                namespace=group_namespace,
                 overlay=overlay,
                 runner=runner,
                 base_variables=base_variables,

@@ -1,0 +1,66 @@
+task:
+  name: "analyze_trace_annotated_diff_for_vulnerabilities"
+
+  objective: >
+    A prior trace stage annotated the execution paths of the target
+    operations in-place. Read the annotation diff below, judge every
+    annotated flow against the finding-shape taxonomy, and report each
+    supported vulnerability via report_vulnerability.
+
+    Target operations:
+    {target_summary}
+
+  instructions: >
+
+    ## What to accomplish
+
+    - Enumerate every annotated flow visible in the diff (entrypoint,
+      validations, sinks, transformations).
+    - For each flow, read the annotated code and reconstruct the
+      argument-state chain; decide finding vs. clean vs. uncertain.
+    - For each annotated entrypoint, walk the per-handler control
+      checklist; missing/weak controls on sensitive operations are
+      findings on structure alone.
+    - Report every supported finding; give every flow a verdict.
+
+    The diff is a map, not proof: confirm in the source files before
+    reporting. Do not annotate or edit code; do not re-trace beyond
+    what is needed to judge the annotated flows.
+
+    ## Where the domain knowledge lives
+
+    The finding-shape taxonomy, the per-handler control checklist, and
+    the sink catalogue live in the injected `trace` skill — load them
+    on demand. Do NOT restate that knowledge here.
+
+    ## Completion criteria (stop condition)
+
+    STOP and produce final output once every annotated flow has a
+    verdict and every annotated entrypoint has a control-checklist
+    result. If a flow cannot be conclusively judged, record it as
+    uncertain rather than retrying indefinitely.
+
+    ## Annotation diff
+
+    {trace_diff}
+
+  output_format: |
+    Produce the structured analytics report with these sections
+    (headers verbatim):
+
+    ## Flows Analyzed
+    - <entrypoint file:function> -> <sink/terminal>  verdict=<finding|clean|uncertain>
+
+    ## Findings
+    One block per reported finding (name, shape, severity, confidence,
+    entrypoint, sink, missing/weak control, evidence file:line), or the
+    literal line: No findings supported by code.
+
+    ## Controls Summary
+    Per annotated entrypoint: absent/weak checklist rows.
+
+    ## Uncertainties
+    Omit the section if none.
+
+  iterations: 1
+  format: json

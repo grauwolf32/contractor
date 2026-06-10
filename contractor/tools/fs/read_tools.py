@@ -39,6 +39,13 @@ PatchPayload: TypeAlias = dict[str, Any] | str
 # coverage-gap projection caps the *surfaced* list far lower (25).
 _IN_SCOPE_WALK_LIMIT: Final[int] = 2000
 
+# Truncation notice attached to glob/grep output when the tree walk hit the
+# ``fs_max_files_per_walk`` ceiling (style mirrors ``format_output``'s footer).
+_WALK_TRUNCATION_NOTICE: Final[str] = (
+    "### file walk truncated after scanning {max_files} files: results may be "
+    "incomplete — narrow `path` or `pattern` ###"
+)
+
 
 def _push_fs_coverage(
     tool_context: ToolContext | None, snapshot: dict[str, int]
@@ -100,6 +107,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
         max_output: int | None = None,
         max_items: int | None = None,
         max_lines: int | None = None,
+        max_files_per_walk: int | None = None,
         ignored_patterns: list[str] | None = None,
         with_types: bool = True,
         with_file_info: bool = True,
@@ -118,6 +126,14 @@ class FsspecInteractionFileTools(PathValidationMixin):
         # Default line cap when read_file gets no explicit `limit`. Falls back
         # to the (possibly None) settings value, i.e. "no cap" unless configured.
         self.max_lines = s.fs_max_read_lines if max_lines is None else max_lines
+        # Hard ceiling on files scanned by a single glob/grep tree walk so the
+        # tools cannot run away on a huge repo (mirrors code_max_files_per_walk
+        # for the code-tools walker). When hit, the output carries a notice.
+        self.max_files_per_walk = (
+            s.fs_max_files_per_walk
+            if max_files_per_walk is None
+            else max_files_per_walk
+        )
         self.with_types = with_types
         self.with_file_info = with_file_info
 
@@ -408,7 +424,18 @@ class FsspecInteractionFileTools(PathValidationMixin):
         if not pattern_for_fs.startswith("/") and normalized_path != "/":
             pattern_for_fs = f"{normalized_path.rstrip('/')}/{pattern_for_fs}"
 
-        matches = [str(match) for match in self.fs.glob(pattern_for_fs)]
+        # Sandbox filesystems expose ``glob_scanned`` — a bounded glob whose
+        # tree walk stops at the max-files ceiling and reports truncation.
+        # Other backends fall back to the plain (unbounded) fsspec glob.
+        glob_scanned = getattr(self.fs, "glob_scanned", None)
+        if callable(glob_scanned):
+            raw_matches, walk_truncated = glob_scanned(
+                pattern_for_fs, max_files=self.max_files_per_walk
+            )
+        else:
+            raw_matches, walk_truncated = self.fs.glob(pattern_for_fs), False
+
+        matches = [str(match) for match in raw_matches]
 
         prefix = normalized_path.rstrip("/").replace("\\", "/") + "/"
         if normalized_path != "/":
@@ -429,12 +456,20 @@ class FsspecInteractionFileTools(PathValidationMixin):
         total = len(entries)
         paged = entries[offset : offset + self.max_items]
 
+        meta: dict[str, Any] = {}
+        if walk_truncated:
+            meta["walk_truncated"] = True
+            meta["notice"] = _WALK_TRUNCATION_NOTICE.format(
+                max_files=self.max_files_per_walk
+            )
+
         return ok_page(
             self.fmt.format_file_list(paged),
             total,
             returned=len(paged),
             offset=offset,
             limit=self.max_items,
+            **meta,
         )
 
     def read_file(
@@ -561,14 +596,31 @@ class FsspecInteractionFileTools(PathValidationMixin):
             )
 
         results: list[FsEntry] = []
+        scanned = 0
+        walk_truncated = False
+        # Bound the tree walk so grep over a huge repo cannot run away; when
+        # the ceiling is hit the (partial) results carry a truncation notice.
         for current_path, _dirs, filenames in self.fs.walk(normalized_path):
             for filename in filenames:
+                if scanned >= self.max_files_per_walk:
+                    walk_truncated = True
+                    break
+                scanned += 1
                 full_path = join_path(current_path, filename)
                 results.extend(build_entries_for_file(full_path))
+            if walk_truncated:
+                break
 
         results.sort(key=lambda entry: (entry.path, entry.loc.line_start or 0))
         total = len(results)
         paged = results[offset : offset + self.max_items]
+
+        meta: dict[str, Any] = {}
+        if walk_truncated:
+            meta["walk_truncated"] = True
+            meta["notice"] = _WALK_TRUNCATION_NOTICE.format(
+                max_files=self.max_files_per_walk
+            )
 
         return ok_page(
             self.fmt.format_file_list(paged),
@@ -576,6 +628,7 @@ class FsspecInteractionFileTools(PathValidationMixin):
             returned=len(paged),
             offset=offset,
             limit=self.max_items,
+            **meta,
         )
 
     def interaction_stats(

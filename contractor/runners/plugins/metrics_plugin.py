@@ -180,6 +180,19 @@ class _CallTracker:
         tool_name: str,
         args: dict[str, Any],
     ) -> _TrackedCall:
+        fp = _fingerprint(invocation_id, agent_name, tool_name, args)
+
+        # A new identical call means any earlier errored call's optional
+        # paired after_tool window has closed (when a plugin returns a
+        # non-None error response, ADK fires that after_tool synchronously,
+        # before the model's next turn can retry). Finish those stale calls
+        # so the retry's after_tool can never be attributed to them and they
+        # don't linger as pending.
+        for call_id in self._pending_by_fp[fp]:
+            stale = self._calls.get(call_id)
+            if stale is not None and stale.exception_seen and not stale.finished:
+                stale.finished = True
+
         call = _TrackedCall(
             call_id=next(self._seq),
             invocation_id=invocation_id,
@@ -190,7 +203,6 @@ class _CallTracker:
             started_at=_utcnow_iso(),
             started_monotonic=time.monotonic(),
         )
-        fp = _fingerprint(invocation_id, agent_name, tool_name, args)
         self._calls[call.call_id] = call
         self._pending_by_fp[fp].append(call.call_id)
         return call
@@ -206,11 +218,23 @@ class _CallTracker:
         queue = self._pending_by_fp.get(fp)
         if not queue:
             return None
+        # Prefer the oldest unfinished call that has NOT errored: an errored
+        # call usually gets no after_tool (only plugins returning a non-None
+        # error response trigger one), so a same-args retry's after_tool must
+        # pair with the retry, not the stale errored call. Errored calls are
+        # kept as a fallback so a genuinely paired after_tool — arriving when
+        # no fresh call is pending — still de-dupes against them.
+        errored_fallback: _TrackedCall | None = None
         for call_id in queue:
             call = self._calls.get(call_id)
-            if call is not None and not call.finished:
-                return call
-        return None
+            if call is None or call.finished:
+                continue
+            if call.exception_seen:
+                if errored_fallback is None:
+                    errored_fallback = call
+                continue
+            return call
+        return errored_fallback
 
     def finish(self, call: _TrackedCall) -> None:
         call.finished = True

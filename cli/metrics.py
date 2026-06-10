@@ -59,6 +59,8 @@ def _event_to_record(event: TaskRunnerEvent) -> dict[str, Any]:
         "task_name": getattr(event, "task_name", None),
         "task_id": getattr(event, "task_id", None),
     }
+    # Intentional: setdefault means payload keys that shadow envelope keys
+    # ("type", "task_name", ...) are dropped — the envelope always wins.
     for key, value in payload_dict.items():
         record.setdefault(key, value)
     return record

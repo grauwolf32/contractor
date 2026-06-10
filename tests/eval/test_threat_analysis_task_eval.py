@@ -155,7 +155,7 @@ async def test_threat_analysis_task(fixture, eval_model: LiteLlm, eval_sink):
         timeout_s=float(case.get("timeout_s", 2400.0)),
         runner_name=f"threat_analysis-{fixture.slug}",
         preloaded_artifacts=preloaded,
-        artifact_dir=case_artifact_dir("threat_analysis", fixture.slug, case["id"]),
+        artifact_dir=case_artifact_dir("threat_analysis", fixture.slug, case["id"], scenario="task"),
     )
 
     reports_text = run.artifacts.get(VULN_ARTIFACT_KEY, "")

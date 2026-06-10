@@ -5,6 +5,8 @@ logic without an LLM."""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -212,17 +214,38 @@ class TestEmission:
         assert result.final_text == "ok"
 
     @pytest.mark.asyncio
-    async def test_handler_cleared_after_run(self, monkeypatch):
-        _patch_runner(monkeypatch, [_final_event("ok")])
+    async def test_concurrent_runs_do_not_clobber_each_others_handler(
+        self, monkeypatch,
+    ):
+        # The handler is threaded through the call chain, not stored on the
+        # instance — two interleaved run() calls on the SAME runner must each
+        # deliver their full event sequence to their own handler only.
+        class SlowFakeRunner:
+            def __init__(self, **kwargs):
+                pass
+
+            async def run_async(self, *, user_id, session_id, new_message):
+                await asyncio.sleep(0.01)  # force interleaving
+                yield _final_event("ok")
+
+        monkeypatch.setattr(agent_runner_mod, "Runner", SlowFakeRunner)
         runner = _make_runner()
-        _, on_event = _collector()
+        events_a, on_a = _collector()
+        events_b, on_b = _collector()
 
-        await runner.run(agent=_agent(), message="hi", on_event=on_event)
+        await asyncio.gather(
+            runner.run(agent=_agent("agent-a"), message="hi", on_event=on_a),
+            runner.run(agent=_agent("agent-b"), message="hi", on_event=on_b),
+        )
 
-        assert runner._on_event is None
+        for events, agent_name in ((events_a, "agent-a"), (events_b, "agent-b")):
+            assert [e.type for e in events] == [
+                "agent_run_started", "final_text", "agent_run_finished",
+            ]
+            assert {e.payload["agent_name"] for e in events} == {agent_name}
 
     @pytest.mark.asyncio
-    async def test_handler_cleared_even_on_error(self, monkeypatch):
+    async def test_runner_error_propagates(self, monkeypatch):
         class FakeRunner:
             def __init__(self, **kwargs):
                 pass
@@ -238,7 +261,40 @@ class TestEmission:
         with pytest.raises(RuntimeError, match="kaboom"):
             await runner.run(agent=_agent(), message="hi", on_event=on_event)
 
-        assert runner._on_event is None
+    @pytest.mark.asyncio
+    async def test_raising_handler_does_not_abort_run(self, monkeypatch, caplog):
+        # Event delivery is best-effort telemetry: a broken handler (full
+        # disk, UI rendering, …) must not abort the agent run.
+        _patch_runner(monkeypatch, [_final_event("ok")])
+        runner = _make_runner()
+
+        async def bad_handler(ev: TaskRunnerEvent) -> None:
+            raise OSError("No space left on device")
+
+        with caplog.at_level(
+            logging.ERROR, logger="contractor.runners.agent_runner",
+        ):
+            result = await runner.run(
+                agent=_agent(), message="hi", on_event=bad_handler,
+            )
+
+        assert result.final_text == "ok"
+        assert any(
+            "event handler failed" in rec.getMessage() for rec in caplog.records
+        )
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_from_handler_propagates(self, monkeypatch):
+        _patch_runner(monkeypatch, [_final_event("ok")])
+        runner = _make_runner()
+
+        async def cancelling_handler(ev: TaskRunnerEvent) -> None:
+            raise asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await runner.run(
+                agent=_agent(), message="hi", on_event=cancelling_handler,
+            )
 
 
 # ─── Artifact publishing ──────────────────────────────────────────────────────

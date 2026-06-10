@@ -1,0 +1,17 @@
+budgets:
+  scan_max_tokens: 60000
+  trace_max_tokens: 80000
+  # Parallel nomination sweeps (one per vulnerability class).
+  sweep_concurrency: 3
+  # Cap on nominations carried into the (expensive) DFS trace phase.
+  max_trace_nominations: 40
+tasks:
+  sweep: { iterations: 1, max_attempts: 2, max_steps: 50 }
+  trace: { iterations: 1, max_attempts: 1, max_steps: 30 }
+agents:
+  codereview_agent: { with_graph_tools: true, output_format: json }
+  trace_agent: { with_graph_tools: true, output_format: json }
+observations:
+  enabled: true
+  include_tool_errors: false
+  track_file_paths: true

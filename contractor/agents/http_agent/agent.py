@@ -14,7 +14,14 @@ from contractor.utils import load_prompt
 HTTP_PROMPT: Final[str] = load_prompt("http_agent")
 
 _SUMMARIZATION_BULLETS: Final[str] = (
-    "You have reached context limit. Summarize your progress and call report tool."
+    "You have reached the context limit. Summarize your progress:\n"
+    "1. Subtask objective as you understand it\n"
+    "2. Requests issued so far (method + URL) and the key responses observed\n"
+    "3. Findings worth keeping — persist them to memory before stopping\n"
+    "4. Open questions or blockers\n"
+    "5. Smallest concrete next step to resume the flow\n"
+    "Then return the structured result. Include only claims supported by "
+    "tool output; mark anything inferred as such.\n"
 )
 
 def build_http_agent(

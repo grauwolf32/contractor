@@ -13,6 +13,7 @@ from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
 from contractor.tools.vuln import (
+    READ_ONLY_VULN_TOOL_NAMES,
     VerifiedFindingFormat,
     VulnerabilityReportFormat,
     verification_tools,
@@ -21,12 +22,6 @@ from contractor.tools.vuln import (
 from contractor.utils import load_prompt
 
 TRACE_VERIFIER_PROMPT: Final[str] = load_prompt("trace_verifier_agent")
-
-# Tools we keep from `vulnerability_report_tools` for the verifier. The
-# verifier reads upstream findings but must not author new ones.
-_READ_ONLY_VULN_TOOL_NAMES: frozenset[str] = frozenset(
-    {"get_vulnerability", "list_vulnerabilities"}
-)
 
 _SUMMARIZATION_BULLETS: Final[str] = (
     "You have reached the context limit. Summarize your progress:\n"
@@ -77,7 +72,7 @@ def build_trace_verifier_agent(
             name=src_ns,
             fmt=VulnerabilityReportFormat(_format=_format),
         )
-        if t.__name__ in _READ_ONLY_VULN_TOOL_NAMES
+        if t.__name__ in READ_ONLY_VULN_TOOL_NAMES
     ]
 
     verif_tools = verification_tools(

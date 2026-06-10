@@ -1,4 +1,6 @@
 budgets:
   max_tokens: 100000
 agents:
-  trace_agent: { with_graph_tools: true, output_format: json }
+  # Prompt-only baseline: graph tools stay off so trace-direct remains the
+  # ablation counterpart of trace-graph (which differs only in this knob).
+  trace_agent: { with_graph_tools: false }

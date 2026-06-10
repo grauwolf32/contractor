@@ -21,10 +21,6 @@ from contractor.utils.settings import DEFAULT_MODEL
 
 SUBTASK_PLANNING_PROMPT: Final[str] = load_prompt("planning_agent")
 
-FINISH_MAX_CALLS_RVALUE: dict[str, str] = {
-    "error": "The 'finish' tool has already been called once. Stop execution."
-}
-
 def _safe_identifier(value: str) -> str:
     safe = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
     return safe or "task"

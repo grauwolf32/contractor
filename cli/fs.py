@@ -1,68 +1,12 @@
 import os
-import re
 from collections.abc import Iterator
 from typing import Any
 
 from fsspec.implementations.local import LocalFileSystem, stringify_path
 
+from contractor.tools.fs.globmatch import glob_to_regex
 from contractor.utils.formatting import norm_unicode
-
-
-def _translate_glob_segment(seg: str) -> str:
-    """Translate one glob path segment to regex, never crossing ``/``."""
-    out: list[str] = []
-    i, n = 0, len(seg)
-    while i < n:
-        c = seg[i]
-        if c == "*":
-            out.append("[^/]*")
-        elif c == "?":
-            out.append("[^/]")
-        elif c == "[":
-            j = i + 1
-            if j < n and seg[j] == "!":
-                j += 1
-            if j < n and seg[j] == "]":
-                j += 1
-            while j < n and seg[j] != "]":
-                j += 1
-            if j >= n:  # no closing bracket: treat '[' literally
-                out.append(re.escape(c))
-            else:
-                inner = seg[i + 1 : j]
-                if inner.startswith("!"):
-                    inner = "^" + inner[1:]
-                out.append("[" + inner + "]")
-                i = j + 1
-                continue
-        else:
-            out.append(re.escape(c))
-        i += 1
-    return "".join(out)
-
-
-def _glob_to_regex(pattern: str) -> "re.Pattern[str]":
-    """
-    Compile a glob pattern into a path-aware regex with Python-like semantics:
-    ``*``/``?``/``[...]`` match within a single path segment, while ``**``
-    matches any number of segments (including zero). Matches relative paths
-    without a leading ``/``.
-    """
-    segments = pattern.split("/")
-    parts: list[str] = []
-    last = len(segments) - 1
-    for idx, seg in enumerate(segments):
-        if seg == "**":
-            if idx == last:
-                parts.append(".*")  # trailing ** matches anything, any depth
-            else:
-                parts.append("(?:[^/]*/)*")  # **/ matches zero or more segments
-                continue  # the separator is baked into the group above
-        else:
-            parts.append(_translate_glob_segment(seg))
-        if idx != last:
-            parts.append("/")
-    return re.compile("(?s:" + "".join(parts) + r")\Z")
+from contractor.utils.settings import get_settings
 
 
 class RootedLocalFileSystem(LocalFileSystem):
@@ -130,7 +74,11 @@ class RootedLocalFileSystem(LocalFileSystem):
         resolved = os.path.realpath(candidate)
 
         if self._is_within_sandbox(resolved):
-            return candidate
+            # Return the *resolved* path — the exact path that was validated —
+            # so the later open()/stat() cannot re-resolve a symlink component
+            # swapped in after this check (check-then-use TOCTOU). In-sandbox
+            # symlinks still work: they resolve to their (validated) target.
+            return resolved
 
         return self._blocked_path
 
@@ -163,6 +111,11 @@ class RootedLocalFileSystem(LocalFileSystem):
 
             # Prune symlinked directories so os.walk never descends into them.
             dirs[:] = [d for d in dirs if self._is_safe_entry(current_root, d)]
+
+            # Hide symlinked files too (same policy as ls/glob): their content
+            # is already unreadable through the sandbox, so leaking the names
+            # would only disclose the existence of out-of-sandbox targets.
+            files = [f for f in files if self._is_safe_entry(current_root, f)]
 
             yield self._to_virtual(real_root), dirs, files
 
@@ -201,17 +154,35 @@ class RootedLocalFileSystem(LocalFileSystem):
 
         Returns virtual paths such as ``/file.txt`` or ``/dir/inner.txt``.
         """
+        matches, _truncated = self.glob_scanned(pattern)
+        return matches
+
+    def glob_scanned(
+        self, pattern: str, max_files: int | None = None
+    ) -> tuple[list[str], bool]:
+        """``glob`` plus a truncation flag.
+
+        The tree walk is hard-bounded at *max_files* scanned files (default:
+        ``Settings.fs_max_files_per_walk``) so a glob over a huge repo cannot
+        run away. The flag is ``True`` when the ceiling was hit, i.e. the
+        match list may be incomplete.
+        """
         if not pattern:
-            return []
+            return [], False
 
         pattern = norm_unicode(pattern.lstrip("/")) or ""
 
         # Reject obvious traversal attempts.
         if ".." in pattern.split("/"):
-            return []
+            return [], False
 
-        regex = _glob_to_regex(pattern)
+        if max_files is None:
+            max_files = get_settings().fs_max_files_per_walk
+
+        regex = glob_to_regex(pattern)
         matches: set[str] = set()
+        scanned = 0
+        truncated = False
 
         # Always walk the full tree: a non-recursive pattern like ``sub/*.py``
         # still needs to descend into ``sub``. The regex is path-aware, so a
@@ -225,6 +196,11 @@ class RootedLocalFileSystem(LocalFileSystem):
                 rel_root = ""
 
             for name in files:
+                if scanned >= max_files:
+                    truncated = True
+                    break
+                scanned += 1
+
                 normalized_name = norm_unicode(name) or name
                 host_path = os.path.join(host_root, normalized_name)
 
@@ -239,4 +215,7 @@ class RootedLocalFileSystem(LocalFileSystem):
                 if regex.match(rel_path):
                     matches.add("/" + rel_path)
 
-        return sorted(matches)
+            if truncated:
+                break
+
+        return sorted(matches), truncated

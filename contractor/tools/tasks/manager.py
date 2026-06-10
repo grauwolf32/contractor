@@ -185,7 +185,18 @@ class StreamlineManager:
         reason: str,
         ctx: ToolContext | CallbackContext,
     ) -> Subtask | None:
-        """Skip the current subtask. Returns the next subtask or None."""
+        """Skip the current subtask.
+
+        Returns:
+            The next subtask, or None when the skip succeeded but no later
+            subtask exists. (None also covers "no current subtask".)
+
+        Raises:
+            InvalidStatusTransitionError: If the current subtask is in a
+                non-skippable state ('done'/'decomposed'/'skipped'), so the
+                caller can distinguish a rejected skip from a successful skip
+                with no next subtask.
+        """
         idx = self._get_idx(ctx)
         if idx is None:
             return None
@@ -206,7 +217,7 @@ class StreamlineManager:
                         "error": str(exc),
                     },
                 )
-                return None
+                raise
 
             # Determine the next subtask, if any
             next_subtask: Subtask | None = None

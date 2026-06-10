@@ -7,11 +7,11 @@ import threading
 from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from datetime import datetime
-from pathlib import PurePosixPath
 from typing import Any
 
 from fsspec.spec import AbstractFileSystem
 
+from contractor.tools.fs.globmatch import glob_to_regex
 from contractor.tools.fs.models import FsEntry
 from contractor.tools.fs.overlay_diff import render_overlay_diff
 from contractor.tools.fs.overlay_patch import (
@@ -20,6 +20,7 @@ from contractor.tools.fs.overlay_patch import (
     build_overlay_patch,
     sha256_hex,
 )
+from contractor.utils.settings import get_settings
 
 FileInfo = dict[str, Any]
 Patch = dict[str, Any]
@@ -1230,38 +1231,64 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         return sorted(result)
 
     def glob(self, path: str, **kwargs: Any):
-        pattern = self._norm(path)
+        """
+        Path-aware glob over the merged (base + overlay) view.
 
-        if "**" in pattern:
-            search_root = pattern.split("**", 1)[0].rstrip("/") or "/"
-            candidates = set()
+        Mirrors ``RootedLocalFileSystem.glob`` semantics: matches files only,
+        ``*``/``?``/``[...]`` stay within a single path segment and ``**``
+        spans any number of segments (including zero). Overlay-added files are
+        included; tombstoned (deleted-in-overlay) files are excluded because
+        ``walk`` already merges the overlay view.
+        """
+        matches, _truncated = self.glob_scanned(path)
+        return matches
 
-            if self.exists(search_root):
-                candidates.add(search_root)
+    def glob_scanned(
+        self, path: str, max_files: int | None = None
+    ) -> tuple[list[str], bool]:
+        """``glob`` plus a truncation flag.
 
-            candidates.update(self.find(search_root, withdirs=True, detail=False))
-        else:
-            parts = pattern.strip("/").split("/")
-            prefix_parts: list[str] = []
+        The tree walk is hard-bounded at *max_files* scanned files (default:
+        ``Settings.fs_max_files_per_walk``) so a glob over a huge base tree
+        cannot run away. The flag is ``True`` when the ceiling was hit, i.e.
+        the match list may be incomplete.
+        """
+        if not path:
+            return [], False
 
-            for part in parts:
-                if any(ch in part for ch in "*?["):
+        pattern = self._norm(path).lstrip("/")
+        if not pattern:
+            return [], False
+
+        # Reject obvious traversal attempts.
+        if ".." in pattern.split("/"):
+            return [], False
+
+        if max_files is None:
+            max_files = get_settings().fs_max_files_per_walk
+
+        regex = glob_to_regex(pattern)
+        matches: set[str] = set()
+        scanned = 0
+        truncated = False
+
+        for root, _dirs, files in self.walk(self.root_marker):
+            rel_root = "" if root == self.root_marker else root.lstrip("/")
+
+            for name in files:
+                if scanned >= max_files:
+                    truncated = True
                     break
-                prefix_parts.append(part)
+                scanned += 1
 
-            search_root = "/" + "/".join(prefix_parts) if prefix_parts else "/"
+                rel_path = f"{rel_root}/{name}" if rel_root else name
+                if regex.match(rel_path):
+                    matches.add("/" + rel_path)
 
-            candidates = set()
-            try:
-                for item in self.ls(search_root, detail=True):
-                    candidates.add(self._norm(item["name"]))
-            except FileNotFoundError:
-                return []
+            if truncated:
+                break
 
-        pattern_no_root = pattern.lstrip("/")
-        return sorted(
-            p for p in candidates if PurePosixPath(p.lstrip("/")).match(pattern_no_root)
-        )
+        return sorted(matches), truncated
 
     def du(
         self,

@@ -19,8 +19,11 @@ class OasEnrichmentWorkflow(Workflow):
         on_event: TaskRunnerEventHandler | None,
     ) -> Any:
         ctx = self.ctx
+        # The runner name doubles as the ADK app_name; keep it equal to
+        # ctx.app_name so artifact_exists() skip-checks and CLI export probe
+        # the same scope the tasks publish under.
         runner = TaskRunner(
-            name="oas_builder",
+            name=ctx.app_name,
             artifact_service=ctx.artifact_service,
             checkpoint_path=ctx.checkpoint_path,
             observations=CFG.observations,

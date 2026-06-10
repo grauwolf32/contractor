@@ -1,0 +1,625 @@
+[
+  {
+    "id": "extremely-vulnerable-flask-app-001",
+    "is_vulnerable": true,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-564",
+      "CWE-943"
+    ],
+    "file": "routes/signup.py",
+    "start_line": 15,
+    "end_line": 18,
+    "function": "validate_token",
+    "severity": "critical",
+    "description": "SQL injection via f-string interpolation of user-supplied registration code directly into a raw SQL query: text(f\"SELECT id, code FROM ... WHERE code = '{code}'\"). An attacker can inject arbitrary SQL through the registration_code form field to bypass registration, extract data, or modify the database."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-002",
+    "is_vulnerable": true,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-564",
+      "CWE-943"
+    ],
+    "file": "routes/account.py",
+    "start_line": 33,
+    "end_line": 33,
+    "function": "search",
+    "severity": "high",
+    "description": "SQL injection via f-string interpolation of user-supplied search parameter into a raw SQL text() fragment: text(f\"text like '%{search_param}%'\"). The search_param comes directly from request.args.get('search') with no sanitization."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-003",
+    "is_vulnerable": true,
+    "vulnerability_class": "server_side_template_injection",
+    "primary_cwe": "CWE-1336",
+    "acceptable_cwes": [
+      "CWE-1336",
+      "CWE-94",
+      "CWE-95"
+    ],
+    "file": "app.py",
+    "start_line": 31,
+    "end_line": 33,
+    "function": "page_not_found",
+    "severity": "critical",
+    "description": "Server-Side Template Injection (SSTI) via render_template_string() with user-controlled input. The request.path is interpolated into an f-string that is passed to render_template_string(), allowing an attacker to inject Jinja2 template syntax (e.g., {{7*7}}, {{config}}) via a crafted URL path that triggers a 404."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-004",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_deserialization",
+    "primary_cwe": "CWE-502",
+    "acceptable_cwes": [
+      "CWE-502",
+      "CWE-94"
+    ],
+    "file": "routes/account.py",
+    "start_line": 118,
+    "end_line": 118,
+    "function": "before_request",
+    "severity": "critical",
+    "description": "Remote code execution via insecure deserialization. The 'preferences' cookie is base64-decoded and passed directly to pickle.loads() (imported as 'loads' from pickle). An attacker can craft a malicious pickle payload, base64-encode it, and set it as the preferences cookie to achieve arbitrary code execution on every request."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-005",
+    "is_vulnerable": true,
+    "vulnerability_class": "ssrf",
+    "primary_cwe": "CWE-918",
+    "acceptable_cwes": [
+      "CWE-918",
+      "CWE-441"
+    ],
+    "file": "utils/profile_image.py",
+    "start_line": 7,
+    "end_line": 7,
+    "function": "download",
+    "severity": "high",
+    "description": "Server-Side Request Forgery (SSRF) via urlopen(url) where url is user-supplied from the profile image URL form. An attacker can provide internal URLs (e.g., file:///etc/passwd, http://169.254.169.254/latest/meta-data/) to access internal network resources, cloud metadata endpoints, or read local files."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-006",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/home.html",
+    "start_line": 31,
+    "end_line": 31,
+    "function": null,
+    "severity": "medium",
+    "description": "Stored XSS via the Jinja2 '| safe' filter on note text: {{ note.text | safe }}. Note text is submitted through a CKEditor rich text field, but CKEditor is a client-side control that can be bypassed. An attacker can submit arbitrary HTML/JavaScript as note text, which will be rendered unescaped for all users viewing the home page."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-007",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/search.html",
+    "start_line": 18,
+    "end_line": 18,
+    "function": null,
+    "severity": "medium",
+    "description": "Stored XSS via render_table with safe_columns=['text']. The Bootstrap-Flask render_table macro renders the 'text' column as safe (unescaped) HTML. Note text containing malicious scripts will be rendered without escaping in search results."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-008",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/personal_notes.html",
+    "start_line": 16,
+    "end_line": 16,
+    "function": null,
+    "severity": "medium",
+    "description": "Stored XSS via render_table with safe_columns=['text']. The Bootstrap-Flask render_table macro renders the 'text' column as safe (unescaped) HTML. Note text containing malicious scripts will be rendered without escaping on the personal notes page."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-009",
+    "is_vulnerable": true,
+    "vulnerability_class": "idor",
+    "primary_cwe": "CWE-639",
+    "acceptable_cwes": [
+      "CWE-639",
+      "CWE-284",
+      "CWE-285",
+      "CWE-862"
+    ],
+    "file": "routes/account.py",
+    "start_line": 41,
+    "end_line": 48,
+    "function": "get_personal_notes",
+    "severity": "medium",
+    "description": "Insecure Direct Object Reference (IDOR) on the /accounts/<user_id>/notes endpoint. Any authenticated user can view any other user's notes (including private ones) by changing the user_id parameter in the URL. No authorization check verifies that the requesting user owns the requested notes."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-010",
+    "is_vulnerable": true,
+    "vulnerability_class": "idor",
+    "primary_cwe": "CWE-639",
+    "acceptable_cwes": [
+      "CWE-639",
+      "CWE-284",
+      "CWE-285",
+      "CWE-862"
+    ],
+    "file": "routes/notes.py",
+    "start_line": 39,
+    "end_line": 52,
+    "function": "delete_note",
+    "severity": "medium",
+    "description": "IDOR on note deletion. The /notes/<note_id>/delete endpoint does not verify that the authenticated user owns the note being deleted. While the template only renders the delete button for the note owner or admin, the backend has no ownership check \u2014 any authenticated user can delete any note by directly sending a POST request with any note_id."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-011",
+    "is_vulnerable": true,
+    "vulnerability_class": "mass_assignment",
+    "primary_cwe": "CWE-915",
+    "acceptable_cwes": [
+      "CWE-915",
+      "CWE-269",
+      "CWE-284"
+    ],
+    "file": "routes/account.py",
+    "start_line": 76,
+    "end_line": 81,
+    "function": "update_account",
+    "severity": "critical",
+    "description": "Privilege escalation via mass assignment. The update_account function uses current_user.__dict__.update(filtered_values) to apply all form fields to the user object. The AccountForm includes an is_admin BooleanField, so any user can submit is_admin=y to escalate to admin privileges. The admin checkbox is only hidden client-side (template), not validated server-side."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-012",
+    "is_vulnerable": true,
+    "vulnerability_class": "hardcoded_credentials",
+    "primary_cwe": "CWE-798",
+    "acceptable_cwes": [
+      "CWE-798",
+      "CWE-259",
+      "CWE-321"
+    ],
+    "file": "app.py",
+    "start_line": 11,
+    "end_line": 11,
+    "function": null,
+    "severity": "high",
+    "description": "Hardcoded Flask secret key: app.secret_key = 'super secret key'. This key is used to sign session cookies. An attacker who knows this key can forge session cookies, impersonate any user, and bypass authentication entirely."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-013",
+    "is_vulnerable": true,
+    "vulnerability_class": "missing_authentication",
+    "primary_cwe": "CWE-306",
+    "acceptable_cwes": [
+      "CWE-306",
+      "CWE-862",
+      "CWE-287"
+    ],
+    "file": "routes/account.py",
+    "start_line": 68,
+    "end_line": 69,
+    "function": "update_account",
+    "severity": "high",
+    "description": "Missing @login_required decorator on the POST /account endpoint (update_account function). While the GET /account route requires authentication, the POST route that modifies user account data does not. An unauthenticated attacker could potentially modify account details."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-014",
+    "is_vulnerable": true,
+    "vulnerability_class": "hardcoded_credentials",
+    "primary_cwe": "CWE-798",
+    "acceptable_cwes": [
+      "CWE-798",
+      "CWE-259",
+      "CWE-521"
+    ],
+    "file": "db_seed.py",
+    "start_line": 17,
+    "end_line": 19,
+    "function": "setup_db",
+    "severity": "medium",
+    "description": "Hardcoded default credentials for seeded users: user@evfa.com/user and admin@evfa.com/admin. These weak, well-known credentials are created on application startup and provide immediate access to both regular and admin accounts."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-015",
+    "is_vulnerable": true,
+    "vulnerability_class": "hardcoded_credentials",
+    "primary_cwe": "CWE-798",
+    "acceptable_cwes": [
+      "CWE-798",
+      "CWE-259"
+    ],
+    "file": "db_seed.py",
+    "start_line": 9,
+    "end_line": 9,
+    "function": "setup_db",
+    "severity": "medium",
+    "description": "Hardcoded static registration code 'a36e990b-0024-4d55-b74a-f8d7528e1764' seeded on every application startup. Anyone who knows this code can register new accounts, bypassing the registration code requirement."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-017",
+    "is_vulnerable": true,
+    "vulnerability_class": "sensitive_data_exposure",
+    "primary_cwe": "CWE-200",
+    "acceptable_cwes": [
+      "CWE-200",
+      "CWE-209"
+    ],
+    "file": "routes/login.py",
+    "start_line": 50,
+    "end_line": 56,
+    "function": "logged_in",
+    "severity": "low",
+    "description": "Information disclosure via /is_logged_in endpoint. This unauthenticated endpoint exposes whether a user is currently logged in and their email address. Can be used for user enumeration and session state reconnaissance."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-018",
+    "is_vulnerable": true,
+    "vulnerability_class": "sensitive_data_exposure",
+    "primary_cwe": "CWE-532",
+    "acceptable_cwes": [
+      "CWE-532",
+      "CWE-200",
+      "CWE-209"
+    ],
+    "file": "models/__init__.py",
+    "start_line": 12,
+    "end_line": 15,
+    "function": null,
+    "severity": "low",
+    "description": "SQLAlchemy engine created with echo=True, which logs all SQL statements including potentially sensitive query parameters (passwords, registration codes, user data) to stdout/stderr. This can expose sensitive data in application logs."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-019",
+    "is_vulnerable": true,
+    "vulnerability_class": "missing_rate_limiting",
+    "primary_cwe": "CWE-307",
+    "acceptable_cwes": [
+      "CWE-307",
+      "CWE-799"
+    ],
+    "file": "routes/login.py",
+    "start_line": 22,
+    "end_line": 40,
+    "function": "do_login",
+    "severity": "high",
+    "description": "The POST /login endpoint (do_login function) has no rate limiting. No Flask-Limiter, SlowAPI, or any throttling middleware is used anywhere in the application. An attacker can make unlimited brute-force login attempts against user credentials. Per classification guidance, missing rate limiting on authentication endpoints is High severity."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-020",
+    "is_vulnerable": true,
+    "vulnerability_class": "missing_rate_limiting",
+    "primary_cwe": "CWE-307",
+    "acceptable_cwes": [
+      "CWE-307",
+      "CWE-799"
+    ],
+    "file": "routes/signup.py",
+    "start_line": 33,
+    "end_line": 69,
+    "function": "do_signup",
+    "severity": "high",
+    "description": "The POST /signup endpoint (do_signup function) has no rate limiting. No throttling middleware exists in the application. An attacker can brute-force registration codes to create unauthorized accounts. The registration code validation (validate_token) is called on each attempt with no restriction on frequency. Per classification guidance, missing rate limiting on registration endpoints is High severity."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-021",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/account.html",
+    "start_line": 42,
+    "end_line": 45,
+    "function": null,
+    "severity": "high",
+    "description": "Stored XSS via <object> tag rendering user-controlled profile image data URI. The template renders: <object data=\"{{current_user.profile_image.decode() ...}}\">. The profile image is set via get_base64_image_blob() which uses guess_type(url) for MIME type. An attacker providing a URL ending in .html causes the stored data URI to be data:text/html;base64,... \u2014 the <object> tag renders this as HTML with JavaScript execution. Base64 content passes through Jinja2 auto-escaping unmodified. Exploitation against other users requires chaining with the missing CSRF protection (GT-016) to set a victim's profile image to a malicious URL."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-022",
+    "is_vulnerable": true,
+    "vulnerability_class": "stored_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/base.html",
+    "start_line": 57,
+    "end_line": 66,
+    "function": null,
+    "severity": "high",
+    "description": "Stored XSS via <object> tag in the base layout template's navbar. The profile image is rendered as: <object data=\"{{current_user.profile_image.decode() ...}}\">. Same attack vector as account.html \u2014 attacker-controlled data URI with text/html MIME type executes JavaScript. This is higher impact than account.html because base.html is the layout template rendered on EVERY page, meaning the XSS payload executes on every page load after exploitation. Requires CSRF chain (GT-016) to exploit against other users."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-023",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_cookie",
+    "primary_cwe": "CWE-614",
+    "acceptable_cwes": [
+      "CWE-614",
+      "CWE-311"
+    ],
+    "file": "app.py",
+    "start_line": 10,
+    "end_line": 11,
+    "function": null,
+    "severity": "low",
+    "description": "The Flask app does not set SESSION_COOKIE_SECURE=True. Session cookies will be transmitted over unencrypted HTTP connections. The nginx configuration (conf/nginx.conf) only listens on port 80 with no TLS, confirming cookies are sent in cleartext. This is a best-practice hardening issue \u2014 classified as Low since it's an informational finding for an open-source development/educational application."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-024",
+    "is_vulnerable": true,
+    "vulnerability_class": "cleartext_transmission",
+    "primary_cwe": "CWE-319",
+    "acceptable_cwes": [
+      "CWE-319",
+      "CWE-311"
+    ],
+    "file": "conf/nginx.conf",
+    "start_line": 27,
+    "end_line": 28,
+    "function": null,
+    "severity": "low",
+    "description": "The nginx configuration listens exclusively on port 80 (HTTP) with no TLS/SSL listener. All traffic including credentials, session cookies, and user data is transmitted in cleartext. Classified as Low since this is an infrastructure configuration issue for an open-source educational application, though it does enable network-level interception of authentication traffic."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-025",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_cookie",
+    "primary_cwe": "CWE-1004",
+    "acceptable_cwes": [
+      "CWE-1004",
+      "CWE-732"
+    ],
+    "file": "routes/account.py",
+    "start_line": 127,
+    "end_line": 128,
+    "function": "after_request",
+    "severity": "medium",
+    "description": "The 'preferences' cookie is set via response.set_cookie('preferences', b64encode(dumps(preferences)).decode()) without httponly=True. This allows JavaScript to read and modify the cookie. Critically, this cookie is deserialized using pickle.loads() in the before_request handler (line 118), so an XSS attack can modify the preferences cookie to a malicious pickle payload, achieving RCE. The missing HttpOnly flag enables this XSS-to-RCE chain \u2014 classified as Medium since it's a valid security concern that amplifies existing XSS vulnerabilities."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-026",
+    "is_vulnerable": true,
+    "vulnerability_class": "denial_of_service",
+    "primary_cwe": "CWE-400",
+    "acceptable_cwes": [
+      "CWE-400",
+      "CWE-770"
+    ],
+    "file": "utils/profile_image.py",
+    "start_line": 7,
+    "end_line": 8,
+    "function": "download",
+    "severity": "low",
+    "description": "The download function reads the entire HTTP response with response.read() without any size limit. An attacker can provide a URL pointing to an extremely large file (or a slow-drip endpoint), causing memory exhaustion or resource starvation on the server. Classified as Low per DoS guidance \u2014 this is a generic DoS possibility through a normal endpoint that requires authentication to trigger."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-027",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_cookie",
+    "primary_cwe": "CWE-1004",
+    "acceptable_cwes": [
+      "CWE-1004",
+      "CWE-732"
+    ],
+    "file": "routes/account.py",
+    "start_line": 105,
+    "end_line": 105,
+    "function": "toggle_darkmode",
+    "severity": "medium",
+    "description": "The 'preferences' cookie is set via response.set_cookie() in toggle_darkmode (line 105) and after_request (line 127-128) without httponly=True. JavaScript can read and modify this cookie. Critically, the preferences cookie is deserialized using pickle.loads() in the before_request handler (line 118), so an XSS attack can replace the cookie with a malicious pickle payload to achieve remote code execution. The missing HttpOnly flag enables this XSS-to-RCE attack chain. Classified as Medium since it amplifies existing XSS vulnerabilities into RCE."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-028",
+    "is_vulnerable": true,
+    "vulnerability_class": "insecure_cookie",
+    "primary_cwe": "CWE-614",
+    "acceptable_cwes": [
+      "CWE-614",
+      "CWE-311"
+    ],
+    "file": "routes/account.py",
+    "start_line": 105,
+    "end_line": 105,
+    "function": "toggle_darkmode",
+    "severity": "low",
+    "description": "The 'preferences' cookie is set without secure=True in both toggle_darkmode (line 105) and after_request (line 127-128). This cookie is transmitted over unencrypted HTTP connections (nginx only listens on port 80). Since the cookie is deserialized with pickle.loads(), a network attacker performing a MITM attack could modify the cookie in transit to inject a malicious pickle payload, achieving RCE. Classified as Low since it requires network-level attacker positioning, but the impact is amplified by the insecure pickle deserialization."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-001",
+    "is_vulnerable": false,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-943"
+    ],
+    "file": "routes/login.py",
+    "start_line": 30,
+    "end_line": 31,
+    "function": "do_login",
+    "severity": "high",
+    "description": "NOT VULNERABLE. The login query uses SQLAlchemy ORM's filter method with a Python equality operator: session.query(User).filter(User.email == form.email.data). SQLAlchemy ORM automatically parameterizes these queries, preventing SQL injection. The email value is never interpolated into raw SQL."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-002",
+    "is_vulnerable": false,
+    "vulnerability_class": "sql_injection",
+    "primary_cwe": "CWE-89",
+    "acceptable_cwes": [
+      "CWE-89",
+      "CWE-943"
+    ],
+    "file": "routes/signup.py",
+    "start_line": 41,
+    "end_line": 43,
+    "function": "do_signup",
+    "severity": "high",
+    "description": "NOT VULNERABLE. The user existence check uses SQLAlchemy ORM: session.query(session.query(User).where(User.email == form.email.data).exists()).scalar(). The ORM parameterizes the email comparison, preventing SQL injection despite the query involving user input."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-003",
+    "is_vulnerable": false,
+    "vulnerability_class": "weak_password_storage",
+    "primary_cwe": "CWE-916",
+    "acceptable_cwes": [
+      "CWE-916",
+      "CWE-328"
+    ],
+    "file": "routes/signup.py",
+    "start_line": 64,
+    "end_line": 64,
+    "function": "do_signup",
+    "severity": "high",
+    "description": "NOT VULNERABLE. Passwords are properly hashed using bcrypt with a random salt: hashpw(form.password.data.encode('utf-8'), gensalt()). bcrypt is a strong, adaptive hashing algorithm suitable for password storage. The same secure pattern is used in account updates (routes/account.py:88)."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-004",
+    "is_vulnerable": false,
+    "vulnerability_class": "reflected_xss",
+    "primary_cwe": "CWE-79",
+    "acceptable_cwes": [
+      "CWE-79",
+      "CWE-80"
+    ],
+    "file": "templates/search.html",
+    "start_line": 9,
+    "end_line": 9,
+    "function": null,
+    "severity": "medium",
+    "description": "NOT VULNERABLE. The search parameter is rendered in the input value attribute using Jinja2's default auto-escaping: value=\"{{search}}\". Jinja2 automatically escapes HTML special characters (<, >, &, \") in template expressions, preventing attribute injection and reflected XSS in this context."
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-010",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "routes/registration_codes.py",
+    "start_line": 28,
+    "end_line": 28,
+    "function": "registration_codes",
+    "severity": "high",
+    "description": "CSRF vulnerability: The add_registration_codes route at line 28 is decorated with @login_required, accepts POST, checks current_user.is_admin, and creates a new RegistrationCode in the database via session.add() and sess",
+    "acceptable_locations": [
+      {
+        "file": "templates/registration_codes.html",
+        "start_line": 8,
+        "end_line": 8,
+        "function": null
+      }
+    ]
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-011",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "routes/notes.py",
+    "start_line": 18,
+    "end_line": 18,
+    "function": "notes",
+    "severity": "high",
+    "description": "CSRF vulnerability: The add_note route at line 18 is decorated with @login_required, accepts POST, and inserts a new Note into the database tied to current_user.id via session.add() and session.commit(). No CSRF token va",
+    "acceptable_locations": [
+      {
+        "file": "templates/partials/create_note_modal.html",
+        "start_line": 9,
+        "end_line": 9,
+        "function": null
+      }
+    ]
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-012",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "routes/notes.py",
+    "start_line": 41,
+    "end_line": 41,
+    "function": "notes",
+    "severity": "high",
+    "description": "CSRF vulnerability: The delete_note route at line 41 is decorated with @login_required, accepts POST, and deletes a Note from the database via session.delete() and session.commit(). No CSRF token validation or CSRFProtec",
+    "acceptable_locations": [
+      {
+        "file": "templates/home.html",
+        "start_line": 42,
+        "end_line": 42,
+        "function": null
+      }
+    ]
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-013",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "routes/account.py",
+    "start_line": 53,
+    "end_line": 53,
+    "function": "account",
+    "severity": "high",
+    "description": "CSRF vulnerability: The add_image route at line 53 is decorated with @login_required, accepts POST, and updates current_user.profile_image in the database via session.merge() and session.commit(). No CSRF token validatio",
+    "acceptable_locations": [
+      {
+        "file": "templates/partials/change_image_modal.html",
+        "start_line": 10,
+        "end_line": 10,
+        "function": null
+      }
+    ]
+  },
+  {
+    "id": "extremely-vulnerable-flask-app-fp-014",
+    "is_vulnerable": true,
+    "vulnerability_class": "csrf",
+    "primary_cwe": "CWE-352",
+    "acceptable_cwes": [
+      "CWE-352"
+    ],
+    "file": "routes/account.py",
+    "start_line": 69,
+    "end_line": 69,
+    "function": "account",
+    "severity": "high",
+    "description": "CSRF vulnerability: The update_account route at line 69 accepts POST and updates the authenticated user's account data (email, is_admin, password) in the database via current_user.__dict__.update() and session.merge(). A",
+    "acceptable_locations": [
+      {
+        "file": "templates/account.html",
+        "start_line": 11,
+        "end_line": 11,
+        "function": null
+      }
+    ]
+  }
+]

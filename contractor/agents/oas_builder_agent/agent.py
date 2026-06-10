@@ -53,7 +53,10 @@ def build_oas_builder_agent(
     return build_worker(
         name=name,
         instruction=OAS_PROMPT,
-        description="software engineering agent",
+        description=(
+            "OpenAPI schema builder — derives endpoints and components "
+            "from source-code evidence and upserts them into the schema."
+        ),
         tools=tools,
         _format=_format,
         summarization_bullets=_SUMMARIZATION_BULLETS,

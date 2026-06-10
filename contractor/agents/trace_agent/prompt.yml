@@ -1,5 +1,12 @@
-active: v7
+active: converge
 versions:
+  # converge: v7 + commit discipline (HARD RULE 9 + anti-pattern) to stop the
+  # annotate->restore->re-annotate thrash that collapsed recall on large
+  # services (crapi-workshop). General convergence guidance, not benchmark-
+  # specific. A/B against v7 via CONTRACTOR_EVAL_TRACE_PROMPT_VERSION before
+  # promoting to active.
+  converge:
+    file: prompts/converge.md
   # shannon: v7 + Shannon-derived coverage ledger (negative results),
   # sink-slot/sanitizer-mismatch + control-dominance reasoning, and an
   # optional exploit_hypothesis witness on findings. A/B against v7 via

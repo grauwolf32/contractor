@@ -29,6 +29,7 @@ from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_GRAPH_NAMESPACE_PREFIX
 from contractor.workflows.trace_annotation import (
     OpenApiOperation,
     OpenApiPath,
@@ -38,7 +39,6 @@ from contractor.workflows.trace_annotation import (
 CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
@@ -128,7 +128,9 @@ class TraceGraphWorkflow(Workflow):
         user_id: str = "cli-user",
         on_event: TaskRunnerEventHandler | None = None,
     ) -> None:
-        path_namespace = f"trace-graph:{self.namespace}:{api_path.path_key}"
+        path_namespace = (
+            f"{TRACE_GRAPH_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
+        )
         base_variables: dict[str, Any] = {"project_path": self.ctx.folder_name}
 
         await inject_skills(

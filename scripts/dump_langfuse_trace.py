@@ -17,7 +17,7 @@ Usage:
         [--no-llm-content] [--max-tokens N] [--prompts-only]
 
 Credentials are read from env (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY /
-LANGFUSE_HOST). The script also auto-loads `contractor/cli/.env` or `.env`.
+LANGFUSE_HOST). The script also auto-loads `<repo>/cli/.env` or `./.env`.
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 _DT_MIN = _dt.datetime.min.replace(tzinfo=_dt.UTC)
@@ -364,8 +365,11 @@ def _load_env() -> None:
         from dotenv import load_dotenv
     except ImportError:
         return
-    for cand in ("contractor/cli/.env", ".env"):
-        if os.path.exists(cand):
+    # `cli/.env` is the canonical config file (resolved from the repo root so
+    # the script works from any CWD); plain `.env` in the CWD is a fallback.
+    repo_root = Path(__file__).resolve().parents[1]
+    for cand in (repo_root / "cli" / ".env", Path(".env")):
+        if cand.exists():
             load_dotenv(cand)
             return
 

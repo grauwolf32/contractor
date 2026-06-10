@@ -11,8 +11,12 @@ per task iteration (``TaskRunner._build_plugins``) and propagated into the inner
 ``AgentTool`` runners, so ``before_run_callback`` fires first for the outer run:
 we record that ``invocation_id`` as the root, and only when ``after_run_callback``
 fires for that same root (the outer run finishing — the hook that reliably fires,
-as the metrics/trace plugins demonstrate) do we sweep every sandbox. Safe because
-code-exec runs are sequential. ``atexit`` + the container TTL remain backstops.
+as the metrics/trace plugins demonstrate and the probe in
+``tests/units/.../plugins/test_run_callbacks.py`` verifies) do we sweep every
+sandbox. Safe because code-exec runs are sequential. ADK only awaits the hook
+after the run's event stream is consumed to completion, so a run that raises or
+is cancelled mid-stream skips it — ``TaskRunner.run``'s finally-sweep, ``atexit``
+and the container TTL remain backstops for those paths.
 """
 
 from __future__ import annotations

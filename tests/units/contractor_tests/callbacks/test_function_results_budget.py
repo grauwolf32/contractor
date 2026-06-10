@@ -183,3 +183,28 @@ def test_build_worker_explicit_arg_overrides_settings(monkeypatch):
     _build(wf, elide_keep_budget_chars=50_000)
 
     assert captured["keep_budget_chars"] == 50_000
+
+
+def test_build_worker_keep_last_n_settings_override(monkeypatch):
+    import contractor.agents.worker_factory as wf
+    from contractor.utils.settings import Settings
+
+    captured = _capture_build_worker(monkeypatch)
+    # FS_HEAVY_KEEP_LAST_N > 0 overrides the caller's elide_keep_last_n (15) —
+    # e.g. set very high to effectively disable count-based elision.
+    monkeypatch.setattr(wf, "get_settings", lambda: Settings(fs_heavy_keep_last_n=999))
+    _build(wf)
+
+    assert captured["keep_last_n"] == 999
+
+
+def test_build_worker_keep_last_n_default_uses_caller(monkeypatch):
+    import contractor.agents.worker_factory as wf
+    from contractor.utils.settings import Settings
+
+    captured = _capture_build_worker(monkeypatch)
+    # Default 0 = unset → caller's elide_keep_last_n (15) is used.
+    monkeypatch.setattr(wf, "get_settings", lambda: Settings(fs_heavy_keep_last_n=0))
+    _build(wf)
+
+    assert captured["keep_last_n"] == 15

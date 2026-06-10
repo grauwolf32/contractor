@@ -138,6 +138,34 @@ class TestCallTracker:
         t = _CallTracker()
         assert t.resolve("inv", "agent", "tool", {"a": 1}) is None
 
+    def test_resolve_prefers_fresh_call_over_errored(self):
+        # Parallel identical calls: once the first one errors, a subsequent
+        # after_tool must pair with the still-clean call, not the errored one.
+        t = _CallTracker()
+        c1 = t.register("inv", "agent", "tool", {"a": 1})
+        c2 = t.register("inv", "agent", "tool", {"a": 1})
+        c1.exception_seen = True
+        assert t.resolve("inv", "agent", "tool", {"a": 1}) is c2
+
+    def test_resolve_falls_back_to_errored_when_no_fresh_pending(self):
+        # The documented edge case: a paired after_tool CAN arrive right
+        # after on_tool_error (a plugin returned a non-None error response) —
+        # it must still resolve the errored call so it isn't double-counted.
+        t = _CallTracker()
+        errored = t.register("inv", "agent", "tool", {"a": 1})
+        errored.exception_seen = True
+        assert t.resolve("inv", "agent", "tool", {"a": 1}) is errored
+
+    def test_register_finishes_stale_errored_call_with_same_fingerprint(self):
+        # Registering an identical retry closes the errored call's paired
+        # after_tool window — it must not linger as pending.
+        t = _CallTracker()
+        errored = t.register("inv", "agent", "tool", {"a": 1})
+        errored.exception_seen = True
+        retry = t.register("inv", "agent", "tool", {"a": 1})
+        assert errored.finished is True
+        assert t.resolve("inv", "agent", "tool", {"a": 1}) is retry
+
     def test_cleanup_invocation_clears_state(self):
         t = _CallTracker()
         t.register("inv1", "agent", "tool", {"a": 1})
@@ -248,6 +276,46 @@ class TestCallbackFlows:
         assert tm["exception_errors_total"] == 1
         assert tm["success_total"] == 0
         assert tm["result_errors_total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_retry_after_exception_pairs_with_retry_not_stale_call(self):
+        # An errored call gets no after_tool (no plugin returns a non-None
+        # error response). When the agent retries with identical args, the
+        # retry's after_tool must resolve the RETRY call — not the stale
+        # errored one — so the success and its timing land on the right call.
+        plugin, rec = _plugin()
+        tool, ctx = _tool(), _ctx()
+
+        await plugin.before_tool_callback(tool=tool, tool_context=ctx, args={"p": 1})
+        await plugin.on_tool_error_callback(
+            tool=tool, tool_context=ctx, args={"p": 1}, error=ValueError("x")
+        )
+        await plugin.before_tool_callback(tool=tool, tool_context=ctx, args={"p": 1})
+        await plugin.after_tool_callback(
+            tool=tool, tool_context=ctx, args={"p": 1}, result={"ok": True}
+        )
+
+        exc = rec.of_type(AgioEventType.TOOL_EXCEPTION)[0]
+        assert exc["tool_call_id"] == "call_1"
+
+        res = rec.of_type(AgioEventType.TOOL_RESULT)[0]
+        assert res["successful"] is True
+        assert res["result_error"] is False
+        # Identity/timing belong to the retry call, not the errored one.
+        assert res["tool_call_id"] == "call_2"
+        assert res["execution_time_ms"] >= 0
+
+        # No leaked pending call: both calls are finished.
+        assert plugin._tracker.resolve("inv1", "swe", "read_file", {"p": 1}) is None
+
+        await plugin.after_run_callback(invocation_context=_ctx())
+        summary = rec.of_type(AgioEventType.RUN_SUMMARY)[0]
+        tm = summary["agents"]["swe"]["tools"]["read_file"]
+        assert tm["calls_total"] == 2
+        assert tm["exception_errors_total"] == 1
+        assert tm["success_total"] == 1
+        assert tm["result_errors_total"] == 0
+        assert summary["callback_imbalances"] == []
 
     @pytest.mark.asyncio
     async def test_after_model_records_usage(self):

@@ -750,6 +750,33 @@ def test_symlink_escape_denied(fs_root, fs_root_fixture, tmp_path):
         fs_root.open("/link")
 
 
+def test_walk_does_not_list_symlinked_file_names(fs_root, fs_root_fixture, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret")
+
+    # One escaping symlink at the root, one nested; reads of both are blocked,
+    # so walk() must not disclose the names either (same policy as ls/glob).
+    os.symlink(outside, fs_root_fixture / "link")
+    os.symlink(outside, fs_root_fixture / "dir" / "inner_link")
+
+    names = [f for _, _, fnames in fs_root.walk("/") for f in fnames]
+
+    assert "link" not in names
+    assert "inner_link" not in names
+    assert "file.txt" in names
+    assert "inner.txt" in names
+
+
+def test_symlink_inside_sandbox_resolves_to_target(fs_root, fs_root_fixture):
+    # _strip_protocol returns the validated *resolved* path (TOCTOU fix);
+    # in-sandbox symlinks must keep working through that resolution.
+    os.symlink(fs_root_fixture / "file.txt", fs_root_fixture / "alias.txt")
+
+    assert fs_root.exists("/alias.txt")
+    with fs_root.open("/alias.txt") as f:
+        assert f.read().decode("utf-8") == "hello"
+
+
 def test_absolute_host_path_denied(fs_root):
     assert not fs_root.exists("/etc/passwd")
 
@@ -834,6 +861,82 @@ def test_glob_respects_ignored_patterns_with_ro_file_tools(fs_root):
     paths = {e["path"] for e in out}
 
     assert all(not p.endswith(".txt") for p in paths)
+
+
+@pytest.fixture()
+def big_root(tmp_path: Path) -> RootedLocalFileSystem:
+    root = tmp_path / "big"
+    root.mkdir()
+    for i in range(10):
+        (root / f"f{i}.py").write_text(f"needle {i}\n", encoding="utf-8")
+    return RootedLocalFileSystem(str(root))
+
+
+def _walk_capped_tools(
+    fs: RootedLocalFileSystem, max_files_per_walk: int
+) -> FsspecInteractionFileTools:
+    fmt = FileFormat(_format="json", loc="lines", with_types=False)
+    return FsspecInteractionFileTools(
+        fs=fs,
+        fmt=fmt,
+        max_files_per_walk=max_files_per_walk,
+        with_types=False,
+    )
+
+
+def test_glob_walk_ceiling_truncates_with_notice(big_root):
+    tools = _walk_capped_tools(big_root, max_files_per_walk=3)
+
+    res = tools.glob("**/*.py")
+
+    assert "error" not in res
+    assert res["walk_truncated"] is True
+    assert "truncated after scanning 3 files" in res["notice"]
+    assert len(res["result"]) <= 3
+
+
+def test_grep_walk_ceiling_truncates_with_notice(big_root):
+    tools = _walk_capped_tools(big_root, max_files_per_walk=3)
+
+    res = tools.grep("needle")
+
+    assert "error" not in res
+    assert res["walk_truncated"] is True
+    assert "truncated after scanning 3 files" in res["notice"]
+    assert res["total_items"] <= 3
+
+
+def test_walk_ceiling_not_reported_when_not_hit(big_root):
+    tools = _walk_capped_tools(big_root, max_files_per_walk=100)
+
+    glob_res = tools.glob("**/*.py")
+    grep_res = tools.grep("needle")
+
+    assert len(glob_res["result"]) == 10
+    assert grep_res["total_items"] == 10
+    assert "walk_truncated" not in glob_res
+    assert "walk_truncated" not in grep_res
+    assert "notice" not in glob_res
+    assert "notice" not in grep_res
+
+
+def test_walk_ceiling_defaults_from_settings(big_root, monkeypatch):
+    import contractor.tools.fs.read_tools as read_tools_module
+    from contractor.utils.settings import Settings
+
+    monkeypatch.setattr(
+        read_tools_module,
+        "get_settings",
+        lambda: Settings(fs_max_files_per_walk=2),
+    )
+
+    fmt = FileFormat(_format="json", loc="lines", with_types=False)
+    tools = FsspecInteractionFileTools(fs=big_root, fmt=fmt, with_types=False)
+
+    res = tools.grep("needle")
+
+    assert res["walk_truncated"] is True
+    assert "truncated after scanning 2 files" in res["notice"]
 
 
 @pytest.fixture()

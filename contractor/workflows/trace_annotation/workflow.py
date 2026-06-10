@@ -8,17 +8,18 @@ import yaml
 from google.genai import types
 
 from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.runners.artifacts import artifact_key_slug
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.tools.fs import MemoryOverlayFileSystem
 from contractor.tools.openapi import resolve_refs
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_ANNOTATION_NAMESPACE_PREFIX
 
 CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -202,7 +203,9 @@ class TraceAnnotationWorkflow(Workflow):
         # bodies into one ever-growing store (O(n²) context across paths), which
         # was the dominant cost on large specs; skills are re-injected per path
         # via add_task(skills=...).
-        workflow_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
+        workflow_namespace = (
+            f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
+        )
 
         runner.add_variable(name="operation_id", value=operation_ids)
         runner.add_variable(name="operation_schema", value=operation_schema_yaml)
@@ -210,6 +213,13 @@ class TraceAnnotationWorkflow(Workflow):
         runner.add_task(
             name="trace_annotation",
             ref=f"trace_annotation:{self.namespace}:{api_path.path_key}",
+            # One task per path under the same template key — give each a
+            # stable per-path publish key so results don't overwrite each
+            # other (mirrors trace_verify / vuln_scan_trace).
+            artifact_key=(
+                f"trace_annotation/{artifact_key_slug(self.namespace)}/"
+                f"{artifact_key_slug(api_path.path_key)}"
+            ),
             worker_builder=trace_builder,
             **CFG.tasks.annotate.as_kwargs(),
             artifacts=[],

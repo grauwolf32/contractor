@@ -18,7 +18,7 @@ from contractor.tools.likec4 import (
 
 @pytest.fixture
 def mock_likec4_in_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pretend `likec4` is the resolved binary so the linter can be constructed."""
+    """Pretend `likec4` is the resolved binary so validate calls can run."""
     monkeypatch.setattr(
         "contractor.tools.likec4.shutil.which",
         lambda name: "/usr/local/bin/likec4" if name == "likec4" else None,
@@ -91,6 +91,57 @@ def test_resolve_command_raises_when_nothing_available(
     )
     with pytest.raises(Likec4NotFoundError):
         Likec4Linter._resolve_command()
+
+
+# ---------------------------------------------------------------------------
+# lazy command resolution
+# ---------------------------------------------------------------------------
+
+def test_linter_construction_does_not_resolve_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Construction must never touch PATH — resolution is lazy (first use)."""
+    def _boom(_name: str) -> str:
+        raise AssertionError("shutil.which must not be called at construction")
+
+    monkeypatch.setattr("contractor.tools.likec4.shutil.which", _boom)
+    Likec4Linter()  # must not raise
+
+
+def test_linter_validate_raises_not_found_when_no_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "contractor.tools.likec4.shutil.which",
+        lambda _name: None,
+    )
+    linter = Likec4Linter()
+    with pytest.raises(Likec4NotFoundError, match="not found in PATH"):
+        linter.validate("specification { }")
+
+
+def test_linter_caches_resolved_command_after_first_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    which_calls: list[str] = []
+
+    def _which(name: str) -> str | None:
+        which_calls.append(name)
+        return "/usr/local/bin/likec4" if name == "likec4" else None
+
+    monkeypatch.setattr("contractor.tools.likec4.shutil.which", _which)
+    monkeypatch.setattr(
+        "contractor.tools.likec4.subprocess.run",
+        lambda *_a, **_kw: _proc(
+            json.dumps({"valid": True, "errors": [], "stats": {}})
+        ),
+    )
+
+    linter = Likec4Linter()
+    linter.validate("specification { }")
+    linter.validate("specification { }")
+
+    assert which_calls == ["likec4"]
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +314,23 @@ def test_likec4_tools_factory_exposes_validate_likec4(
 
 def test_likec4_tools_default_path_constant() -> None:
     assert DEFAULT_LIKEC4_PATH == "/architecture.c4"
+
+
+def test_likec4_tools_builds_without_binary_and_lint_returns_error(
+    fs: MemoryFileSystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing binary must not raise at assembly — only as a tool result."""
+    monkeypatch.setattr(
+        "contractor.tools.likec4.shutil.which",
+        lambda _name: None,
+    )
+
+    tools = likec4_tools(fs=fs)  # must not raise
+    assert tools[0].__name__ == "validate_likec4"
+
+    fs.pipe_file("/architecture.c4", b"specification { }")
+    result = asyncio.run(tools[0]())
+    assert "likec4 not found in PATH" in result["error"]
 
 
 def test_validate_likec4_tool_returns_error_for_missing_file(

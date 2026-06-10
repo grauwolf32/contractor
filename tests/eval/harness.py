@@ -39,6 +39,11 @@ class AgentRun:
     # dict of the emitted event with ``event_type`` added — same shape as a
     # row in metrics.jsonl.
     metrics_events: list[dict[str, Any]] = field(default_factory=list)
+    # True when the run was cut off by ``timeout_s`` — the run is *partial*:
+    # whatever tool calls / state / artifacts were captured before the
+    # deadline. Such a run is only ever seen via ``AgentRunTimeout.partial``;
+    # a normally returned run always has ``timed_out=False``.
+    timed_out: bool = False
 
     def tool_names(self) -> list[str]:
         return [c.name for c in self.tool_calls]
@@ -78,6 +83,22 @@ class AgentRun:
         }
 
 
+class AgentRunTimeout(TimeoutError):
+    """Raised when an agent run exceeds ``timeout_s``.
+
+    Carries the partial :class:`AgentRun` accumulated before the deadline
+    (``timed_out=True``) so eval debugging can see what happened up to the
+    timeout. Subclasses ``TimeoutError`` (== ``asyncio.TimeoutError``), so
+    existing consumers keep treating a timeout as a failed attempt — never a
+    silent pass.
+    """
+
+    def __init__(self, timeout_s: float, partial: AgentRun) -> None:
+        super().__init__(f"agent run timed out after {timeout_s:g}s")
+        self.timeout_s = timeout_s
+        self.partial = partial
+
+
 async def run_agent(
     agent: BaseAgent,
     *,
@@ -106,6 +127,10 @@ async def run_agent(
     via ``FileArtifactService`` — a live, on-disk trace (memory, saved
     artifacts) that survives the run for offline analysis. Default is an
     in-memory service (no on-disk trace).
+
+    Raises :class:`AgentRunTimeout` (an ``asyncio.TimeoutError``) when the run
+    exceeds `timeout_s`; the exception's ``partial`` attribute holds the
+    partial ``AgentRun`` captured before the deadline (``timed_out=True``).
     """
     if artifact_dir is not None:
         from google.adk.artifacts import FileArtifactService
@@ -173,37 +198,62 @@ async def run_agent(
                 if text:
                     final_text = text
 
-    await asyncio.wait_for(_consume(), timeout=timeout_s)
-
-    session = await session_service.get_session(
-        app_name=app_name, user_id=user_id, session_id=session_id
-    )
-    state = dict(session.state) if session is not None else {}
-
-    artifacts: dict[str, str] = {}
-    for scope_session_id in (session_id, None):
-        keys = await artifact_service.list_artifact_keys(
-            app_name=app_name, user_id=user_id, session_id=scope_session_id
+    async def _collect(*, timed_out: bool) -> AgentRun:
+        session = await session_service.get_session(
+            app_name=app_name, user_id=user_id, session_id=session_id
         )
-        for key in keys:
-            if key in artifacts:
-                continue
-            part = await artifact_service.load_artifact(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=scope_session_id,
-                filename=key,
-            )
-            if part is None:
-                continue
-            text = getattr(part, "text", None) or ""
-            artifacts[key] = text
+        state = dict(session.state) if session is not None else {}
 
-    return AgentRun(
-        final_text=final_text,
-        state=state,
-        artifacts=artifacts,
-        tool_calls=tool_calls,
-        tool_responses=tool_responses,
-        metrics_events=list(metrics_events) if metrics_events is not None else [],
-    )
+        artifacts: dict[str, str] = {}
+        for scope_session_id in (session_id, None):
+            keys = await artifact_service.list_artifact_keys(
+                app_name=app_name, user_id=user_id, session_id=scope_session_id
+            )
+            for key in keys:
+                if key in artifacts:
+                    continue
+                part = await artifact_service.load_artifact(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=scope_session_id,
+                    filename=key,
+                )
+                if part is None:
+                    continue
+                text = getattr(part, "text", None) or ""
+                artifacts[key] = text
+
+        return AgentRun(
+            final_text=final_text,
+            state=state,
+            artifacts=artifacts,
+            tool_calls=tool_calls,
+            tool_responses=tool_responses,
+            metrics_events=list(metrics_events) if metrics_events is not None else [],
+            timed_out=timed_out,
+        )
+
+    try:
+        await asyncio.wait_for(_consume(), timeout=timeout_s)
+    except TimeoutError as exc:
+        # Don't discard what the run captured so far — package the partial
+        # AgentRun onto the raised error so eval debugging can inspect it.
+        # The error still propagates, so consumers record a failure/timeout.
+        try:
+            partial = await _collect(timed_out=True)
+        except Exception:
+            # Best effort: never mask the timeout with a collection error.
+            partial = AgentRun(
+                final_text=final_text,
+                state={},
+                artifacts={},
+                tool_calls=tool_calls,
+                tool_responses=tool_responses,
+                metrics_events=(
+                    list(metrics_events) if metrics_events is not None else []
+                ),
+                timed_out=True,
+            )
+        raise AgentRunTimeout(timeout_s, partial) from exc
+
+    return await _collect(timed_out=False)
