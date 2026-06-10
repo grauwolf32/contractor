@@ -493,6 +493,149 @@ class TestMissingDeclaredArtifacts:
         assert not caplog.records
 
 
+# ─── Carry-state hygiene across attempts ─────────────────────────────────────
+
+
+class TestCarryStateStripsStaleInvocationKeys:
+    def _runner(self) -> TaskRunner:
+        return TaskRunner(
+            name="test", artifact_service=MagicMock(spec=BaseArtifactService),
+        )
+
+    def _rendered(self) -> RenderedTask:
+        return RenderedTask(
+            key="t", title="T", objective="obj", instructions="",
+            output_format="", format="json",
+        )
+
+    def test_second_attempt_state_has_no_first_attempt_invocation_keys(self):
+        # StreamlineManager keys its planner-internal state per ADK
+        # invocation (task::{gid}::{invocation_id}::…). A retry gets a fresh
+        # invocation_id, so the first attempt's keys are unreachable — they
+        # must not be dragged into the next attempt's initial state.
+        r = self._runner()
+        carry = {
+            "task::1::e-first::planner::tasks": [{"task_id": "0"}],
+            "task::1::e-first::planner::idx": 0,
+        }
+
+        state = r._build_task_initial_state(
+            task_id=1, task=self._rendered(), carry_state=carry,
+        )
+
+        assert not any("e-first" in key for key in state)
+
+    def test_other_namespaces_and_plain_keys_survive(self):
+        # Only THIS task's invocation-scoped keys are stripped: another
+        # task's keys and non-task keys must pass through untouched, and the
+        # task's own fixed keys are rebuilt by build_active_state.
+        r = self._runner()
+        carry = {
+            "task::1::e-first::planner::tasks": ["stale"],
+            "task::2::e-other::planner::tasks": ["other-task"],
+            "task::1::status": "running",
+            "callbacks": {"tokens": 5},
+        }
+
+        state = r._build_task_initial_state(
+            task_id=1, task=self._rendered(), carry_state=carry,
+        )
+
+        assert "task::1::e-first::planner::tasks" not in state
+        assert state["task::2::e-other::planner::tasks"] == ["other-task"]
+        assert state["callbacks"] == {"tokens": 5}
+        assert state["task::1::status"] == TaskStatus.RUNNING
+        assert state["task::1::objective"] == "obj"
+
+
+# ─── Skills: fail-fast validation + once-per-task injection ──────────────────
+
+
+class TestSkillValidationAndInjection:
+    def _runner_with_template(self, monkeypatch, template) -> TaskRunner:
+        r = TaskRunner(
+            name="test", artifact_service=MagicMock(spec=BaseArtifactService),
+        )
+        monkeypatch.setattr(r, "_ensure_template", MagicMock(return_value=template))
+        return r
+
+    def test_add_task_rejects_unknown_skill(self, monkeypatch):
+        # A typo'd skill must fail at queue time, not when the task's first
+        # iteration starts hours into a workflow.
+        template = _make_template()
+        r = self._runner_with_template(monkeypatch, template)
+
+        with pytest.raises(ValueError, match="definitely_not_a_skill"):
+            r.add_task(
+                "t",
+                worker_builder=lambda **_: MagicMock(),
+                skills=["definitely_not_a_skill"],
+            )
+        assert r.queue == []
+
+    def test_add_task_validates_template_default_skills(
+        self, tmp_path, monkeypatch,
+    ):
+        import contractor.runners.skills as skills_mod
+
+        monkeypatch.setattr(skills_mod, "SKILLS_BASE_DIR", tmp_path)
+        (tmp_path / "good").mkdir()
+
+        template = TaskTemplate(
+            key="t", version="v1", title="T", objective="",
+            instructions="", output_format="",
+            default_skills=["good", "bad"],
+        )
+        r = self._runner_with_template(monkeypatch, template)
+
+        with pytest.raises(ValueError, match="'bad'"):
+            r.add_task("t", worker_builder=lambda **_: MagicMock())
+
+    def test_add_task_accepts_existing_skill(self, tmp_path, monkeypatch):
+        import contractor.runners.skills as skills_mod
+
+        monkeypatch.setattr(skills_mod, "SKILLS_BASE_DIR", tmp_path)
+        (tmp_path / "good").mkdir()
+
+        template = _make_template()
+        r = self._runner_with_template(monkeypatch, template)
+
+        r.add_task(
+            "t", worker_builder=lambda **_: MagicMock(), skills=["good"],
+        )
+        assert r.queue[0].skills == ["good"]
+
+    @pytest.mark.asyncio
+    async def test_injection_happens_once_across_attempts(
+        self, runner, monkeypatch,
+    ):
+        # Skills + input artifacts are invariant across attempts; the
+        # read-modify-write memory injection must run once per task, not
+        # once per retry.
+        inject_skills_spy = AsyncMock()
+        inject_artifacts_spy = AsyncMock()
+        monkeypatch.setattr(runner, "_inject_skills", inject_skills_spy)
+        monkeypatch.setattr(runner, "_inject_artifacts", inject_artifacts_spy)
+
+        invocation = _make_invocation(iterations=1, max_attempts=3)
+        invocation.skills = ["some_skill"]
+        single = AsyncMock(side_effect=[
+            _result_for("t", False, 1),
+            _result_for("t", False, 2),
+            _result_for("t", True, 3),
+        ])
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        await runner._run_task_with_retries(
+            item=invocation, task_id=1, user_id="u", total_tasks=1,
+        )
+
+        assert single.await_count == 3
+        inject_skills_spy.assert_awaited_once()
+        inject_artifacts_spy.assert_awaited_once()
+        assert inject_skills_spy.await_args.kwargs["skills"] == ["some_skill"]
+
+
 # ─── add_task artifacts override ─────────────────────────────────────────────
 
 

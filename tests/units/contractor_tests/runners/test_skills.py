@@ -13,6 +13,7 @@ from contractor.runners.skills import (
     inject_skills,
     load_skill,
     load_skills,
+    validate_skills,
 )
 
 
@@ -146,6 +147,37 @@ class TestLoadSkill:
         monkeypatch.setattr(m, "SKILLS_BASE_DIR", tmp_path)
         (tmp_path / "demo").mkdir()
         assert load_skill("demo") == []
+
+
+class TestValidateSkills:
+    def test_existing_skill_dirs_pass(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(m, "SKILLS_BASE_DIR", tmp_path)
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        validate_skills(["a", "b"])  # must not raise
+
+    def test_empty_list_passes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(m, "SKILLS_BASE_DIR", tmp_path)
+        validate_skills([])
+
+    def test_unknown_skill_raises_value_error_naming_it(
+        self, tmp_path, monkeypatch,
+    ):
+        monkeypatch.setattr(m, "SKILLS_BASE_DIR", tmp_path)
+        (tmp_path / "known").mkdir()
+
+        with pytest.raises(ValueError, match="'typo'") as exc_info:
+            validate_skills(["known", "typo"])
+        # The message lists what IS available, to make the fix obvious.
+        assert "known" in str(exc_info.value)
+
+    def test_multiple_unknown_skills_all_named(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(m, "SKILLS_BASE_DIR", tmp_path)
+        with pytest.raises(ValueError) as exc_info:
+            validate_skills(["x", "y"])
+        message = str(exc_info.value)
+        assert "'x'" in message
+        assert "'y'" in message
 
 
 class TestLoadSkills:

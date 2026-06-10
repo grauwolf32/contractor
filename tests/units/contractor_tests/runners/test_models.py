@@ -183,6 +183,36 @@ class TestTaskTemplateLoad:
         with pytest.raises(ValueError, match="missing top-level 'task:'"):
             TaskTemplate.load("demo")
 
+    @pytest.mark.parametrize(
+        "missing_field", ["objective", "instructions", "output_format"],
+    )
+    def test_load_missing_required_field_raises_value_error(
+        self, tasks_dir, missing_field,
+    ):
+        # A body without objective/instructions/output_format used to raise a
+        # bare KeyError; it must follow the same descriptive ValueError
+        # pattern (naming the body path) as the neighboring validation.
+        _write_task_manifest(
+            tasks_dir,
+            name="demo",
+            active="v1",
+            versions={"v1": "demo/v1.yml"},
+        )
+        body = {
+            "objective": "o",
+            "instructions": "i",
+            "output_format": "yaml",
+        }
+        del body[missing_field]
+        _write_task_body(tasks_dir, "demo/v1.yml", body)
+
+        with pytest.raises(
+            ValueError, match=f"missing required '{missing_field}:'",
+        ) as exc_info:
+            TaskTemplate.load("demo")
+        # The body path is part of the message, like the neighboring errors.
+        assert "v1.yml" in str(exc_info.value)
+
 
 # ─── RenderedTask.from_template (brace-interpolation guards) ──────────────────
 
@@ -258,6 +288,38 @@ class TestRenderedTaskFromTemplate:
             RenderedTask.from_template(
                 tpl, variables={}, params={}, artifacts={}
             )
+
+    def test_colliding_artifact_refs_raise_naming_both(self):
+        # "oas-build/result" and "oas_build/result" both normalize to
+        # "artifact__oas_build__result" — the later artifact used to silently
+        # win. Now the ambiguity is rejected, naming both refs.
+        tpl = _make_template(instructions="{artifact__oas_build__result}")
+        with pytest.raises(ValueError, match="normalize to") as exc_info:
+            RenderedTask.from_template(
+                tpl,
+                variables={},
+                params={},
+                artifacts={
+                    "oas-build/result": "A",
+                    "oas_build/result": "B",
+                },
+            )
+        message = str(exc_info.value)
+        assert "oas-build/result" in message
+        assert "oas_build/result" in message
+        assert "artifact__oas_build__result" in message
+
+    def test_distinct_artifact_refs_do_not_collide(self):
+        tpl = _make_template(
+            instructions="{artifact__a__result} {artifact__b__result}",
+        )
+        r = RenderedTask.from_template(
+            tpl,
+            variables={},
+            params={},
+            artifacts={"a/result": "A", "b/result": "B"},
+        )
+        assert r.instructions == "A B"
 
     def test_unused_extra_variables_are_ignored(self):
         tpl = _make_template(instructions="static text")

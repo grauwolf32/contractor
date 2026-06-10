@@ -70,6 +70,8 @@ class AgioEventType(StrEnum):
     TASK_STARTED = "task_started"
     TASK_FINISHED = "task_finished"
     TASK_FAILED = "task_failed"
+    # Emitted by Workflow.emit_task_skipped (artifact-reuse skips), not by
+    # TaskRunner — checkpoint restores emit TASK_FINISHED with restored=True.
     TASK_SKIPPED = "task_skipped"
     GLOBAL_TASK_FINISHED = "global_task_finished"
     ITERATION_STARTED = "iteration_started"

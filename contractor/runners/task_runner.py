@@ -41,7 +41,7 @@ from contractor.runners.models import (
 from contractor.runners.plugins.metrics_plugin import AdkMetricsPlugin
 from contractor.runners.plugins.sandbox_cleanup import SandboxCleanupPlugin
 from contractor.runners.plugins.trace_plugin import AdkTracePlugin
-from contractor.runners.skills import inject_skills
+from contractor.runners.skills import inject_skills, validate_skills
 from contractor.tools.memory import MemoryNote, MemoryTools
 from contractor.tools.observations import ObservationConfig
 from contractor.tools.podman import teardown_all as _teardown_sandboxes
@@ -147,6 +147,11 @@ class TaskRunner(BaseModel):
         task_ref = ref or f"{name}:{len(self.queue)}"
         self._assert_unique_ref(task_ref)
 
+        # Fail fast on a typo'd skill name — at queue time, not when the
+        # task's first iteration starts hours into a workflow.
+        eff_skills = list(skills if skills is not None else template.default_skills)
+        validate_skills(eff_skills)
+
         eff_iterations, eff_max_attempts = self._resolve_retry_params(
             template, iterations, max_attempts
         )
@@ -162,7 +167,7 @@ class TaskRunner(BaseModel):
                 artifacts if artifacts is not None else template.default_artifacts
             ),
             artifact_key=artifact_key,
-            skills=list(skills if skills is not None else template.default_skills),
+            skills=eff_skills,
             iterations=eff_iterations,
             max_attempts=eff_max_attempts,
             max_steps=max_steps,
@@ -263,9 +268,13 @@ class TaskRunner(BaseModel):
             raise
         finally:
             self._on_event = None
-            # Reliable per-run teardown of any code-exec sandbox containers.
-            # The ADK after_run_callback does not fire in the TaskRunner +
-            # AgentTool nesting, so we sweep here, where run() always completes.
+            # Backstop teardown of any code-exec sandbox containers.
+            # SandboxCleanupPlugin's after_run_callback does fire when the
+            # outer ADK run is consumed to completion (verified by
+            # tests/units/.../plugins/test_run_callbacks.py), but ADK only
+            # awaits it after the event generator is exhausted — a run that
+            # raises or is cancelled mid-stream never reaches it. This sweep
+            # runs on every exit path of run(), covering those cases.
             try:
                 _teardown_sandboxes()
             except Exception:
@@ -564,8 +573,26 @@ class TaskRunner(BaseModel):
         task: RenderedTask,
         carry_state: dict[str, Any],
     ) -> dict[str, Any]:
+        # StreamlineManager scopes its planner-internal subtask state per ADK
+        # invocation (``task::{gid}::{invocation_id}::…`` — see
+        # ``StreamlineManager._state_key``). A new attempt gets a fresh
+        # invocation_id, so this task's keys from previous attempts are
+        # unreachable; carrying them forward only bloats the per-iteration
+        # deep-copies and the trace-plugin state snapshots. Strip them.
+        # The fixed task-scoped keys (``task::{id}::status`` etc.) have no
+        # further ``::`` segment and pass through (then get rebuilt by
+        # ``build_active_state``); keys of other namespaces are untouched.
+        stale_prefix = f"task::{task_id}::"
+        live_carry = {
+            key: value
+            for key, value in carry_state.items()
+            if not (
+                key.startswith(stale_prefix)
+                and "::" in key[len(stale_prefix):]
+            )
+        }
         return {
-            **copy.deepcopy(carry_state),
+            **copy.deepcopy(live_carry),
             **build_active_state(task_id=task_id, task=task),
         }
 
@@ -719,17 +746,6 @@ class TaskRunner(BaseModel):
         iteration: int,
     ) -> TaskResult:
         agent = self._spawn_planning_agent(item, rendered_task)
-        namespace = item.effective_namespace(self.name)
-        await self._inject_skills(
-            user_id=user_id,
-            namespace=namespace,
-            skills=item.skills,
-        )
-        await self._inject_artifacts(
-            user_id=user_id,
-            namespace=namespace,
-            input_artifacts=input_artifacts,
-        )
 
         session_id = uuid4().hex
         initial_state = self._build_task_initial_state(
@@ -909,6 +925,22 @@ class TaskRunner(BaseModel):
             artifacts=item.artifacts,
             published_artifacts=artifact_names_for_key(item.effective_artifact_key),
             observations=(item.observations or self.observations).as_tag(),
+        )
+
+        # Skills and input artifacts are invariant across attempts (the
+        # namespace, skill list, and loaded artifact texts never change), so
+        # inject them once per task instead of re-reading and rewriting the
+        # memory YAML on every retry.
+        namespace = item.effective_namespace(self.name)
+        await self._inject_skills(
+            user_id=user_id,
+            namespace=namespace,
+            skills=item.skills,
+        )
+        await self._inject_artifacts(
+            user_id=user_id,
+            namespace=namespace,
+            input_artifacts=input_artifacts,
         )
 
         carry_state: dict[str, Any] = {}

@@ -56,6 +56,26 @@ def _default_description(skill: str, rel_path: Path, is_index: bool) -> str:
     return f"{skill} skill / {rel_path.with_suffix('').as_posix()}"
 
 
+def validate_skills(skills: Iterable[str]) -> None:
+    """Fail fast on unknown skill names.
+
+    An existence check of the skill directories only — content is still
+    loaded lazily by ``load_skill``. Lets ``TaskRunner.add_task`` reject a
+    typo'd skill at queue time instead of surfacing a ``FileNotFoundError``
+    when the task's first iteration starts.
+    """
+    missing = sorted({s for s in skills if not (SKILLS_BASE_DIR / s).is_dir()})
+    if missing:
+        available = ", ".join(
+            sorted(p.name for p in SKILLS_BASE_DIR.iterdir() if p.is_dir())
+        ) or "(none)"
+        raise ValueError(
+            f"Unknown skill(s) {', '.join(repr(s) for s in missing)} — "
+            f"no such directory under {SKILLS_BASE_DIR}. "
+            f"Available skills: {available}"
+        )
+
+
 def load_skill(skill: str) -> list[SkillFile]:
     skill_dir = SKILLS_BASE_DIR / skill
     if not skill_dir.is_dir():

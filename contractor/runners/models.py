@@ -259,6 +259,13 @@ class TaskTemplate:
             )
         raw = data["task"]
 
+        for required in ("objective", "instructions", "output_format"):
+            if required not in raw:
+                raise ValueError(
+                    f"Task body {body_path} missing required '{required}:' "
+                    f"field under 'task:' (manifest: {manifest_path})"
+                )
+
         return cls(
             key=template_key,
             version=resolved_version,
@@ -363,8 +370,22 @@ class RenderedTask:
             sort_keys=False,
         )
 
+        # Distinct artifact refs can normalize to the same template variable
+        # (e.g. "oas-build/result" and "oas_build/result" both become
+        # "artifact__oas_build__result"); the later one would silently win,
+        # so refuse the ambiguity instead.
+        var_sources: dict[str, str] = {}
         for artifact_ref, value in artifacts.items():
-            scope[_artifact_var_name(artifact_ref)] = value
+            var_name = _artifact_var_name(artifact_ref)
+            if var_name in var_sources:
+                raise ValueError(
+                    f"Artifact refs {var_sources[var_name]!r} and "
+                    f"{artifact_ref!r} both normalize to template variable "
+                    f"{var_name!r} — rename one so the substitutions don't "
+                    f"collide"
+                )
+            var_sources[var_name] = artifact_ref
+            scope[var_name] = value
 
         return cls(
             key=template.key,
