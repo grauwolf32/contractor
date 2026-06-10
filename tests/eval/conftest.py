@@ -358,6 +358,6 @@ def exploitability_case(request: pytest.FixtureRequest) -> tuple[EvalFixture, di
 # Public helpers for scripts
 # ---------------------------------------------------------------------------
 
-def select_fixture(slug: str) -> EvalFixture | None:
+def select_fixture(slug: str) -> EvalFixture:
     """Helper for tests/scripts that need a specific fixture (not parametrized)."""
     return _load_fixture(slug)

@@ -68,13 +68,14 @@ _MAX_HEATMAP_COLS = 15
 _MIN_CALLS_FOR_ERROR_RATE = 3
 _TOP_N_DEFAULT = 12
 
-# Approximate pricing per 1M tokens — adjust to actual rates
+# Approximate pricing per 1M tokens — adjust to actual rates. Costs are only
+# computed for models listed here; rows with unknown models (e.g. local
+# lm-studio aliases) get no cost estimate, and cost charts/tables skip them.
 _PRICE_PER_M_TOKENS: dict[str, dict[str, float]] = {
     "gemini-2.5-pro": {"input": 1.25, "output": 10.00, "cached": 0.3125},
     "gemini-2.5-flash": {"input": 0.15, "output": 0.60, "cached": 0.0375},
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40, "cached": 0.025},
 }
-_DEFAULT_PRICE = {"input": 1.00, "output": 3.00, "cached": 0.25}
 
 
 # ─── Output paths ────────────────────────────────────────────────────────────
@@ -278,9 +279,12 @@ def _args_hash(args: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def _estimate_row_cost(row: pd.Series) -> float:
+def _estimate_row_cost(row: pd.Series) -> float | None:
+    """Estimated cost in USD, or ``None`` when the model has no known pricing."""
     model = str(row.get("model", ""))
-    prices = _PRICE_PER_M_TOKENS.get(model, _DEFAULT_PRICE)
+    prices = _PRICE_PER_M_TOKENS.get(model)
+    if prices is None:
+        return None
     return (
         row.get("input_tokens", 0) * prices["input"]
         + row.get("output_tokens", 0) * prices["output"]
@@ -527,7 +531,19 @@ class MetricSlices:
             return
         llm = self.llm.copy()
         llm["estimated_cost"] = llm.apply(_estimate_row_cost, axis=1)
-        self.llm_with_cost = llm
+        unknown = llm.loc[llm["estimated_cost"].isna(), "model"]
+        if not unknown.empty:
+            models = sorted(_fill_label(unknown, _FALLBACKS["model"]).unique())
+            logger.info(
+                "pricing unknown for model(s): %s — cost charts/tables omit them",
+                ", ".join(models),
+            )
+        # Keep only rows with known pricing; if none remain, llm_with_cost
+        # stays empty and every cost chart/table is skipped.
+        priced = llm[llm["estimated_cost"].notna()].copy()
+        if priced.empty:
+            return
+        self.llm_with_cost = priced
 
     def _compute_retries(self) -> None:
         tc = self.tool_calls
@@ -1269,7 +1285,8 @@ def compute_summary(
         "agents": 0,
         "tools": 0,
         "tasks": 0,
-        "estimated_total_cost": 0.0,
+        # None (rendered "n/a") when no LLM rows have known pricing.
+        "estimated_total_cost": None,
         "retry_count": 0,
         "avg_invocation_duration_s": None,
         "avg_tool_duration_s": None,
