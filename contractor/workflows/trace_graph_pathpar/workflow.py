@@ -32,6 +32,7 @@ from contractor.tools.fs.merge import fork_overlay, merge_overlay_forks
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX
 from contractor.workflows.trace_annotation import (
     OpenApiOperation,
     OpenApiPath,
@@ -46,9 +47,10 @@ logger.setLevel(logging.DEBUG)
 TRACE_TASK_TEMPLATE: str = "trace_annotation"
 
 # Per-path namespace prefix used for this workflow's trace artifacts and
-# vulnerability reports. Shared with vuln_assess._collect_vuln_reports so the
-# write key (here) and the read key (there) cannot drift apart.
-PATH_NAMESPACE_PREFIX: str = "trace-graph-pathpar"
+# vulnerability reports. Shared (via contractor.workflows.namespaces) with
+# vuln_assess._collect_vuln_reports and trace_verify so the write key (here)
+# and the read keys (there) cannot drift apart.
+PATH_NAMESPACE_PREFIX: str = TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX
 
 
 class TraceGraphPathParWorkflow(Workflow):

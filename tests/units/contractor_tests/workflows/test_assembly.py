@@ -20,6 +20,7 @@ from google.adk.artifacts import BaseArtifactService
 from contractor.runners.task_runner import TaskRunner
 from contractor.workflows import Workflow, WorkflowContext, get_workflows
 from contractor.workflows.likec4_building import LikeC4BuildingWorkflow
+from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
 from contractor.workflows.oas_building import OasBuildingWorkflow
 from contractor.workflows.oas_enrichment import OasEnrichmentWorkflow
 from contractor.workflows.router import RouterWorkflow
@@ -399,6 +400,12 @@ class TestTraceVerifyWorkflow:
             "trace_verify:openapi:items:sqli-list",
             "trace_verify:openapi:items:xss-list",
         }
+        # Same template fanned out per finding → distinct, stable publish keys
+        # so the tasks don't overwrite each other's artifacts.
+        assert {item.artifact_key for item in runner.queue} == {
+            "trace_verify/trace-annotation_openapi_items/sqli-list",
+            "trace_verify/trace-annotation_openapi_items/xss-list",
+        }
         for item in runner.queue:
             assert item.params["source_namespace"] == "trace-annotation:openapi:items"
             assert item.params["finding_name"] in {"sqli-list", "xss-list"}
@@ -430,6 +437,101 @@ class TestTraceVerifyWorkflow:
 
         # No findings → no TaskRunner created and no tasks queued.
         assert captured == []
+
+    def test_candidate_namespaces_probe_all_known_prefixes(self):
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        workflow = TraceVerifyWorkflow(_make_context())
+        api_path = OpenApiPath(path="/items", operations=[])
+
+        assert workflow._candidate_namespaces(api_path) == [
+            f"{prefix}:openapi:items" for prefix in TRACE_NAMESPACE_PREFIXES
+        ]
+        # All known producers must be covered (regression: only the
+        # trace/trace-direct prefix used to be probed).
+        assert set(TRACE_NAMESPACE_PREFIXES) == {
+            "trace-annotation",
+            "trace-graph",
+            "trace-graph-pathpar",
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("prefix", TRACE_NAMESPACE_PREFIXES)
+    async def test_discovers_findings_under_every_known_prefix(
+        self, monkeypatch, prefix
+    ):
+        """Regression: trace-verify only probed ``trace-annotation:`` while
+        trace-graph (the production default) writes ``trace-graph:`` — so
+        verify silently skipped every path after a trace-graph run."""
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        ctx = _make_context()
+        findings_yaml = self._make_findings_yaml("sqli-list")
+        expected_namespace = f"{prefix}:openapi:items"
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == f"user:vulnerability-reports/{expected_namespace}":
+                return MagicMock(text=findings_yaml, inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        workflow = TraceVerifyWorkflow(ctx)
+        api_path = OpenApiPath(path="/items", operations=[])
+
+        captured: list = []
+        original_init = TaskRunner.__init__
+
+        def capture_init(self, **kwargs):
+            original_init(self, **kwargs)
+            captured.append(self)
+
+        monkeypatch.setattr(TaskRunner, "__init__", capture_init)
+        monkeypatch.setattr(TaskRunner, "run", AsyncMock())
+
+        queued = await workflow._verify_path_findings(
+            api_path=api_path,
+            user_id="u",
+            on_event=None,
+        )
+
+        assert queued == 1
+        assert len(captured) == 1
+        item = captured[0].queue[0]
+        assert item.namespace == expected_namespace
+        assert item.params["source_namespace"] == expected_namespace
+
+    @pytest.mark.asyncio
+    async def test_zero_findings_across_all_paths_warns(self, monkeypatch, caplog):
+        import logging
+
+        ctx = _make_context()
+        oas_yaml = yaml.safe_dump(
+            {
+                "openapi": "3.0.0",
+                "paths": {"/items": {"get": {"operationId": "list_items"}}},
+            }
+        )
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == "oas-openapi-building":
+                return MagicMock(text=oas_yaml, inline_data=None)
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        workflow = TraceVerifyWorkflow(ctx)
+
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.workflows.trace_verify.workflow"
+        ):
+            await workflow._run_impl(user_id="u", on_event=None)
+
+        messages = [
+            r.getMessage() for r in caplog.records if r.levelno == logging.WARNING
+        ]
+        assert any("nothing to verify" in m for m in messages)
+        warning = next(m for m in messages if "nothing to verify" in m)
+        for prefix in TRACE_NAMESPACE_PREFIXES:
+            assert prefix in warning
 
     def test_template_loads(self):
         from contractor.runners.models import TaskTemplate
@@ -519,6 +621,8 @@ class TestVulnScanTraceWorkflow:
         item = queue[0]
         assert item.template_key == "trace_annotation"
         assert item.ref == "vuln-scan-trace:trace:sqli-1"
+        # Per-finding publish key (template is fanned out one task per finding).
+        assert item.artifact_key == "trace_annotation/sqli-1"
         assert item.skills == ["trace"]
         assert item.params["operation_id"] == "sqli-1"
         assert "h.py:10" in item.params["operation_schema"]
@@ -629,6 +733,8 @@ class TestExploitabilityWorkflow:
         item = queue[0]
         assert item.template_key == "exploitability_assessment"
         assert item.ref == "exploitability:idor-1"
+        # Per-finding publish key (template is fanned out one task per finding).
+        assert item.artifact_key == "exploitability_assessment/idor-1"
         assert item.skills == ["exploit", "code-exec", "auth"]
         assert item.params["finding_name"] == "idor-1"
         assert item.params["source_namespace"] == "exploitability:idor-1"

@@ -17,6 +17,7 @@ import yaml
 
 from contractor.agents.codereview_agent.agent import build_codereview_agent
 from contractor.agents.trace_agent.agent import build_trace_agent
+from contractor.runners.artifacts import artifact_key_slug
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext
@@ -152,6 +153,10 @@ class VulnScanTraceWorkflow(Workflow):
         runner.add_task(
             name="trace_annotation",
             ref=f"vuln-scan-trace:trace:{name}",
+            # Unique, stable per-finding publish key — one trace task is queued
+            # per finding and the shared template key would make each finding
+            # overwrite the previous one's artifacts.
+            artifact_key=f"trace_annotation/{artifact_key_slug(name)}",
             worker_builder=trace_builder,
             **CFG.tasks.trace.as_kwargs(),
             namespace=trace_namespace,

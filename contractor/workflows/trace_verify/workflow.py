@@ -1,17 +1,20 @@
 """Static verifier of upstream vulnerability findings (OpenAnt Stage-2 style).
 
 For each path in the source OpenAPI schema, loads the per-path
-:class:`VulnerabilityReport` artifact written by a prior ``trace-direct`` (or
-``trace``) run and queues one task per finding for ``trace_verifier_agent``.
+:class:`VulnerabilityReport` artifacts written by a prior trace run — any of
+``trace`` / ``trace-direct`` (``trace-annotation:`` prefix), ``trace-graph``
+(``trace-graph:``), or ``trace-graph-pathpar`` (``trace-graph-pathpar:``) —
+and queues one task per finding for ``trace_verifier_agent``.
 
 The verifier is code-evidence-only — no HTTP probes — and persists verdicts
 via ``verification_tools`` under the same namespace as the upstream findings,
 so the two artifacts pair up:
 
-    user:vulnerability-reports/trace-annotation:openapi:{path_key}
-    user:vulnerability-verifications/trace-annotation:openapi:{path_key}
+    user:vulnerability-reports/{prefix}:openapi:{path_key}
+    user:vulnerability-verifications/{prefix}:openapi:{path_key}
 
-Paths with no findings are silently skipped.
+Paths with no findings are skipped (DEBUG log); if *no* path has findings
+under *any* prefix the workflow logs a WARNING and completes as a no-op.
 """
 
 from __future__ import annotations
@@ -23,10 +26,12 @@ from typing import Any
 import yaml
 
 from contractor.agents.trace_verifier_agent.agent import build_trace_verifier_agent
+from contractor.runners.artifacts import artifact_key_slug
 from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
 from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
 
 CFG = WorkflowConfig.load(__file__)
@@ -64,12 +69,49 @@ class TraceVerifyWorkflow(Workflow):
         openapi = yaml.safe_load(raw.text or "")
         self.paths = extract_openapi_paths(openapi=openapi)
 
+        total_findings = 0
         for api_path in self.paths:
-            await self._verify_path_findings(
+            total_findings += await self._verify_path_findings(
                 api_path=api_path,
                 user_id=user_id,
                 on_event=on_event,
             )
+
+        if not total_findings:
+            logger.warning(
+                "trace-verify found no vulnerability reports for any of the "
+                "%d OpenAPI paths under any known trace namespace prefix "
+                "(probed: %s) — nothing to verify. Run a trace workflow "
+                "(trace / trace-direct / trace-graph / trace-graph-pathpar) "
+                "against this project first.",
+                len(self.paths),
+                ", ".join(TRACE_NAMESPACE_PREFIXES),
+            )
+
+    def _candidate_namespaces(self, api_path: OpenApiPath) -> list[str]:
+        """Every namespace a trace producer may have written findings under
+        for ``api_path``, one per known prefix, in probe order."""
+        return [
+            f"{prefix}:{self.namespace}:{api_path.path_key}"
+            for prefix in TRACE_NAMESPACE_PREFIXES
+        ]
+
+    async def _discover_findings(
+        self,
+        *,
+        user_id: str,
+        api_path: OpenApiPath,
+    ) -> list[tuple[str, list[dict[str, Any]]]]:
+        """Probe every candidate namespace for ``api_path`` and return
+        ``(source_namespace, findings)`` pairs for the non-empty ones."""
+        discovered: list[tuple[str, list[dict[str, Any]]]] = []
+        for source_namespace in self._candidate_namespaces(api_path):
+            findings = await self._load_findings(
+                user_id=user_id, source_namespace=source_namespace
+            )
+            if findings:
+                discovered.append((source_namespace, findings))
+        return discovered
 
     async def _verify_path_findings(
         self,
@@ -77,19 +119,42 @@ class TraceVerifyWorkflow(Workflow):
         api_path: OpenApiPath,
         user_id: str,
         on_event: TaskRunnerEventHandler | None,
-    ) -> None:
-        source_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
-        findings = await self._load_findings(
-            user_id=user_id, source_namespace=source_namespace
+    ) -> int:
+        """Verify every finding recorded for ``api_path``; returns how many
+        findings were queued (0 when the path has none under any prefix)."""
+        discovered = await self._discover_findings(
+            user_id=user_id, api_path=api_path
         )
-        if not findings:
+        if not discovered:
             logger.debug(
-                "no findings under %r — skipping verify for path %r",
-                source_namespace,
+                "no vulnerability reports for path %r under any trace "
+                "namespace prefix (probed: %s) — skipping verify",
                 api_path.path,
+                ", ".join(self._candidate_namespaces(api_path)),
             )
-            return
+            return 0
 
+        total = 0
+        for source_namespace, findings in discovered:
+            total += len(findings)
+            await self._verify_namespace_findings(
+                api_path=api_path,
+                source_namespace=source_namespace,
+                findings=findings,
+                user_id=user_id,
+                on_event=on_event,
+            )
+        return total
+
+    async def _verify_namespace_findings(
+        self,
+        *,
+        api_path: OpenApiPath,
+        source_namespace: str,
+        findings: list[dict[str, Any]],
+        user_id: str,
+        on_event: TaskRunnerEventHandler | None,
+    ) -> None:
         ctx = self.ctx
         verifier_builder = partial(
             build_trace_verifier_agent,
@@ -118,6 +183,13 @@ class TraceVerifyWorkflow(Workflow):
                 ref=(
                     f"trace_verify:{self.namespace}:"
                     f"{api_path.path_key}:{finding_name}"
+                ),
+                # Unique, stable per-finding publish key — every finding is a
+                # separate `trace_verify` task and the shared template key
+                # would make siblings overwrite each other's artifacts.
+                artifact_key=(
+                    f"trace_verify/{artifact_key_slug(source_namespace)}/"
+                    f"{artifact_key_slug(finding_name)}"
                 ),
                 worker_builder=verifier_builder,
                 **CFG.tasks.verify.as_kwargs(),

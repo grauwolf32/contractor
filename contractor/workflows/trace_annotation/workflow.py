@@ -14,6 +14,7 @@ from contractor.tools.openapi import resolve_refs
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
+from contractor.workflows.namespaces import TRACE_ANNOTATION_NAMESPACE_PREFIX
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -202,7 +203,9 @@ class TraceAnnotationWorkflow(Workflow):
         # bodies into one ever-growing store (O(n²) context across paths), which
         # was the dominant cost on large specs; skills are re-injected per path
         # via add_task(skills=...).
-        workflow_namespace = f"trace-annotation:{self.namespace}:{api_path.path_key}"
+        workflow_namespace = (
+            f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:{self.namespace}:{api_path.path_key}"
+        )
 
         runner.add_variable(name="operation_id", value=operation_ids)
         runner.add_variable(name="operation_schema", value=operation_schema_yaml)
