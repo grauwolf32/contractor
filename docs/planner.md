@@ -430,7 +430,130 @@ flowchart LR
 
 ---
 
-## 8. Where to look next
+## 8. Variations worth testing
+
+Everything above describes **one point** in a large design space. The streamline
+planner makes a specific, defensible set of choices — but most of them are
+hypotheses, not laws, and the project's mission (getting useful work out of
+small 27–80b models via context-decomposition) makes them worth measuring rather
+than assuming. The variations below are the ones that change *how* decomposition
+and worker-judging happen — not knobs like `max_steps` (those are already
+sweepable; see [tuning.md](tuning.md)).
+
+Each is a distinct hypothesis with a metric that can confirm or kill it, run
+through the same `eval/v1` pass@N harness as the baseline.
+
+### 8.1 Control-flow / plan-shape variants
+
+| # | Variant | What changes vs. baseline | Hypothesis (small-model lens) | Metric |
+| - | ------- | ------------------------- | ----------------------------- | ------ |
+| **V0** | **Direct (no planner)** | `AgentRunner`, single worker, no subtask machine (already exists for `trace-direct`) | The decomposition tax isn't worth it on small/medium tasks | f1 + tokens/run — the honest floor |
+| **V1** | **Plan-once** | `decompose_subtask` disabled; the planner must lay out the whole plan upfront, no mid-run re-planning | Reactive decomposition is mostly churn/loops on a small model; upfront planning is cheaper and no worse | malformed/retry count, steps/task, f1 |
+| **V2** | **ReAct / interleaved** | Drop the explicit subtask list; think→act→observe loop, subtasks emerge | Committing to a plan before the model has seen the code hurts; emergent beats pre-planned | f1, recall, step-budget hit-rate |
+| **V7** | **Proactive complexity-gated decompose** | Planner estimates subtask size *before* executing and splits big ones upfront, rather than waiting for `incomplete` | Catches "too big to finish in one worker pass" before the wasted attempt | first-pass `done` rate, malformed count |
+
+### 8.2 Verification variants
+
+| # | Variant | What changes vs. baseline | Hypothesis | Metric |
+| - | ------- | ------------------------- | ---------- | ------ |
+| **V3** | **Critic-in-the-loop** | After a worker returns `done`, a verifier agent gates accept/redo (lift the existing `trace_verifier_agent` *inside* the loop) | The baseline trusts the worker's self-reported status; a gate catches both over-claiming (precision) and silent misses before `finish` | precision, verdict accuracy, false-`done` rate |
+| **V4** | **Best-of-N worker** | Run the worker N× on the same subtask; planner merges/picks (self-consistency) | The recall lever for hard fixtures (the crApi-workshop BOLA/injection misses) | recall@N, unique-findings union, cost |
+
+### 8.3 Context-passing variants
+
+| # | Variant | What changes vs. baseline | Hypothesis | Metric |
+| - | ------- | ------------------------- | ---------- | ------ |
+| **V5** | **DAG / dependency-scheduled** | Subtasks declare dependencies; the runner topo-schedules and runs independent siblings in parallel (reuses the `trace_graph_pathpar` overlay fork/merge machinery) | Strict sequential execution wastes wallclock when subtasks are independent | wallclock, f1 parity |
+| **V6** | **Rolling-summary context** | Replace the last-20 records pool fed to `get_records` with a continuously-compressed running summary | The records pool bloats context on long plans; continuous compression keeps a small model on-task | f1 on large fixtures, tokens/run |
+
+---
+
+## 9. Decisions after the current implementation
+
+The current implementation is the baseline. Moving beyond it is a sequence of
+deliberate decisions — what the baseline already commits to, which challenger to
+build first, and the seam that makes any challenger A/B-able without forking the
+workflows.
+
+### 9.1 What the baseline already commits to
+
+Each variant above revisits one of these committed decisions. Naming them makes
+the experiments honest — you're testing a *decision*, not just trying a knob:
+
+| Decision (today) | Embodied in | Revisited by |
+| ---------------- | ----------- | ------------ |
+| Plan is a flat, ordered list, executed strictly sequentially | `StreamlineManager` idx advance | V2, V5 |
+| Decomposition is **reactive** (only on `incomplete`/`malformed`) and **flat** (insert-after-parent, depth-1 by prompt) | §5.1, prompt Rule 5 | V1, V7 |
+| The planner **trusts the worker's self-reported status** — nobody re-checks the deliverable | `execute_current_subtask` | V3 |
+| One worker pass per subtask | `execute_current_subtask` retry loop is parse-only | V4 |
+| Context to the worker = seeded planner state + last-20 records pool | `get_records`, §6 | V6 |
+| Whole-task retry; fresh planner per attempt (empty plan each time) | §2, §6 | (orthogonal — kept) |
+
+### 9.2 Recommended first batch
+
+Given the small-model mission and the existing failure data, the highest-signal
+order is **V0 → V1 → V3**, with **V2** as the genuine architectural alternative:
+
+- **V0 + V1 answer the foundational question** that isn't cleanly answered yet:
+  *does the streamline planner beat no-planner, and does reactive decomposition
+  earn its cost?* Both are nearly free — V0 already exists, V1 is one disabled
+  tool.
+- **V3 (critic)** is the likely biggest *quality* win. The trace-eval failure
+  modes (over-annotation precision loss vs. complete misses) are exactly what a
+  gate before `finish` addresses, and the verifier agent already exists — it's
+  wiring, not new modeling.
+- **V2 (ReAct)** is the only variant that tests whether *committed pre-planning*
+  is the right paradigm at all. If it wins, that reframes the project.
+
+V4/V5/V6 are second-wave — costlier to build and to run. V5 is attractive
+because it reuses the `trace_graph_pathpar` overlay fork/merge machinery rather
+than inventing scheduling.
+
+### 9.3 The enabling seam (build this first, once)
+
+None of these are A/B-able through the pass@N harness until the planner is
+swappable the way the **worker** already is. Today the worker is a
+`worker_builder` partial on `TaskInvocation`, but the **planner is hardwired** —
+`_spawn_planning_agent` imports and calls `build_planning_agent` directly. The
+seam is symmetric to the worker one:
+
+```mermaid
+flowchart LR
+  ENV["CONTRACTOR_PLANNER_STRATEGY<br/>(env — mirrors CONTRACTOR_TASK_VERSION_*)"] --> REG["planner strategy registry"]
+  TI["TaskInvocation.planner_builder<br/>(new partial; default = streamline)"] --> SPAWN["_spawn_planning_agent"]
+  REG --> SPAWN
+  SPAWN --> V0["streamline<br/>(baseline)"]
+  SPAWN --> V1["plan_once"]
+  SPAWN --> V2["react"]
+  SPAWN --> V3["critic"]
+  V0 --> EVAL["eval/v1 envelope · pass@N<br/>(same fixtures, same scorer)"]
+  V1 --> EVAL
+  V2 --> EVAL
+  V3 --> EVAL
+```
+
+Concretely:
+
+1. **Add a `planner_builder` partial to `TaskInvocation`** (mirror
+   `worker_builder`), defaulting to today's `build_planning_agent`.
+   `_spawn_planning_agent` calls it instead of importing `build_planning_agent`.
+2. **Register strategies and route by env** — `CONTRACTOR_PLANNER_STRATEGY=streamline|plan_once|react|critic|…`,
+   exactly the pattern already used for `CONTRACTOR_TASK_VERSION_<NAME>` and
+   prompt versions. A sweep becomes one env var; results land in the same
+   `eval/v1` envelope, and the strategy becomes an axis in the experiment matrix.
+3. **Keep the promotion discipline.** Production stays on `streamline` until an
+   eval promotes a challenger — same rule as prompt-version naming: register the
+   variant, leave the default active until the numbers say otherwise. Don't
+   overfit a variant to a fixture's quirks (general planner behaviour only, not
+   benchmark-specific decomposition).
+
+> This keeps every variant honest (same fixtures, same scorer, same pass@N) and
+> keeps a single mechanism — strategy-by-env — for the whole class of
+> experiments, rather than a branch per idea.
+
+---
+
+## 10. Where to look next
 
 | Topic | File |
 | ----- | ---- |
