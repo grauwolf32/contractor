@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 from uuid import uuid4
 
@@ -155,7 +156,9 @@ class RouterWorkflow(Workflow):
             "task_id": ROUTER_TASK_ID,
             "iteration": 1,
             "session_id": session_id,
-            "emit": runner._emit,
+            # AgentRunner._emit threads the handler per call; plugins expect
+            # an ``emit(event_type, **payload)`` callable, so bind it here.
+            "emit": partial(runner._emit, on_event),
         }
         plugins = [
             AdkTracePlugin(**plugin_kwargs),

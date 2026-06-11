@@ -254,3 +254,34 @@ class TestTwoStageRun:
             "trace-postdiff:openapi:admin",
         }
         assert len(analytics_builds) == 2
+
+
+@pytest.mark.asyncio
+class TestPluginEmitWiring:
+    async def test_plugin_emit_reaches_event_handler(self, tmp_path):
+        """The plugins' ``emit(event_type, **payload)`` calls must thread
+        through ``AgentRunner._emit`` to the run's event handler.
+
+        Regression guard: ``AgentRunner._emit`` takes the handler as its
+        first positional arg, and passing the unbound method to a plugin
+        crashed every run in ``before_run_callback``.
+        """
+        ctx = _make_context(tmp_path)
+        workflow = TracePostDiffWorkflow(ctx)
+
+        events = []
+
+        async def on_event(event):
+            events.append(event)
+
+        plugins = workflow._plugins("ev-name", 1, "sid", on_event)
+        invocation_context = MagicMock(invocation_id="inv-1", agent_name="a")
+        for plugin in plugins:
+            await plugin.before_run_callback(invocation_context=invocation_context)
+
+        # AdkTracePlugin emits agent_run_start; AdkMetricsPlugin's hook may
+        # be a no-op — the wiring is shared, one delivered event proves it.
+        assert events, "plugin emit never reached the event handler"
+        assert any(e.type == "trace_agent_run_start" for e in events) or any(
+            "agent_run_start" in e.type for e in events
+        )

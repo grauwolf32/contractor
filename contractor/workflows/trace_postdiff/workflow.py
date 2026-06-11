@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import partial
 from typing import Any, cast
 from uuid import uuid4
 
@@ -294,7 +295,7 @@ class TracePostDiffWorkflow(Workflow):
             user_id=user_id,
             session_id=session_id,
             initial_state={},
-            plugins=self._plugins(event_name, idx, session_id),
+            plugins=self._plugins(event_name, idx, session_id, on_event),
             on_event=on_event,
             event_name=event_name,
         )
@@ -353,25 +354,37 @@ class TracePostDiffWorkflow(Workflow):
             user_id=user_id,
             session_id=session_id,
             initial_state={},
-            plugins=self._plugins(event_name, len(group.operations), session_id),
+            plugins=self._plugins(
+                event_name, len(group.operations), session_id, on_event
+            ),
             on_event=on_event,
             event_name=event_name,
         )
 
-    def _plugins(self, event_name: str, task_id: int, session_id: str) -> list:
+    def _plugins(
+        self,
+        event_name: str,
+        task_id: int,
+        session_id: str,
+        on_event: TaskRunnerEventHandler | None,
+    ) -> list:
+        # AgentRunner._emit threads the handler per call (it is not stashed
+        # on the instance); plugins expect an ``emit(event_type, **payload)``
+        # callable, so bind this run's handler here.
+        emit = partial(self._runner._emit, on_event)
         return [
             AdkTracePlugin(
                 task_name=event_name,
                 task_id=task_id,
                 iteration=1,
                 session_id=session_id,
-                emit=self._runner._emit,
+                emit=emit,
             ),
             AdkMetricsPlugin(
                 task_name=event_name,
                 task_id=task_id,
                 iteration=1,
                 session_id=session_id,
-                emit=self._runner._emit,
+                emit=emit,
             ),
         ]
