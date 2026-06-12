@@ -158,8 +158,11 @@ async def _run_workflow(
 # nominations as output would credit the pipeline for findings it never
 # confirmed. ``diagnostic`` namespaces get a separate recall-only score
 # (the nomination stage's recall is the trace stage's upper bound).
-_STAGE_FILTERS: dict[str, dict[str, str]] = {
+_STAGE_FILTERS: dict[str, dict[str, str | None]] = {
     "vuln-sweep": {"final": ":trace:", "diagnostic": ":sweep:"},
+    # Single producer stage, but report-artifact findings still need the
+    # per-instance extractor (the blanket one collapses same-family reports).
+    "trace-postdiff": {"final": "trace-postdiff:", "diagnostic": None},
 }
 
 
@@ -214,6 +217,29 @@ def _extract_reports(artifacts_dir: Path, *, namespace_substr: str = "") -> list
     return list(by_key.values())
 
 
+def _extract_trace_results(artifacts_dir: Path) -> list[Any]:
+    """ReportedVulns from per-finding trace result texts.
+
+    Fan-out trace phases publish under ``trace_annotation/<slug>/result``
+    (unique ``artifact_key`` per finding), which the stock
+    ``trace_annotation/result`` glob in ``extract_from_run_dir`` never
+    matches. A trace task that confirms a finding often expresses it only
+    as a Shape block in its result text — without this, the trace stage's
+    confirmations are invisible to scoring.
+    """
+    from tests.eval.trace_vuln_scoring import _latest_versions, extract_from_result
+
+    out: list[Any] = []
+    pattern = str(
+        artifacts_dir / "**" / "trace_annotation" / "**" / "result" / "versions" / "*" / "result"
+    )
+    for f in _latest_versions(pattern):
+        out.extend(
+            extract_from_result(Path(f).read_text(encoding="utf-8", errors="ignore"))
+        )
+    return out
+
+
 def _score_run(
     artifact_root: Path, fixture_dir: Path, workflow_name: str
 ) -> tuple[Any, Any | None]:
@@ -233,13 +259,22 @@ def _score_run(
     if stage is None:
         return score_vulns(extract_from_run_dir(artifact_root), expected), None
 
-    final = score_vulns(
-        _extract_reports(artifact_root, namespace_substr=stage["final"]), expected
-    )
-    diagnostic = score_vulns(
-        _extract_reports(artifact_root, namespace_substr=stage["diagnostic"]),
-        load_expected(fixture_dir / "vulnerabilities.expected.json"),
-    )
+    # Final output = trace-stage report artifacts ∪ trace result Shape
+    # blocks, deduped by (family, path) so a finding expressed both ways
+    # doesn't double-count as an FP.
+    by_key: dict[tuple[str, str], Any] = {}
+    for rv in (
+        _extract_reports(artifact_root, namespace_substr=stage["final"])
+        + _extract_trace_results(artifact_root)
+    ):
+        by_key.setdefault(rv.key(), rv)
+    final = score_vulns(list(by_key.values()), expected)
+    diagnostic = None
+    if stage["diagnostic"] is not None:
+        diagnostic = score_vulns(
+            _extract_reports(artifact_root, namespace_substr=stage["diagnostic"]),
+            load_expected(fixture_dir / "vulnerabilities.expected.json"),
+        )
     return final, diagnostic
 
 
