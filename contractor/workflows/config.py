@@ -49,7 +49,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
 import yaml
 
@@ -64,18 +64,25 @@ _VALID_OUTPUT_FORMATS = frozenset(get_args(OutputFormat))
 
 @dataclass(frozen=True)
 class TaskBudget:
-    """Retry/iteration/step budget for a single ``add_task`` call."""
+    """Retry/iteration/step budget for a single ``add_task`` call.
+
+    ``timeout_s`` caps one attempt's wallclock; a timed-out attempt counts
+    as failed and retries within ``max_attempts``. ``None`` (default) keeps
+    attempts unbounded.
+    """
 
     iterations: int = 1
     max_attempts: int = 1
     max_steps: int = 15
+    timeout_s: float | None = None
 
-    def as_kwargs(self) -> dict[str, int]:
+    def as_kwargs(self) -> dict[str, Any]:
         """Splat into ``TaskRunner.add_task(..., **budget.as_kwargs())``."""
         return {
             "iterations": self.iterations,
             "max_attempts": self.max_attempts,
             "max_steps": self.max_steps,
+            "timeout_s": self.timeout_s,
         }
 
 

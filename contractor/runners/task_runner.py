@@ -123,6 +123,7 @@ class TaskRunner(BaseModel):
         iterations: int | None = None,
         max_attempts: int | None = None,
         max_steps: int = 15,
+        timeout_s: float | None = None,
         namespace: str | None = None,
         model: LiteLlm | None = None,
         observations: ObservationConfig | None = None,
@@ -171,6 +172,7 @@ class TaskRunner(BaseModel):
             iterations=eff_iterations,
             max_attempts=eff_max_attempts,
             max_steps=max_steps,
+            timeout_s=timeout_s,
             namespace=namespace,
             model=model,
             observations=observations,
@@ -950,7 +952,7 @@ class TaskRunner(BaseModel):
 
         for iteration in range(1, item.max_attempts + 1):
             try:
-                result = await self._run_single_iteration(
+                iteration_coro = self._run_single_iteration(
                     item=item,
                     rendered_task=rendered_task,
                     input_artifacts=input_artifacts,
@@ -959,6 +961,15 @@ class TaskRunner(BaseModel):
                     carry_state=carry_state,
                     iteration=iteration,
                 )
+                # A timed-out attempt raises TimeoutError into the generic
+                # handler below: it consumes an attempt like any other
+                # failure, so retry / TaskNotCompletedError semantics hold.
+                if item.timeout_s is not None:
+                    result = await asyncio.wait_for(
+                        iteration_coro, timeout=item.timeout_s
+                    )
+                else:
+                    result = await iteration_coro
             except asyncio.CancelledError:
                 # Cancellation is not a task failure — let it unwind the run.
                 raise

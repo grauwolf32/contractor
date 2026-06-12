@@ -100,6 +100,10 @@ class TaskInvocation:
     iterations: int = 1
     max_attempts: int = 1
     max_steps: int = 15
+    # Wallclock cap per attempt (seconds). ``max_steps`` bounds planner
+    # subtasks, but nothing bounds a worker run's tool-call loop — without
+    # this, one spinning task starves every task queued after it.
+    timeout_s: float | None = None
 
     namespace: str | None = None
     model: LiteLlm | None = None

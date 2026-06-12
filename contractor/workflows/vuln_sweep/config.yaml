@@ -6,8 +6,10 @@ budgets:
   # Cap on nominations carried into the (expensive) DFS trace phase.
   max_trace_nominations: 40
 tasks:
-  sweep: { iterations: 1, max_attempts: 2, max_steps: 50 }
-  trace: { iterations: 1, max_attempts: 1, max_steps: 30 }
+  # timeout_s: one spinning sweep class must not starve the others (or the
+  # whole trace phase) — a healthy class sweep finishes well inside 45 min.
+  sweep: { iterations: 1, max_attempts: 2, max_steps: 50, timeout_s: 2700 }
+  trace: { iterations: 1, max_attempts: 1, max_steps: 30, timeout_s: 1200 }
 agents:
   codereview_agent: { with_graph_tools: true, output_format: json }
   trace_agent: { with_graph_tools: true, output_format: json }

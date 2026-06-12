@@ -186,6 +186,7 @@ def _make_invocation(
     max_attempts: int,
     template_key="t",
     template_version="v1",
+    timeout_s: float | None = None,
 ) -> TaskInvocation:
     return TaskInvocation(
         id="inv-1",
@@ -195,6 +196,7 @@ def _make_invocation(
         worker_builder=lambda **_: MagicMock(),
         iterations=iterations,
         max_attempts=max_attempts,
+        timeout_s=timeout_s,
     )
 
 
@@ -353,6 +355,61 @@ class TestRetryLoop:
             item=invocation, task_id=1, user_id="u", total_tasks=1,
         )
         assert single.await_count == 2
+
+
+# ─── TaskRunner retry loop: per-attempt timeout ──────────────────────────────
+
+
+class TestRetryLoopTimeout:
+    @pytest.mark.asyncio
+    async def test_timeout_consumes_attempt_then_succeeds(self, runner, monkeypatch):
+        # Attempt 1 hangs past timeout_s, attempt 2 succeeds.
+        invocation = _make_invocation(iterations=1, max_attempts=2, timeout_s=0.05)
+        calls = {"n": 0}
+
+        async def single(**kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                await asyncio.sleep(5)
+            return _result_for("t", True, calls["n"])
+
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        result = await runner._run_task_with_retries(
+            item=invocation, task_id=1, user_id="u", total_tasks=1,
+        )
+        assert result.status == "done"
+        assert calls["n"] == 2
+
+    @pytest.mark.asyncio
+    async def test_all_attempts_time_out_raises(self, runner, monkeypatch):
+        invocation = _make_invocation(iterations=1, max_attempts=2, timeout_s=0.05)
+
+        async def single(**kwargs):
+            await asyncio.sleep(5)
+            return _result_for("t", True, 1)
+
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        with pytest.raises(TaskNotCompletedError) as exc_info:
+            await runner._run_task_with_retries(
+                item=invocation, task_id=1, user_id="u", total_tasks=1,
+            )
+        assert "TimeoutError" in (exc_info.value.last_error or "") or isinstance(
+            exc_info.value.__cause__, TimeoutError
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_timeout_keeps_attempts_unbounded(self, runner, monkeypatch):
+        # timeout_s=None must not wrap the attempt at all.
+        invocation = _make_invocation(iterations=1, max_attempts=1, timeout_s=None)
+        single = AsyncMock(side_effect=[_result_for("t", True, 1)])
+        monkeypatch.setattr(runner, "_run_single_iteration", single)
+
+        result = await runner._run_task_with_retries(
+            item=invocation, task_id=1, user_id="u", total_tasks=1,
+        )
+        assert result.status == "done"
 
 
 # ─── TaskRunner retry loop: exceptions ───────────────────────────────────────
