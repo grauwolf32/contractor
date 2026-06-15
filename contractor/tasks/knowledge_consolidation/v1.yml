@@ -1,0 +1,89 @@
+task:
+  name: "Knowledge consolidation — merge scattered facts across namespaces"
+
+  objective: >
+    Read the memories and task results spread across EVERY namespace in the
+    artifact pool and consolidate them into a clean, deduplicated set of notes
+    in your working namespace. You are in CONSOLIDATION mode. The deliverable is
+    the consolidated note set plus the Markdown report defined in output_format.
+
+    Survey first (pool_namespaces, list_memories), then cluster facts that
+    describe the same thing across namespaces and merge each cluster into one
+    well-attributed note. Do not silently drop disagreements — flag them.
+
+  instructions: |
+    Curate the pool into a coherent knowledge base. Follow these steps:
+
+    STEP 1 — Enumerate the pool
+      - pool_namespaces() for every namespace and its kinds.
+      - pool_list(mask) to see the artifact keys per namespace.
+      - For each relevant namespace, pool_read_memory(namespace, "") to preview
+        its notes and pool_read(key, 0, 0) to read task results when they hold
+        facts worth keeping.
+
+    STEP 2 — Cluster equivalent facts
+      Group facts that describe the SAME entity or claim across namespaces
+      (e.g. the same endpoint described by both a trace note and an OAS result;
+      the same auth mechanism noted twice). Use pool_search to find related
+      mentions you might otherwise miss.
+
+    STEP 3 — Write one consolidated note per cluster
+      For each cluster, write_memory a single merged note that:
+        - Combines the details from all sources into one coherent statement.
+        - Keeps the strongest, most specific evidence.
+        - CITES every source: namespace + note name, or artifact key.
+        - Carries 1–3 reusable tags (call list_tags first; reuse, don't mint
+          near-duplicates).
+      Prefer append_memory when a consolidated note already exists from an
+      earlier cluster in the same run.
+
+    STEP 4 — Reconcile contradictions
+      When sources disagree (different severities, conflicting auth claims,
+      stale vs current paths), DO NOT pick one silently. Record the conflict
+      inside the consolidated note ("Conflict: <A> says X, <B> says Y") and list
+      it in the report's Contradictions section for follow-up.
+
+    CONSTRAINTS:
+      - Read-only everywhere except your own namespace's memory. You supersede
+        the scattered originals with a clean set; you do not (and cannot) delete
+        them.
+      - Do NOT invent or "smooth over" facts. Preserve source attribution.
+      - Keep consolidated notes atomic — one entity/claim per note, not one
+        giant dump.
+      - Do not create subtasks for "verify memory was saved."
+
+  output_format: |
+    First, ensure every consolidated note is saved via write_memory/append_memory.
+    Then return a single Markdown report with this structure:
+
+    ```
+    # Knowledge Consolidation Report
+
+    ## Sources Reviewed
+    - **Namespaces:** <list>
+    - **Notes / results read:** <count>
+
+    ## Consolidated Notes
+    | Note name | Tags | Merged from (sources) | Summary (1 line) |
+    |-----------|------|-----------------------|------------------|
+    | <name>    | <t1, t2> | <ns/note, key, ...> | <summary> |
+
+    ## Duplicates Merged
+    - <fact> — merged <source A> + <source B> into <note name>
+
+    ## Contradictions Flagged
+    | Topic | Source A says | Source B says | Recorded in note |
+    |-------|---------------|---------------|------------------|
+
+    ## Gaps / Follow-ups
+    - <thin or missing area, suggested next step>
+    ```
+
+    For any empty section, keep the heading and write "None."
+
+  constraints:
+    - Survey the pool before writing; cluster across namespaces, don't copy.
+    - Every consolidated note cites all its sources.
+    - Contradictions are flagged explicitly, never silently resolved.
+    - The final answer is the Markdown report; the consolidated notes are the
+      durable output.

@@ -128,6 +128,16 @@ class Settings(BaseSettings):
     # don't share one store.
     artifacts_dir: Path | None = Field(default=None, alias="CONTRACTOR_ARTIFACTS_DIR")
 
+    # ── Artifact-pool RAG (pgvector) ─────────────────────────────────────
+    # Optional dense-retrieval backend for the artifact_pool tools. When unset,
+    # pool_search falls back to the dependency-free keyword ranker. Bring the DB
+    # up with deploy/pgvector/deploy_pg.sh; rag_embedding_model is a LiteLLM
+    # proxy alias and rag_embedding_dim must match its output dimension and the
+    # vector(dim) column.
+    rag_db_dsn: str | None = Field(default=None, alias="RAG_DB_DSN")
+    rag_embedding_model: str = Field(default="lm-studio-embed")
+    rag_embedding_dim: int = Field(default=1024)
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

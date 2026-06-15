@@ -26,6 +26,11 @@ dependencies = [
     "rustworkx (>=0.17.1,<1.0.0)",
 ]
 
+[project.optional-dependencies]
+# Artifact-pool RAG backend (contractor/tools/artifact_rag.py). Install with
+# `poetry install --extras rag`. Embeddings reuse the litellm dep already above.
+rag = ["psycopg[binary]>=3.2,<4.0"]
+
 [project.scripts]
 contractor = "cli.main:main"
 analytics-ui = "analytics_ui.server:main"

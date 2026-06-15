@@ -1,0 +1,4 @@
+active: v1
+versions:
+  v1:
+    file: knowledge_discovery/v1.yml
