@@ -142,11 +142,18 @@ class TraceGraphPathParWorkflow(Workflow):
                     name=ctx.app_name,
                     artifact_service=ctx.artifact_service,
                 )
-                await self._run_group_analysis(
-                    group=group,
-                    overlay=overlay,
-                    runner=runner,
-                    user_id=user_id,
+                # Isolate a failed group so the TaskGroup doesn't cancel its
+                # siblings and discard their (already-merged-on-finally)
+                # annotations.
+                await self.run_skippable_job(
+                    self._run_group_analysis(
+                        group=group,
+                        overlay=overlay,
+                        runner=runner,
+                        user_id=user_id,
+                        on_event=on_event,
+                    ),
+                    job_name=f"trace_annotation:{self.namespace}:{group.key}",
                     on_event=on_event,
                 )
 

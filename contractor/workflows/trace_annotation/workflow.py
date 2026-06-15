@@ -141,9 +141,13 @@ class TraceAnnotationWorkflow(Workflow):
         self._overlay_seeded = True
 
         for api_path in self.paths:
-            await self._run_path_analysis(
-                api_path,
-                user_id=user_id,
+            await self.run_skippable_job(
+                self._run_path_analysis(
+                    api_path,
+                    user_id=user_id,
+                    on_event=on_event,
+                ),
+                job_name=f"trace_annotation:{self.namespace}:{api_path.path_key}",
                 on_event=on_event,
             )
 

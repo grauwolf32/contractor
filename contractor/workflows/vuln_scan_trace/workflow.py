@@ -170,10 +170,11 @@ class VulnScanTraceWorkflow(Workflow):
             },
         )
 
-        try:
-            await runner.run(user_id=user_id, on_event=on_event)
-        except Exception as exc:
-            logger.warning("trace for %s failed: %s", name, exc)
+        await self.run_skippable_job(
+            runner.run(user_id=user_id, on_event=on_event),
+            job_name=f"trace_annotation:{trace_namespace}",
+            on_event=on_event,
+        )
 
     async def _load_findings(
         self,
