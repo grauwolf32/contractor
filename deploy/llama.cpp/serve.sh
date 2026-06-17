@@ -19,6 +19,7 @@
 #   LLAMA_HOME    llama.cpp checkout          (default: ~/src/llama.cpp) — symlink-friendly:
 #                 `ln -s /path/to/llama.cpp ~/src/llama.cpp` or put llama-server on PATH.
 #   HOST PORT CTX NP NGL                      server tunables
+#   CTXCP         max context checkpoints     (default: 2; system-RAM KV cache)
 #   TEMP TOP_P TOP_K MIN_P PRESENCE           sampling (tuned for agent/structured output)
 #   ALIAS         model name on the API       (default: the model's folder name)
 #   SPEC          force MTP                    (auto|on|off, default: auto by name)
@@ -33,6 +34,11 @@ to_int() { local v="${1,,}"; case "$v" in *k) echo $(( ${v%k} * 1024 ));; *m) ec
 
 HOST="${HOST:-127.0.0.1}"; PORT="${PORT:-8081}"
 CTX="$(to_int "${CTX:-128k}")"; NP="${NP:-2}"; NGL="${NGL:-99}"
+# Context KV-snapshots cached in *system* RAM for context-shift reuse. The
+# default (32) balloons host RSS on long agent runs with a large context (each
+# snapshot is a partial KV of the growing context) and can exhaust RAM/swap.
+# Cap low — context-shift is rare when the worker summarizes under the window.
+CTXCP="${CTXCP:-2}"
 TEMP="${TEMP:-0.3}"; TOP_P="${TOP_P:-0.8}"; TOP_K="${TOP_K:-20}"
 MIN_P="${MIN_P:-0}"; PRESENCE="${PRESENCE:-1.0}"
 SPEC="${SPEC:-auto}"
@@ -93,7 +99,7 @@ esac
 CMD=("$LLAMA_SERVER"
   -m "$MODEL"
   -ngl "$NGL" --no-mmap -fa on
-  -c "$CTX" -np "$NP" -b 2048 -ub 2048
+  -c "$CTX" -np "$NP" -b 2048 -ub 2048 --ctx-checkpoints "$CTXCP"
   "${SPEC_ARGS[@]}"
   --temp "$TEMP" --top-p "$TOP_P" --top-k "$TOP_K" --min-p "$MIN_P" --presence-penalty "$PRESENCE"
   --host "$HOST" --port "$PORT" -a "$ALIAS" --jinja
