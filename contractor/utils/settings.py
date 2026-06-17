@@ -17,6 +17,8 @@ from google.adk.models.lite_llm import LiteLlm
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from contractor.utils.llm_compat import SanitizingLiteLLMClient
+
 # The documented config file is `cli/.env`. A bare `load_dotenv()` walks up
 # from *this* module (contractor/utils/ → repo root) and never descends into
 # cli/, so non-CLI entrypoints (tests, scripts) used to miss it — only the CLI
@@ -163,6 +165,11 @@ def build_model(
         kwargs["temperature"] = s.model_temperature
     if s.model_top_p is not None:
         kwargs["top_p"] = s.model_top_p
+    # Rename `$ref` tool-schema property names to `ref` on the outbound request
+    # (llama.cpp's tool-call parser crashes on a property literally named `$ref`;
+    # see contractor/utils/llm_compat). Response needs no reverse — the backing
+    # models accept both spellings (validate_by_name + alias="$ref").
+    kwargs["llm_client"] = SanitizingLiteLLMClient()
     return LiteLlm(**kwargs)
 
 

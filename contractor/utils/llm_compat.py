@@ -1,0 +1,96 @@
+"""llama.cpp tool-schema compatibility shim.
+
+llama.cpp's tool-call parser path (json-schema-to-grammar + the differential
+auto-parser) crashes when a tool *parameter* schema contains a property whose
+name is literally ``$ref``: it treats the key as the JSON-Schema ``$ref``
+*reference keyword* and expects a string value, throwing
+``[json.exception.type_error.302] type must be string, but is object``.
+
+Our ``PathItem`` model (contractor/tools/openapi/models.py) has a ``ref`` field
+aliased to ``$ref`` (legal in OpenAPI), which surfaces as exactly such a
+property in the ``upsert_path`` tool schema. LM Studio tolerated it (it parses
+tool calls free-form, without deriving a grammar); llama.cpp does not.
+
+Fix: rename ``$ref`` property *names* to ``ref`` in the *outbound* tool schemas
+only. The response needs no reverse step — the backing pydantic models use
+``validate_by_name=True`` together with ``alias="$ref"``, so they accept either
+``ref`` or ``$ref`` natively. We never rewrite model output, so there is no
+ambiguity about "what to restore".
+
+Only property names are renamed (keys directly under a ``properties`` map, or
+entries in a ``required`` list). Genuine JSON-Schema ``$ref`` *references*
+(string-valued, e.g. ``"#/$defs/Operation"``) are left untouched.
+
+Harmless on non-llama.cpp backends: the receiving models accept both spellings.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from google.adk.models.lite_llm import LiteLLMClient
+
+
+def sanitize_schema(node: Any) -> None:
+    """Make a JSON-Schema safe for llama.cpp's tool-call parser (in place).
+
+    Two independent fixes, both observed to crash the differential auto-parser on
+    the ``upsert_path`` tool's ``PathItem`` schema:
+
+    1. Rename ``$ref`` *property names* to ``ref`` — only when ``$ref`` names a
+       property (a key inside a ``properties`` map, or an entry in a ``required``
+       list). Genuine JSON-Schema ``$ref`` *references* (string-valued) are kept.
+    2. Drop ``examples`` — the auto-parser walks nested example *objects* as if
+       they were schemas and throws ``type must be string, but is object``.
+       ``examples`` is metadata (sample values), so removing it is loss-free for
+       validation; the model still has field descriptions.
+    """
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict) and "$ref" in props:
+            props["ref"] = props.pop("$ref")
+        required = node.get("required")
+        if isinstance(required, list) and "$ref" in required:
+            node["required"] = ["ref" if r == "$ref" else r for r in required]
+        node.pop("examples", None)
+        for value in node.values():
+            sanitize_schema(value)
+    elif isinstance(node, list):
+        for item in node:
+            sanitize_schema(item)
+
+
+def sanitize_tools(tools: Any) -> Any:
+    """Rename ``$ref`` property names in each tool's parameter schema (in place).
+
+    ``tools`` is the OpenAI-format list passed to litellm. Idempotent: once a
+    schema is renamed there is no ``$ref`` property left to rename.
+    """
+    if isinstance(tools, list):
+        for tool in tools:
+            if isinstance(tool, dict):
+                params = tool.get("function", {}).get("parameters")
+                if params is not None:
+                    sanitize_schema(params)
+    return tools
+
+
+class SanitizingLiteLLMClient(LiteLLMClient):
+    """``LiteLLMClient`` that sanitizes ``$ref`` tool-schema property names.
+
+    Drop-in replacement injected via ``build_model``; see module docstring.
+    """
+
+    async def acompletion(self, model, messages, tools, **kwargs):
+        return await super().acompletion(
+            model=model, messages=messages, tools=sanitize_tools(tools), **kwargs
+        )
+
+    def completion(self, model, messages, tools, stream=False, **kwargs):
+        return super().completion(
+            model=model,
+            messages=messages,
+            tools=sanitize_tools(tools),
+            stream=stream,
+            **kwargs,
+        )
