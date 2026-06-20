@@ -200,6 +200,16 @@ def _xml_tag(tag: str, value: str, pad: str) -> str:
     return f"{pad}<{tag}>{xml_escape(value)}</{tag}>"
 
 
+def _xml_attr(value: str) -> str:
+    """Escape a value for safe use inside a double-quoted XML attribute.
+
+    ``xml.sax.saxutils.escape`` does not escape ``"``, so an agent-chosen
+    name containing a quote would otherwise break the attribute and corrupt
+    the surrounding document the model reads back.
+    """
+    return xml_escape(value, {'"': "&quot;"})
+
+
 def _report_to_xml(
     report: VulnerabilityReport,
     *,
@@ -212,7 +222,7 @@ def _report_to_xml(
 
     children = [
         _xml_tag("title", report.title, pad2),
-        f'{pad2}<place type="{xml_escape(report.place_type)}">'
+        f'{pad2}<place type="{_xml_attr(report.place_type)}">'
         f"{xml_escape(report.place)}</place>",
         _xml_tag("severity", report.severity, pad2),
         _xml_tag("confidence", report.confidence, pad2),
@@ -225,7 +235,7 @@ def _report_to_xml(
 
     inner = "\n".join(children)
     return (
-        f'{pad}<vulnerability name="{xml_escape(report.name)}">\n'
+        f'{pad}<vulnerability name="{_xml_attr(report.name)}">\n'
         f"{inner}\n"
         f"{pad}</vulnerability>"
     )
@@ -689,7 +699,7 @@ def _verification_to_xml(
             children.append(_xml_tag("notes", finding.notes, pad2))
     inner = "\n".join(children)
     return (
-        f'{pad}<verification name="{xml_escape(finding.name)}">\n'
+        f'{pad}<verification name="{_xml_attr(finding.name)}">\n'
         f"{inner}\n"
         f"{pad}</verification>"
     )

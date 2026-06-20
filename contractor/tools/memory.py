@@ -36,6 +36,16 @@ class MemoryNote:
     updated_at: str = ""
 
 
+def _xml_attr(value: str) -> str:
+    """Escape a value for safe use inside a double-quoted XML attribute.
+
+    ``xml.sax.saxutils.escape`` does not escape ``"``, so an agent-chosen
+    name containing a quote would otherwise break the attribute and corrupt
+    the surrounding document the model reads back.
+    """
+    return xml_escape(value, {'"': "&quot;"})
+
+
 @dataclass
 class MemoryFormat:
     _format: Literal["json", "markdown", "yaml", "xml"] = "json"
@@ -124,7 +134,7 @@ class MemoryFormat:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
 
-        name = xml_escape(memory.name)
+        name = _xml_attr(memory.name)
         description = xml_escape(memory.description)
         memory_text = xml_escape(memory.memory)
         created_at = xml_escape(memory.created_at)
@@ -154,7 +164,7 @@ class MemoryFormat:
         pad = " " * (indent * 4)
         pad2 = " " * ((indent + 1) * 4)
 
-        name = xml_escape(memory.name)
+        name = _xml_attr(memory.name)
         description = xml_escape(memory.description)
         created_at = xml_escape(memory.created_at)
         updated_at = xml_escape(memory.updated_at)

@@ -379,7 +379,17 @@ class GitlabAsyncLoader:
 
         try:
             resp = await self._request_with_retry(session, "GET", url, params=params)
+
+            cl = resp.headers.get("Content-Length")
+            if cl and int(cl) > self.max_file_size:
+                resp.release()
+                return (file_path, None, f"too large: {cl} bytes")
+
             data = await resp.read()
+
+            if len(data) > self.max_file_size:
+                return (file_path, None, f"too large: {len(data)} bytes")
+
             return (file_path, data, None)
         except aiohttp.ClientResponseError as exc:
             return (file_path, None, f"HTTP {exc.status}: {exc.message}")
