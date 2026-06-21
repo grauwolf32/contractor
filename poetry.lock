@@ -1278,35 +1278,35 @@ tqdm = ["tqdm"]
 
 [[package]]
 name = "google-adk"
-version = "2.1.0"
+version = "2.3.0"
 description = "Agent Development Kit"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "google_adk-2.1.0-py3-none-any.whl", hash = "sha256:4ec8a0ccdf8af90f9fa505c740cae921b47590aee3d61bca14f7bfa8bc886e4e"},
-    {file = "google_adk-2.1.0.tar.gz", hash = "sha256:fd1709bf5e70e5aaa7d148c7b788d2cd00bb659ee10505a731bb2ad609d28968"},
+    {file = "google_adk-2.3.0-py3-none-any.whl", hash = "sha256:961a08ce50bdc99aaf57e487bae4cc48ed9ee361f15e93562342d4bc3b75739b"},
+    {file = "google_adk-2.3.0.tar.gz", hash = "sha256:4b95c99865a9a6b56e8abd3d3b816935f0db1cebbef328736a269b6537bd1df7"},
 ]
 
 [package.dependencies]
 aiosqlite = ">=0.21"
 authlib = ">=1.6.6,<2"
 click = ">=8.1.8,<9"
-fastapi = ">=0.124.1,<1"
+fastapi = ">=0.133,<1"
 google-auth = {version = ">=2.47", extras = ["pyopenssl"]}
-google-genai = ">=1.72,<2"
+google-genai = ">=2.8,<3"
 graphviz = ">=0.20.2,<1"
 httpx = ">=0.27,<1"
 jsonschema = ">=4.23,<5"
-opentelemetry-api = ">=1.36,<=1.41.1"
-opentelemetry-sdk = ">=1.36,<=1.41.1"
+opentelemetry-api = ">=1.39,<=1.42.1"
+opentelemetry-sdk = ">=1.39,<=1.42.1"
 packaging = ">=21"
 pydantic = ">=2.12,<3"
 python-dotenv = ">=1,<2"
 python-multipart = ">=0.0.9,<1"
 pyyaml = ">=6.0.2,<7"
 requests = ">=2.32.4,<3"
-starlette = ">=0.49.1,<1"
+starlette = ">=1.0.1,<2"
 tenacity = ">=9,<10"
 typing-extensions = ">=4.5,<5"
 tzlocal = ">=5.3,<6"
@@ -1316,19 +1316,21 @@ websockets = ">=15.0.1,<16"
 
 [package.extras]
 a2a = ["a2a-sdk (>=0.3.4,<0.4)"]
-agent-identity = ["google-cloud-iamconnectorcredentials (>=0.1,<0.2)"]
-all = ["anyio (>=4.9,<5)", "google-api-python-client (>=2.157,<3)", "google-cloud-aiplatform[agent-engines] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "mcp (>=1.24,<2)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pyarrow (>=14)", "python-dateutil (>=2.9.0.post0,<3)", "sqlalchemy (>=2,<3)", "sqlalchemy-spanner (>=1.14)"]
+agent-identity = ["google-cloud-agentidentitycredentials (>=0.1,<0.2)", "google-cloud-iamconnectorcredentials (>=0.1,<0.2)"]
+all = ["anyio (>=4.9,<5)", "e2b (>=2,<3)", "google-api-python-client (>=2.157,<3)", "google-cloud-aiplatform[agent-engines] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-parametermanager (>=0.4,<1)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "mcp (>=1.24,<2)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pyarrow (>=14)", "python-dateutil (>=2.9.0.post0,<3)", "sqlalchemy (>=2,<3)", "sqlalchemy-spanner (>=1.14)"]
+antigravity = ["google-antigravity (>=0.1,<0.2)", "protobuf (>=6)"]
 community = ["google-adk-community"]
 db = ["sqlalchemy (>=2,<3)", "sqlalchemy-spanner (>=1.14)"]
-dev = ["flit (>=3.10)", "mypy (>=1.15)", "pre-commit (>=4)", "pyink (>=25.12)", "pylint (>=2.6)", "tox (>=4.23.2)", "tox-uv (>=1.33.2)"]
+dev = ["flit (>=3.10)", "isort (==8.0.1)", "mdformat (==0.7.22)", "mdformat-gfm", "mypy (>=1.15)", "pre-commit (>=4)", "pre-commit-hooks (==4.6)", "pyink (==25.12)", "pylint (>=2.6)", "pyproject-fmt (==2.24)", "ruff (==0.15.17)", "tox (>=4.23.2)", "tox-uv (>=1.33.2)"]
 docs = ["autodoc-pydantic", "furo", "myst-parser", "sphinx (<9)", "sphinx-autodoc-typehints", "sphinx-click", "sphinx-rtd-theme"]
+e2b = ["e2b (>=2,<3)"]
 eval = ["gepa (>=0.1)", "google-cloud-aiplatform[evaluation] (>=1.148)", "jinja2 (>=3.1.4,<4)", "pandas (>=2.2.3)", "rouge-score (>=0.1.2)", "tabulate (>=0.9)"]
-extensions = ["anthropic (>=0.78)", "beautifulsoup4 (>=3.2.2)", "crewai[tools] ; python_version == \"3.11\"", "docker (>=7)", "google-cloud-firestore (>=2.11,<3)", "google-cloud-parametermanager (>=0.4,<1)", "k8s-agent-sandbox (>=0.1.1.post3)", "kubernetes (>=29)", "langgraph (>=0.2.60,<0.4.8)", "litellm (>=1.83.7,<=1.83.14)", "llama-index-embeddings-google-genai (>=0.3)", "llama-index-readers-file (>=0.4)", "lxml (>=5.3)", "pypika (>=0.50)", "toolbox-adk (>=1,<2)"]
-gcp = ["google-cloud-aiplatform[agent-engines] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pyarrow (>=14)", "python-dateutil (>=2.9.0.post0,<3)"]
+extensions = ["anthropic (>=0.78)", "beautifulsoup4 (>=3.2.2)", "crewai[tools] ; python_version == \"3.11\"", "docker (>=7)", "google-cloud-firestore (>=2.11,<3)", "k8s-agent-sandbox (>=0.1.1.post3)", "kubernetes (>=29)", "langgraph (>=0.2.60,<0.4.8)", "litellm (>=1.83.7,<=1.83.14)", "llama-index-embeddings-google-genai (>=0.3)", "llama-index-readers-file (>=0.4)", "lxml (>=5.3)", "pypika (>=0.50)", "toolbox-adk (>=1,<2)"]
+gcp = ["google-cloud-aiplatform[agent-engines] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-parametermanager (>=0.4,<1)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pyarrow (>=14)", "python-dateutil (>=2.9.0.post0,<3)"]
 mcp = ["anyio (>=4.9,<5)", "mcp (>=1.24,<2)"]
-otel-gcp = ["opentelemetry-instrumentation-google-genai (>=0.6b0,<1)"]
+otel-gcp = ["opentelemetry-instrumentation-google-genai (>=0.7b1,<1)", "opentelemetry-instrumentation-grpc (>=0.43b0,<1)", "opentelemetry-instrumentation-httpx (>=0.54b0,<1)"]
 slack = ["slack-bolt (>=1.22)"]
-test = ["a2a-sdk (>=0.3,<0.4)", "anthropic (>=0.78)", "anyio (>=4.9,<5)", "crewai[tools] ; python_version == \"3.11\"", "gepa (>=0.1)", "google-api-python-client (>=2.157,<3)", "google-cloud-aiplatform[agent-engines,evaluation] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-firestore (>=2.11,<3)", "google-cloud-iamconnectorcredentials (>=0.1,<0.2)", "google-cloud-parametermanager (>=0.4,<1)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "jinja2 (>=3.1.4,<4)", "kubernetes (>=29)", "langchain-community (>=0.3.17)", "langgraph (>=0.2.60,<0.4.8)", "litellm (>=1.83.7,<=1.83.14)", "llama-index-readers-file (>=0.4)", "mcp (>=1.24,<2)", "openai (>=1.100.2)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-instrumentation-google-genai (>=0.3b0,<1)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pandas (>=2.2.3)", "pyarrow (>=14)", "pypika (>=0.50)", "pytest (>=9,<10)", "pytest-asyncio (>=0.25)", "pytest-mock (>=3.14)", "pytest-xdist (>=3.6.1)", "python-dateutil (>=2.9.0.post0,<3)", "python-multipart (>=0.0.9)", "rouge-score (>=0.1.2)", "slack-bolt (>=1.22)", "sqlalchemy (>=2,<3)", "sqlalchemy-spanner (>=1.14)", "tabulate (>=0.9)", "tomli (>=2,<3) ; python_version < \"3.11\""]
+test = ["a2a-sdk (>=0.3,<0.4)", "anthropic (>=0.78)", "anyio (>=4.9,<5)", "beautifulsoup4 (>=3.2.2)", "crewai[tools] ; python_version == \"3.11\"", "e2b (>=2,<3)", "gepa (>=0.1)", "google-antigravity (>=0.1,<0.2)", "google-api-python-client (>=2.157,<3)", "google-cloud-agentidentitycredentials (>=0.1,<0.2)", "google-cloud-aiplatform[agent-engines,evaluation] (>=1.148.1,<2)", "google-cloud-bigquery (>=2.2)", "google-cloud-bigquery-storage (>=2)", "google-cloud-bigtable (>=2.32)", "google-cloud-dataplex (>=1.7,<3)", "google-cloud-discoveryengine (>=0.13.12,<0.14)", "google-cloud-firestore (>=2.11,<3)", "google-cloud-iamconnectorcredentials (>=0.1,<0.2)", "google-cloud-parametermanager (>=0.4,<1)", "google-cloud-pubsub (>=2,<3)", "google-cloud-resource-manager (>=1.12,<2)", "google-cloud-secret-manager (>=2.22,<3)", "google-cloud-spanner (>=3.56,<4)", "google-cloud-speech (>=2.30,<3)", "google-cloud-storage (>=2.18,<4)", "jinja2 (>=3.1.4,<4)", "kubernetes (>=29)", "langchain-community (>=0.3.17)", "langgraph (>=0.2.60,<0.4.8)", "litellm (>=1.83.7,<=1.83.14)", "llama-index-readers-file (>=0.4)", "lxml (>=5.3)", "mcp (>=1.24,<2)", "openai (>=1.100.2)", "opentelemetry-exporter-gcp-logging (>=1.9.0a0,<=1.12.0a0)", "opentelemetry-exporter-gcp-monitoring (>=1.9.0a0,<2)", "opentelemetry-exporter-gcp-trace (>=1.9,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.36)", "opentelemetry-instrumentation-google-genai (>=0.7b1,<1)", "opentelemetry-resourcedetector-gcp (>=1.9.0a0,<2)", "pandas (>=2.2.3)", "protobuf (>=6)", "pyarrow (>=14)", "pypika (>=0.50)", "pytest (>=9,<10)", "pytest-asyncio (>=0.25)", "pytest-mock (>=3.14)", "pytest-xdist (>=3.6.1)", "python-dateutil (>=2.9.0.post0,<3)", "python-multipart (>=0.0.9)", "rouge-score (>=0.1.2)", "slack-bolt (>=1.22)", "sqlalchemy (>=2,<3)", "sqlalchemy-spanner (>=1.14)", "tabulate (>=0.9)", "tomli (>=2,<3) ; python_version < \"3.11\""]
 toolbox = ["toolbox-adk (>=1,<2)"]
 tools = ["google-api-python-client (>=2.157,<3)"]
 
@@ -1364,14 +1366,14 @@ urllib3 = ["packaging", "urllib3"]
 
 [[package]]
 name = "google-genai"
-version = "1.75.0"
+version = "2.9.0"
 description = "GenAI Python SDK"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "google_genai-1.75.0-py3-none-any.whl", hash = "sha256:8dc4c096e7d6288c3087f6893f582fe52468932464781edb8193bd92b9fefb2c"},
-    {file = "google_genai-1.75.0.tar.gz", hash = "sha256:56bac3991b311c93f980c0a2abcd287b672146905df1fbd71c92ed633d5a07cf"},
+    {file = "google_genai-2.9.0-py3-none-any.whl", hash = "sha256:2a79e2b08e8439f5f25c2b42f98e3f3e8ea4be9c9265f5d7321580dbaf2764f4"},
+    {file = "google_genai-2.9.0.tar.gz", hash = "sha256:a8a10e9113f460cc668c1d9deeb62ba393ad1ba704bf3166d5a0f32a434f9415"},
 ]
 
 [package.dependencies]
@@ -1379,7 +1381,7 @@ anyio = ">=4.8.0,<5.0.0"
 distro = ">=1.7.0,<2"
 google-auth = {version = ">=2.48.1,<3.0.0", extras = ["requests"]}
 httpx = ">=0.28.1,<1.0.0"
-pydantic = ">=2.9.0,<3.0.0"
+pydantic = ">=2.12.5,<3.0.0"
 requests = ">=2.28.1,<3.0.0"
 sniffio = "*"
 tenacity = ">=8.2.3,<9.2.0"
@@ -1388,7 +1390,7 @@ websockets = ">=13.0.0,<17.0"
 
 [package.extras]
 aiohttp = ["aiohttp (>=3.10.11,<4.0.0)"]
-local-tokenizer = ["protobuf", "sentencepiece (>=0.2.0)"]
+local-tokenizer = ["pillow", "protobuf", "sentencepiece (>=0.2.0)", "torch", "torchvision", "transformers"]
 pyopenssl = ["pyopenssl"]
 
 [[package]]
@@ -2054,6 +2056,7 @@ description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
+markers = "python_version == \"3.14\""
 files = [
     {file = "litellm-1.83.7-py3-none-any.whl", hash = "sha256:5784a1d9a9a4a8acd6ca1e347003a5e2e1b3c749b4d41e7da4904577adade111"},
     {file = "litellm-1.83.7.tar.gz", hash = "sha256:e2f2cb99df2e2b2eab63f1354faa45c88dd7c8d40c18eb648afb1b349c689633"},
@@ -2082,6 +2085,45 @@ mlflow = ["mlflow (==3.9.0) ; python_version >= \"3.10\""]
 proxy = ["PyJWT (==2.12.1) ; python_version >= \"3.9\"", "apscheduler (==3.11.2)", "azure-identity (==1.25.3) ; python_version >= \"3.9\"", "azure-storage-blob (==12.28.0)", "backoff (==2.2.1)", "boto3 (==1.42.80)", "cryptography (==43.0.3)", "fastapi (==0.124.4)", "fastapi-sso (==0.16.0)", "gunicorn (==23.0.0)", "litellm-enterprise (==0.1.37)", "litellm-proxy-extras (==0.4.65)", "mcp (==1.26.0) ; python_version >= \"3.10\"", "orjson (==3.10.15)", "polars (==1.39.3) ; python_version >= \"3.10\"", "pynacl (==1.6.2)", "pyroscope-io (==0.8.16) ; sys_platform != \"win32\"", "python-multipart (==0.0.20)", "pyyaml (==6.0.3)", "rich (==13.9.4)", "rq (==2.7.0)", "soundfile (==0.12.1)", "uvicorn (==0.33.0)", "uvloop (==0.21.0) ; sys_platform != \"win32\"", "websockets (==15.0.1)"]
 semantic-router = ["semantic-router (==0.1.12) ; python_version >= \"3.9\" and python_version < \"3.14\""]
 utils = ["numpydoc (==1.8.0)"]
+
+[[package]]
+name = "litellm"
+version = "1.89.2"
+description = "Library to easily interface with LLM API providers"
+optional = false
+python-versions = "<3.14,>=3.10"
+groups = ["main"]
+markers = "python_version < \"3.14\""
+files = [
+    {file = "litellm-1.89.2-py3-none-any.whl", hash = "sha256:07e8e43b1a70fe919021376742897d18ffe7577ccfbb84632c949670f9abdc03"},
+    {file = "litellm-1.89.2.tar.gz", hash = "sha256:b2534d69568eed026310f4e006407db2d46494eb629bd1e71eb9603ec146540d"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.10,<4.0"
+click = ">=8.0.0,<9.0"
+fastuuid = ">=0.14.0,<1.0"
+httpx = ">=0.28.0,<1.0"
+importlib-metadata = ">=8.0.0,<9.0"
+jinja2 = ">=3.1.6,<4.0"
+jsonschema = ">=4.0.0,<5.0"
+openai = ">=2.20.0,<3.0.0"
+pydantic = ">=2.10.0,<3.0.0"
+python-dotenv = ">=1.0.0,<2.0"
+tiktoken = ">=0.8.0,<1.0"
+tokenizers = ">=0.21.0,<1.0"
+
+[package.extras]
+caching = ["diskcache (>=5.6.3,<6.0)"]
+extra-proxy = ["a2a-sdk (>=0.3.24,<1.0)", "azure-identity (>=1.25.2,<2.0)", "azure-keyvault-secrets (>=4.10.0,<5.0)", "google-cloud-iam (>=2.19.1,<3.0)", "google-cloud-kms (>=2.24.2,<3.0)", "prisma (>=0.11.0,<1.0)", "redisvl (>=0.4.1,<1.0) ; python_full_version < \"3.14.0\"", "resend (>=2.23.0,<3.0)"]
+google = ["google-cloud-aiplatform (>=1.133.0,<2.0)"]
+grpc = ["grpcio (==1.78.0)"]
+mlflow = ["mlflow (>=3.11.1,<4.0)"]
+proxy = ["apscheduler (>=3.11.2,<4.0)", "azure-identity (>=1.25.2,<2.0)", "azure-storage-blob (>=12.28.0,<13.0)", "backoff (>=2.2.1,<3.0)", "boto3 (>=1.43.1,<2.0)", "cryptography (>=46.0.7,<47.0)", "fastapi (>=0.136.3,<1.0)", "fastapi-sso (>=0.19.0,<1.0)", "granian (>=2.7.4,<3.0)", "gunicorn (>=23.0.0,<24.0)", "litellm-enterprise (==0.1.42)", "litellm-proxy-extras (==0.4.74)", "mcp (>=1.26.0,<2.0)", "orjson (>=3.11.6,<4.0)", "polars (>=1.38.1,<2.0)", "pydantic-settings (>=2.14.1,<3.0)", "pyjwt (>=2.12.0,<3.0)", "pynacl (>=1.6.2,<2.0)", "pyroscope-io (>=0.8.16,<1.0) ; sys_platform != \"win32\"", "python-multipart (>=0.0.27,<1.0)", "pyyaml (>=6.0.3,<7.0)", "restrictedpython (>=8.1,<9.0)", "rich (>=13.9.4,<14.0)", "rq (>=2.7.0,<3.0)", "soundfile (>=0.12.1,<1.0)", "starlette (>=1.0.1,<2.0)", "uvicorn (>=0.33.0,<1.0)", "uvloop (>=0.21.0,<1.0) ; sys_platform != \"win32\"", "websockets (>=15.0.1,<16.0)"]
+proxy-runtime = ["anthropic[vertex] (>=0.84.0,<1.0)", "azure-ai-contentsafety (>=1.0.0,<2.0)", "azure-storage-file-datalake (>=12.20.0,<13.0)", "ddtrace (>=2.19.0,<3.0)", "detect-secrets (>=1.5.0,<2.0)", "google-cloud-aiplatform (>=1.133.0,<2.0)", "google-genai (>=1.37.0,<2.0)", "grpcio (==1.78.0)", "langfuse (>=2.59.7,<3.0)", "llm-sandbox (>=0.3.39,<1.0)", "mangum (>=0.17.0,<1.0)", "opentelemetry-api (==1.28.0)", "opentelemetry-exporter-otlp (==1.28.0)", "opentelemetry-instrumentation-fastapi (==0.49b0)", "opentelemetry-sdk (==1.28.0)", "prometheus-client (>=0.20.0,<1.0)", "pypdf (>=6.12.0,<7.0) ; python_full_version < \"3.14.0\"", "sentry-sdk (>=2.21.0,<3.0)"]
+semantic-router = ["aurelio-sdk (>=0.0.19,<1.0) ; python_full_version < \"3.14.0\"", "semantic-router (>=0.1.15,<1.0) ; python_full_version < \"3.14.0\""]
+stt-nvidia-riva = ["audioread (>=3.0.1)", "numpy (>=1.26.0)", "nvidia-riva-client (>=2.15.0)", "soundfile (>=0.12.1)"]
+utils = ["numpydoc (>=1.8.0,<2.0)"]
 
 [[package]]
 name = "magika"
@@ -2784,84 +2826,86 @@ files = [
 
 [[package]]
 name = "opentelemetry-api"
-version = "1.38.0"
+version = "1.42.1"
 description = "OpenTelemetry Python API"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_api-1.38.0-py3-none-any.whl", hash = "sha256:2891b0197f47124454ab9f0cf58f3be33faca394457ac3e09daba13ff50aa582"},
-    {file = "opentelemetry_api-1.38.0.tar.gz", hash = "sha256:f4c193b5e8acb0912b06ac5b16321908dd0843d75049c091487322284a3eea12"},
+    {file = "opentelemetry_api-1.42.1-py3-none-any.whl", hash = "sha256:51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714"},
+    {file = "opentelemetry_api-1.42.1.tar.gz", hash = "sha256:56c63bea9f77b62856be8c47600474acad853b2924b99b1687c4cb6297166716"},
 ]
 
 [package.dependencies]
-importlib-metadata = ">=6.0,<8.8.0"
 typing-extensions = ">=4.5.0"
 
 [[package]]
 name = "opentelemetry-exporter-otlp-proto-common"
-version = "1.38.0"
+version = "1.42.1"
 description = "OpenTelemetry Protobuf encoding"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_exporter_otlp_proto_common-1.38.0-py3-none-any.whl", hash = "sha256:03cb76ab213300fe4f4c62b7d8f17d97fcfd21b89f0b5ce38ea156327ddda74a"},
-    {file = "opentelemetry_exporter_otlp_proto_common-1.38.0.tar.gz", hash = "sha256:e333278afab4695aa8114eeb7bf4e44e65c6607d54968271a249c180b2cb605c"},
+    {file = "opentelemetry_exporter_otlp_proto_common-1.42.1-py3-none-any.whl", hash = "sha256:f48d395ab815b444da118868977e9798ea354c25737d5cf39578ae894011c140"},
+    {file = "opentelemetry_exporter_otlp_proto_common-1.42.1.tar.gz", hash = "sha256:04f1f01fb597c4249dfcd7f8b861c902c2102369d376d9d346ff38de4469a2ee"},
 ]
 
 [package.dependencies]
-opentelemetry-proto = "1.38.0"
+opentelemetry-proto = "1.42.1"
 
 [[package]]
 name = "opentelemetry-exporter-otlp-proto-http"
-version = "1.38.0"
+version = "1.42.1"
 description = "OpenTelemetry Collector Protobuf over HTTP Exporter"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_exporter_otlp_proto_http-1.38.0-py3-none-any.whl", hash = "sha256:84b937305edfc563f08ec69b9cb2298be8188371217e867c1854d77198d0825b"},
-    {file = "opentelemetry_exporter_otlp_proto_http-1.38.0.tar.gz", hash = "sha256:f16bd44baf15cbe07633c5112ffc68229d0edbeac7b37610be0b2def4e21e90b"},
+    {file = "opentelemetry_exporter_otlp_proto_http-1.42.1-py3-none-any.whl", hash = "sha256:00a16da1b312a1d6c7233d600d557c91df71125af73020f3b9a7765bd699d59d"},
+    {file = "opentelemetry_exporter_otlp_proto_http-1.42.1.tar.gz", hash = "sha256:bf142a21035d7571ac3a09cb2e5639f49886f243972883cfe777ed3bf02b734d"},
 ]
 
 [package.dependencies]
 googleapis-common-protos = ">=1.52,<2.0"
 opentelemetry-api = ">=1.15,<2.0"
-opentelemetry-exporter-otlp-proto-common = "1.38.0"
-opentelemetry-proto = "1.38.0"
-opentelemetry-sdk = ">=1.38.0,<1.39.0"
+opentelemetry-exporter-otlp-proto-common = "1.42.1"
+opentelemetry-proto = "1.42.1"
+opentelemetry-sdk = ">=1.42.1,<1.43.0"
 requests = ">=2.7,<3.0"
 typing-extensions = ">=4.5.0"
 
+[package.extras]
+gcp-auth = ["opentelemetry-exporter-credential-provider-gcp (>=0.59b0)"]
+
 [[package]]
 name = "opentelemetry-instrumentation"
-version = "0.59b0"
+version = "0.63b1"
 description = "Instrumentation Tools & Auto Instrumentation for OpenTelemetry Python"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_instrumentation-0.59b0-py3-none-any.whl", hash = "sha256:44082cc8fe56b0186e87ee8f7c17c327c4c2ce93bdbe86496e600985d74368ee"},
-    {file = "opentelemetry_instrumentation-0.59b0.tar.gz", hash = "sha256:6010f0faaacdaf7c4dff8aac84e226d23437b331dcda7e70367f6d73a7db1adc"},
+    {file = "opentelemetry_instrumentation-0.63b1-py3-none-any.whl", hash = "sha256:f1986716d52cc316ea5f60189098726a9071d8ecc0eee96c9ed110be08bade9c"},
+    {file = "opentelemetry_instrumentation-0.63b1.tar.gz", hash = "sha256:32368d6ae52c8de20aa790a6ad86b10a76f09956092337ae37d675773990e541"},
 ]
 
 [package.dependencies]
 opentelemetry-api = ">=1.4,<2.0"
-opentelemetry-semantic-conventions = "0.59b0"
+opentelemetry-semantic-conventions = "0.63b1"
 packaging = ">=18.0"
-wrapt = ">=1.0.0,<2.0.0"
+wrapt = ">=1.0.0,<3.0.0"
 
 [[package]]
 name = "opentelemetry-proto"
-version = "1.38.0"
+version = "1.42.1"
 description = "OpenTelemetry Python Proto"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_proto-1.38.0-py3-none-any.whl", hash = "sha256:b6ebe54d3217c42e45462e2a1ae28c3e2bf2ec5a5645236a490f55f45f1a0a18"},
-    {file = "opentelemetry_proto-1.38.0.tar.gz", hash = "sha256:88b161e89d9d372ce723da289b7da74c3a8354a8e5359992be813942969ed468"},
+    {file = "opentelemetry_proto-1.42.1-py3-none-any.whl", hash = "sha256:dedb74cba2886c59c7789b227a7a670613025a07489040050aedff6e5c0fb43c"},
+    {file = "opentelemetry_proto-1.42.1.tar.gz", hash = "sha256:c6a51e6b4f05ae63565f3a113217f3d2bfaec68f78c02d7a6c85f9010d1cfca6"},
 ]
 
 [package.dependencies]
@@ -2869,35 +2913,38 @@ protobuf = ">=5.0,<7.0"
 
 [[package]]
 name = "opentelemetry-sdk"
-version = "1.38.0"
+version = "1.42.1"
 description = "OpenTelemetry Python SDK"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_sdk-1.38.0-py3-none-any.whl", hash = "sha256:1c66af6564ecc1553d72d811a01df063ff097cdc82ce188da9951f93b8d10f6b"},
-    {file = "opentelemetry_sdk-1.38.0.tar.gz", hash = "sha256:93df5d4d871ed09cb4272305be4d996236eedb232253e3ab864c8620f051cebe"},
+    {file = "opentelemetry_sdk-1.42.1-py3-none-any.whl", hash = "sha256:083cd4bbfaa5aa7b5a9e552430d9951219967cfb27aa61feb13a77aba1fc839d"},
+    {file = "opentelemetry_sdk-1.42.1.tar.gz", hash = "sha256:8c834e8f8c9ba4171d4ec843d0cb8a67e4c7394d3f9e9297e582cbd9456ddbf7"},
 ]
 
 [package.dependencies]
-opentelemetry-api = "1.38.0"
-opentelemetry-semantic-conventions = "0.59b0"
+opentelemetry-api = "1.42.1"
+opentelemetry-semantic-conventions = "0.63b1"
 typing-extensions = ">=4.5.0"
+
+[package.extras]
+file-configuration = ["jsonschema (>=4.0)", "pyyaml (>=6.0)"]
 
 [[package]]
 name = "opentelemetry-semantic-conventions"
-version = "0.59b0"
+version = "0.63b1"
 description = "OpenTelemetry Semantic Conventions"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_semantic_conventions-0.59b0-py3-none-any.whl", hash = "sha256:35d3b8833ef97d614136e253c1da9342b4c3c083bbaf29ce31d572a1c3825eed"},
-    {file = "opentelemetry_semantic_conventions-0.59b0.tar.gz", hash = "sha256:7a6db3f30d70202d5bf9fa4b69bc866ca6a30437287de6c510fb594878aed6b0"},
+    {file = "opentelemetry_semantic_conventions-0.63b1-py3-none-any.whl", hash = "sha256:dfe5ef4dee82586b746f522b818ceb298d00b3d59f660042bd79404bff8d0682"},
+    {file = "opentelemetry_semantic_conventions-0.63b1.tar.gz", hash = "sha256:3daf963611334b365e98a57438183eb012d3bfb40b2d931a9af613476b8701a9"},
 ]
 
 [package.dependencies]
-opentelemetry-api = "1.38.0"
+opentelemetry-api = "1.42.1"
 typing-extensions = ">=4.5.0"
 
 [[package]]
@@ -3297,6 +3344,98 @@ files = [
     {file = "protobuf-6.33.6-cp39-cp39-win_amd64.whl", hash = "sha256:f443a394af5ed23672bc6c486be138628fbe5c651ccbc536873d7da23d1868cf"},
     {file = "protobuf-6.33.6-py3-none-any.whl", hash = "sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901"},
     {file = "protobuf-6.33.6.tar.gz", hash = "sha256:a6768d25248312c297558af96a9f9c929e8c4cee0659cb07e780731095f38135"},
+]
+
+[[package]]
+name = "psycopg"
+version = "3.3.4"
+description = "PostgreSQL database adapter for Python"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"rag\""
+files = [
+    {file = "psycopg-3.3.4-py3-none-any.whl", hash = "sha256:b6bbc25ccf05c8fad3b061d9db2ef0909a555171b84b07f29458a447253d679a"},
+    {file = "psycopg-3.3.4.tar.gz", hash = "sha256:e21207764952cff81b6b8bdacad9a3939f2793367fdac2987b3aac36a651b5bc"},
+]
+
+[package.dependencies]
+psycopg-binary = {version = "3.3.4", optional = true, markers = "implementation_name != \"pypy\" and extra == \"binary\""}
+typing-extensions = {version = ">=4.6", markers = "python_version < \"3.13\""}
+tzdata = {version = "*", markers = "sys_platform == \"win32\""}
+
+[package.extras]
+binary = ["psycopg-binary (==3.3.4) ; implementation_name != \"pypy\""]
+c = ["psycopg-c (==3.3.4) ; implementation_name != \"pypy\""]
+dev = ["ast-comments (>=1.1.2)", "black (>=26.1.0)", "codespell (>=2.2)", "cython-lint (>=0.16)", "dnspython (>=2.1)", "flake8 (>=4.0)", "isort-psycopg", "isort[colors] (>=6.0)", "mypy (>=1.19.0)", "pre-commit (>=4.0.1)", "types-setuptools (>=57.4)", "types-shapely (>=2.0)", "wheel (>=0.37)"]
+docs = ["Sphinx (>=9.1)", "furo (==2025.12.19)", "sphinx-autobuild (>=2025.8.25)", "sphinx-autodoc-typehints (>=3.10.2)"]
+pool = ["psycopg-pool"]
+test = ["anyio (>=4.0)", "mypy (>=1.19.0) ; implementation_name != \"pypy\"", "pproxy (>=2.7)", "pytest (>=6.2.5)", "pytest-cov (>=3.0)", "pytest-randomly (>=3.5)"]
+
+[[package]]
+name = "psycopg-binary"
+version = "3.3.4"
+description = "PostgreSQL database adapter for Python -- C optimisation distribution"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "implementation_name != \"pypy\" and extra == \"rag\""
+files = [
+    {file = "psycopg_binary-3.3.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b7bfff1ca23732b488cbca3076fc11bc98d520ee122514fdb17a8e20d3338f5a"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:32a6fbf8481e3a370d0d72b860d35948a693cb01281da217f7b2f307636e591a"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:bdef84570ebbce1d42b4e7ea952d21c414c5f118ad02fee00c5625f35e134429"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:fa1cbc10768a796c96d3243656016bf4e337c81c71097270bb7b0ad6210d9765"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cf7f73a4a792bc5db58a4b385d8a1467e8d468f7548702fb0ed1e9b7501b1c13"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:d7b4d40c153fa352ab3cca530f3a0baedf7621b2ebcbd7f084009522c21788fc"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:f9b1c2533af01cd7648378599f82b0b8ae32f293296e6eec5753a625bc97ef28"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-musllinux_1_2_ppc64le.whl", hash = "sha256:ad3bc94054876155549fdaedf4a46d1ec69d39a5bcee377148afe498e84c4b8e"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-musllinux_1_2_riscv64.whl", hash = "sha256:eb4eed2079c01a4850bf467deacfab56d356d4225040170af03dc9958321242d"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:f80e3f2b5331dbbf0901bcb658056c03eeb2c1ef31d774afb0d61598b242e744"},
+    {file = "psycopg_binary-3.3.4-cp310-cp310-win_amd64.whl", hash = "sha256:574ea21a9651958f1535c5a1c649c7409e9168bcbffa29a3f2f961f58b322949"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:612a627d733f695b1de1f9b4bd511c15f999a5d8b915d444bbd7dd71cf3370da"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:13a7f380824c35896dcac7fe0f61440f7ca49d6dc73f3c13a9a4471e6a3b302e"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:276904e3452d6a23d474ef9a21eee19f20eed3d53ddd2576af033827e0ba0992"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ab8cca8ef8fb1ccf5b048ae5bd78ba55b9e4b5d472e3ce5ca39ff4d2a9c249e4"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7465bfe6087d2d5b42d4c53b9b11ca9f218e477317a4a162a10e3c19e984ba8e"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:22cdbf5f91ef7bb91fe0c5757e1962d3127a8010256eefd9c61fcaf441802097"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:e2631da29253a98bd496e6c4813b24e09a4fe3fb2a9e88513305d6f8747cce95"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:7f7668f30b9dd5163197e5cbf4e0efd54e00f0a859cc566ce56cfc31f4054839"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:cffc3408d77a27973f33e5d909b624cce683db5fc25964b02fe0aae7886c1007"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0579252a1202cd73e4da137a1426e2dae993ae44e757605344282af3a082848c"},
+    {file = "psycopg_binary-3.3.4-cp311-cp311-win_amd64.whl", hash = "sha256:41f2ec0fea529832982bcb6c9415de3c86264ebe562b77a467c0fbcd7efbba8d"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:5ab28a2a7649df3b72e6b674b4c190e448e8e77cf496a65bd846472048de2089"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6402a9d8146cf4b3974ded3fd28a971e83dc6a0333eb7822524a3aa20b546578"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:580ae30a5f95ccd90008ec697d3ed6a4a2047a516407ad904283fa42086936e9"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e7510c37550f91a187e3660a8cc50d4b760f8c3b8b2f89ebc5698cd2c7f2c85d"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:77df19583501ea288eaf15ac0fe7ad01e6d8091a91d5c41df5c718f307d8e31b"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:018fbed325936da502feb546642c982dcc4b9ffdea32dfef78dbf3b7f7ad4070"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:17a21953a9e5ff3a16dab692625a3676e2f101db5e40072f39dbee2250194d68"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:eb05ee1c2b817d27c537333224c9e83c7afb86fe7296ba970990068baf819b16"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:773d573e11f437ce0bdb95b7c18dc58390494f96d43f8b45b9760436114f7652"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:71e55ccbdfae79a2ed9c6369c3008a3025817ff9d7e27b32a2d84e2a4267e66e"},
+    {file = "psycopg_binary-3.3.4-cp312-cp312-win_amd64.whl", hash = "sha256:494ca54901be8cf9eb7e02c25b731f2317c378efa44f43e8f9bd0e1184ae7be4"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:fbd1d4ed566895ad2d3bf4ddfd8bae90026930ddf29df3b9d91d32c8c47866a7"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:75a9067e236f9b9ae3535b66fe99bddb33d39c0de10112e49b9ab11eee53dc31"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:b56b603ebcea8aa10b46228b8410ba7f13e7c2ee54389d4d9be0927fd8ce2a70"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c677c4ad433cb7150c8cd304a0769ae3bcfbe5ea0676eb53faa7b1443b16d0d3"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:26df2717e59c0473e4465a97dfb1b7afebaa479277870fd5784d1436470db47c"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:1dc1f79fd16bb1f3f4421417a514607539f17804d95c7ed617265369d1981cae"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:136f199a407b5348b9b857c504aff60c77622a28482e7195839ce1b51238c4cc"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-musllinux_1_2_ppc64le.whl", hash = "sha256:b6f5a29e9c775b9f12a1a717aa7a2c80f9e1db6f27ba44a5b59c80ac61d2ffcf"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-musllinux_1_2_riscv64.whl", hash = "sha256:ee17a2cf4943cde261adfad1bbc5bf38d6b3776d7afff74c7cabcbeaeb08c260"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5c4ab71be17bdca30cb34c34c4e1496e2f5d6f20c199c12bad226070b22ef9bf"},
+    {file = "psycopg_binary-3.3.4-cp313-cp313-win_amd64.whl", hash = "sha256:dbfdb9b6cc79f31104a7b162a2b921b765fcc62af6c00540a167a8de47e4ed38"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:28b7398fdd19db3232c884fb24550bdfe951221f510e195e233299e4c9b78f97"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:1fbaa292a3c8bb61b45df1ad3da1908ccee7cb889db9425e3557d9e34e2a4829"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:94596f9e7633ee3f6440711d43bb70aa31cc0a46a900ab8b4201a366ace5c9e7"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:8c0056529e68dbe9184cd4019a1f3d8f3a4ead2f6fc7a5afcf27d3314edd1277"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2c09aad7051326e7603c14e50636db9c01f78272dc54b3accff03d46370461e6"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:514404ed543efd620c85602b747df2a23cf1241b4067199e1a66f2d2757aaa41"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:46893c26858be12cc49ca4226ed6a60b4bfccadd946b3bebb783a60b38788228"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-musllinux_1_2_ppc64le.whl", hash = "sha256:df1d567fc430f6df15c9fcf67d87685fc49bdb325adc0db5af1adfb2f44eb5c9"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-musllinux_1_2_riscv64.whl", hash = "sha256:6b9016b1714da4dd5ecaaa75b82098aa5a0b87854ce9b092e21c27c4ae23e014"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:47c656a8a7ba6eb0cff1801a4caaa9c8bdc12d03080e273aff1c8ac39971a77e"},
+    {file = "psycopg_binary-3.3.4-cp314-cp314-win_amd64.whl", hash = "sha256:c37e024c07308cd06cf3ec51bfd0e7f6157585a4d84d1bce4a7f5f7913719bf8"},
 ]
 
 [[package]]
@@ -4172,14 +4311,14 @@ files = [
 
 [[package]]
 name = "starlette"
-version = "0.52.1"
+version = "1.3.1"
 description = "The little ASGI library that shines."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74"},
-    {file = "starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933"},
+    {file = "starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6"},
+    {file = "starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0"},
 ]
 
 [package.dependencies]
@@ -4187,7 +4326,7 @@ anyio = ">=3.6.2,<5"
 typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""}
 
 [package.extras]
-full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
+full = ["httpx (>=0.27.0,<0.29.0)", "httpx2 (>=2.0.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
 [[package]]
 name = "sympy"
@@ -4501,7 +4640,7 @@ files = [
     {file = "tzdata-2026.1-py2.py3-none-any.whl", hash = "sha256:4b1d2be7ac37ceafd7327b961aa3a54e467efbdb563a23655fbfe0d39cfc42a9"},
     {file = "tzdata-2026.1.tar.gz", hash = "sha256:67658a1903c75917309e753fdc349ac0efd8c27db7a0cb406a25be4840f87f98"},
 ]
-markers = {main = "platform_system == \"Windows\"", dev = "sys_platform == \"win32\" or sys_platform == \"emscripten\""}
+markers = {main = "(platform_system == \"Windows\" or sys_platform == \"win32\") and (platform_system == \"Windows\" or extra == \"rag\")", dev = "sys_platform == \"win32\" or sys_platform == \"emscripten\""}
 
 [[package]]
 name = "tzlocal"
@@ -4934,7 +5073,10 @@ enabler = ["pytest-enabler (>=2.2)"]
 test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_itertools", "pytest (>=6,!=8.1.*)", "pytest-ignore-flaky"]
 type = ["pytest-mypy"]
 
+[extras]
+rag = ["psycopg"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "feb22a92da992a2b004e4f2f4aaad0f681d7261bab6b3ecae027a9e62c1fff63"
+content-hash = "2a5ff1ea7049c88a56e4322aba03fdfa75d24f6e08de4e3bedd4d2410738705a"
