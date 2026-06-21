@@ -462,3 +462,65 @@ class TestCheckpoint:
         cp.save(path)
         assert path.exists()
         assert not path.with_suffix(".tmp").exists()
+
+
+class TestDefaultParams:
+    """Param defaults make a {placeholder} optional: omitted -> default,
+    supplied -> override; param-less templates are unaffected."""
+
+    def _template(self) -> TaskTemplate:
+        return TaskTemplate(
+            key="t",
+            version="v1",
+            title="T",
+            objective="Do work on {project_path}.",
+            instructions="Focus: {focus}. Mode: {mode}.",
+            output_format="report",
+            default_params={"focus": "GENERIC_DEFAULT", "mode": "fast"},
+        )
+
+    def test_omitted_param_uses_default(self):
+        r = RenderedTask.from_template(
+            self._template(),
+            variables={"project_path": "."},
+            params={},
+            artifacts={},
+        )
+        assert "GENERIC_DEFAULT" in r.instructions
+        assert "Mode: fast" in r.instructions
+        assert "{focus}" not in r.instructions  # no KeyError, fully rendered
+
+    def test_param_overrides_default(self):
+        r = RenderedTask.from_template(
+            self._template(),
+            variables={"project_path": "."},
+            params={"focus": "INJECTED"},
+            artifacts={},
+        )
+        assert "Focus: INJECTED" in r.instructions
+        assert "Mode: fast" in r.instructions  # untouched default still applies
+
+    def test_variable_beats_default_param_below_params(self):
+        # Precedence: default_params < variables < params.
+        tmpl = TaskTemplate(
+            key="t", version="v1", title="T",
+            objective="{x}", instructions="{x}", output_format="o",
+            default_params={"x": "from_default"},
+        )
+        r = RenderedTask.from_template(
+            tmpl, variables={"x": "from_var"}, params={}, artifacts={}
+        )
+        assert r.objective == "from_var"
+        r2 = RenderedTask.from_template(
+            tmpl, variables={"x": "from_var"}, params={"x": "from_param"}, artifacts={}
+        )
+        assert r2.objective == "from_param"
+
+    def test_real_knowledge_tasks_declare_focus_default(self):
+        for name in ("knowledge_discovery", "knowledge_consolidation"):
+            t = TaskTemplate.load(name)
+            assert "focus" in t.default_params
+            r = RenderedTask.from_template(
+                t, variables={"project_path": "."}, params={}, artifacts={}
+            )
+            assert "{focus}" not in (r.objective + r.instructions)
