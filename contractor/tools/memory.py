@@ -17,7 +17,7 @@ from contractor.tools.observations import (
     MEMORIES_WRITTEN_STATE_KEY,
     SKILLS_READ_STATE_KEY,
 )
-from contractor.tools.result import aguard, err
+from contractor.tools.result import aguard, err, ok
 from contractor.utils import utc_now_iso
 
 # Passthrough type for _type_hint: non-str payloads return unchanged, a str may
@@ -31,6 +31,11 @@ class MemoryNote:
     memory: str
     description: str
     tags: list[str] = field(default_factory=list)
+    # Names of related notes. Maintained as a *bidirectional* graph edge by
+    # ``link_memories`` (A↔B), so the downstream consolidation step can cluster
+    # by following links instead of re-deriving relationships. Replaces the old
+    # free-text "Related:" convention in note bodies.
+    links: list[str] = field(default_factory=list)
     ordinal: int = 0
     created_at: str = ""
     updated_at: str = ""
@@ -44,6 +49,14 @@ def _xml_attr(value: str) -> str:
     the surrounding document the model reads back.
     """
     return xml_escape(value, {'"': "&quot;"})
+
+
+def _xml_links_block(links: list[str], pad2: str) -> str:
+    """Render a note's links as an XML ``<links>`` block (empty -> self-closing)."""
+    if not links:
+        return f"\n{pad2}<links />"
+    rows = "\n".join(f"{pad2}    <link>{xml_escape(link)}</link>" for link in links)
+    return f"\n{pad2}<links>\n{rows}\n{pad2}</links>"
 
 
 @dataclass
@@ -70,6 +83,7 @@ class MemoryFormat:
             "name": memory.name,
             "description": memory.description,
             "tags": memory.tags,
+            "links": memory.links,
             "ordinal": memory.ordinal,
             "created_at": memory.created_at,
             "updated_at": memory.updated_at,
@@ -78,10 +92,12 @@ class MemoryFormat:
     @staticmethod
     def _memory_to_markdown(memory: MemoryNote, **kwargs) -> str:
         tags = ", ".join(memory.tags) if memory.tags else "-"
+        links = ", ".join(memory.links) if memory.links else "-"
         return (
             f"### {memory.name}\n"
             f"**Description**: {memory.description}\n"
             f"**Tags**: {tags}\n"
+            f"**Links**: {links}\n"
             f"**Ordinal**: {memory.ordinal}\n"
             f"**Created At**: {memory.created_at or '-'}\n"
             f"**Updated At**: {memory.updated_at or '-'}\n"
@@ -91,10 +107,12 @@ class MemoryFormat:
     @staticmethod
     def _memory_preview_to_markdown(memory: MemoryNote, **kwargs) -> str:
         tags = ", ".join(memory.tags) if memory.tags else "-"
+        links = ", ".join(memory.links) if memory.links else "-"
         return (
             f"### {memory.name}\n"
             f"**Description**: {memory.description}\n"
             f"**Tags**: {tags}\n"
+            f"**Links**: {links}\n"
             f"**Ordinal**: {memory.ordinal}\n"
             f"**Created At**: {memory.created_at or '-'}\n"
             f"**Updated At**: {memory.updated_at or '-'}\n"
@@ -108,6 +126,7 @@ class MemoryFormat:
                 "memory": memory.memory,
                 "description": memory.description,
                 "tags": memory.tags,
+                "links": memory.links,
                 "ordinal": memory.ordinal,
                 "created_at": memory.created_at,
                 "updated_at": memory.updated_at,
@@ -122,6 +141,7 @@ class MemoryFormat:
                 "name": memory.name,
                 "description": memory.description,
                 "tags": memory.tags,
+                "links": memory.links,
                 "ordinal": memory.ordinal,
                 "created_at": memory.created_at,
                 "updated_at": memory.updated_at,
@@ -148,6 +168,8 @@ class MemoryFormat:
         else:
             tags_block = f"\n{pad2}<tags />"
 
+        links_block = _xml_links_block(memory.links, pad2)
+
         return (
             f'{pad}<memory name="{name}">\n'
             f"{pad2}<description>{description}</description>\n"
@@ -155,7 +177,8 @@ class MemoryFormat:
             f"{pad2}<created_at>{created_at}</created_at>\n"
             f"{pad2}<updated_at>{updated_at}</updated_at>\n"
             f"{pad2}<content>{memory_text}</content>"
-            f"{tags_block}\n"
+            f"{tags_block}"
+            f"{links_block}\n"
             f"{pad}</memory>"
         )
 
@@ -177,13 +200,16 @@ class MemoryFormat:
         else:
             tags_block = f"\n{pad2}<tags />"
 
+        links_block = _xml_links_block(memory.links, pad2)
+
         return (
             f'{pad}<memory name="{name}">\n'
             f"{pad2}<description>{description}</description>\n"
             f"{pad2}<ordinal>{memory.ordinal}</ordinal>\n"
             f"{pad2}<created_at>{created_at}</created_at>\n"
             f"{pad2}<updated_at>{updated_at}</updated_at>"
-            f"{tags_block}\n"
+            f"{tags_block}"
+            f"{links_block}\n"
             f"{pad}</memory>"
         )
 
@@ -314,6 +340,7 @@ class MemoryTools:
             memory=item.get("memory", ""),
             description=item.get("description", ""),
             tags=item.get("tags", []) or [],
+            links=item.get("links", []) or [],
             ordinal=item.get("ordinal", fallback_ordinal),
             created_at=item.get("created_at", ""),
             updated_at=item.get("updated_at", ""),
@@ -474,6 +501,10 @@ class MemoryTools:
                 memory=memory,
                 description=description,
                 tags=normalized_tags,
+                # Preserve the bidirectional link graph across an overwrite —
+                # write_memory has no links arg, so links are owned by
+                # link_memories, not clobbered when a note's body is rewritten.
+                links=list(existing.links),
                 ordinal=existing.ordinal,
                 created_at=existing.created_at or now,
                 updated_at=now,
@@ -491,6 +522,48 @@ class MemoryTools:
 
         self.notes[name] = note
         await self.save(ctx)
+
+    async def link_memories(
+        self,
+        name: str,
+        links: list[str],
+        ctx: ToolContext | CallbackContext,
+    ) -> tuple[MemoryNote, list[str]] | None:
+        """Add bidirectional links between ``name`` and each note in ``links``.
+
+        Symmetric: every existing, non-reserved target gets ``name`` added to
+        its own links too. Targets that don't exist (or are skill/inbox notes)
+        are returned as ``unknown`` and skipped — the graph only ever holds
+        edges between two real, visible notes, so it can't go half-linked.
+        Returns ``None`` when ``name`` itself is missing/reserved.
+        """
+        await self.load(ctx)
+        note = self.notes.get(name)
+        if note is None or _is_reserved(note):
+            return None
+
+        now = utc_now_iso()
+        unknown: list[str] = []
+        changed = False
+        for target in links:
+            if target == name:
+                continue
+            tnote = self.notes.get(target)
+            if tnote is None or _is_reserved(tnote):
+                unknown.append(target)
+                continue
+            if target not in note.links:
+                note.links.append(target)
+                changed = True
+            if name not in tnote.links:
+                tnote.links.append(name)
+                tnote.updated_at = now
+                changed = True
+
+        if changed:
+            note.updated_at = now
+            await self.save(ctx)
+        return note, unknown
 
     async def append_memory(
         self,
@@ -709,6 +782,40 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
 
         return await aguard(_impl)
 
+    async def link_memories(
+        name: str,
+        links: list[str],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """
+        Links a memory to one or more related memories, bidirectionally.
+
+        Use this to connect facts that belong together (same component, same
+        flow, cause/effect) so later steps can navigate the knowledge graph by
+        following links instead of re-discovering relationships. The link is
+        symmetric: each target also gets a link back to this note. Do NOT record
+        relationships as free text in the body — use this tool.
+
+        Args:
+            name: The memory to link FROM (must already exist).
+            links: Names of related memories to link to. Targets that don't
+                exist yet are skipped and reported under "unknown_targets" —
+                create them first (or link from them) to connect.
+
+        Returns:
+            The updated note (with its links field) and any unknown_targets.
+        """
+
+        async def _impl() -> Any:
+            result = await m.link_memories(name, links, tool_context)
+            if result is None:
+                return err(f"memory {name} not found")
+            note, unknown = result
+            _push_memory(tool_context, MEMORIES_WRITTEN_STATE_KEY, name)
+            return ok(m.fmt.format_memory(note), unknown_targets=unknown)
+
+        return await aguard(_impl)
+
     async def read_memory(
         name: str,
         tool_context: ToolContext,
@@ -907,6 +1014,7 @@ def memory_tools(name: str, fmt: MemoryFormat | None = None):
     return [
         append_memory,
         write_memory,
+        link_memories,
         read_memory,
         search_memory,
         list_tags,

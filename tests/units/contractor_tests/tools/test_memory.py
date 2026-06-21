@@ -504,3 +504,75 @@ async def test_dump_yaml_preserves_ordinal_order():
     raw = tools.dump()
     parsed = yaml.safe_load(raw)
     assert list(parsed.keys()) == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# MemoryTools — bidirectional links
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_link_memories_is_bidirectional():
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+    await tools.write_memory(name="a", memory="A", description="d", tags=None, ctx=ctx)
+    await tools.write_memory(name="b", memory="B", description="d", tags=None, ctx=ctx)
+
+    result = await tools.link_memories("a", ["b"], ctx)
+    assert result is not None
+    note, unknown = result
+    assert unknown == []
+    assert note.links == ["b"]
+    # Reverse edge exists too.
+    b = await tools.read_memory("b", ctx)
+    assert b is not None and b.links == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_link_memories_reports_unknown_targets_and_dedupes():
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+    await tools.write_memory(name="a", memory="A", description="d", tags=None, ctx=ctx)
+    await tools.write_memory(name="b", memory="B", description="d", tags=None, ctx=ctx)
+
+    note, unknown = await tools.link_memories("a", ["b", "ghost", "a"], ctx)
+    assert unknown == ["ghost"]  # missing target reported; self-link skipped
+    assert note.links == ["b"]
+    # Linking the same edge again does not duplicate.
+    note2, _ = await tools.link_memories("a", ["b"], ctx)
+    assert note2.links == ["b"]
+
+
+@pytest.mark.asyncio
+async def test_link_memories_missing_source_returns_none():
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+    assert await tools.link_memories("nope", ["x"], ctx) is None
+
+
+@pytest.mark.asyncio
+async def test_write_overwrite_preserves_links():
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+    await tools.write_memory(name="a", memory="A", description="d", tags=None, ctx=ctx)
+    await tools.write_memory(name="b", memory="B", description="d", tags=None, ctx=ctx)
+    await tools.link_memories("a", ["b"], ctx)
+
+    # Rewriting a's body must not drop its link to b.
+    await tools.write_memory(name="a", memory="A2", description="d2", tags=None, ctx=ctx)
+    a = await tools.read_memory("a", ctx)
+    assert a is not None and a.memory == "A2" and a.links == ["b"]
+
+
+@pytest.mark.asyncio
+async def test_links_round_trip_through_yaml_store():
+    tools = MemoryTools(name="agent")
+    ctx = FakeArtifactCtx()
+    await tools.write_memory(name="a", memory="A", description="d", tags=None, ctx=ctx)
+    await tools.write_memory(name="b", memory="B", description="d", tags=None, ctx=ctx)
+    await tools.link_memories("a", ["b"], ctx)
+
+    # Fresh MemoryTools over the same persisted store must see the links.
+    reopened = MemoryTools(name="agent")
+    a = await reopened.read_memory("a", ctx)
+    assert a is not None and a.links == ["b"]
