@@ -19,8 +19,9 @@
 #   LLAMA_HOME    llama.cpp checkout          (default: ~/src/llama.cpp) — symlink-friendly:
 #                 `ln -s /path/to/llama.cpp ~/src/llama.cpp` or put llama-server on PATH.
 #   HOST PORT CTX NP NGL                      server tunables
+#   BATCH UBATCH  prefill -b / -ub            (default: 512/512; per-slot buffers)
 #   CTXCP         max context checkpoints     (default: 2; system-RAM KV cache)
-#   TEMP TOP_P TOP_K MIN_P PRESENCE           sampling (tuned for agent/structured output)
+#   TEMP TOP_P TOP_K MIN_P REPEAT PRESENCE    sampling (LM Studio-matched defaults)
 #   ALIAS         model name on the API       (default: the model's folder name)
 #   SPEC          force MTP                    (auto|on|off, default: auto by name)
 set -euo pipefail
@@ -39,8 +40,25 @@ CTX="$(to_int "${CTX:-128k}")"; NP="${NP:-2}"; NGL="${NGL:-99}"
 # snapshot is a partial KV of the growing context) and can exhaust RAM/swap.
 # Cap low — context-shift is rare when the worker summarizes under the window.
 CTXCP="${CTXCP:-2}"
-TEMP="${TEMP:-0.3}"; TOP_P="${TOP_P:-0.8}"; TOP_K="${TOP_K:-20}"
-MIN_P="${MIN_P:-0}"; PRESENCE="${PRESENCE:-1.0}"
+# Prompt cache: DISABLED (0). llama-server snapshots slot KV states into *system*
+# RAM for longest-common-prefix reuse across requests via `prompt_save`. The
+# `--cache-ram N` limit caps only the *cumulative* cache, NOT an individual save:
+# a single near-ceiling state (~175k tokens) is ~13GB and gets snapshotted in
+# full regardless of the cap, OOM-killing the server (observed twice, even with
+# cache-ram=4096). Disabling it (0) stops prompt_save entirely — we trade a
+# prefill prefix-reuse speedup for not crashing multi-hour runs. (-1 = no limit.)
+CACHE_RAM="${CACHE_RAM:-0}"
+# Prefill batch sizes. `-b` (logical) / `-ub` (micro) size the compute and KV
+# scratch buffers; with -np>1 these are allocated *per slot*, so large values
+# (the old 2048/2048) balloon host+device buffers on long contexts. 512/512 is
+# plenty for agent prefill and keeps the buffers small. Override via env.
+BATCH="${BATCH:-512}"; UBATCH="${UBATCH:-512}"
+# Sampling: matches LM Studio's defaults (which got config-B to a clean full
+# cycle, F1 0.946, on the identical GGUF). The earlier narrow/greedy preset
+# (temp 0.3, top_k 20, top_p 0.8, no repeat-penalty, presence 1.0) made the
+# worker lock into non-terminating subtasks that ran context to the ceiling.
+TEMP="${TEMP:-0.4}"; TOP_P="${TOP_P:-0.9}"; TOP_K="${TOP_K:-40}"
+MIN_P="${MIN_P:-0.05}"; REPEAT="${REPEAT:-1.15}"; PRESENCE="${PRESENCE:-0.0}"
 SPEC="${SPEC:-auto}"
 
 list_models() { find "$MODELS_DIR" -type f -iname '*.gguf' ! -iname '*mmproj*' 2>/dev/null | sed "s#^$MODELS_DIR/##" | sort; }
@@ -99,14 +117,14 @@ esac
 CMD=("$LLAMA_SERVER"
   -m "$MODEL"
   -ngl "$NGL" --no-mmap -fa on
-  -c "$CTX" -np "$NP" -b 2048 -ub 2048 --ctx-checkpoints "$CTXCP"
+  -c "$CTX" -np "$NP" -b "$BATCH" -ub "$UBATCH" --ctx-checkpoints "$CTXCP" --cache-ram "$CACHE_RAM"
   "${SPEC_ARGS[@]}"
-  --temp "$TEMP" --top-p "$TOP_P" --top-k "$TOP_K" --min-p "$MIN_P" --presence-penalty "$PRESENCE"
+  --temp "$TEMP" --top-p "$TOP_P" --top-k "$TOP_K" --min-p "$MIN_P" --repeat-penalty "$REPEAT" --presence-penalty "$PRESENCE"
   --host "$HOST" --port "$PORT" -a "$ALIAS" --jinja
   "${EXTRA[@]}")
 
 echo "[serve] model : $MODEL"
-echo "[serve] alias=$ALIAS  api=http://$HOST:$PORT/v1  ctx=$CTX np=$NP ngl=$NGL"
+echo "[serve] alias=$ALIAS  api=http://$HOST:$PORT/v1  ctx=$CTX np=$NP ngl=$NGL b=$BATCH ub=$UBATCH ctxcp=$CTXCP"
 echo "[serve] binary: $LLAMA_SERVER"
 if [[ "$PRINT_ONLY" == 1 ]]; then printf '%q ' "${CMD[@]}"; echo; exit 0; fi
 exec "${CMD[@]}"
