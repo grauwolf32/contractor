@@ -26,9 +26,41 @@ Harmless on non-llama.cpp backends: the receiving models accept both spellings.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Any
 
 from google.adk.models.lite_llm import LiteLLMClient
+
+# Request-scoped tool_choice override for the *next* model call, set by
+# ``SummarizationLimitCallback`` (contractor/callbacks/context.py) and read here.
+#
+# Why a ContextVar and not client/model attributes: ``DEFAULT_MODEL`` (hence its
+# ``llm_client``) is a single shared instance, so mutating it to force a
+# tool_choice would race across concurrent invocations that fan out over the
+# same model. A ContextVar is copied per asyncio task, so each invocation sees
+# only the value its own callback set; here we mutate only the per-call
+# ``kwargs`` dict, never shared state.
+#
+# Value is an OpenAI-style tool_choice *string* ("none" | "auto" | "required");
+# ``None`` means "no override" (normal behaviour). llama.cpp honours only the
+# string forms — the object/named-function form is silently dropped to ``auto``
+# there — so we deliberately carry a string. ``"none"`` forbids tool calls,
+# which is how we force a worker to emit its final structured result instead of
+# continuing to call tools once it crosses the context limit.
+forced_tool_choice: ContextVar[str | None] = ContextVar(
+    "forced_tool_choice", default=None
+)
+
+
+def _apply_forced_tool_choice(kwargs: dict[str, Any]) -> None:
+    """Inject the context-scoped tool_choice override into ``kwargs`` (in place).
+
+    No-op when unset. When set, it wins: the callback only sets it when it
+    deliberately wants to force the model's hand.
+    """
+    tc = forced_tool_choice.get()
+    if tc is not None:
+        kwargs["tool_choice"] = tc
 
 
 def sanitize_schema(node: Any) -> None:
@@ -76,17 +108,26 @@ def sanitize_tools(tools: Any) -> Any:
 
 
 class SanitizingLiteLLMClient(LiteLLMClient):
-    """``LiteLLMClient`` that sanitizes ``$ref`` tool-schema property names.
+    """``LiteLLMClient`` that adapts outbound requests for llama.cpp.
 
-    Drop-in replacement injected via ``build_model``; see module docstring.
+    Two in-place adaptations on every call, both harmless on other backends:
+
+    1. Sanitize ``$ref`` tool-schema property names (see module docstring).
+    2. Inject the context-scoped :data:`forced_tool_choice` override, so a
+       callback can force ``tool_choice`` (e.g. ``"none"`` at the context
+       limit) without mutating this shared client instance.
+
+    Drop-in replacement injected via ``build_model``.
     """
 
     async def acompletion(self, model, messages, tools, **kwargs):
+        _apply_forced_tool_choice(kwargs)
         return await super().acompletion(
             model=model, messages=messages, tools=sanitize_tools(tools), **kwargs
         )
 
     def completion(self, model, messages, tools, stream=False, **kwargs):
+        _apply_forced_tool_choice(kwargs)
         return super().completion(
             model=model,
             messages=messages,

@@ -111,6 +111,13 @@ def build_worker(
         SummarizationLimitCallback(
             max_tokens=max_tokens,
             message=build_summarization_message(summarization_bullets, _format),
+            # Forbid tools once over the limit so the worker emits its final
+            # structured result instead of ignoring the summarize message and
+            # continuing to call tools. Env-routable via
+            # SUMMARIZATION_FORCE_TOOL_CHOICE ("" disables → message-only).
+            force_tool_choice=(
+                (get_settings().summarization_force_tool_choice or "").strip() or None
+            ),
         )
     )
 

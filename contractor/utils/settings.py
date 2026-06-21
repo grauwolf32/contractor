@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     model_temperature: float | None = Field(default=None)
     model_top_p: float | None = Field(default=None)
 
+    # Hard enforcement of the summarization-limit request. Once a worker crosses
+    # its token limit, ``SummarizationLimitCallback`` forces this tool_choice on
+    # every model call. "none" forbids tool calls so the worker must emit its
+    # final structured result instead of ignoring the message and running
+    # context to the ceiling. Empty/unset disables enforcement (message-only).
+    # Only the string forms are honored by llama.cpp ("none" | "auto" |
+    # "required"); other backends that ignore tool_choice degrade gracefully.
+    summarization_force_tool_choice: str | None = Field(default="none")
+
     # ── Tool defaults (global baseline; agent code may override) ─────────
     # These are the fallbacks used when a tool/agent factory is called
     # without an explicit value. Keep them equal to the historical

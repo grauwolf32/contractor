@@ -7,10 +7,27 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
 from google.genai import types
 
+from contractor.utils.llm_compat import forced_tool_choice
+
 from .base import BaseCallback, CallbackTypes
 from .tokens import TokenUsageCallback
 
 TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
+
+
+def _request_has_response_schema(llm_request: LlmRequest) -> bool:
+    """True when the request carries a structured-output schema.
+
+    Workers deliver their result as response_format-bound content (ADK sets
+    ``config.response_schema`` from the agent's ``output_schema``; for LiteLlm
+    this happens because ``can_use_output_schema_with_tools`` is True). When a
+    schema is present, forcing ``tool_choice="none"`` yields a clean structured
+    result; without one the model can emit raw tool-call markup as text, so the
+    enforcement is gated on this. Processors set the schema before
+    before_model callbacks run, so it is observable here.
+    """
+    config = getattr(llm_request, "config", None)
+    return config is not None and getattr(config, "response_schema", None) is not None
 
 
 class SummarizationLimitCallback(BaseCallback):
@@ -22,12 +39,22 @@ class SummarizationLimitCallback(BaseCallback):
         message: str,
         max_tokens: int,
         summarization_key: str = "total",
+        force_tool_choice: str | None = None,
     ):
         self.max_tokens = max_tokens
         self.message = message
         self.token_count: int = 0
         self.history: list[Any] = []
         self.summarization_key = summarization_key
+        # Hard enforcement of the summarization request. When set (e.g. "none"),
+        # once the token limit is crossed this callback publishes the value to
+        # the per-task ``forced_tool_choice`` ContextVar before every model
+        # call, and the model client forces that tool_choice. "none" forbids
+        # tool calls — compelling the worker to emit its final structured result
+        # (its deliverable is the response, not a tool call) instead of ignoring
+        # the message and running context to the ceiling. ``None`` keeps the
+        # prior message-only behaviour (the model may simply keep working).
+        self.force_tool_choice = force_tool_choice
         # Latch: once the message has been injected for an invocation, do not
         # inject it again for that invocation. The per-invocation token
         # counter (TokenUsageCallback) only grows within an invocation and is
@@ -45,6 +72,7 @@ class SummarizationLimitCallback(BaseCallback):
             "message": self.message,
             "history": self.history,
             "fired_invocation_id": self.fired_invocation_id,
+            "force_tool_choice": self.force_tool_choice,
         }
 
     def __call__(
@@ -56,14 +84,34 @@ class SummarizationLimitCallback(BaseCallback):
         token_count = token_usage_stat.get("counter", {}).get(self.summarization_key, 0)
         self.token_count = token_count
 
-        if token_count < self.max_tokens:
+        over_limit = token_count >= self.max_tokens
+
+        # Publish the enforcement signal on every call so it tracks the limit
+        # exactly: forced once over the limit, cleared while under it. The
+        # per-invocation token counter only resets when the invocation changes,
+        # so an under-limit call at the start of the next invocation clears any
+        # value the previous one left in this task's ContextVar.
+        if self.force_tool_choice is not None:
+            forced = self.force_tool_choice if over_limit else None
+            # "none" forbids tool calls; it stays clean only when a response
+            # schema constrains the result (the worker's deliverable is
+            # response_format-bound content, not a tool call). Without a schema
+            # the model can emit raw tool-call markup as text, and a model that
+            # routes structured output through a set_model_response tool would be
+            # blocked outright — so degrade to message-only in that case.
+            if forced == "none" and not _request_has_response_schema(llm_request):
+                forced = None
+            forced_tool_choice.set(forced)
+
+        if not over_limit:
             self.save_to_state(callback_context)
             return
 
         invocation_id = self.get_invocation_id(callback_context)
         if self.fired and self.fired_invocation_id == invocation_id:
             # Already injected for this invocation — don't append the message
-            # to every subsequent request.
+            # to every subsequent request. (The enforcement signal above is
+            # still refreshed on each call.)
             self.save_to_state(callback_context)
             return
 
