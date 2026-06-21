@@ -7,12 +7,23 @@ task:
     in your working namespace. You are in CONSOLIDATION mode. The deliverable is
     the consolidated note set plus the Markdown report defined in output_format.
 
-    Survey first (pool_namespaces, list_memories), then cluster facts that
-    describe the same thing across namespaces and merge each cluster into one
-    well-attributed note. Do not silently drop disagreements — flag them.
+    This is a GENERAL consolidation task — the domain and the dimension to
+    consolidate along come from the CONSOLIDATION FOCUS below, supplied by the
+    calling workflow. Survey first (pool_namespaces, list_memories), then cluster
+    facts that describe the same thing across namespaces and merge each cluster
+    into one well-attributed note. Do not silently drop disagreements — flag them.
+
+    CONSOLIDATION FOCUS (from the calling workflow): {focus}
 
   instructions: |
     Curate the pool into a coherent knowledge base. Follow these steps:
+
+    STEP 0 — Honor the consolidation focus
+      The CONSOLIDATION FOCUS above is your steering signal from the calling
+      workflow — it tells you what to consolidate toward (which topic, which
+      grouping dimension, or which deliverable the merged notes feed). Bias
+      clustering and the consolidated note structure to it. If the focus is
+      generic, consolidate across all topics by entity/claim as usual.
 
     STEP 1 — Enumerate the pool
       - pool_namespaces() for every namespace and its kinds.
@@ -23,25 +34,43 @@ task:
 
     STEP 2 — Cluster equivalent facts
       Group facts that describe the SAME entity or claim across namespaces
-      (e.g. the same endpoint described by both a trace note and an OAS result;
-      the same auth mechanism noted twice). Use pool_search to find related
-      mentions you might otherwise miss.
+      (e.g. the same component described by two different upstream tasks; the
+      same property noted twice under different names). Use pool_search to find
+      related mentions you might otherwise miss, and follow each note's links
+      field (bidirectional links a discovery step left behind) to pull in the
+      rest of a cluster.
 
-    STEP 3 — Write one consolidated note per cluster
-      For each cluster, write_memory a single merged note that:
-        - Combines the details from all sources into one coherent statement.
-        - Keeps the strongest, most specific evidence.
-        - CITES every source: namespace + note name, or artifact key.
-        - Carries 1–3 reusable tags (call list_tags first; reuse, don't mint
+    STEP 3 — Decide an operation per cluster, then write
+      For each cluster, choose ONE operation against your working namespace
+      (this is the consolidation decision — make it explicit per cluster):
+        - ADD     — no equivalent consolidated note exists yet: write_memory a
+                    new merged note.
+        - MERGE   — a consolidated note already covers this entity: append_memory
+                    the complementary details instead of duplicating.
+        - NOOP    — the fact is fully redundant with what you already wrote:
+                    skip it.
+        - CONFLICT — sources disagree (see STEP 4): record both sides; never
+                    silently pick one.
+      A merged note must:
+        - Combine the details from all sources into one coherent statement.
+        - Keep the strongest, most specific evidence.
+        - CITE every source: namespace + note name, or artifact key.
+        - Carry 1–3 reusable tags (call list_tags first; reuse, don't mint
           near-duplicates).
-      Prefer append_memory when a consolidated note already exists from an
-      earlier cluster in the same run.
 
     STEP 4 — Reconcile contradictions
-      When sources disagree (different severities, conflicting auth claims,
-      stale vs current paths), DO NOT pick one silently. Record the conflict
+      When sources disagree (conflicting values, stale vs current paths,
+      incompatible claims), DO NOT pick one silently. Record the conflict
       inside the consolidated note ("Conflict: <A> says X, <B> says Y") and list
       it in the report's Contradictions section for follow-up.
+
+    STEP 5 — Reflect: synthesize higher-level insights
+      After the per-cluster merges, step back and write a small number of
+      higher-level "insight" notes that the atomic facts imply together but no
+      single source states — e.g. a cross-cutting pattern, a systemic gap, or a
+      conclusion that only emerges from several merged notes. Tag these
+      "insight" and cite the consolidated notes they draw on. Keep them few and
+      well-supported; do not speculate beyond the evidence.
 
     CONSTRAINTS:
       - Read-only everywhere except your own namespace's memory. You supersede
@@ -53,37 +82,48 @@ task:
       - Do not create subtasks for "verify memory was saved."
 
   output_format: |
-    First, ensure every consolidated note is saved via write_memory/append_memory.
-    Then return a single Markdown report with this structure:
+    Your final response IS the consolidated knowledge base — the deliverable a
+    downstream task consumes directly. It must INLINE the actual merged knowledge,
+    not describe it. First ensure every consolidated note is saved via
+    write_memory/append_memory; then return a single Markdown document:
 
     ```
-    # Knowledge Consolidation Report
+    # Consolidated Knowledge Base
 
-    ## Sources Reviewed
-    - **Namespaces:** <list>
-    - **Notes / results read:** <count>
+    <One short orienting paragraph: what this covers and how it is organized.>
 
-    ## Consolidated Notes
-    | Note name | Tags | Merged from (sources) | Summary (1 line) |
-    |-----------|------|-----------------------|------------------|
-    | <name>    | <t1, t2> | <ns/note, key, ...> | <summary> |
+    <Then the knowledge itself: inline the FULL content of each consolidated note
+    as its own section — dense, deduplicated, every fact carrying its evidence
+    citation. A downstream task must be able to act on this WITHOUT opening any
+    other note or artifact. This body is the product.>
 
-    ## Duplicates Merged
-    - <fact> — merged <source A> + <source B> into <note name>
+    ## <consolidated note title>
+    <full merged content with evidence citations>
 
-    ## Contradictions Flagged
-    | Topic | Source A says | Source B says | Recorded in note |
-    |-------|---------------|---------------|------------------|
+    ## <consolidated note title>
+    <full merged content with evidence citations>
+    ... (one section per consolidated note) ...
 
-    ## Gaps / Follow-ups
-    - <thin or missing area, suggested next step>
+    ---
+    ## Provenance (brief)
+    - **Sources merged:** <namespaces / note names / artifact keys>
+    - **Contradictions flagged:** <topic: A says X vs B says Y — or "None">
+    - **Gaps / follow-ups:** <or "None">
     ```
 
-    For any empty section, keep the heading and write "None."
+    Do NOT return a "what I did" report in place of the knowledge — inline the
+    facts themselves. Keep only the Provenance footer brief.
 
   constraints:
     - Survey the pool before writing; cluster across namespaces, don't copy.
-    - Every consolidated note cites all its sources.
+    - Every consolidated fact cites its source(s).
     - Contradictions are flagged explicitly, never silently resolved.
-    - The final answer is the Markdown report; the consolidated notes are the
-      durable output.
+    - The final answer IS the consolidated knowledge base (facts inlined), not a
+      description of it; the saved notes are the durable copy.
+
+  # Workflow-overridable parameters (see TaskTemplate.default_params). A caller
+  # injects specifics via add_task(params={"focus": "..."}); omitted -> default.
+  params:
+    focus: >-
+      No specific direction provided — consolidate across all topics, grouping
+      facts that describe the same entity or claim into one note each.

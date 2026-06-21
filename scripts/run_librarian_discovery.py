@@ -40,6 +40,12 @@ async def main() -> None:
         help="task template: knowledge_discovery | knowledge_consolidation",
     )
     ap.add_argument("--model", default=None)
+    ap.add_argument(
+        "--focus",
+        default=None,
+        help="workflow-injected focus/direction (task 'focus' param); "
+        "omitted -> the task's default",
+    )
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--max-steps", type=int, default=15)
     # Lower max-tokens => the worker hits the summarization limit sooner and
@@ -61,6 +67,21 @@ async def main() -> None:
     print(f"[pool] {len(docs)} documents across "
           f"{len({d.namespace for d in docs})} namespaces (reserved excluded)")
 
+    # Resolve a focus preset shortcut (mirrors how a workflow would pass a
+    # domain context constant via params) or use the raw string.
+    focus = args.focus
+    if focus in ("security", "security-consolidation"):
+        from contractor.agents.librarian_agent.focuses import (
+            SECURITY_CONSOLIDATION_FOCUS,
+            SECURITY_DISCOVERY_FOCUS,
+        )
+
+        focus = (
+            SECURITY_CONSOLIDATION_FOCUS
+            if "consolidation" in args.task or focus == "security-consolidation"
+            else SECURITY_DISCOVERY_FOCUS
+        )
+
     worker_builder = partial(
         build_librarian_agent,
         name="librarian_agent",
@@ -80,6 +101,7 @@ async def main() -> None:
         ref=f"{args.task}:run",
         worker_builder=worker_builder,
         namespace=args.namespace,
+        params={"focus": focus} if focus else {},
         artifact_key=f"{args.task}/{args.namespace.replace(':', '_')}",
         artifacts=[],
         iterations=1,

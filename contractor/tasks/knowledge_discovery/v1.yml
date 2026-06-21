@@ -1,20 +1,30 @@
 task:
-  name: "Knowledge discovery — surface unrecorded security-relevant facts"
+  name: "Knowledge discovery — surface unrecorded facts"
 
   objective: >
     Explore the project at {project_path} together with the existing artifact
-    pool and capture security-relevant facts that are NOT yet recorded in
-    memory, as concise, atomic, tagged notes in your working namespace. You are
-    in DISCOVERY mode. The deliverable is the set of new memory notes plus the
-    Markdown coverage report defined in output_format.
+    pool and capture facts that are NOT yet recorded in memory, as concise,
+    atomic, tagged notes in your working namespace. You are in DISCOVERY mode.
+    The deliverable is the set of new memory notes plus the Markdown coverage
+    report defined in output_format.
 
-    Survey what already exists before writing anything: call pool_namespaces()
-    and list_memories first, and do not re-record facts the pool already
-    captures. If the pool is empty, start from the source.
+    This is a GENERAL knowledge-discovery task — the domain and what counts as a
+    relevant fact come entirely from the DISCOVERY FOCUS below, supplied by the
+    calling workflow. Survey what already exists before writing anything: call
+    pool_namespaces() and list_memories first, and do not re-record facts the
+    pool already captures. If the pool is empty, start from the source.
+
+    DISCOVERY FOCUS (from the calling workflow): {focus}
 
   instructions: |
     Work the artifact pool and the read-only source tools to find what is
     missing, then record it. Follow these steps:
+
+    STEP 0 — Honor the discovery focus
+      The DISCOVERY FOCUS above defines the domain and what matters — it is your
+      steering signal. Everything you search for, read, and record must serve
+      it. Derive your own working checklist of the kinds of facts to look for
+      from the focus, and pursue those first.
 
     STEP 1 — Map the knowledge frontier
       - Call pool_namespaces() to enumerate every namespace and its kinds.
@@ -23,16 +33,25 @@ task:
       - Build a short mental model of what is ALREADY known so you only chase
         gaps.
 
-    STEP 2 — Hunt for unrecorded, security-relevant facts
-      Use pool_search(query, "*", k) over existing results, and the read-only
-      source tools (read_file, grep, list_symbols, code-graph) to locate facts
-      the pool does not yet capture. Prioritise:
-        - Entry points (HTTP routes, handlers, CLI/commands, message consumers)
-        - Authentication / authorization / session / RBAC mechanisms
-        - Trust boundaries and where untrusted input enters
-        - External-service integrations (DB, queues, storage, identity, APIs)
-        - Dangerous sinks (SQL, command exec, deserialization, file/path, SSRF)
-        - Configuration and secret handling
+    STEP 2 — Hunt for unrecorded facts (RAG-first)
+      ALWAYS start a thread with pool_search — it is a semantic search over the
+      whole pool (RAG-backed when available), so it surfaces related prior
+      findings that keyword/file browsing would miss. Concretely:
+        - For the focus and for each item on your working checklist, issue
+          pool_search(query, "*", k) describing the concept in natural language
+          BEFORE opening source files.
+        - MULTI-QUERY: phrase each concept 2–3 different ways (a symptom, a
+          mechanism, a synonym — e.g. "where is the JWT verified", "auth
+          middleware", "token signature check") and union the hits. One
+          phrasing misses things a sibling phrasing catches.
+        - JUDGE THE HITS: before acting, decide whether the returned hits
+          actually cover the concept. If they are off-topic or thin, reformulate
+          and search again rather than proceeding on a weak result.
+        - Use surviving hits to jump straight to the relevant
+          namespaces/notes/files, and to confirm whether a fact is already
+          recorded (dedup).
+        - Only then fall back to the read-only source tools (read_file, grep,
+          list_symbols, code-graph) to verify and fill gaps.
 
     STEP 3 — Record each NEW fact
       For every fact NOT already in the pool, write one atomic note with
@@ -43,6 +62,11 @@ task:
         - A body that states the fact AND cites evidence: source path(s),
           symbol/route, or the artifact key it was derived from. Prefix
           inferred facts with "Suspected:" and explain.
+        - LINK related notes with link_memories(name, [other note names]) when
+          a fact connects to one you already wrote (same component, same flow).
+          Links are bidirectional and first-class (stored in each note's links
+          field), so the downstream consolidation step can cluster by following
+          them. Do NOT hand-write "Related:" in the body — use the tool.
       Skip anything already recorded; extend a near-match with append_memory
       instead of creating a duplicate.
 
@@ -60,6 +84,9 @@ task:
 
     ```
     # Knowledge Discovery Report
+
+    ## Focus
+    - <one line restating the direction you worked to>
 
     ## Frontier Reviewed
     - **Namespaces surveyed:** <list>
@@ -81,6 +108,17 @@ task:
 
   constraints:
     - Survey the pool (pool_namespaces, list_memories) before writing.
+    - Lead every discovery thread with pool_search (RAG) before reading source.
     - Every note must cite evidence; inferred facts are prefixed "Suspected:".
     - Reuse existing tags; keep notes atomic.
     - The final answer is the Markdown report; the notes are the durable output.
+
+  # Workflow-overridable parameters (see TaskTemplate.default_params). The task
+  # itself is domain-agnostic; the calling workflow injects the domain/context
+  # via add_task(params={"focus": "..."}). Omitted -> the generic default below.
+  params:
+    focus: >-
+      No specific direction provided — capture any notable, non-obvious facts
+      about the system's structure, behavior, dependencies, and risks. Favor
+      facts that downstream tasks would need and that are not already obvious
+      from a file listing.

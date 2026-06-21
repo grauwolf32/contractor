@@ -35,6 +35,7 @@ def build_oas_builder_agent(
     fs: AbstractFileSystem,
     *,
     namespace: str,
+    oas_artifact_name: str | None = None,
     _format: Literal["json", "xml", "yaml", "markdown"] = "json",
     max_tokens: int = 80000,
     model: LiteLlm | None = None,
@@ -42,9 +43,15 @@ def build_oas_builder_agent(
     elide_keep_last_n: int = 15,
     with_graph_tools: bool = False,
 ):
+    # ``namespace`` drives the worker's MEMORY store; ``oas_artifact_name`` drives
+    # the OpenAPI spec artifact key (``user:oas-<name>``). They default to the
+    # same value (historical behaviour), but a multi-wave build can give a later
+    # wave a FRESH memory namespace (so it doesn't inherit the earlier wave's
+    # injected recon/notes) while keeping the SAME spec artifact, so it keeps
+    # refining the one cumulative spec instead of starting an empty one.
     mem_tools = memory_tools(name=namespace, fmt=MemoryFormat(_format=_format))
     fs_tools = ro_file_tools(fs, fmt=FileFormat(_format=_format))
-    oas_tools = openapi_tools(name=namespace, fs=fs)
+    oas_tools = openapi_tools(name=oas_artifact_name or namespace, fs=fs)
     ctools = code_tools(fs=fs)
     gtools = attach_graph_tools_if_local(fs) if with_graph_tools else []
 
