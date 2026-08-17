@@ -16,6 +16,7 @@ from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
 from contractor.workflows.namespaces import TRACE_ANNOTATION_NAMESPACE_PREFIX
+from contractor.workflows.path_keys import openapi_path_key
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -37,11 +38,13 @@ class OpenApiPath:
 
     @property
     def path_key(self) -> str:
-        """Normalized path key suitable for use in namespaces and refs."""
-        return (
-            self.path.strip("/").replace("/", "_").replace("{", "").replace("}", "")
-            or "root"
-        )
+        """Collision-resistant path key suitable for namespaces and refs."""
+        return openapi_path_key(self.path)
+
+
+_OPENAPI_OPERATION_METHODS = frozenset(
+    {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+)
 
 
 def extract_openapi_paths(
@@ -61,7 +64,14 @@ def extract_openapi_paths(
         api_path = OpenApiPath(path=path)
 
         for method, operation in path_item.items():
-            if method in {"get", "post", "put", "delete", "patch"}:
+            if method in _OPENAPI_OPERATION_METHODS:
+                if not isinstance(operation, dict):
+                    logger.warning(
+                        "OpenAPI operation %s %s is not an object; skipping",
+                        method.upper(),
+                        path,
+                    )
+                    continue
                 try:
                     operation_schema = resolve_refs(
                         operation,
@@ -72,6 +82,22 @@ def extract_openapi_paths(
                         f"Error resolving refs for operation {operation.get('operationId', '')}: {exc}"
                     )
                     continue
+
+                raw_operation_id = (
+                    operation_schema.get("operationId")
+                    if isinstance(operation_schema, dict)
+                    else operation.get("operationId")
+                )
+                operation_id = (
+                    str(raw_operation_id).strip()
+                    if raw_operation_id is not None
+                    else ""
+                )
+                if not operation_id:
+                    # operationId is optional in OpenAPI. Downstream workflows
+                    # still need a stable, non-empty identifier for task refs,
+                    # events, and prompt variables.
+                    operation_id = f"{method.upper()} {path}"
 
                 if path_files:
                     operation_schema["x-path-files"] = path_files
@@ -85,7 +111,7 @@ def extract_openapi_paths(
 
                 api_path.operations.append(
                     OpenApiOperation(
-                        operation_id=operation.get("operationId", ""),
+                        operation_id=operation_id,
                         method=method,
                         path=path,
                         schema=operation_schema,
@@ -222,7 +248,10 @@ class TraceAnnotationWorkflow(Workflow):
             # other (mirrors trace_verify / vuln_scan_trace).
             artifact_key=(
                 f"trace_annotation/{artifact_key_slug(self.namespace)}/"
-                f"{artifact_key_slug(api_path.path_key)}"
+                # path_key is already a bounded filesystem-safe component.
+                # Re-slugging strips meaningful boundary underscores and
+                # recreates collisions such as '/' vs '/root'.
+                f"{api_path.path_key}"
             ),
             worker_builder=trace_builder,
             **CFG.tasks.annotate.as_kwargs(),

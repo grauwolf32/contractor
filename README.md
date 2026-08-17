@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.jpg" alt="Contractor" width="280" />
+  <img src="docs/assets/logo.jpg" alt="Contractor" width="280" />
 </p>
 
 <h1 align="center">Contractor</h1>
@@ -180,12 +180,12 @@ contractor/
   callbacks/                  Token usage, guardrails, rate limits
   utils/                      Settings, observability, helpers
 deploy/litellm/               LiteLLM proxy config
-docs/                         Architecture docs & diagrams
+docs/                         Architecture, guides, specs, designs, and research
 ```
 
 ## Documentation
 
-- [docs/README.md](docs/README.md) — deep dive on planner/worker internals, the streamline subtask state machine, and the memory/artifact contract.
-- [docs/tuning.md](docs/tuning.md) — full inventory of tunable knobs (CLI flags, settings, per-workflow budgets, callbacks, tool caps) + a tuning playbook.
-- [docs/eval-tuning.md](docs/eval-tuning.md) — parameter-sweep configs runnable through the eval suite.
-- [docs/insights-parallel-vuln-pipelines.md](docs/insights-parallel-vuln-pipelines.md) — notes on path-level parallelism and vulnerability detection.
+- [Documentation index](docs/README.md) — navigation by audience and document status.
+- [Architecture overview](docs/architecture/README.md) — planner/worker internals, the streamline state machine, and the memory/artifact contract.
+- [Reconstruction specification](docs/spec/README.md) — normative runtime behavior and acceptance criteria.
+- [Research index](docs/research/README.md) — visible, tracked reports and source surveys.

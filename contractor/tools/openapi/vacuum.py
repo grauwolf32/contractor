@@ -204,21 +204,27 @@ class OpenApiLinter:
         self,
         issues: list[dict[str, Any]],
         source_text: str,
-        include_severities: Iterable[int] = (1, 2),
+        include_severities: Iterable[int] = (0, 1),
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Filters issues by severity, sorts them in descending severity order,
-        limits the result size, and replaces `range` with `snippet`.
+        Filters issues by severity, sorts them most-severe-first, limits the
+        result size, and replaces `range` with `snippet`.
+
+        Vacuum/Spectral severity follows the LSP ``DiagnosticSeverity``
+        convention: ``0=error, 1=warning, 2=information, 3=hint`` — a *lower*
+        number is *more* serious. Results are therefore sorted ascending so the
+        schema-breaking errors (severity 0) come first.
 
         Args:
             issues: Raw Vacuum/Spectral issue list.
             source_text: Original OpenAPI source text.
-            include_severities: Severity levels to include. Defaults to (1, 2).
+            include_severities: Severity levels to include. Defaults to
+                ``(0, 1)`` — errors and warnings; info/hint (2, 3) are excluded.
             limit: Maximum number of issues to return.
 
         Returns:
-            Processed issue list.
+            Processed issue list, most-severe-first.
         """
         allowed = set(include_severities)
         filtered = [
@@ -226,7 +232,8 @@ class OpenApiLinter:
             for issue in issues
             if isinstance(issue.get("severity"), int) and issue["severity"] in allowed
         ]
-        filtered.sort(key=lambda item: item["severity"], reverse=True)
+        # Ascending: severity 0 (error) is the most serious, so it sorts first.
+        filtered.sort(key=lambda item: item["severity"])
 
         if limit is not None:
             filtered = filtered[:limit]
@@ -239,7 +246,7 @@ class OpenApiLinter:
     def lint(
         self,
         openapi_str: str,
-        include_severities: Iterable[int] = (1, 2),
+        include_severities: Iterable[int] = (0, 1),
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -248,7 +255,8 @@ class OpenApiLinter:
         Args:
             openapi_str: OpenAPI specification as YAML or JSON string.
             include_severities: Severity levels to include in output.
-                Defaults to (1, 2), excluding severity 0.
+                Defaults to ``(0, 1)`` — errors and warnings (LSP severity:
+                0=error, 1=warning, 2=information, 3=hint).
             limit: Maximum number of issues to return.
 
         Returns:
@@ -323,9 +331,10 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
         """
         Runs Vacuum spectral-report on the current OpenAPI artifact.
 
-        Returns only serious issues (severity 2). Lower-severity findings
-        (warnings, hints) are intentionally suppressed so the caller can
-        focus repair effort on schema-breaking problems.
+        Returns schema-breaking errors and warnings (Spectral severities 0-1),
+        most-severe-first. Info/hint findings (severities 2-3) are intentionally
+        suppressed so the caller can focus repair effort on the problems that
+        actually break the spec.
 
         Args:
             ctx: The tool context for loading artifacts.
@@ -341,7 +350,7 @@ def openapi_linter_tools(name: str) -> list[Callable[..., Any]]:
                 result = await asyncio.to_thread(
                     linter.lint,
                     openapi_str=openapi_str,
-                    include_severities=(2,),
+                    include_severities=(0, 1),
                     limit=limit,
                 )
             except OpenApiLinterError as exc:

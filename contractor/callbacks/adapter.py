@@ -99,6 +99,18 @@ def chain_after_model_callback(agent: LlmAgent, callback: BaseCallback) -> None:
     adapter.register(callback)
     new_cb = adapter()[CallbackTypes.after_model_callback.value]
 
+    # A mandatory finish/persistence callback must remain capable of calling
+    # its tool when the context limiter would otherwise force tool_choice=none.
+    # Register the callback's pending predicate with any compatible before-model
+    # callback without coupling this generic adapter to concrete callback types.
+    blocker = getattr(callback, "blocks_forced_tool_choice_none", None)
+    if callable(blocker):
+        before_model = agent.before_model_callback
+        for before_callback in getattr(before_model, "funcs", ()):
+            register = getattr(before_callback, "add_force_none_blocker", None)
+            if callable(register):
+                register(blocker)
+
     existing = agent.after_model_callback
     if existing is None:
         agent.after_model_callback = new_cb

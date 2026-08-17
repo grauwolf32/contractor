@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AJ · Pragmatic RAG integration — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#AJ">← back to research.html</a></div>
+<h1>AJ · Pragmatic RAG integration (plain, pinned, bounded)</h1>
+<p class="lead">Where plain RAG earns its place in a project that defaults to a deterministic artifact pool (Z) and in-prompt skills (AE/AA) — kept reproducible, plain over graph, and bounded by where cache-augmented in-context beats retrieval. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="AJ1"><h2>AJ1 — plain RAG over a curated security KB lifts the small model where knowledge doesn't fit resident context</h2>
+  <div class="src"><a href="https://oaktrust.library.tamu.edu/bitstreams/f84e3a82-f576-4ce6-b669-829e6cbf2073/download" target="_blank">ToolRAG: A Novel Approach to the Detection of Code Vulnerabilities</a><div class="note">A RAG agent retrieves CWE-database fields to give the analysis LLM better context and avoid false positives — direct evidence that retrieving a curated security KB (CWE/sinks) helps a detection agent, the AJ1 use case.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2510.18204" target="_blank">RESCUE: Retrieval Augmented Secure Code Generation</a><div class="note">Training-free injection of external security knowledge; also warns conventional RAG struggles with raw-doc noise and misses implicit security semantics — argues for a curated KB, not a dump.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2312.10997" target="_blank">Retrieval-Augmented Generation for LLMs: A Survey</a><div class="note">The canonical survey: RAG most helps knowledge-intensive, domain-specific, factual tasks and under-fitted (smaller) models — frames when RAG is worth the plumbing for a 27–80b model with knowledge gaps.</div></div></section>
+
+<section id="AJ2"><h2>AJ2 — reproducibility-pinned RAG recovers run-to-run determinism (executes Z6)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2509.18869" target="_blank">On The Reproducibility Limitations of RAG Systems (ReproRAG)</a><div class="note">Shows non-determinism originates in the vector-retrieval stage and ranks the sources of uncertainty: embedding &gt; index &gt; precision &gt; hardware &gt; distribution. The fix is to pin them (fixed encoder, deterministic index, stable aggregation) — the concrete recipe for the "pinned RAG" Z6 proposed, and the test (Jaccard / Kendall's Tau across repeats).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2511.10297" target="_blank">Local Hybrid Retrieval-Augmented Document QA</a><div class="note">Local, hybrid (lexical + vector) retrieval that runs without external APIs — fits the sovereignty/on-prem constraint and reduces the embedding-model variance ReproRAG flags (lexical/BM25 is deterministic).</div></div></section>
+
+<section id="AJ3"><h2>AJ3 — plain/hybrid RAG suffices; GraphRAG's cost isn't justified for small KBs</h2>
+  <div class="src"><a href="https://www.meilisearch.com/blog/graph-rag-vs-vector-rag" target="_blank">GraphRAG vs. Vector RAG: side-by-side comparison</a><div class="note">GraphRAG wins multi-entity/relationship and cross-document reasoning; vector RAG is faster/cheaper for simple factual retrieval — for this project's small, mostly-lookup KBs, plain vector/hybrid is the right default.</div></div>
+  <div class="src"><a href="https://aimultiple.com/graph-rag" target="_blank">Graph RAG vs Vector RAG benchmark</a><div class="note">Quantifies the tradeoff (graph 3–4× better on aggregation/cross-doc; vector degrades past ~5 entities/query) and notes LazyGraphRAG cuts graph indexing cost to ~0.1% — i.e. adopt graph only if relationship queries actually dominate.</div></div>
+  <div class="src"><a href="https://www.falkordb.com/blog/vectorrag-vs-graphrag-technical-challenges-enterprise-ai-march25/" target="_blank">VectorRAG vs GraphRAG: technical challenges</a><div class="note">Warns entity-extraction quality is the single biggest determinant of GraphRAG success and that teams waste months on it where hybrid search would have sufficed — the case for "don't over-engineer; plain first."</div></div></section>
+
+<section id="AJ4"><h2>AJ4 — RAG as the retrieval layer for experience memory (O) and N-day variant matching (N)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2312.10997" target="_blank">RAG for LLMs: A Survey (retrieval mechanisms)</a><div class="note">The retrieval machinery (similarity over a store) is exactly what O (recall prior confirmed findings / FP anti-patterns) and N (find code similar to a known-vulnerable pattern) need — RAG is the implementation layer, over the deterministic pool (Z) as the substrate.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2410.00004" target="_blank">Retro-li: Small-Scale RAG with Noisy Similarity and Domain Shift</a><div class="note">RAG tuned for small-scale stores and noisy retrieval with domain shift — matches an experience/finding store that starts small and grows, and shows it can still help under imperfect matches.</div></div></section>
+
+<section id="AJ5"><h2>AJ5 — for small static KBs, CAG (preload into context/KV-cache) beats RAG; find the crossover</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2412.15605" target="_blank">Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks</a><div class="note">Preloading a small, stable KB into the context (cached KV) eliminates retrieval latency and retrieval errors and matches/beats RAG — the formal backing for the project's "in-prompt skills beat RAG plumbing" stance (AE/AA), with the explicit limit: it only works while the KB fits the window.</div></div>
+  <div class="src"><a href="https://github.com/hhhuang/CAG" target="_blank">CAG: Cache-Augmented Generation (reference implementation)</a><div class="note">Working implementation; useful to A/B CAG vs RAG as the security KB / skill set grows, to locate the size crossover where retrieval finally earns its keep.</div></div>
+  <div class="src"><a href="https://venturebeat.com/ai/beyond-rag-how-cache-augmented-generation-reduces-latency-complexity-for-smaller-workloads" target="_blank">Beyond RAG: how CAG reduces latency and complexity for smaller workloads</a><div class="note">Practitioner framing: CAG suits well-defined, stable, smaller knowledge sets (prioritize speed/simplicity, no retrieval failure surface) — precisely this project's skill bundles today.</div></div></section>
+
+<section id="AJ-caveat"><h2>Caveat — KB hygiene (data, not prompt-injection)</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2502.03233" target="_blank">Security Threats of Knowledge Base Poisoning in Retrieval-Augmented Code Generation</a><div class="note">A retrieved KB can carry vulnerable/poisoned examples that degrade or subvert output — so any RAG here must retrieve from a curated, provenance-tracked store (the deterministic pool Z), not from untrusted scraped corpora. This is a data-hygiene concern, distinct from the agent prompt-injection topic that's out of scope.</div></div></section>
+</body></html>

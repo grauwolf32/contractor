@@ -191,14 +191,34 @@ def _build_queue_b(fs, folder: str, llm, smoke: bool = False, skip_recon: bool =
 RECON_KEYS = ["dependency_information/result", "project_information_short/result"]
 
 
-def _load_spec_from_dir(artifact_dir: Path) -> dict[str, Any]:
+def _load_spec_from_dir(
+    artifact_dir: Path, *, app_name: str
+) -> dict[str, Any]:
     """Recover the latest built OpenAPI spec from a persisted ADK artifact tree.
 
     Lets us score the partial spec when an arm times out or crashes mid-build
     instead of losing the whole run — the cumulative spec is saved every step.
     """
-    base = (Path(artifact_dir) / "users" / USER_ID / "artifacts"
-            / "oas-openapi-building" / "versions")
+    root = Path(artifact_dir)
+    base = (
+        root
+        / "apps"
+        / app_name
+        / "users"
+        / USER_ID
+        / "artifacts"
+        / "oas-openapi-building"
+        / "versions"
+    )
+    if not base.is_dir():
+        base = (
+            root
+            / "users"
+            / USER_ID
+            / "artifacts"
+            / "oas-openapi-building"
+            / "versions"
+        )
     if not base.is_dir():
         return {}
     versions = sorted(int(d.name) for d in base.iterdir() if d.name.isdigit())
@@ -259,7 +279,7 @@ async def _run_config(
     actual = yaml.safe_load(text) if text else {}
     if not isinstance(actual, dict) or not actual.get("paths"):
         # Timed out / crashed (or empty result) -> recover the partial build.
-        recovered = _load_spec_from_dir(art_dir)
+        recovered = _load_spec_from_dir(art_dir, app_name=f"oas-ab-{name}")
         if recovered:
             actual = recovered
             if status == "ok":

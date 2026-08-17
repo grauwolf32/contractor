@@ -8,6 +8,7 @@ from typing import Any
 
 from cli.utils import utc_now_iso
 from contractor.runners.agio import ALL_AGIO_EVENT_TYPES
+from contractor.runners.plugins.base import redact_sensitive
 from contractor.runners.task_runner import TaskRunnerEvent
 
 
@@ -51,6 +52,14 @@ def _event_to_record(event: TaskRunnerEvent) -> dict[str, Any]:
     """
     payload = _jsonable(event.payload or {})
     payload_dict: dict[str, Any] = payload if isinstance(payload, dict) else {}
+
+    # Scrub credentials at the persistence boundary — comprehensively, over the
+    # whole flattened payload. The plugin masks only the arguments/result/
+    # tool_response keys, but the trace plugin also emits the raw ADK ``event``
+    # and session ``state`` here, which echo the same Authorization/Set-Cookie/
+    # token values. Redacting post-``_jsonable`` (plain dicts/lists) catches all
+    # of them in the one place everything is written to disk.
+    payload_dict = redact_sensitive(payload_dict)
 
     record: dict[str, Any] = {
         "type": getattr(event, "type", None),

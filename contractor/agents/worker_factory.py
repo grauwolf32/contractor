@@ -29,7 +29,36 @@ from contractor.callbacks.guardrails import (
 from contractor.callbacks.tokens import TokenUsageCallback
 from contractor.tools import DEFAULT_HEAVY_TOOLS
 from contractor.tools.tasks import SubtaskFormatter, _prepare_worker_instructions
+from contractor.tools.tasks.models import SubtaskExecutionResult
+from contractor.utils.llm_compat import sanitize_schema
 from contractor.utils.settings import DEFAULT_MODEL, get_settings
+
+
+def _subtask_result_response_format(
+    _format: Literal["json", "xml", "yaml", "markdown"],
+) -> dict | None:
+    """OpenAI ``response_format`` (JSON-schema) for the worker's structured
+    result, forced alongside ``tool_choice="none"`` at the summarization limit
+    so the forced output parses.
+
+    Only meaningful for the ``json`` output format (the universal worker format);
+    returns None otherwise, so "none" is forced without a grammar (best-effort).
+    The schema is sanitized for llama.cpp's grammar (drops ``examples`` etc.).
+    """
+    if _format != "json":
+        return None
+    schema = SubtaskExecutionResult.model_json_schema()
+    sanitize_schema(schema)
+    # Pin task_id to empty: a worker forced to emit mid-work hallucinates a wrong
+    # task_id, which is rejected as a mismatch (tools.py). Empty lets the parser
+    # backfill the correct id from the input (formatters._apply_fallback_task_id).
+    props = schema.get("properties")
+    if isinstance(props, dict) and "task_id" in props:
+        props["task_id"] = {"type": "string", "const": ""}
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "subtask_execution_result", "schema": schema},
+    }
 
 
 def build_summarization_message(
@@ -112,12 +141,14 @@ def build_worker(
             max_tokens=max_tokens,
             message=build_summarization_message(summarization_bullets, _format),
             # Forbid tools once over the limit so the worker emits its final
-            # structured result instead of ignoring the summarize message and
-            # continuing to call tools. Env-routable via
-            # SUMMARIZATION_FORCE_TOOL_CHOICE ("" disables → message-only).
+            # result instead of ignoring the summarize message and continuing to
+            # call tools. Env-routable via SUMMARIZATION_FORCE_TOOL_CHOICE (""
+            # disables → message-only). The response_format is forced in lockstep
+            # so the result (no output_schema on workers) is grammar-valid JSON.
             force_tool_choice=(
                 (get_settings().summarization_force_tool_choice or "").strip() or None
             ),
+            force_response_format=_subtask_result_response_format(_format),
         )
     )
 

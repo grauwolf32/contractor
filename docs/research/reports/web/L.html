@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>L · Ensemble & diversity — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#L">← back to research.html</a></div>
+<h1>L · Ensemble & diversity</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="L1"><h2>L1 — Diverse-lens finders, unioned + deduped, beat a single generalist pass</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2602.17875" target="_blank">MultiVer: Zero-Shot Multi-Agent Vulnerability Detection</a><div class="note">Almost exactly L1: four agents each look through a different dimension (security flaw, correctness, performance, style) and union-vote — flag if any agent fires. Achieves 82.7% recall on PyVul, beating fine-tuned GPT-3.5. Direct evidence the union-of-lenses raises recall.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2509.11523v1" target="_blank">VulAgent: Hypothesis Validation-Based Multi-Agent System</a><div class="note">A MetaAgent routes code to specialized analyzers (memory safety, authz, file I/O, concurrency) so each holds a single concern — explicitly lowers per-agent reasoning complexity and increases coverage of sensitive statements. The per-class lens design L1 proposes.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2601.18847" target="_blank">MulVul: Retrieval-Augmented Multi-Agent Code Vulnerability Detection</a><div class="note">Argues vulnerability patterns are too heterogeneous for one unified detector (pointer arithmetic vs taint tracking need different reasoning) — the theoretical justification for splitting into per-class lenses rather than one generalist pass.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2412.15238" target="_blank">Dipper: Diversity in Prompts for Producing LLM Ensembles in Reasoning</a><div class="note">Training-free inference-time ensemble: feed one model a diverse prompt set in parallel to elicit varied reasoning paths. A cheap way to manufacture lens diversity from a single small model without N separate model deployments.</div></div>
+</section>
+
+<section id="L2"><h2>L2 — An adversarial (majority-refute) verifier raises precision more than it costs recall</h2>
+  <div class="src"><a href="https://www.mdpi.com/2076-3417/15/7/3676" target="_blank">Minimizing Hallucinations: Adversarial Debate and Voting in LLM-Based Multi-Agents</a><div class="note">Adversarial debate + voting cross-validates outputs across diverse agents to suppress single-model errors — the methodological core of a majority-refute panel that drops findings the skeptics overturn.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2309.11495" target="_blank">Chain-of-Verification Reduces Hallucination in Large Language Models</a><div class="note">Decoupled draft→plan-verification→execute→synthesize loop; forcing independent verification cuts hallucination. A single-agent analog of the refute panel, useful when N skeptics is too expensive.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2604.21282" target="_blank">Strategic Heterogeneous Multi-Agent Architecture for Cost-Effective Code Vulnerability Detection</a><div class="note">Cooperative coalition with union aggregation PLUS a "verification game" where a verifier can override expert consensus — exactly the adversarial-verifier-on-top-of-ensemble shape (combines L1 union with L2 refute).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2502.15845" target="_blank">Verify when Uncertain: Beyond Self-Consistency in Black-Box Hallucination Detection</a><div class="note">Targets verification effort at uncertain cases rather than verifying everything — a way to size the refute panel by confidence so precision gain ≫ recall/cost loss.</div></div>
+</section>
+
+<section id="L3"><h2>L3 — Ensemble diversity helps small models disproportionately</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2510.05077" target="_blank">SLM-MUX: Orchestrating Small Language Models for Reasoning</a><div class="note">Most relevant to the mission: orchestration designed for frontier models paradoxically degrades SLMs by amplifying errors; SLM-MUX instead selects by self-consistency and gains up to +13.4% on MATH. A model-selection search picks the most complementary small models — directly informs ensemble design for 27b.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2412.15238v1" target="_blank">Dipper (full text) — 3× Qwen2-1.5B beats a 7B model on MATH</a><div class="note">Concrete small-model asymmetry datapoint: a training-free ensemble of three 1.5B instances outperforms a single 7B. The recall-uplift-by-model-size signature L3 wants to confirm.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2510.05077" target="_blank">SLM-MUX (PDF) — model selection + test-time scaling for SLMs</a><div class="note">Caveat-bearing source: warns discussion-based (debate) orchestration can hurt small models via error amplification, favoring confidence-selection/union instead — a design constraint for any 27b ensemble, against naive multi-agent debate.</div></div>
+</section>
+</body></html>

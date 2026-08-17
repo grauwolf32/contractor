@@ -1,12 +1,18 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
+from google.adk.models.lite_llm import LiteLLMClient
 
 from contractor.callbacks.context import (
     FunctionResultsRemovalCallback,
     SummarizationLimitCallback,
 )
-from contractor.utils.llm_compat import forced_tool_choice
+from contractor.utils.llm_compat import (
+    SanitizingLiteLLMClient,
+    forced_response_format,
+    forced_tool_choice,
+)
 from tests.units.contractor_tests.helpers import (
     MockContent,
     mk_callback_context,
@@ -93,6 +99,29 @@ def test_summarization_handles_missing_token_state():
     assert state["token_count"] == 0
 
 
+def test_summarization_ignores_previous_invocation_token_state_on_first_call():
+    state = {"callbacks": {}}
+    old_ctx = mk_callback_context(initial_state=state, invocation_id="old")
+    _seed_token_state(old_ctx, total=2000)
+    new_ctx = mk_callback_context(initial_state=state, invocation_id="new")
+    request = mk_llm_request()
+    forced_tool_choice.set("none")
+    forced_response_format.set({"stale": True})
+
+    cb = SummarizationLimitCallback(
+        message="summarize",
+        max_tokens=1000,
+        force_tool_choice="none",
+        force_response_format={"type": "json_schema"},
+    )
+    cb(new_ctx, request)
+
+    assert cb.token_count == 0
+    assert request.contents == []
+    assert forced_tool_choice.get() is None
+    assert forced_response_format.get() is None
+
+
 def test_summarization_respects_custom_summarization_key():
     ctx = mk_callback_context()
     ctx.state.setdefault("callbacks", {})
@@ -121,6 +150,7 @@ def test_summarization_to_state_shape():
         "history",
         "fired_invocation_id",
         "force_tool_choice",
+        "last_forced",
     }
 
 
@@ -544,44 +574,82 @@ def test_to_state_includes_new_fields():
 
 @pytest.fixture(autouse=True)
 def _clean_forced_tool_choice():
-    """Keep the shared ContextVar isolated between tests in this module."""
+    """Keep the shared ContextVars isolated between tests in this module."""
     forced_tool_choice.set(None)
+    forced_response_format.set(None)
     yield
     forced_tool_choice.set(None)
+    forced_response_format.set(None)
 
 
-def _request_with_schema(contents=None):
-    """An llm_request stand-in that carries a response schema (as ADK sets for
-    output_schema workers), so the "none" enforcement gate passes."""
+def _request_with_finish_tool(contents=None):
+    """An llm_request stand-in carrying a set_model_response finish tool — the
+    one case where "none" must NOT be forced (it would block finishing)."""
+    decl = SimpleNamespace(name="set_model_response")
+    tool = SimpleNamespace(function_declarations=[decl])
     return SimpleNamespace(
         contents=list(contents or []),
-        config=SimpleNamespace(response_schema={"type": "object"}),
+        config=SimpleNamespace(tools=[tool]),
     )
 
 
 def test_force_tool_choice_set_when_over_limit():
+    # Normal contractor worker: no set_model_response finish tool (it delivers
+    # its result as free text), so "none" engages to force termination.
     ctx = mk_callback_context()
     _seed_token_state(ctx, total=2000)
 
     cb = SummarizationLimitCallback(
         message="summarize", max_tokens=1000, force_tool_choice="none"
     )
-    cb(ctx, _request_with_schema())
+    cb(ctx, mk_llm_request())
 
     assert forced_tool_choice.get() == "none"
     assert cb.to_state()["force_tool_choice"] == "none"
+    assert cb.to_state()["last_forced"] == "none"
 
 
-def test_force_tool_choice_degrades_without_response_schema():
-    # Over limit + force "none", but no response schema on the request: forcing
-    # "none" would risk raw tool-call markup, so the callback must NOT force.
+def test_response_format_paired_only_with_none():
+    # The response_format grammar pins output to the worker's final-result shape,
+    # which is right under "none" but corrupts tool-call generation under
+    # "auto"/"required" (tools are still expected there). It must be published
+    # only when the forced choice is "none".
+    rf = {"type": "json_schema", "json_schema": {"name": "r", "schema": {}}}
+
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+    cb_none = SummarizationLimitCallback(
+        message="s", max_tokens=1000, force_tool_choice="none", force_response_format=rf
+    )
+    cb_none(ctx, mk_llm_request())
+    assert forced_tool_choice.get() == "none"
+    assert forced_response_format.get() == rf
+
+    for choice in ("auto", "required"):
+        forced_response_format.set(None)
+        ctx = mk_callback_context()
+        _seed_token_state(ctx, total=2000)
+        cb = SummarizationLimitCallback(
+            message="s",
+            max_tokens=1000,
+            force_tool_choice=choice,
+            force_response_format=rf,
+        )
+        cb(ctx, mk_llm_request())
+        assert forced_tool_choice.get() == choice
+        assert forced_response_format.get() is None, choice
+
+
+def test_force_tool_choice_degrades_with_set_model_response_tool():
+    # A set_model_response finish tool is present (ADK output_schema+tools
+    # workaround): "none" would block the only way to finish, so degrade.
     ctx = mk_callback_context()
     _seed_token_state(ctx, total=2000)
 
     cb = SummarizationLimitCallback(
         message="summarize", max_tokens=1000, force_tool_choice="none"
     )
-    cb(ctx, mk_llm_request())  # MockLlmRequest has no .config/response_schema
+    cb(ctx, _request_with_finish_tool())
 
     assert forced_tool_choice.get() is None
 
@@ -615,3 +683,75 @@ def test_force_tool_choice_untouched_when_disabled():
     assert forced_tool_choice.get() == "sentinel"
     # message still injected — enforcement is independent of the nudge
     assert request.contents[0].parts[0].text == "summarize"
+
+
+@pytest.mark.asyncio
+async def test_callback_sets_then_client_injects_in_one_context(monkeypatch):
+    """End-to-end seam: the over-limit callback publishes forced_tool_choice and
+    the model client consumes it on the worker's very next call — proving the
+    producer (context.py) and consumer (llm_compat.py) connect in one context.
+    Previously the two halves were only tested in isolation."""
+    captured: dict = {}
+
+    async def fake_super(self, model, messages, tools, **kwargs):
+        captured["kwargs"] = kwargs
+        return "resp"
+
+    monkeypatch.setattr(LiteLLMClient, "acompletion", fake_super)
+
+    # Producer: a worker crosses its token limit.
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+    cb = SummarizationLimitCallback(
+        message="summarize", max_tokens=1000, force_tool_choice="none"
+    )
+    cb(ctx, mk_llm_request())
+    assert forced_tool_choice.get() == "none"
+
+    # Consumer: the worker's next model call, in the SAME context.
+    client = SanitizingLiteLLMClient()
+    await client.acompletion(model="m", messages=[], tools=[])
+    assert captured["kwargs"]["tool_choice"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_forced_tool_choice_does_not_leak_across_create_task(monkeypatch):
+    """A worker over its limit sets forced_tool_choice='none' inside its own
+    agent flow, which ADK runs in a SEPARATE asyncio Task
+    (``Runner._run_node_async`` -> ``asyncio.create_task``, google/adk/runners.py).
+    ``create_task`` snapshots the context, so the value must NOT leak back to the
+    planner's context after the worker returns.
+
+    This pins the load-bearing isolation that makes the suspected worker->planner
+    leak a non-bug: if a future ADK upgrade ran sub-agents inline (no
+    create_task), this test would fail loudly instead of silently stranding the
+    planner at tool_choice='none'."""
+    captured: dict = {}
+
+    async def fake_super(self, model, messages, tools, **kwargs):
+        captured["kwargs"] = kwargs
+        return "resp"
+
+    monkeypatch.setattr(LiteLLMClient, "acompletion", fake_super)
+
+    async def worker_turn():
+        # Mirror a worker's before_model callback firing over-limit, inside the
+        # child Task that ADK's runner creates for the sub-agent flow.
+        ctx = mk_callback_context()
+        _seed_token_state(ctx, total=2000)
+        cb = SummarizationLimitCallback(
+            message="summarize", max_tokens=1000, force_tool_choice="none"
+        )
+        cb(ctx, mk_llm_request())
+        assert forced_tool_choice.get() == "none"  # set in the child's copy
+
+    # Planner context starts clear.
+    assert forced_tool_choice.get() is None
+    await asyncio.create_task(worker_turn())
+    # Planner context is unchanged — the worker's set() stayed in the child copy.
+    assert forced_tool_choice.get() is None
+
+    # The planner's next model call therefore carries no forced tool_choice.
+    client = SanitizingLiteLLMClient()
+    await client.acompletion(model="m", messages=[], tools=[])
+    assert "tool_choice" not in captured["kwargs"]

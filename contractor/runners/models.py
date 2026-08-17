@@ -4,7 +4,10 @@ import json
 import logging
 import os
 import re
-from collections.abc import Awaitable, Callable, Mapping
+import tempfile
+import threading
+from collections.abc import Awaitable, Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum, unique
@@ -69,6 +72,11 @@ class TaskResult:
     params: dict[str, Any]
     input_artifacts: dict[str, str]
     published_artifacts: dict[ArtifactKind, str]
+    # True only when TaskRunner reused a validated checkpoint entry instead of
+    # executing the task in this run. Downstream postconditions use this to
+    # distinguish an intentionally reused persisted side effect from a stale
+    # artifact that a freshly-run worker failed to update.
+    restored: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -438,6 +446,36 @@ class RenderedTask:
 
 
 _CHECKPOINT_VERSION = 1
+_CHECKPOINT_SAVE_LOCK = threading.Lock()
+
+
+@contextmanager
+def _checkpoint_file_lock(path: Path) -> Iterator[None]:
+    """Hold a cross-process advisory lock for one checkpoint path."""
+    lock_path = path.with_name(f".{path.name}.lock")
+    with open(lock_path, "a+b") as lock_file:
+        if os.name == "nt":  # pragma: no cover - exercised on Windows CI only
+            import msvcrt
+
+            lock_file.seek(0)
+            if not lock_file.read(1):
+                lock_file.write(b"\0")
+                lock_file.flush()
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 @dataclass(slots=True)
@@ -453,6 +491,27 @@ class CheckpointEntry:
 class Checkpoint:
     workflow: str
     entries: list[CheckpointEntry] = field(default_factory=list)
+    # Only entries changed by this in-memory snapshot may overwrite the latest
+    # on-disk value during a merge.  A checkpoint loaded before a parallel
+    # sibling finishes contains stale copies of every pre-existing entry; if we
+    # blindly replay all of them, that stale snapshot can undo the sibling's
+    # newer update even though the sibling refs themselves are preserved.
+    _dirty_refs: set[str] = field(default_factory=set, init=False, repr=False)
+    # Snapshot loaded from disk. Comparing it at save time catches callers
+    # that mutate ``entries`` or an entry's artifact mapping directly instead
+    # of going through ``mark_done``; without this, those valid public-dataclass
+    # mutations were silently discarded by the concurrent merge.
+    _baseline_entries: dict[str, tuple[int, str, str, str]] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        # Directly-constructed checkpoints treat their supplied entries as new
+        # data.  ``load`` clears this set after reconstructing an on-disk
+        # snapshot, making loaded historical entries clean.
+        self._dirty_refs.update(entry.ref for entry in self.entries)
 
     def get(self, ref: str) -> CheckpointEntry | None:
         for e in self.entries:
@@ -463,27 +522,99 @@ class Checkpoint:
     def mark_done(self, entry: CheckpointEntry) -> None:
         self.entries = [e for e in self.entries if e.ref != entry.ref]
         self.entries.append(entry)
+        self._dirty_refs.add(entry.ref)
+
+    @staticmethod
+    def _entry_snapshot(entry: CheckpointEntry) -> tuple[int, str, str, str]:
+        return (
+            entry.task_id,
+            entry.template_key,
+            entry.template_version,
+            json.dumps(
+                entry.published_artifacts,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        )
+
+    def _current_snapshots(self) -> dict[str, tuple[int, str, str, str]]:
+        snapshots: dict[str, tuple[int, str, str, str]] = {}
+        for entry in self.entries:
+            if entry.ref in snapshots:
+                raise ValueError(
+                    f"checkpoint contains duplicate task ref {entry.ref!r}"
+                )
+            snapshots[entry.ref] = self._entry_snapshot(entry)
+        return snapshots
+
+    def _capture_baseline(self) -> None:
+        self._baseline_entries = self._current_snapshots()
 
     def save(self, path: Path) -> None:
-        data = {
-            "version": _CHECKPOINT_VERSION,
-            "workflow": self.workflow,
-            "updated_at": datetime.now(UTC).isoformat(),
-            "tasks": [
-                {
-                    "task_id": e.task_id,
-                    "ref": e.ref,
-                    "template_key": e.template_key,
-                    "template_version": e.template_version,
-                    "published_artifacts": e.published_artifacts,
-                }
-                for e in self.entries
-            ],
-        }
-        tmp = path.with_suffix(".tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        tmp.replace(path)
+        # Parallel TaskRunners (notably vuln-sweep's per-class fan-out) each
+        # hold their own in-memory snapshot. Merge the latest on-disk entries
+        # while serializing the read/replace sequence so the last finisher does
+        # not erase siblings that completed earlier.
+        with _CHECKPOINT_SAVE_LOCK, _checkpoint_file_lock(path):
+            entries_to_save = self.entries
+            current_snapshots = self._current_snapshots()
+            dirty_refs = self._dirty_refs | {
+                ref
+                for ref, snapshot in current_snapshots.items()
+                if self._baseline_entries.get(ref) != snapshot
+            }
+            deleted_refs = self._baseline_entries.keys() - current_snapshots.keys()
+
+            existing = Checkpoint.load(path)
+            if existing is not None and existing.workflow == self.workflow:
+                merged = Checkpoint(
+                    workflow=self.workflow,
+                    entries=[
+                        entry
+                        for entry in existing.entries
+                        if entry.ref not in deleted_refs
+                    ],
+                )
+                for entry in self.entries:
+                    if entry.ref in dirty_refs:
+                        merged.mark_done(entry)
+                entries_to_save = merged.entries
+
+            data = {
+                "version": _CHECKPOINT_VERSION,
+                "workflow": self.workflow,
+                "updated_at": datetime.now(UTC).isoformat(),
+                "tasks": [
+                    {
+                        "task_id": e.task_id,
+                        "ref": e.ref,
+                        "template_key": e.template_key,
+                        "template_version": e.template_version,
+                        "published_artifacts": e.published_artifacts,
+                    }
+                    for e in entries_to_save
+                ],
+            }
+            fd, tmp_name = tempfile.mkstemp(
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+            )
+            tmp = Path(tmp_name)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                tmp.replace(path)
+            finally:
+                tmp.unlink(missing_ok=True)
+            # Adopt imported sibling entries only after the atomic replacement
+            # succeeds. On a failed write, retaining the caller's old snapshot
+            # and baseline prevents a retry from treating imported (clean)
+            # siblings as locally dirty and overwriting a newer writer.
+            self.entries = entries_to_save
+            self._dirty_refs.clear()
+            self._capture_baseline()
 
     @classmethod
     def load(cls, path: Path) -> Checkpoint | None:
@@ -508,7 +639,7 @@ class Checkpoint:
                 )
                 return None
 
-            return cls(
+            checkpoint = cls(
                 workflow=data.get("workflow", ""),
                 entries=[
                     CheckpointEntry(
@@ -521,7 +652,10 @@ class Checkpoint:
                     for t in data.get("tasks", [])
                 ],
             )
-        except (KeyError, TypeError, AttributeError) as exc:
+            checkpoint._dirty_refs.clear()
+            checkpoint._capture_baseline()
+            return checkpoint
+        except (KeyError, TypeError, AttributeError, ValueError) as exc:
             _checkpoint_logger.warning(
                 "ignoring corrupt checkpoint %s: %r", path, exc
             )

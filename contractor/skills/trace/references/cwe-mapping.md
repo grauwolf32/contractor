@@ -1,3 +1,7 @@
+---
+description: "CWE quick reference for the trace skill: map a confirmed finding to its CWE id. Load before writing the `details` field of `report_vulnerability`."
+---
+
 # CWE Quick Reference
 
 Load this reference **before** writing the `details` field of `report_vulnerability`.

@@ -1,3 +1,7 @@
+---
+description: "Applying colors, shapes, icons, and relationship line styles: the semantic color-token table, shape values, and icon-pack prefixes (aws/azure/gcp/tech/bootstrap). Read when you need exact token names."
+---
+
 # Style Tokens and Colors (LikeC4 DSL)
 
 ## Canonical color tokens (semantic names)

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import AsyncMock
 
@@ -887,6 +888,115 @@ async def test_execute_current_subtask_retries_until_non_empty(monkeypatch):
     assert "error" not in res
     assert res["record"]["task_id"] == "0"
     assert worker.run_async.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_parallel_duplicate_execute_claims_only_once(monkeypatch):
+    worker = _mk_worker()
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _done(*, args, tool_context):
+        entered.set()
+        await release.wait()
+        return _result_json(args["task_id"], "done", "only task zero", "ok")
+
+    worker.run_async.side_effect = _done
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    first_call = asyncio.create_task(
+        tool["execute_current_subtask"](tool_context=ctx)
+    )
+    await entered.wait()
+    duplicate = await tool["execute_current_subtask"](tool_context=ctx)
+    release.set()
+    first = await first_call
+
+    assert "already being executed" in duplicate["error"]
+    assert worker.run_async.await_count == 1
+    assert first["record"]["task_id"] == "0"
+    subtasks = tool["list_subtasks"](tool_context=ctx, view="all")["result"]
+    assert [(task["task_id"], task["status"]) for task in subtasks] == [
+        ("0", "done"),
+        ("1", "new"),
+    ]
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert [record["task_id"] for record in records] == ["0"]
+
+
+@pytest.mark.asyncio
+async def test_execute_rejects_result_if_plan_advanced_while_worker_awaited(
+    monkeypatch,
+):
+    worker = _mk_worker()
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _done(*, args, tool_context):
+        entered.set()
+        await release.wait()
+        return _result_json(args["task_id"], "done", "stale output", "ok")
+
+    worker.run_async.side_effect = _done
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=True)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+    tool["add_subtask"](title="t1", description="d1", tool_context=ctx)
+
+    running = asyncio.create_task(tool["execute_current_subtask"](tool_context=ctx))
+    await entered.wait()
+    skipped = tool["skip"](task_id="0", reason="superseded", tool_context=ctx)
+    assert skipped["result"] == "ok"
+    release.set()
+    stale = await running
+
+    assert "cannot be applied" in stale["error"]
+    subtasks = tool["list_subtasks"](tool_context=ctx, view="all")["result"]
+    assert [(task["task_id"], task["status"]) for task in subtasks] == [
+        ("0", "skipped"),
+        ("1", "new"),
+    ]
+    records = tool["get_records"](tool_context=ctx)["result"]
+    assert [(record["task_id"], record["status"]) for record in records] == [
+        ("0", "skipped")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_execute_releases_claim_when_post_worker_processing_raises(monkeypatch):
+    from contractor.tools.tasks import tools as _tools_mod
+
+    worker = _mk_worker()
+
+    async def _done(*, args, tool_context):
+        return _result_json(args["task_id"], "done", "ok", "ok")
+
+    worker.run_async.side_effect = _done
+    real_project_usage = _tools_mod.project_usage
+    calls = 0
+
+    def _fail_once(state, config):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("projection failed after worker returned")
+        return real_project_usage(state, config)
+
+    monkeypatch.setattr(_tools_mod, "project_usage", _fail_once)
+    tool = _mk_tools(monkeypatch, worker=worker, use_skip=False)
+    ctx = mk_tool_context()
+    tool["add_subtask"](title="t0", description="d0", tool_context=ctx)
+
+    with pytest.raises(RuntimeError, match="projection failed"):
+        await tool["execute_current_subtask"](tool_context=ctx)
+
+    # The same subtask can be retried: the exception path released its claim.
+    retried = await tool["execute_current_subtask"](tool_context=ctx)
+    assert retried["record"]["status"] == "done"
+    assert worker.run_async.await_count == 2
 
 
 @pytest.mark.anyio

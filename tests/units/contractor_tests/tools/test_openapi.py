@@ -6,11 +6,13 @@ from google.genai import types
 
 from contractor.tools.openapi import (
     PathItem,
+    Response,
     SecurityScheme,
     openapi_tools,
     validate_files,
     validate_model,
 )
+from contractor.tools.openapi.models import Operation
 
 
 class MockToolContext:
@@ -158,6 +160,55 @@ async def test_set_and_get_info(tool_context, fs):
     res = await get_info(tool_context)
     assert res["result"]["title"] == "My API"
     assert res["result"]["x-framework"] == "FastAPI"
+
+
+@pytest.mark.asyncio
+async def test_set_info_preserves_required_version(tool_context, fs):
+    """Regression: set_info must MERGE, not replace — the required ``version``
+    (and other existing info fields) survive a title/framework update."""
+    tools = openapi_tools("openapi", fs)
+    set_info = next(t for t in tools if t.__name__ == "set_info")
+    get_info = next(t for t in tools if t.__name__ == "get_info")
+
+    await set_info(
+        title="My API",
+        framework="FastAPI",
+        code_language="Python",
+        tool_context=tool_context,
+    )
+
+    info = (await get_info(tool_context))["result"]
+    assert info["title"] == "My API"
+    assert info["x-framework"] == "FastAPI"
+    # version comes from openapi_base_schema and must NOT be dropped.
+    assert info["version"] == "1.0.0"
+    assert "description" in info
+
+
+def test_operation_operation_id_is_optional():
+    """OpenAPI allows operations with no operationId; the model must accept it."""
+    ok, err = validate_model(
+        Operation,
+        {"responses": {"200": {"description": "ok"}}},
+    )
+    assert ok is True, err
+
+
+def test_response_links_accepts_link_objects():
+    """OpenAPI Link Objects are dicts, not strings; the model must accept them."""
+    ok, err = validate_model(
+        Response,
+        {
+            "description": "ok",
+            "links": {
+                "GetUserByUserId": {
+                    "operationId": "getUser",
+                    "parameters": {"userId": "$response.body#/id"},
+                }
+            },
+        },
+    )
+    assert ok is True, err
 
 
 @pytest.mark.asyncio

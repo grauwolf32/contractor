@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Contractor is a CLI that drives Google-ADK + LiteLLM agents to generate, enrich, and trace OpenAPI specs from a project's source code. It is **not** an HTTP service — every "run" is a CLI invocation that spins up a workflow of agents over a target codebase and writes artifacts to a local directory.
 
-See [docs/README.md](docs/README.md) for the deep dive on planner/worker internals, the streamline subtask state machine, and the memory / artifact contract. Read it before changing anything in `contractor/runners/` or `contractor/agents/planning_agent/` — it documents non-obvious invariants (e.g. terminal subtask states, `finish` semantics).
+See [docs/architecture/README.md](docs/architecture/README.md) for the deep dive on planner/worker internals, the streamline subtask state machine, and the memory / artifact contract. Read it before changing anything in `contractor/runners/` or `contractor/agents/planning_agent/` — it documents non-obvious invariants (e.g. terminal subtask states, `finish` semantics).
 
 ## Common commands
 

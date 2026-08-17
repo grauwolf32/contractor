@@ -36,11 +36,13 @@ from cli.fs import RootedLocalFileSystem
 from contractor.agents.librarian_agent import build_librarian_agent
 from contractor.agents.oas_builder_agent.agent import build_oas_builder_agent
 from contractor.tools.artifact_pool import KeywordPoolBackend
+from contractor.utils.adk_artifacts import migrate_legacy_artifact_layout
 from contractor.utils.settings import build_model
 from tests.eval.scorers import diff_detail, score_oas_schema
 from tests.eval.task_harness import run_task_pipeline
 
 USER_ID = "eval-user"
+APP_NAME = "oas-ab-config-b"
 OAS_KEY = "user:oas-openapi-building"
 
 OAS_CONSOLIDATION_FOCUS = (
@@ -55,8 +57,26 @@ OAS_CONSOLIDATION_FOCUS = (
 
 
 def _load_spec_from_dir(artifact_dir: Path) -> dict[str, Any]:
-    base = (Path(artifact_dir) / "users" / USER_ID / "artifacts"
-            / "oas-openapi-building" / "versions")
+    root = Path(artifact_dir)
+    base = (
+        root
+        / "apps"
+        / APP_NAME
+        / "users"
+        / USER_ID
+        / "artifacts"
+        / "oas-openapi-building"
+        / "versions"
+    )
+    if not base.is_dir():
+        base = (
+            root
+            / "users"
+            / USER_ID
+            / "artifacts"
+            / "oas-openapi-building"
+            / "versions"
+        )
     if not base.is_dir():
         return {}
     for v in sorted((int(d.name) for d in base.iterdir() if d.name.isdigit()),
@@ -99,8 +119,9 @@ async def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(src, work)
+    migrate_legacy_artifact_layout(work, app_name=APP_NAME)
     # Clear the prior consolidation so the re-run is clean.
-    art_base = work / "users" / USER_ID / "artifacts"
+    art_base = work / "apps" / APP_NAME / "users" / USER_ID / "artifacts"
     for stale in ("knowledge_consolidation", "memory/knowledge:oas"):
         shutil.rmtree(art_base / stale, ignore_errors=True)
 
@@ -153,7 +174,7 @@ async def main() -> None:
         run = await run_task_pipeline(
             queue_fn=queue, artifact_keys=["oas_update/result", OAS_KEY],
             namespace="oas-ab-b-tail", timeout_s=args.timeout,
-            runner_name="oas-ab-config-b", output_dir=out, artifact_dir=work,
+            runner_name=APP_NAME, output_dir=out, artifact_dir=work,
         )
         text = run.artifacts.get(OAS_KEY, "") or run.result_text("oas_update")
     except Exception as exc:  # noqa: BLE001 - score the partial build on timeout

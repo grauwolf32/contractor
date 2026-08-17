@@ -76,7 +76,7 @@ def build_overlay_patch(
                 patch["base_hash"] = sha256_hex(_read_base_cached(path))
         patches.append(patch)
 
-    # Creates / modifies
+    # Creates / modifies (including base→visible type changes)
     for path in sorted(visible_paths):
         if path == root_marker:
             continue
@@ -84,14 +84,37 @@ def build_overlay_patch(
         visible_info = visible_entries[path]
         visible_type = visible_info.get("type", "file")
 
+        base_info = base_entries.get(path)
+        base_type = base_info.get("type", "file") if base_info is not None else None
+
+        # A path present in BOTH base and visible but with a different type
+        # (dir↔file) must be deleted then recreated. Without this, save() either
+        # crashes (dir→file hit "Type mismatch") or silently drops the change
+        # (file→dir matched neither the delete nor the create branch) — so the
+        # applied patch diverged from render_overlay_diff, which reports it.
+        type_changed = base_info is not None and base_type != visible_type
+        if type_changed:
+            delete_patch: Patch = {
+                "op": "delete_path",
+                "path": path,
+                "type": base_type,
+            }
+            if base_type == "file":
+                with contextlib.suppress(FileNotFoundError):
+                    delete_patch["base_hash"] = sha256_hex(_read_base_cached(path))
+            patches.append(delete_patch)
+
+        # A type-changed path is treated as brand new from here on.
+        is_new = base_info is None or type_changed
+
         if visible_type == "directory":
-            if path not in base_paths and effective_empty_dir(path):
+            if is_new and effective_empty_dir(path):
                 patches.append({"op": "create_dir", "path": path})
             continue
 
         current_bytes = read_effective_bytes(path)
 
-        if path not in base_paths:
+        if is_new:
             patches.append(
                 {
                     "op": "write_file",
@@ -101,8 +124,8 @@ def build_overlay_patch(
             )
             continue
 
-        base_info = base_entries[path]
-        if base_info.get("type") != "file":
+        # Existing base file, possibly modified in place.
+        if base_type != "file":
             raise RuntimeError(f"Type mismatch for {path}: base is not a file")
 
         base_bytes = _read_base_cached(path)

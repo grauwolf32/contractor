@@ -1,3 +1,7 @@
+---
+description: "Writing/editing `model { }` blocks: element hierarchy (systems/containers/components/actors), relationships, `extend` patterns, and property names."
+---
+
 # Model (LikeC4 DSL)
 
 The `model` block defines the logical architecture: elements (systems, containers, components, actors) organized in a hierarchy, with relationships between them. Views project from this model.

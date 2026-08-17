@@ -1,0 +1,52 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AE · Prompt-surface architecture — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#AE">← back to research.html</a></div>
+<h1>AE · Prompt-surface architecture — the three deterministic layers</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="AE1"><h2>AE1 — Layer placement changes outcomes; establish routing rules empirically</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank">Effective context engineering for AI agents (Anthropic)</a><div class="note">Defines the discipline as "what the agent knows, sees, and remembers at the moment of action," with distinct roles for system prompt vs tools vs just-in-time retrieval — the canonical statement that where content lives changes behavior and cost, AE1's premise.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2603.09619" target="_blank">Context Engineering: From Prompts to Corporate Multi-Agent Architecture (arXiv)</a><div class="note">Treats context placement across layers as an architectural design problem with measurable trade-offs — supports turning layer routing into an evidence-based rule rather than convention.</div></div>
+  <div class="src"><a href="https://www.elastic.co/search-labs/blog/context-engineering-vs-prompt-engineering" target="_blank">Context engineering vs. prompt engineering (Elasticsearch Labs)</a><div class="note">Distinguishes persistent instruction (resident) from dynamically assembled context (per-task/on-demand) — frames the resident-vs-per-task-vs-lazy axis AE1 A/Bs.</div></div>
+</section>
+
+<section id="AE2"><h2>AE2 — Minimal, focused layers help small LLMs disproportionately; bloat crowds the small window</h2>
+  <div class="src"><a href="https://mlops.community/blog/the-impact-of-prompt-bloat-on-llm-output-quality" target="_blank">The Impact of Prompt Bloat on LLM Output Quality (MLOps Community)</a><div class="note">Documents reasoning degradation starting ~3000 tokens — far below the context max — so irrelevant resident text actively hurts accuracy/coherence; the core evidence that bloat is a real tax, heaviest where the window is tightest.</div></div>
+  <div class="src"><a href="https://medium.com/data-science-collective/why-long-system-prompts-hurt-context-windows-and-how-to-fix-it-7a3696e1cdf9" target="_blank">Why Long System Prompts Hurt Context Windows (and How to Fix It)</a><div class="note">Explains instruction dilution and lost-in-the-middle for bloated system prompts, and the prefill/KV-cache cost — directly the always-resident agent-prompt penalty AE2 measures by model size.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2601.02023" target="_blank">Not All Needles Are Found: How Fact Distribution… Shape… Hallucination Risks in Long-Context LLMs (arXiv)</a><div class="note">Empirical long-context study showing extraction/inference degrade as input grows and facts disperse — the mechanism by which a verbose prompt steals capacity a small model needs for the actual code.</div></div>
+</section>
+
+<section id="AE3"><h2>AE3 — Fine-grained, lazily-pulled skills beat monolithic bundles for small LLMs</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank">Equipping agents for the real world with Agent Skills (Anthropic)</a><div class="note">Defines Skills' progressive disclosure: metadata → instructions → resources, "load information only as needed," no context penalty for unused bundled content — the exact design divergence AE3 validates (index + small refs vs monolith).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2603.29919" target="_blank">SkillReducer: Optimizing LLM Agent Skills for Token Efficiency (arXiv)</a><div class="note">Directly studies skill token efficiency and the chunk-granularity trade-off (too fine = round-trips, too coarse = over-pull) AE3 names — the closest academic work to the fine-vs-monolithic head-to-head.</div></div>
+  <div class="src"><a href="https://micheallanham.substack.com/p/agent-skills-the-architectural-shift" target="_blank">Agent Skills: The Architectural Shift from Mega-Prompts to Progressive Disclosure</a><div class="note">Argues the monolithic mega-prompt era is "failing due to prohibitive token costs and performance degradation," replaced by a three-level tiered hierarchy — the industry framing of AE3's claim that tiered beats monolithic.</div></div>
+</section>
+
+<section id="AE4"><h2>AE4 — The task-prompt worker-context channel is high-leverage for per-target grounding</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank">Effective context engineering for AI agents (Anthropic)</a><div class="note">Advocates retrieving per-task facts "just in time" rather than pre-loading everything into the system prompt — supports injecting per-target facts (endpoint under test, prior findings, AC observations) via the per-task channel, not the resident agent prompt.</div></div>
+  <div class="src"><a href="https://redis.io/blog/prompt-bloat-llm-apps/" target="_blank">Prompt Bloat: Causes, Costs &amp; Fixes for LLM Apps (Redis)</a><div class="note">Frames the cost difference between always-resident vs request-scoped context and how to keep per-request context tight — the resident-vs-per-task cost comparison AE4 measures.</div></div>
+</section>
+
+<section id="AE5"><h2>AE5 — Placement-by-access-frequency minimizes tokens at equal quality</h2>
+  <div class="src"><a href="https://github.com/musistudio/claude-code-router/blob/main/blog/en/progressive-disclosure-of-agent-tools-from-the-perspective-of-cli-tool-style.md" target="_blank">Progressive disclosure of agent tools from the perspective of CLI-tool style (claude-code-router)</a><div class="note">Argues frequently-needed capabilities stay resident while rarely-needed ones are disclosed on demand — exactly the access-frequency cost model AE5 wants to formalize and audit placements against.</div></div>
+  <div class="src"><a href="https://www.mindstudio.ai/blog/progressive-disclosure-ai-agents-context-management" target="_blank">Progressive Disclosure in AI Agents: How to Load Context Without Killing Output Quality (MindStudio)</a><div class="note">Operational rules for deciding what to keep resident vs fetch on demand to minimize tokens at held quality — a practical checklist for re-routing mis-placed items.</div></div>
+</section>
+
+<section id="AE6"><h2>AE6 — A hard skill-injection cap per worker; the "everything agent" as anti-pattern</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank">Writing effective tools for AI agents (Anthropic)</a><div class="note">"Curate the minimal viable set of tools" — the same focus-beats-breadth principle behind capping how many skills a single worker loads (complements AA, bounds bloat at the source).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2603.29919" target="_blank">SkillReducer: Optimizing LLM Agent Skills for Token Efficiency (arXiv)</a><div class="note">Quantifies the token cost of over-broad skill loading and the gains from bounding it — evidence basis for whether a 1–3 (max 5) cap holds or improves small-model F1/context.</div></div>
+  <div class="src"><a href="https://github.com/agentscope-ai/agentscope/issues/1055" target="_blank">Explore Integration of Agent Skills with Automatic Tool Management via Progressive Disclosure (agentscope issue)</a><div class="note">Real implementation discussion of validating/limiting which skills a worker pulls — the comparative precedent (cf. Strix validate_requested_skills) for an enforced per-worker budget.</div></div>
+</section>
+</body></html>

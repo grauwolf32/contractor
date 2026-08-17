@@ -4,7 +4,9 @@ import json
 import logging
 from collections.abc import Callable
 from contextlib import suppress
+from contextvars import ContextVar
 from typing import Any, Final, Literal
+from uuid import uuid4
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool
@@ -37,6 +39,7 @@ from contractor.tools.tasks.models import (
     SKIP_REASON_MUST_NOT_BE_EMPTY,
     SUBTASK_DECOMPOSE_NOT_DECOMPOSABLE,
     SUBTASK_DECOMPOSE_OVER_CAPACITY,
+    SUBTASK_EXECUTION_IN_PROGRESS,
     SUBTASK_NOT_CURRENT_MSG,
     SUBTASK_REQUIRES_DECOMPOSITION_MSG,
     SUBTASK_REQUIRES_RESOLUTION_MSG,
@@ -277,6 +280,13 @@ def task_tools(
         worker = AgentTool(worker)
 
     mgr = StreamlineManager(name, max_tasks, fmt)
+    # Each ADK function call runs in its own asyncio task, so a ContextVar gives
+    # the outer wrapper exact ownership of the claim acquired by its inner
+    # implementation. A rejected parallel duplicate sees ``None`` in its own
+    # context and therefore cannot release the winning call's claim.
+    active_execution_claim: ContextVar[tuple[str, str] | None] = ContextVar(
+        f"{name}_active_execution_claim", default=None
+    )
 
     # Pre-create summarizer if needed
     summarizer_tool: AgentTool | None = None
@@ -526,26 +536,10 @@ def task_tools(
             return {"result": NO_ACTIVE_SUBTASKS_MSG}
         return {"result": "ok", "next-subtask": fmt.format_subtask(next_subtask)}
 
-    async def execute_current_subtask(
+    async def _execute_current_subtask_impl(
         tool_context: ToolContext,
     ) -> dict[str, Any]:
-        """Execute the current subtask using the worker agent.
-
-        Prerequisites:
-            - At least one subtask must exist
-            - Current subtask must have status 'new'
-            - If 'incomplete'/'malformed', resolve it by decomposing or skipping first
-
-        Returns:
-            Record of execution with optional action guidance.
-
-        After this tool returns:
-            - If status is 'done': The next subtask becomes current automatically when one exists.
-            - If status is 'incomplete': You MUST call `decompose_subtask` or `skip` before proceeding.
-            - If status is 'malformed': The raw output has been stored, but the
-            result could not be fully parsed. You MUST call `decompose_subtask`
-            or `skip` before proceeding.
-        """
+        """Internal claimed execution implementation."""
         current = mgr.get_current_subtask(tool_context)
         if current is None:
             return {"error": NO_ACTIVE_SUBTASKS_MSG}
@@ -588,6 +582,25 @@ def task_tools(
             extra={"task_id": current.task_id, "title": current.title},
         )
 
+        # ADK may execute duplicate same-turn tool calls concurrently. Claim the
+        # task synchronously before the first await, then also pass the expected
+        # task ID through completion so a stale result can never be applied to a
+        # later task if another planner action advances the queue.
+        claim_id = (
+            getattr(tool_context, "function_call_id", None) or uuid4().hex
+        )
+        claimed, claim_error = mgr.claim_current_subtask(
+            expected_task_id=current.task_id,
+            claim_id=claim_id,
+            ctx=tool_context,
+        )
+        if not claimed:
+            return {
+                "error": claim_error
+                or SUBTASK_EXECUTION_IN_PROGRESS.format(task_id=current.task_id)
+            }
+        active_execution_claim.set((current.task_id, claim_id))
+
         # Prepare worker input
         if fmt.format == "json" or use_input_schema:
             args: dict[str, Any] = fmt._subtask_to_json(current)
@@ -612,56 +625,64 @@ def task_tools(
             tool_context.state[MEMORIES_READ_STATE_KEY] = []
             tool_context.state[FILE_PATHS_STATE_KEY] = {}
 
-        for attempt in range(1, n_retries + 1):
-            raw = await worker.run_async(args=args, tool_context=tool_context)
+        try:
+            for attempt in range(1, n_retries + 1):
+                raw = await worker.run_async(args=args, tool_context=tool_context)
 
-            if _is_empty_worker_response(raw):
-                logger.debug(
-                    "Worker returned empty response, retrying",
-                    extra={
-                        "task_id": current.task_id,
-                        "attempt": attempt,
-                        "max": n_retries,
-                    },
-                )
-                continue
+                if _is_empty_worker_response(raw):
+                    logger.debug(
+                        "Worker returned empty response, retrying",
+                        extra={
+                            "task_id": current.task_id,
+                            "attempt": attempt,
+                            "max": n_retries,
+                        },
+                    )
+                    continue
 
-            candidate = _parse_worker_output(raw, fmt, current.task_id)
-            if candidate is None:
-                logger.debug(
-                    "Worker returned unparseable response, retrying",
-                    extra={
-                        "task_id": current.task_id,
-                        "attempt": attempt,
-                        "max": n_retries,
-                    },
-                )
-                malformed_reason = None
-                continue
+                candidate = _parse_worker_output(raw, fmt, current.task_id)
+                if candidate is None:
+                    logger.debug(
+                        "Worker returned unparseable response, retrying",
+                        extra={
+                            "task_id": current.task_id,
+                            "attempt": attempt,
+                            "max": n_retries,
+                        },
+                    )
+                    malformed_reason = None
+                    continue
 
-            if candidate.task_id != current.task_id:
+                if candidate.task_id != current.task_id:
+                    logger.warning(
+                        "Worker returned mismatched task_id",
+                        extra={
+                            "expected": current.task_id,
+                            "got": candidate.task_id,
+                            "attempt": attempt,
+                        },
+                    )
+                    malformed_reason = (
+                        f"Worker returned result for task_id='{candidate.task_id}' "
+                        f"but expected '{current.task_id}'.\n\n"
+                        f"Original parsed output:\n{candidate.output}"
+                    )
+                    continue
+
+                subtask_result = candidate
+                break
+            else:
                 logger.warning(
-                    "Worker returned mismatched task_id",
-                    extra={
-                        "expected": current.task_id,
-                        "got": candidate.task_id,
-                        "attempt": attempt,
-                    },
+                    "Worker exhausted retries without a valid result",
+                    extra={"task_id": current.task_id, "attempts": n_retries},
                 )
-                malformed_reason = (
-                    f"Worker returned result for task_id='{candidate.task_id}' "
-                    f"but expected '{current.task_id}'.\n\n"
-                    f"Original parsed output:\n{candidate.output}"
-                )
-                continue
-
-            subtask_result = candidate
-            break
-        else:
-            logger.warning(
-                "Worker exhausted retries without a valid result",
-                extra={"task_id": current.task_id, "attempts": n_retries},
+        except BaseException:
+            mgr.release_execution_claim(
+                expected_task_id=current.task_id,
+                claim_id=claim_id,
+                ctx=tool_context,
             )
+            raise
 
         # ── Apply malformed fallback ─────────────────────────────────
         raw_dump: Any = raw
@@ -694,7 +715,16 @@ def task_tools(
             }
             record_usage = usage if (usage is not None and obs.in_record) else None
             success, error_msg = mgr.complete_current_subtask_from_runtime_result(
-                runtime_result, tool_context, usage=record_usage
+                runtime_result,
+                tool_context,
+                usage=record_usage,
+                expected_task_id=current.task_id,
+                claim_id=claim_id,
+            )
+            mgr.release_execution_claim(
+                expected_task_id=current.task_id,
+                claim_id=claim_id,
+                ctx=tool_context,
             )
             record: dict[str, Any] = {
                 **current.model_dump(),
@@ -731,7 +761,16 @@ def task_tools(
         record_usage = usage if (inject and obs.in_record) else None
 
         success, error_msg = mgr.complete_current_subtask(
-            subtask_result, tool_context, usage=record_usage
+            subtask_result,
+            tool_context,
+            usage=record_usage,
+            expected_task_id=current.task_id,
+            claim_id=claim_id,
+        )
+        mgr.release_execution_claim(
+            expected_task_id=current.task_id,
+            claim_id=claim_id,
+            ctx=tool_context,
         )
 
         record = fmt.format_task_record(current, subtask_result, usage=record_usage)
@@ -761,6 +800,43 @@ def task_tools(
             response["action"] = " ".join(action_parts)
 
         return response
+
+    async def execute_current_subtask(
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Execute the current subtask using the worker agent.
+
+        Prerequisites:
+            - At least one subtask must exist
+            - Current subtask must have status 'new'
+            - If 'incomplete'/'malformed', resolve it by decomposing or skipping first
+
+        Returns:
+            Record of execution with optional action guidance. A concurrent
+            duplicate is rejected while the first execution remains active.
+
+        After this tool returns:
+            - If status is 'done': The next subtask becomes current automatically when one exists.
+            - If status is 'incomplete': You MUST call `decompose_subtask` or `skip` before proceeding.
+            - If status is 'malformed': The raw output has been stored, but the
+              result could not be fully parsed. You MUST call `decompose_subtask`
+              or `skip` before proceeding.
+        """
+        claim_context_token = active_execution_claim.set(None)
+        try:
+            return await _execute_current_subtask_impl(tool_context)
+        finally:
+            claim = active_execution_claim.get()
+            try:
+                if claim is not None:
+                    expected_task_id, claim_id = claim
+                    mgr.release_execution_claim(
+                        expected_task_id=expected_task_id,
+                        claim_id=claim_id,
+                        ctx=tool_context,
+                    )
+            finally:
+                active_execution_claim.reset(claim_context_token)
 
     async def finish(
         status: Literal["done", "failed"],

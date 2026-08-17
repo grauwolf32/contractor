@@ -1,3 +1,7 @@
+---
+description: "Writing/editing `specification { }` blocks: defining element, deploymentNode, and relationship kinds, plus tags and color vocabularies."
+---
+
 # Specification (LikeC4 DSL)
 
 The `specification` block defines all named vocabularies for the project: element kinds, deployment node kinds, relationship kinds, tags, and custom color tokens. Every kind used in `model` or `deployment` blocks must be declared here first.

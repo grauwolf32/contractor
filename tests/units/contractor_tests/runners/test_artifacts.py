@@ -1,3 +1,4 @@
+import hashlib
 import json
 from unittest.mock import AsyncMock
 
@@ -52,10 +53,39 @@ class TestArtifactKeySlug:
         assert artifact_key_slug("sqli-list_2") == "sqli-list_2"
 
     def test_collapses_unsafe_runs_to_single_underscore(self):
-        assert artifact_key_slug("trace-annotation:openapi:items") == (
-            "trace-annotation_openapi_items"
+        assert artifact_key_slug("trace-annotation:openapi:items").startswith(
+            "h_trace-annotation_openapi_items_h"
         )
-        assert artifact_key_slug("a / b") == "a_b"
+        assert artifact_key_slug("a / b").startswith("h_a_b_h")
+
+    def test_distinct_unsafe_values_cannot_collapse_to_same_slug(self):
+        assert artifact_key_slug("SQL/Injection") != artifact_key_slug(
+            "SQL Injection"
+        )
+        assert artifact_key_slug("root") != artifact_key_slug("_root_")
+
+    def test_encoded_output_cannot_alias_a_safe_raw_identifier(self):
+        encoded = artifact_key_slug("SQL/Injection")
+        assert encoded.startswith("h_")
+        assert artifact_key_slug(encoded) != encoded
+
+    def test_case_variants_remain_distinct_on_case_insensitive_filesystems(self):
+        assert artifact_key_slug("Issue").casefold() != artifact_key_slug(
+            "issue"
+        ).casefold()
+
+    @pytest.mark.parametrize(
+        "value", ["CON", "con", "nul", "AUX", "prn", "COM1", "lpt9"]
+    )
+    def test_windows_device_names_are_encoded(self, value):
+        assert artifact_key_slug(value).startswith("h_")
+
+    def test_long_safe_value_is_bounded_and_hashed(self):
+        slug = artifact_key_slug("a" * 300)
+        assert len(slug) <= 160
+        assert slug.endswith(
+            hashlib.sha256(("a" * 300).encode("utf-8")).hexdigest()
+        )
 
     def test_stable_and_key_safe(self):
         slug = artifact_key_slug("../weird name!")
@@ -63,9 +93,17 @@ class TestArtifactKeySlug:
         # The slug is a single segment that passes key validation.
         assert validate_artifact_key(f"t/{slug}") == f"t/{slug}"
 
-    @pytest.mark.parametrize("value", ["", "   ", "::", "__"])
-    def test_degenerate_inputs_fall_back(self, value):
-        assert artifact_key_slug(value) == "item"
+    def test_empty_input_has_a_reserved_fallback(self):
+        assert artifact_key_slug("").startswith("h_item_h")
+        assert artifact_key_slug("") != artifact_key_slug("item")
+
+    def test_nonempty_degenerate_inputs_remain_distinct(self):
+        assert artifact_key_slug("::") != artifact_key_slug("__")
+        assert artifact_key_slug("::").startswith("h_item_h")
+        assert artifact_key_slug("   ") != artifact_key_slug("")
+
+    def test_surrounding_whitespace_is_part_of_identity(self):
+        assert artifact_key_slug("issue") != artifact_key_slug(" issue ")
 
 
 class TestArtifactFilename:

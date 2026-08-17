@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AA · Skill taxonomy — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#AA">← back to research.html</a></div>
+<h1>AA · Skill taxonomy — knowledge as a composable matrix</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="AA1"><h2>AA1 — Deterministic, context-targeted cell injection cuts resident skill context at equal recall</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank">Equipping agents for the real world with Agent Skills (Anthropic)</a><div class="note">Defines progressive disclosure: load only skill name/description until relevant, then full SKILL.md, then resources — the design rationale for injecting only the matching cell instead of whole bundles.</div></div>
+  <div class="src"><a href="https://www.newsletter.swirlai.com/p/agent-skills-progressive-disclosure" target="_blank">Agent Skills: Progressive Disclosure as a System Design Pattern</a><div class="note">Frames progressive disclosure as a context-management pattern; cites 60–80% token reduction by loading only relevant skill layers — direct support for the resident-context-at-equal-recall claim.</div></div>
+  <div class="src"><a href="https://github.com/mgechev/skills-best-practices" target="_blank">skills-best-practices — lean context window skills</a><div class="note">Practical guidance on authoring skills to keep the context window lean and validating them with LLMs — the implementation discipline AA1's targeted injection requires.</div></div>
+</section>
+
+<section id="AA2"><h2>AA2 — A framework × class cell outperforms a generic class skill on framework-specific bugs</h2>
+  <div class="src"><a href="https://semgrep.dev/docs/contributing/contributing-to-semgrep-rules-repository" target="_blank">Semgrep Registry — rules organized by language, framework, and class</a><div class="note">The Registry is literally a framework×class×language matrix (p/django, p/flask, p/express...), demonstrating that framework-specific rules outperform generic ones — the production analogue of the proposed cell.</div></div>
+  <div class="src"><a href="https://spaceraccoon.dev/comparing-rule-syntax-codeql-semgrep/" target="_blank">Rule Writing for CodeQL and Semgrep (Spaceraccoon)</a><div class="note">Shows how framework-aware rules encode ORM/route idioms (e.g. Django querysets) that generic rules miss — concrete evidence that Django-IDOR knowledge is more actionable than generic IDOR prose.</div></div>
+  <div class="src"><a href="https://github.com/laugiov/code-safety" target="_blank">code-safety — taint benchmark on a controlled Django app (16 OWASP cases)</a><div class="note">A ground-truth Django app comparing Pysa/CodeQL/Semgrep; a ready stratified fixture for measuring framework-cell vs generic recall on one framework.</div></div>
+</section>
+
+<section id="AA3"><h2>AA3 — Task-specific skills as executable assets raise small-model success vs prose</h2>
+  <div class="src"><a href="https://arxiv.org/html/2605.19604v1" target="_blank">Formal Skill: Programmable Runtime Skills for Efficient and Accurate LLM Agents</a><div class="note">Represents skills as executable programs the agent invokes, gaining determinism (same input→same output) and testability — the core "asset, not prose" argument for procedural skills.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2602.12670" target="_blank">SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks</a><div class="note">A benchmark for measuring skill effectiveness across tasks — the instrument to A/B procedural-skill-as-asset vs prose, including across model sizes.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2602.20867" target="_blank">SoK: Agentic Skills — Beyond Tool Use in LLM Agents</a><div class="note">Systematization separating code-as-skill from prose instruction; reports retrieval-of-procedures beating free-recall (e.g. 80% vs 50% with BM25 baseline) — supports retrieval-beats-recall for small models.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2603.00718" target="_blank">SkillCraft: Can LLM Agents Learn to Use Tools Skillfully?</a><div class="note">Studies whether agents can reliably execute multi-step tool sequences — relevant to packaging replayable probe sequences as executable assets.</div></div>
+</section>
+
+<section id="AA4"><h2>AA4 — The framework/language axis closes the AST-vs-knowledge gap for under-covered languages</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2508.04448" target="_blank">LLMs Versus Static Code Analysis Tools: A Systematic Benchmark for Vulnerability Detection</a><div class="note">Benchmarks detection per language/class, exposing where coverage is thin — the substrate for measuring recall climb after adding a language cell (Rust/Kotlin/Swift).</div></div>
+  <div class="src"><a href="https://semgrep.dev/docs/writing-rules/rule-ideas" target="_blank">Semgrep rule structure and taint mode (sources/sinks/sanitizers)</a><div class="note">Shows that once AST/parse support exists, recall is gated by per-language sink/source knowledge encoded as rules — exactly the gap AA4 says a language cell fills.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2410.20740" target="_blank">A Comprehensive Study on SAST Tools for Android</a><div class="note">Documents large per-language coverage variance (67% down to 22%) despite parser support — empirical evidence that knowledge, not AST support, bounds recall.</div></div>
+</section>
+
+<section id="AA5"><h2>AA5 — A skill-coverage matrix makes gaps explicit; empty cells predict low recall</h2>
+  <div class="src"><a href="https://about.gitlab.com/blog/2021/09/08/write-vulnerability-detection-rules/" target="_blank">How to write and continuously test vulnerability-detection rules for SAST (GitLab)</a><div class="note">Uses test-suites to measure rule-coverage gaps between analyzers with parity requirements — the methodology for turning cell-occupancy into a measurable, plannable surface.</div></div>
+  <div class="src"><a href="https://derscanner.com/blog/sast-coverage-full-guide" target="_blank">SAST Coverage 101: what vulnerability types does SAST cover?</a><div class="note">Frames coverage as a class×stack grid and notes large variability by stack — supports laying skills on a framework×class grid where occupancy predicts recall.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2602.12430v3" target="_blank">Agent Skills for LLMs: Architecture, Acquisition, Security, and the Path Forward</a><div class="note">Survey of how skill libraries are organized, acquired, and gap-filled — frames coverage as a roadmap surface and warns against benchmark-specific overfitting when filling cells.</div></div>
+</section>
+</body></html>

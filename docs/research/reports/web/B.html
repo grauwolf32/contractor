@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>B · Detection recall & precision — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#B">← back to research.html</a></div>
+<h1>B · Detection recall &amp; precision</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="B1"><h2>B1 — Activating the shannon (coverage-ledger / sink-slot) trace prompt raises recall at equal precision</h2>
+  <div class="src"><a href="https://arxiv.org/html/2405.17238v3" target="_blank">IRIS: LLM-Assisted Static Analysis for Detecting Security Vulnerabilities (arXiv)</a><div class="note">Pairs an LLM with a structured source/sink/taint scaffold and finds 28 more vulns than CodeQL without precision loss — direct evidence that forcing the model to reason over a sink inventory (the shannon coverage-ledger idea) raises recall at flat precision.</div></div>
+  <div class="src"><a href="https://aclanthology.org/2025.acl-long.1490.pdf" target="_blank">Benchmarking LLMs and LLM-based Agents in Practical Vulnerability Detection (ACL 2025)</a><div class="note">Evaluates prompting/agent strategies on real-world detection; quantifies how methodology-structured prompting shifts the recall/precision frontier — useful for setting the +10%-recall-at-flat-precision pass/kill bar.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2508.04448v1" target="_blank">LLMs Versus Static Code Analysis Tools: A Systematic Benchmark (arXiv)</a><div class="note">Finds LLM scanners' F1 advantage over SAST comes specifically from superior recall (reasoning across broader context), and that CoT-style prompting trades recall for precision — calibrates the expected direction of a coverage-forcing prompt change.</div></div>
+</section>
+
+<section id="B2"><h2>B2 — A structured finding schema (cwe/sink_kind/entry_point/data_flow) improves dedup precision and stops overwrite loss</h2>
+  <div class="src"><a href="https://www.sonarsource.com/resources/library/sarif/" target="_blank">The complete guide to SARIF — Sonar</a><div class="note">SARIF is the standard structured finding schema: typed CWE id, physical location, flow-sensitive annotations, confidence. Adopting its field model (vs free-text <code>details</code>) is the concrete realization of B2 and enables principled merge keys.</div></div>
+  <div class="src"><a href="https://boostsecurity.io/blog/sarif-cant-save-you-now" target="_blank">SARIF limitations in security tooling — BoostSecurity</a><div class="note">Documents that reliable dedup requires fingerprinting by rule id + physical location, and where SARIF still falls short — important caveat for B2's merge-on-structured-keys claim (string-split on "CWE-" is exactly the brittle approach this warns against).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2510.02534" target="_blank">ZeroFalse: Improving Precision in Static Analysis with LLMs (arXiv)</a><div class="note">Treats each finding as a structured contract enriched with flow annotations and CWE-specific knowledge before LLM analysis — demonstrates that a typed sink/flow schema (not prose) materially improves precision, the core B2 prediction.</div></div>
+</section>
+
+<section id="B3"><h2>B3 — A second independent trace pass + programmatic union/dedup raises recall (single-pass is the constraint)</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2403.14274" target="_blank">Multi-role Consensus through LLM Discussions for Vulnerability Detection (arXiv)</a><div class="note">Reports an 18.25% recall increase from running multiple independent LLM perspectives and aggregating — direct support that misses are partly stochastic and recoverable by a second pass with union/dedup, the B3 hypothesis.</div></div>
+  <div class="src"><a href="https://www.emergentmind.com/topics/self-consistency-sampling" target="_blank">Self-Consistency Sampling in LLMs (survey)</a><div class="note">Explains parallel multi-sample aggregation; notes parallel scaling maintains or improves recall (avoids the "overthinking conservatism" of sequential scaling) — the mechanism behind B3's union-of-passes and a caution on how to aggregate.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2601.02970" target="_blank">Reliability-Aware Adaptive Self-Consistency for Efficient Sampling (arXiv)</a><div class="note">Shows how to spend extra passes adaptively rather than a flat N — relevant to B3's recall-vs-token-cost plot, letting easy cases stop early while hard cases get more passes.</div></div>
+</section>
+
+<section id="B4"><h2>B4 — Replacing hardcoded patterns with general methodology holds seen-fixture recall while raising held-out recall</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2407.08708" target="_blank">eyeballvul: a future-proof benchmark for vulnerability detection in the wild (arXiv)</a><div class="note">The exact held-out corpus B4/F3 propose to wire in: 24k+ real vulns across 6k+ revisions, refreshed weekly from new CVEs so it resists train/prompt contamination — the cleanest way to measure seen-vs-held-out generalization of a methodology prompt.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2502.07445v1" target="_blank">LLMs are Like a Chameleon: surface-cue overfitting (arXiv)</a><div class="note">Shows models implicitly overfit to benchmark surface patterns, with performance dropping when cues are perturbed — the general statement of B4's overfit hypothesis (literal grep/WordPress patterns inflate seen recall, transfer poorly).</div></div>
+  <div class="src"><a href="https://www.promptlayer.com/research-papers/are-llm-benchmarks-broken" target="_blank">The Vulnerability of LM Benchmarks / held-out vs standard eval gap</a><div class="note">Reports standard eval can overestimate by 8+ points versus held-out — quantitative motivation for B4's seen/held-out split and a sanity baseline for how large the overfit gap might be.</div></div>
+</section>
+
+<section id="B5"><h2>B5 — A SAST pre-pass (semgrep) seeding candidate sinks lets a 27b model match a 70b baseline's recall</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2509.15433" target="_blank">SAST-Genius: A Hybrid Static Analysis Framework (LLM + Semgrep/CodeQL) (arXiv)</a><div class="note">Integrates Semgrep/CodeQL findings as leads into an LLM triage layer, reporting up to 2.5× detection rate and up to 91% fewer false positives — strong evidence that seeding deterministic candidate sinks lifts recall while controlling the FP risk B5 flags.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2601.10865" target="_blank">SemTaint: Multi-Agent Taint Specification Extraction (arXiv)</a><div class="note">Combines static taint sources/sinks with LLM agents (Source/Sink, CallGraph, Flow-Summary) to do what neither does alone — a blueprint for feeding ranked candidate sinks to the trace agent and offloading pattern-recall to an engine, the B5/E1 mechanism.</div></div>
+  <div class="src"><a href="https://konvu.com/compare/semgrep-vs-codeql" target="_blank">Semgrep vs CodeQL (2026): technical comparison</a><div class="note">Practical comparison of the two candidate pre-pass engines (rule cost, language coverage, semantic depth) — informs which SAST engine to wire as the seeding pass and the precision/noise tradeoff that gates B5's pass/kill.</div></div>
+</section>
+</body></html>

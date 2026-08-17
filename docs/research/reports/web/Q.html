@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Q · LLM-authored deterministic detection rules — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#Q">← back to research.html</a></div>
+<h1>Q · LLM-authored deterministic detection rules</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="Q1"><h2>Q1 — A small model can author semgrep rules near direct-scan recall at a fraction of per-run cost</h2>
+  <div class="src"><a href="https://lambdasec.github.io/AutoGrep-Automated-Generation-and-Filtering-of-Semgrep-Rules-from-Vulnerability-Patches/" target="_blank">Autogrep: Automated Generation and Filtering of Semgrep Rules from Patches</a><div class="note">Most direct prior art: LLM + multi-stage filtering turns 39,931 vuln patches into 645 reusable Semgrep rules across 20 languages — exactly Q's "author once, run free forever" model, with a concrete recall/precision pipeline.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2510.16384" target="_blank">SemOpt: LLM-Driven Code Optimization via Rule-Based Analysis</a><div class="note">Demonstrates an agent that iteratively writes a Semgrep rule, executes it, and feeds errors back until it compiles and matches — the self-test loop Q1's mechanism describes, validating that small-model authoring with execution feedback is feasible.</div></div>
+  <div class="src"><a href="https://medium.com/@adan.alvarez/diy-using-semgrep-with-llms-to-improve-code-reviews-d43d0584b34f" target="_blank">DIY: Using Semgrep with LLMs to Improve Code Reviews</a><div class="note">Practitioner walkthrough of the author-then-run split for code review — useful real-world calibration of how well LLM-authored rules generalize vs the original confirmed example.</div></div>
+  <div class="src"><a href="https://www.businesswire.com/news/home/20260319711078/en/Semgrep-Launches-Multimodal-Combining-AI-Reasoning-With-Rule-Based-Analysis-for-Detection-Triage-and-Remediation" target="_blank">Semgrep Multimodal: AI Reasoning + Rule-Based Analysis</a><div class="note">Vendor confirmation that the industry direction is exactly Q's: precise rule engine for breadth, LLM reasoning only for the residual — evidence the cost model is being adopted commercially.</div></div>
+</section>
+
+<section id="Q2"><h2>Q2 — Rules authored from confirmed findings accumulate into a monotonically-growing library</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2511.08462" target="_blank">QLCoder: A Query Synthesizer for Static Analysis of Security Vulnerabilities</a><div class="note">Synthesizes CodeQL queries from CVE descriptions using a Claude Code agent (100% compile, 53.4% success vs 19%/0% baselines). Shows each confirmed CVE can seed a reusable query — the "confirmed finding → generalized rule" accrual Q2 posits, just for CodeQL.</div></div>
+  <div class="src"><a href="https://www.mdpi.com/2076-3417/16/1/517" target="_blank">CQLLM: Generating CodeQL Vulnerability Detection Code with an LLM (RAG + LoRA)</a><div class="note">Uses retrieval over a growing corpus of prior queries to author new ones — directly relevant to whether a rule library compounds (RAG over the library) rather than plateauing.</div></div>
+  <div class="src"><a href="https://github.blog/security/vulnerability-research/codeql-team-uses-ai-to-power-vulnerability-detection-in-code/" target="_blank">GitHub: CodeQL team uses AI to model APIs (more sinks, fewer FNs)</a><div class="note">Industrial evidence that LLM-authored models accumulate into a library that monotonically expands sink coverage and lowers false-negative rate over time — the coverage-growth claim of Q2.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2504.17198v1" target="_blank">Automatically Generating Rules of Malicious Software Packages via LLM (RuleLLM)</a><div class="note">Decomposes rule generation into craft/refine/align and merges redundant rules to preserve specificity — addresses Q2's "growth without precision collapse" by deduplicating as the library grows.</div></div>
+</section>
+
+<section id="Q3"><h2>Q3 — Hybrid (rules for breadth + model for the novel residual) Pareto-dominates model-only on cost-per-finding</h2>
+  <div class="src"><a href="https://arxiv.org/html/2510.02534" target="_blank">ZeroFalse: Improving Precision in Static Analysis with LLMs</a><div class="note">Treats static-analyzer output as a structured contract and spends LLM only on adjudicating flagged residual cases — the exact division of labor Q3 needs, with measured precision/cost tradeoffs.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2512.08169" target="_blank">Information-Dense Reasoning for Efficient and Auditable Security Alert Triage</a><div class="note">Reports a hybrid that cuts LLM calls ~40% vs pure-LLM at equivalent accuracy by letting deterministic checks clear clear-cut cases — concrete cost-per-finding Pareto evidence for Q3.</div></div>
+  <div class="src"><a href="https://blog.gopenai.com/llms-for-static-analysis-6e9d339d87dd" target="_blank">LLMs for Static Analysis: Where They Help and Where They Don't</a><div class="note">Argues for LLMs early/broad and deterministic scanners for high-assurance verification — a clear articulation of where the hybrid frontier sits and the failure modes of each leg.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2508.04448v1" target="_blank">LLMs Versus Static Code Analysis Tools: A Systematic Benchmark</a><div class="note">Quantifies where rules-only and model-only each win on recall — the baseline data needed to plot the rules-only / model-only / hybrid Pareto curve Q3 measures.</div></div>
+</section>
+</body></html>

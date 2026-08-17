@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T · LLM-guided grey-box fuzzing / concolic — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#T">← back to research.html</a></div>
+<h1>T · LLM-guided grey-box fuzzing / concolic</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="T1"><h2>T1 — Coverage feedback raises exploit success where blind probing plateaus, at equal budget</h2>
+  <div class="src"><a href="https://google.github.io/oss-fuzz/research/llms/target_generation/" target="_blank">OSS-Fuzz: Fuzz Target Generation using LLMs</a><div class="note">Google's production system feeds coverage deltas (via Fuzz Introspector) back to the LLM to steer toward under-covered branches, then revises on compile failures — the exact coverage-in-the-loop mechanism T1 proposes, with measured coverage gains.</div></div>
+  <div class="src"><a href="https://github.com/google/oss-fuzz-gen" target="_blank">google/oss-fuzz-gen (open-source implementation)</a><div class="note">Reference implementation: +29% max line coverage over human targets, 370k+ new lines covered across 272 projects, 26 new vulns found — strong evidence coverage feedback beats blind generation at scale.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2402.00350v1" target="_blank">Large Language Models Based Fuzzing Techniques: A Survey</a><div class="note">Survey mapping how LLMs are wired into coverage-guided fuzzing (seed/mutation/driver synthesis) — situates T1's design space and reports where the model-steered approach lifts capture vs plateauing baselines.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2403.03897" target="_blank">Fuzzing BusyBox: Leveraging LLM and Crash Reuse for Embedded Bug Unearthing</a><div class="note">Concrete case study combining LLM-proposed inputs with coverage/crash feedback under a fixed budget — directly analogous to T1's "same budget, coverage on/off" capture-rate test.</div></div>
+</section>
+
+<section id="T2"><h2>T2 — LLM-proposed property tests, falsified by a fuzzer, find logic bugs missed by static + HTTP probing</h2>
+  <div class="src"><a href="https://arxiv.org/html/2510.09907v1" target="_blank">Agentic Property-Based Testing: Finding Bugs Across the Python Ecosystem</a><div class="note">An agent infers properties/invariants from code+docs, synthesizes and runs PBTs, reflects to confirm true bugs — 56% of reports valid across 100 packages. The exact "model writes invariant, fuzzer falsifies it" loop of T2.</div></div>
+  <div class="src"><a href="https://red.anthropic.com/2026/property-based-testing/" target="_blank">Property-Based Testing with Claude (Anthropic)</a><div class="note">Vendor write-up on having an LLM author properties for a counterexample search to surface logic bugs — practical evidence that LLM-authored invariants are a viable bug-finding signal beyond pattern scans.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2307.04346" target="_blank">Can Large Language Models Write Good Property-Based Tests?</a><div class="note">Studies the quality of LLM-generated PBTs (the failure modes: weak/trivial properties) — important calibration for whether T2's "new TP class" actually materializes or drowns in vacuous properties.</div></div>
+  <div class="src"><a href="https://fast-check.dev/docs/introduction/why-property-based/" target="_blank">Why Property-Based Testing? (fast-check)</a><div class="note">Reference on PBT mechanics — invariant/round-trip/metamorphic patterns and counterexample shrinking — the framework substrate T2's "user can never read another's order"-style invariants would run on.</div></div>
+</section>
+
+<section id="T3"><h2>T3 — Runtime taint (grey-box) confirms reachability the static path only conjectured, raising precision</h2>
+  <div class="src"><a href="https://www.semanticscholar.org/paper/Dynamic-Taint-Analysis-for-Automatic-Detection,-and-Newsome-Song/5803709632cf010d3923e8f85416bb95db0dd8ea" target="_blank">Newsome &amp; Song, Dynamic Taint Analysis for Automatic Detection of Exploits (NDSS'05)</a><div class="note">Seminal DTA paper: observing tainted input actually reaching a sink at runtime detects/confirms exploits with low false positives — the foundational basis for T3's "verified-exploitable, not conjectured" verdict.</div></div>
+  <div class="src"><a href="https://orca.security/resources/blog/dynamic-reachability-analysis/" target="_blank">Dynamic Runtime Reachability Analysis: Real-Time Vulnerability Management</a><div class="note">Explains how confirming a vulnerable path is actually loaded/executed at runtime upgrades priority and cuts false positives — directly the T3 effect of moving cases out of <code>exploitable_unverified</code>.</div></div>
+  <div class="src"><a href="https://can-ozkan.medium.com/what-is-taint-analysis-a-guide-for-developers-and-security-researchers-11f2ad876ea3" target="_blank">What Is Taint Analysis? Static vs Dynamic, and Why They Complement</a><div class="note">Clear articulation that static taint gives breadth while dynamic taint confirms exploitability at runtime — the static-conjecture / grey-box-confirmation split T3's verdict eval measures.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2402.17241" target="_blank">HardTaint: Production-Run Dynamic Taint Analysis via Selective Hardware Tracing</a><div class="note">Addresses DTA's main blocker — runtime overhead — making grey-box taint feasible inside a sandbox/fuzzer, relevant to whether T3 is practical to host in the existing Kali code-exec environment.</div></div>
+</section>
+</body></html>

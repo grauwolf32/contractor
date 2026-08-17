@@ -45,10 +45,22 @@ function mdInline(s) {
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   s = s.replace(/\b_([^_\n]+)_\b/g, '<em>$1</em>');
-  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => {
+    const safe = safeLinkHref(href);
+    return safe ? `<a href="${safe}" target="_blank" rel="noopener">${label}</a>` : label;
+  });
   s = s.replace(/(^|[\s(])((https?:\/\/)[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   s = s.replace(/@@C(\d+)@@/g, (_, i) => `<code>${codes[+i]}</code>`);
   return s;
+}
+
+function safeLinkHref(href) {
+  try {
+    const protocol = new URL(href, window.location.href).protocol;
+    return ['http:', 'https:', 'mailto:'].includes(protocol) ? href : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 function mdToHtml(src) {
@@ -978,7 +990,10 @@ function caseRow(c, passAt) {
   // Domain-specific middle column.
   let mid;
   if (c.expected_verdict !== undefined) {
-    mid = el('span', { class: 'case-verdict', html: `${c.expected_verdict} <span class="muted">→</span> <b class="${c.passed ? 'good' : 'bad'}">${c.actual_verdict || '—'}</b>` });
+    mid = el('span', { class: 'case-verdict' },
+      String(c.expected_verdict ?? ''), ' ',
+      el('span', { class: 'muted', text: '→' }), ' ',
+      el('b', { class: c.passed ? 'good' : 'bad', text: c.actual_verdict || '—' }));
   } else if (c.captured !== undefined) {
     mid = el('span', { class: 'case-verdict' },
       c.tags ? el('span', { class: 'muted', text: c.tags + '  ' }) : null,

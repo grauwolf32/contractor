@@ -1,3 +1,7 @@
+---
+description: "LikeC4 project configuration-file reference: file location, project scope, and config options. Read when setting up or debugging how a project/config resolves."
+---
+
 # Project Configuration Reference
 
 LikeC4 projects are defined by a config file. The file's location determines project scope — all `.c4` files in the directory (and subdirectories) belong to that project.

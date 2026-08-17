@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar, Optional
 from weakref import WeakKeyDictionary
 
@@ -10,12 +10,12 @@ from magika import ContentTypeInfo, Magika
 from contractor.utils.formatting import norm_unicode
 
 
-class InteractionKind(str, Enum):
+class InteractionKind(StrEnum):
     READ = "read"
     MATCH = "match"
 
 
-class InteractionFilter(str, Enum):
+class InteractionFilter(StrEnum):
     ANY = "any"
     READ_ONLY = "read_only"
     MATCH_ONLY = "match_only"

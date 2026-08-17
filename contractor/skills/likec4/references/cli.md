@@ -1,3 +1,7 @@
+---
+description: "LikeC4 CLI / validation-behaviour reference: what `validate_likec4` checks and the export/validate flags. The agent never runs `likec4` directly — read this to interpret validation output."
+---
+
 # CLI Reference (validation behavior of `validate_likec4`)
 
 The agent does **not** invoke `likec4` directly — there is no shell tool. All

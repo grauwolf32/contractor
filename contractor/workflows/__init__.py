@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from google.genai import types
 
 from contractor.runners.models import TaskRunnerEvent
 from contractor.runners.task_runner import TaskRunnerEventHandler
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -66,8 +69,7 @@ class Workflow(ABC):
             try:
                 await self._cleanup(user_id=user_id)
             except Exception:
-                import logging
-                logging.getLogger(__name__).exception("_cleanup failed")
+                logger.exception("_cleanup failed")
             await self._emit(
                 on_event,
                 "workflow_finished",
@@ -97,14 +99,25 @@ class Workflow(ABC):
     ) -> None:
         if on_event is None:
             return
-        await on_event(
-            TaskRunnerEvent(
-                type=event_type,
-                task_name=self.name,
-                task_id=-1,
-                payload={"workflow": self.name, **payload},
-            )
+        event = TaskRunnerEvent(
+            type=event_type,
+            task_name=self.name,
+            task_id=-1,
+            payload={"workflow": self.name, **payload},
         )
+        try:
+            await on_event(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Lifecycle events are telemetry/UI notifications. A broken sink
+            # must not prevent workflow setup, suppress cleanup, or replace the
+            # workflow's real result/error.
+            logger.exception(
+                "event handler failed for %s event (workflow %s)",
+                event_type,
+                self.name,
+            )
 
     async def artifact_exists(self, *, user_id: str, filename: str) -> bool:
         """True iff a non-empty artifact is already stored under ``filename``.

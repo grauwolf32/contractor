@@ -1,3 +1,7 @@
+---
+description: "Writing dynamic views (flow/sequence diagrams): steps, return arrows, chained and parallel steps, and `variant sequence`."
+---
+
 # Dynamic Views — Flow & Sequence Diagrams
 
 Dynamic views model temporal interactions and flows between elements. They render as animated flow diagrams or (optionally) UML sequence diagrams.

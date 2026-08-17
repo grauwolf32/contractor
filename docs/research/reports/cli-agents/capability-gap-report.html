@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contractor vs CLI Agents — Capability Gap Analysis</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --ink:#e6edf3; --muted:#8b98a9;
+    --line:#283041; --accent:#5ab0ff; --good:#3fb950; --warn:#e3b341; --bad:#f85149; --purple:#bc8cff;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:15px}
+  .wrap{max-width:1180px;margin:0 auto;padding:48px 28px 96px}
+  header.hero{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:54px 0 14px;letter-spacing:-.01em;border-top:1px solid var(--line);padding-top:26px}
+  h2:first-of-type{border-top:none;padding-top:0}
+  h3{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+  p{margin:10px 0}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .meta{color:var(--muted);font-size:12.5px;margin-top:14px}
+  code,.mono{font-family:var(--mono);font-size:.88em}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;color:#c9d6e6;border:1px solid var(--line)}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .card .lbl{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--panel)}
+  tr:hover td{background:#12161d}
+  td.mono,th.mono{font-family:var(--mono)}
+  .src{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .yes{color:var(--good);font-weight:700}
+  .no{color:var(--bad);font-weight:700}
+  .part{color:var(--warn);font-weight:700}
+  .callout{border-radius:10px;padding:14px 18px;margin:16px 0;border:1px solid}
+  .callout.tip{background:#10231a;border-color:#1f4a30}
+  .callout.warn{background:#241f0e;border-color:#5e4a23}
+  .callout.info{background:#101a2b;border-color:#23425e}
+  .callout.tip b{color:var(--good)} .callout.warn b{color:var(--warn)} .callout.info b{color:var(--accent)}
+  ul{margin:10px 0;padding-left:22px} li{margin:6px 0}
+  .rec{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+  .rec-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .rec .num{flex:0 0 30px;height:30px;border-radius:8px;background:var(--accent);color:#06121f;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .rec h3{margin:0;color:var(--ink);flex:1 1 auto}
+  .rec .body{color:var(--ink);font-size:14px;margin-top:8px}
+  .rec .ev{color:var(--muted);font-size:12.5px;margin-top:8px;font-family:var(--mono)}
+  .tag{font-size:10.5px;font-family:var(--mono);padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .tag.rel-hi{background:#10231a;color:var(--good);border:1px solid #1f4a30}
+  .tag.rel-md{background:#241f0e;color:var(--warn);border:1px solid #5e4a23}
+  .tag.rel-lo{background:#1c2330;color:var(--muted);border:1px solid var(--line)}
+  .tag.eff{background:#16121f;color:var(--purple);border:1px solid #3a2a52}
+  .footnote{color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:48px;padding-top:18px}
+  .lead{color:var(--good)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Contractor vs CLI agents — capability gap analysis</h1>
+  <p class="sub">What 10 popular coding agents do that Contractor doesn't — filtered to what actually serves its mission: static analysis of a codebase → OpenAPI specs + security traces + vuln findings.</p>
+  <p class="meta">Compiled 2026-06-03 · method: parallel source-level tool-surface inventory of all 10 cloned agents + the leaked Claude Code tree, diffed against Contractor's real tool registry (<code>contractor/tools/*</code>). Every claim about Contractor was verified in-tree, not assumed.</p>
+</header>
+
+<div class="callout info">
+  <b>Framing.</b> Contractor is <i>not</i> a general coding assistant — it's a batch, sandboxed, security-analysis pipeline. So most "cool agent features" (cron, teams, worktrees, browser, notebooks, plan-mode-with-human-approval, web search) are <b>deliberately out of scope</b> and listed as such at the end. The gaps below are only the ones that move the needle on tracing, vuln-finding, or OAS fidelity.
+</div>
+
+<!-- ===================== WHERE CONTRACTOR LEADS ===================== -->
+<h2>First, where Contractor already leads</h2>
+<p>Several agent-inventory findings were simply wrong about Contractor (the inventories lacked full context). Verified in-tree, Contractor is <b>ahead of every surveyed CLI</b> on the things that matter for its mission:</p>
+<div class="grid cards">
+  <div class="card">
+    <div class="lbl">Security call-graph (trailmark)</div>
+    <h4>Unique</h4>
+    <p class="sub">tree-sitter engine with <code>attack_surface</code>, <code>entrypoint_paths_to</code>, <code>functions_that_raise</code>, <code>paths_between</code>, plus <b>framework-aware route/entrypoint detection</b> (Flask/FastAPI/NestJS/Spring/actix…) and a taint model (<code>TAINT_PROPAGATION</code>, <code>PRIVILEGE_BOUNDARY</code>, trust levels). <b>No CLI comes close</b> — goose has a generic call-graph, the rest stop at symbol lists. <span class="src">code/graph.py · trailmark analysis/entrypoints.py</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Trace annotations</div>
+    <h4>Unique</h4>
+    <p class="sub"><code>annotate_trace / sink / validate</code> — taint-aware, language-aware comment insertion validated against the symbol table. No CLI has anything comparable. <span class="src">code/annotations.py</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Coverage tracking</div>
+    <h4>Unique</h4>
+    <p class="sub">touched / untouched / match-only / coverage stats — the agent can prove it reviewed every file. CLIs track read-files for context budgeting, none expose <i>exhaustiveness</i>. <span class="src">fs/read_tools.py</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Orchestrated concurrency</div>
+    <h4>Already present</h4>
+    <p class="sub"><code>trace_graph_pathpar</code> runs N concurrent per-path analyses with overlay forking (<code>TaskGroup</code>+<code>Semaphore</code>+<code>fork_overlay</code>). The "single-agent, no parallelism" claim is false. <span class="src">workflows/shannon/DESIGN.md:42</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Exploit/verify loop</div>
+    <h4>Ahead</h4>
+    <p class="sub">Sandboxed <code>run_python/run_bash</code> (podman), a stateful HTTP client (cookies/auth/history), and Caido integration — a real exploit-and-verify surface no general CLI ships.</p>
+  </div>
+  <div class="card">
+    <div class="lbl">Also already has</div>
+    <h4>Don't re-add</h4>
+    <p class="sub">Skills system (<code>runners/skills.py</code>, 7 bundles), structured worker outputs (<code>SubtaskExecutionResult</code>), memory notes, OpenAPI build+lint, honest truncation envelopes (<code>result.py</code>), overlay-FS checkpointing.</p>
+  </div>
+</div>
+
+<!-- ===================== CAPABILITY MATRIX ===================== -->
+<h2>Capability matrix — the real gaps</h2>
+<p class="sub">✓ = has it · ◑ = partial / different shape · ✗ = absent. "Who has it" lists the strongest reference implementations.</p>
+<table>
+  <thead><tr>
+    <th>Capability</th><th>Contractor</th><th>Who has it (ref impl)</th><th>Relevance to mission</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Ad-hoc AST-pattern search</b><br><span class="sub">match an arbitrary syntactic shape (ast-grep)</span></td>
+      <td class="part">◑ trailmark covers symbols/calls/routes/taint; no ad-hoc pattern matcher</td>
+      <td>none ship true ast-grep; tree-sitter def-extraction in cline, goose, aider</td>
+      <td><span class="tag rel-md">LOW–MED</span> only for shapes outside trailmark's schema</td>
+    </tr>
+    <tr>
+      <td><b>Large tool-output offload</b><br><span class="sub">spill big result to a file, return preview+handle</span></td>
+      <td class="no">✗ (truncates &amp; loses tail)</td>
+      <td>deepseek <code>large_output_router</code> (4096-tok→synthesize); opencode <code>truncate.output(outputPath)</code>; Claude Code <code>collapseReadSearch</code></td>
+      <td><span class="tag rel-hi">HIGH</span> token budget + artifact store fit</td>
+    </tr>
+    <tr>
+      <td><b>Git history / blame</b><br><span class="sub">when/where a line was introduced</span></td>
+      <td class="no">✗</td>
+      <td>deepseek <code>git_log/git_show/git_blame</code></td>
+      <td><span class="tag rel-hi">HIGH</span> vuln provenance &amp; OAS drift</td>
+    </tr>
+    <tr>
+      <td><b>Ranked repo skeleton</b><br><span class="sub">PageRank-ranked, token-budgeted signatures</span></td>
+      <td class="part">◑ (graph_summary, hotspots — not a skeleton)</td>
+      <td>aider <code>repomap.py</code> (tree-sitter tags + PageRank + token binary-search)</td>
+      <td><span class="tag rel-md">MED</span> fast orientation on a new target</td>
+    </tr>
+    <tr>
+      <td><b>Source linter / typecheck passthrough</b></td>
+      <td class="part">◑ (OpenAPI lint only)</td>
+      <td>aider <code>linter.py</code> (pluggable per-lang, error context)</td>
+      <td><span class="tag rel-md">MED</span> broken types poison OAS</td>
+    </tr>
+    <tr>
+      <td><b>LSP: find-references / call-hierarchy</b></td>
+      <td class="part">◑ (tree-sitter call-graph covers core)</td>
+      <td>opencode <code>lsp.ts</code>, Claude Code <code>LSPTool</code>, cline, deepseek</td>
+      <td><span class="tag rel-md">MED</span> cross-lang precision, high cost</td>
+    </tr>
+    <tr>
+      <td><b>Model-callable sub-agent tool</b></td>
+      <td class="part">◑ (workflow pathpar + planner subtasks)</td>
+      <td>opencode <code>task</code>, Claude Code <code>Agent</code>, deepseek <code>agent_*</code></td>
+      <td><span class="tag rel-lo">LOW</span> already orchestrated elsewhere</td>
+    </tr>
+    <tr>
+      <td><b>Batch multi-file read</b> (<code>read_many_files</code>)</td>
+      <td class="no">✗</td>
+      <td>gemini-cli <code>read_many_files</code></td>
+      <td><span class="tag rel-lo">LOW</span> minor planner efficiency</td>
+    </tr>
+    <tr>
+      <td><b>Fuzzy ranked file find</b></td>
+      <td class="part">◑ (exact glob)</td>
+      <td>deepseek <code>file_search</code> (scored)</td>
+      <td><span class="tag rel-lo">LOW</span> minor over glob</td>
+    </tr>
+    <tr>
+      <td><b>MCP client</b> (pluggable external tools)</td>
+      <td class="no">✗</td>
+      <td>Claude Code, gemini-cli, cline, opencode</td>
+      <td><span class="tag rel-lo">STRAT</span> big lift; future, not now</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ===================== RECOMMENDATIONS ===================== -->
+<h2>Recommended additions</h2>
+<p class="sub">Ordered by value-to-mission ÷ effort. Each is content-/security-aware and fits Contractor's existing primitives (tree-sitter engine, artifact store, podman sandbox, overlay FS).</p>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">1</div>
+    <h3>Ad-hoc AST-pattern search (ast-grep) — complements trailmark</h3>
+    <span class="tag rel-md">LOW–MED value</span><span class="tag eff">effort: med</span>
+  </div>
+  <div class="body">
+    <b>Correction from an earlier draft:</b> Contractor is <i>not</i> limited to regex here. Its <code>trailmark</code> engine is tree-sitter–based and already gives AST-derived structure — a typed symbol + call/import/inherit graph, <b>framework-aware route/entrypoint detection</b> (Flask/FastAPI/NestJS/Spring/actix/… via decorator+attribute patterns), and a taint model (<code>TAINT_PROPAGATION</code>, <code>PRIVILEGE_BOUNDARY</code>, trust levels). So "every caller of <code>eval</code>" and "every route handler" are already answerable.
+    <br><br>
+    What trailmark does <i>not</i> do is match an <b>arbitrary syntactic shape</b> outside its fixed node/edge schema: e.g. <code>os.system($CMD)</code> with a specific argument shape, <code>request.args[$K]</code> subscript access, attribute chains, or a sink whose name is built dynamically (so the call-graph can't resolve it). A thin <code>ast-grep</code> wrapper in the podman sandbox covers exactly those ad-hoc, expression-level patterns. It's a <i>complement</i> to trailmark for novel sink shapes — not a foundational gap, hence the downgraded priority.
+  </div>
+  <div class="ev">trailmark already covers structure: analysis/entrypoints.py:11-31 (route decorators), models/annotations.py (taint kinds), query/api.py (callers_of/paths_between) · the delta is ad-hoc pattern matching only</div>
+</div>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">2</div>
+    <h3>Large tool-output offload to an artifact (spill + preview + handle)</h3>
+    <span class="tag rel-hi">HIGH value</span><span class="tag eff">effort: med</span>
+  </div>
+  <div class="body">
+    Contractor already has honest truncation (<code>result.py</code> caps and flags) and an artifact store — but a capped <code>grep</code>/<code>read</code>/<code>graph</code> result is <b>discarded past the cap</b>, not parked. Borrow the now-standard pattern: when a tool result exceeds a token threshold, write the full result to an artifact and return a short preview + a handle (<code>artifact_key</code> + offset/grep continuation). This directly extends the read_file/grep limit work and turns truncation from data-loss into pagination. deepseek goes further — a <b>synthesis sub-agent</b> condenses the spilled output and returns only the summary, keeping the raw in a variable.
+  </div>
+  <div class="ev">deepseek-tui-h large_output_router.rs:23 (DEFAULT_LARGE_OUTPUT_THRESHOLD_TOKENS=4096) · opencode registry.ts:174,182 (truncate.output → outputPath) · Claude Code utils/collapseReadSearch.ts</div>
+</div>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">3</div>
+    <h3>Git history / blame tool</h3>
+    <span class="tag rel-hi">HIGH value</span><span class="tag eff">effort: low</span>
+  </div>
+  <div class="body">
+    For a vuln finding, <i>when</i> and <i>in which commit</i> a line was introduced is first-class provenance — and for OAS-update runs, "what changed since the last spec" scopes the work. Cheap to add as thin wrappers over the project's git (it's usually a repo, and the podman sandbox can run git): <code>git_log(path)</code>, <code>git_blame(path, line_range)</code>, <code>git_show(rev)</code>. Pairs naturally with trace annotations (date the sink) and the post-diff vuln-agent idea already in your memory.
+  </div>
+  <div class="ev">deepseek-tui-h git_history.rs:34 (git_log), :151 (git_show), :268 (git_blame) · Contractor gap verified: no git_* tool in contractor/tools</div>
+</div>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">4</div>
+    <h3>Ranked codebase skeleton (aider-style repomap)</h3>
+    <span class="tag rel-md">MED value</span><span class="tag eff">effort: med</span>
+  </div>
+  <div class="body">
+    A cheap "where do I start" overview for a fresh large target: tree-sitter tags → a symbol graph → PageRank (with personalization toward mentioned files/idents) → token-budget binary search → signature-only output. Far better orientation than <code>ls</code>/<code>glob</code>, and complementary to your call-graph (skeleton = breadth/ranking; graph = precise reachability). Your <code>attack_surface</code>/<code>complexity_hotspots</code> already cover the security-priority angle, so treat this as onboarding/efficiency, not core.
+  </div>
+  <div class="ev">aider repomap.py:374-445 (PageRank + personalization), token-budget binary search ~676-703; boosts: chat-mention 50×, long identifier 10×, private 0.1×</div>
+</div>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">5</div>
+    <h3>Source linter / typecheck passthrough</h3>
+    <span class="tag rel-md">MED value</span><span class="tag eff">effort: low</span>
+  </div>
+  <div class="body">
+    Run the target's own checker (mypy/tsc/eslint/go&nbsp;vet) through the existing podman sandbox and surface structured errors with code context. Broken types and undefined names silently degrade OAS fidelity (wrong param/response shapes) and can flag dead or newly-added routes. Low effort since sandbox exec already exists — mostly a per-language command map + error parser (aider's linter is a good template, including its "show context around the error line" output).
+  </div>
+  <div class="ev">aider linter.py:21-150 (pluggable per-lang, flake8 fatal codes, TreeContext error context)</div>
+</div>
+
+<div class="rec">
+  <div class="rec-head">
+    <div class="num">6</div>
+    <h3>LSP find-references / call-hierarchy — consider, with caveats</h3>
+    <span class="tag rel-md">MED value</span><span class="tag eff">effort: high</span>
+  </div>
+  <div class="body">
+    Every TS-based CLI leans on LSP for <code>findReferences</code>, <code>goToDefinition</code>, <code>incomingCalls</code>/<code>outgoingCalls</code>. It gives language-server-grade cross-file precision that tree-sitter can't match on overloads/dynamic dispatch. <b>But</b> Contractor's call-graph engine already answers the core trace questions, and LSP means running &amp; managing a language server <i>per language</i> inside the sandbox — heavy, and at odds with the batch model. Recommendation: only pursue if multi-language reference precision becomes a measured bottleneck in eval; otherwise invest the same effort in #1 (structural search), which is cheaper and more security-specific.
+  </div>
+  <div class="ev">opencode lsp.ts:12-19 (9 operations incl. prepareCallHierarchy/incomingCalls) · Claude Code tools/LSPTool/LSPTool.ts</div>
+</div>
+
+<p class="sub" style="margin-top:18px"><b>Two small efficiency wins</b> (low effort, low risk): <code>read_many_files</code> (batch-read a glob in one call — gemini-cli) and a fuzzy, scored file-find on top of <code>glob</code> (deepseek <code>file_search</code>). Worth doing only if they show up as friction.</p>
+
+<!-- ===================== OUT OF SCOPE ===================== -->
+<h2>Deliberately <u>not</u> recommended</h2>
+<p>These are real, popular agent features — and a poor fit for Contractor's batch, non-interactive, security-analysis mission. Listing them so the choice is explicit, not an oversight:</p>
+<div class="callout warn">
+  <ul style="margin:4px 0">
+    <li><b>Cron scheduling / remote triggers / teams &amp; swarms</b> (Claude Code, gemini-cli) — orchestration belongs in your workflow layer, not as model-callable tools.</li>
+    <li><b>Git worktree isolation, checkpoints</b> — Contractor already isolates writes via the overlay FS + artifact diff; worktrees would duplicate that.</li>
+    <li><b>Browser automation</b> (cline) — not needed for static analysis; HTTP client + Caido cover the dynamic/exploit side.</li>
+    <li><b>Plan-mode-with-human-approval, AskUserQuestion</b> (most CLIs) — there's no human in the batch loop; the planner subtask machine is the planning surface.</li>
+    <li><b>Web search / WebFetch-to-markdown</b> — research isn't the mission; the HTTP client is for hitting the target, not the open web.</li>
+    <li><b>Notebook editing, REPL, config tool, multimodal image/PDF read</b> — orthogonal to code→OAS→vuln.</li>
+    <li><b>MCP client</b> — strategically interesting (pluggable vuln DBs / SAST), but a large architectural lift; revisit later, not part of this round.</li>
+    <li><b>Already present, don't rebuild:</b> skills, structured outputs, memory, honest truncation, parallel fan-out, sandboxed exec.</li>
+  </ul>
+</div>
+
+<!-- ===================== METHODOLOGY ===================== -->
+<h2>Methodology</h2>
+<p>Four parallel inventory agents read the tool source of all 10 clones + the leaked Claude Code tree, each diffing against Contractor's registry; findings were then re-verified directly in <code>contractor/tools/*</code> (which corrected several false "Contractor lacks X" claims — it has skills, structured outputs, memory, and parallel fan-out). Repos: <span class="src">~/src/cli-agent-research/{aider, gemini-cli, cline, opencode, goose, codex, qwen-code, openclaw, deepseek-tui-h, deepseek-tui-a}</span> + <span class="src">~/claude-leaked/src</span>.</p>
+
+<div class="callout tip">
+  <b>If you do two things:</b> (1) large-output offload to artifacts — completes the read_file/grep truncation work and stops capped tool results from losing evidence; (2) git blame/log — near-free vuln provenance &amp; OAS drift. Both fit existing primitives (artifact store, podman) and avoid interactive-agent features that don't suit a batch pipeline. Ad-hoc AST-pattern search (ast-grep) is a worthwhile <i>complement</i> to trailmark for novel sink shapes, but lower priority — trailmark already covers symbols, calls, routes, and taint.
+</div>
+
+<div class="footnote">
+  Companion to <code>fs-tools-report.html</code> (read_file/grep limits). Generated for the Contractor project · all Contractor claims verified in-tree 2026-06-03 · agent file:line citations spot-checked against the local clones.
+</div>
+
+</div>
+</body>
+</html>

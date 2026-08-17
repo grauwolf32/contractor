@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import threading
 import time
+import weakref
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -25,6 +27,27 @@ HTTPRequestMethod: TypeAlias = Literal[
 BodyType: TypeAlias = Literal["json", "form", "text", "none"]
 AuthKind: TypeAlias = Literal["bearer", "basic", "none"]
 ContextLike: TypeAlias = ToolContext | CallbackContext
+
+# HTTPClient objects are rebuilt with agent instances, but clients using the
+# same name address the same ``http/<name>/...`` artifact namespace.  A lock on
+# an individual client therefore cannot protect persisted request ids/bodies.
+# Locks are shared by namespace within an event loop; weak values avoid keeping
+# short-lived pytest/CLI loops alive forever.
+_NAMESPACE_LOCKS: weakref.WeakValueDictionary[
+    tuple[int, str], asyncio.Lock
+] = weakref.WeakValueDictionary()
+_NAMESPACE_LOCKS_GUARD = threading.Lock()
+
+
+def _namespace_lock(namespace: str) -> asyncio.Lock:
+    loop_key = id(asyncio.get_running_loop())
+    key = (loop_key, namespace)
+    with _NAMESPACE_LOCKS_GUARD:
+        lock = _NAMESPACE_LOCKS.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _NAMESPACE_LOCKS[key] = lock
+        return lock
 
 _TEXTUAL_MIME_PREFIXES: tuple[str, ...] = ("text/",)
 _TEXTUAL_MIME_EXACT: frozenset[str] = frozenset(
@@ -216,6 +239,11 @@ class HTTPClient:
     def body_artifact_name(self, request_id: int) -> str:
         return f"http/{self.name}/responses/{request_id:08d}.json"
 
+    @property
+    def _request_lock(self) -> asyncio.Lock:
+        """Lock shared by every client addressing this artifact namespace."""
+        return _namespace_lock(self.session_artifact_name())
+
     def get_cookies(self) -> dict[str, str]:
         return dict(self._cookies.items())
 
@@ -303,7 +331,8 @@ class HTTPClient:
             self._history.append(item)
         self._next_request_id = max(int(state.get("next_request_id", 1)), 1)
 
-    async def save_session(self, ctx: ArtifactContext) -> None:
+    async def _save_session_state(self, ctx: ArtifactContext) -> None:
+        """Persist state while the caller holds ``_request_lock``."""
         async with self._state_lock:
             payload = self._dump_session_state()
             await ctx.save_artifact(
@@ -313,7 +342,12 @@ class HTTPClient:
                 ),
             )
 
-    async def load_session(self, ctx: ArtifactContext) -> bool:
+    async def save_session(self, ctx: ArtifactContext) -> None:
+        async with self._request_lock:
+            await self._save_session_state(ctx)
+
+    async def _load_session_state(self, ctx: ArtifactContext) -> bool:
+        """Restore state while the caller holds ``_request_lock``."""
         async with self._state_lock:
             artifact = await ctx.load_artifact(filename=self.session_artifact_name())
             if artifact is None or not artifact.text:
@@ -350,6 +384,10 @@ class HTTPClient:
             }
             self._restore_session_state(state)
             return True
+
+    async def load_session(self, ctx: ArtifactContext) -> bool:
+        async with self._request_lock:
+            return await self._load_session_state(ctx)
 
     # ── body persistence ─────────────────────────────────────────────
 
@@ -520,8 +558,35 @@ class HTTPClient:
         follow_redirects: bool = True,
         ctx: ArtifactContext | None = None,
     ) -> ResponseRecord:
+        async with self._request_lock:
+            return await self._request_serialized(
+                url=url,
+                method=method,
+                headers=headers,
+                query=query,
+                body=body,
+                body_type=body_type,
+                timeout=timeout,
+                follow_redirects=follow_redirects,
+                ctx=ctx,
+            )
+
+    async def _request_serialized(
+        self,
+        *,
+        url: str,
+        method: HTTPRequestMethod | str = "GET",
+        headers: Mapping[str, str] | None = None,
+        query: Mapping[str, object] | None = None,
+        body: Any = None,
+        body_type: BodyType = "none",
+        timeout: float | None = None,
+        follow_redirects: bool = True,
+        ctx: ArtifactContext | None = None,
+    ) -> ResponseRecord:
+        """Execute one request while :meth:`request` holds ``_request_lock``."""
         if ctx is not None:
-            await self.load_session(ctx)
+            await self._load_session_state(ctx)
 
         request_id = self._next_request_id
         self._next_request_id += 1
@@ -543,6 +608,12 @@ class HTTPClient:
                 body=body,
                 body_type=body_type,
             )
+            if ctx is not None:
+                # Commit the incremented id before traffic is sent or a body is
+                # stored.  If cancellation or the final session save happens
+                # after body persistence, the next client will still advance
+                # past this artifact instead of overwriting it.
+                await self._save_session_state(ctx)
             response = await self._send_with_retries(
                 client, request, follow_redirects=follow_redirects
             )
@@ -621,7 +692,7 @@ class HTTPClient:
         self._history.append(summary)
 
         if ctx is not None:
-            await self.save_session(ctx)
+            await self._save_session_state(ctx)
 
         return record
 
@@ -800,9 +871,10 @@ def http_tools(
         """
 
         async def _impl() -> Any:
-            if tool_context is not None:
-                await cli.load_session(tool_context)
-            return cli.get_history(limit=limit if limit > 0 else None)
+            async with cli._request_lock:
+                if tool_context is not None:
+                    await cli._load_session_state(tool_context)
+                return cli.get_history(limit=limit if limit > 0 else None)
 
         return await aguard(_impl)
 
@@ -831,21 +903,22 @@ def http_tools(
         """
 
         async def _impl() -> Any:
-            if tool_context is not None:
-                await cli.load_session(tool_context)
-            if cookies is not None:
-                cli.set_cookies(cookies, replace=replace_cookies)
-            if headers is not None:
-                cli.set_default_headers(headers, replace=replace_headers)
-            if auth is not None:
-                cli.set_auth(auth)
-            if tool_context is not None:
-                await cli.save_session(tool_context)
-            return {
-                "cookies": cli.get_cookies(),
-                "default_headers": cli._redacted_default_headers(),
-                "auth_kind": cli.get_auth_kind(),
-            }
+            async with cli._request_lock:
+                if tool_context is not None:
+                    await cli._load_session_state(tool_context)
+                if cookies is not None:
+                    cli.set_cookies(cookies, replace=replace_cookies)
+                if headers is not None:
+                    cli.set_default_headers(headers, replace=replace_headers)
+                if auth is not None:
+                    cli.set_auth(auth)
+                if tool_context is not None:
+                    await cli._save_session_state(tool_context)
+                return {
+                    "cookies": cli.get_cookies(),
+                    "default_headers": cli._redacted_default_headers(),
+                    "auth_kind": cli.get_auth_kind(),
+                }
 
         return await aguard(_impl)
 
@@ -860,13 +933,14 @@ def http_tools(
         """
 
         async def _impl() -> Any:
-            if tool_context is not None:
-                await cli.load_session(tool_context)
-            return {
-                "cookies": cli.get_cookies(),
-                "default_headers": cli._redacted_default_headers(),
-                "auth_kind": cli.get_auth_kind(),
-            }
+            async with cli._request_lock:
+                if tool_context is not None:
+                    await cli._load_session_state(tool_context)
+                return {
+                    "cookies": cli.get_cookies(),
+                    "default_headers": cli._redacted_default_headers(),
+                    "auth_kind": cli.get_auth_kind(),
+                }
 
         return await aguard(_impl)
 
@@ -880,10 +954,11 @@ def http_tools(
         """
 
         async def _impl() -> Any:
-            cli.clear_session_state()
-            if tool_context is not None:
-                await cli.save_session(tool_context)
-            return "session cleared"
+            async with cli._request_lock:
+                cli.clear_session_state()
+                if tool_context is not None:
+                    await cli._save_session_state(tool_context)
+                return "session cleared"
 
         return await aguard(_impl)
 

@@ -14,6 +14,8 @@ from contractor.tools.tasks.formatters import SubtaskFormatter
 from contractor.tools.tasks.models import (
     NO_ACTIVE_SUBTASKS_MSG,
     NO_SUBTASKS_EXIST_MSG,
+    SUBTASK_EXECUTION_IN_PROGRESS,
+    SUBTASK_EXECUTION_STALE_RESULT,
     InvalidStatusTransitionError,
     Subtask,
     SubtaskExecutionResult,
@@ -45,6 +47,9 @@ class StreamlineManager:
 
     def _current_idx_key(self, ctx: ToolContext | CallbackContext) -> str:
         return self._state_key(ctx) + "::idx"
+
+    def _execution_claim_key(self, ctx: ToolContext | CallbackContext) -> str:
+        return self._state_key(ctx) + "::execution-claim"
 
     @staticmethod
     def _task_keys(ctx: ToolContext | CallbackContext) -> TaskScopedKeys:
@@ -93,6 +98,89 @@ class StreamlineManager:
 
     def _set_idx(self, ctx: ToolContext | CallbackContext, idx: int) -> None:
         ctx.state[self._current_idx_key(ctx)] = idx
+
+    # ── Execution claim ─────────────────────────────────────────────
+    def claim_current_subtask(
+        self,
+        *,
+        expected_task_id: str,
+        claim_id: str,
+        ctx: ToolContext | CallbackContext,
+    ) -> tuple[bool, str | None]:
+        """Atomically claim ``expected_task_id`` before the worker yields.
+
+        ADK executes same-turn function calls concurrently. ``State.__setitem__``
+        updates the shared session dictionary synchronously, so this check/set has
+        no scheduling point and only one duplicate ``execute_current_subtask``
+        call can acquire the claim. Completion still verifies the expected task
+        ID, providing a second guard if another planner action advances the plan.
+        """
+        existing = ctx.state.get(self._execution_claim_key(ctx))
+        if existing:
+            active_task_id = (
+                existing.get("task_id") if isinstance(existing, dict) else expected_task_id
+            )
+            return False, SUBTASK_EXECUTION_IN_PROGRESS.format(
+                task_id=active_task_id or expected_task_id
+            )
+
+        current = self.get_current_subtask(ctx)
+        if current is None:
+            return False, NO_ACTIVE_SUBTASKS_MSG
+        if current.task_id != expected_task_id or current.status != "new":
+            return False, SUBTASK_EXECUTION_STALE_RESULT.format(
+                expected_task_id=expected_task_id,
+                current_task_id=current.task_id,
+            )
+
+        ctx.state[self._execution_claim_key(ctx)] = {
+            "task_id": expected_task_id,
+            "claim_id": claim_id,
+        }
+        return True, None
+
+    def release_execution_claim(
+        self,
+        *,
+        expected_task_id: str,
+        claim_id: str,
+        ctx: ToolContext | CallbackContext,
+    ) -> None:
+        """Release only the caller's claim; never clear another execution."""
+        existing = ctx.state.get(self._execution_claim_key(ctx))
+        if not isinstance(existing, dict):
+            return
+        if (
+            existing.get("task_id") == expected_task_id
+            and existing.get("claim_id") == claim_id
+        ):
+            # ADK's State mapping has no pop/delete API. ``None`` is the
+            # unclaimed sentinel and is propagated safely in the state delta.
+            ctx.state[self._execution_claim_key(ctx)] = None
+
+    def _validate_execution_target(
+        self,
+        *,
+        expected_task_id: str,
+        claim_id: str,
+        current_task_id: str,
+        ctx: ToolContext | CallbackContext,
+    ) -> str | None:
+        claim = ctx.state.get(self._execution_claim_key(ctx))
+        if not isinstance(claim, dict) or (
+            claim.get("task_id") != expected_task_id
+            or claim.get("claim_id") != claim_id
+        ):
+            return SUBTASK_EXECUTION_STALE_RESULT.format(
+                expected_task_id=expected_task_id,
+                current_task_id=current_task_id,
+            )
+        if current_task_id != expected_task_id:
+            return SUBTASK_EXECUTION_STALE_RESULT.format(
+                expected_task_id=expected_task_id,
+                current_task_id=current_task_id,
+            )
+        return None
 
     # ── Status transition ───────────────────────────────────────────
     @staticmethod
@@ -339,6 +427,9 @@ class StreamlineManager:
         subtask_result: SubtaskExecutionResult,
         ctx: ToolContext | CallbackContext,
         usage: dict[str, Any] | None = None,
+        *,
+        expected_task_id: str | None = None,
+        claim_id: str | None = None,
     ) -> tuple[bool, str | None]:
         """Apply execution result. Returns (success, error_message).
 
@@ -356,6 +447,21 @@ class StreamlineManager:
                 return False, NO_ACTIVE_SUBTASKS_MSG
 
             current = subtasks[idx]
+            expected = expected_task_id or subtask_result.task_id
+            if current.task_id != subtask_result.task_id:
+                return False, SUBTASK_EXECUTION_STALE_RESULT.format(
+                    expected_task_id=subtask_result.task_id,
+                    current_task_id=current.task_id,
+                )
+            if claim_id is not None:
+                target_error = self._validate_execution_target(
+                    expected_task_id=expected,
+                    claim_id=claim_id,
+                    current_task_id=current.task_id,
+                    ctx=ctx,
+                )
+                if target_error is not None:
+                    return False, target_error
             try:
                 self._apply_status_transition(current, subtask_result.status)
             except InvalidStatusTransitionError as exc:
@@ -393,6 +499,9 @@ class StreamlineManager:
         runtime_result: dict[str, Any],
         ctx: ToolContext | CallbackContext,
         usage: dict[str, Any] | None = None,
+        *,
+        expected_task_id: str | None = None,
+        claim_id: str | None = None,
     ) -> tuple[bool, str | None]:
         """Apply a runtime-generated result (e.g. malformed).
 
@@ -410,6 +519,22 @@ class StreamlineManager:
                 return False, NO_ACTIVE_SUBTASKS_MSG
 
             current = subtasks[idx]
+            result_task_id = str(runtime_result.get("task_id", ""))
+            expected = expected_task_id or result_task_id
+            if current.task_id != result_task_id:
+                return False, SUBTASK_EXECUTION_STALE_RESULT.format(
+                    expected_task_id=result_task_id,
+                    current_task_id=current.task_id,
+                )
+            if claim_id is not None:
+                target_error = self._validate_execution_target(
+                    expected_task_id=expected,
+                    claim_id=claim_id,
+                    current_task_id=current.task_id,
+                    ctx=ctx,
+                )
+                if target_error is not None:
+                    return False, target_error
             new_status = runtime_result["status"]
             try:
                 self._apply_status_transition(current, new_status)

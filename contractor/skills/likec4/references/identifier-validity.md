@@ -1,3 +1,7 @@
+---
+description: "Identifier vs FQN rules: valid characters, why dots are not allowed in names, and how FQNs are constructed. Read on identifier or 'dots-in-names' validation errors."
+---
+
 # Identifier Validity (LikeC4 DSL)
 
 ## Valid identifier form

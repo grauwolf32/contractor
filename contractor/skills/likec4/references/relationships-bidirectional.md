@@ -1,3 +1,7 @@
+---
+description: "Directed (`->`) vs bidirectional (`<->`) relationships: syntax and the `<->` view-predicate patterns."
+---
+
 # Bidirectional vs. Unidirectional Relationships
 
 ## Key distinction: → vs →↔

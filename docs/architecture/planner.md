@@ -5,11 +5,11 @@ Contractor: how a queued **task** is turned into a **planner + worker** loop,
 how the planner decomposes work into **subtasks**, and how state, retries, and
 artifacts flow through it.
 
-It complements [README.md](README.md) (the broader architecture tour). Where
+It complements the [architecture overview](README.md). Where
 that doc surveys all the layers, this one stays inside
-[`contractor/runners/task_runner.py`](../contractor/runners/task_runner.py),
-[`contractor/agents/planning_agent/`](../contractor/agents/planning_agent/),
-and [`contractor/tools/tasks/`](../contractor/tools/tasks/).
+[`contractor/runners/task_runner.py`](../../contractor/runners/task_runner.py),
+[`contractor/agents/planning_agent/`](../../contractor/agents/planning_agent/),
+and [`contractor/tools/tasks/`](../../contractor/tools/tasks/).
 
 All diagrams are Mermaid and render on GitHub.
 
@@ -23,11 +23,11 @@ each one to a worker. Five objects collaborate:
 
 | Object | File | Role |
 | ------ | ---- | ---- |
-| **TaskRunner** | [`runners/task_runner.py`](../contractor/runners/task_runner.py) | Owns the task queue; for each task spawns a fresh planner+worker per attempt, runs the ADK loop, publishes artifacts, emits lifecycle events. |
-| **Planning Agent** | [`agents/planning_agent/agent.py`](../contractor/agents/planning_agent/agent.py) | An ADK `LlmAgent` whose tools are the streamline-manager operations + memory tools. Driven by prompt [`prompts/v5.md`](../contractor/agents/planning_agent/prompts/v5.md). |
-| **StreamlineManager** | [`tools/tasks/manager.py`](../contractor/tools/tasks/manager.py) | The deterministic core: holds the subtask list + current index in ADK session state, enforces the status state machine, appends execution records. The planner's tools are thin wrappers over it. |
+| **TaskRunner** | [`runners/task_runner.py`](../../contractor/runners/task_runner.py) | Owns the task queue; for each task spawns a fresh planner+worker per attempt, runs the ADK loop, publishes artifacts, emits lifecycle events. |
+| **Planning Agent** | [`agents/planning_agent/agent.py`](../../contractor/agents/planning_agent/agent.py) | An ADK `LlmAgent` whose tools are the streamline-manager operations + memory tools. Driven by prompt [`prompts/v5.md`](../../contractor/agents/planning_agent/prompts/v5.md). |
+| **StreamlineManager** | [`tools/tasks/manager.py`](../../contractor/tools/tasks/manager.py) | The deterministic core: holds the subtask list + current index in ADK session state, enforces the status state machine, appends execution records. The planner's tools are thin wrappers over it. |
 | **Worker** | any `build_<agent>` | An `LlmAgent` (SWE, OAS builder, trace, …) `instrument_worker`-ed with `Subtask`/`SubtaskExecutionResult` schemas and wrapped as an `AgentTool`. |
-| **Summarizer** | created in [`tools/tasks/tools.py`](../contractor/tools/tasks/tools.py) | A tool-less `LlmAgent` (shares the worker's model) that condenses the run into a handoff summary at `finish`. |
+| **Summarizer** | created in [`tools/tasks/tools.py`](../../contractor/tools/tasks/tools.py) | A tool-less `LlmAgent` (shares the worker's model) that condenses the run into a handoff summary at `finish`. |
 
 ```mermaid
 flowchart TB
@@ -148,7 +148,7 @@ plan — only the fixed task-scoped keys and inbox memory carry forward.
 
 ## 3. The planner loop (prompt v5)
 
-The planner is an LLM following [`prompts/v5.md`](../contractor/agents/planning_agent/prompts/v5.md).
+The planner is an LLM following [`prompts/v5.md`](../../contractor/agents/planning_agent/prompts/v5.md).
 Its behaviour is an **action picker**: each turn it scans a priority-ordered
 table and takes the first matching action. This is the streamline planner's
 control flow.
@@ -208,7 +208,7 @@ Key policies the prompt layers on top of the manager's mechanics:
 
 Every subtask moves through a strict lifecycle defined by
 `SUBTASK_STATUS_TRANSITIONS` in
-[`tools/tasks/models.py`](../contractor/tools/tasks/models.py). Invalid
+[`tools/tasks/models.py`](../../contractor/tools/tasks/models.py). Invalid
 transitions raise `InvalidStatusTransitionError`, which the tools surface back
 to the planner as a tool error (never a crash).
 
@@ -249,7 +249,7 @@ not structural.)
 ## 5. `execute_current_subtask`: delegation + parsing
 
 This is the bridge from planner to worker, in
-[`tools/tasks/tools.py`](../contractor/tools/tasks/tools.py). It guards the
+[`tools/tasks/tools.py`](../../contractor/tools/tasks/tools.py). It guards the
 current subtask's status, calls the worker with a small retry budget, and
 either applies a validated result or records a `malformed` fallback.
 
@@ -408,7 +408,7 @@ flowchart LR
 
 When an attempt completes, `_publish_task_artifacts` persists three artifacts
 under the invocation's key via `save_result_artifacts`
-([`runners/artifacts.py`](../contractor/runners/artifacts.py)):
+([`runners/artifacts.py`](../../contractor/runners/artifacts.py)):
 
 ```
 {key}/result     ← finish's `result` text
@@ -441,7 +441,7 @@ hypotheses, not laws, and the project's mission (getting useful work out of
 small 27–80b models via context-decomposition) makes them worth measuring rather
 than assuming. The variations below are the ones that change *how* decomposition
 and worker-judging happen — not knobs like `max_steps` (those are already
-sweepable; see [tuning.md](tuning.md)).
+sweepable; see the [tuning guide](../guides/tuning.md)).
 
 Each is a distinct hypothesis with a metric that can confirm or kill it, run
 through the same `eval/v1` pass@N harness as the baseline.
@@ -739,12 +739,12 @@ is meaningless without a defined tolerance. Measure the baseline's spread first
 
 | Topic | File |
 | ----- | ---- |
-| Per-task retry state machine | [`runners/task_runner.py`](../contractor/runners/task_runner.py) (`_run_task_with_retries`, `_run_single_iteration`) |
-| Planner factory + prompt | [`agents/planning_agent/`](../contractor/agents/planning_agent/) (`agent.py`, `prompts/v5.md`) |
-| Streamline manager (subtask FSM) | [`tools/tasks/manager.py`](../contractor/tools/tasks/manager.py) |
-| Planner tools (add/execute/decompose/skip/finish) | [`tools/tasks/tools.py`](../contractor/tools/tasks/tools.py) |
-| Subtask models + transitions | [`tools/tasks/models.py`](../contractor/tools/tasks/models.py) (`SUBTASK_STATUS_TRANSITIONS`) |
-| Task-scoped state keys + active state | [`runners/models.py`](../contractor/runners/models.py) (`TaskScopedKeys`, `build_active_state`) |
-| Artifact naming + persistence | [`runners/artifacts.py`](../contractor/runners/artifacts.py) |
+| Per-task retry state machine | [`runners/task_runner.py`](../../contractor/runners/task_runner.py) (`_run_task_with_retries`, `_run_single_iteration`) |
+| Planner factory + prompt | [`agents/planning_agent/`](../../contractor/agents/planning_agent/) (`agent.py`, `prompts/v5.md`) |
+| Streamline manager (subtask FSM) | [`tools/tasks/manager.py`](../../contractor/tools/tasks/manager.py) |
+| Planner tools (add/execute/decompose/skip/finish) | [`tools/tasks/tools.py`](../../contractor/tools/tasks/tools.py) |
+| Subtask models + transitions | [`tools/tasks/models.py`](../../contractor/tools/tasks/models.py) (`SUBTASK_STATUS_TRANSITIONS`) |
+| Task-scoped state keys + active state | [`runners/models.py`](../../contractor/runners/models.py) (`TaskScopedKeys`, `build_active_state`) |
+| Artifact naming + persistence | [`runners/artifacts.py`](../../contractor/runners/artifacts.py) |
 | Broader architecture tour | [README.md](README.md) |
-| Tunable budgets/caps that bound all of the above | [TUNABLE_PARAMS.md](TUNABLE_PARAMS.md), [tuning.md](tuning.md) |
+| Tunable budgets/caps that bound all of the above | [Tunable parameters](../guides/tunable-parameters.md), [tuning guide](../guides/tuning.md) |

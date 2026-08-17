@@ -532,8 +532,10 @@ def openapi_tools(
             dict: result of the operation.
 
         Note:
-            This REPLACES the entire info section — any previously set fields
-            (description, version, custom x-* extras) are dropped.
+            This MERGES into the existing info section: ``title`` and the
+            provided x-* extras are updated, while any previously set fields
+            (notably the REQUIRED ``version``, plus ``description`` and other
+            custom extras) are preserved.
         """
 
         async def _impl() -> dict[str, Any]:
@@ -544,7 +546,12 @@ def openapi_tools(
                 extra["x-code-language"] = code_language
 
             def _modify(schema: dict[str, Any]) -> None:
-                schema["info"] = {"title": title, **extra}
+                info = schema.get("info")
+                if not isinstance(info, dict):
+                    info = {}
+                    schema["info"] = info
+                info["title"] = title
+                info.update(extra)
 
             diff = await oas.modify_schema_locked(tool_context, _modify)
             return {"result": asdict(diff)}

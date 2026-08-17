@@ -162,6 +162,13 @@ class FileFormat:
                 segments.append(f"resume with read_file offset={base_offset + emitted} ###")
             return "\n\n" + " ".join(segments)
 
+        # Zero lines fit: the first line alone exceeds the byte budget. Line-
+        # boundary truncation would return ONLY a footer (no content), making
+        # minified JS/JSON and other one-line files entirely unreadable. Fall
+        # back to a byte-level cut so the head of the content is still returned.
+        if not out_parts:
+            return FileFormat._byte_truncated(content, lines, max_output, base_offset)
+
         footer = _footer(len(out_parts))
         footer_bytes = len(footer.encode("utf-8", errors="ignore"))
 
@@ -172,7 +179,56 @@ class FileFormat:
             removed = out_parts.pop()
             out_bytes -= len(removed.encode("utf-8", errors="ignore"))
 
+        # The footer-fit trim emptied the kept lines: the first line fits the raw
+        # budget but not alongside the footer. Returning just a footer here would
+        # be a content-less, offset-less dead-end (a retry re-reads the same state
+        # and loops) — the same failure the zero-fit guard above avoids, so fall
+        # back to a byte-level head too.
+        if not out_parts:
+            return FileFormat._byte_truncated(content, lines, max_output, base_offset)
+
         # Recompute so the resume offset reflects the lines actually kept
         # after trimming for the footer (prevents skipping a popped line).
         footer = _footer(len(out_parts))
         return "".join(out_parts) + footer
+
+    @staticmethod
+    def _byte_truncated(
+        content: str,
+        lines: list[str],
+        max_output: int,
+        base_offset: int | None,
+    ) -> str:
+        """Byte-level truncation fallback for a single line wider than the budget.
+
+        Returns the head of *content* (cut on a UTF-8 char boundary) plus a
+        footer that flags mid-line truncation and — when more lines follow —
+        offers a line offset so the caller can skip past the over-long line.
+        """
+        line_no = (base_offset + 1) if base_offset is not None else 1
+        remaining = max(0, len(lines) - 1)
+        segments = [
+            f"### truncated mid-line: line {line_no} exceeds the byte budget ###",
+            f"lines left in the file: {remaining} ###",
+        ]
+        # The rest of this over-long line cannot be paginated by line, but the
+        # caller can still advance past it to the next line.
+        if base_offset is not None and len(lines) > 1:
+            segments.append(
+                f"resume past this line with read_file offset={base_offset + 1} ###"
+            )
+        footer = "\n\n" + " ".join(segments)
+        footer_bytes = len(footer.encode("utf-8", errors="ignore"))
+        budget = max(0, max_output - footer_bytes)
+
+        # Slice characters before encoding so a huge one-line file isn't fully
+        # re-encoded just to keep ~budget bytes: budget code points always encode
+        # to >= budget bytes, so this still fills the budget, and the byte-slice
+        # then trims any partial multibyte char at the boundary.
+        head = content[:budget].encode("utf-8", errors="ignore")[:budget].decode(
+            "utf-8", errors="ignore"
+        )
+        if not head:
+            # Budget too small even for any content; return a clamped footer.
+            return footer[:max_output] if max_output > 0 else ""
+        return head + footer

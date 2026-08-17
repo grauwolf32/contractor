@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>I · Graph-tool robustness — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#I">← back to research.html</a></div>
+<h1>I · Graph-tool robustness</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="I1"><h2>I1 — Quantify the dependency: with graph tools disabled, recall drops by a measurable margin</h2>
+  <div class="src"><a href="https://dl.acm.org/doi/10.1145/3377811.3380441" target="_blank">On the Recall of Static Call Graph Construction in Practice (ICSE'20, ACM)</a><div class="note">Headline source: median call-graph recall ~0.884, i.e. ~11% of reachable methods missed; quantifies what graph navigation buys and what is silently lost when it degrades to grep.</div></div>
+  <div class="src"><a href="https://link.springer.com/article/10.1007/s10664-025-10704-3" target="_blank">Empirical study of LLMs for type and call-graph analysis in Python/JS (EMSE)</a><div class="note">Measures how LLM-only reasoning compares to explicit call-graph tooling for resolution tasks — the on/off comparison this hypothesis runs, at the capability level.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2603.27277" target="_blank">Codebase-Memory: Tree-Sitter-Based Knowledge Graphs for LLM Code Exploration via MCP (arXiv)</a><div class="note">Shows recall/exploration gains from giving an LLM a structured code graph vs raw text — supports that disabling the graph measurably hurts recall.</div></div>
+</section>
+
+<section id="I2"><h2>I2 — Building the graph from an overlay/remote snapshot recovers local-FS recall</h2>
+  <div class="src"><a href="https://dl.acm.org/doi/pdf/10.1145/3377811.3380441" target="_blank">On the Recall of Static Call Graph Construction (full PDF, ICSE'20)</a><div class="note">Documents how missing/unmodelled code (the remote/overlay-partial case) drives recall loss; materializing a complete snapshot before graph build is the fix to recover the lost edges.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2308.15669" target="_blank">ACER: An AST-based Call Graph Generator Framework (arXiv)</a><div class="note">Builds call graphs purely from ASTs (no compilation), so it can run over a fetched file snapshot — a design pattern for making graph tools work off GitLabFS/overlay backends.</div></div>
+  <div class="src"><a href="https://volito.digital/using-the-tree-sitter-library-in-python-to-build-a-custom-tool-for-parsing-source-code-and-extracting-call-graphs/" target="_blank">Building a call-graph tool with tree-sitter in Python (Volito)</a><div class="note">Concrete tree-sitter call-graph extraction that reads file bytes through an abstraction layer — illustrates porting graph construction to read via the FS abstraction rather than the local disk.</div></div>
+</section>
+
+<section id="I3"><h2>I3 — Surfacing skipped (non-UTF8 / unparsed) files recovers findings in repos that contain them</h2>
+  <div class="src"><a href="https://github.com/tree-sitter/tree-sitter/issues/285" target="_blank">tree-sitter issue #285: error recovery / partial parse (GitHub)</a><div class="note">Confirms tree-sitter emits ERROR/MISSING nodes rather than failing, and how unparsed regions silently drop nodes — the mechanism behind dropped graph nodes I3 wants to surface.</div></div>
+  <div class="src"><a href="https://blog.jez.io/tree-sitter-limitations/" target="_blank">Is tree-sitter good enough? — limitations (Jake Zimmerman)</a><div class="note">Catalogs where tree-sitter quietly mis/under-parses; argues for logging/exposing parse failures rather than dropping them — the minimum-viable fix in I3.</div></div>
+  <div class="src"><a href="https://blog.pulsar-edit.dev/posts/20240902-savetheclocktower-modern-tree-sitter-part-7/" target="_blank">Modern Tree-sitter, part 7: pain points and the promise (Pulsar)</a><div class="note">Practitioner deep-dive on error-recovery edge cases and encoding assumptions (UTF-8 expected); informs decode-fallback handling for non-UTF8 files so their nodes re-enter the graph.</div></div>
+</section>
+</body></html>

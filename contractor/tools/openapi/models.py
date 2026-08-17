@@ -95,7 +95,10 @@ class Response(BaseModel):
 
     headers: dict[str, Any] | None = Field(default=None)
     content: dict[str, Any] | None = Field(default=None)
-    links: dict[str, str] | None = Field(default=None)
+    # OpenAPI Link Objects are mappings of link-name -> Link Object (a dict) or
+    # a $ref — NOT plain strings. dict[str, str] rejected every valid spec that
+    # declared links, so this matches the sibling headers/content typing.
+    links: dict[str, Any] | None = Field(default=None)
 
     model_config = ConfigDict(
         extra="allow",
@@ -217,7 +220,9 @@ class Operation(BaseModel):
     summary: str | None = None
     description: str | None = None
     externalDocs: dict[str, str] | None = None
-    operationId: str
+    # operationId is OPTIONAL per the OpenAPI spec; requiring it rejected valid
+    # operations and forced agents into unfixable validation errors.
+    operationId: str | None = None
     parameters: list[dict[str, Any]] | None = None
     requestBody: dict[str, Any] | None = None
     responses: dict[str, Any] | None = None

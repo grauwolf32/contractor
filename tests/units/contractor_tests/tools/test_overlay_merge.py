@@ -54,6 +54,20 @@ class TestForkOverlay:
         assert fork1.read_text("/src/a.py") == "fork1"
         assert fork2.read_text("/src/a.py") == "fork2"
 
+    def test_stale_delete_patch_rejects_changed_base_file(
+        self, base_tree, base_fs, overlay
+    ):
+        overlay.rm("/src/a.py")
+        patch = overlay.save()
+        changed = "def changed_after_patch(): pass\n"
+        (base_tree / "src" / "a.py").write_text(changed, encoding="utf-8")
+
+        fork = MemoryOverlayFileSystem(base_fs, skip_instance_cache=True)
+        with pytest.raises(RuntimeError, match="Base hash mismatch for /src/a.py"):
+            fork.load(patch)
+
+        assert fork.read_text("/src/a.py") == changed
+
 
 # ── merge_overlay_forks ──────────────────────────────────────────────
 
