@@ -62,34 +62,42 @@ def tag_trace(
     input: Any = None,
     output: Any = None,
 ) -> None:
-    """Attach metadata to the *current* Langfuse trace.
+    """Attach metadata to the current Langfuse observation and trace.
 
     No-op if Langfuse is disabled or no span is currently active. Never raises
     — observability failures must not crash the pipeline.
     """
     if not _enabled():
         return
-    kwargs: dict[str, Any] = {}
+    observation_kwargs: dict[str, Any] = {}
     if name is not None:
-        kwargs["name"] = name
-    if user_id is not None:
-        kwargs["user_id"] = user_id
-    if session_id is not None:
-        kwargs["session_id"] = session_id
-    if tags:
-        kwargs["tags"] = list(tags)
+        observation_kwargs["name"] = name
     if metadata:
-        kwargs["metadata"] = dict(metadata)
+        observation_kwargs["metadata"] = dict(metadata)
     if input is not None:
-        kwargs["input"] = input
+        observation_kwargs["input"] = input
     if output is not None:
-        kwargs["output"] = output
-    if not kwargs:
+        observation_kwargs["output"] = output
+
+    propagation_kwargs: dict[str, Any] = {}
+    if name is not None:
+        propagation_kwargs["trace_name"] = name
+    if user_id is not None:
+        propagation_kwargs["user_id"] = user_id
+    if session_id is not None:
+        propagation_kwargs["session_id"] = session_id
+    if tags:
+        propagation_kwargs["tags"] = list(tags)
+    if metadata:
+        propagation_kwargs["metadata"] = dict(metadata)
+    if not observation_kwargs and not propagation_kwargs:
         return
     try:
-        from langfuse import get_client
+        from langfuse import get_client, propagate_attributes
 
-        get_client().update_current_trace(**kwargs)
+        with propagate_attributes(**propagation_kwargs):
+            if observation_kwargs:
+                get_client().update_current_span(**observation_kwargs)
     except Exception as exc:
         logger.debug("tag_trace failed: %s", exc)
 
@@ -122,33 +130,47 @@ def run_context(
         yield None
         return
 
-    # Enter/exit the span manually so a broken Langfuse client degrades to a
-    # no-op span instead of crashing the run (this module never raises).
+    # Enter/exit the contexts manually so a broken Langfuse client degrades to
+    # a no-op span instead of crashing the run (this module never raises).
     span_cm = None
     span = None
     try:
-        span_cm = client.start_as_current_span(name=name)
+        span_cm = client.start_as_current_observation(name=name)
         span = span_cm.__enter__()
     except Exception as exc:
         logger.warning("run_context: failed to open span: %s", exc)
         span_cm = None
 
+    attributes_cm = None
     try:
-        if span is not None:
-            tag_trace(
-                name=name,
-                user_id=user_id,
-                session_id=session_id,
-                tags=tags,
-                metadata=metadata,
-            )
+        from langfuse import propagate_attributes
+
+        attributes_cm = propagate_attributes(
+            trace_name=name,
+            user_id=user_id,
+            session_id=session_id,
+            tags=list(tags) if tags else None,
+            metadata=dict(metadata) if metadata else None,
+        )
+        attributes_cm.__enter__()
+    except Exception as exc:
+        logger.warning("run_context: failed to propagate trace attributes: %s", exc)
+        attributes_cm = None
+
+    try:
         yield span
     finally:
+        exc_info = sys.exc_info()
+        if attributes_cm is not None:
+            try:
+                attributes_cm.__exit__(*exc_info)
+            except Exception as exc:
+                logger.warning(
+                    "run_context: failed to close trace attributes: %s", exc
+                )
         if span_cm is not None:
             try:
-                # Inside `finally`, sys.exc_info() is the in-flight exception
-                # (if any), so the span still records the failure status.
-                span_cm.__exit__(*sys.exc_info())
+                span_cm.__exit__(*exc_info)
             except Exception as exc:
                 logger.warning("run_context: failed to close span: %s", exc)
         flush()

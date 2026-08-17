@@ -9,6 +9,8 @@ per-request client is closed, cookies persist across requests).
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import warnings
 
 import httpx
@@ -103,3 +105,184 @@ async def test_aclose_is_a_safe_noop():
     await cli.aclose()
     async with HTTPClient(name="t") as ctx_cli:
         assert ctx_cli is not None
+
+
+class _MemoryArtifactContext:
+    def __init__(self) -> None:
+        self.artifacts = {}
+
+    async def load_artifact(self, filename: str):
+        return self.artifacts.get(filename)
+
+    async def save_artifact(self, filename: str, artifact):
+        # Force a scheduling point so the test exercises the request lock rather
+        # than accidentally passing because persistence completed synchronously.
+        await asyncio.sleep(0)
+        self.artifacts[filename] = artifact
+        return 1
+
+
+class _FailingFinalSessionContext(_MemoryArtifactContext):
+    def __init__(self, *, block: bool = False) -> None:
+        super().__init__()
+        self.block = block
+        self.session_saves = 0
+        self.final_save_started = asyncio.Event()
+
+    async def save_artifact(self, filename: str, artifact):
+        if filename.endswith("/session.json"):
+            self.session_saves += 1
+            if self.session_saves == 2:
+                self.final_save_started.set()
+                if self.block:
+                    await asyncio.Event().wait()
+                raise OSError("session persistence failed")
+        return await super().save_artifact(filename, artifact)
+
+
+@pytest.mark.asyncio
+async def test_overlapping_requests_reserve_distinct_persisted_ids(monkeypatch):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.01)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            content=request.url.path.encode(),
+            request=request,
+        )
+
+    def fake_new_client(
+        self: HTTPClient, timeout: float | None = None
+    ) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(HTTPClient, "_new_client", fake_new_client)
+    ctx = _MemoryArtifactContext()
+    cli = HTTPClient(name="race")
+
+    first, second = await asyncio.gather(
+        cli.request(url="http://example.test/first", ctx=ctx),
+        cli.request(url="http://example.test/second", ctx=ctx),
+    )
+
+    assert (first["request_id"], second["request_id"]) == (1, 2)
+    first_body = json.loads(ctx.artifacts["http/race/responses/00000001.json"].text)
+    second_body = json.loads(ctx.artifacts["http/race/responses/00000002.json"].text)
+    assert first_body["text"] == "/first"
+    assert second_body["text"] == "/second"
+
+    session = json.loads(ctx.artifacts["http/race/session.json"].text)
+    assert session["next_request_id"] == 3
+    assert [entry["request_id"] for entry in session["history"]] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_separate_clients_share_artifact_namespace_lock(monkeypatch):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.01)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            content=request.url.path.encode(),
+            request=request,
+        )
+
+    def fake_new_client(
+        self: HTTPClient, timeout: float | None = None
+    ) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(HTTPClient, "_new_client", fake_new_client)
+    ctx = _MemoryArtifactContext()
+    first_client = HTTPClient(name="shared")
+    second_client = HTTPClient(name="shared")
+
+    first, second = await asyncio.gather(
+        first_client.request(url="http://example.test/first", ctx=ctx),
+        second_client.request(url="http://example.test/second", ctx=ctx),
+    )
+
+    assert {first["request_id"], second["request_id"]} == {1, 2}
+    for record, expected in ((first, "/first"), (second, "/second")):
+        body = json.loads(ctx.artifacts[record["body_artifact"]].text)
+        assert body["text"] == expected
+
+    session = json.loads(ctx.artifacts["http/shared/session.json"].text)
+    assert session["next_request_id"] == 3
+    assert [entry["request_id"] for entry in session["history"]] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_final_session_save_failure_does_not_reuse_body_id(monkeypatch):
+    def fake_new_client(
+        self: HTTPClient, timeout: float | None = None
+    ) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    headers={"content-type": "text/plain"},
+                    content=request.url.path.encode(),
+                    request=request,
+                )
+            )
+        )
+
+    monkeypatch.setattr(HTTPClient, "_new_client", fake_new_client)
+    ctx = _FailingFinalSessionContext()
+
+    with pytest.raises(OSError, match="session persistence failed"):
+        await HTTPClient(name="save-failure").request(
+            url="http://example.test/first", ctx=ctx
+        )
+
+    first_body_name = "http/save-failure/responses/00000001.json"
+    assert json.loads(ctx.artifacts[first_body_name].text)["text"] == "/first"
+
+    second = await HTTPClient(name="save-failure").request(
+        url="http://example.test/second", ctx=ctx
+    )
+
+    assert second["request_id"] == 2
+    assert json.loads(ctx.artifacts[first_body_name].text)["text"] == "/first"
+    assert json.loads(ctx.artifacts[second["body_artifact"]].text)["text"] == "/second"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_after_body_save_does_not_reuse_body_id(monkeypatch):
+    def fake_new_client(
+        self: HTTPClient, timeout: float | None = None
+    ) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    headers={"content-type": "text/plain"},
+                    content=request.url.path.encode(),
+                    request=request,
+                )
+            )
+        )
+
+    monkeypatch.setattr(HTTPClient, "_new_client", fake_new_client)
+    ctx = _FailingFinalSessionContext(block=True)
+    request = asyncio.create_task(
+        HTTPClient(name="cancelled").request(
+            url="http://example.test/first", ctx=ctx
+        )
+    )
+
+    await asyncio.wait_for(ctx.final_save_started.wait(), timeout=1)
+    first_body_name = "http/cancelled/responses/00000001.json"
+    assert json.loads(ctx.artifacts[first_body_name].text)["text"] == "/first"
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+
+    second = await HTTPClient(name="cancelled").request(
+        url="http://example.test/second", ctx=ctx
+    )
+
+    assert second["request_id"] == 2
+    assert json.loads(ctx.artifacts[first_body_name].text)["text"] == "/first"
+    assert json.loads(ctx.artifacts[second["body_artifact"]].text)["text"] == "/second"

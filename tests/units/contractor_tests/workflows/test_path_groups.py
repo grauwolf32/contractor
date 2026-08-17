@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import yaml
-from google.adk.artifacts import BaseArtifactService
+from google.adk.artifacts import BaseArtifactService, FileArtifactService
 from google.genai import types
 
 from cli.fs import RootedLocalFileSystem
@@ -17,30 +17,130 @@ from contractor.workflows.path_groups import (
     group_key_for_path,
     group_paths_by_prefix,
 )
-from contractor.workflows.trace_annotation import OpenApiPath
+from contractor.workflows.path_keys import (
+    MAX_OPENAPI_PATH_KEY_LENGTH,
+    openapi_path_key,
+)
+from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
 
 
 def _paths(*raw: str) -> list[OpenApiPath]:
     return [OpenApiPath(path=p, operations=[]) for p in raw]
 
 
+def test_extract_openapi_paths_includes_every_standard_operation_method():
+    methods = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+    document = {
+        "openapi": "3.1.0",
+        "paths": {
+            "/operations": {
+                method: {"operationId": method, "responses": {"200": {}}}
+                for method in methods
+            }
+        },
+    }
+
+    paths = extract_openapi_paths(document)
+
+    assert len(paths) == 1
+    assert {operation.method for operation in paths[0].operations} == methods
+
+
+def test_extract_openapi_paths_derives_id_when_operation_id_is_missing_or_null():
+    document = {
+        "openapi": "3.1.0",
+        "paths": {
+            "/items": {
+                "get": {"responses": {"200": {}}},
+                "post": {"operationId": None, "responses": {"200": {}}},
+            }
+        },
+    }
+
+    paths = extract_openapi_paths(document)
+
+    assert [operation.operation_id for operation in paths[0].operations] == [
+        "GET /items",
+        "POST /items",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_long_unicode_path_key_fits_real_artifact_storage(tmp_path):
+    path = "/" + "я" * 80
+    key = openapi_path_key(path)
+    assert len(key.encode("ascii")) <= MAX_OPENAPI_PATH_KEY_LENGTH
+    assert key != openapi_path_key(path + "x")
+
+    service = FileArtifactService(root_dir=str(tmp_path))
+    filename = f"user:vulnerability-reports/trace-graph-pathpar:openapi:{key}"
+    await service.save_artifact(
+        app_name="contractor",
+        user_id="u",
+        session_id=None,
+        filename=filename,
+        artifact=types.Part.from_text(text="finding: {}"),
+    )
+    assert await service.load_artifact(
+        app_name="contractor",
+        user_id="u",
+        session_id=None,
+        filename=filename,
+    ) is not None
+
+
+def test_path_keys_use_version_directory_not_ambiguous_legacy_namespace():
+    key = openapi_path_key("/users/{id}")
+
+    assert key.startswith("v2/d0/")
+    assert key != "users_id"
+
+
+def test_path_keys_are_portable_across_case_insensitive_and_windows_filesystems():
+    assert openapi_path_key("/Users") != openapi_path_key("/users")
+    for device_name in ("CON", "nul", "AUX", "COM1", "lpt9"):
+        assert openapi_path_key(f"/{device_name}").split("/")[-1].startswith("p-")
+
+
 class TestGroupKey:
     def test_depth_one_uses_first_segment(self):
-        assert group_key_for_path("/users/{user-id}", 1) == "users"
-        assert group_key_for_path("/users/export", 1) == "users"
-        assert group_key_for_path("/admin/stats", 1) == "admin"
+        users = group_key_for_path("/users", 1)
+        assert group_key_for_path("/users/{user-id}", 1) == users
+        assert group_key_for_path("/users/export", 1) == users
+        assert group_key_for_path("/admin/stats", 1) == group_key_for_path(
+            "/admin", 1
+        )
+        assert users != openapi_path_key("/users")
 
     def test_depth_two(self):
-        assert group_key_for_path("/api/v1/users", 2) == "api_v1"
+        assert group_key_for_path("/api/v1/users", 2) == group_key_for_path(
+            "/api/v1", 2
+        )
 
-    def test_param_braces_stripped(self):
-        assert group_key_for_path("/{tenant}/users", 1) == "tenant"
+    def test_param_braces_are_collision_safe(self):
+        assert group_key_for_path("/{tenant}/users", 1) == group_key_for_path(
+            "/{tenant}", 1
+        )
+        assert group_key_for_path("/{tenant}/users", 1) != group_key_for_path(
+            "/tenant/users", 1
+        )
 
-    def test_depth_beyond_segments_uses_all(self):
-        assert group_key_for_path("/users", 3) == "users"
+    def test_configured_depth_is_preserved_beyond_segments(self):
+        assert group_key_for_path("/users", 3).startswith("v2/d3/")
+        assert group_key_for_path("/users", 3) != group_key_for_path("/users", 1)
 
     def test_root_path(self):
-        assert group_key_for_path("/", 1) == "root"
+        assert group_key_for_path("/", 1).startswith("v2/d1/")
+        assert group_key_for_path("/", 1) != openapi_path_key("/")
+
+    def test_distinct_paths_have_distinct_keys(self):
+        colliding_under_the_legacy_slug = (
+            ("/", "/root"),
+            ("/users/{id}", "/users/id"),
+            ("/a_b", "/a/b"),
+        )
+        for left, right in colliding_under_the_legacy_slug:
+            assert OpenApiPath(left).path_key != OpenApiPath(right).path_key
 
     def test_full_depth_matches_path_key(self):
         # depth <= 0 must reproduce OpenApiPath.path_key so per-path
@@ -54,13 +154,16 @@ class TestGrouping:
     def test_depth_zero_one_group_per_path(self):
         paths = _paths("/users/{user-id}", "/users/export")
         groups = group_paths_by_prefix(paths, depth=0)
-        assert [g.key for g in groups] == ["users_user-id", "users_export"]
+        assert [g.key for g in groups] == [p.path_key for p in paths]
         assert all(len(g.paths) == 1 for g in groups)
 
     def test_depth_one_groups_siblings(self):
         paths = _paths("/users/{user-id}", "/users/export", "/admin/stats")
         groups = group_paths_by_prefix(paths, depth=1)
-        assert [g.key for g in groups] == ["users", "admin"]
+        assert [g.key for g in groups] == [
+            group_key_for_path("/users", 1),
+            group_key_for_path("/admin", 1),
+        ]
         assert [p.path for p in groups[0].paths] == [
             "/users/{user-id}",
             "/users/export",
@@ -69,7 +172,10 @@ class TestGrouping:
     def test_first_seen_order_preserved(self):
         paths = _paths("/b/x", "/a/y", "/b/z")
         groups = group_paths_by_prefix(paths, depth=1)
-        assert [g.key for g in groups] == ["b", "a"]
+        assert [g.key for g in groups] == [
+            group_key_for_path("/b", 1),
+            group_key_for_path("/a", 1),
+        ]
         assert [p.path for p in groups[0].paths] == ["/b/x", "/b/z"]
 
     def test_group_operations_flatten_member_paths(self):
@@ -161,13 +267,16 @@ class TestPathparGroupForks:
     async def test_depth_zero_forks_per_path(self, tmp_path, monkeypatch):
         forks, groups_seen = await self._run(tmp_path, monkeypatch, depth=0)
         assert len(forks) == 3
-        assert sorted(groups_seen) == [
-            "admin_stats",
-            "users_export",
-            "users_user-id",
-        ]
+        assert sorted(groups_seen) == sorted(
+            openapi_path_key(path) for path in OPENAPI_DOC["paths"]
+        )
 
     async def test_depth_one_forks_per_route_group(self, tmp_path, monkeypatch):
         forks, groups_seen = await self._run(tmp_path, monkeypatch, depth=1)
         assert len(forks) == 2
-        assert sorted(groups_seen) == ["admin", "users"]
+        assert sorted(groups_seen) == sorted(
+            [
+                group_key_for_path("/admin", 1),
+                group_key_for_path("/users", 1),
+            ]
+        )

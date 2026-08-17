@@ -252,13 +252,30 @@ class MandatoryToolCallback(BaseCallback):
         tool_names: list[str],
         message: str | None = None,
         max_nudges: int = 2,
+        require_any: bool = False,
     ):
+        if not tool_names:
+            raise ValueError("MandatoryToolCallback requires at least one tool name")
         self.tool_names = set(tool_names)
         self.message_template = message or MANDATORY_TOOL_DEFAULT_MESSAGE
         self.called: set[str] = set()
         self.step_count: int = 0
         self.nudge_count: int = 0
         self.max_nudges = max_nudges
+        # False preserves the historical "all listed tools" behavior. Verdict
+        # aliases use True because submit_verdict and report_verification are
+        # alternative persistence surfaces, not two independent requirements.
+        self.require_any = require_any
+
+    @property
+    def requirement_satisfied(self) -> bool:
+        if self.require_any:
+            return bool(self.tool_names & self.called)
+        return self.tool_names <= self.called
+
+    def blocks_forced_tool_choice_none(self) -> bool:
+        """Whether a before-model ``tool_choice='none'`` would deadlock us."""
+        return not self.requirement_satisfied
 
     def to_state(self) -> dict[str, Any]:
         return {
@@ -266,6 +283,7 @@ class MandatoryToolCallback(BaseCallback):
             "called": sorted(self.called),
             "step_count": self.step_count,
             "nudge_count": self.nudge_count,
+            "require_any": self.require_any,
         }
 
     def __call__(
@@ -291,10 +309,11 @@ class MandatoryToolCallback(BaseCallback):
             self.save_to_state(callback_context)
             return None
 
-        missing = self.tool_names - self.called
-        if not missing:
+        if self.requirement_satisfied:
             self.save_to_state(callback_context)
             return None
+
+        missing = self.tool_names - self.called
 
         if self.nudge_count >= self.max_nudges:
             self.save_to_state(callback_context)

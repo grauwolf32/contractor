@@ -6,6 +6,7 @@ on every call, so edits show up on refresh without a restart. Nothing here
 imports the agent runtime; it only parses YAML/Markdown, keeping the server
 dependency-light and side-effect free.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,6 +33,17 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
+
+
+def _confined_path(root: Path, *parts: str) -> Path | None:
+    """Resolve a child path and reject absolute, traversal, or symlink escapes."""
+    try:
+        resolved_root = root.resolve()
+        candidate = root.joinpath(*parts).resolve()
+        candidate.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return candidate
 
 
 def _safe_yaml(text: str) -> Any:
@@ -94,25 +106,32 @@ def list_agents() -> list[AgentSummary]:
     if not AGENTS_DIR.is_dir():
         return []
     out: list[AgentSummary] = []
-    for d in sorted(AGENTS_DIR.iterdir()):
-        manifest = d / "prompt.yml"
-        if not (d.is_dir() and manifest.is_file()):
+    for entry in sorted(AGENTS_DIR.iterdir()):
+        name = entry.name
+        agent_dir = _confined_path(AGENTS_DIR, name)
+        manifest = _confined_path(AGENTS_DIR, name, "prompt.yml")
+        if (
+            agent_dir is None
+            or not agent_dir.is_dir()
+            or manifest is None
+            or not manifest.is_file()
+        ):
             continue
         data = _safe_yaml(_read_text(manifest)) or {}
         versions = sorted((data.get("versions") or {}).keys(), key=_version_sort_key)
         active = data.get("active") or (versions[0] if versions else "")
         summary = ""
         if active:
-            summary = _first_meaningful_line(_agent_version_text(d.name, active))
+            summary = _first_meaningful_line(_agent_version_text(name, active))
         out.append(
-            AgentSummary(name=d.name, active=active, versions=versions, summary=summary)
+            AgentSummary(name=name, active=active, versions=versions, summary=summary)
         )
     return out
 
 
 def _agent_manifest(name: str) -> dict[str, Any] | None:
-    manifest = AGENTS_DIR / name / "prompt.yml"
-    if not manifest.is_file():
+    manifest = _confined_path(AGENTS_DIR, name, "prompt.yml")
+    if manifest is None or not manifest.is_file():
         return None
     data = _safe_yaml(_read_text(manifest))
     return data if isinstance(data, dict) else {}
@@ -126,7 +145,8 @@ def _agent_version_text(name: str, version: str) -> str:
     rel = spec.get("file")
     if not rel:
         return ""
-    return _read_text(AGENTS_DIR / name / rel)
+    prompt = _confined_path(AGENTS_DIR, name, str(rel))
+    return _read_text(prompt) if prompt is not None else ""
 
 
 def get_agent(name: str) -> dict[str, Any] | None:
@@ -151,7 +171,11 @@ def get_agent_version(name: str, version: str) -> dict[str, Any] | None:
         return None
     if version not in (data.get("versions") or {}):
         return None
-    return {"name": name, "version": version, "content": _agent_version_text(name, version)}
+    return {
+        "name": name,
+        "version": version,
+        "content": _agent_version_text(name, version),
+    }
 
 
 # ───────────────────────── tasks ─────────────────────────
@@ -180,8 +204,8 @@ class TaskSummary:
 
 
 def _task_manifest(name: str) -> dict[str, Any] | None:
-    manifest = TASKS_DIR / f"{name}.yml"
-    if not manifest.is_file():
+    manifest = _confined_path(TASKS_DIR, f"{name}.yml")
+    if manifest is None or not manifest.is_file():
         return None
     data = _safe_yaml(_read_text(manifest))
     return data if isinstance(data, dict) else {}
@@ -192,7 +216,10 @@ def _task_version_body(name: str, version: str) -> dict[str, Any]:
     spec = (data.get("versions") or {}).get(version)
     if not isinstance(spec, dict) or not spec.get("file"):
         return {}
-    raw = _safe_yaml(_read_text(TASKS_DIR / spec["file"]))
+    template = _confined_path(TASKS_DIR, str(spec["file"]))
+    if template is None:
+        return {}
+    raw = _safe_yaml(_read_text(template))
     if not isinstance(raw, dict):
         return {}
     body = raw.get("task")
@@ -203,8 +230,11 @@ def list_tasks() -> list[TaskSummary]:
     if not TASKS_DIR.is_dir():
         return []
     out: list[TaskSummary] = []
-    for manifest in sorted(TASKS_DIR.glob("*.yml")):
-        name = manifest.stem
+    for entry in sorted(TASKS_DIR.glob("*.yml")):
+        name = entry.stem
+        manifest = _confined_path(TASKS_DIR, entry.name)
+        if manifest is None or not manifest.is_file():
+            continue
         data = _safe_yaml(_read_text(manifest)) or {}
         versions = sorted((data.get("versions") or {}).keys(), key=_version_sort_key)
         active = data.get("active") or (versions[0] if versions else "")
@@ -237,7 +267,10 @@ def get_task(name: str, version: str | None = None) -> dict[str, Any] | None:
     extra = {k: v for k, v in body.items() if k not in _TASK_FIELDS}
     skills = body.get("skills") or []
     spec = (data.get("versions") or {}).get(use) or {}
-    raw = _read_text(TASKS_DIR / spec["file"]) if spec.get("file") else ""
+    template = (
+        _confined_path(TASKS_DIR, str(spec["file"])) if spec.get("file") else None
+    )
+    raw = _read_text(template) if template is not None else ""
     return {
         "name": name,
         "active": active,
@@ -260,42 +293,60 @@ class SkillSummary:
     references: list[str]
 
 
+def _skill_reference_names(name: str) -> list[str]:
+    """List only Markdown references whose resolved paths remain in SKILLS_DIR."""
+    ref_dir = _confined_path(SKILLS_DIR, name, "references")
+    if ref_dir is None or not ref_dir.is_dir():
+        return []
+
+    refs: list[str] = []
+    for entry in ref_dir.glob("*.md"):
+        path = _confined_path(SKILLS_DIR, name, "references", entry.name)
+        if path is not None and path.is_file():
+            refs.append(entry.stem)
+    return sorted(refs)
+
+
 def list_skills() -> list[SkillSummary]:
     if not SKILLS_DIR.is_dir():
         return []
     out: list[SkillSummary] = []
-    for d in sorted(SKILLS_DIR.iterdir()):
-        if not d.is_dir():
+    for entry in sorted(SKILLS_DIR.iterdir()):
+        name = entry.name
+        skill_dir = _confined_path(SKILLS_DIR, name)
+        if skill_dir is None or not skill_dir.is_dir():
             continue
-        index = d / "index.md"
-        fm, body = _split_frontmatter(_read_text(index)) if index.is_file() else ({}, "")
+        index = _confined_path(SKILLS_DIR, name, "index.md")
+        fm, body = (
+            _split_frontmatter(_read_text(index))
+            if index is not None and index.is_file()
+            else ({}, "")
+        )
         desc = str(fm.get("description") or _first_meaningful_line(body))
-        refs = []
-        ref_dir = d / "references"
-        if ref_dir.is_dir():
-            refs = sorted(p.stem for p in ref_dir.glob("*.md"))
-        out.append(SkillSummary(name=d.name, description=desc, references=refs))
+        out.append(
+            SkillSummary(
+                name=name,
+                description=desc,
+                references=_skill_reference_names(name),
+            )
+        )
     return out
 
 
 def get_skill(name: str) -> dict[str, Any] | None:
-    d = SKILLS_DIR / name
-    if not d.is_dir():
+    d = _confined_path(SKILLS_DIR, name)
+    if d is None or not d.is_dir():
         return None
-    index = d / "index.md"
-    full = _read_text(index) if index.is_file() else ""
+    index = _confined_path(SKILLS_DIR, name, "index.md")
+    full = _read_text(index) if index is not None and index.is_file() else ""
     fm, body = _split_frontmatter(full)
-    refs = []
-    ref_dir = d / "references"
-    if ref_dir.is_dir():
-        refs = sorted(p.stem for p in ref_dir.glob("*.md"))
     return {
         "name": name,
         "description": str(fm.get("description") or _first_meaningful_line(body)),
         "frontmatter": fm,
         "content": body,
         "raw": full,
-        "references": refs,
+        "references": _skill_reference_names(name),
     }
 
 
@@ -303,8 +354,8 @@ def get_skill_reference(name: str, ref: str) -> dict[str, Any] | None:
     # ref is a bare stem; reject path-escape attempts.
     if "/" in ref or "\\" in ref or ".." in ref:
         return None
-    path = SKILLS_DIR / name / "references" / f"{ref}.md"
-    if not path.is_file():
+    path = _confined_path(SKILLS_DIR, name, "references", f"{ref}.md")
+    if path is None or not path.is_file():
         return None
     return {"name": name, "ref": ref, "content": _read_text(path)}
 

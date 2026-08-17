@@ -307,7 +307,6 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
     def _text_encoding(kwargs: dict[str, Any]) -> str:
         return kwargs.get("encoding") or "utf-8"
 
-
     def _effective_read_bytes(self, path: str) -> bytes:
         return self.cat_file(path)
 
@@ -608,6 +607,24 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
 
                 if op == "delete_path":
                     expected_type = item.get("type")
+                    base_hash = item.get("base_hash")
+
+                    # File deletions carry the hash observed when the patch was
+                    # created.  Validate it before adding a tombstone, just as
+                    # write_file does below, so loading a stale patch cannot
+                    # silently hide a base file changed by another process.
+                    if base_hash is not None and self._base_exists(path):
+                        if not self._base_isfile(path):
+                            raise RuntimeError(
+                                f"Base hash mismatch for {path}: "
+                                f"expected={base_hash} actual=not-a-file"
+                            )
+                        actual_hash = sha256_hex(self._base_read_bytes(path))
+                        if actual_hash != base_hash:
+                            raise RuntimeError(
+                                f"Base hash mismatch for {path}: "
+                                f"expected={base_hash} actual={actual_hash}"
+                            )
 
                     if self.exists(path):
                         if expected_type == "directory":
@@ -1032,8 +1049,18 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         if recursive and self.isdir(path1):
             source_root = self._norm(path1)
             target_root = self._norm(path2)
+            sources = self.find(path1, withdirs=True, detail=False)
 
-            for source in self.find(path1, withdirs=True, detail=False):
+            # find() deliberately excludes its root, so an empty source has no
+            # entries to drive destination creation.  Materialize the target
+            # explicitly before copying children.  Reject a file target first:
+            # makedirs(exist_ok=True) otherwise treats any existing path as a
+            # success and mv() would go on to remove the source.
+            if self.exists(target_root) and not self.isdir(target_root):
+                raise FileExistsError(target_root)
+            self.makedirs(target_root, exist_ok=True)
+
+            for source in sources:
                 rel_path = posixpath.relpath(source, source_root)
                 target = (
                     target_root
@@ -1058,6 +1085,14 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
         maxdepth: int | None = None,
         **kwargs: Any,
     ):
+        source = self._norm(path1)
+        target = self._norm(path2)
+        if recursive and self.isdir(source):
+            source_prefix = source.rstrip("/") + "/"
+            if target == source or target.startswith(source_prefix):
+                raise ValueError(
+                    f"Cannot move directory {source} into itself ({target})"
+                )
         self.copy(path1, path2, recursive=recursive, **kwargs)
         self.rm(path1, recursive=recursive, maxdepth=maxdepth)
 
@@ -1113,6 +1148,12 @@ class MemoryOverlayFileSystem(AbstractFileSystem):
                     normalized["name"] = name
                     merged[name] = normalized
             except FileNotFoundError:
+                # Missing base path — fall back to overlay children only rather
+                # than failing the whole listing. A genuine base I/O error
+                # (PermissionError, EIO) must propagate: the base fs now surfaces
+                # those instead of returning an empty listing, and silently
+                # degrading to overlay-only here would hide it (the EINVAL-on-
+                # symlink case this once caught is fixed at the base's source).
                 pass
 
             for entry in self._iter_overlay_children(path):

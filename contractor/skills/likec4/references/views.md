@@ -1,3 +1,7 @@
+---
+description: "Writing views: the three view types, include/exclude rules, in-view style rules, groups, `autoLayout`, `navigateTo`, and global predicates."
+---
+
 # Views
 
 Three types of views are supported:

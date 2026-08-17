@@ -1,3 +1,7 @@
+---
+description: "Writing/editing `deployment { }` blocks: mapping model elements to infrastructure via `instanceOf`, `deploymentNode` kinds, named instances, and multi-environment topology."
+---
+
 # Deployment (LikeC4 DSL)
 
 The `deployment` block maps logical model elements to physical infrastructure nodes using `instanceOf`. It uses `deploymentNode` kinds from the specification.

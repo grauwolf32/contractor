@@ -1,3 +1,7 @@
+---
+description: "Common LikeC4 mistakes and fixes — read when hitting validation errors, unexpected rendering, or a failing eval answer."
+---
+
 # Common Mistakes & Debugging (LikeC4 DSL)
 
 Load this file when encountering validation errors, unexpected rendering, or when an eval answer is failing.

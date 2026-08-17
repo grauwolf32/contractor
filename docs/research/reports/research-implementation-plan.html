@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contractor research &amp; implementation plan</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#11161e;--line:#30363d;--ink:#f0f6fc;--text:#c9d1d9;--muted:#8b949e;--blue:#58a6ff;--green:#7ee787;--orange:#ffa657;--purple:#d2a8ff;--red:#ff7b72}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.58 system-ui,-apple-system,sans-serif}.layout{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1500px;margin:auto}nav{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line)}nav h1{font-size:16px;color:var(--ink)}nav a{display:block;color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:5px}nav a:hover{color:var(--ink);background:var(--panel)}nav .group{color:var(--purple);font-size:10px;text-transform:uppercase;letter-spacing:1.3px;margin:16px 8px 5px}main{padding:45px 58px 120px;max-width:1120px}h1,h2,h3,h4{color:var(--ink);line-height:1.25}h1{font-size:36px;margin:.2em 0}h2{font-size:25px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-top:52px}h3{font-size:19px;margin-top:30px}h4{font-size:15px;color:var(--green)}a{color:var(--blue)}code{color:var(--orange);background:#10151d;padding:1px 4px;border-radius:4px}.lede{font-size:18px;max-width:880px}.meta{font:12px ui-monospace,monospace;color:var(--muted)}.callout{border:1px solid var(--line);border-left:4px solid var(--green);background:var(--panel);padding:16px 20px;border-radius:8px;margin:20px 0}.warn{border-left-color:var(--orange)}.danger{border-left-color:var(--red)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:15px 17px}.card h3,.card h4{margin-top:0}.flow{font:13px ui-monospace,monospace;white-space:pre-wrap;background:#090d12;border:1px solid var(--line);padding:16px;border-radius:8px;color:#b7c5d8;overflow:auto}.chip{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:1px 8px;font:11px ui-monospace,monospace;margin:2px}.p0{background:#5a2525;color:#fff}.p1{background:#314f31;color:#fff}.p2{background:#51451e;color:#fff}.gate{background:#25384f;color:#fff}table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}th{background:var(--panel);color:var(--ink)}tr:nth-child(even) td{background:#10151c}ol,ul{padding-left:22px}li{margin:5px 0}.mono{font-family:ui-monospace,monospace}.small{font-size:12.5px;color:var(--muted)}details{border:1px solid var(--line);border-radius:8px;margin:12px 0;background:var(--panel2)}summary{cursor:pointer;padding:12px 15px;color:var(--ink);font-weight:650}details>div{padding:0 18px 16px}.ok{color:var(--green)}.no{color:var(--red)}
+@media(max-width:900px){.layout{display:block}nav{position:static;height:auto;border:0;border-bottom:1px solid var(--line)}main{padding:28px 20px}.grid{grid-template-columns:1fr}}
+</style></head><body><div class="layout">
+<nav><h1>Research program</h1><a href="research.html">← hypothesis memo</a><a href="#outcome">Outcome</a><a href="#principles">Operating principles</a><div class="group">Organization</div><a href="#architecture">Code architecture</a><a href="#schemas">Core schemas</a><a href="#lifecycle">Hypothesis lifecycle</a><a href="#ownership">Ownership</a><div class="group">Decisions</div><a href="#priority">Prioritization</a><a href="#portfolio">Portfolio</a><a href="#verification">Verification protocol</a><a href="#statistics">Statistics</a><a href="#promotion">Promotion gates</a><div class="group">Execution</div><a href="#roadmap">Roadmap</a><a href="#backlog">First backlog</a><a href="#hypothesis-map">51-direction map</a><a href="#operations">Weekly operations</a><a href="#risks">Risks</a><a href="#definition">Definition of done</a></nav>
+<main>
+<header><div class="meta">IMPLEMENTATION BLUEPRINT · 2026-08-05 · applies to directions A–AY</div><h1>Research and implementation plan</h1><p class="lede">Turn the 228-hypothesis memo into a controlled, reproducible program that improves Contractor without turning production code into an experiment harness. The central move is to represent every hypothesis, arm, fixture slice, metric, decision, and implementation change as a versioned artifact.</p></header>
+
+<section id="outcome"><h2>1. Target outcome</h2>
+<div class="callout"><b>Within one quarter:</b> every promoted behavior change should be traceable from <b>hypothesis → preregistered experiment → immutable run envelopes → statistical decision → guarded implementation → post-promotion regression check</b>. A person unfamiliar with the experiment must be able to reproduce the decision from the repository plus model/runtime identifiers.</div>
+<div class="grid"><div class="card"><h3>Research system</h3><ul><li>Machine-readable hypothesis registry.</li><li>Dependency-aware priority queue.</li><li>Paired A/B runner with fixed manifests.</li><li>Immutable raw results and generated decision records.</li><li>Dashboard views for evidence, not only latest scores.</li></ul></div><div class="card"><h3>Production system</h3><ul><li>Stable interfaces and typed events.</li><li>Experiment arms injected through factories/config.</li><li>No research-specific branching in core loops.</li><li>Default-off feature flags until promotion.</li><li>Fast rollback and compatibility tests.</li></ul></div></div>
+</section>
+
+<section id="principles"><h2>2. Operating principles</h2>
+<ol><li><b>Measure foundations before features.</b> AR/AO/AP/AT/AU/AW/AY can invalidate conclusions across dozens of directions.</li><li><b>One mechanism per contrast.</b> If an arm changes prompt, tools, and iteration policy together, it is a system comparison—not evidence for any one mechanism.</li><li><b>Implementation tests prove mechanics; evals test hypotheses.</b> Unit tests cannot verify “recall improves.” Model evals cannot prove a filesystem matcher is correct.</li><li><b>Raw attempts are immutable.</b> Scorers and aggregators are versioned and rerunnable; never overwrite evidence after changing tolerance.</li><li><b>Compare against deterministic floors.</b> Semgrep/CodeQL/OSV and simple structural heuristics are arms, not footnotes.</li><li><b>Optimize adopter utility.</b> Primary frontier: severity-weighted recall, precision/triage cost, GPU-seconds, wall-clock, and analyst review—not token count alone.</li><li><b>Negative results are deliverables.</b> A killed hypothesis removes complexity and prevents repeat spending.</li><li><b>Production defaults change only after replication.</b> Exploratory wins generate a confirmatory run on held-out fixtures.</li></ol>
+</section>
+
+<section id="architecture"><h2>3. Code architecture</h2>
+<p>Keep the machine-readable control plane under <code>research/</code>, published material under <code>docs/research/</code>, and CPU-only contract tests under <code>tests/units/research_tests/</code>. Reusable metric/event primitives belong in production only when production also needs them.</p>
+<div class="flow">research/
+  models.py               # versioned hypothesis, experiment, decision schemas
+  registry.py             # load, validate, and cross-check records
+  cli.py                  # validate, list, inspect, and later plan/run/decide
+  hypotheses/             # human-reviewable YAML, one file per hypothesis
+  experiments/            # preregistered manifests, immutable after start
+  decisions/              # generated + reviewed decision records
+
+docs/research/
+  README.md               # public navigation and status boundary
+  reports/                # committed HTML/Markdown reports and dashboards
+  tools/                  # report maintenance helpers
+  *.md                    # supporting notes and source surveys
+
+tests/units/research_tests/
+  test_models.py          # schema and lifecycle contracts
+  test_registry.py        # loading, uniqueness, and dependency validation
+
+tests/eval/               # existing agent/task/pipeline execution substrate
+  results.py              # extend eval/v1 compatibly; raw attempts remain source
+  scenarios.py            # existing pass@X execution
+  scoring*.py             # version scorer identity + parameters
+
+contractor/
+  runners/                # stable execution; emit typed telemetry only
+  workflows/config.py     # factories/strategies selected by config
+  tools/                  # typed completeness/error outcomes (AW)
+  ...                     # no knowledge of hypothesis IDs</div>
+
+<h3>3.1 Dependency rule</h3><table><tr><th>Layer</th><th>May depend on</th><th>Must not depend on</th></tr><tr><td><code>contractor/</code></td><td>Production settings, typed protocols, events</td><td><code>research</code>, hypothesis IDs, decision thresholds</td></tr><tr><td><code>tests/eval/</code></td><td>Contractor public interfaces, fixture data</td><td>Specific research conclusions</td></tr><tr><td><code>research/</code></td><td>Versioned records, stored eval envelopes, analysis libraries</td><td>Hidden mutation of production defaults</td></tr><tr><td><code>tests/units/research_tests/</code></td><td>The research control plane and fixture records</td><td>Model execution or network access</td></tr><tr><td><code>docs/research/</code></td><td>Research records and generated reports</td><td>Runtime imports</td></tr></table>
+
+<h3>3.2 Arm injection</h3><p>Use named, serializable overlays rather than scattered environment-variable reads. Preserve current env variables as CLI compatibility shims that resolve into one <code>ExperimentArm</code>.</p>
+<div class="flow">ExperimentArm
+  model: ModelRef
+  prompt_versions: {agent: version}
+  task_versions: {task: version}
+  workflow_strategy: name
+  feature_flags: {flag: typed value}
+  tool_profile: name
+  budget: {steps, iterations, context_chars, timeout_s}
+  runtime: {temperature, seed, batching_mode}
+
+manifest → resolve arm → WorkflowConfig / builders → existing harness → eval/v1 attempt</div>
+</section>
+
+<section id="schemas"><h2>4. Core schemas</h2>
+<details open><summary>Hypothesis record</summary><div><table><tr><th>Field</th><th>Purpose</th></tr><tr><td><code>id, title, direction</code></td><td>Stable identity; never recycle an ID.</td></tr><tr><td><code>claim</code></td><td>One causal sentence.</td></tr><tr><td><code>mechanism</code></td><td>Why the intervention should cause the outcome.</td></tr><tr><td><code>scope</code></td><td>Agent/task/pipeline, target types, model sizes.</td></tr><tr><td><code>primary_metric</code></td><td>Exactly one promotion metric.</td></tr><tr><td><code>guardrails</code></td><td>Metrics that must not regress.</td></tr><tr><td><code>mde</code></td><td>Minimum effect worth shipping—not merely detectable.</td></tr><tr><td><code>dependencies</code></td><td>Prerequisite hypotheses/instrumentation.</td></tr><tr><td><code>status</code></td><td>proposed, ready, running, supported, refuted, inconclusive, promoted, retired.</td></tr><tr><td><code>evidence</code></td><td>Links to experiment and decision IDs.</td></tr></table></div></details>
+<details><summary>Experiment manifest</summary><div><p>Must capture <code>hypothesis_id</code>, design type, control/treatment arm hashes, fixture slice hash, case IDs, paired seed schedule, model/runtime digest, scorer version/parameters, primary metric, MDE, α/FDR family, sample plan, sequential looks, stop rules, timeout policy, exclusion rules, cost ceiling, and owner. Freeze the manifest before the first model call; amendments create a new revision and invalidate confirmatory status.</p></div></details>
+<details><summary>Run envelope extension</summary><div><p>Keep <code>eval/v1</code> readable. Add optional fields or introduce <code>eval/v2</code> only after a compatibility reader exists: <code>experiment_id</code>, <code>arm_id/hash</code>, <code>fixture_digest</code>, <code>model_digest</code>, <code>runtime_digest</code>, <code>seed_requested</code>, <code>seed_effective</code>, <code>scorer</code>, <code>tool_outcome_summary</code>, <code>stage_metrics</code>, <code>gpu_seconds</code>, <code>wall_clock_ms</code>, and artifact content hashes.</p></div></details>
+<details><summary>Decision record</summary><div><p>Record actual sample size, exclusions, raw and adjusted effect, confidence/credible interval, FDR-adjusted value, guardrail outcomes, subgroup stability, cost delta, result status, reviewer, implementation action, rollback flag, and follow-up. The record must distinguish <b>statistically supported</b> from <b>worth shipping</b>.</p></div></details>
+</section>
+
+<section id="lifecycle"><h2>5. Hypothesis lifecycle</h2>
+<div class="flow">PROPOSED → TRIAGED → READY → RUNNING → {SUPPORTED | REFUTED | INCONCLUSIVE}
+                                  SUPPORTED → REPLICATING → PROMOTED → MONITORED
+                                  REFUTED ─────────────────────────→ RETIRED
+                                  INCONCLUSIVE → redesign or retire (never “soft win”)</div>
+<table><tr><th>State</th><th>Exit criteria</th><th>Required artifacts</th></tr><tr><td>Proposed</td><td>Distinct mechanism; falsifiable</td><td>Hypothesis YAML</td></tr><tr><td>Triaged</td><td>Score, dependencies, owner, rough cost</td><td>Priority calculation</td></tr><tr><td>Ready</td><td>Instrumentation works; manifest frozen; fixtures available</td><td>Preregistration + CPU preflight</td></tr><tr><td>Running</td><td>All scheduled looks complete or sequential boundary crossed</td><td>Immutable attempt envelopes</td></tr><tr><td>Supported/refuted</td><td>Decision rule applied with multiplicity correction</td><td>Decision record</td></tr><tr><td>Replicating</td><td>Held-out fixtures/model/runtime selected before viewing results</td><td>Confirmatory manifest</td></tr><tr><td>Promoted</td><td>Replication passes, code review, defaults and docs updated</td><td>Implementation PR + rollback switch</td></tr><tr><td>Monitored</td><td>No regression over two scheduled benchmark runs</td><td>Post-promotion report</td></tr></table>
+</section>
+
+<section id="ownership"><h2>6. Ownership and boundaries</h2><table><tr><th>Role</th><th>Responsibility</th><th>Cannot approve alone</th></tr><tr><td>Hypothesis owner</td><td>Mechanism, implementation arm, analysis</td><td>Own confirmatory result</td></tr><tr><td>Eval steward</td><td>Fixtures, scorer version, GT adjudication</td><td>Feature promotion</td></tr><tr><td>Run operator</td><td>Runtime health, manifests, immutable outputs</td><td>Post-hoc exclusions</td></tr><tr><td>Decision reviewer</td><td>Checks statistics, leakage, deviations</td><td>Material scorer changes after results</td></tr><tr><td>Maintainer</td><td>Production simplicity, rollout, rollback</td><td>Waiving failed guardrails without a new experiment</td></tr></table>
+</section>
+
+<section id="priority"><h2>7. Prioritization</h2>
+<p>Use a two-stage process: hard dependency gates, then a scored portfolio. Do not rank all 228 items as if independent.</p>
+<h3>7.1 Hard gates</h3><ol><li>Is the metric trustworthy? If not, route to AR/AP/AO/AT/AW/AY first.</li><li>Can the hypothesis change a decision? If both outcomes lead to the same implementation, do not run it.</li><li>Does a cheaper deterministic test answer it? Run that first.</li><li>Is the arm separable and reversible? Refactor the seam before the model eval.</li><li>Is there enough fixture binding? Do not test truncation on fixtures that never reach the cap.</li></ol>
+<h3>7.2 Score</h3><div class="callout"><span class="mono">Priority = (DecisionImpact × EvidenceLeverage × MissionFit × Reuse × Reversibility) / (GPUCost × EngCost × ValidityRisk × DependencyDepth)</span><br><span class="small">Score each 1–5. Use geometric means within numerator/denominator so one extreme does not dominate. Add a +20% “information value” boost when the result would kill or unlock five or more dependent hypotheses.</span></div>
+<table><tr><th>Dimension</th><th>5</th><th>1</th></tr><tr><td>Decision impact</td><td>Changes architecture/default or invalidates a major claim</td><td>Cosmetic/local optimization</td></tr><tr><td>Evidence leverage</td><td>Routes many future hypotheses</td><td>Answers one narrow case</td></tr><tr><td>Mission fit</td><td>Closes small-model gap at lower operational cost</td><td>Benefits only frontier/cloud configuration</td></tr><tr><td>Reuse</td><td>Reusable instrumentation/tool substrate</td><td>One-off implementation</td></tr><tr><td>Validity risk</td><td>Fresh held-out, direct oracle, robust scorer</td><td>Public tiny fixture, subjective scoring</td></tr></table>
+<h3>7.3 Portfolio allocation</h3><table><tr><th>Bucket</th><th>Quarterly GPU/engineering allocation</th><th>Purpose</th></tr><tr><td>Measurement and validity</td><td>30%</td><td>AR/AO/AP/AT/AU/AW/AY; protects every later conclusion</td></tr><tr><td>Cheap efficiency</td><td>20%</td><td>A/D/AG; fund capability work with saved runtime</td></tr><tr><td>Core capability</td><td>30%</td><td>H/I/AB/AX/C; tools, search, proof</td></tr><tr><td>Pipeline policy</td><td>15%</td><td>U/W/AL/AM/AD</td></tr><tr><td>Frontier probes</td><td>5%</td><td>One decisive experiment each; no platform build before signal</td></tr></table>
+</section>
+
+<section id="portfolio"><h2>8. Dependency-first portfolio</h2>
+<div class="flow">Validity floor: AR1/AR2/AR3 + AP1 + AO1 + AW1 + AY2
+       ↓
+Miss routing: AT1 + stage retention AN1 + tool outcomes AW1
+       ↓
+Cost truth: F2 + AU1 + planner attribution W1
+       ↓
+Cheap interventions: A1/A2/A3 + AW2 + AC extensions
+       ↓
+Capability substrate: H1/H4 + I robustness + AX1
+       ↓
+Search policy: AX2/AX3 + U1/U3 + AL/AM
+       ↓
+End-to-end proof: C1/C3 + AY1/AY3
+       ↓
+Scale/ensemble/escalation only if residual demands it: L/V/AI/MDASH-style routing</div>
+<p><b>Important:</b> do not begin with 100-agent orchestration. First establish whether misses are caused by unseen code, failed tools, weak reasoning, scorer mismatch, handoff loss, or search allocation. The remedy is different for every cause.</p>
+</section>
+
+<section id="verification"><h2>9. Verification protocol</h2>
+<h3>9.1 Four test layers</h3><table><tr><th>Layer</th><th>Question</th><th>Examples</th></tr><tr><td>L0 Contract</td><td>Does the mechanism behave exactly?</td><td>Glob parity, schema validation, arm resolution, seed propagation</td></tr><tr><td>L1 Micro-eval</td><td>Can the mechanism affect its intended local behavior?</td><td>Malformed repair, typed empty retry, tool argument correction</td></tr><tr><td>L2 Capability eval</td><td>Does quality improve on representative tasks?</td><td>Trace recall, exploit success, hypothesis hit-rate</td></tr><tr><td>L3 Deployment eval</td><td>Does utility hold end to end under realistic conditions?</td><td>Clean targets, distractors, lifecycle handoff, triage cost</td></tr></table>
+<h3>9.2 Standard experiment sequence</h3><ol><li><b>Preflight:</b> CPU contract tests; confirm the arm changes only intended bytes/config.</li><li><b>Binding check:</b> prove the intervention activates on ≥30% of selected cases (cap reached, tool failure injected, path branches, etc.).</li><li><b>Pilot:</b> small paired sample to estimate variance and execution health; never use it for promotion.</li><li><b>Freeze:</b> set MDE, N, stopping boundaries, exclusions, metric version, and cost ceiling.</li><li><b>Run paired arms:</b> same fixture order and requested seed, randomized arm order; record actual serving variance.</li><li><b>Analyze primary metric:</b> paired effect and interval; then guardrails and diagnostic subgroups.</li><li><b>Correct multiplicity:</b> within the preregistered experiment family.</li><li><b>Adjudicate scorer-sensitive cases:</b> blind review; preserve both original and corrected GT.</li><li><b>Replicate:</b> fresh fixtures or a second model/runtime—not merely more attempts on the same public cases.</li><li><b>Promote or kill:</b> update registry and decision record immediately.</li></ol>
+<h3>9.3 Fixture matrix</h3><table><tr><th>Axis</th><th>Required levels</th></tr><tr><td>Provenance</td><td>public/possibly contaminated · perturbed · fresh/private</td></tr><tr><td>Outcome</td><td>vulnerable · patched secure twin · clean unrelated target</td></tr><tr><td>Scale</td><td>small · medium · large · scaling sweep</td></tr><tr><td>Signal</td><td>obvious sink · multi-hop dataflow · missing control · business invariant</td></tr><tr><td>Environment</td><td>local · overlay · remote snapshot · executable sandbox</td></tr><tr><td>Distractors</td><td>0 · 1 · 3 · 7 secure components</td></tr><tr><td>Lifecycle</td><td>detection · verification · PoC · patch/functionality where in scope</td></tr></table>
+</section>
+
+<section id="statistics"><h2>10. Statistical decision system</h2>
+<ul><li><b>Unit of analysis:</b> fixture/case, not individual finding. Attempts are nested within cases.</li><li><b>Primary estimate:</b> paired case-level delta. Use paired bootstrap CIs; use McNemar for paired binary completion as a diagnostic.</li><li><b>Repeated attempts:</b> report pass@1 and pass@N, but do not treat attempts as independent cases.</li><li><b>Seeds:</b> request common random numbers; AR1 measures how effective the serving stack makes them.</li><li><b>Multiplicity:</b> Benjamini–Hochberg FDR within a declared batch; primary outcome remains one per hypothesis.</li><li><b>Sequential testing:</b> group-sequential looks at 25/50/75/100%, with alpha spending or always-valid intervals. Stop for efficacy, futility, or cost.</li><li><b>Non-inferiority:</b> efficiency hypotheses require quality above a preregistered margin and cost improvement—not “p &gt; .05 means equal.”</li><li><b>Small-vs-large claims:</b> use headroom-normalized uplift and an interaction term; void ceilinged large-model comparisons.</li><li><b>Scorer sensitivity:</b> rerun AR2 tolerance grid. A result that flips becomes scorer-sensitive, not supported.</li></ul>
+<div class="callout warn"><b>Promotion rule example:</b> treatment improves severity-weighted recall by ≥5 percentage points; 95% paired interval excludes 0; FDR q≤0.10; precision drops no more than 2 points; GPU-seconds rise ≤15%; effect direction holds on fresh fixtures. All five clauses must pass.</div>
+</section>
+
+<section id="promotion"><h2>11. Promotion and rollout gates</h2><table><tr><th>Gate</th><th>Requirement</th></tr><tr><td><span class="chip gate">G0 mechanic</span></td><td>Contract tests pass; arm diff inspected; telemetry proves activation.</td></tr><tr><td><span class="chip gate">G1 evidence</span></td><td>Primary decision rule passes; no critical guardrail fails.</td></tr><tr><td><span class="chip gate">G2 replication</span></td><td>Independent fixture slice; preferably fresh/perturbed.</td></tr><tr><td><span class="chip gate">G3 simplicity</span></td><td>Maintenance cost justified; dead alternative removed or clearly isolated.</td></tr><tr><td><span class="chip gate">G4 rollout</span></td><td>Default-off flag, canary, rollback, docs, migration compatibility.</td></tr><tr><td><span class="chip gate">G5 monitor</span></td><td>Two scheduled post-promotion runs remain inside guardrails.</td></tr></table>
+</section>
+
+<section id="roadmap"><h2>12. Implementation roadmap</h2>
+<h3>Phase 0 — inventory and freeze (week 1)</h3><ul><li>Export all 228 hypotheses into YAML with status/evidence links.</li><li>Assign aliases from old planner <code>V*</code> to <code>PV*</code>.</li><li>Hash and archive existing run envelopes; record scorer versions.</li><li>Define current production defaults as arm <code>baseline-2026-08</code>.</li></ul>
+<h3>Phase 1 — research control plane (weeks 2–3)</h3><ul><li>Implement registry/manifests/JSON schemas and validation CLI.</li><li>Implement arm resolver over existing env/version seams.</li><li>Add model/runtime/fixture/scorer digests to envelopes.</li><li>Create <code>research list</code>, <code>plan</code>, <code>run</code>, <code>rescore</code>, <code>decide</code>, <code>report</code>.</li></ul>
+<h3>Phase 2 — validity floor (weeks 3–5)</h3><ul><li>AR1 serving-noise repeats; AR2 scorer tolerance; AR3 FDR families.</li><li>AO1 deterministic baseline; AP1 blind GT adjudication sample.</li><li>AW1 typed tool outcomes; AT1 miss-cause join.</li><li>AU1 GPU-seconds; AY2 secure twins/clean targets.</li></ul>
+<h3>Phase 3 — cheap, high-confidence wins (weeks 5–7)</h3><ul><li>A1 prefix caching, A2 retention, AW2 ambiguous-empty recovery.</li><li>AC2/AC5 extensions using the newly trustworthy miss taxonomy.</li><li>D simplifications as non-inferiority experiments.</li></ul>
+<h3>Phase 4 — capability/search substrate (weeks 7–10)</h3><ul><li>H1 minimal def-use primitive and H4 dominating-control check.</li><li>AX1 failure router; AX2 offline calibrated difficulty model.</li><li>Only then prototype AX3 external tree and compare with U/AL baselines.</li></ul>
+<h3>Phase 5 — realistic end-to-end confirmation (weeks 10–12)</h3><ul><li>AY1 distractor sweep and AV2 size curve.</li><li>C proof-chain verification plus AY3 lifecycle subset.</li><li>Decide whether residual misses justify L/V ensemble or AI escalation.</li></ul>
+</section>
+
+<section id="backlog"><h2>13. First executable backlog</h2><table><tr><th>Order</th><th>Item</th><th>Why now</th><th>Deliverable</th></tr>
+<tr><td>1 <span class="chip p0">P0</span></td><td>Registry + manifest schemas</td><td>Stops prose drift</td><td>Validated YAML + CLI</td></tr>
+<tr><td>2 <span class="chip p0">P0</span></td><td>Run identity/digests</td><td>Reproducibility prerequisite</td><td>Envelope metadata</td></tr>
+<tr><td>3 <span class="chip p0">P0</span></td><td>AR1 noise floor</td><td>Every effect must clear it</td><td>Variance report by runtime</td></tr>
+<tr><td>4 <span class="chip p0">P0</span></td><td>AR2 scorer sweep</td><td>Cheap backfill; may flip history</td><td>Stability bands</td></tr>
+<tr><td>5 <span class="chip p0">P0</span></td><td>AW1 outcome taxonomy</td><td>Separates model and tool misses</td><td>Typed events + AT1 join</td></tr>
+<tr><td>6 <span class="chip p0">P0</span></td><td>AO1 deterministic floor</td><td>Credits only LLM residual</td><td>Per-fixture floor envelope</td></tr>
+<tr><td>7 <span class="chip p1">P1</span></td><td>AP1 adjudication sample</td><td>Bounds GT precision error</td><td>Blind panel record</td></tr>
+<tr><td>8 <span class="chip p1">P1</span></td><td>AU1 GPU-seconds</td><td>Correct optimization target</td><td>Prefill/decode timing</td></tr>
+<tr><td>9 <span class="chip p1">P1</span></td><td>AY2 secure twins</td><td>Measures false-positive targets</td><td>Blinded clean fixture slice</td></tr>
+<tr><td>10 <span class="chip p1">P1</span></td><td>A1 caching A/B</td><td>High-value cost win</td><td>Non-inferiority decision</td></tr>
+<tr><td>11 <span class="chip p1">P1</span></td><td>AW2 fail-closed empty</td><td>Cheap recall recovery</td><td>Fault-injection A/B</td></tr>
+<tr><td>12 <span class="chip p1">P1</span></td><td>AX1 offline classifier</td><td>Routes future interventions</td><td>Labeled failure corpus</td></tr>
+<tr><td>13 <span class="chip p2">P2</span></td><td>H1/H4 primitives</td><td>Capability substrate</td><td>Tool + matched eval</td></tr>
+<tr><td>14 <span class="chip p2">P2</span></td><td>AX2/AX3</td><td>Build only after labels/signals exist</td><td>Difficulty model + tree A/B</td></tr>
+<tr><td>15 <span class="chip p2">P2</span></td><td>AY1/AY3</td><td>Deployment validity</td><td>Distractor curve + lifecycle ranking</td></tr></table>
+</section>
+
+<section id="hypothesis-map"><h2>14. Organizing all 51 directions</h2><table><tr><th>Program</th><th>Directions</th><th>Shared output</th></tr><tr><td>Validity &amp; truth</td><td>F, AR, AS, AP, AO, AY</td><td>Trustworthy benchmark and decision rules</td></tr><tr><td>Observability &amp; causal diagnosis</td><td>AC, AT, AN, AW</td><td>Per-miss cause and stage/tool telemetry</td></tr><tr><td>Cost &amp; context</td><td>A, AG, AU, AV</td><td>GPU-second/context frontier</td></tr><tr><td>Code understanding</td><td>G, H, I, J, AA, AJ</td><td>Deterministic evidence substrate</td></tr><tr><td>Generation &amp; discovery</td><td>B, N, P, Q, R, AB</td><td>Typed, ranked hypotheses/findings</td></tr><tr><td>Verification &amp; precision</td><td>C, K, T, AH</td><td>Evidence-backed verdict funnel</td></tr><tr><td>Search &amp; allocation</td><td>U, Y, AL, AM, AX, PV</td><td>Budget-aware external search policy</td></tr><tr><td>Composition &amp; artifacts</td><td>D, M, W, X, Z, AD, AE</td><td>Simple reusable pipeline contracts</td></tr><tr><td>Ensembles &amp; escalation</td><td>L, V, AI</td><td>Residual-only expensive routing</td></tr><tr><td>Learning &amp; memory</td><td>O, AK</td><td>Evidence-driven refinement loop</td></tr><tr><td>Chain reasoning</td><td>S</td><td>Multi-finding exploit paths</td></tr></table>
+<p>Each program gets one quarterly objective and one shared metric. Individual hypotheses remain small experiments; directions are not implementation epics by default.</p>
+</section>
+
+<section id="operations"><h2>15. Operating cadence</h2>
+<h3>Weekly</h3><ul><li><b>Monday:</b> triage new hypotheses, dependency changes, and runtime capacity.</li><li><b>Tuesday:</b> freeze manifests; run CPU preflight and binding checks.</li><li><b>Wednesday–Thursday:</b> sequential GPU queue, one heavy experiment at a time; cheap rescores in parallel.</li><li><b>Friday:</b> blind adjudication, decision records, registry/status update, publish negative results.</li></ul>
+<h3>Monthly</h3><ul><li>Re-run production canary suite and deterministic floors.</li><li>Audit stale <code>supported</code> hypotheses not replicated within 30 days.</li><li>Review portfolio balance and cost per decision, not number of runs.</li><li>Search recent primary literature and attach only mechanisms that change a test or decision.</li></ul>
+<h3>Dashboard views</h3><ul><li>Hypothesis funnel by state and age.</li><li>Dependency graph and blocked high-leverage items.</li><li>Effect-size forest plot with raw/adjusted intervals.</li><li>Quality × GPU-seconds Pareto frontier.</li><li>Miss-cause distribution by fixture/model/backend.</li><li>Scorer-sensitivity and GT-adjudication deltas.</li><li>Promotion health and rollback status.</li></ul>
+</section>
+
+<section id="risks"><h2>16. Failure modes and controls</h2><table><tr><th>Risk</th><th>Control</th></tr><tr><td>Experiment flags leak into defaults</td><td>Arm resolver snapshots; baseline byte/config diff test; default-off flags</td></tr><tr><td>Cherry-picked fixture subsets</td><td>Manifest freezes IDs and exclusions; report all preregistered cases</td></tr><tr><td>Repeated testing until positive</td><td>Experiment families + FDR + immutable decisions</td></tr><tr><td>Public benchmark memorization</td><td>AS perturbations, fresh fixtures, secure twins</td></tr><tr><td>False “no regression”</td><td>Non-inferiority margin and sufficient N</td></tr><tr><td>Serving nondeterminism</td><td>AR1 floor, paired order, requested/effective seed record</td></tr><tr><td>Scorer/GT artifacts</td><td>AR2 sweep, AP blind adjudication, versioned rescore</td></tr><tr><td>Tool failures blamed on model</td><td>AW typed completeness + AT cause attribution</td></tr><tr><td>Architecture built before evidence</td><td>Prototype budget and decisive kill test before platform work</td></tr><tr><td>Research system becomes production framework</td><td>Strict dependency rule; promote only generic primitives</td></tr></table>
+</section>
+
+<section id="definition"><h2>17. Definition of done</h2>
+<p>A hypothesis is not done because code exists or one run improved.</p><ul><li class="ok">✓ Claim, mechanism, MDE, primary metric, guardrails, and dependency chain are recorded.</li><li class="ok">✓ Contract tests prove the intervention actually activates.</li><li class="ok">✓ Manifest was frozen before model calls.</li><li class="ok">✓ Raw attempts, configuration hashes, scorer identity, and artifacts are preserved.</li><li class="ok">✓ Decision rule and multiplicity correction were applied.</li><li class="ok">✓ Result is marked supported, refuted, or inconclusive—never “promising” indefinitely.</li><li class="ok">✓ Supported result replicated on held-out evidence before default promotion.</li><li class="ok">✓ Promoted code has rollback, documentation, and post-promotion monitoring.</li><li class="ok">✓ Refuted code/flags are removed or explicitly retained for a documented reason.</li></ul>
+<div class="callout"><b>North-star program metric:</b> severity-weighted, above-deterministic-floor, evidence-confirmed findings per GPU-hour at a bounded clean-target false-positive rate—reported separately for the small self-hosted model and the larger comparison model.</div>
+</section>
+<footer class="meta" style="margin-top:60px;border-top:1px solid var(--line);padding-top:16px">Companion: <a href="research.html">51-direction hypothesis memo</a> · <a href="eval-runs-report.html">eval runs</a> · <a href="quickwins-results.html">quick-wins results</a></footer>
+</main></div></body></html>

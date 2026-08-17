@@ -17,12 +17,14 @@ import pytest
 import yaml
 from google.adk.artifacts import BaseArtifactService
 
+from contractor.runners.artifacts import artifact_key_slug
 from contractor.runners.task_runner import TaskRunner
 from contractor.workflows import Workflow, WorkflowContext, get_workflows
 from contractor.workflows.likec4_building import LikeC4BuildingWorkflow
 from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
 from contractor.workflows.oas_building import OasBuildingWorkflow
 from contractor.workflows.oas_enrichment import OasEnrichmentWorkflow
+from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.router import RouterWorkflow
 from contractor.workflows.trace_annotation import TraceAnnotationWorkflow
 from contractor.workflows.trace_annotation_direct import TraceAnnotationDirectWorkflow
@@ -367,13 +369,13 @@ class TestTraceAnnotationWorkflow:
         assert len(runner.queue) == 1
         item = runner.queue[0]
         assert item.template_key == "trace_annotation"
-        assert "items_id" in item.ref
+        assert item.ref == f"trace_annotation:openapi:{api_path.path_key}"
         assert item.skills == ["trace"]
         # No artifacts — the trace template reads from the overlay-FS instead.
         assert item.artifacts == []
         # Stable per-path publish key — fanned-out paths must not overwrite
         # each other's result/summary/records artifacts (mirrors trace_verify).
-        assert item.artifact_key == "trace_annotation/openapi/items_id"
+        assert item.artifact_key == f"trace_annotation/openapi/{api_path.path_key}"
 
     @pytest.mark.asyncio
     async def test_per_path_artifact_keys_are_distinct(self, monkeypatch):
@@ -388,7 +390,9 @@ class TestTraceAnnotationWorkflow:
                     )
                 ],
             )
-            for i, path in enumerate(["/items/{id}", "/items", "/users/{id}"])
+            for i, path in enumerate(
+                ["/", "/root", "/{id}", "/7Bid_7D", "/items/{id}"]
+            )
         ]
 
         workflow = TraceAnnotationWorkflow(_make_context())
@@ -457,19 +461,22 @@ class TestTraceVerifyWorkflow:
 
         ctx = _make_context()
         findings_yaml = self._make_findings_yaml("sqli-list", "xss-list")
+        api_path = OpenApiPath(path="/items", operations=[])
+        source_namespace = f"trace-annotation:openapi:{api_path.path_key}"
 
         async def fake_load(*, app_name, user_id, filename, **_):
-            if filename == "user:vulnerability-reports/trace-annotation:openapi:items":
+            if filename == f"user:vulnerability-reports/{source_namespace}":
                 return MagicMock(text=findings_yaml, inline_data=None)
             return None
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
         workflow = TraceVerifyWorkflow(ctx)
+        monkeypatch.setattr(
+            workflow, "_assert_verifications_persisted", AsyncMock()
+        )
 
         # Bypass the OpenAPI-loading outer loop — only this inner method
         # touches the findings artifact and the task queue.
-        api_path = OpenApiPath(path="/items", operations=[])
-
         captured: list = []
         original_init = TaskRunner.__init__
 
@@ -491,19 +498,19 @@ class TestTraceVerifyWorkflow:
         assert len(runner.queue) == 2
         assert {item.template_key for item in runner.queue} == {"trace_verify"}
         assert {item.ref for item in runner.queue} == {
-            "trace_verify:openapi:items:sqli-list",
-            "trace_verify:openapi:items:xss-list",
+            f"trace_verify:openapi:{api_path.path_key}:sqli-list",
+            f"trace_verify:openapi:{api_path.path_key}:xss-list",
         }
         # Same template fanned out per finding → distinct, stable publish keys
         # so the tasks don't overwrite each other's artifacts.
         assert {item.artifact_key for item in runner.queue} == {
-            "trace_verify/trace-annotation_openapi_items/sqli-list",
-            "trace_verify/trace-annotation_openapi_items/xss-list",
+            f"trace_verify/{artifact_key_slug(source_namespace)}/sqli-list",
+            f"trace_verify/{artifact_key_slug(source_namespace)}/xss-list",
         }
         for item in runner.queue:
-            assert item.params["source_namespace"] == "trace-annotation:openapi:items"
+            assert item.params["source_namespace"] == source_namespace
             assert item.params["finding_name"] in {"sqli-list", "xss-list"}
-            assert item.namespace == "trace-annotation:openapi:items"
+            assert item.namespace == source_namespace
 
     @pytest.mark.asyncio
     async def test_skips_path_with_no_findings(self, monkeypatch):
@@ -533,13 +540,28 @@ class TestTraceVerifyWorkflow:
         assert captured == []
 
     def test_candidate_namespaces_probe_all_known_prefixes(self):
+        from contractor.workflows.namespaces import (
+            TRACE_ANNOTATION_NAMESPACE_PREFIX,
+            TRACE_GRAPH_NAMESPACE_PREFIX,
+            TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+            TRACE_POSTDIFF_NAMESPACE_PREFIX,
+        )
         from contractor.workflows.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_graph_pathpar.workflow import (
+            CFG as PATHPAR_CFG,
+        )
+        from contractor.workflows.trace_postdiff.workflow import CFG as POSTDIFF_CFG
 
         workflow = TraceVerifyWorkflow(_make_context())
         api_path = OpenApiPath(path="/items", operations=[])
 
         assert workflow._candidate_namespaces(api_path) == [
-            f"{prefix}:openapi:items" for prefix in TRACE_NAMESPACE_PREFIXES
+            f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:openapi:{api_path.path_key}",
+            f"{TRACE_GRAPH_NAMESPACE_PREFIX}:openapi:{api_path.path_key}",
+            f"{TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, PATHPAR_CFG.budgets.group_depth)}",
+            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, POSTDIFF_CFG.budgets.group_depth)}",
         ]
         # All known producers must be covered (regression: only the
         # trace/trace-direct prefix used to be probed).
@@ -550,18 +572,118 @@ class TestTraceVerifyWorkflow:
             "trace-postdiff",
         }
 
-    def test_candidate_namespaces_include_route_group_keys(self):
+    def test_candidate_namespaces_use_each_producers_configured_group_depth(self):
+        from contractor.workflows.namespaces import (
+            TRACE_ANNOTATION_NAMESPACE_PREFIX,
+            TRACE_GRAPH_NAMESPACE_PREFIX,
+            TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+            TRACE_POSTDIFF_NAMESPACE_PREFIX,
+        )
         from contractor.workflows.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_graph_pathpar.workflow import (
+            CFG as PATHPAR_CFG,
+        )
+        from contractor.workflows.trace_postdiff.workflow import CFG as POSTDIFF_CFG
 
         workflow = TraceVerifyWorkflow(_make_context())
         api_path = OpenApiPath(path="/users/{user-id}/orders", operations=[])
 
         candidates = workflow._candidate_namespaces(api_path)
+        assert candidates == [
+            f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:openapi:{api_path.path_key}",
+            f"{TRACE_GRAPH_NAMESPACE_PREFIX}:openapi:{api_path.path_key}",
+            f"{TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, PATHPAR_CFG.budgets.group_depth)}",
+            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, POSTDIFF_CFG.budgets.group_depth)}",
+        ]
+
+    def test_candidate_namespaces_ignore_unversioned_legacy_keys(self):
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        api_path = OpenApiPath(path="/users/{id}", operations=[])
+        workflow = TraceVerifyWorkflow(_make_context())
+        workflow.paths = [api_path]
+        candidates = workflow._candidate_namespaces(api_path)
+
         for prefix in TRACE_NAMESPACE_PREFIXES:
-            # Full path key plus depth-1 and depth-2 group keys.
-            assert f"{prefix}:openapi:users_user-id_orders" in candidates
-            assert f"{prefix}:openapi:users" in candidates
-            assert f"{prefix}:openapi:users_user-id" in candidates
+            assert f"{prefix}:openapi:users_id" not in candidates
+
+    def test_configurable_producers_do_not_probe_stale_group_depths(
+        self, monkeypatch
+    ):
+        from contractor.workflows.namespaces import (
+            TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+            TRACE_POSTDIFF_NAMESPACE_PREFIX,
+        )
+        from contractor.workflows.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_verify import workflow as workflow_module
+
+        monkeypatch.setattr(
+            workflow_module.TRACE_GRAPH_PATHPAR_CFG.budgets, "group_depth", 0
+        )
+        monkeypatch.setattr(
+            workflow_module.TRACE_POSTDIFF_CFG.budgets, "group_depth", 1
+        )
+        api_path = OpenApiPath(path="/users/{id}", operations=[])
+        workflow = TraceVerifyWorkflow(_make_context())
+        workflow.paths = [api_path]
+        candidates = workflow._candidate_namespaces(api_path)
+
+        pathpar_current = (
+            f"{TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX}:openapi:{api_path.path_key}"
+        )
+        pathpar_stale_group = (
+            f"{TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, 1)}"
+        )
+        postdiff_current = (
+            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:openapi:"
+            f"{group_key_for_path(api_path.path, 1)}"
+        )
+        postdiff_stale_path = (
+            f"{TRACE_POSTDIFF_NAMESPACE_PREFIX}:openapi:{api_path.path_key}"
+        )
+        assert pathpar_current in candidates
+        assert pathpar_stale_group not in candidates
+        assert postdiff_current in candidates
+        assert postdiff_stale_path not in candidates
+
+    @pytest.mark.asyncio
+    async def test_unversioned_legacy_findings_are_not_loaded(self):
+        from contractor.workflows.namespaces import (
+            TRACE_ANNOTATION_NAMESPACE_PREFIX,
+        )
+        from contractor.workflows.trace_annotation import OpenApiPath
+
+        api_path = OpenApiPath(path="/users/{id}", operations=[])
+        workflow = TraceVerifyWorkflow(_make_context())
+        workflow.paths = [api_path]
+        canonical = (
+            f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:openapi:{api_path.path_key}"
+        )
+        legacy = f"{TRACE_ANNOTATION_NAMESPACE_PREFIX}:openapi:users_id"
+
+        async def fake_load(*, user_id, source_namespace):
+            if source_namespace == canonical:
+                return [{"name": "issue", "title": "current"}]
+            if source_namespace == legacy:
+                return [{"name": "issue", "title": "stale"}]
+            return []
+
+        workflow._load_findings = AsyncMock(side_effect=fake_load)
+        discovered = await workflow._discover_findings(
+            user_id="u",
+            api_path=api_path,
+        )
+
+        assert discovered == [
+            (canonical, [{"name": "issue", "title": "current"}])
+        ]
+        assert all(
+            call.kwargs["source_namespace"] != legacy
+            for call in workflow._load_findings.await_args_list
+        )
 
     @pytest.mark.asyncio
     async def test_group_namespace_verified_once_across_sibling_paths(
@@ -574,7 +696,10 @@ class TestTraceVerifyWorkflow:
 
         ctx = _make_context()
         findings_yaml = self._make_findings_yaml("bola-users")
-        group_namespace = "trace-postdiff:openapi:users"
+        group_namespace = (
+            "trace-postdiff:openapi:"
+            f"{group_key_for_path('/users/{user-id}', 1)}"
+        )
 
         async def fake_load(*, app_name, user_id, filename, **_):
             if filename == f"user:vulnerability-reports/{group_namespace}":
@@ -583,6 +708,9 @@ class TestTraceVerifyWorkflow:
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
         workflow = TraceVerifyWorkflow(ctx)
+        monkeypatch.setattr(
+            workflow, "_assert_verifications_persisted", AsyncMock()
+        )
 
         captured: list = []
         original_init = TaskRunner.__init__
@@ -620,11 +748,27 @@ class TestTraceVerifyWorkflow:
         """Regression: trace-verify only probed ``trace-annotation:`` while
         trace-graph (the production default) writes ``trace-graph:`` — so
         verify silently skipped every path after a trace-graph run."""
+        from contractor.workflows.namespaces import (
+            TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+            TRACE_POSTDIFF_NAMESPACE_PREFIX,
+        )
         from contractor.workflows.trace_annotation import OpenApiPath
+        from contractor.workflows.trace_graph_pathpar.workflow import (
+            CFG as PATHPAR_CFG,
+        )
+        from contractor.workflows.trace_postdiff.workflow import CFG as POSTDIFF_CFG
 
         ctx = _make_context()
         findings_yaml = self._make_findings_yaml("sqli-list")
-        expected_namespace = f"{prefix}:openapi:items"
+        api_path = OpenApiPath(path="/items", operations=[])
+        depth = 0
+        if prefix == TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX:
+            depth = PATHPAR_CFG.budgets.group_depth
+        elif prefix == TRACE_POSTDIFF_NAMESPACE_PREFIX:
+            depth = POSTDIFF_CFG.budgets.group_depth
+        expected_namespace = (
+            f"{prefix}:openapi:{group_key_for_path(api_path.path, depth)}"
+        )
 
         async def fake_load(*, app_name, user_id, filename, **_):
             if filename == f"user:vulnerability-reports/{expected_namespace}":
@@ -633,7 +777,9 @@ class TestTraceVerifyWorkflow:
 
         ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
         workflow = TraceVerifyWorkflow(ctx)
-        api_path = OpenApiPath(path="/items", operations=[])
+        monkeypatch.setattr(
+            workflow, "_assert_verifications_persisted", AsyncMock()
+        )
 
         captured: list = []
         original_init = TaskRunner.__init__
@@ -1067,6 +1213,67 @@ class TestVulnAssessWorkflow:
         # Whole OAS stage short-circuits — no tasks queued.
         assert _flat_queue(captured) == []
 
+    @pytest.mark.asyncio
+    async def test_collect_reports_ignores_unversioned_legacy_artifact(self):
+        from contractor.workflows.trace_graph_pathpar.workflow import (
+            CFG as TRACE_PATHPAR_CFG,
+        )
+        from contractor.workflows.trace_graph_pathpar.workflow import (
+            PATH_NAMESPACE_PREFIX,
+        )
+        from contractor.workflows.vuln_assess import VulnAssessWorkflow
+
+        path = "/{tenant}/users"
+        depth = TRACE_PATHPAR_CFG.budgets.group_depth
+        canonical_key = group_key_for_path(path, depth)
+        segments = [segment for segment in path.strip("/").split("/") if segment]
+        if depth > 0:
+            segments = segments[:depth]
+        legacy_key = "_".join(segments).replace("{", "").replace("}", "") or "root"
+        assert canonical_key != legacy_key
+        canonical_name = (
+            "user:vulnerability-reports/"
+            f"{PATH_NAMESPACE_PREFIX}:openapi:{canonical_key}"
+        )
+        legacy_name = (
+            "user:vulnerability-reports/"
+            f"{PATH_NAMESPACE_PREFIX}:openapi:{legacy_key}"
+        )
+        oas = yaml.safe_dump(
+            {
+                "openapi": "3.1.0",
+                "paths": {path: {"get": {"responses": {"200": {}}}}},
+            }
+        )
+        ctx = _make_context()
+
+        async def fake_load(*, app_name, user_id, filename, **_):
+            if filename == "oas-openapi-building":
+                return MagicMock(text=oas, inline_data=None)
+            if filename == canonical_name:
+                return MagicMock(
+                    text=yaml.safe_dump({"issue": {"title": "current"}}),
+                    inline_data=None,
+                )
+            if filename == legacy_name:
+                return MagicMock(
+                    text=yaml.safe_dump({"issue": {"title": "stale"}}),
+                    inline_data=None,
+                )
+            return None
+
+        ctx.artifact_service.load_artifact = AsyncMock(side_effect=fake_load)
+        reports = yaml.safe_load(
+            await VulnAssessWorkflow(ctx)._collect_vuln_reports(user_id="u")
+        )
+
+        assert reports["issue"]["title"] == "current"
+        requested = {
+            call.kwargs["filename"]
+            for call in ctx.artifact_service.load_artifact.await_args_list
+        }
+        assert legacy_name not in requested
+
 
 # ─── TraceGraphPathParWorkflow ──────────────────────────────────────────────────
 
@@ -1111,6 +1318,8 @@ class TestTraceGraphPathParWorkflow:
 
     @pytest.mark.asyncio
     async def test_partial_failure_is_skipped_and_siblings_complete(self, monkeypatch):
+        from contractor.workflows.trace_graph_pathpar.workflow import CFG
+
         workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
         completed: list[str] = []
 
@@ -1126,7 +1335,9 @@ class TestTraceGraphPathParWorkflow:
         await workflow._run_impl(user_id="u", on_event=None)
 
         # The healthy sibling still completed, and the merge/save still ran once.
-        assert completed == ["a"]
+        assert completed == [
+            group_key_for_path("/a", CFG.budgets.group_depth)
+        ]
         merge_mock.assert_called_once()
         save_mock.assert_awaited_once_with("u")
 

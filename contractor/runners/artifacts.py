@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Any
@@ -29,17 +30,48 @@ def validate_artifact_key(key: str) -> str:
 
 
 _SLUG_RE = re.compile(r"[^a-zA-Z0-9_-]+")
+_PORTABLE_SLUG_RE = re.compile(r"^[a-z0-9_-]+$")
+_MAX_ARTIFACT_SLUG_LENGTH = 160
+_WINDOWS_DEVICE_NAMES = {
+    "aux",
+    "con",
+    "nul",
+    "prn",
+    *(f"com{number}" for number in range(1, 10)),
+    *(f"lpt{number}" for number in range(1, 10)),
+}
 
 
 def artifact_key_slug(value: str) -> str:
     """Collapse an arbitrary identifier (finding name, namespace, …) into a
     single safe artifact-key segment.
 
-    Deterministic for a given input — fan-out workflows use it to derive
-    stable per-task artifact keys that survive ``--resume``.
+    Deterministic for a given input — fan-out workflows use it to derive stable
+    per-task artifact keys that survive ``--resume``. Ordinary safe identifiers
+    remain readable and unchanged. Encoded identifiers occupy the reserved
+    ``h_`` output domain and include their SHA-256 digest; raw safe identifiers
+    that already start ``h_`` are encoded too. Uppercase and Windows device
+    basenames are encoded so keys remain distinct and creatable on
+    case-insensitive filesystems. This makes the two output domains disjoint, so
+    a crafted raw identifier cannot equal another input's encoded output. Long
+    values are bounded below filesystem component limits.
     """
-    slug = _SLUG_RE.sub("_", (value or "").strip()).strip("_")
-    return slug or "item"
+    raw = value or ""
+    if (
+        raw
+        and _PORTABLE_SLUG_RE.fullmatch(raw) is not None
+        and len(raw) <= _MAX_ARTIFACT_SLUG_LENGTH
+        and not raw.startswith("h_")
+        and raw not in _WINDOWS_DEVICE_NAMES
+    ):
+        return raw
+
+    readable = raw.strip()
+    slug = _SLUG_RE.sub("_", readable).strip("_") or "item"
+    suffix = f"_h{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
+    prefix_limit = _MAX_ARTIFACT_SLUG_LENGTH - len("h_") - len(suffix)
+    prefix = slug[:prefix_limit].rstrip("_")
+    return f"h_{prefix or 'item'}{suffix}"
 
 
 def artifact_filename(key: str, kind: ArtifactKind) -> str:

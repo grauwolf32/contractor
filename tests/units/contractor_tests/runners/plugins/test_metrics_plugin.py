@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from contractor.runners.agio import AgioEventType
+from contractor.runners.plugins.base import _REDACTED, redact_sensitive
 from contractor.runners.plugins.metrics_plugin import (
     AdkMetricsPlugin,
     AgentMetrics,
@@ -384,3 +385,97 @@ class TestCallbackFlows:
         cov = rec.of_type(AgioEventType.FS_COVERAGE)
         assert len(cov) == 1
         assert cov[0]["fs_coverage"] == {"visited": 3}
+
+
+class TestRedactSensitive:
+    def test_masks_top_level_secret_keys(self):
+        out = redact_sensitive(
+            {"Authorization": "Bearer abc", "password": "hunter2", "url": "/x"}
+        )
+        assert out["Authorization"] == _REDACTED
+        assert out["password"] == _REDACTED
+        assert out["url"] == "/x"  # benign key preserved
+
+    def test_masks_nested_headers_and_auth(self):
+        out = redact_sensitive(
+            {
+                "headers": {"Authorization": "Bearer t", "Accept": "json"},
+                "auth": {"username": "u", "password": "p"},
+            }
+        )
+        assert out["headers"]["Authorization"] == _REDACTED
+        assert out["headers"]["Accept"] == "json"
+        assert out["auth"] == _REDACTED  # whole auth bundle masked
+
+    def test_masks_set_cookie_in_response_headers(self):
+        out = redact_sensitive({"headers": {"Set-Cookie": "sid=secret; Path=/"}})
+        assert out["headers"]["Set-Cookie"] == _REDACTED
+
+    def test_masks_whole_cookie_jar(self):
+        # http_session_get returns the raw jar under the plural "cookies" key;
+        # the whole value must be masked (inner "sessionid" isn't secret-looking).
+        out = redact_sensitive({"cookies": {"sessionid": "SECRET", "csrftoken": "C"}})
+        assert out["cookies"] == _REDACTED
+
+    def test_does_not_mask_benign_cookies_prefixed_key(self):
+        # Exact-match only — "cookies_enabled" is not the jar.
+        assert redact_sensitive({"cookies_enabled": True}) == {"cookies_enabled": True}
+
+    def test_masks_passphrase_and_private_key(self):
+        out = redact_sensitive({"passphrase": "x", "private_key": "-----BEGIN"})
+        assert out["passphrase"] == _REDACTED
+        assert out["private_key"] == _REDACTED
+
+    def test_token_variants(self):
+        out = redact_sensitive(
+            {"access_token": "a", "refresh_token": "b", "token": "c", "api_key": "d"}
+        )
+        assert all(out[k] == _REDACTED for k in out)
+
+    def test_does_not_mask_token_count_metrics(self):
+        # The redactor must not eat benign token-count fields.
+        payload = {"token_count": 5, "max_tokens": 100, "prompt_tokens": 3, "tokens": 9}
+        assert redact_sensitive(payload) == payload
+
+    def test_does_not_mutate_input(self):
+        original = {"headers": {"Authorization": "Bearer t"}}
+        redact_sensitive(original)
+        assert original["headers"]["Authorization"] == "Bearer t"
+
+    def test_walks_lists(self):
+        out = redact_sensitive([{"password": "x"}, {"ok": 1}])
+        assert out[0]["password"] == _REDACTED
+        assert out[1]["ok"] == 1
+
+
+class TestEmitRedaction:
+    @pytest.mark.asyncio
+    async def test_tool_args_with_auth_header_are_redacted(self):
+        plugin, rec = _plugin()
+        tool, ctx = _tool("http_request"), _ctx()
+        secret_args = {"url": "https://t/x", "headers": {"Authorization": "Bearer SECRET"}}
+
+        await plugin.before_tool_callback(tool=tool, tool_context=ctx, args=secret_args)
+
+        call = rec.of_type(AgioEventType.TOOL_CALL)[0]
+        assert call["arguments"]["headers"]["Authorization"] == _REDACTED
+        assert call["arguments"]["url"] == "https://t/x"
+        # the caller's real args object is untouched
+        assert secret_args["headers"]["Authorization"] == "Bearer SECRET"
+
+    @pytest.mark.asyncio
+    async def test_response_set_cookie_is_redacted(self):
+        plugin, rec = _plugin()
+        tool, ctx = _tool("http_request"), _ctx()
+
+        await plugin.before_tool_callback(tool=tool, tool_context=ctx, args={"p": 1})
+        await plugin.after_tool_callback(
+            tool=tool,
+            tool_context=ctx,
+            args={"p": 1},
+            result={"status": "ok", "headers": {"Set-Cookie": "sid=SECRET"}},
+        )
+
+        res = rec.of_type(AgioEventType.TOOL_RESULT)[0]
+        assert res["result"]["headers"]["Set-Cookie"] == _REDACTED
+        assert res["result"]["status"] == "ok"

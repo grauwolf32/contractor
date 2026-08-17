@@ -31,7 +31,12 @@ from contractor.workflows.findings import load_yaml_dict_artifact
 from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.trace_annotation import extract_openapi_paths
 from contractor.workflows.trace_graph_pathpar import TraceGraphPathParWorkflow
-from contractor.workflows.trace_graph_pathpar.workflow import PATH_NAMESPACE_PREFIX
+from contractor.workflows.trace_graph_pathpar.workflow import (
+    CFG as TRACE_PATHPAR_CFG,
+)
+from contractor.workflows.trace_graph_pathpar.workflow import (
+    PATH_NAMESPACE_PREFIX,
+)
 
 CFG = WorkflowConfig.load(__file__)
 
@@ -293,26 +298,30 @@ class VulnAssessWorkflow(Workflow):
                 # Must match the namespace the trace stage (TraceGraphPathParWorkflow,
                 # run in _run_trace_stage) writes vuln reports under — shared constant
                 # so the read/write keys can't drift (audit: HIGH, namespace mismatch).
-                # The trace stage keys by path_key (group_depth=0) or by a
-                # route-prefix group key (group_depth>=1) — probe both.
-                keys = [api_path.path_key]
-                for depth in (1, 2):
-                    group_key = group_key_for_path(api_path.path, depth)
-                    if group_key not in keys:
-                        keys.append(group_key)
-                for key in keys:
-                    ns = f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{key}"
-                    if ns in probed:
-                        continue
-                    probed.add(ns)
-                    merged.update(
-                        await load_yaml_dict_artifact(
-                            ctx.artifact_service,
-                            app_name=ctx.app_name,
-                            user_id=user_id,
-                            filename=f"user:vulnerability-reports/{ns}",
-                        )
-                    )
+                # Match the trace stage's configured path/group depth exactly.
+                # Versioned path keys deliberately do not reuse ambiguous
+                # pre-migration artifacts; those runs must be regenerated.
+                key = group_key_for_path(
+                    api_path.path,
+                    TRACE_PATHPAR_CFG.budgets.group_depth,
+                )
+                namespace = (
+                    f"{PATH_NAMESPACE_PREFIX}:{ns_suffix}:{key}"
+                )
+                if namespace in probed:
+                    continue
+                probed.add(namespace)
+                records = await load_yaml_dict_artifact(
+                    ctx.artifact_service,
+                    app_name=ctx.app_name,
+                    user_id=user_id,
+                    filename=(
+                        "user:vulnerability-reports/"
+                        f"{namespace}"
+                    ),
+                )
+                if records:
+                    merged.update(records)
 
         if not merged:
             return ""

@@ -19,6 +19,7 @@ from contractor.workflows.namespaces import (
     TRACE_NAMESPACE_PREFIXES,
     TRACE_POSTDIFF_NAMESPACE_PREFIX,
 )
+from contractor.workflows.path_groups import group_key_for_path
 from contractor.workflows.trace_postdiff import TracePostDiffWorkflow
 from contractor.workflows.trace_postdiff.workflow import (
     _diff_header_path,
@@ -189,10 +190,13 @@ class TestTwoStageRun:
         )
         # One trace run per operation (get + delete).
         assert len(trace_builds) == 2
+        expected_namespace = (
+            f"trace-postdiff:openapi:{group_key_for_path('/users/{user-id}', 1)}"
+        )
         for build in trace_builds:
             assert build["enable_vuln_reporting"] is False
             # group_depth=1 → namespace keyed by the route prefix.
-            assert build["namespace"] == "trace-postdiff:openapi:users"
+            assert build["namespace"] == expected_namespace
 
     async def test_analytics_stage_receives_annotation_diff(
         self, tmp_path, monkeypatch
@@ -201,9 +205,10 @@ class TestTwoStageRun:
             tmp_path, monkeypatch, annotate=True
         )
         assert len(analytics_builds) == 1
-        assert (
-            analytics_builds[0]["namespace"] == "trace-postdiff:openapi:users"
+        expected_namespace = (
+            f"trace-postdiff:openapi:{group_key_for_path('/users/{user-id}', 1)}"
         )
+        assert analytics_builds[0]["namespace"] == expected_namespace
 
         analytics_runs = [r for r in runs if r["event"].endswith(":analytics")]
         assert len(analytics_runs) == 1
@@ -245,14 +250,12 @@ class TestTwoStageRun:
         )
         # Three operations traced, but only two route groups analyzed.
         assert len(trace_builds) == 3
-        assert {b["namespace"] for b in trace_builds} == {
-            "trace-postdiff:openapi:users",
-            "trace-postdiff:openapi:admin",
+        expected_namespaces = {
+            f"trace-postdiff:openapi:{group_key_for_path('/users/x', 1)}",
+            f"trace-postdiff:openapi:{group_key_for_path('/admin/x', 1)}",
         }
-        assert {b["namespace"] for b in analytics_builds} == {
-            "trace-postdiff:openapi:users",
-            "trace-postdiff:openapi:admin",
-        }
+        assert {b["namespace"] for b in trace_builds} == expected_namespaces
+        assert {b["namespace"] for b in analytics_builds} == expected_namespaces
         assert len(analytics_builds) == 2
 
 

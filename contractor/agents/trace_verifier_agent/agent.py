@@ -9,6 +9,8 @@ from google.adk.models.lite_llm import LiteLlm
 
 from contractor.agents.worker_factory import build_worker
 from contractor.callbacks import default_tool
+from contractor.callbacks.adapter import chain_after_model_callback
+from contractor.callbacks.guardrails import MandatoryToolCallback
 from contractor.tools.code import attach_graph_tools_if_local, code_tools
 from contractor.tools.fs import FileFormat, ro_file_tools
 from contractor.tools.memory import MemoryFormat, memory_tools
@@ -90,7 +92,7 @@ def build_trace_verifier_agent(
         *verif_tools,
     ]
 
-    return build_worker(
+    agent = build_worker(
         name=name,
         instruction=instruction,
         description=(
@@ -106,3 +108,11 @@ def build_trace_verifier_agent(
         elide_tool_results=elide_tool_results,
         elide_keep_last_n=elide_keep_last_n,
     )
+
+    # The persisted verification is the authoritative output; a structured
+    # worker handshake alone must never count as a successful verification.
+    chain_after_model_callback(
+        agent,
+        MandatoryToolCallback(tool_names=["report_verification"], max_nudges=3),
+    )
+    return agent

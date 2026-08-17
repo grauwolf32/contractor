@@ -26,10 +26,13 @@ Harmless on non-llama.cpp backends: the receiving models accept both spellings.
 
 from __future__ import annotations
 
+import logging
 from contextvars import ContextVar
 from typing import Any
 
 from google.adk.models.lite_llm import LiteLLMClient
+
+logger = logging.getLogger(__name__)
 
 # Request-scoped tool_choice override for the *next* model call, set by
 # ``SummarizationLimitCallback`` (contractor/callbacks/context.py) and read here.
@@ -51,16 +54,36 @@ forced_tool_choice: ContextVar[str | None] = ContextVar(
     "forced_tool_choice", default=None
 )
 
+# Companion to forced_tool_choice: an OpenAI ``response_format`` (JSON-schema)
+# to inject on the same forced call. ``tool_choice="none"`` forbids tools, but
+# contractor workers carry no output_schema, so without a response_format the
+# forced text is unconstrained and frequently fails to parse as the expected
+# result. Pairing the two grammar-constrains the forced output to valid JSON.
+forced_response_format: ContextVar[dict | None] = ContextVar(
+    "forced_response_format", default=None
+)
 
-def _apply_forced_tool_choice(kwargs: dict[str, Any]) -> None:
-    """Inject the context-scoped tool_choice override into ``kwargs`` (in place).
 
-    No-op when unset. When set, it wins: the callback only sets it when it
-    deliberately wants to force the model's hand.
+def _apply_forced_params(kwargs: dict[str, Any]) -> None:
+    """Inject context-scoped forced request params into ``kwargs`` (in place).
+
+    No-op when unset. When set, they win: the callback only sets them when it
+    deliberately wants to force the model's hand (e.g. ``"none"`` + a result
+    schema at the context limit).
     """
     tc = forced_tool_choice.get()
     if tc is not None:
         kwargs["tool_choice"] = tc
+        rf = forced_response_format.get()
+        # ADK pre-populates completion_args with ``response_format=None``
+        # (lite_llm.py), so test the *value*, not key presence — otherwise the
+        # explicit None would block our override.
+        if rf is not None and not kwargs.get("response_format"):
+            kwargs["response_format"] = rf
+        logger.info(
+            "forced tool_choice=%r (response_format=%s) injected into request",
+            tc, "yes" if kwargs.get("response_format") else "no",
+        )
 
 
 def sanitize_schema(node: Any) -> None:
@@ -121,13 +144,13 @@ class SanitizingLiteLLMClient(LiteLLMClient):
     """
 
     async def acompletion(self, model, messages, tools, **kwargs):
-        _apply_forced_tool_choice(kwargs)
+        _apply_forced_params(kwargs)
         return await super().acompletion(
             model=model, messages=messages, tools=sanitize_tools(tools), **kwargs
         )
 
     def completion(self, model, messages, tools, stream=False, **kwargs):
-        _apply_forced_tool_choice(kwargs)
+        _apply_forced_params(kwargs)
         return super().completion(
             model=model,
             messages=messages,

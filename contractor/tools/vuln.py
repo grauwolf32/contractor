@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Final, Literal, Protocol, TypeVar
@@ -14,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from contractor.tools.result import aguard, err
 from contractor.utils import utc_now_iso
+
+logger = logging.getLogger(__name__)
 
 # Passthrough type for the code-fence helpers: a non-str payload is returned
 # unchanged, a str may be wrapped — so the caller's narrower type is preserved.
@@ -103,9 +106,20 @@ def _single_record_yaml(key: str, payload: dict[str, Any]) -> str:
     return yaml.safe_dump({key: payload}, sort_keys=False, allow_unicode=True)
 
 
-def _dump_records_yaml(records: Iterable[_NamedRecord]) -> str:
-    """YAML-dump a ``{record.name: model_dump}`` map preserving the given order."""
+def _dump_records_yaml(
+    records: Iterable[_NamedRecord],
+    extra: dict[str, Any] | None = None,
+) -> str:
+    """YAML-dump a ``{record.name: model_dump}`` map preserving the given order.
+
+    ``extra`` carries raw rows that failed to parse on load (see
+    ``_load_artifact_records``); they are appended verbatim so a CRUD op on the
+    parsed records round-trips them instead of dropping them. The loader rejects
+    parsed/unparseable name collisions before this function is reached.
+    """
     payload = {r.name: r.model_dump() for r in records}
+    for name, raw in (extra or {}).items():
+        payload.setdefault(name, raw)
     return yaml.safe_dump(
         payload, sort_keys=False, allow_unicode=True, default_flow_style=False
     )
@@ -116,24 +130,72 @@ async def _load_artifact_records(
     *,
     artifact_key: str,
     normalize: Callable[[str, dict[str, Any], int], _R],
-) -> dict[str, _R]:
-    """Load a ``{name: record}`` map from a YAML artifact, skipping non-dicts.
+) -> tuple[dict[str, _R], dict[str, Any]]:
+    """Load a ``{name: record}`` map from a YAML artifact.
 
     ``normalize`` is called with ``(name, item, index)`` where ``index`` is the
     1-based position (a fallback ordinal); records are keyed by their own
     ``.name``.
+
+    Returns ``(records, unparsed)``. ``unparsed`` holds the raw rows that could
+    not be normalised — a non-dict value, or a ``normalize`` failure from schema
+    drift / a hand edit. The caller MUST persist ``unparsed`` back on ``dump()``:
+    every CRUD op is load→mutate→save-of-parsed-records, so a row dropped here
+    would be silently erased from the artifact on the next unrelated write.
     """
     artifact = await ctx.load_artifact(filename=artifact_key)
     if artifact is None:
-        return {}
-    raw: dict[str, Any] = yaml.safe_load(artifact.text or "") or {}
+        return {}, {}
+    raw: Any = yaml.safe_load(artifact.text or "") or {}
+    # A non-mapping top level (a hand-edited list/scalar, or wrong schema) has no
+    # named rows to preserve. Fail loudly rather than returning {}: the latter
+    # lets the next save() overwrite the whole artifact with the in-memory store,
+    # destroying the on-disk data. The raise reaches the tool guard as an error.
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"artifact {artifact_key!r} is not a top-level mapping "
+            f"(got {type(raw).__name__}); refusing to load and overwrite it"
+        )
     records: dict[str, _R] = {}
+    unparsed: dict[str, Any] = {}
     for index, (name, item) in enumerate(raw.items(), start=1):
         if not isinstance(item, dict):
+            unparsed[name] = item
             continue
-        record = normalize(name, item, index)
+        # Isolate per-record failures: one malformed/out-of-vocab record (e.g.
+        # an externally edited artifact or schema drift) must not poison the
+        # whole store and block reading/writing/deleting the valid records — but
+        # it must be preserved so the next save round-trips it.
+        try:
+            record = normalize(name, item, index)
+        except Exception:
+            logger.warning(
+                "preserving unparseable record %r in artifact %r",
+                name,
+                artifact_key,
+                exc_info=True,
+            )
+            unparsed[name] = item
+            continue
+        if record.name in records:
+            raise ValueError(
+                f"artifact {artifact_key!r} contains multiple records with "
+                f"logical name {record.name!r}; refusing to load and overwrite it"
+            )
         records[record.name] = record
-    return records
+
+    # Parsed records are intentionally persisted under their internal ``name``.
+    # If that name is also the storage key of an unparseable row, a YAML mapping
+    # cannot represent both on the next save. Failing here is the only lossless
+    # option; ``setdefault`` in the dumper must never silently discard the raw
+    # row during an unrelated CRUD operation.
+    key_collisions = sorted(set(records) & set(unparsed))
+    if key_collisions:
+        raise ValueError(
+            f"artifact {artifact_key!r} has parsed/unparseable record key "
+            f"collision(s) {key_collisions!r}; refusing to load and overwrite it"
+        )
+    return records, unparsed
 
 
 async def _save_artifact_text(
@@ -338,6 +400,9 @@ class VulnerabilityReportTools:
         default_factory=lambda: VulnerabilityReportFormat("json")
     )
     reports: dict[str, VulnerabilityReport] = field(default_factory=dict)
+    # Raw rows that failed to parse on the last load; re-dumped verbatim so a
+    # CRUD op on the parsed reports doesn't silently drop them.
+    _unparsed: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
     # asyncio.Lock must not be shared across event loops; create lazily.
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
@@ -383,7 +448,7 @@ class VulnerabilityReportTools:
     async def load(self, ctx: ToolContext | CallbackContext) -> None:
         """Load reports from the artifact store into memory."""
         async with self._lock:
-            self.reports = await _load_artifact_records(
+            self.reports, self._unparsed = await _load_artifact_records(
                 ctx,
                 artifact_key=self.artifact_key,
                 normalize=self._normalize_report,
@@ -396,7 +461,7 @@ class VulnerabilityReportTools:
         ordered: list[VulnerabilityReport] = sorted(
             self.reports.values(), key=lambda r: (r.ordinal, r.name)
         )
-        return _dump_records_yaml(ordered)
+        return _dump_records_yaml(ordered, extra=self._unparsed)
 
     async def save(self, ctx: ToolContext | CallbackContext) -> None:
         """Persist in-memory reports to the artifact store."""
@@ -763,6 +828,9 @@ class VerifiedFindingsTools:
         default_factory=lambda: VerifiedFindingFormat("json")
     )
     findings: dict[str, VerifiedFinding] = field(default_factory=dict)
+    # Raw rows that failed to parse on the last load; re-dumped verbatim so a
+    # CRUD op on the parsed findings doesn't silently drop them.
+    _unparsed: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     @property
@@ -789,7 +857,7 @@ class VerifiedFindingsTools:
 
     async def load(self, ctx: ToolContext | CallbackContext) -> None:
         async with self._lock:
-            self.findings = await _load_artifact_records(
+            self.findings, self._unparsed = await _load_artifact_records(
                 ctx,
                 artifact_key=self.artifact_key,
                 # Findings have no fallback ordinal — the position is ignored.
@@ -797,7 +865,7 @@ class VerifiedFindingsTools:
             )
 
     def dump(self) -> str:
-        return _dump_records_yaml(self.findings.values())
+        return _dump_records_yaml(self.findings.values(), extra=self._unparsed)
 
     async def save(self, ctx: ToolContext | CallbackContext) -> None:
         async with self._lock:

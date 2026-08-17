@@ -1,3 +1,7 @@
+---
+description: "View predicate rules: include/exclude predicate types, complex `where` conditions, `with` overrides, and reusable global predicate groups."
+---
+
 # Predicates
 
 Predicates are view rules that define what elements and relationships to include or exclude from a view. Predicate types:

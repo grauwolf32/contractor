@@ -4,7 +4,7 @@ A design for parameter-sweep configurations runnable through the eval suite
 (`tests/eval/`), so tuning decisions (sampling, tool params, budgets) are backed
 by precision/recall/verdict numbers instead of guesses.
 
-Pairs with [tuning.md](tuning.md) (the full knob inventory). This doc is narrower:
+Pairs with the [tuning guide](tuning.md) (the practical knob inventory). This doc is narrower:
 **which knobs are worth sweeping in evals, where to inject them, and the concrete
 experiments to run** — prioritizing sampling (temperature/top_p) and tool params.
 Status: the Tier 1–2 plumbing has since landed via `Settings` env vars (see §2/§5);

@@ -1,3 +1,7 @@
+---
+description: "View include/exclude wildcards: the `*` vs `_` vs `**` forms and their exact scoped-view semantics. Read when wildcard scoping is confusing."
+---
+
 # Include Predicates and Wildcards in Views
 
 ## Wildcard semantics

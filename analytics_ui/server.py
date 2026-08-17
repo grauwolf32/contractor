@@ -7,12 +7,14 @@ request so editing a prompt and refreshing is enough to see the change.
 
 Run it with ``analytics-ui`` (console script) or ``python -m analytics_ui``.
 """
+
 from __future__ import annotations
 
 import argparse
 import contextlib
 import json
 import logging
+import re
 import socket
 import threading
 import webbrowser
@@ -36,6 +38,34 @@ _CONTENT_TYPES = {
     ".ico": "image/x-icon",
     ".json": "application/json; charset=utf-8",
 }
+
+_API_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+
+
+def _valid_api_identifier(value: str) -> bool:
+    """Return whether a decoded API path segment is a safe resource id."""
+    return _API_IDENTIFIER_RE.fullmatch(value) is not None
+
+
+def _resolve_static_path(path: str) -> Path | None:
+    """Resolve a static request or SPA fallback without following escapes."""
+    try:
+        static_root = STATIC_DIR.resolve()
+        fallback = (static_root / "index.html").resolve()
+        fallback.relative_to(static_root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+    rel = path.lstrip("/") or "index.html"
+    try:
+        target = (static_root / rel).resolve()
+        target.relative_to(static_root)
+    except (OSError, RuntimeError, ValueError):
+        target = fallback
+
+    if not target.is_file():
+        target = fallback
+    return target if target.is_file() else None
 
 
 # ───────────────────────── API ─────────────────────────
@@ -74,6 +104,17 @@ def _route_api(parts: list[str]) -> Any | None:
     if parts == ["crossrefs"]:
         return registry.crossrefs()
 
+    # These values are later joined to agents/tasks/skills roots. Validate the
+    # already-decoded segments here so encoded slashes (``%2F``), absolute
+    # paths, traversal, and a second round of percent encoding cannot become
+    # filesystem paths. Reader-level containment remains the final backstop.
+    if (
+        parts
+        and parts[0] in {"agents", "tasks", "skills"}
+        and any(not _valid_api_identifier(value) for value in parts[1:])
+    ):
+        return None
+
     if parts and parts[0] == "agents":
         if len(parts) == 1:
             return [a.__dict__ for a in reader.list_agents()]
@@ -83,7 +124,9 @@ def _route_api(parts: list[str]) -> Any | None:
                 return None
             try:
                 info["tools"] = tools_introspect.agent_tools(parts[1])
-            except Exception:  # pragma: no cover - never let introspection break the view
+            except (
+                Exception
+            ):  # pragma: no cover - never let introspection break the view
                 logger.exception("tool introspection failed for %s", parts[1])
                 info["tools"] = None
             return info
@@ -248,12 +291,8 @@ class _Handler(BaseHTTPRequestHandler):
     # -- static --
 
     def _handle_static(self, path: str) -> None:
-        rel = path.lstrip("/") or "index.html"
-        target = (STATIC_DIR / rel).resolve()
-        # Confine to STATIC_DIR; unknown routes fall back to the SPA shell.
-        if not str(target).startswith(str(STATIC_DIR)) or not target.is_file():
-            target = STATIC_DIR / "index.html"
-        if not target.is_file():
+        target = _resolve_static_path(path)
+        if target is None:
             self._send_json({"error": "static assets missing"}, status=500)
             return
         body = target.read_bytes()
@@ -325,9 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-browser", action="store_true", help="do not auto-open a browser tab"
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="debug logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     args = parser.parse_args(argv)
 
     logging.basicConfig(

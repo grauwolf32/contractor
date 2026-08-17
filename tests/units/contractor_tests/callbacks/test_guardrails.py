@@ -1,15 +1,19 @@
 from types import SimpleNamespace
 
-from contractor.callbacks.adapter import CallbackAdapter
+from contractor.callbacks.adapter import CallbackAdapter, chain_after_model_callback
+from contractor.callbacks.context import SummarizationLimitCallback
 from contractor.callbacks.guardrails import (
     InvalidToolCallGuardrailCallback,
     MandatoryToolCallback,
     RepeatedToolCallCallback,
 )
+from contractor.callbacks.tokens import TokenUsageCallback
+from contractor.utils.llm_compat import forced_tool_choice
 from tests.units.contractor_tests.helpers import (
     MockContent,
     mk_callback_context,
     mk_function_call_part,
+    mk_llm_request,
     mk_text_part,
     mk_tool_context,
 )
@@ -290,6 +294,66 @@ def test_exploitability_chaining_lets_mandatory_tool_callback_nudge():
     assert nudge is not None
     assert mandatory.nudge_count == 1
     assert "submit_verdict" in nudge.content.parts[0].text
+
+
+def test_mandatory_tool_require_any_accepts_either_alias():
+    cb = MandatoryToolCallback(
+        tool_names=["submit_verdict", "report_verification"],
+        require_any=True,
+    )
+    ctx = mk_callback_context()
+
+    submitted = _mk_model_response(
+        [mk_function_call_part(name="submit_verdict", args={})]
+    )
+    assert cb(ctx, submitted) is None
+    assert cb.requirement_satisfied is True
+
+    final = _mk_model_response([mk_text_part("done")])
+    assert cb(ctx, final) is None
+    assert cb.nudge_count == 0
+
+
+def test_mandatory_tool_blocks_forced_none_until_requirement_is_satisfied():
+    adapter = CallbackAdapter(agent_name="worker")
+    adapter.register(TokenUsageCallback())
+    limit = SummarizationLimitCallback(
+        message="summarize",
+        max_tokens=1000,
+        force_tool_choice="none",
+    )
+    adapter.register(limit)
+    agent = SimpleNamespace(
+        name="worker",
+        before_model_callback=adapter()["before_model_callback"],
+        after_model_callback=None,
+    )
+    mandatory = MandatoryToolCallback(
+        tool_names=["submit_verdict", "report_verification"],
+        require_any=True,
+    )
+    chain_after_model_callback(agent, mandatory)
+
+    ctx = mk_callback_context(invocation_id="current")
+    ctx.state["callbacks"]["worker::TokenUsageCallback"] = {
+        "counter": {"input": 0, "output": 0, "total": 2000},
+        "invocation_id": "current",
+    }
+    forced_tool_choice.set(None)
+
+    # While the required persistence call is pending, the context limiter may
+    # nudge but must not make the tool impossible to call.
+    limit(ctx, mk_llm_request())
+    assert forced_tool_choice.get() is None
+
+    submitted = _mk_model_response(
+        [mk_function_call_part(name="submit_verdict", args={})]
+    )
+    assert mandatory(ctx, submitted) is None
+
+    # Once either alias has been observed, hard termination is safe again.
+    limit(ctx, mk_llm_request())
+    assert forced_tool_choice.get() == "none"
 
 
 def test_state_is_persisted():

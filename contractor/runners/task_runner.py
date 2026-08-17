@@ -304,7 +304,18 @@ class TaskRunner(BaseModel):
     def _load_checkpoint(self) -> Checkpoint | None:
         if self.checkpoint_path is None:
             return None
-        return Checkpoint.load(self.checkpoint_path) or Checkpoint(workflow=self.name)
+        checkpoint = Checkpoint.load(self.checkpoint_path)
+        if checkpoint is None:
+            return Checkpoint(workflow=self.name)
+        if checkpoint.workflow != self.name:
+            logger.warning(
+                "checkpoint %s belongs to workflow %r, not %r — starting fresh",
+                self.checkpoint_path,
+                checkpoint.workflow,
+                self.name,
+            )
+            return Checkpoint(workflow=self.name)
+        return checkpoint
 
     def _save_checkpoint(
         self,
@@ -418,6 +429,7 @@ class TaskRunner(BaseModel):
             params=copy.deepcopy(item.params),
             input_artifacts={},
             published_artifacts=published_artifacts,
+            restored=True,
         )
 
         await self._emit(

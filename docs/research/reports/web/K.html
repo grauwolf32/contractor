@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>K · Triage, dedup & confidence calibration — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#K">← back to research.html</a></div>
+<h1>K · Triage, dedup & confidence calibration</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="K1"><h2>K1 — A triage/dedup stage across all finders raises precision at equal recall</h2>
+  <div class="src"><a href="https://arxiv.org/html/2601.22952v1" target="_blank">Sifting the Noise: A Comparative Study of LLM Agents in Vulnerability False Positive Filtering</a><div class="note">Directly on point: agentic LLM triage that iteratively gathers evidence drops OWASP-Benchmark FP rate from &gt;92% to as low as 6%. Strong empirical case that a dedicated triage stage raises precision; also notes some agents over-suppress (recall risk to watch).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2601.02941" target="_blank">SastBench: A Benchmark for Testing Agentic SAST Triage</a><div class="note">A benchmark purpose-built to evaluate agentic triage of SAST alerts — a ready harness/metric design for measuring the exact P/R/F1-before-vs-after that K1 proposes.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2211.11057" target="_blank">Semantic Similarity-Based Clustering of Findings From Security Testing Tools</a><div class="note">Compares NLP semantic-similarity techniques for grouping security findings — prior art for replacing the brittle <code>"CWE-"</code> string split with cluster-based dedup that catches near-duplicates.</div></div>
+  <div class="src"><a href="https://docs.gitlab.com/user/application_security/detect/vulnerability_deduplication/" target="_blank">GitLab — Vulnerability deduplication process</a><div class="note">Production reference for how a real platform merges findings across multiple scanners (location/identifier keys, precedence rules) — a concrete schema for a cross-finder reconciliation stage.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2104.11593" target="_blank">Assessing Validity of Static Analysis Warnings using Ensemble Learning</a><div class="note">Classifier-ensemble approach to predicting true vs false warnings; shows the precision lift achievable by a learned post-filter, the non-agent analog of the triage stage.</div></div>
+</section>
+
+<section id="K2"><h2>K2 — Confidence is uncalibrated; calibration enables a predictable precision/recall knob</h2>
+  <div class="src"><a href="https://arxiv.org/html/2412.14737v2" target="_blank">On Verbalized Confidence Scores for LLMs</a><div class="note">Core evidence that self-reported (verbalized) confidence is systematically over-estimated for instruction-tuned models and highly prompt-sensitive — confirms <code>VulnerabilityReport.confidence</code> is unlikely to be calibrated as-is.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2510.20460v1" target="_blank">Systematic Evaluation of Uncertainty Estimation Methods in Large Language Models</a><div class="note">Surveys/benchmarks UQ methods and reliability-diagram analysis; a methodology reference for binning findings by confidence and computing per-bin TP rate + calibration error (ECE/AUC).</div></div>
+  <div class="src"><a href="https://www.emergentmind.com/topics/confidence-calibration-in-llms" target="_blank">Confidence Calibration in LLMs (survey/topic overview)</a><div class="note">Overview of reliability diagrams, ECE, temperature/isotonic recalibration — the toolkit needed to turn a miscalibrated score into a monotone precision/recall threshold.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2602.09924" target="_blank">LLMs Encode Their Failures: Predicting Success from Pre-Generation Activations</a><div class="note">Shows internal signals predict correctness better than verbalized confidence — an alternative recalibration source if verbalized confidence proves unfixable on small models.</div></div>
+</section>
+
+<section id="K3"><h2>K3 — Triaging before the dynamic stage cuts verify/exploit token spend</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2605.18796" target="_blank">UCCI: Calibrated Uncertainty for Cost-Optimal LLM Cascade Routing</a><div class="note">Maps token-margin uncertainty to per-query error probability via isotonic regression and picks an escalation threshold by constrained cost minimization — the exact recipe for a calibrated gate that prunes low-value findings before the expensive stage.</div></div>
+  <div class="src"><a href="https://co.tianpan.co/blog/2025-11-03-llm-routing-model-cascades" target="_blank">LLM Routing and Model Cascades: Cut AI Costs Without Sacrificing Quality</a><div class="note">Practitioner overview reporting 45–85% cost cuts at ~95% quality via cheap-first/escalate-on-low-confidence cascades — the cost-saving mechanism K3 bets on, framed as routing.</div></div>
+  <div class="src"><a href="https://openreview.net/pdf?id=qYI4fw3g4v" target="_blank">Improving Model Cascades Through Confidence Tuning</a><div class="note">Shows tuning the confidence/deferral signal materially improves the cost-accuracy frontier of a cascade — supports the claim that calibrated triage prunes spend at small recall cost.</div></div>
+  <div class="src"><a href="https://about.gitlab.com/blog/gitlab-18-10-brings-ai-native-triage-and-remediation/" target="_blank">GitLab 18.10 — AI-native triage and remediation</a><div class="note">Industry deployment: an LLM estimates FP-likelihood so teams focus expensive effort on probable-true findings first — the same prune-before-expensive-work pattern in production.</div></div>
+</section>
+</body></html>

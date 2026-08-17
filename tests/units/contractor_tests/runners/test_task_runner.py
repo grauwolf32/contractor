@@ -883,6 +883,7 @@ class TestPerInvocationArtifactKeys:
         assert store["t/f1/result"] == "R1"
         # f2 restored from checkpoint against its own artifacts.
         assert results[1].result == "(restored from checkpoint)"
+        assert results[1].restored is True
         assert results[1].published_artifacts == artifact_names_for_key("t/f2")
 
 
@@ -1065,6 +1066,38 @@ class TestCheckpointIntegration:
 
         single.assert_not_awaited()
         assert results[0].result == "(restored from checkpoint)"
+
+    @pytest.mark.asyncio
+    async def test_checkpoint_from_another_workflow_is_not_restored(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        cp = Checkpoint(workflow="other-workflow")
+        cp.mark_done(CheckpointEntry(
+            task_id=0, ref="a:0", template_key="t", template_version="v1",
+            published_artifacts={"result": "t/result"},
+        ))
+        cp.save(tmp_path / "checkpoint.json")
+
+        r = _checkpoint_runner(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            r, "_load_artifact_text", AsyncMock(return_value="stale content")
+        )
+        monkeypatch.setattr(r, "_load_artifacts", AsyncMock(return_value={}))
+        single = AsyncMock(return_value=_result_for("t", True, 1, task_id=0))
+        monkeypatch.setattr(r, "_run_single_iteration", single)
+        r.queue.append(_make_invocation(ref="a:0", iterations=1, max_attempts=1))
+
+        with caplog.at_level(
+            logging.WARNING, logger="contractor.runners.task_runner"
+        ):
+            results = await r.run(user_id="u")
+
+        single.assert_awaited_once()
+        assert results[0].result != "(restored from checkpoint)"
+        saved = Checkpoint.load(tmp_path / "checkpoint.json")
+        assert saved is not None
+        assert saved.workflow == "test"
+        assert any("belongs to workflow" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
     async def test_load_checkpoint_failure_still_clears_handler(

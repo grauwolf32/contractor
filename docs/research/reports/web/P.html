@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>P · Adversarial self-play &amp; synthetic fixtures — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#P">← back to research.html</a></div>
+<h1>P · Adversarial self-play &amp; synthetic fixtures</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="P1"><h2>P1 — Recall on synthetic-injected vulns predicts recall on real held-out fixtures</h2>
+  <div class="src"><a href="https://seclab.nu/static/publications/sp2016lava.pdf" target="_blank">LAVA: Large-scale Automated Vulnerability Addition (IEEE S&amp;P 2016)</a><div class="note">The canonical taint-driven bug-injection tool that makes labeled corpora to evaluate bug-finders. Crucially, its evaluation showed existing fuzzers/SA tools found only a small fraction of injected bugs — i.e. the synthetic-vs-real validity question is exactly the open problem P1 must test.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2508.20866" target="_blank">AVIATOR: AI-Agentic Vulnerability Injection Workflow for High-Fidelity Code Security Datasets</a><div class="note">Recent (2025) agentic injection pipeline aimed at producing realistic labeled bugs at scale — direct prior art for the "generator" half of P and an argument that LLM-injected bugs can be made more realistic than template-based LAVA bugs.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2508.04448v1" target="_blank">LLMs Versus Static Code Analysis Tools: A Systematic Benchmark for Vulnerability Detection</a><div class="note">Reports the recurring finding that detector rankings differ between synthetic and real-world benchmarks (comparable accuracy only on synthetic/single-project). This is the threat-to-validity P1 measures — synthetic recall may not transfer.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2304.00409" target="_blank">DiverseVul: A New Vulnerable Source Code Dataset</a><div class="note">A large real-world labeled dataset usable as the "real held-out" leg of the correlation test, and documents label-noise/leakage issues that confound any synthetic-to-real correlation claim.</div></div>
+</section>
+
+<section id="P2"><h2>P2 — Iterating finder-vs-generator improves real-fixture recall, training-free</h2>
+  <div class="src"><a href="https://www.arxiv.org/pdf/2602.01539" target="_blank">A Co-Evolving Attacker–Defender Adversarial Game for LLM Safety</a><div class="note">Direct analogue of the finder-vs-generator loop: attacker discovers exploits, defender patches, incentives shift, attacker diversifies — the co-evolutionary signal P2 hopes to harness.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2506.07468v3" target="_blank">Chasing Moving Targets: Online Self-Play RL for Safer Language Models (Self-RedTeam)</a><div class="note">Single model alternating attacker/defender roles with an adjudicator reward — shows the self-play curriculum is "self-improving" without external labels, the core P2 mechanism (though it uses RL, not P2's training-free framing).</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2602.13234" target="_blank">DASE: Dual-Cycle Adversarial Self-Evolution (training-free)</a><div class="note">Explicitly a training-free co-evolution framework — the closest precedent for P2's "no weight updates" claim, where improvement comes from prompt/experience updates rather than fine-tuning.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2510.23595" target="_blank">Multi-Agent Evolve: LLM Self-Improve through Co-evolution</a><div class="note">Generalizes self-play beyond safety to task-solving co-evolution; useful evidence (and caveats on collapse/reward-hacking) for whether real recall actually climbs across rounds.</div></div>
+</section>
+
+<section id="P3"><h2>P3 — Injection difficulty can be tuned to model size (curriculum)</h2>
+  <div class="src"><a href="https://www.usenix.org/system/files/conference/woot17/woot17-paper-hulin.pdf" target="_blank">AutoCTF: Creating Diverse Pwnables via Automated Bug Injection (USENIX WOOT'17)</a><div class="note">Builds on LAVA to inject bugs at controllable diversity/difficulty for CTF challenges — direct precedent that injected-bug difficulty is a tunable knob, supporting P3's curriculum framing.</div></div>
+  <div class="src"><a href="https://github.com/panda-re/lava" target="_blank">panda-re/lava (LAVA implementation)</a><div class="note">Maintained codebase whose "knob and trigger" magic-value mechanism literally parameterizes how rarely a bug fires — a ready lever for varying injected difficulty per model size.</div></div>
+  <div class="src"><a href="https://www.researchgate.net/publication/311488641_EvilCoder_automated_bug_insertion" target="_blank">EvilCoder: Automated Bug Insertion (ACSAC 2016)</a><div class="note">Injects by removing safety checks from real vulnerable-but-guarded code via dataflow analysis; a different difficulty profile than LAVA (more realistic, harder), giving P3 two contrasting difficulty regimes to curriculum over.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/1808.00659" target="_blank">Chaff Bugs: Deterring Attackers by Making Software Buggier</a><div class="note">Studies controlling whether injected bugs are exploitable vs merely triggerable — relevant calibration concern: difficulty tuning must keep injected bugs genuinely detectable/exploitable, not degenerate.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/1901.02819" target="_blank">Automated Customized Bug-Benchmark Generation</a><div class="note">Framework for generating bug benchmarks with controllable characteristics/granularity — supports the idea of dialing injection parameters to produce a "learning-signal-per-token" curriculum.</div></div>
+</section>
+</body></html>

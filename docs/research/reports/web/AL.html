@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AL · Iterative solution-space exploration — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#AL">← back to research.html</a></div>
+<h1>AL · Iterative solution-space exploration (memory-carrying re-planning)</h1>
+<p class="lead">Treating the planner's <code>min_iterations</code>/<code>max_iterations</code> loop as a stateful, memory-carrying search over solution paths — not mere retry. Conceptually a <b>two-level search</b>: depth-first <em>within</em> one iteration (commit to a plan, expand its subtasks) and breadth <em>across</em> iterations (try alternative whole-plan strategies, informed by accumulated memory) — distinct from Direction Y, which searches the codebase, not the plan space. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="AL1"><h2>AL1 — more iterations raise coverage on multi-solution tasks</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2407.21787" target="_blank">Large Language Monkeys: Scaling Inference Compute with Repeated Sampling</a><div class="note">Coverage — fraction of problems solved by <em>any</em> attempt — scales log-linearly with the number of attempts (SWE-bench Lite 15.9%→56% over 250 samples). Direct evidence that a <code>min_iterations&gt;1</code> budget converts into solved cases when a verifier can pick the win.</div></div></section>
+
+<section id="AL2"><h2>AL2 — memory-carryover across iterations beats memoryless re-runs</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2303.11366" target="_blank">Reflexion: Language Agents with Verbal Reinforcement Learning (NeurIPS 2023)</a><div class="note">Agents keep reflective text in an episodic memory buffer and use it to make better decisions on the next trial — improving without weight updates. This is exactly "each iteration reviews prior memories/records to choose a better path"; the persistence is what makes iterations cumulative rather than independent re-rolls.</div></div></section>
+
+<section id="AL3"><h2>AL3 — explore vs exploit: balance branching to a new path against continuing/deepening the prior one</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2305.10601" target="_blank">Tree of Thoughts: Deliberate Problem Solving with LLMs</a><div class="note">Explicitly explores multiple reasoning paths with lookahead and backtracking, navigated by a search algorithm (DFS/BFS/beam). Game-of-24 jumps from 4% (single CoT path) to 74% with deliberate branching — evidence that <em>structured</em> exploration beats hoping the model varies on its own (the "may or may not re-path" gap).</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2310.04406" target="_blank">Language Agent Tree Search (LATS, ICML 2024)</a><div class="note">MCTS over agent states (action history + observations) with LM value functions and self-reflection; 92.7% pass@1 on HumanEval. MCTS/UCT <em>is</em> the explore-vs-exploit balance — sometimes it deepens a promising node, sometimes it branches — which is exactly the "continue vs switch path" decision the planner faces each iteration.</div></div></section>
+
+<section id="AL4"><h2>AL4 — the exploration strategy belongs in the task config (different tasks want different search)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2305.10601" target="_blank">Tree of Thoughts (search algorithm is a parameter)</a><div class="note">ToT treats the search algorithm (DFS vs BFS vs beam) and breadth/depth as explicit, task-dependent parameters — supporting the author's instinct that the strategy (explore/exploit/diversify, min/max_iter) should be declared per task, not a single global setting.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2310.04406" target="_blank">LATS (configurable tree-search budget)</a><div class="note">LATS's branching factor and rollout budget are tunable knobs — the analogue of declaring per-task iteration/exploration budgets, so cheap tasks stop early and hard tasks get depth.</div></div></section>
+
+<section id="AL5"><h2>AL5 — cap iterations by value-of-information, not a flat number</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2407.21787" target="_blank">Large Language Monkeys (diminishing returns)</a><div class="note">Coverage gains follow an exponentiated power law and verification/voting methods plateau after a few hundred samples — so a flat <code>max_iterations</code> over- or under-spends; stop when marginal new-finding probability falls below a threshold (ties Direction U).</div></div></section>
+
+<section id="AL6"><h2>AL6 — persisted memory can entrench errors; record refuted paths</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2303.11366" target="_blank">Reflexion (memory shapes later trials)</a><div class="note">Because reflective memory steers subsequent trials, a wrong reflection persisted across iterations can mislead later ones — the run-to-run persistence cuts both ways. Mitigation: store <em>refuted</em> paths (not just explored ones) so the search doesn't re-enter or entrench a dead end. Connects to the cascade / false-consensus risk in Direction AH.</div></div></section>
+
+<section id="AL7"><h2>AL7 — search topology: breadth-over-plans × depth-in-run; make it explicit best-first/beam</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2305.10601" target="_blank">Tree of Thoughts (DFS / BFS / beam are explicit)</a><div class="note">ToT makes the search algorithm a parameter over a tree of partial solutions with a value heuristic. "One complete plan per iteration, try another next time" is breadth at the root; ToT shows you can instead expand the most promising partial (best-first/beam) rather than re-attempt blindly — the principled upgrade of the iteration loop.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2310.04406" target="_blank">LATS (explicit search tree + value-guided frontier)</a><div class="note">Models solving as a search tree (nodes = state, edges = actions) navigated by MCTS — a principled "which plan/branch to expand next," replacing implicit iterate-and-hope with a value-guided frontier; the formal version of the planner's across-iteration breadth.</div></div></section>
+</body></html>

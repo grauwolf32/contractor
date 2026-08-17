@@ -191,6 +191,57 @@ def test_mv_moves_overlay_file_without_touching_base(
     assert not (base_tree / "src" / "moved.py").exists()
 
 
+def test_recursive_copy_materializes_empty_directory(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.makedirs("/empty/source")
+
+    overlay_fs.copy("/empty/source", "/empty/copied", recursive=True)
+
+    assert overlay_fs.isdir("/empty/source")
+    assert overlay_fs.isdir("/empty/copied")
+
+
+def test_recursive_move_materializes_empty_directory(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.makedirs("/empty/source")
+
+    overlay_fs.mv("/empty/source", "/empty/moved", recursive=True)
+
+    assert not overlay_fs.exists("/empty/source")
+    assert overlay_fs.isdir("/empty/moved")
+
+
+def test_recursive_move_to_file_keeps_empty_source(
+    overlay_fs: MemoryOverlayFileSystem,
+):
+    overlay_fs.makedirs("/empty/source")
+    overlay_fs.write_text("/occupied", "keep", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        overlay_fs.mv("/empty/source", "/occupied", recursive=True)
+
+    assert overlay_fs.isdir("/empty/source")
+    assert overlay_fs.read_text("/occupied") == "keep"
+
+
+@pytest.mark.parametrize("target", ["/src", "/src/nested/moved"])
+def test_recursive_move_rejects_source_or_descendant_target(
+    overlay_fs: MemoryOverlayFileSystem,
+    target: str,
+):
+    original = overlay_fs.read_text("/src/a.py")
+
+    with pytest.raises(ValueError, match="Cannot move directory"):
+        overlay_fs.mv("/src", target, recursive=True)
+
+    assert overlay_fs.isdir("/src")
+    assert overlay_fs.read_text("/src/a.py") == original
+    if target != "/src":
+        assert not overlay_fs.exists(target)
+
+
 def test_rm_removes_overlay_only_file(overlay_fs: MemoryOverlayFileSystem):
     overlay_fs.write_text("/src/to_remove.py", "print('bye')\n", encoding="utf-8")
     assert overlay_fs.exists("/src/to_remove.py")
@@ -263,9 +314,10 @@ def test_du_counts_overlay_sizes(overlay_fs: MemoryOverlayFileSystem):
 def test_x_mode_fails_when_target_already_exists_in_base(
     overlay_fs: MemoryOverlayFileSystem,
 ):
-    with pytest.raises(FileExistsError), overlay_fs.open(
-        "/src/a.py", "x", encoding="utf-8"
-    ) as f:
+    with (
+        pytest.raises(FileExistsError),
+        overlay_fs.open("/src/a.py", "x", encoding="utf-8") as f,
+    ):
         f.write("should fail\n")
 
 

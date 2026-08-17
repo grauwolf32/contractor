@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import enum
-import fnmatch
 import io
 import logging
 import os
@@ -28,6 +27,8 @@ import aiohttp
 import fsspec
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from contractor.tools.fs.globmatch import glob_to_regex
 
 logger = logging.getLogger(__name__)
 
@@ -264,16 +265,37 @@ class GitlabAsyncLoader:
                     resp.raise_for_status()
                     return resp
 
-                body_text = await resp.text()
-                last_exc = aiohttp.ClientResponseError(
-                    request_info=resp.request_info,
-                    history=resp.history,
-                    status=resp.status,
-                    message=f"{resp.status}: {body_text[:200]}",
-                )
-                resp.release()
+                try:
+                    body_text = await resp.text()
+                except aiohttp.ClientError as exc:
+                    # A truncated/disconnected retry response can fail while its
+                    # diagnostic body is read. The configured status remains
+                    # retryable; retain the transport error as the final cause.
+                    last_exc = exc
+                else:
+                    last_exc = aiohttp.ClientResponseError(
+                        request_info=resp.request_info,
+                        history=resp.history,
+                        status=resp.status,
+                        message=f"{resp.status}: {body_text[:200]}",
+                    )
+                finally:
+                    resp.release()
 
-            except (TimeoutError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError, aiohttp.ServerTimeoutError, ConnectionError, OSError) as exc:
+            except aiohttp.ClientResponseError as exc:
+                # ``raise_for_status`` above reports permanent 4xx responses
+                # with this exception too. Do not turn statuses outside the
+                # configured retry set into expensive exponential retries.
+                if exc.status not in self._retry_statuses:
+                    raise
+                last_exc = exc
+            except (
+                TimeoutError,
+                aiohttp.ServerDisconnectedError,
+                aiohttp.ServerTimeoutError,
+                ConnectionError,
+                OSError,
+            ) as exc:
                 last_exc = exc
 
             if attempt < self._max_retries:
@@ -673,7 +695,7 @@ class _GitlabApiFallback:
 
     def glob_via_api(self, pattern: str) -> list[str]:
         """
-        Fetch the tree from GitLab API and apply fnmatch pattern.
+        Fetch the tree from GitLab API and apply the glob pattern.
         If tree is already available from background loader, use that.
         """
         bg = self._fs._bg_loader
@@ -687,11 +709,14 @@ class _GitlabApiFallback:
         return self._match_tree(raw_tree, pattern)
 
     def _match_tree(self, raw_tree: list[dict[str, Any]], pattern: str) -> list[str]:
-        norm_pattern = _normalize_path(pattern)
+        # Path-aware matcher (glob_to_regex) instead of stdlib fnmatch, which
+        # ignores "/" — fnmatch("README.md", "**/*") is False, so a bare grep
+        # over the default "**/*" silently dropped every top-level file.
+        regex = glob_to_regex(_normalize_path(pattern))
         matches: list[str] = []
         for item in raw_tree:
             entry_path = item["path"]
-            if fnmatch.fnmatch(entry_path, norm_pattern):
+            if regex.match(entry_path):
                 matches.append("/" + entry_path)
         return sorted(set(matches))
 
@@ -766,14 +791,16 @@ class _GitlabApiFallback:
                 def matcher(line):
                     return pattern in line
 
+        path_regex = (
+            glob_to_regex(_normalize_path(path_pattern)) if path_pattern else None
+        )
+
         for item in raw_results:
             file_path = item.get("filename", item.get("path", ""))
 
-            # Filter by path pattern
-            if path_pattern:
-                norm_path_pattern = _normalize_path(path_pattern)
-                if not fnmatch.fnmatch(file_path, norm_path_pattern):
-                    continue
+            # Filter by path pattern (path-aware; see _match_tree).
+            if path_regex is not None and not path_regex.match(file_path):
+                continue
 
             # GitLab search returns 'data' with matched content
             data = item.get("data", "")
@@ -1298,11 +1325,15 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         return self._fallback.glob_via_api(pattern)
 
     def _glob_in_memory(self, pattern: str) -> list[str]:
+        # Path-aware matcher + normalized pattern so the in-memory path matches
+        # the API fallback (_match_tree) exactly — previously they diverged
+        # (raw fnmatch here vs normalized fnmatch there).
+        regex = glob_to_regex(_normalize_path(pattern))
         matches: list[str] = []
         for entry_path in self._entries:
             if not entry_path:
                 continue
-            if fnmatch.fnmatch(entry_path, pattern):
+            if regex.match(entry_path):
                 matches.append("/" + entry_path)
         return sorted(set(matches))
 
@@ -1357,7 +1388,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
         max_count: int | None,
     ) -> list[dict[str, Any]]:
         """Search in-memory file contents."""
-        norm_glob = _normalize_path(path_glob)
+        glob_regex = glob_to_regex(_normalize_path(path_glob))
         results: list[dict[str, Any]] = []
 
         if fixed_string:
@@ -1379,7 +1410,7 @@ class GitlabFileSystem(fsspec.AbstractFileSystem):
             if not entry_path or not entry.is_file or entry.data is None:
                 continue
 
-            if not fnmatch.fnmatch(entry_path, norm_glob):
+            if not glob_regex.match(entry_path):
                 continue
 
             try:

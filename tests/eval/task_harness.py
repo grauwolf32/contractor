@@ -252,7 +252,7 @@ async def run_task_pipeline(
             metadata={
                 "runner_name": runner_name,
                 "namespace": namespace,
-                "queued_refs": [item.ref for item in runner.queue],
+                "queued_refs": ",".join(item.ref for item in runner.queue),
             },
         ):
             results = await asyncio.wait_for(

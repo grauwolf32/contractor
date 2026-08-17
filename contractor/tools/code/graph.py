@@ -427,7 +427,15 @@ def code_graph_tools(
                 target_unit = graph.nodes.get(edge.target_id)
                 if target_unit is not None:
                     d = asdict(target_unit)
-                    d["kind"] = target_unit.kind.value
+                    # Trailmark >=0.4 materializes unresolved calls as proxy
+                    # nodes. Keep the tool's long-standing public contract:
+                    # callers should not need to distinguish a missing node
+                    # from its new placeholder representation.
+                    d["kind"] = (
+                        "unresolved"
+                        if target_unit.kind.value == "proxy"
+                        else target_unit.kind.value
+                    )
                     row = _slim_unit(d, path_resolver=path_resolver)
                 else:
                     row = {

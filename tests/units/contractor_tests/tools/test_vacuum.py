@@ -159,11 +159,12 @@ def test_process_issues_filters_sorts_limits_and_replaces_range(
     linter: OpenApiLinter,
 ) -> None:
     source = "aaa\nbbb\nccc\nddd\n"
+    # Severity (LSP): 0=error (most serious), 1=warning, 2=info.
     issues = [
         {
-            "code": "low",
+            "code": "err",
             "path": ["a"],
-            "message": "low",
+            "message": "err",
             "severity": 0,
             "source": "stdin",
             "range": {
@@ -172,9 +173,9 @@ def test_process_issues_filters_sorts_limits_and_replaces_range(
             },
         },
         {
-            "code": "medium",
+            "code": "warn",
             "path": ["b"],
-            "message": "medium",
+            "message": "warn",
             "severity": 1,
             "source": "stdin",
             "range": {
@@ -183,9 +184,9 @@ def test_process_issues_filters_sorts_limits_and_replaces_range(
             },
         },
         {
-            "code": "high",
+            "code": "info",
             "path": ["c"],
-            "message": "high",
+            "message": "info",
             "severity": 2,
             "source": "stdin",
             "range": {
@@ -198,14 +199,15 @@ def test_process_issues_filters_sorts_limits_and_replaces_range(
     result = linter.process_issues(
         issues=issues,
         source_text=source,
-        include_severities=(1, 2),
+        include_severities=(0, 1, 2),
         limit=1,
     )
 
+    # Ascending sort puts the severity-0 error first; limit=1 keeps only it.
     assert len(result) == 1
-    assert result[0]["severity"] == 2
-    assert result[0]["code"] == "high"
-    assert result[0]["snippet"] == "ccc"
+    assert result[0]["severity"] == 0
+    assert result[0]["code"] == "err"
+    assert result[0]["snippet"] == "aaa"
     assert "range" not in result[0]
 
 
@@ -235,34 +237,36 @@ def test_lint_processes_vacuum_issues(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = "line1\nline2\nline3\n"
+    # Severity (LSP): 0=error, 1=warning, 2=info. The default (0, 1) keeps
+    # errors+warnings and drops the info note.
     vacuum_output = [
         {
-            "code": "low",
+            "code": "error",
             "path": ["a"],
-            "message": "low severity",
+            "message": "error severity",
             "severity": 0,
             "source": "stdin",
+            "custom": "keep me",
             "range": {
                 "start": {"line": 1, "character": 0},
                 "end": {"line": 1, "character": 5},
             },
         },
         {
-            "code": "high",
+            "code": "info",
             "path": ["b"],
-            "message": "high severity",
+            "message": "info severity",
             "severity": 2,
             "source": "stdin",
-            "custom": "keep me",
             "range": {
                 "start": {"line": 2, "character": 0},
                 "end": {"line": 2, "character": 5},
             },
         },
         {
-            "code": "medium",
+            "code": "warn",
             "path": ["c"],
-            "message": "medium severity",
+            "message": "warn severity",
             "severity": 1,
             "source": "stdin",
             "range": {
@@ -282,27 +286,70 @@ def test_lint_processes_vacuum_issues(
         lambda *_args, **_kwargs: CompletedProcessMock(),
     )
 
-    result = linter.lint(
-        source,
-        include_severities=(1, 2),
-        limit=2,
-    )
+    # Use the default severities (0, 1): error + warning kept, info dropped.
+    result = linter.lint(source, limit=2)
 
     assert isinstance(result, list)
     assert len(result) == 2
 
     first, second = result
 
-    assert first["severity"] == 2
-    assert first["code"] == "high"
-    assert first["snippet"] == "line2"
+    # Ascending: error (severity 0) first, warning (severity 1) second.
+    assert first["severity"] == 0
+    assert first["code"] == "error"
+    assert first["snippet"] == "line1"
     assert first["custom"] == "keep me"
     assert "range" not in first
 
     assert second["severity"] == 1
-    assert second["code"] == "medium"
+    assert second["code"] == "warn"
     assert second["snippet"] == "line3"
     assert "range" not in second
+
+    # The info-level (severity 2) finding is excluded by the default filter.
+    assert all(issue["severity"] != 2 for issue in result)
+
+
+def test_lint_surfaces_severity_zero_errors(
+    linter: OpenApiLinter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: severity-0 (error) findings must NOT be filtered out.
+
+    Previously ``lint_openapi`` used ``include_severities=(2,)`` (info only)
+    with a descending sort, so it kept only info-level notes and silently
+    dropped every schema-breaking error — making the linter a no-op for the
+    problems it exists to catch.
+    """
+    vacuum_output = [
+        {"code": "info-note", "message": "an info note", "severity": 2, "source": "stdin"},
+        {
+            "code": "missing-version",
+            "message": "info.version is missing",
+            "severity": 0,
+            "source": "stdin",
+        },
+        {"code": "a-warning", "message": "a warning", "severity": 1, "source": "stdin"},
+    ]
+
+    class CompletedProcessMock:
+        returncode = 1
+        stdout = json.dumps(vacuum_output).encode("utf-8")
+        stderr = b""
+
+    monkeypatch.setattr(
+        "contractor.tools.openapi.vacuum.subprocess.run",
+        lambda *_args, **_kwargs: CompletedProcessMock(),
+    )
+
+    # Default severities (0, 1): errors + warnings kept, info dropped.
+    result = linter.lint("openapi: 3.0.0")
+    codes = [r["code"] for r in result]
+
+    assert "missing-version" in codes  # severity-0 error surfaced (the fix)
+    assert "a-warning" in codes  # severity-1 warning surfaced
+    assert "info-note" not in codes  # severity-2 info suppressed
+    assert result[0]["severity"] == 0  # most-severe first
 
 
 def test_lint_on_fakeproj_file_with_mocked_vacuum(

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI Agent fs-tool Limits — Research &amp; Recommendations</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --ink:#e6edf3; --muted:#8b98a9;
+    --line:#283041; --accent:#5ab0ff; --good:#3fb950; --warn:#e3b341; --bad:#f85149;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:15px}
+  .wrap{max-width:1180px;margin:0 auto;padding:48px 28px 96px}
+  header.hero{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:52px 0 14px;padding-top:10px;letter-spacing:-.01em}
+  h3{font-size:16px;margin:26px 0 8px;color:var(--accent)}
+  p{margin:10px 0}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .meta{color:var(--muted);font-size:12.5px;margin-top:14px}
+  code,.mono{font-family:var(--mono);font-size:.88em}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;color:#c9d6e6;border:1px solid var(--line)}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .kpi{font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .kpi.small{font-size:19px}
+  .card .lbl{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .pill{display:inline-block;font-size:11.5px;font-family:var(--mono);padding:2px 8px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+  .pill.line{color:#a6e3a1;border-color:#2c4a36}
+  .pill.byte{color:#9bd2ff;border-color:#23425e}
+  .pill.token{color:#f5c98a;border-color:#5e4a23}
+  .pill.none{color:var(--bad);border-color:#5e2a28}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--panel)}
+  tr:hover td{background:#12161d}
+  td.mono,th.mono{font-family:var(--mono)}
+  .you td{background:#13202b}
+  .you td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .src{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .callout{border-radius:10px;padding:14px 18px;margin:16px 0;border:1px solid}
+  .callout.tip{background:#10231a;border-color:#1f4a30}
+  .callout.warn{background:#241f0e;border-color:#5e4a23}
+  .callout.warn b,.callout.warn strong{color:var(--warn)}
+  .callout.tip b{color:var(--good)}
+  ul{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .rec{display:flex;gap:14px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+  .rec .num{flex:0 0 34px;height:34px;border-radius:9px;background:var(--accent);color:#06121f;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .rec h3{margin:2px 0 4px;color:var(--ink)}
+  .rec .why{color:var(--muted);font-size:13.5px}
+  .tag{font-size:11px;font-family:var(--mono);padding:1px 7px;border-radius:6px;margin-left:8px}
+  .tag.high{background:#10231a;color:var(--good);border:1px solid #1f4a30}
+  .tag.med{background:#241f0e;color:var(--warn);border:1px solid #5e4a23}
+  .tag.low{background:#1c2330;color:var(--muted);border:1px solid var(--line)}
+  pre{background:#0a0d12;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:12.5px;color:#c9d6e6;line-height:1.5}
+  .footnote{color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:48px;padding-top:18px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>fs-tool limits across CLI coding agents</h1>
+  <p class="sub">How <code>read_file</code> and <code>grep</code> cap content length in 8 popular agents — and how to tune Contractor's.</p>
+  <p class="meta">Compiled 2026-06-03 · 10 agents · Sources: local shallow clones in <code>~/src/cli-agent-research/</code> + leaked Claude Code tree in <code>~/claude-leaked/src/</code>, cross-checked with vendor docs &amp; issues. All figures cite <span class="mono">file:line</span> from the actual source.</p>
+</header>
+
+<!-- ===================== EXEC SUMMARY ===================== -->
+<h2>Executive summary</h2>
+<p>Every mature agent applies <b>at least two independent caps</b> on a file read, and three distinct strategies dominate:</p>
+<div class="grid cards">
+  <div class="card">
+    <div class="lbl">Strategy A · line + per-line</div>
+    <div class="kpi small">2000 / 2000</div>
+    <p class="sub">Default <b>2000 lines</b>, and every line truncated at <b>2000 chars</b>. Defuses minified/generated files. <span class="pill line">gemini-cli, opencode</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Strategy B · byte cap</div>
+    <div class="kpi small">50 KB – 400 KB</div>
+    <p class="sub">Hard byte budget on the returned slice, with a continue-here footer. <span class="pill byte">opencode 50KB · cline 400KB · goose 50KB</span></p>
+  </div>
+  <div class="card">
+    <div class="lbl">Strategy C · token-aware</div>
+    <div class="kpi small">25 000 tok</div>
+    <p class="sub">Cap on <b>actual output tokens</b>, plus a file-size pre-gate that <b>errors</b> instead of truncating. <span class="pill token">Claude Code, codex</span></p>
+  </div>
+  <div class="card" style="border-color:#3a2a2a">
+    <div class="lbl">Contractor today</div>
+    <div class="kpi small">80 KB · 100</div>
+    <p class="sub"><code>fs_max_output=80_000</code> bytes + <code>fs_max_items=100</code> grep matches. <b>No per-line cap, no token cap.</b> <span class="pill none">gap</span></p>
+  </div>
+</div>
+
+<div class="callout tip">
+  <b>Bottom line for Contractor.</b> Two cheap, low-risk borrows give the most value: <b>(1) a per-line character cap</b> (kills minified/bundled/lockfile blowups that today eat the whole 80 KB budget on one line), and <b>(2) a token-aware ceiling</b> so the cap tracks context cost, not raw bytes. The popular "strip header comments" trick is <b>explicitly not recommended here</b> — see the warning below.
+</div>
+
+<!-- ===================== COMPARISON TABLE ===================== -->
+<h2>The comparison</h2>
+<p class="sub">read_file behaviour</p>
+<table>
+  <thead><tr>
+    <th>Agent</th><th>Default read</th><th>Per-line cap</th><th>Hard ceiling</th><th class="mono">source</th>
+  </tr></thead>
+  <tbody>
+    <tr class="you">
+      <td><b>Contractor</b></td>
+      <td>whole file; optional line <code>offset</code>/<code>limit</code></td>
+      <td><span class="pill none">none</span></td>
+      <td>80 000 bytes, byte-truncate + footer</td>
+      <td class="src">settings.py:55 · read_tools.py:335 · format.py:105</td>
+    </tr>
+    <tr>
+      <td><b>Claude Code</b></td>
+      <td>whole file; <code>offset</code>/<code>limit</code> lines</td>
+      <td>none (modern build)<sup>†</sup></td>
+      <td><b>25 000 output tokens</b> (post-read throw) + <b>256 KB</b> file-size pre-gate (throw); PDF 20 pg</td>
+      <td class="src">FileReadTool/limits.ts · utils/file.ts:48 · apiLimits.ts:77</td>
+    </tr>
+    <tr>
+      <td><b>gemini-cli</b></td>
+      <td><b>2000 lines</b></td>
+      <td><span class="pill line">2000 chars</span> + <code>… [truncated]</code></td>
+      <td>20 MB file-size</td>
+      <td class="src">core/src/utils/constants.ts:10-12</td>
+    </tr>
+    <tr>
+      <td><b>opencode</b></td>
+      <td><b>2000 lines</b></td>
+      <td><span class="pill line">2000 chars</span> + suffix</td>
+      <td>50 KB output, with <code>offset=N</code> continue hint</td>
+      <td class="src">packages/opencode/src/tool/read.ts:14-18,348</td>
+    </tr>
+    <tr>
+      <td><b>cline</b></td>
+      <td>whole file (VS Code)</td>
+      <td>none</td>
+      <td><b>400 KB</b> content truncate (≈100k tok) + 20 MB hard</td>
+      <td class="src">shared/content-limits.ts:7,30</td>
+    </tr>
+    <tr>
+      <td><b>aider</b></td>
+      <td colspan="2">no read tool — <b>tree-sitter repomap</b> emits ranked signatures, function bodies stripped</td>
+      <td>repomap budget 1024 tok (→ 4096 max); 1 MB watch</td>
+      <td class="src">aider/repomap.py:49 · models.py:782 · watch.py:108</td>
+    </tr>
+    <tr>
+      <td><b>goose</b></td>
+      <td>text_editor <code>view</code>; line/limit params, no default</td>
+      <td>none</td>
+      <td>shell output: <b>2000 lines / 50 000 bytes</b></td>
+      <td class="src">developer/shell.rs:150-151</td>
+    </tr>
+    <tr>
+      <td><b>codex</b></td>
+      <td colspan="2">no read tool — reads via <code>shell</code> (sed/cat) + apply_patch</td>
+      <td>model-facing output: per-model policy, default <b>bytes(10 000)</b>; PTY buffer 1 MB</td>
+      <td class="src">protocol/openai_models.rs:640 · utils/pty/lib.rs:10</td>
+    </tr>
+    <tr>
+      <td><b>openclaw</b></td>
+      <td><b>2000 lines</b>; offset/limit, "continue with offset"</td>
+      <td>none on read (byte/line cap)</td>
+      <td>50 KB (<code>DEFAULT_MAX_BYTES</code>) or 2000 lines, whichever first</td>
+      <td class="src">agent-core/harness/utils/truncate.ts:1-2 · tools/read.ts:231</td>
+    </tr>
+    <tr>
+      <td><b>deepseek-tui</b><br><span class="src">(CodeWhale)</span></td>
+      <td><b>200 lines</b> (max 500); small-file fast path ≤200 ln/16 KB</td>
+      <td>none</td>
+      <td><b>16 KB</b> (<code>MAX_VISIBLE_BYTES</code>); response carries <code>next_start_line</code> to resume</td>
+      <td class="src">crates/tui/src/tools/file.rs:76-80</td>
+    </tr>
+  </tbody>
+</table>
+<p class="meta"><sup>†</sup> Older Claude Code builds enforced the classic <b>2000 lines + 2000 chars/line</b> (still in the public docs &amp; many third-party writeups). The current source has moved to the token + byte model shown above; the 2000-char rule survives only for images (<code>apiLimits.ts</code>).</p>
+
+<p class="sub" style="margin-top:30px">grep / search behaviour</p>
+<table>
+  <thead><tr>
+    <th>Agent</th><th>Match cap</th><th>Output-size cap</th><th>Notable knobs</th><th class="mono">source</th>
+  </tr></thead>
+  <tbody>
+    <tr class="you">
+      <td><b>Contractor</b></td>
+      <td>100 matches (<code>fs_max_items</code>), paginated</td>
+      <td><span class="pill none">none per-match</span></td>
+      <td>regex; returns full match entries always</td>
+      <td class="src">read_tools.py:381 · settings.py:54</td>
+    </tr>
+    <tr>
+      <td><b>Claude Code</b></td>
+      <td><code>head_limit</code> default <b>250</b> (0 = unlimited)</td>
+      <td>ripgrep buffer 20 MB</td>
+      <td><b>output_mode</b>: files_with_matches (default) / content / count; <code>-A/-B/-C</code>, <code>-n</code></td>
+      <td class="src">GrepTool/GrepTool.ts:56,108 · utils/ripgrep.ts:80</td>
+    </tr>
+    <tr>
+      <td><b>gemini-cli</b></td>
+      <td><code>total_max_matches</code> default <b>100</b></td>
+      <td>—</td>
+      <td>optional <code>max_matches_per_file</code> (rg <code>--max-count</code>)</td>
+      <td class="src">tools/constants.ts · tools/grep.ts:73-80</td>
+    </tr>
+    <tr>
+      <td><b>opencode</b></td>
+      <td><b>100</b> matches, "showing first 100 of N"</td>
+      <td>per-line 2000-char truncate on each match</td>
+      <td>ripgrep, sorted by mtime</td>
+      <td class="src">packages/opencode/src/tool/grep.ts:12,111</td>
+    </tr>
+    <tr>
+      <td><b>cline</b></td>
+      <td><b>300</b> results (<code>MAX_RESULTS</code>)</td>
+      <td><b>0.25 MB</b> output byte cap (<code>MAX_RIPGREP_MB</code>)</td>
+      <td>2 caps stacked: count <i>and</i> bytes</td>
+      <td class="src">services/ripgrep/index.ts:58,161</td>
+    </tr>
+    <tr>
+      <td><b>openclaw</b></td>
+      <td><b>100</b> matches (<code>DEFAULT_LIMIT</code>)</td>
+      <td>per-match line cap <b>500 chars</b> (<code>GREP_MAX_LINE_LENGTH</code>)</td>
+      <td>lowest per-line cap in the survey</td>
+      <td class="src">tools/grep.ts:50 · utils/truncate.ts:3</td>
+    </tr>
+    <tr>
+      <td><b>deepseek-tui</b></td>
+      <td><b>20</b> default, clamped 1–200</td>
+      <td>—</td>
+      <td>most conservative match cap surveyed; <code>adrianlerer</code> fork shares it</td>
+      <td class="src">tools/file_search.rs:86</td>
+    </tr>
+    <tr>
+      <td><b>goose / codex</b></td>
+      <td colspan="3">delegate to ripgrep via the shell tool; bounded only by the shell-output cap (goose 2000 ln/50 KB, codex ~10 KB)</td>
+      <td class="src">developer/shell.rs:150 · exec.rs</td>
+    </tr>
+  </tbody>
+</table>
+<div class="legend">
+  <span><span class="pill line">line/char</span> caps lines &amp; line length</span>
+  <span><span class="pill byte">byte</span> caps returned bytes</span>
+  <span><span class="pill token">token</span> caps model tokens</span>
+  <span><span class="pill none">none</span> missing in Contractor</span>
+</div>
+
+<!-- ===================== TECHNIQUES ===================== -->
+<h2>Techniques &amp; "hacks" worth knowing</h2>
+
+<h3>1 · Per-line truncation — the cheapest big win</h3>
+<p>gemini-cli and opencode cap <i>every line</i> at 2000 chars and append <code>… [truncated]</code>. This is the single most effective defence against the worst case for a byte/token budget: <b>one giant line</b> — minified JS, bundled CSS, base64 blobs, <code>package-lock.json</code>, SVG paths, generated protobufs. Without it, a single line can consume your whole budget and the model sees nothing useful.</p>
+<pre>// gemini-cli — packages/core/src/utils/fileUtils.ts:541
+if (line.length &gt; MAX_LINE_LENGTH_TEXT_FILE) {
+  line = line.substring(0, MAX_LINE_LENGTH_TEXT_FILE) + '... [truncated]'
+}</pre>
+
+<h3>2 · Token-aware ceiling instead of raw bytes</h3>
+<p>Claude Code caps the <b>actual output token count</b> (default 25 000, env-overridable via <code>CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS</code>) rather than bytes. Bytes are a poor proxy: CJK, JSON, and code tokenize very differently. The cap that matters for context cost is tokens.</p>
+
+<h3>3 · Pre-gate that <u>throws</u> rather than silently truncates</h3>
+<p>Claude Code's 256 KB check is on <i>total file size</i> and it <b>errors before reading</b>, nudging the model to use <code>offset</code>/<code>limit</code>/grep. Their own source documents the experiment:</p>
+<pre>// claude-leaked — tools/FileReadTool/limits.ts (verbatim comment)
+// Tested truncating instead of throwing for explicit-limit reads that
+// exceed the byte cap (#21841, Mar 2026). Reverted: tool error rate
+// dropped but mean tokens ROSE — the throw path yields a ~100-byte error
+// tool-result while truncation yields ~25K tokens of content at the cap.</pre>
+<p class="sub">Insight: a hard error is often <i>cheaper</i> than a truncated body, because the body still costs a full budget of tokens while teaching the model nothing.</p>
+
+<h3>4 · Continue-here footers (offset hints)</h3>
+<p>opencode / Claude Code / gemini-cli all tell the model exactly how to resume: <code>Use offset=2001 to continue</code>. <b>deepseek-tui</b> makes it a first-class response field — every truncated read returns <code>next_start_line</code> and a <code>truncated="true"</code> flag, so the model never has to compute the resume point. opencode / openclaw phrase it as prose ("continue with offset until complete"). Contractor's footer reported lines-left but not a ready-to-use offset — <span class="pill" style="color:var(--good);border-color:#1f4a30">now fixed</span>: the footer emits <code>resume with read_file offset=N</code> alongside the existing fields.</p>
+<pre>// opencode — read.ts:348
+output += `\n\n(Output capped at 50 KB. Showing lines ${offset}-${last}. Use offset=${next} to continue.)`
+
+// Contractor — format.py:126 (current)
+footer = f"\n\n### truncated at line: {cut} ### lines left in the file: {remaining} ###"</pre>
+
+<h3>5 · grep: output mode + stacked caps</h3>
+<p>Claude Code defaults grep to <code>files_with_matches</code> (cheapest), making full <code>content</code> opt-in. cline stacks <b>two</b> caps — 300 results <i>and</i> a 0.25 MB byte ceiling — so a few huge matching lines can't blow the budget even under the count limit. <b>openclaw</b> caps each match line at just <b>500 chars</b> (<code>GREP_MAX_LINE_LENGTH</code>) — the most aggressive in the survey — and <b>deepseek-tui</b> caps total matches at only <b>20</b>. Contractor only caps by count (100), so 100 fat match entries are unbounded in size.</p>
+
+<h3>6 · Whole-repo skeletonisation (aider)</h3>
+<p>aider's real "hack" isn't on a single read — it's the <b>repomap</b>: tree-sitter parses every file, <b>discards function bodies</b>, keeps signatures + class/def structure, ranks files by a PageRank over the symbol graph, and packs the top of that into a ~1024-token budget. It's the strip-the-noise idea taken to repo scale. Relevant if you ever want a cheap "structural overview" tool alongside <code>read_file</code>.</p>
+
+<div class="callout warn">
+  <b>⚠ On "strip header comments / strip comments" — do NOT do this in Contractor.</b><br>
+  It's a popular token-saver (RTK/TAMP proxies strip comments + boilerplate for ~50% savings), but Contractor's workers do <b>OpenAPI tracing and vulnerability analysis</b>. Comments routinely carry exactly the signal those workers need: auth/permission notes, <code>TODO/FIXME/SECURITY</code> markers, deprecation warnings, route docs, license/PII hints. Your own crAPI fixtures had vuln-hint comments <i>scrubbed on purpose</i> to avoid leaking answers — proof that comments are semantically load-bearing for this workload. Stripping them would silently degrade trace/vuln quality and risks overfitting behaviour. Cap by length/tokens (content-blind), never by semantic class (comments).
+</div>
+
+<!-- ===================== RECOMMENDATIONS ===================== -->
+<h2>Recommendations for Contractor</h2>
+<p class="sub">Ordered by value/effort. All are content-blind (safe for trace/vuln). File pointers are to the current tree.</p>
+
+<div class="rec">
+  <div class="num">1</div>
+  <div>
+    <h3>Add a per-line character cap to <code>read_file</code> and <code>grep</code> <span class="tag high">high value · low risk</span></h3>
+    <div class="why">Truncate any line over ~<b>2000 chars</b> (suggest a <code>fs_max_line_length</code> setting) with a <code>… [truncated N chars]</code> suffix, before the byte budget is applied. This is the gemini-cli/opencode default and the biggest gap today: one minified line currently consumes your entire 80 KB read. Touch <code>format.format_output</code> (<code>format.py:105</code>) and the grep match rendering (<code>FsEntry.from_matches</code>). New knob in <code>settings.py</code> next to <code>fs_max_output</code>.</div>
+  </div>
+</div>
+
+<div class="rec">
+  <div class="num">2</div>
+  <div>
+    <h3>Make the truncation footer emit a ready-to-use <code>offset</code> <span class="tag" style="background:#10231a;color:var(--good);border:1px solid #1f4a30">✓ shipped</span></h3>
+    <div class="why"><b>Implemented.</b> <code>format.format_output</code> now appends <code>resume with read_file offset=N</code> next to the existing fields, where <code>N</code> is absolute and reflects the lines actually kept after footer-trimming (no gap/overlap). Opt-in via a <code>base_offset</code> kwarg so diff output is unaffected; suppressed when a single line exceeds the budget (would otherwise loop). Precedent: deepseek-tui ships this as a structured <code>next_start_line</code> field.</div>
+  </div>
+</div>
+
+<div class="rec">
+  <div class="num">3</div>
+  <div>
+    <h3>Add a token-aware ceiling alongside the byte cap <span class="tag med">high value · medium</span></h3>
+    <div class="why">Bytes under-count CJK/JSON and over-count ASCII code. Add an optional <code>fs_max_output_tokens</code> (Claude Code uses 25 000) using whatever tokenizer the run already loads, and cap on <code>min(bytes, tokens)</code>. If a tokenizer isn't cheaply available in the tool layer, a bytes-per-token heuristic (~3.5–4) is a fine first cut. Keep the byte cap as the fast pre-filter.</div>
+  </div>
+</div>
+
+<div class="rec">
+  <div class="num">4</div>
+  <div>
+    <h3>Give <code>grep</code> a per-output byte/line budget, not just match count <span class="tag med">medium · low risk</span></h3>
+    <div class="why">cline stacks a 0.25 MB byte cap on top of its result count. Contractor caps at 100 <i>items</i> but each item's rendered match line is unbounded — 100 long matches can dwarf an 80 KB read. Apply the same per-line cap from #1 to each match, and add a total-bytes guard in the grep paginator (<code>read_tools.py:444-460</code>).</div>
+  </div>
+</div>
+
+<div class="rec">
+  <div class="num">5</div>
+  <div>
+    <h3>Consider a file-size pre-gate that errors on oversized whole-file reads <span class="tag low">nuance · optional</span></h3>
+    <div class="why">Claude Code's measured result: when a read with no explicit <code>limit</code> targets a &gt;256 KB file, returning a short error ("use offset/limit/grep") cost <i>fewer</i> tokens than returning a truncated head, because the truncated head still bills a full budget. Worth A/B-ing in your eval harness given your existing pass@X envelope — but only for the no-<code>limit</code> path; explicit-range reads should still truncate.</div>
+  </div>
+</div>
+
+<div class="callout tip">
+  <b>Suggested defaults if you adopt #1–#3:</b>
+  <code>fs_max_line_length = 2000</code>,
+  <code>fs_max_output = 80_000</code> bytes (keep),
+  <code>fs_max_output_tokens = 25_000</code>,
+  <code>fs_max_items = 100</code> (keep),
+  + a grep per-match line cap reusing <code>fs_max_line_length</code>. Every value mirrors at least one mainstream agent, so they're well-trodden, not guesses.
+</div>
+
+<!-- ===================== METHODOLOGY ===================== -->
+<h2>Methodology &amp; sources</h2>
+<p>Ten agents pulled locally and read at the source level (not docs):</p>
+<table>
+  <thead><tr><th>Repo</th><th>Language</th><th class="mono">local path</th><th>What it taught us</th></tr></thead>
+  <tbody>
+    <tr><td>Claude Code (leaked)</td><td>TS</td><td class="src">~/claude-leaked/src</td><td>token cap, byte pre-gate, grep head_limit</td></tr>
+    <tr><td>google-gemini/gemini-cli</td><td>TS</td><td class="src">~/src/cli-agent-research/gemini-cli</td><td>2000/2000 line model, total_max_matches</td></tr>
+    <tr><td>sst/opencode</td><td>TS</td><td class="src">~/src/cli-agent-research/opencode</td><td>50 KB output cap, offset-continue, per-line grep</td></tr>
+    <tr><td>cline/cline</td><td>TS</td><td class="src">~/src/cli-agent-research/cline</td><td>400 KB content cap, stacked grep caps</td></tr>
+    <tr><td>Aider-AI/aider</td><td>Py</td><td class="src">~/src/cli-agent-research/aider</td><td>tree-sitter repomap skeletonisation</td></tr>
+    <tr><td>block/goose</td><td>Rust</td><td class="src">~/src/cli-agent-research/goose</td><td>shell output 2000 ln / 50 KB</td></tr>
+    <tr><td>openai/codex</td><td>Rust</td><td class="src">~/src/cli-agent-research/codex</td><td>per-model TruncationPolicy (bytes 10 000)</td></tr>
+    <tr><td>QwenLM/qwen-code</td><td>TS</td><td class="src">~/src/cli-agent-research/qwen-code</td><td>gemini-cli lineage, refactored to token-budget truncation</td></tr>
+    <tr><td>openclaw/openclaw</td><td>TS</td><td class="src">~/src/cli-agent-research/openclaw</td><td>2000 ln/50 KB read; grep 100 + 500-char per-match cap</td></tr>
+    <tr><td>Hmbown/DeepSeek-TUI (CodeWhale)</td><td>Rust</td><td class="src">~/src/cli-agent-research/deepseek-tui-h</td><td>200 ln/16 KB read + <code>next_start_line</code>; grep default 20</td></tr>
+    <tr><td>adrianlerer/deepseek-tui</td><td>Rust</td><td class="src">~/src/cli-agent-research/deepseek-tui-a</td><td>lighter codex-style fork; shares grep limit 20 (max 200)</td></tr>
+  </tbody>
+</table>
+<p class="meta">Note: in the leaked Claude Code tree some identifiers are mangled (e.g. <code>truncate</code>→<code>ne</code>), but numeric literals and the <code>limits.ts</code>/<code>constants</code> values are intact and were verified directly. opencode/codex/goose numbers were read via <code>sed</code>/<code>grep</code> straight from source.</p>
+
+<div class="footnote">
+  Generated for the Contractor project · figures verified against locally cloned source on 2026-06-03 ·
+  reusable summary saved to memory as <code>reference_cli_agent_fs_limits</code>.<br>
+  Public corroboration: Claude Code Read-tool docs &amp; issues
+  (<a href="https://github.com/anthropics/claude-code/issues/6910">#6910</a>),
+  Gemini CLI file-system tools docs,
+  Cline large-file issues (<a href="https://github.com/cline/cline/issues/4576">#4576</a>),
+  aider <a href="https://aider.chat/docs/repomap.html">repomap</a>,
+  OpenAI Codex config reference.
+</div>
+
+</div>
+</body>
+</html>

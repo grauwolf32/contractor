@@ -1,15 +1,15 @@
 # Insights — open-source feature borrowings for contractor
 
 Working notes from auditing four OSS repos for ideas applicable to contractor.
-Clones live under `.research/` (untracked).
+Local clones belong under `docs/research/repos/` (untracked).
 
 ## Repos audited
 
 | Repo | License | Verdict |
 |---|---|---|
-| `bytedance/UI-TARS-desktop` (`.research/UI-TARS-desktop`) | Apache-2.0 | Not really — one borrow (Agio event taxonomy) |
-| `rohitg00/agentmemory` (`.research/agentmemory`) | MIT (TS) | Partially — 2–3 primitives |
-| `Hmbown/DeepSeek-TUI` (`.research/DeepSeek-TUI`) | MIT (Rust) | Partially — 3 UX patterns |
+| `bytedance/UI-TARS-desktop` (`docs/research/repos/UI-TARS-desktop`) | Apache-2.0 | Not really — one borrow (Agio event taxonomy) |
+| `rohitg00/agentmemory` (`docs/research/repos/agentmemory`) | MIT (TS) | Partially — 2–3 primitives |
+| `Hmbown/DeepSeek-TUI` (`docs/research/repos/DeepSeek-TUI`) | MIT (Rust) | Partially — 3 UX patterns |
 | `statewright/statewright` (https://github.com/statewright/statewright) | Apache-2.0 (Rust) | Skip wholesale, borrow one idea |
 | `knostic/OpenAnt` (`/home/ruslan/src/OpenAnt`) | Apache-2.0 (Py) | Strongly — borrowed Stage-2 verifier pattern; rest of pipeline irrelevant |
 | `vxcontrol/pentagi` (`/home/ruslan/src/pentagi`) | not noted (Go) | Mostly skip — interesting memory layers + XML-tagged prompts |
@@ -247,8 +247,8 @@ Conflating these in event types, callbacks, or UI obscures retry-vs-fix logic.
 ## Outstanding state
 
 - Branch `main` is 20 commits ahead of `origin/main` (not pushed).
-- `.research/` clones sit in the working tree, untracked. Keep for further
+- `docs/research/repos/` clones sit in the working tree, untracked. Keep for further
   drilling on pending items, or remove — user's call.
-- OpenAnt + PentAGI clones live OUTSIDE `.research/` at
-  `/home/ruslan/src/{OpenAnt,pentagi}`. Move under `.research/` for
+- OpenAnt + PentAGI clones live outside `docs/research/repos/` at
+  `/home/ruslan/src/{OpenAnt,pentagi}`. Move under `docs/research/repos/` for
   consistency or delete — user's call.

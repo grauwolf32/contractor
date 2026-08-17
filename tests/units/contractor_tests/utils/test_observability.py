@@ -10,7 +10,7 @@ import contractor.utils.observability as obs
 
 
 class _WorkingSpanCM:
-    """Minimal stand-in for langfuse's start_as_current_span() CM."""
+    """Minimal stand-in for Langfuse's observation/attribute contexts."""
 
     def __init__(self):
         self.span = object()
@@ -41,24 +41,26 @@ class _FakeClient:
         self.span_cm = span_cm
         self.span_factory_error = span_factory_error
         self.flush_count = 0
+        self.updates = []
 
-    def start_as_current_span(self, *, name):
+    def start_as_current_observation(self, *, name):
         if self.span_factory_error is not None:
             raise self.span_factory_error
         return self.span_cm
 
-    def update_current_trace(self, **kwargs):
-        pass
+    def update_current_span(self, **kwargs):
+        self.updates.append(kwargs)
 
     def flush(self):
         self.flush_count += 1
 
 
-def _enable_with_fake_langfuse(monkeypatch, client):
+def _enable_with_fake_langfuse(monkeypatch, client, attributes_cm=None):
     """Force-enable observability and route `from langfuse import get_client`
     to a fake module — works whether or not langfuse is installed."""
     mod = types.ModuleType("langfuse")
     mod.get_client = lambda: client
+    mod.propagate_attributes = lambda **_: attributes_cm or _WorkingSpanCM()
     monkeypatch.setitem(sys.modules, "langfuse", mod)
     monkeypatch.setattr(obs, "_enabled", lambda: True)
 
@@ -130,3 +132,50 @@ def test_working_span_closes_and_body_exception_propagates(monkeypatch):
     # The span was closed with the in-flight exception (status recorded).
     assert cm.exited_with is ValueError
     assert client.flush_count == 1
+
+
+def test_run_context_propagates_v4_trace_attributes(monkeypatch):
+    span_cm = _WorkingSpanCM()
+    attributes_cm = _WorkingSpanCM()
+    client = _FakeClient(span_cm=span_cm)
+    captured = {}
+    mod = types.ModuleType("langfuse")
+    mod.get_client = lambda: client
+
+    def _propagate_attributes(**kwargs):
+        captured.update(kwargs)
+        return attributes_cm
+
+    mod.propagate_attributes = _propagate_attributes
+    monkeypatch.setitem(sys.modules, "langfuse", mod)
+    monkeypatch.setattr(obs, "_enabled", lambda: True)
+
+    with obs.run_context(
+        name="run",
+        user_id="user",
+        session_id="session",
+        tags=["eval"],
+        metadata={"variant": "a"},
+    ):
+        assert span_cm.entered is True
+        assert attributes_cm.entered is True
+
+    assert captured == {
+        "trace_name": "run",
+        "user_id": "user",
+        "session_id": "session",
+        "tags": ["eval"],
+        "metadata": {"variant": "a"},
+    }
+    assert attributes_cm.exited_with is None
+
+
+def test_tag_trace_uses_v4_current_span_api(monkeypatch):
+    client = _FakeClient()
+    _enable_with_fake_langfuse(monkeypatch, client)
+
+    obs.tag_trace(name="run", metadata={"phase": "done"}, output="ok")
+
+    assert client.updates == [
+        {"name": "run", "metadata": {"phase": "done"}, "output": "ok"}
+    ]

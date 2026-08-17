@@ -25,6 +25,7 @@ from cli.utils import (
 )
 from contractor.runners.task_runner import TaskRunnerEvent, TaskRunnerEventHandler
 from contractor.utils import observability
+from contractor.utils.adk_artifacts import migrate_legacy_artifact_layout
 from contractor.utils.settings import get_settings
 from contractor.workflows import WorkflowContext, get_workflows
 
@@ -52,6 +53,7 @@ def _project_artifacts_dir(base: Path, project_path: Path) -> Path:
     digest = hashlib.sha1(str(resolved).encode("utf-8")).hexdigest()[:8]
     name = re.sub(r"[^A-Za-z0-9._-]+", "-", resolved.name).strip("-") or "project"
     return base / f"{name}-{digest}"
+
 
 _QUIET_LOGGERS = (
     "httpcore",
@@ -180,10 +182,11 @@ async def async_main(
     enable_ui: bool,
     checkpoint_path: Path | None = None,
 ) -> None:
-    ts_pack.init({"cache_dir": ts_pack.cache_dir()})
+    ts_pack.init(ts_pack.PackConfig(cache_dir=ts_pack.cache_dir()))
 
     artifacts_dir = _project_artifacts_dir(ARTIFACTS_BASE_DIR, project_path)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    migrate_legacy_artifact_layout(artifacts_dir, app_name=APP_NAME)
     artifact_service = FileArtifactService(root_dir=artifacts_dir)
     fs = RootedLocalFileSystem(root_path=str(project_path))
 

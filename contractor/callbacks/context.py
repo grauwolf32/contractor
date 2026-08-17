@@ -1,33 +1,49 @@
 import json
+import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
 from google.genai import types
 
-from contractor.utils.llm_compat import forced_tool_choice
+from contractor.utils.llm_compat import forced_response_format, forced_tool_choice
 
 from .base import BaseCallback, CallbackTypes
 from .tokens import TokenUsageCallback
 
+logger = logging.getLogger(__name__)
+
 TOKEN_USAGE_CALLBACK_NAME = TokenUsageCallback().name
 
 
-def _request_has_response_schema(llm_request: LlmRequest) -> bool:
-    """True when the request carries a structured-output schema.
+_FINISH_TOOL_NAME = "set_model_response"
 
-    Workers deliver their result as response_format-bound content (ADK sets
-    ``config.response_schema`` from the agent's ``output_schema``; for LiteLlm
-    this happens because ``can_use_output_schema_with_tools`` is True). When a
-    schema is present, forcing ``tool_choice="none"`` yields a clean structured
-    result; without one the model can emit raw tool-call markup as text, so the
-    enforcement is gated on this. Processors set the schema before
-    before_model callbacks run, so it is observable here.
+
+def _none_would_block_finish(llm_request: LlmRequest) -> bool:
+    """True if forcing ``tool_choice="none"`` would block the model's only way
+    to deliver its final result.
+
+    Contractor workers run *without* an ADK ``output_schema``
+    (``build_planning_agent(use_output_schema=False)``): they deliver their
+    ``SubtaskExecutionResult`` as free text that the formatters parse. So
+    forbidding tools is exactly what forces termination — there is no finish
+    *tool* to block.
+
+    The one exception is ADK's ``output_schema``-with-tools workaround, which
+    injects a ``set_model_response`` tool the model must *call* to finish (used
+    only when ``can_use_output_schema_with_tools`` is False — not contractor's
+    LiteLlm path). If that tool is present, ``"none"`` would trap the worker, so
+    we degrade to message-only instead.
     """
     config = getattr(llm_request, "config", None)
-    return config is not None and getattr(config, "response_schema", None) is not None
+    tools = getattr(config, "tools", None) if config is not None else None
+    for tool in tools or []:
+        for decl in getattr(tool, "function_declarations", None) or []:
+            if getattr(decl, "name", None) == _FINISH_TOOL_NAME:
+                return True
+    return False
 
 
 class SummarizationLimitCallback(BaseCallback):
@@ -40,6 +56,7 @@ class SummarizationLimitCallback(BaseCallback):
         max_tokens: int,
         summarization_key: str = "total",
         force_tool_choice: str | None = None,
+        force_response_format: dict | None = None,
     ):
         self.max_tokens = max_tokens
         self.message = message
@@ -50,11 +67,23 @@ class SummarizationLimitCallback(BaseCallback):
         # once the token limit is crossed this callback publishes the value to
         # the per-task ``forced_tool_choice`` ContextVar before every model
         # call, and the model client forces that tool_choice. "none" forbids
-        # tool calls — compelling the worker to emit its final structured result
-        # (its deliverable is the response, not a tool call) instead of ignoring
-        # the message and running context to the ceiling. ``None`` keeps the
-        # prior message-only behaviour (the model may simply keep working).
+        # tool calls — compelling the worker to emit its final result instead of
+        # ignoring the message and running context to the ceiling. ``None`` keeps
+        # the prior message-only behaviour (the model may simply keep working).
         self.force_tool_choice = force_tool_choice
+        # Companion response_format (OpenAI JSON-schema dict) forced alongside
+        # "none". Workers carry no output_schema, so without this the forced
+        # text is unconstrained and often fails to parse; the schema grammar
+        # makes the forced result valid JSON. None = don't force a format.
+        self.force_response_format = force_response_format
+        # Other enforcement callbacks can register a predicate that reports
+        # whether forbidding tools would make their required finish action
+        # impossible. Mandatory verdict callbacks use this to keep tools
+        # available until one required persistence call has been observed.
+        self._force_none_blockers: list[Callable[[], bool]] = []
+        # Last tool_choice published to the ContextVar (None = not forced); kept
+        # for observability — surfaced in to_state()/CALLBACK_SUMMARY metrics.
+        self.last_forced: str | None = None
         # Latch: once the message has been injected for an invocation, do not
         # inject it again for that invocation. The per-invocation token
         # counter (TokenUsageCallback) only grows within an invocation and is
@@ -65,6 +94,11 @@ class SummarizationLimitCallback(BaseCallback):
         self.fired: bool = False
         self.fired_invocation_id: str | None = None
 
+    def add_force_none_blocker(self, blocker: Callable[[], bool]) -> None:
+        """Degrade forced ``none`` while ``blocker`` reports pending work."""
+        if blocker not in self._force_none_blockers:
+            self._force_none_blockers.append(blocker)
+
     def to_state(self) -> dict[str, Any]:
         return {
             "max_tokens": self.max_tokens,
@@ -73,41 +107,68 @@ class SummarizationLimitCallback(BaseCallback):
             "history": self.history,
             "fired_invocation_id": self.fired_invocation_id,
             "force_tool_choice": self.force_tool_choice,
+            "last_forced": self.last_forced,
         }
 
     def __call__(
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> None:
+        invocation_id = self.get_invocation_id(callback_context)
         token_usage_stat = (
             self.get_from_cb_state(callback_context, TOKEN_USAGE_CALLBACK_NAME) or {}
         )
-        token_count = token_usage_stat.get("counter", {}).get(self.summarization_key, 0)
+        token_invocation_id = token_usage_stat.get("invocation_id")
+        # before_model runs before TokenUsageCallback's after_model reset. A
+        # child AgentTool session is seeded from planner state, so its very first
+        # request can otherwise inherit the previous worker invocation's final
+        # token count and be terminated before doing any work.
+        token_state_is_current = (
+            token_invocation_id is None
+            or invocation_id is None
+            or token_invocation_id == invocation_id
+        )
+        token_count = (
+            token_usage_stat.get("counter", {}).get(self.summarization_key, 0)
+            if token_state_is_current
+            else 0
+        )
         self.token_count = token_count
 
         over_limit = token_count >= self.max_tokens
 
-        # Publish the enforcement signal on every call so it tracks the limit
-        # exactly: forced once over the limit, cleared while under it. The
-        # per-invocation token counter only resets when the invocation changes,
-        # so an under-limit call at the start of the next invocation clears any
-        # value the previous one left in this task's ContextVar.
+        # Compute the enforcement value. "none" forbids tool calls, forcing the
+        # worker to emit its final result (contractor workers deliver it as free
+        # text — there is no output_schema). The one case to avoid is a
+        # set_model_response finish *tool*, which "none" would block; degrade to
+        # message-only there. See _none_would_block_finish.
+        forced = self.force_tool_choice if over_limit else None
+        finish_tool_present = _none_would_block_finish(llm_request)
+        mandatory_tool_pending = any(
+            blocker() for blocker in self._force_none_blockers
+        )
+        degraded = forced == "none" and (
+            finish_tool_present or mandatory_tool_pending
+        )
+        if degraded:
+            forced = None
+        # Publish on every call so it tracks the limit exactly (cleared while
+        # under it, so a new invocation's first call clears any value the
+        # previous one left in this task's ContextVar). The response_format is
+        # paired ONLY with "none": its grammar pins the output to the worker's
+        # final-result shape, which is right when tools are forbidden but would
+        # corrupt tool-call generation under "auto"/"required" (the worker is
+        # still expected to call tools there).
         if self.force_tool_choice is not None:
-            forced = self.force_tool_choice if over_limit else None
-            # "none" forbids tool calls; it stays clean only when a response
-            # schema constrains the result (the worker's deliverable is
-            # response_format-bound content, not a tool call). Without a schema
-            # the model can emit raw tool-call markup as text, and a model that
-            # routes structured output through a set_model_response tool would be
-            # blocked outright — so degrade to message-only in that case.
-            if forced == "none" and not _request_has_response_schema(llm_request):
-                forced = None
             forced_tool_choice.set(forced)
+            forced_response_format.set(
+                self.force_response_format if forced == "none" else None
+            )
+        self.last_forced = forced
 
         if not over_limit:
             self.save_to_state(callback_context)
             return
 
-        invocation_id = self.get_invocation_id(callback_context)
         if self.fired and self.fired_invocation_id == invocation_id:
             # Already injected for this invocation — don't append the message
             # to every subsequent request. (The enforcement signal above is
@@ -115,13 +176,39 @@ class SummarizationLimitCallback(BaseCallback):
             self.save_to_state(callback_context)
             return
 
+        # First crossing of the limit this invocation: inject the summarize
+        # message and log the enforcement decision for visibility.
         llm_request.contents.append(
             types.Content(role="user", parts=[types.Part(text=self.message)])
         )
-
         self.fired = True
         self.fired_invocation_id = invocation_id
         self.history.append(int(time.time()))
+
+        if degraded:
+            reason = (
+                f"a {_FINISH_TOOL_NAME} finish tool is present"
+                if finish_tool_present
+                else "a mandatory persistence tool is still pending"
+            )
+            logger.warning(
+                "summarization limit hit (tokens=%d >= %d) but force_tool_choice="
+                "'none' DEGRADED to message-only: %s and 'none' would block it "
+                "(invocation=%s) — worker may keep "
+                "calling tools instead of terminating.",
+                token_count,
+                self.max_tokens,
+                reason,
+                invocation_id,
+            )
+        else:
+            logger.info(
+                "summarization limit hit (tokens=%d >= %d): injected summarize "
+                "message; forced tool_choice=%r response_format=%s (invocation=%s)",
+                token_count, self.max_tokens, forced,
+                "yes" if self.force_response_format else "no", invocation_id,
+            )
+
         self.save_to_state(callback_context)
         return
 

@@ -41,6 +41,92 @@ def resolve_tool_response(
     return tool_response if tool_response is not None else result
 
 
+_REDACTED: str = "***REDACTED***"
+
+# Exact (lowercased) key names whose values are credentials/secrets.
+_SENSITIVE_KEYS: frozenset[str] = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "set-cookie",
+        "cookies",
+        "auth",
+        "password",
+        "passwd",
+        "passphrase",
+        "secret",
+        "private_key",
+        "private-key",
+        "credential",
+        "client_secret",
+        "client-secret",
+        "token",
+        "access_token",
+        "access-token",
+        "refresh_token",
+        "refresh-token",
+        "id_token",
+        "id-token",
+        "session_token",
+        "api_key",
+        "api-key",
+        "apikey",
+        "x-api-key",
+        "credentials",
+        "bearer",
+    }
+)
+
+# Substrings that unambiguously mark a secret (chosen to NOT match benign
+# token-count fields like ``token_count`` / ``max_tokens`` / ``prompt_tokens``).
+_SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
+    "password",
+    "secret",
+    "api_key",
+    "apikey",
+    "api-key",
+)
+
+
+def _is_sensitive_key(key: Any) -> bool:
+    if not isinstance(key, str):
+        return False
+    k = key.strip().lower()
+    if k in _SENSITIVE_KEYS:
+        return True
+    if any(sub in k for sub in _SENSITIVE_SUBSTRINGS):
+        return True
+    # access_token / refresh_token / auth-token — but NOT token_count / *_tokens.
+    return k.endswith("_token") or k.endswith("-token")
+
+
+def redact_sensitive(obj: Any, _depth: int = 0) -> Any:
+    """Return a copy of *obj* with the values of secret-bearing keys masked.
+
+    Walks nested dicts/lists so HTTP ``headers`` (Authorization, Set-Cookie),
+    ``auth`` bundles, cookie jars, and bearer/API tokens are masked wherever they
+    appear in tool arguments or results before they are persisted to
+    ``metrics.jsonl``. The input is never mutated; scalar leaves (incl. large
+    strings) are returned as-is.
+
+    Note: this does NOT cover the Langfuse span path — when ``USE_LANGFUSE`` is
+    set, tool args and LLM messages are exported by OpenInference OTel
+    auto-instrumentation (``contractor/utils/observability.py``), which bypasses
+    the plugin/sink pipeline entirely and is not redacted here.
+    """
+    if _depth > 12:
+        return obj
+    if isinstance(obj, dict):
+        return {
+            k: (_REDACTED if _is_sensitive_key(k) else redact_sensitive(v, _depth + 1))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list | tuple):
+        return [redact_sensitive(v, _depth + 1) for v in obj]
+    return obj
+
+
 class PluginContext:
     """Immutable bundle of identifiers every plugin callback needs."""
 
@@ -90,7 +176,15 @@ class BaseAdkPlugin(BasePlugin):
         self._ctx = ctx
         self._raw_emit = emit
 
+    # Payload keys whose (possibly nested) values may carry live-target
+    # credentials and must be scrubbed before persistence/telemetry.
+    _REDACT_PAYLOAD_KEYS: tuple[str, ...] = ("arguments", "result", "tool_response")
+
     async def _emit(self, event_type: str, **payload: Any) -> None:
+        for key in self._REDACT_PAYLOAD_KEYS:
+            value = payload.get(key)
+            if value is not None:
+                payload[key] = redact_sensitive(value)
         await self._raw_emit(event_type, **self._ctx.as_dict(), **payload)
 
     @staticmethod

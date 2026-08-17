@@ -61,10 +61,15 @@ class RootedLocalFileSystem(LocalFileSystem):
         if path.startswith("file://"):
             path = path[7:]
 
-        # Already an absolute host path inside the sandbox.
-        real = os.path.realpath(path)
-        if self._is_within_sandbox(real):
-            return real
+        # Already an absolute host path inside the sandbox.  Relative paths
+        # must never take this branch: realpath() resolves them against the
+        # process CWD, which may itself be a descendant of root_path, causing
+        # e.g. ``src/app.py`` to address ``<cwd>/src/app.py`` instead of
+        # ``<root_path>/src/app.py``.
+        if os.path.isabs(path):
+            real = os.path.realpath(path)
+            if self._is_within_sandbox(real):
+                return real
 
         # Treat as a virtual path relative to the root.
         if path in ("", "/"):
@@ -127,22 +132,62 @@ class RootedLocalFileSystem(LocalFileSystem):
         if host_path == self._blocked_path:
             return []
 
+        # A non-directory target keeps fsspec's single-entry behaviour.
+        # host_path is already symlink-resolved, so super().info() here cannot
+        # reach fsspec's readlink branch.
+        if not os.path.isdir(host_path):
+            try:
+                info = super().info(host_path)
+            except (FileNotFoundError, NotADirectoryError):
+                return []
+            except OSError as exc:
+                # An existing-but-unreadable path (PermissionError, EIO, …) must
+                # NOT masquerade as a clean empty result — surface it as a tool
+                # error, using the virtual path so no host path leaks to the LLM.
+                raise OSError(
+                    f"cannot access {self._normalize_virtual(path)}: "
+                    f"{exc.strerror or exc}"
+                ) from None
+            real = os.path.realpath(host_path)
+            if not self._is_within_sandbox(real):
+                return []
+            virtual = self._to_virtual(real)
+            return [{**info, "name": virtual}] if detail else [virtual]
+
+        # Scan directory entries ourselves. We must NOT delegate to super().ls()
+        # because fsspec's info() crashes (OSError EINVAL) on a symlink entry:
+        # our _strip_protocol resolves the link to its (non-link) target, then
+        # fsspec still calls os.readlink() on that resolved path. Skipping
+        # symlinks outright also matches the walk()/glob() sandbox policy
+        # ("symlinks are never followed").
         try:
-            entries = super().ls(host_path, detail=True, **kwargs)
-        except FileNotFoundError:
+            with os.scandir(host_path) as it:
+                entries = list(it)
+        except (FileNotFoundError, NotADirectoryError):
             return []
+        except OSError as exc:
+            # An unreadable directory (chmod 000, transient EIO/EMFILE) must not
+            # look like an empty one — raise a sandbox-clean error to the guard.
+            raise OSError(
+                f"cannot list {self._normalize_virtual(path)}: {exc.strerror or exc}"
+            ) from None
 
         result: list[dict[str, Any] | str] = []
         for entry in entries:
-            real = os.path.realpath(entry["name"])
+            if entry.is_symlink():
+                continue
 
+            real = os.path.realpath(entry.path)
             if not self._is_within_sandbox(real):
                 continue
 
             virtual = self._to_virtual(real)
-
             if detail:
-                result.append({**entry, "name": virtual})
+                try:
+                    info = super().info(entry)
+                except (FileNotFoundError, OSError):
+                    continue
+                result.append({**info, "name": virtual})
             else:
                 result.append(virtual)
 

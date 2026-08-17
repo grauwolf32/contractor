@@ -68,6 +68,15 @@ SUBTASK_RESULT_MALFORMED: Final[str] = (
     "The subtask is marked 'malformed' — its raw results may still contain "
     "useful information. You MUST either decompose or skip it."
 )
+SUBTASK_EXECUTION_IN_PROGRESS: Final[str] = (
+    "Subtask `{task_id}` is already being executed by another tool call. "
+    "Wait for that call to finish, then inspect the current subtask before retrying."
+)
+SUBTASK_EXECUTION_STALE_RESULT: Final[str] = (
+    "Worker result for subtask `{expected_task_id}` cannot be applied because "
+    "the current subtask is `{current_task_id}`. The plan changed while the "
+    "worker was running; inspect the current subtask and continue from there."
+)
 SubtaskStatus: TypeAlias = Literal[
     "new", "done", "incomplete", "malformed", "skipped", "decomposed"
 ]

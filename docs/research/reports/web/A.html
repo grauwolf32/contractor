@@ -1,0 +1,55 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A · Token efficiency & cost — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#A">← back to research.html</a></div>
+<h1>A · Token efficiency &amp; cost</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="A1"><h2>A1 — Prompt caching of the static prefix cuts input tokens ≥40% with no quality change</h2>
+  <div class="src"><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html" target="_blank">Prompt caching for faster model inference — Amazon Bedrock docs</a><div class="note">Vendor reference for the exact mechanism A1 proposes: marking the static prefix (system prompt + schema trailer) as a cache checkpoint so re-sends bill at the cached rate. Documents the breakpoint/checkpoint API directly applicable to plumbing <code>cache_control</code>.</div></div>
+  <div class="src"><a href="https://projectdiscovery.io/blog/how-we-cut-llm-cost-with-prompt-caching" target="_blank">How We Cut LLM Costs by 59% With Prompt Caching — ProjectDiscovery</a><div class="note">A security-tooling vendor reports a measured 59→70% cost cut from caching the static system prefix of an agentic pipeline — the closest real-world analogue to Contractor's case (repeated ~15KB worker prompt over many turns), and a concrete data point for the ≥40% claim.</div></div>
+  <div class="src"><a href="https://medium.com/tr-labs-ml-engineering-blog/prompt-caching-the-secret-to-60-cost-reduction-in-llm-applications-6c792a0ac29b" target="_blank">Prompt Caching: 60% Cost Reduction in LLM Applications — Thomson Reuters Labs</a><div class="note">Engineering writeup with breakpoint placement guidance: cache reads at 0.1× input price, 25% write premium, last-static-message as first breakpoint. Useful for sizing expected savings and the cache-write amortization break-even.</div></div>
+</section>
+
+<section id="A2"><h2>A2 — Byte-bounded heavy-result retention reduces peak prompt size ≥30% without lowering recall</h2>
+  <div class="src"><a href="https://arxiv.org/pdf/2510.00615" target="_blank">ACON: Optimizing Context Compression for Long-horizon LLM Agents (arXiv)</a><div class="note">Unified history+observation compression framework reporting 26–54% peak-token reduction while holding task success — directly supports the A2 thesis that bounding heavy tool-result retention cuts peak input without recall loss.</div></div>
+  <div class="src"><a href="https://callsphere.ai/blog/context-window-management-ai-agents-summarization-pruning-sliding-2026" target="_blank">Context Window Management for AI Agents: Summarization, Pruning, Sliding Window</a><div class="note">Survey of retention strategies; notably documents "observation masking" (replace old tool outputs with a placeholder while keeping the call) halving cost at parity on SWE-bench — a stronger variant of byte-bounded eviction worth evaluating against the count-only keep-last-15 today.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2601.16746" target="_blank">SWE-Pruner: Self-Adaptive Context Pruning for Coding Agents (arXiv)</a><div class="note">Trains a 0.6B skimmer for task-aware pruning, achieving 23–54% token reduction on coding agents — evidence that selectively dropping large tool reads preserves recall, and a more sophisticated alternative if a static byte budget proves too blunt.</div></div>
+</section>
+
+<section id="A3"><h2>A3 — Pruning (drop oldest tool results) beats appending a summarization nudge on over-budget runs</h2>
+  <div class="src"><a href="https://www.langchain.com/blog/context-engineering-for-agents" target="_blank">Context Engineering for Agents — LangChain</a><div class="note">Canonical taxonomy (write/select/compress/isolate) arguing compaction should remove signal-poor content rather than append; frames why a growing "wrap-up" nudge is an anti-pattern versus eviction.</div></div>
+  <div class="src"><a href="https://redis.io/blog/context-compaction/" target="_blank">Context Compaction for AI Agents: A Complete Guide — Redis</a><div class="note">Recommends a multi-layer cascade — compress tool outputs first, sliding-window trim second, LLM summarization only as last resort — exactly the ordering A3 proposes (prune before nudge), and notes summarization stalls inference for tens of seconds.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2510.11967" target="_blank">Scaling Long-Horizon LLM Agents via Context-Folding (arXiv)</a><div class="note">Shows folding/pruning agents match or beat ReAct with a 10× smaller active context and outperform summarization-based management — direct evidence that dropping stale results lowers tokens without hurting completion on long-horizon (75-step scan) tasks.</div></div>
+</section>
+
+<section id="A4"><h2>A4 — A cross-subtask file-read cache cuts redundant read_file tokens materially</h2>
+  <div class="src"><a href="https://openreview.net/forum?id=tX3YcbNa5w" target="_blank">ToolCache Agent: Accelerating LLM Agents Through Intelligent Tool Call Caching</a><div class="note">Caches tool-call results by argument identity with per-tool cacheability/expiry/invalidation rules — exactly the "already read, see prior result" handle A4 wants for unchanged files, with stated correctness handling for stateful tools.</div></div>
+  <div class="src"><a href="https://arxiv.org/html/2509.17360v1" target="_blank">Asteria: Semantic-Aware Cross-Region Caching for Agentic LLM Tool Access (arXiv)</a><div class="note">Observes file accesses follow a near-Zipfian distribution so caching hot files removes many redundant fetches — empirical backing for A4's premise that a small set of files dominates duplicate reads across subtasks.</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2602.10986" target="_blank">TVCache: A Stateful Tool-Value Cache for Post-Training LLM Agents (arXiv)</a><div class="note">Reports cache hit rates up to 70% and large reductions in tool execution time across terminal/SQL/video workloads — quantifies the upside ceiling for deduping repeated tool calls in an agent loop.</div></div>
+</section>
+
+<section id="A5"><h2>A5 — Repair-only re-prompting beats n_retries=3 full re-run on malformed worker output</h2>
+  <div class="src"><a href="https://github.com/mangiucugna/json_repair" target="_blank">json_repair — repair malformed JSON from LLMs (GitHub)</a><div class="note">Deterministic local repair of malformed LLM JSON with no extra model call — the cheapest form of A5's "fix, don't re-run", suitable as a pre-parse pass before any re-prompt is attempted.</div></div>
+  <div class="src"><a href="https://apxml.com/courses/langchain-production-llm/chapter-1-advanced-langchain-architecture/advanced-output-parsing" target="_blank">Advanced Output Parsing Strategies (LangChain RetryParser / OutputFixingParser)</a><div class="note">Documents the retry-with-error-feedback pattern: re-prompt with the original prompt + faulty output + parse error to correct only the structure — the A5 mechanism, and notes it adds far less than a full re-run since the reasoning already happened.</div></div>
+  <div class="src"><a href="https://github.com/langchain-ai/langchain/issues/32977" target="_blank">LangChain issue: slow retries on JSON parse error in structured output</a><div class="note">Real-world report that naive full-regeneration retries on structured-output parse failures are "extremely slow" — concrete evidence of the waste A5 targets and why feeding back just the error is preferable.</div></div>
+</section>
+
+<section id="A6"><h2>A6 — elide tool results to id-handles (recall by lookup)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2310.08560" target="_blank">MemGPT: Towards LLMs as Operating Systems</a><div class="note">Virtual context management: out-of-context data lives in "external context" and is paged back into the window on demand via function calls — exactly the recall-by-handle pattern A6 wants (keep a reference, dereference only when needed).</div></div>
+  <div class="src"><a href="https://platform.claude.com/docs/en/build-with-claude/context-editing" target="_blank">Context editing (clear_tool_uses) — Claude API docs</a><div class="note">The shipped precedent for dropping stale tool results once over a token threshold, leaving a placeholder. A6's twist: make that placeholder a real handle (request_id) the agent can look up, not an opaque stub.</div></div>
+  <div class="src"><a href="https://www.anthropic.com/news/context-management" target="_blank">Managing context on the Claude Developer Platform</a><div class="note">Reports 84% token reduction in a 100-turn tool-use eval from clearing stale tool results — quantifies the upside of A6 for a long HTTP-probing exploit loop.</div></div>
+  <div class="src"><a href="https://www.leoniemonigatti.com/blog/memgpt.html" target="_blank">Virtual context management with MemGPT and Letta</a><div class="note">Practical walkthrough of paging between in-context and external memory by reference — a working model for an "elide-to-handle + lookup tool" callback variant.</div></div>
+</section>
+</body></html>

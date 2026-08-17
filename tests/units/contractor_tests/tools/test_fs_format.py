@@ -229,12 +229,61 @@ def test_format_output_omits_resume_offset_by_default():
     assert "### truncated at line:" in out
 
 
-def test_format_output_omits_resume_offset_when_no_line_fits():
-    # A single line wider than the budget emits nothing; a resume offset would
-    # equal the requested offset and loop, so it must be suppressed.
+def test_format_output_byte_truncates_when_no_line_fits():
+    # A single line wider than the budget must still return its HEAD (minified
+    # JS/JSON were previously unreadable — only a footer came back), and must
+    # not advertise the looping line-resume offset.
     text = "x" * 500 + "\n" + "more\n"
-    out = FileFormat.format_output(text, max_output=50, base_offset=7)
-    assert "resume with read_file offset=" not in out
+    out = FileFormat.format_output(text, max_output=200, base_offset=7)
+    assert out.startswith("x")  # content head returned, not just a footer
+    assert "truncated mid-line" in out
+    assert "resume with read_file offset=" not in out  # the looping form is gone
+    # More lines follow, so a skip-past offset (next line = 7 + 1) is offered.
+    assert "resume past this line with read_file offset=8 ###" in out
+    assert len(out.encode("utf-8")) <= 200
+
+
+def test_format_output_byte_truncates_when_footer_pop_empties_lines():
+    # The first line FITS the raw budget, so the zero-fit guard is skipped, but
+    # the footer-fit pop loop then removes it (line + footer > budget), emptying
+    # the kept lines. That path must also fall back to a byte head + a non-looping
+    # skip-past offset — not a content-less, offset-less footer that loops.
+    text = "x" * 250 + "\n" + "y" * 200 + "\n"
+    out = FileFormat.format_output(text, max_output=300, base_offset=7)
+    assert out.startswith("x")  # content head, not just a footer
+    assert "truncated mid-line" in out
+    assert "resume with read_file offset=" not in out  # no looping line-resume
+    assert "resume past this line with read_file offset=8 ###" in out
+    assert len(out.encode("utf-8")) <= 300
+
+
+def test_format_output_byte_truncates_single_giant_line_no_resume():
+    # One line, no trailing newline, nothing after it: return the head, no resume.
+    text = "y" * 1000
+    out = FileFormat.format_output(text, max_output=200, base_offset=0)
+    assert out.startswith("y")
+    assert "truncated mid-line" in out
+    assert "resume past this line" not in out  # nothing to resume to
+    assert len(out.encode("utf-8")) <= 200
+
+
+def test_format_output_byte_truncates_without_base_offset():
+    # Non-paginated callers still get content, just no offset.
+    text = "z" * 1000
+    out = FileFormat.format_output(text, max_output=150)
+    assert out.startswith("z")
+    assert "truncated mid-line" in out
+    assert "resume" not in out
+    assert len(out.encode("utf-8")) <= 150
+
+
+def test_format_output_byte_truncation_respects_utf8_boundary():
+    # Cutting on a raw byte boundary must not split a multibyte char.
+    text = "é" * 1000  # 2 bytes each
+    out = FileFormat.format_output(text, max_output=150, base_offset=0)
+    assert out.startswith("é")
+    out.encode("utf-8")  # round-trips without raising
+    assert len(out.encode("utf-8")) <= 150
 
 
 # ---------------------------------------------------------------------------

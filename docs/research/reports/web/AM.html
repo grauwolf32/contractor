@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AM · Stop conditions & iteration-budget sizing — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#AM">← back to research.html</a></div>
+<h1>AM · Stop conditions &amp; iteration-budget sizing</h1>
+<p class="lead">How to set <code>min_iterations</code> per task (the author observed larger projects need a larger floor) and when to stop iterating. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="AM1"><h2>AM1 — min_iter should scale with project size / attack surface (validate the observation)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/1803.02130" target="_blank">STADS: Software Testing as Species Discovery (TOSEM 2018)</a><div class="note">Models testing as discovering "species" (behaviors/branches): a larger program has more feasible species, so reaching the same coverage needs more sampling — the formal basis for "larger projects ⇒ larger min_iter." Also estimates the extra effort to cover more.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2407.21787" target="_blank">Large Language Monkeys: Scaling Inference Compute with Repeated Sampling</a><div class="note">Coverage scales log-linearly with attempts; the budget needed to hit a target coverage grows with the size of the solution space — quantitative backing for sizing the iteration floor to the task, not a flat constant.</div></div></section>
+
+<section id="AM2"><h2>AM2 — auto-derive the budget from cheap structural signals (pre-run)</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2408.03314" target="_blank">Scaling LLM Test-Time Compute Optimally (Snell et al., 2024)</a><div class="note">Compute-optimal scaling allocates test-time compute adaptively per prompt by difficulty — &gt;4× more efficient than flat best-of-N. The analogue: derive each task's iteration budget from its difficulty/size signals (attack surface, #endpoints, complexity hotspots) instead of one global number.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/1803.02130" target="_blank">STADS (estimate effort to cover more)</a><div class="note">STADS estimates the additional testing time required to cover more branches — i.e. a principled, structure-grounded budget estimate the planner could compute up front from project size.</div></div></section>
+
+<section id="AM3"><h2>AM3 — dynamic saturation / dry-streak stop beats a fixed count</h2>
+  <div class="src"><a href="https://dl.acm.org/doi/abs/10.1145/3597926.3598043" target="_blank">Green Fuzzing: A Saturation-Based Stopping Criterion (ISSTA 2023)</a><div class="note">Stops when coverage of <em>potentially-vulnerable</em> functions saturates — ends campaigns 6–12h early while missing &lt;0.5 of 12.5 bugs. The model for a "stop when K iterations yield no new (vuln-relevant) findings" dry-streak rule, smarter than raw coverage.</div></div>
+  <div class="src"><a href="https://blog.regehr.org/archives/1796" target="_blank">The Saturation Effect in Fuzzing (John Regehr)</a><div class="note">Practitioner account of saturation and why naive coverage/crash plateaus mislead — argues for splitting effort into k subsets and stopping when all agree, a robustness trick for a convergence-based stop.</div></div></section>
+
+<section id="AM4"><h2>AM4 — compute-optimal allocation: more iterations to hard/large tasks, fewer to easy</h2>
+  <div class="src"><a href="https://arxiv.org/abs/2408.03314" target="_blank">Snell et al. — allocate by difficulty under a global budget</a><div class="note">For easy/medium tasks reduce compute; concentrate it on hard tasks needing exploration. Under a fixed total iteration budget, difficulty-weighted allocation should beat a uniform <code>min_iter</code>.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2410.02725" target="_blank">Adaptive Inference-Time Compute: LLMs Can Predict if They Can Do Better</a><div class="note">The model itself predicts whether more sampling will help — a cheap per-task difficulty signal to size the budget and trigger early stop on easy tasks.</div></div>
+  <div class="src"><a href="https://arxiv.org/abs/2510.15945" target="_blank">BEACON: Bayesian Optimal Stopping for Efficient LLM Sampling</a><div class="note">Frames "how many samples" as Bayesian optimal stopping — sample until the expected value of another sample drops below its cost; the principled form of the iteration cap (ties Direction U and AL5).</div></div></section>
+
+<section id="AM5"><h2>AM5 — residual-risk estimation: a principled stop with a confidence statement</h2>
+  <div class="src"><a href="https://arxiv.org/abs/1803.02130" target="_blank">STADS — Good-Turing residual risk</a><div class="note">Uses the Good-Turing estimator to bound the residual risk that a vulnerability exists when none has been found — turning "are we done iterating?" into a quantified statement ("≤X% chance of a missed class"), not a gut call.</div></div>
+  <div class="src"><a href="https://mboehme.github.io/paper/FSE21.pdf" target="_blank">Estimating Residual Risk in Greybox Fuzzing (Böhme et al., FSE 2021)</a><div class="note">Refines residual-risk estimation under adaptive (biased) sampling — directly relevant since the planner's memory-guided iteration is adaptive; gives a defensible stop threshold and a coverage/assurance metric for the eval.</div></div></section>
+</body></html>

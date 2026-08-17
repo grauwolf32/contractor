@@ -410,6 +410,166 @@ class TestCheckpoint:
             "summary": "t/summary",
         }
 
+    def test_stale_snapshots_merge_instead_of_losing_parallel_entries(
+        self, tmp_path
+    ):
+        path = tmp_path / "checkpoint.json"
+        first_snapshot = Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("class:a", task_id=0)],
+        )
+        second_snapshot = Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("class:b", task_id=1)],
+        )
+
+        first_snapshot.save(path)
+        second_snapshot.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert {entry.ref for entry in loaded.entries} == {"class:a", "class:b"}
+
+    def test_stale_snapshot_does_not_overwrite_newer_existing_entry(self, tmp_path):
+        path = tmp_path / "checkpoint.json"
+        initial = Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("shared", task_id=0)],
+        )
+        initial.save(path)
+
+        first_snapshot = Checkpoint.load(path)
+        stale_snapshot = Checkpoint.load(path)
+        assert first_snapshot is not None
+        assert stale_snapshot is not None
+
+        first_snapshot.mark_done(self._entry("shared", task_id=10))
+        first_snapshot.save(path)
+        stale_snapshot.mark_done(self._entry("sibling", task_id=20))
+        stale_snapshot.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert {entry.ref: entry.task_id for entry in loaded.entries} == {
+            "shared": 10,
+            "sibling": 20,
+        }
+
+    def test_directly_appended_entry_is_merged(self, tmp_path):
+        path = tmp_path / "checkpoint.json"
+        initial = Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("existing", task_id=0)],
+        )
+        initial.save(path)
+
+        snapshot = Checkpoint.load(path)
+        assert snapshot is not None
+        snapshot.entries.append(self._entry("appended", task_id=1))
+        snapshot.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert {entry.ref for entry in loaded.entries} == {"existing", "appended"}
+
+    def test_directly_mutated_entry_is_merged_without_replaying_stale_siblings(
+        self, tmp_path
+    ):
+        path = tmp_path / "checkpoint.json"
+        initial = Checkpoint(
+            workflow="parallel",
+            entries=[
+                self._entry("shared", task_id=0),
+                self._entry("updated-by-sibling", task_id=1),
+            ],
+        )
+        initial.save(path)
+
+        snapshot = Checkpoint.load(path)
+        sibling = Checkpoint.load(path)
+        assert snapshot is not None
+        assert sibling is not None
+        sibling.mark_done(self._entry("updated-by-sibling", task_id=20))
+        sibling.save(path)
+
+        shared = snapshot.get("shared")
+        assert shared is not None
+        shared.published_artifacts["records"] = "t/records"
+        snapshot.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert loaded.get("shared").published_artifacts["records"] == "t/records"
+        assert loaded.get("updated-by-sibling").task_id == 20
+
+    def test_directly_removed_entry_is_deleted_without_losing_sibling_addition(
+        self, tmp_path
+    ):
+        path = tmp_path / "checkpoint.json"
+        Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("remove", task_id=0)],
+        ).save(path)
+
+        snapshot = Checkpoint.load(path)
+        sibling = Checkpoint.load(path)
+        assert snapshot is not None
+        assert sibling is not None
+        sibling.mark_done(self._entry("keep", task_id=1))
+        sibling.save(path)
+
+        snapshot.entries.clear()
+        snapshot.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert [entry.ref for entry in loaded.entries] == ["keep"]
+
+    def test_failed_merge_save_does_not_make_imported_siblings_dirty_on_retry(
+        self, tmp_path, monkeypatch
+    ):
+        path = tmp_path / "checkpoint.json"
+        Checkpoint(
+            workflow="parallel",
+            entries=[self._entry("local", task_id=0)],
+        ).save(path)
+
+        stale = Checkpoint.load(path)
+        sibling = Checkpoint.load(path)
+        assert stale is not None
+        assert sibling is not None
+        sibling.mark_done(self._entry("sibling", task_id=1))
+        sibling.save(path)
+        stale.mark_done(self._entry("local", task_id=2))
+
+        real_replace = Path.replace
+        failed = False
+
+        def fail_first_replace(source: Path, target: Path) -> Path:
+            nonlocal failed
+            if not failed and target == path:
+                failed = True
+                raise OSError("simulated replace failure")
+            return real_replace(source, target)
+
+        monkeypatch.setattr(Path, "replace", fail_first_replace)
+        with pytest.raises(OSError, match="simulated replace failure"):
+            stale.save(path)
+        assert [entry.ref for entry in stale.entries] == ["local"]
+
+        newer = Checkpoint.load(path)
+        assert newer is not None
+        newer.mark_done(self._entry("sibling", task_id=3))
+        newer.save(path)
+        stale.save(path)
+
+        loaded = Checkpoint.load(path)
+        assert loaded is not None
+        assert {entry.ref: entry.task_id for entry in loaded.entries} == {
+            "local": 2,
+            "sibling": 3,
+        }
+
     def test_load_returns_none_for_missing_file(self, tmp_path):
         assert Checkpoint.load(tmp_path / "nope.json") is None
 
@@ -454,6 +614,30 @@ class TestCheckpoint:
             json.dumps({"version": 1, "workflow": "test", "tasks": ["oops"]}),
             encoding="utf-8",
         )
+        assert Checkpoint.load(path) is None
+
+    def test_load_returns_none_for_duplicate_refs(self, tmp_path):
+        import json
+
+        path = tmp_path / "duplicate.json"
+        task = {
+            "task_id": 0,
+            "ref": "same",
+            "template_key": "t",
+            "template_version": "v1",
+            "published_artifacts": {},
+        }
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "workflow": "test",
+                    "tasks": [task, {**task, "task_id": 1}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
         assert Checkpoint.load(path) is None
 
     def test_save_is_atomic(self, tmp_path):

@@ -1,0 +1,49 @@
+schema_version: experiment/v1
+id: EXP-2026-001
+hypothesis_id: AW1
+title: Associate typed tool completeness with false-negative outcomes
+design: observational
+scenario: offline
+status: draft
+control:
+  id: complete
+  description: Paths whose relevant tool calls are classified complete
+treatments:
+  - id: partial_or_ambiguous
+    description: Paths with at least one relevant partial or ambiguous tool outcome
+fixtures:
+  include:
+    - crapi-community
+    - crapi-identity
+    - crapi-workshop
+  exclude: []
+  slice: recent instrumented trace runs
+primary_metric:
+  name: fn_odds_ratio_partial_vs_complete
+  direction: increase
+  minimum_effect: 1.5
+guardrails:
+  - name: tool_outcome_unclassified_rate
+    direction: decrease
+    minimum_effect: 0.0
+sample_plan:
+  attempts_per_case: 1
+  requested_seeds:
+    - 17
+  sequential_looks:
+    - 1.0
+  alpha: 0.05
+  fdr_family: validity-floor-2026q3
+  max_gpu_seconds: null
+scorer: tests.eval.trace_vuln_scoring:aw1-v1
+scorer_parameters:
+  outcome_categories:
+    - complete
+    - partial
+    - empty-valid
+    - empty-ambiguous
+    - error
+exclusions:
+  - Exclude paths without a ground-truth vulnerability from the FN odds-ratio denominator.
+frozen_at: null
+owner: null

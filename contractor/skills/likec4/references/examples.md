@@ -1,3 +1,7 @@
+---
+description: "Compact, real-world LikeC4 examples combining multiple features — read for worked patterns when composing a new model or view."
+---
+
 # Examples
 
 Compact, real-world patterns. Each example demonstrates multiple features.

@@ -31,14 +31,31 @@ from contractor.runners.task_runner import TaskRunner, TaskRunnerEventHandler
 from contractor.utils.settings import build_model
 from contractor.workflows import Workflow, WorkflowContext, persist_seed_artifact
 from contractor.workflows.config import WorkflowConfig
-from contractor.workflows.findings import load_findings_artifact
-from contractor.workflows.namespaces import TRACE_NAMESPACE_PREFIXES
-from contractor.workflows.path_groups import group_key_for_path
+from contractor.workflows.findings import (
+    load_findings_artifact,
+    load_yaml_dict_artifact,
+)
+from contractor.workflows.namespaces import (
+    TRACE_ANNOTATION_NAMESPACE_PREFIX,
+    TRACE_GRAPH_NAMESPACE_PREFIX,
+    TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX,
+    TRACE_NAMESPACE_PREFIXES,
+    TRACE_POSTDIFF_NAMESPACE_PREFIX,
+)
+from contractor.workflows.path_keys import openapi_group_key
 from contractor.workflows.trace_annotation import OpenApiPath, extract_openapi_paths
+from contractor.workflows.trace_graph_pathpar.workflow import (
+    CFG as TRACE_GRAPH_PATHPAR_CFG,
+)
+from contractor.workflows.trace_postdiff.workflow import CFG as TRACE_POSTDIFF_CFG
 
 CFG = WorkflowConfig.load(__file__)
 
 logger = logging.getLogger(__name__)
+
+
+class MissingVerificationError(RuntimeError):
+    """A verifier task finished without its authoritative persisted verdict."""
 
 
 class TraceVerifyWorkflow(Workflow):
@@ -86,6 +103,11 @@ class TraceVerifyWorkflow(Workflow):
                 job_name=f"trace_verify:{self.namespace}:{api_path.path_key}",
                 on_event=on_event,
                 default=0,
+                # A partial verification set is not a successful workflow: the
+                # persisted records are its authoritative output. Propagate task
+                # and postcondition failures instead of converting them into a
+                # misleading "no vulnerability reports" success.
+                skip_on_failure=False,
             )
 
         if not total_findings:
@@ -105,20 +127,27 @@ class TraceVerifyWorkflow(Workflow):
 
         Producers key findings by ``path_key`` (per-path runs) or by a
         route-prefix group key (``group_depth >= 1`` in trace-postdiff /
-        pathpar). The producer's depth isn't knowable here, so depth-1 and
-        depth-2 group keys are probed alongside the path key — each probe
-        is just an artifact lookup, so extra candidates are cheap.
+        pathpar). Configured group depth is part of the v2 key, so probe only
+        the namespace each current producer writes. Looking through unrelated
+        depths can mistake a stale literal-route report for another route's
+        grouped report. Ambiguous pre-migration artifacts are intentionally not
+        reused.
         """
-        keys = [api_path.path_key]
-        for depth in (1, 2):
-            group_key = group_key_for_path(api_path.path, depth)
-            if group_key not in keys:
-                keys.append(group_key)
-        return [
-            f"{prefix}:{self.namespace}:{key}"
-            for key in keys
-            for prefix in TRACE_NAMESPACE_PREFIXES
-        ]
+        depths = {
+            TRACE_ANNOTATION_NAMESPACE_PREFIX: 0,
+            TRACE_GRAPH_NAMESPACE_PREFIX: 0,
+            TRACE_GRAPH_PATHPAR_NAMESPACE_PREFIX: (
+                TRACE_GRAPH_PATHPAR_CFG.budgets.group_depth
+            ),
+            TRACE_POSTDIFF_NAMESPACE_PREFIX: TRACE_POSTDIFF_CFG.budgets.group_depth,
+        }
+        candidates: list[str] = []
+        for prefix in TRACE_NAMESPACE_PREFIXES:
+            key = openapi_group_key(api_path.path, depths[prefix])
+            candidates.append(
+                f"{prefix}:{self.namespace}:{key}"
+            )
+        return candidates
 
     async def _discover_findings(
         self,
@@ -129,14 +158,14 @@ class TraceVerifyWorkflow(Workflow):
         """Probe every candidate namespace for ``api_path`` and return
         ``(source_namespace, findings)`` pairs for the non-empty ones."""
         discovered: list[tuple[str, list[dict[str, Any]]]] = []
-        for source_namespace in self._candidate_namespaces(api_path):
-            if source_namespace in self._processed_namespaces:
+        for namespace in self._candidate_namespaces(api_path):
+            if namespace in self._processed_namespaces:
                 continue
             findings = await self._load_findings(
-                user_id=user_id, source_namespace=source_namespace
+                user_id=user_id, source_namespace=namespace
             )
             if findings:
-                discovered.append((source_namespace, findings))
+                discovered.append((namespace, findings))
         return discovered
 
     async def _verify_path_findings(
@@ -200,17 +229,19 @@ class TraceVerifyWorkflow(Workflow):
             observations=CFG.observations,
         )
         runner.add_variable(name="project_path", value=ctx.folder_name)
+        expected_names_by_ref: dict[str, str] = {}
 
         for finding in findings:
-            finding_name = finding.get("name", "")
+            finding_name = str(finding.get("name", ""))
             if not finding_name:
                 continue
+            task_ref = (
+                f"trace_verify:{self.namespace}:"
+                f"{api_path.path_key}:{finding_name}"
+            )
             runner.add_task(
                 name="trace_verify",
-                ref=(
-                    f"trace_verify:{self.namespace}:"
-                    f"{api_path.path_key}:{finding_name}"
-                ),
+                ref=task_ref,
                 # Unique, stable per-finding publish key — every finding is a
                 # separate `trace_verify` task and the shared template key
                 # would make siblings overwrite each other's artifacts.
@@ -233,8 +264,82 @@ class TraceVerifyWorkflow(Workflow):
                     "source_namespace": source_namespace,
                 },
             )
+            expected_names_by_ref[task_ref] = finding_name
 
-        await runner.run(user_id=user_id, on_event=on_event)
+        previous_records = await self._load_verification_records(
+            source_namespace=source_namespace,
+            user_id=user_id,
+        )
+        run_results = await runner.run(user_id=user_id, on_event=on_event)
+        restored_names = {
+            expected_names_by_ref[result.task_ref]
+            for result in (run_results if isinstance(run_results, list) else [])
+            if result.restored and result.task_ref in expected_names_by_ref
+        }
+        expected_names = set(expected_names_by_ref.values())
+        await self._assert_verifications_persisted(
+            source_namespace=source_namespace,
+            expected_names=expected_names,
+            user_id=user_id,
+            previous_records=previous_records,
+            require_updated_names=expected_names - restored_names,
+        )
+
+    async def _load_verification_records(
+        self,
+        *,
+        source_namespace: str,
+        user_id: str,
+    ) -> dict[str, dict[str, Any]]:
+        filename = f"user:vulnerability-verifications/{source_namespace}"
+        raw = await load_yaml_dict_artifact(
+            self.ctx.artifact_service,
+            app_name=self.ctx.app_name,
+            user_id=user_id,
+            filename=filename,
+        )
+        return {
+            str(item.get("name", key)): item
+            for key, item in raw.items()
+            if isinstance(item, dict)
+        }
+
+    async def _assert_verifications_persisted(
+        self,
+        *,
+        source_namespace: str,
+        expected_names: set[str],
+        user_id: str,
+        previous_records: dict[str, dict[str, Any]] | None = None,
+        require_updated_names: set[str] | None = None,
+    ) -> None:
+        """Reject missing or stale verdicts after a successful runner handshake."""
+        if not expected_names:
+            return
+        filename = f"user:vulnerability-verifications/{source_namespace}"
+        persisted_records = await self._load_verification_records(
+            source_namespace=source_namespace,
+            user_id=user_id,
+        )
+        missing = sorted(expected_names - persisted_records.keys())
+        if missing:
+            raise MissingVerificationError(
+                "trace verifier completed without persisting verification(s) "
+                f"{missing!r} to {filename!r}"
+            )
+
+        previous = previous_records or {}
+        stale = sorted(
+            name
+            for name in (require_updated_names or set())
+            if name in persisted_records
+            and persisted_records[name] == previous.get(name)
+        )
+        if stale:
+            raise MissingVerificationError(
+                "trace verifier completed without updating verification(s) "
+                f"{stale!r} in {filename!r}"
+            )
 
     async def _load_findings(
         self,

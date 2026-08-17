@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>D · Simplification without capability loss — web research</title>
+<style>
+body{margin:0 auto;max-width:900px;background:#0d1117;color:#e6edf3;font:15px/1.62 -apple-system,"Segoe UI",Roboto,sans-serif;padding:30px 22px 90px}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:26px;border-bottom:2px solid #2a3340;padding-bottom:10px;margin-bottom:6px}
+h2{font-size:17px;margin:32px 0 4px;color:#7ee787}
+.lead{color:#8b949e;font-size:14px}
+.src{border-left:3px solid #2a3340;padding:5px 0 5px 14px;margin:9px 0}
+.note{color:#9aa4af;font-size:13.5px;margin-top:2px}
+.none{color:#8b949e;font-style:italic}
+.back{font-family:ui-monospace,monospace;font-size:12px;color:#8b949e;margin-bottom:18px}
+code{background:#161b22;padding:1px 5px;border-radius:4px;font-size:.86em}
+section{scroll-margin-top:18px}
+</style></head><body>
+<div class="back"><a href="../research.html#D">← back to research.html</a></div>
+<h1>D · Simplification without capability loss</h1>
+<p class="lead">Web-sourced prior art, tools, papers and articles relevant to this direction. Links are real web-search results; relevance notes are the researcher's synthesis.</p>
+
+<section id="D1"><h2>D1 — The four trace workflows collapse into one parametrized workflow with no eval regression</h2>
+  <div class="src"><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12784049/" target="_blank">Automated Execution of Data Pipelines based on Configuration Files</a><div class="note">Shows that expressing pipeline variants as configuration over generalized modules reduces duplication and improves maintainability "without sacrificing flexibility" — the exact D1 move of turning four near-identical workflows into config presets of one.</div></div>
+  <div class="src"><a href="https://devblogs.microsoft.com/dotnet/durable-workflows-in-microsoft-agent-framework/" target="_blank">Durable Workflows in the Microsoft Agent Framework</a><div class="note">Demonstrates a single workflow programming model that composes agents via wired executors/flags rather than separate hardcoded pipelines — a concrete pattern for a unified <code>trace</code> workflow parametrized by <code>{driver, graph, path_parallel}</code>.</div></div>
+</section>
+
+<section id="D2"><h2>D2 — Dropping the planner for single-iteration tasks (uniform AgentRunner) cuts LLM calls at equal completion</h2>
+  <div class="src"><a href="https://www.anthropic.com/research/building-effective-agents" target="_blank">Building Effective Agents — Anthropic</a><div class="note">The canonical "find the simplest solution; add agentic complexity only when simpler solutions fall short" guidance. Directly underwrites D2: for single-iteration tasks the planner's add/execute/finish loop is unwarranted overhead.</div></div>
+  <div class="src"><a href="https://towardsdatascience.com/single-agent-vs-multi-agent-when-to-build-a-multi-agent-system/" target="_blank">Single Agent vs Multi-Agent: When to Build (Towards Data Science)</a><div class="note">Quantifies planner/multi-step overhead (chains can multiply cost/latency several-fold) and gives criteria for when a solo agent suffices — the decision rule for which tasks D2 should demote from planner to AgentRunner.</div></div>
+  <div class="src"><a href="https://docs.databricks.com/aws/en/generative-ai/guide/agent-system-design-patterns" target="_blank">Agent system design patterns — Databricks</a><div class="note">Catalogs workflow vs planner-executor vs autonomous-agent patterns and notes a single agent is often "slightly better than planner-executor" on straightforward tasks — supports measuring llm_calls/tokens drop at equal completion.</div></div>
+</section>
+
+<section id="D3"><h2>D3 — Unifying the vuln namespace eliminates the verify/pathpar coupling bug class</h2>
+  <div class="src"><a href="https://www.sonarsource.com/resources/library/sarif/" target="_blank">SARIF: a shared interchange schema between analysis stages</a><div class="note">Illustrates why a single shared contract/namespace between producer and consumer stages prevents the drift D3 targets — when trace engines and the verifier agree on one schema/prefix, "can't consume pathpar output" coupling bugs disappear by construction.</div></div>
+  <div class="src"><a href="https://www.emergentmind.com/topics/agent-driven-pipeline" target="_blank">Agent-Driven Pipeline: Modular AI Workflow (overview)</a><div class="note">Describes wiring pipeline stages through a shared interface/contract so any compliant producer feeds any consumer — the design principle behind replacing the hardcoded <code>trace-annotation:</code> prefix with one shared namespace constant.</div></div>
+</section>
+
+<section id="D4"><h2>D4 — Dropping the records artifact + separate summarizer call reduces tokens/code with no downstream breakage</h2>
+  <div class="src"><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank">Effective Context Engineering for AI Agents — Anthropic</a><div class="note">Argues for carrying the minimum high-signal context and avoiding redundant material that gets re-billed — supports D4's claim that an unconsumed <code>records</code> artifact plus a summarizer that re-bills the full payload is dead weight.</div></div>
+  <div class="src"><a href="https://flagshark.com/blog/dead-code-detection-codebase-more-than-you-think/" target="_blank">Dead Code Detection: Your Codebase Has More Than You Think</a><div class="note">Methodology for proving an artifact/path is unconsumed before deletion (grep consumers, reachability) — the verification D4 needs ("no task declares <code>/records</code>") so removal is provably safe.</div></div>
+</section>
+
+<section id="D5"><h2>D5 — Pruning unwired agents / inactive prompts shrinks maintenance surface with zero eval impact</h2>
+  <div class="src"><a href="https://www.qt.io/product/quality-assurance/axivion/dead-code-analysis" target="_blank">Axivion Dead Code Analysis (reachability on the call relation)</a><div class="note">Documents reachability analysis over the call graph to find dead functions — the exact technique D5 prescribes (confirm <code>web_exploitability_agent</code>/<code>threat_model_agent</code> are unreachable from <code>get_workflows()</code>) before archiving.</div></div>
+  <div class="src"><a href="https://axify.io/blog/dead-code" target="_blank">What Is Dead Code? A Practical Guide for Engineering Leaders</a><div class="note">Frames unused-but-valid code as silent technical debt weakening maintainability — the cost case for D5, and a checklist for safe removal (static reachability + behavior-identical regression test).</div></div>
+  <div class="src"><a href="https://arxiv.org/pdf/2308.16729" target="_blank">Dead Code Identification, Elimination, and Empirical Assessment (arXiv)</a><div class="note">Empirically measures the maintenance/size benefit of eliminating dead code with no behavioral change — supports D5's pass criterion of "eval envelope byte-identical after removal."</div></div>
+</section>
+</body></html>

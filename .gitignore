@@ -19,7 +19,8 @@ __pycache__/*
 /eval_runs*/
 tests/eval/fixtures/*/runs/
 scripts/output/*
-.research/
+# Local clones used while reproducing published research; reports are tracked.
+/docs/research/repos/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

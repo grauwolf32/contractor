@@ -11,30 +11,26 @@ context discovered for one sibling carries to the next.
 
 ``depth`` is the number of leading path segments that define a group;
 ``depth <= 0`` means one group per path (the pre-grouping behavior —
-group key == ``path_key``). Group keys are normalized exactly like
-``OpenApiPath.path_key`` so a single-path group at full depth keeps its
-historical namespace key.
+group key == ``path_key``). Group keys use the same collision-resistant
+encoding as ``OpenApiPath.path_key``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from contractor.workflows.path_keys import openapi_group_key
 from contractor.workflows.trace_annotation import OpenApiOperation, OpenApiPath
 
 
 def group_key_for_path(path: str, depth: int) -> str:
     """Group key for ``path`` at ``depth`` leading segments.
 
-    Normalization mirrors ``OpenApiPath.path_key``: segments joined with
-    ``_``, parameter braces stripped, empty key collapsed to ``root``.
-    ``depth <= 0`` returns the full-path key.
+    ``depth <= 0`` returns the full-path key. Positive depths intentionally
+    map sibling paths to the same selected route prefix, while distinct
+    prefixes receive distinct collision-resistant keys.
     """
-    segments = [s for s in path.strip("/").split("/") if s]
-    if depth > 0:
-        segments = segments[:depth]
-    key = "_".join(segments).replace("{", "").replace("}", "")
-    return key or "root"
+    return openapi_group_key(path, depth)
 
 
 @dataclass(frozen=True)
@@ -56,8 +52,7 @@ def group_paths_by_prefix(
 ) -> list[PathGroup]:
     """Group ``paths`` by their first ``depth`` route segments.
 
-    ``depth <= 0`` yields one group per path keyed by ``path_key`` —
-    byte-identical namespaces to the historical per-path behavior.
+    ``depth <= 0`` yields one group per path keyed by ``path_key``.
     Group order follows first appearance; path order within a group is
     preserved.
     """

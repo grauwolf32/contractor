@@ -10,12 +10,44 @@ from google.adk.models.lite_llm import LiteLLMClient
 
 from contractor.utils.llm_compat import (
     SanitizingLiteLLMClient,
+    forced_response_format,
     forced_tool_choice,
 )
 
 
 def _reset():
     forced_tool_choice.set(None)
+    forced_response_format.set(None)
+
+
+@pytest.mark.asyncio
+async def test_acompletion_injects_response_format_over_preset_none(monkeypatch):
+    """response_format must be injected even though ADK pre-sets it to None.
+
+    Regression: a key-presence guard skipped the override because ADK's
+    lite_llm.py always puts ``response_format=None`` in completion_args, so the
+    forced schema never reached the wire.
+    """
+    captured: dict = {}
+
+    async def fake_super(self, model, messages, tools, **kwargs):
+        captured["kwargs"] = kwargs
+        return "resp"
+
+    monkeypatch.setattr(LiteLLMClient, "acompletion", fake_super)
+    client = SanitizingLiteLLMClient()
+    rf = {"type": "json_schema", "json_schema": {"name": "r", "schema": {}}}
+
+    forced_tool_choice.set("none")
+    forced_response_format.set(rf)
+    try:
+        # ADK passes response_format=None explicitly — must be overridden.
+        await client.acompletion(model="m", messages=[], tools=[], response_format=None)
+    finally:
+        _reset()
+
+    assert captured["kwargs"]["tool_choice"] == "none"
+    assert captured["kwargs"]["response_format"] == rf
 
 
 @pytest.mark.asyncio
