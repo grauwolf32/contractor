@@ -1,9 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
 
 from contractor.callbacks.context import (
     FunctionResultsRemovalCallback,
     SummarizationLimitCallback,
 )
+from contractor.utils.llm_compat import forced_tool_choice
 from tests.units.contractor_tests.helpers import (
     MockContent,
     mk_callback_context,
@@ -117,6 +120,7 @@ def test_summarization_to_state_shape():
         "message",
         "history",
         "fired_invocation_id",
+        "force_tool_choice",
     }
 
 
@@ -531,3 +535,83 @@ def test_to_state_includes_new_fields():
     assert state["deduplicate"] is True
     assert state["counter"] == 0
     assert state["target_tools"] == ["read_file"]
+
+
+# ---------------------------------------------------------------------------
+# SummarizationLimitCallback — forced tool_choice (hard enforcement)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clean_forced_tool_choice():
+    """Keep the shared ContextVar isolated between tests in this module."""
+    forced_tool_choice.set(None)
+    yield
+    forced_tool_choice.set(None)
+
+
+def _request_with_schema(contents=None):
+    """An llm_request stand-in that carries a response schema (as ADK sets for
+    output_schema workers), so the "none" enforcement gate passes."""
+    return SimpleNamespace(
+        contents=list(contents or []),
+        config=SimpleNamespace(response_schema={"type": "object"}),
+    )
+
+
+def test_force_tool_choice_set_when_over_limit():
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+
+    cb = SummarizationLimitCallback(
+        message="summarize", max_tokens=1000, force_tool_choice="none"
+    )
+    cb(ctx, _request_with_schema())
+
+    assert forced_tool_choice.get() == "none"
+    assert cb.to_state()["force_tool_choice"] == "none"
+
+
+def test_force_tool_choice_degrades_without_response_schema():
+    # Over limit + force "none", but no response schema on the request: forcing
+    # "none" would risk raw tool-call markup, so the callback must NOT force.
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+
+    cb = SummarizationLimitCallback(
+        message="summarize", max_tokens=1000, force_tool_choice="none"
+    )
+    cb(ctx, mk_llm_request())  # MockLlmRequest has no .config/response_schema
+
+    assert forced_tool_choice.get() is None
+
+
+def test_force_tool_choice_cleared_when_under_limit():
+    # A stale "none" from a prior over-limit call must be cleared once the
+    # (reset) counter is back under the limit in a new invocation.
+    forced_tool_choice.set("none")
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=100)
+
+    cb = SummarizationLimitCallback(
+        message="summarize", max_tokens=1000, force_tool_choice="none"
+    )
+    cb(ctx, mk_llm_request())
+
+    assert forced_tool_choice.get() is None
+
+
+def test_force_tool_choice_untouched_when_disabled():
+    # Default (force_tool_choice=None) must not publish to the ContextVar,
+    # preserving the prior message-only behaviour.
+    forced_tool_choice.set("sentinel")
+    ctx = mk_callback_context()
+    _seed_token_state(ctx, total=2000)
+
+    cb = SummarizationLimitCallback(message="summarize", max_tokens=1000)
+    request = mk_llm_request()
+    cb(ctx, request)
+
+    assert forced_tool_choice.get() == "sentinel"
+    # message still injected — enforcement is independent of the nudge
+    assert request.contents[0].parts[0].text == "summarize"

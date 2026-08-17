@@ -1110,7 +1110,7 @@ class TestTraceGraphPathParWorkflow:
         return workflow, merge_mock, save_mock
 
     @pytest.mark.asyncio
-    async def test_partial_failure_still_merges_and_saves(self, monkeypatch):
+    async def test_partial_failure_is_skipped_and_siblings_complete(self, monkeypatch):
         workflow, merge_mock, save_mock = self._make_workflow(monkeypatch)
         completed: list[str] = []
 
@@ -1121,10 +1121,12 @@ class TestTraceGraphPathParWorkflow:
 
         monkeypatch.setattr(workflow, "_run_group_analysis", fake_group_analysis)
 
-        with pytest.raises(ExceptionGroup):
-            await workflow._run_impl(user_id="u", on_event=None)
+        # A failed group is skipped (run_skippable_job swallows it) rather than
+        # cancelling its siblings via the TaskGroup — the workflow runs clean.
+        await workflow._run_impl(user_id="u", on_event=None)
 
-        # The completed sibling's fork is still merged and persisted.
+        # The healthy sibling still completed, and the merge/save still ran once.
+        assert completed == ["a"]
         merge_mock.assert_called_once()
         save_mock.assert_awaited_once_with("u")
 

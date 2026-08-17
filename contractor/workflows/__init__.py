@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -141,6 +143,49 @@ class Workflow(ABC):
             task_name=task_name,
             reason=reason,
         )
+
+    async def run_skippable_job(
+        self,
+        awaitable: Awaitable[Any],
+        *,
+        job_name: str,
+        on_event: TaskRunnerEventHandler | None,
+        default: Any = None,
+        skip_on_failure: bool = True,
+    ) -> Any:
+        """Run one fan-out job, isolating its failure from the rest of the run.
+
+        Trace / vuln workflows fan a freshly-built agent out over every
+        OpenAPI path / operation / route group. Without isolation a single
+        job that raises — exhausted retries (``TaskNotCompletedError``), a
+        per-attempt wall-clock timeout, or a transient LLM/tooling error —
+        aborts the enclosing loop and discards every *other* job's annotations.
+
+        By default (``skip_on_failure=True``) such a failure is logged,
+        surfaced as a ``task_skipped`` event, and swallowed so the remaining
+        jobs still run and their artifacts are preserved. Pass
+        ``skip_on_failure=False`` to restore fail-fast behaviour.
+
+        Returns the awaitable's result on success, or ``default`` when skipped.
+        ``asyncio.CancelledError`` / ``KeyboardInterrupt`` are always
+        re-raised — cancellation is not a job failure.
+        """
+        import logging
+
+        try:
+            return await awaitable
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            raise
+        except Exception as exc:
+            if not skip_on_failure:
+                raise
+            logging.getLogger(self.__class__.__module__).warning(
+                "skipping job %s — failed: %s", job_name, exc, exc_info=True
+            )
+            await self.emit_task_skipped(
+                on_event, job_name, reason=f"job_failed: {exc}"
+            )
+            return default
 
 
 async def persist_seed_artifact(ctx: WorkflowContext, filename: str) -> None:

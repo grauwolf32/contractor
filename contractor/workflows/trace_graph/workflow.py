@@ -142,12 +142,16 @@ class TraceGraphWorkflow(Workflow):
         )
 
         for idx, operation in enumerate(api_path.operations):
-            await self._run_operation_trace(
-                operation=operation,
-                idx=idx,
-                namespace=path_namespace,
-                base_variables=base_variables,
-                user_id=user_id,
+            await self.run_skippable_job(
+                self._run_operation_trace(
+                    operation=operation,
+                    idx=idx,
+                    namespace=path_namespace,
+                    base_variables=base_variables,
+                    user_id=user_id,
+                    on_event=on_event,
+                ),
+                job_name=f"trace_annotation:{self.namespace}:{operation.operation_id}",
                 on_event=on_event,
             )
 

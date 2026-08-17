@@ -237,6 +237,12 @@ class TaskTemplate:
     default_skills: list[str] = field(default_factory=list)
     default_iterations: int = 1
     format: str = "json"
+    # Declared parameter placeholders with default values. A task body that
+    # references ``{focus}`` declares ``params: {focus: "<default text>"}`` so
+    # the placeholder renders even when no caller supplies it; a workflow
+    # overrides it via ``add_task(params={"focus": "..."})``. This is what makes
+    # a placeholder *optional* — plain ``str.format`` KeyErrors on a missing key.
+    default_params: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, name: str, version: str | None = None) -> TaskTemplate:
@@ -281,6 +287,10 @@ class TaskTemplate:
             default_skills=list(raw.get("skills", []) or []),
             default_iterations=int(raw.get("iterations", 1) or 1),
             format=raw.get("format", "json") or "json",
+            default_params={
+                str(k): "" if v is None else str(v)
+                for k, v in (raw.get("params", {}) or {}).items()
+            },
         )
 
 
@@ -365,7 +375,12 @@ class RenderedTask:
         params: Mapping[str, Any],
         artifacts: Mapping[str, str],
     ) -> RenderedTask:
-        scope: dict[str, Any] = dict(variables)
+        # Precedence (low → high): template param defaults, then runner-level
+        # variables, then per-invocation params. So a workflow's
+        # ``add_task(params=...)`` overrides the YAML default, and an omitted
+        # param falls back to the declared default instead of raising KeyError.
+        scope: dict[str, Any] = dict(template.default_params)
+        scope.update(variables)
         scope.update(params)
 
         scope["artifacts"] = yaml.safe_dump(

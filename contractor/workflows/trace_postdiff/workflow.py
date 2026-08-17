@@ -161,9 +161,13 @@ class TracePostDiffWorkflow(Workflow):
             if fs_state_artifact:
                 self.overlayfs.load(json.loads(fs_state_artifact.text or "{}"))
 
-            await self._run_group_analysis(
-                group,
-                user_id=user_id,
+            await self.run_skippable_job(
+                self._run_group_analysis(
+                    group,
+                    user_id=user_id,
+                    on_event=on_event,
+                ),
+                job_name=f"trace_annotation:{self.namespace}:{group.key}",
                 on_event=on_event,
             )
 

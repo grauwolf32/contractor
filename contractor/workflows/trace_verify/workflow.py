@@ -77,10 +77,15 @@ class TraceVerifyWorkflow(Workflow):
 
         total_findings = 0
         for api_path in self.paths:
-            total_findings += await self._verify_path_findings(
-                api_path=api_path,
-                user_id=user_id,
+            total_findings += await self.run_skippable_job(
+                self._verify_path_findings(
+                    api_path=api_path,
+                    user_id=user_id,
+                    on_event=on_event,
+                ),
+                job_name=f"trace_verify:{self.namespace}:{api_path.path_key}",
                 on_event=on_event,
+                default=0,
             )
 
         if not total_findings:

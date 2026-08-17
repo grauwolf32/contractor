@@ -17,6 +17,8 @@ from google.adk.models.lite_llm import LiteLlm
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from contractor.utils.llm_compat import SanitizingLiteLLMClient
+
 # The documented config file is `cli/.env`. A bare `load_dotenv()` walks up
 # from *this* module (contractor/utils/ → repo root) and never descends into
 # cli/, so non-CLI entrypoints (tests, scripts) used to miss it — only the CLI
@@ -55,6 +57,15 @@ class Settings(BaseSettings):
     # own defaults.
     model_temperature: float | None = Field(default=None)
     model_top_p: float | None = Field(default=None)
+
+    # Hard enforcement of the summarization-limit request. Once a worker crosses
+    # its token limit, ``SummarizationLimitCallback`` forces this tool_choice on
+    # every model call. "none" forbids tool calls so the worker must emit its
+    # final structured result instead of ignoring the message and running
+    # context to the ceiling. Empty/unset disables enforcement (message-only).
+    # Only the string forms are honored by llama.cpp ("none" | "auto" |
+    # "required"); other backends that ignore tool_choice degrade gracefully.
+    summarization_force_tool_choice: str | None = Field(default="none")
 
     # ── Tool defaults (global baseline; agent code may override) ─────────
     # These are the fallbacks used when a tool/agent factory is called
@@ -128,6 +139,16 @@ class Settings(BaseSettings):
     # don't share one store.
     artifacts_dir: Path | None = Field(default=None, alias="CONTRACTOR_ARTIFACTS_DIR")
 
+    # ── Artifact-pool RAG (pgvector) ─────────────────────────────────────
+    # Optional dense-retrieval backend for the artifact_pool tools. When unset,
+    # pool_search falls back to the dependency-free keyword ranker. Bring the DB
+    # up with deploy/pgvector/deploy_pg.sh; rag_embedding_model is a LiteLLM
+    # proxy alias and rag_embedding_dim must match its output dimension and the
+    # vector(dim) column.
+    rag_db_dsn: str | None = Field(default=None, alias="RAG_DB_DSN")
+    rag_embedding_model: str = Field(default="lm-studio-embed")
+    rag_embedding_dim: int = Field(default=1024)
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -153,6 +174,11 @@ def build_model(
         kwargs["temperature"] = s.model_temperature
     if s.model_top_p is not None:
         kwargs["top_p"] = s.model_top_p
+    # Rename `$ref` tool-schema property names to `ref` on the outbound request
+    # (llama.cpp's tool-call parser crashes on a property literally named `$ref`;
+    # see contractor/utils/llm_compat). Response needs no reverse — the backing
+    # models accept both spellings (validate_by_name + alias="$ref").
+    kwargs["llm_client"] = SanitizingLiteLLMClient()
     return LiteLlm(**kwargs)
 
 

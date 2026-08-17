@@ -125,7 +125,12 @@ class OpenApiArtifact:
             self.schema = copy.deepcopy(openapi_base_schema)
             return self.schema
 
-        self.schema = yaml.safe_load(artifact.text or "")
+        # ``yaml.safe_load`` returns ``None`` for an empty/whitespace/``null``
+        # artifact body; fall back to the base schema so downstream ops
+        # (deep_merge, list_paths, get_info) never dereference ``None``.
+        self.schema = yaml.safe_load(artifact.text or "") or copy.deepcopy(
+            openapi_base_schema
+        )
         return self.schema
 
     async def save_schema(self, ctx: ToolContext) -> int:
@@ -215,8 +220,10 @@ def validate_files(
     if not files:
         return FILE_VALIDATION_NO_FILES_PROVIDED
 
-    banned_ext = tuple(ext)
-    banned = [f for f in files if f.endswith(banned_ext)]
+    banned_ext = tuple(e.lower() for e in ext)
+    # Case-insensitive: ``spec.YAML`` / ``answer.JSON`` must not slip a
+    # non-code file (e.g. a ground-truth spec) past the evidence gate.
+    banned = [f for f in files if f.lower().endswith(banned_ext)]
 
     if banned:
         return FILE_VALIDATION_BANNED_EXTENSIONS.format(

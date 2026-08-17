@@ -62,6 +62,42 @@ model_list:
       api_base: http://localhost:1234/v1
       tpm: 1000000
       rpm: 20
+  # === llama.cpp (llama-server) — GPU-only, system RAM stays flat; served via
+  # deploy/llama.cpp/serve.sh. Each name maps to a PORT — start the matching
+  # model with `PORT=<port> deploy/llama.cpp/serve.sh <model>`. One large model
+  # fits the GPU at a time, so typically only one of these is live.
+  - model_name: llamacpp-qwen3.6-27b-mtp
+    litellm_params:
+      model: openai/qwen3.6-27b-mtp
+      api_key: llamacpp
+      api_base: http://localhost:8081/v1
+      tpm: 1000000
+      rpm: 60
+  - model_name: llamacpp-qwen3.6-35b-a3b-mtp
+    litellm_params:
+      model: openai/qwen3.6-35b-a3b-mtp
+      api_key: llamacpp
+      api_base: http://localhost:8082/v1
+      tpm: 1000000
+      rpm: 60
+  - model_name: llamacpp-qwen3.6-35b-a3b
+    litellm_params:
+      model: openai/qwen3.6-35b-a3b
+      api_key: llamacpp
+      api_base: http://localhost:8083/v1
+      tpm: 1000000
+      rpm: 60
+  # Embedding model for the artifact-pool RAG backend. The alias must match
+  # Settings.rag_embedding_model and the output dimension must match
+  # Settings.rag_embedding_dim (and the vector(dim) column). Point it at
+  # whichever embedding model your backend serves.
+  - model_name: lm-studio-embed
+    litellm_params:
+      model: openai/text-embedding-qwen3-embedding-0.6b
+      api_key: lm-studio
+      api_base: http://localhost:1234/v1
+      tpm: 1000000
+      rpm: 60
 
 
 litellm_settings:

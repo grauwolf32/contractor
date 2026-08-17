@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import fnmatch
 import re
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any, Final, TypeAlias
@@ -16,6 +15,7 @@ from contractor.tools.fs.const import (
     PATH_NOT_FOUND_ERROR,
 )
 from contractor.tools.fs.format import FileFormat
+from contractor.tools.fs.globmatch import glob_to_regex
 from contractor.tools.fs.models import (
     FileInteractionEntry,
     FsEntry,
@@ -189,29 +189,26 @@ class FsspecInteractionFileTools(PathValidationMixin):
                     seen.add(full_path)
                     yield full_path
 
-    def _match_glob(self, file_path: str, root: str, pattern: str) -> bool:
+    @staticmethod
+    def _relative_to_root(file_path: str, root: str) -> str:
         file_path = normalize_slashes(file_path)
         root = normalize_slashes(root).rstrip("/") or "/"
-        pattern = normalize_slashes(pattern)
-
-        if pattern == "**/*":
-            return True
-
         if root == "/":
-            relative = file_path.lstrip("/")
-        else:
-            prefix = root + "/"
-            relative = (
-                file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
-            )
-
-        return fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(file_path, pattern)
+            return file_path.lstrip("/")
+        prefix = root + "/"
+        return file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
 
     def _matched_files(self, path: str, pattern: str) -> list[str]:
+        # Use the same path-aware glob semantics the sandbox ``glob()`` uses
+        # (``*``/``?`` do not cross ``/``), so coverage/interaction stats are
+        # measured over the same file universe the agent sees via ``glob``.
+        # The previous ``fnmatch`` impl let ``*.py`` match ``src/sub/a.py``,
+        # silently skewing the coverage-gap signal the planner consumes.
+        regex = glob_to_regex(normalize_slashes(pattern).lstrip("/"))
         return sorted(
             file_path
             for file_path in self._iter_all_files(path)
-            if self._match_glob(file_path, path, pattern)
+            if regex.match(self._relative_to_root(file_path, path))
         )
 
     def _interaction_entry(self, path: str) -> FileInteractionEntry | None:
