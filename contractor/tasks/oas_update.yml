@@ -1,6 +1,0 @@
-active: v2
-versions:
-  v2:
-    file: oas_update/v2.yml
-  v1:
-    file: oas_update/v1.yml

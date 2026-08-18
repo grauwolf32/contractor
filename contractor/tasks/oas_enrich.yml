@@ -1,6 +1,0 @@
-active: v2
-versions:
-  v2:
-    file: oas_enrich/v2.yml
-  v1:
-    file: oas_enrich/v1.yml

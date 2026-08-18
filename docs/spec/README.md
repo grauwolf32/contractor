@@ -1,67 +1,74 @@
-# Contractor reconstruction specification
+# Contractor v2 implementation specifications
 
-This directory is the implementation-derived specification for Contractor. It
-defines behavior, data contracts, state transitions, safety boundaries, and
-acceptance criteria independently of the programming language used to build it.
-A conforming implementation may use different libraries or runtime technology,
-but it must preserve the observable contracts described here.
+These documents define what must be implemented. They are normative design
+inputs, not a description of the v1 codebase.
 
-The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Examples
-are illustrative unless explicitly called normative.
+The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT** and **MAY** have
+their usual RFC 2119 meaning. Every normative requirement has a stable ID so it
+can later be linked to code and tests.
 
-## Reading order
+## Status model
 
-1. [Product and requirements](01-product-and-requirements.md)
-2. [System architecture](02-system-architecture.md)
-3. [Runtime orchestration](03-runtime-orchestration.md)
-4. [Agents, callbacks, and skills](04-agents-callbacks-skills.md)
-5. [Workflow catalog and algorithms](05-workflows.md)
-6. [Tools and filesystems](06-tools-and-filesystems.md)
-7. [Artifacts, HTTP, OpenAPI, and security records](07-artifacts-http-openapi-security.md)
-8. [CLI and explorer interfaces](08-cli-and-explorer.md)
-9. [Configuration, observability, and deployment](09-configuration-observability-deployment.md)
-10. [Testing and acceptance](10-testing-and-acceptance.md)
-11. [Reconstruction checklist](11-reconstruction-checklist.md)
-12. [Implementation inventory](12-implementation-inventory.md)
+- `Draft` — can still change during implementation discovery.
+- `Accepted` — implementation may depend on the contract.
+- `Implemented` — all mandatory acceptance scenarios pass.
 
-## Specification boundary
+## Specification index
 
-The specification covers:
+| Spec | Scope | Depends on |
+|---|---|---|
+| [00](00-product-scope.md) | Product scope and non-goals | — |
+| [01](01-architecture-boundaries.md) | Components, ports and allowed dependencies | 00 |
+| [02](02-domain-contracts.md) | IDs, DTOs and state machines | 00–01 |
+| [03](03-adk-integration.md) | Optional Google ADK adapter profile | 01–02 |
+| [04](04-database-runtime.md) | PostgreSQL, engine lifecycle and migrations | 01–03 |
+| [05](05-artifacts-and-run-state.md) | PgArtifactService and authoritative RunState | 02, 04 |
+| [06](06-planner-and-workflow.md) | Planner, DAG and recovery semantics | 02–05 |
+| [07](07-agent-runtime-and-a2a.md) | Agent fleet, A2A and attempt lifecycle | 02–06 |
+| [08](08-tools-and-sandbox.md) | Framework-neutral tools and attempt-scoped sandbox | 02, 07 |
+| [09](09-telemetry.md) | Derived observability and bounded projections | 02, 04, 07 |
+| [10](10-control-plane-api.md) | Public API and status projection | 02, 05–07 |
+| [11](11-llm-proxy.md) | Shared model gateway contract | 02–03 |
+| [12](12-operations-security.md) | Startup, shutdown, failure and security | 04–11 |
+| [13](13-testing-and-roadmap.md) | Test matrix, vertical slices and v1 migration | all |
 
-- the command-line product and its local explorer;
-- model-agent, planner, worker, workflow, tool, memory, artifact, and checkpoint
-  behavior;
-- all registered workflows and their persistent inputs and outputs;
-- source-tree sandboxing, overlay editing, live-target HTTP probing, and optional
-  code-execution isolation;
-- configuration, event telemetry, evaluation envelopes, and deployment helpers.
+## Dependency order
 
-It deliberately does not prescribe the source language, web framework, agent
-SDK, serialization library, or database driver. Names such as `TaskRunner`,
-`trace-graph`, and `vulnerability-reports` are retained because they are stable
-product and persistence identifiers, not implementation-language choices.
+```text
+scope → architecture → contracts → framework / ADK adapter boundary
+                                  ↓
+                              database → artifacts / RunState → planner / DAG
+                                  │                              ↓
+                                  ├→ telemetry              agent / A2A → sandbox
+                                  └→ LLM Proxy                   ↓
+                                           control plane → operations → migration
+```
 
-## Sources and precedence
+The first executable milestone proves the portable seam with the smallest
+deterministic configuration:
 
-This specification was derived from executable modules, task and prompt
-manifests, workflow configuration, tests, and deployment files. If two sections
-appear inconsistent, use this precedence order:
+```text
+publish project snapshot
+  → POST /runs
+  → create PlannerRunState artifact
+  → select a one-node static/passthrough plan
+  → commit an Attempt and dispatch outbox record
+  → deliver one A2A attempt idempotently
+  → run one real Worker strategy
+  → stage a Worker result artifact
+  → accept/promote it in a Server RunState CAS
+  → expose final status and derived observability
+```
 
-1. data/storage and safety invariants;
-2. subsystem-specific specification;
-3. architecture overview;
-4. examples and explanatory notes.
+The same port/conformance suites then add decomposing planning and alternate
+ADK/non-ADK Worker implementations without changing the domain or wire DTOs.
 
-A future implementation change is incomplete until the affected specification
-and acceptance tests are updated together.
+## Definition of done for a spec
 
-## Target contract and compatibility notes
+A spec can become `Implemented` only when:
 
-Normative requirements describe the behavior a safe reconstruction must
-provide. Files 05–07 also contain explicitly labeled **compatibility gaps**:
-these record observable weaknesses or inconsistencies in the inspected working
-tree so an implementer can reproduce or migrate existing state knowingly. They
-are not permission to weaken a new implementation. When a compatibility note
-and a normative safety requirement differ, preserve wire/storage readability
-where necessary but implement the normative safety requirement and document the
-migration.
+1. every `MUST` has a code or configuration implementation;
+2. every listed acceptance scenario is automated;
+3. public DTO fixtures are versioned;
+4. failure and cancellation paths are tested;
+5. architecture and operational documentation remain consistent.

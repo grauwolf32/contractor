@@ -1,0 +1,692 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+
+  element system
+
+  element component {
+    style {
+      shape rectangle
+    }
+  }
+
+  element storage {
+    style {
+      shape storage
+    }
+  }
+
+  tag contractor
+  tag adk
+  tag external
+  tag contextOnly
+}
+
+global {
+  styleGroup ownership {
+    style element.tag = #contractor {
+      color primary
+    }
+    style element.tag = #adk {
+      color green
+    }
+    style element.tag = #external {
+      color gray
+      border dashed
+    }
+  }
+}
+
+model {
+  apiClient = actor 'Operator / API Client' {
+    #external
+  }
+
+  llmProxy = system 'LLM Proxy' {
+    #external
+  }
+
+  llmBackend = system 'LLM Backend' {
+    #external
+  }
+
+  otelCollector = system 'OpenTelemetry Collector — optional' {
+    #external
+  }
+
+  observabilityBackend = system 'Observability Backend — optional' {
+    #external
+  }
+
+  database = system 'PostgreSQL — one physical database' {
+    #external
+
+    runCatalog = storage 'Runs / projection / outbox / budget ledger' {
+      #contractor
+    }
+
+    attemptCatalog = storage 'Server attempt catalog / leases / fencing / operation-start gates' {
+      #contractor
+    }
+
+    agentTaskMappings = storage 'Agent task mappings / terminal replay / cancellation / effects / recovery reports' {
+      #contractor
+    }
+
+    agentRegistry = storage 'Agent registrations / leases / persistence-capability verifiers and recovery grants' {
+      #contractor
+    }
+
+    adkSessions = storage 'ADK sessions and events — persistent adapter profiles only' {
+      #adk
+    }
+
+    artifacts = storage 'Artifacts + staged/promoted PlannerRunState versions' {
+      #contractor
+    }
+
+    telemetry = storage 'Telemetry rollups / indexes / retained samples' {
+      #contractor
+    }
+
+    audit = storage 'Append-only security audit log / retention' {
+      #contractor
+    }
+
+    modelInvocations = storage 'Model invocation reservations / provenance / normalized usage ledger' {
+      #contractor
+    }
+  }
+
+  server = system 'Contractor Server — one process' {
+    #contractor
+
+    controlPlane = component 'Control Plane API' {
+      #contractor
+    }
+
+    runOrchestrator = component 'Run Orchestrator' {
+      #contractor
+    }
+
+    plannerStrategy = component 'Planner Strategy Selector' {
+      #contractor
+    }
+
+    workflowRuntime = component 'ADK Workflow — decomposing only' {
+      #adk
+    }
+
+    runPlanner = component 'Decomposing Planner / ADK Adapter' {
+      #contractor
+    }
+
+    passthroughPlanner = component 'Static / Passthrough Planner' {
+      #contractor
+    }
+
+    plannerStateMachine = component 'Planner State Machine' {
+      #contractor
+    }
+
+    runStateStore = component 'RunStateStore / transactional Unit of Work' {
+      #contractor
+    }
+
+    attemptIoWorker = component 'Attempt I/O Worker — outbox + nonterminal observation' {
+      #contractor
+    }
+
+    workerRegistry = component 'Worker Registry' {
+      #contractor
+    }
+
+    agentControlApi = component 'Agent Registry API' {
+      #contractor
+    }
+
+    workerGateway = component 'Worker Gateway' {
+      #contractor
+    }
+
+    a2aClient = component 'A2A Client Adapter' {
+      #contractor
+    }
+
+    attemptControlClient = component 'Attempt Control Client' {
+      #contractor
+    }
+
+    sessionService = component 'ADK SessionService — adapter-selected persistence' {
+      #adk
+    }
+
+    runRepository = component 'Run Repository' {
+      #contractor
+    }
+
+    modelInvocationRepository = component 'Model Invocation Ledger Repository' {
+      #contractor
+    }
+
+    modelClient = component 'Scoped Model Client / Invocation Recorder' {
+      #contractor
+    }
+
+    attemptRepository = component 'Server Attempt / Lease Repository' {
+      #contractor
+    }
+
+    effectEvidenceReader = component 'Read-only Tool Effect Evidence' {
+      #contractor
+    }
+
+    artifactService = component 'PostgreSQL ArtifactService' {
+      #contractor
+    }
+
+    auditRepository = component 'Append-only Audit Repository' {
+      #contractor
+    }
+
+    telemetryProjector = component 'Bounded PostgreSQL Telemetry Projector' {
+      #contractor
+    }
+
+    otelExporter = component 'OpenTelemetry SDK / Exporter' {
+      #contractor
+    }
+
+    telemetryQuery = component 'Observability Query / Projection' {
+      #contractor
+    }
+
+    sessionDiagnostics = component 'Authorized ADK Session Diagnostic Adapter' {
+      #contractor
+    }
+
+    databaseRuntime = component 'Shared SQLAlchemy AsyncEngine' {
+      #contractor
+    }
+
+    controlPlane -> runOrchestrator 'Submit / cancel / query run'
+    controlPlane -> runRepository 'Read durable status projection'
+    controlPlane -> telemetryQuery 'Read diagnostics'
+    controlPlane -> workerRegistry 'Read fleet status'
+    controlPlane -> artifactService 'Stream source artifacts / publish ProjectSnapshotManifest'
+    controlPlane -> auditRepository 'Append fail-closed request/authorization denials; state-change audit uses RunState UoW'
+
+    runOrchestrator -> runRepository 'Reserve model budget when needed; settle / reconcile Proxy usage'
+    runOrchestrator -> modelInvocationRepository 'Read exact invocation evidence/version for result accounting'
+    runOrchestrator -> runStateStore 'Load state / commit scheduler, cancellation and recovery decisions'
+    runOrchestrator -> effectEvidenceReader 'Gate retry from exact effect-evidence snapshot'
+    runOrchestrator -> plannerStrategy 'Resolve pinned strategy for a required plan mutation'
+    plannerStrategy -> runPlanner 'Selected: decompose into Server subtasks'
+    plannerStrategy -> passthroughPlanner 'Selected: instantiate static manifest / one-root specialization'
+    runPlanner -> workflowRuntime 'Execute one fresh ADK planning invocation'
+    runPlanner -> plannerStateMachine 'Submit typed commands for pure validation / apply'
+    passthroughPlanner -> plannerStateMachine 'Submit deterministic TaskSpec / edge commands'
+    plannerStateMachine -> runStateStore 'Commit validated plan state; scheduler later creates Attempts / outbox'
+
+    runStateStore -> artifactService 'Caller-owned session: write state, input grants / promote staged refs'
+    runStateStore -> runRepository 'Caller-owned session: projection / budget / outbox writes'
+    runStateStore -> attemptRepository 'Caller-owned session: accept result / Attempt / lease / fence / operation-gate writes'
+    runStateStore -> auditRepository 'Caller-owned UoW: required submission / cancellation / plan / retry / effect-evidence / transition audit'
+    attemptIoWorker -> runRepository 'Claim / retry / acknowledge execute or cancel command'
+    attemptIoWorker -> workerRegistry 'Execute only: resolve healthy capability before send'
+    attemptIoWorker -> workerGateway 'Send / resume / recover / cancel using committed assignment'
+    workerGateway -> a2aClient 'Standard A2A + required structured Worker profile: execute / stream / list / get / cancel'
+    attemptIoWorker -> attemptControlClient 'Install unknown-task cancellation tombstone'
+    a2aClient -> workerGateway 'Progress / terminal WorkerResult'
+    workerGateway -> attemptIoWorker 'Return endpoint / task mapping / result / usage'
+    attemptIoWorker -> attemptRepository 'Commit WorkerDispatchEnvelope before send; scan/resume; atomically persist terminal result / usage and seal gate/version'
+    attemptRepository -> auditRepository 'Same transaction or durable audit outbox: required dispatch / observation / result mutation audit'
+    attemptIoWorker -> auditRepository 'Append protocol / dispatch-provenance / fence rejection facts on nonmutating rejection paths'
+
+    agentControlApi -> workerRegistry 'Register / heartbeat / drain / unregister'
+    workerRegistry -> auditRepository 'Caller-owned session or durable audit outbox: registration / capability facts'
+
+    runPlanner -> sessionService 'Create Planner invocation session; persistence is profile-conditional'
+    runPlanner -> modelClient 'Model requests with Planner budget scope'
+    modelClient -> modelInvocationRepository 'Record requested/resolved model, status and usage'
+
+    runOrchestrator -> telemetryProjector 'Lifecycle aggregates / retained samples'
+    runOrchestrator -> otelExporter 'Sampled Server spans / metrics'
+    workflowRuntime -> otelExporter 'ADK built-in spans / metrics'
+    runPlanner -> telemetryProjector 'Planner aggregates / retained samples'
+    passthroughPlanner -> telemetryProjector 'Static / root-task aggregates'
+    workerGateway -> telemetryProjector 'Dispatch aggregates / retained samples'
+    telemetryQuery -> runRepository 'Authoritative lifecycle / usage facts'
+    telemetryQuery -> runStateStore 'Authoritative RunState facts'
+    telemetryQuery -> attemptRepository 'Authoritative Attempt / assignment / usage facts'
+    telemetryQuery -> artifactService 'Authoritative artifact metadata'
+    telemetryQuery -> auditRepository 'Authorized security audit facts'
+    telemetryQuery -> modelInvocationRepository 'Authoritative model resolution / invocation usage'
+    telemetryQuery -> sessionDiagnostics 'Optional normalized ADK detail'
+    sessionDiagnostics -> sessionService 'Persistent detail only: authorized/redacted lookup; cursor or one capped terminal scan'
+    artifactService -> auditRepository 'Append artifact authorization denials'
+
+    runStateStore -> databaseRuntime 'Own exactly one AsyncSession / transaction for CAS Unit of Work'
+    runRepository -> databaseRuntime 'Standalone reads or caller-owned Unit-of-Work session'
+    attemptRepository -> databaseRuntime 'Standalone reads or caller-owned Unit-of-Work session'
+    effectEvidenceReader -> databaseRuntime 'Read-only Agent effect evidence / version'
+    workerRegistry -> databaseRuntime 'Short registration / lease transactions'
+    sessionService -> databaseRuntime 'DatabaseSessionService profile only: short ADK DB sessions'
+    artifactService -> databaseRuntime 'Standalone operations or caller-owned Unit-of-Work session'
+    auditRepository -> databaseRuntime 'Append-only authorized audit transactions'
+    modelInvocationRepository -> databaseRuntime 'Durable invocation provenance / usage transactions'
+    telemetryProjector -> databaseRuntime 'Bounded idempotent aggregate / sample batches'
+    telemetryQuery -> databaseRuntime 'Short retained-sample read-only queries'
+
+    databaseRuntime -> database.runCatalog 'Runs, state pointer, outbox and budgets'
+    databaseRuntime -> database.attemptCatalog 'Server-role Attempt and fencing rows'
+    databaseRuntime -> database.agentTaskMappings 'Server read-only tool-effect evidence'
+    databaseRuntime -> database.agentRegistry 'Durable registrations and heartbeat leases'
+    databaseRuntime -> database.adkSessions 'Persistent ADK profile only: ADK-managed schema'
+    databaseRuntime -> database.artifacts 'Metadata, versions, chunks and grants'
+    databaseRuntime -> database.telemetry 'Bounded rollups, indexes and retained samples'
+    databaseRuntime -> database.audit 'Append-only security facts with independent retention'
+    databaseRuntime -> database.modelInvocations 'Requested/resolved model and invocation evidence'
+
+    modelClient -> llmProxy 'Authenticated bounded model requests'
+    otelExporter -> otelCollector 'Export sampled traces / metrics'
+  }
+
+  agent = system 'Contractor Agent — N processes' {
+    #contractor
+
+    runtime = component 'Agent Runtime' {
+      #contractor
+    }
+
+    registryClient = component 'Agent Registry Client' {
+      #contractor
+    }
+
+    a2aServer = component 'A2A Server Adapter' {
+      #contractor
+    }
+
+    attemptControlApi = component 'Attempt Control API' {
+      #contractor
+    }
+
+    workerDefinition = component 'Worker Strategy Registry / Capability Provider' {
+      #contractor
+    }
+
+    workerExecution = component 'Worker Strategy Port' {
+      #contractor
+    }
+
+    workerAgent = component 'ADK Worker Strategy — optional' {
+      #adk
+    }
+
+    nativeWorker = component 'Trusted Native / Alternate Worker Strategy' {
+      #contractor
+    }
+
+    toolDispatch = component 'Scoped ToolInvoker / Policy Enforcement' {
+      #contractor
+    }
+
+    toolsets = component 'Contractor Toolsets' {
+      #contractor
+    }
+
+    sandboxManager = component 'Sandbox Manager' {
+      #contractor
+    }
+
+    agentTaskRepository = component 'Agent Task Mapping Repository' {
+      #contractor
+    }
+
+    modelInvocationRepository = component 'Model Invocation Ledger Repository' {
+      #contractor
+    }
+
+    modelClient = component 'Attempt-scoped Model Client / Invocation Recorder' {
+      #contractor
+    }
+
+    sessionService = component 'ADK SessionService — adapter-selected persistence' {
+      #adk
+    }
+
+    artifactService = component 'PostgreSQL ArtifactService / RLS' {
+      #contractor
+    }
+
+    auditRepository = component 'Append-only Audit Repository' {
+      #contractor
+    }
+
+    telemetryProjector = component 'Bounded PostgreSQL Telemetry Projector' {
+      #contractor
+    }
+
+    otelExporter = component 'OpenTelemetry SDK / Exporter' {
+      #contractor
+    }
+
+    databaseRuntime = component 'Shared SQLAlchemy AsyncEngine' {
+      #contractor
+    }
+
+    a2aServer -> runtime 'Deliver WorkerDispatchEnvelope / stream / cancel'
+    attemptControlApi -> runtime 'Install tombstone / return known task identity'
+    runtime -> registryClient 'Register / heartbeat / drain / unregister'
+    runtime -> agentTaskRepository 'Guarded writes: job/assignment, start-operation ID, recovery, resources, effects, cancellation and atomic terminal replay record'
+    runtime -> workerDefinition 'Verify exact assigned capability / implementation digest'
+    workerDefinition -> workerExecution 'Resolve exact allow-listed local strategy'
+    runtime -> workerExecution 'Start / recover-start / cancel handle-or-ref / inspect-reconcile / await termination acknowledgement'
+    workerExecution -> runtime 'Progress / terminal result; Runtime closes scoped context before terminal emission'
+    workerExecution -> workerAgent 'Configured ADK binding'
+    workerExecution -> nativeWorker 'Configured non-ADK binding'
+    runtime -> sandboxManager 'Acquire policy-required / cancel / release workspace lease'
+    runtime -> artifactService 'Read granted inputs / commit Attempt-scoped staged outputs'
+    agentTaskRepository -> auditRepository 'Same caller-owned transaction or durable audit outbox: required mapping / dispatch-provenance / cancellation / termination / effect audit'
+
+    workerAgent -> sessionService 'Use configured ADK Attempt session; persistence is profile-conditional'
+    workerAgent -> toolDispatch 'Invoke through scoped policy boundary'
+    nativeWorker -> toolDispatch 'Invoke through same scoped policy boundary when needed'
+    toolDispatch -> toolsets 'Resolve Contractor capabilities'
+    toolDispatch -> agentTaskRepository 'Gate-serialized effect intent; monotonic outcome / provider reference'
+    toolDispatch -> auditRepository 'Append fail-closed policy-denial facts on the nonmutating path'
+    toolDispatch -> sandboxManager 'Independently enforce target / egress / time scope'
+    toolsets -> sandboxManager 'Attempt-scoped fork / patch / merge workspace operations'
+    toolsets -> artifactService 'Read immutable bases / stage patch and final artifacts'
+    artifactService -> auditRepository 'Append artifact authorization denials'
+    workerAgent -> modelClient 'Model requests when model-backed'
+    nativeWorker -> modelClient 'Model requests when model-backed'
+    modelClient -> modelInvocationRepository 'Before Proxy I/O: commit the transactional per-invocation / Attempt reservation guard under the operation-start gate; then record monotonic evidence / usage'
+    modelClient -> llmProxy 'Only after committed reservation guard: authenticated bounded Attempt-scoped request'
+
+    runtime -> telemetryProjector 'Runtime aggregates / retained samples'
+    workerExecution -> telemetryProjector 'Derived strategy / usage aggregates'
+    workerAgent -> otelExporter 'ADK built-in sampled spans / metrics'
+    nativeWorker -> otelExporter 'Optional sampled native spans / metrics'
+    toolDispatch -> telemetryProjector 'Tool aggregates / retained samples'
+    sandboxManager -> telemetryProjector 'Resource aggregates / retained samples'
+
+    sessionService -> databaseRuntime 'DatabaseSessionService profile only: short ADK DB sessions'
+    agentTaskRepository -> databaseRuntime 'Generation-capability-guarded task-mapping / recovery transactions'
+    artifactService -> databaseRuntime 'Short transactions'
+    auditRepository -> databaseRuntime 'Append-only Agent-scoped audit transactions'
+    modelInvocationRepository -> databaseRuntime 'Generation/gate-guarded Agent invocation evidence'
+    telemetryProjector -> databaseRuntime 'Bounded idempotent aggregate / sample batches'
+
+    databaseRuntime -> database.agentTaskMappings 'Agent-role / RLS-scoped mappings, effects and recovery reports only'
+    databaseRuntime -> database.attemptCatalog 'Guarded read/lock of assigned operation-start gate; no Agent DML'
+    databaseRuntime -> database.agentRegistry 'Verify persistence capability / scoped recovery grant; no Agent DML'
+    databaseRuntime -> database.adkSessions 'Persistent ADK profile only: ADK-managed schema'
+    databaseRuntime -> database.artifacts 'RLS-scoped artifact access'
+    databaseRuntime -> database.telemetry 'Bounded rollups, indexes and retained samples'
+    databaseRuntime -> database.audit 'Append Agent-scoped security facts only'
+    databaseRuntime -> database.modelInvocations 'Agent append / Server read model evidence'
+
+    otelExporter -> otelCollector 'Export sampled traces / metrics'
+  }
+
+  apiClient -> server 'Submit / cancel / query runs; stream source artifacts' #contextOnly
+  apiClient -> server.controlPlane 'Versioned API: source artifacts / ProjectSnapshotManifest / runs'
+  server -> agent 'Dispatch attempts over A2A' #contextOnly
+  server -> database 'Persist server state' #contextOnly
+  agent -> database 'Persist inbound task mappings, staged artifacts, audit and bounded telemetry' #contextOnly
+  server -> llmProxy 'Enabled model-backed Planner requests' #contextOnly
+  agent -> llmProxy 'Enabled model-backed Worker strategy requests' #contextOnly
+  server -> otelCollector 'Export sampled Server telemetry' #contextOnly
+  agent -> otelCollector 'Export sampled Agent telemetry' #contextOnly
+  llmProxy -> llmBackend 'Provider requests'
+  otelCollector -> observabilityBackend 'Export sampled traces / metrics'
+
+  server.a2aClient -> agent.a2aServer 'Authenticated A2A + negotiated Contractor Worker profile'
+  server.attemptControlClient -> agent.attemptControlApi 'mTLS PUT /internal/v1/attempt-cancellations/{attempt_id}'
+  agent.registryClient -> server.agentControlApi 'mTLS private HTTPS control protocol'
+}
+
+views {
+  view index {
+    title 'Contractor v2 — System Context'
+
+    include apiClient
+    include server
+    include agent
+    include database
+    include llmProxy
+    include llmBackend
+    include otelCollector
+    include observabilityBackend
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view orchestration {
+    title 'Contractor v2 — Run Orchestration'
+
+    include server
+    include server.controlPlane
+    include server.artifactService
+    include server.runOrchestrator
+    include server.plannerStrategy
+    include server.workflowRuntime
+    include server.runPlanner
+    include server.modelClient
+    include server.passthroughPlanner
+    include server.plannerStateMachine
+    include server.runStateStore
+    include server.runRepository
+    include server.modelInvocationRepository
+    include server.attemptRepository
+    include server.effectEvidenceReader
+    include server.auditRepository
+    include server.attemptIoWorker
+    include server.workerRegistry
+    include server.workerGateway
+    include server.a2aClient
+    include server.attemptControlClient
+
+    include agent
+    include agent.a2aServer
+    include agent.attemptControlApi
+    include agent.runtime
+    include agent.workerExecution
+    include agent.workerAgent
+    include agent.nativeWorker
+    include agent.modelClient
+
+    include llmProxy
+    include apiClient
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view workerAttempt {
+    title 'Contractor v2 — Worker Attempt'
+
+    include server
+    include server.a2aClient
+    include server.attemptControlClient
+
+    include agent
+    include agent.a2aServer
+    include agent.attemptControlApi
+    include agent.runtime
+    include agent.agentTaskRepository
+    include agent.modelInvocationRepository
+    include agent.workerDefinition
+    include agent.workerExecution
+    include agent.workerAgent
+    include agent.nativeWorker
+    include agent.modelClient
+    include agent.toolDispatch
+    include agent.toolsets
+    include agent.sandboxManager
+    include agent.auditRepository
+
+    include llmProxy
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view serverPersistence {
+    title 'Contractor v2 — Server Persistence and Telemetry'
+
+    include database
+    include database.runCatalog
+    include database.attemptCatalog
+    include database.agentTaskMappings
+    include database.agentRegistry
+    include database.adkSessions
+    include database.artifacts
+    include database.telemetry
+    include database.audit
+    include database.modelInvocations
+
+    include server
+    include server.runStateStore
+    include server.runRepository
+    include server.modelInvocationRepository
+    include server.modelClient
+    include server.attemptRepository
+    include server.effectEvidenceReader
+    include server.workerRegistry
+    include server.sessionService
+    include server.sessionDiagnostics
+    include server.artifactService
+    include server.auditRepository
+    include server.telemetryProjector
+    include server.otelExporter
+    include server.telemetryQuery
+    include server.databaseRuntime
+
+    include otelCollector
+    include observabilityBackend
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view agentPersistence {
+    title 'Contractor v2 — Agent Persistence and Telemetry'
+
+    include database
+    include database.agentTaskMappings
+    include database.adkSessions
+    include database.artifacts
+    include database.telemetry
+    include database.audit
+    include database.modelInvocations
+
+    include agent
+    include agent.agentTaskRepository
+    include agent.modelInvocationRepository
+    include agent.modelClient
+    include agent.sessionService
+    include agent.artifactService
+    include agent.auditRepository
+    include agent.telemetryProjector
+    include agent.otelExporter
+    include agent.databaseRuntime
+
+    include otelCollector
+    include observabilityBackend
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view fleetControl {
+    title 'Contractor v2 — Agent Fleet Control'
+
+    include server
+    include server.controlPlane
+    include server.agentControlApi
+    include server.workerRegistry
+    include server.workerGateway
+    include server.databaseRuntime
+
+    include agent
+    include agent.runtime
+    include agent.registryClient
+
+    include database
+    include database.agentRegistry
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view observability {
+    title 'Contractor v2 — Authoritative Observability, Audit and OTel'
+
+    include apiClient
+
+    include server
+    include server.controlPlane
+    include server.telemetryQuery
+    include server.runStateStore
+    include server.runRepository
+    include server.modelInvocationRepository
+    include server.modelClient
+    include server.attemptRepository
+    include server.effectEvidenceReader
+    include server.artifactService
+    include server.auditRepository
+    include server.sessionDiagnostics
+    include server.sessionService
+    include server.telemetryProjector
+    include server.otelExporter
+    include server.databaseRuntime
+
+    include agent
+    include agent.runtime
+    include agent.workerExecution
+    include agent.modelInvocationRepository
+    include agent.modelClient
+    include agent.workerAgent
+    include agent.nativeWorker
+    include agent.toolDispatch
+    include agent.sandboxManager
+    include agent.auditRepository
+    include agent.telemetryProjector
+    include agent.otelExporter
+    include agent.databaseRuntime
+
+    include database
+    include database.runCatalog
+    include database.attemptCatalog
+    include database.agentTaskMappings
+    include database.artifacts
+    include database.adkSessions
+    include database.telemetry
+    include database.audit
+    include database.modelInvocations
+
+    include otelCollector
+    include observabilityBackend
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+}
