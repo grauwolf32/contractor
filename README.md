@@ -27,6 +27,7 @@ defined in the roadmap.
 
 ## Documentation
 
+- [Current core execution model](docs/core-execution-model.md)
 - [Architecture model](docs/architecture.c4)
 - [Architecture and ownership guide](docs/README.md)
 - [Implementation specifications](docs/spec/README.md)

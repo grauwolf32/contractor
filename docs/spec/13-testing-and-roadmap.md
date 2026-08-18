@@ -142,6 +142,12 @@ model responses.
   sandbox policy and total budget class MUST be paired; unavoidable Task-
   granularity/placement differences are recorded and the conclusion is labeled
   an end-to-end coordination-strategy comparison, not a Planner-only causal claim.
+- **TST-022** — CI MUST validate canonical workflow-profile fixtures and catalog
+  resolution. The suite MUST cover explicit and default version selection,
+  catalog reload races, duplicate key/version reassignment, profile disabling,
+  objective/input/override rejection and caller attempts to weaken required
+  outputs or authorization. Every accepted fixture MUST assert the exact
+  `WorkflowProfileRef` committed into `RunSpec`.
 
 ## Scheduled/release strategy evaluation
 
@@ -253,8 +259,8 @@ Each entry records:
   v2 `PlannerStrategyRef` (`static`, its `passthrough` specialization, or
   `decomposing`) plus its implementation/configuration digests and intended
   `TaskSpec` graph mapping;
-- the exact v2 workflow/execution/catalog profile version and digest, RunSpec
-  contract, Worker capability/implementation constraints and resolved tool,
+- the exact v2 `WorkflowProfileRef`, `PlannerStrategyRef`, RunSpec contract,
+  Worker capability/implementation constraints and resolved tool,
   prompt, requested/resolved model and sandbox-policy versions/digests,
   separately from the corresponding resolved v1 values;
 - for any external effect, the source behavior and candidate v2 effect class,
@@ -305,6 +311,8 @@ migrated.
 - `PlannerStrategy` and framework-neutral `WorkerStrategy` ports plus a no-ADK
   import/conformance profile;
 - DTO fixtures and generated Control Plane API skeleton.
+- canonical `WorkflowProfile`/catalog fixtures with one deterministic bootstrap
+  workflow and atomic default-version resolution;
 
 Exit: `SCP`, `ARC` and `CON` core tests pass without ADK; enabling the ADK
 profile also passes its `ADK` capability tests.

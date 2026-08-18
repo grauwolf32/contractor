@@ -18,20 +18,26 @@ The initial HTTP API is versioned under `/v1`:
 - `GET /v1/artifacts/{artifact_id}/versions/{version}` — fetch metadata/content;
 - `GET /v1/runs/{run_id}/events` — paginated diagnostic timeline;
 - `GET /v1/workflows` — versioned public workflow/profile catalog;
+- `GET /v1/workflows/{workflow_key}/versions/{profile_version}` — one exact
+  enabled public workflow profile;
 - `GET /v1/agents` — fleet status for operators;
 - `/health/live` and `/health/ready` — process probes.
 
 The exact web framework is an adapter choice. Public responses expose v2 DTOs,
 not ADK Session/Event, SQLAlchemy or A2A SDK models.
 
-`POST /v1/runs` accepts a versioned objective, exact input ArtifactRefs,
-expected-output contracts, an authorized workflow/execution profile and an
-authorized Planner-profile selection. Bounded caller overrides are part of the
-profile schema. Server resolves these inputs to an immutable `RunSpec` and
-exact `PlannerStrategyRef` and commits both before returning success. Unknown
-objective fields, artifact kinds, policy overrides and output contracts fail
-closed. The request never accepts a caller-constructed `TaskSpec`, `WorkerJob`,
-Attempt/fencing identity, implementation module or unvalidated Agent endpoint.
+`POST /v1/runs` accepts a `workflow_key`, optional exact
+`workflow_profile_version`, versioned objective, named exact input ArtifactRefs,
+optional authorized Planner-profile key and bounded caller overrides. It does
+not accept caller-authored expected-output contracts. Server resolves one
+enabled exact `WorkflowProfile`, derives those outputs and the other product
+constraints, and commits an immutable `RunSpec` with its `WorkflowProfileRef`
+plus the exact `PlannerStrategyRef` before returning success. If the version is
+omitted, resolution uses the enabled default from the same catalog snapshot and
+returns the exact selected ref. Unknown objective fields, artifact kinds,
+binding names, policy overrides or Planner choices fail closed. The request
+never accepts a caller-constructed `TaskSpec`, `WorkerJob`, Attempt/fencing
+identity, implementation module or unvalidated Agent endpoint.
 
 The first release has one canonical source-ingestion path. A caller uploads
 content as bounded streaming multipart to `POST /v1/artifacts`, declaring its
@@ -117,6 +123,24 @@ it is not part of the public Control Plane `/v1` contract.
   require an explicit operator permission in addition to tenant/run scope. A
   normal run owner receives only its normalized, redacted lifecycle/detail and
   cannot enumerate Agent endpoints, other principals or audit targets.
+- **API-020** — Workflow catalog responses MUST expose canonical immutable
+  profile bodies and their `WorkflowProfileRef` values. The list identifies the
+  enabled versions and current default separately from immutable profile
+  semantics. A key/version tuple MUST NOT be reassigned to different canonical
+  bytes or digest within or across compatible releases.
+- **API-021** — Run submission MUST resolve profile, objective, named inputs,
+  Planner choice and overrides against one catalog snapshot. If a version is
+  omitted, Server MUST persist and return the exact default profile ref it
+  selected. A concurrent catalog reload MUST produce either a Run wholly
+  resolved under the old snapshot or one wholly resolved under the new snapshot.
+- **API-022** — Expected Run outputs and their validators MUST be derived from
+  the selected workflow profile. A submission payload MUST NOT author, remove
+  or weaken them. A future selectable output variant is valid only as a closed
+  named choice already declared by that exact profile version.
+- **API-023** — Disabling a workflow profile or moving its default MUST affect
+  only later submissions. Status MUST expose the committed
+  `WorkflowProfileRef`; recovery and output acceptance for an existing Run MUST
+  NOT require current catalog enablement.
 
 ## Acceptance
 
@@ -155,3 +179,13 @@ it is not part of the public Control Plane `/v1` contract.
     either RunState/projection/applicable outbox/required audit facts all
     committed or none; an API success is never returned for a missing required
     audit fact.
+16. Submitting without a profile version returns and commits the exact default
+    `WorkflowProfileRef`. Moving the default during a catalog reload cannot mix
+    fields from two profiles; the old Run remains recoverable after its profile
+    is disabled.
+17. A submission that attempts to omit a required output, replace its validator
+    or widen an authorization/tool policy is rejected as an unknown field or
+    forbidden override before RunState creation.
+18. Catalog list and exact-profile responses have stable canonical bytes and
+    digests; two releases cannot assign different profile bodies to the same
+    workflow key/version tuple.

@@ -108,6 +108,10 @@ model {
       #contractor
     }
 
+    workflowCatalog = component 'Workflow Catalog' {
+      #contractor
+    }
+
     runOrchestrator = component 'Run Orchestrator' {
       #contractor
     }
@@ -213,6 +217,7 @@ model {
     }
 
     controlPlane -> runOrchestrator 'Submit / cancel / query run'
+    controlPlane -> workflowCatalog 'List exact enabled workflow profiles'
     controlPlane -> runRepository 'Read durable status projection'
     controlPlane -> telemetryQuery 'Read diagnostics'
     controlPlane -> workerRegistry 'Read fleet status'
@@ -220,6 +225,7 @@ model {
     controlPlane -> auditRepository 'Append fail-closed request/authorization denials; state-change audit uses RunState UoW'
 
     runOrchestrator -> runRepository 'Reserve model budget when needed; settle / reconcile Proxy usage'
+    runOrchestrator -> workflowCatalog 'Resolve one atomic profile / Planner choice snapshot at submission'
     runOrchestrator -> modelInvocationRepository 'Read exact invocation evidence/version for result accounting'
     runOrchestrator -> runStateStore 'Load state / commit scheduler, cancellation and recovery decisions'
     runOrchestrator -> effectEvidenceReader 'Gate retry from exact effect-evidence snapshot'
@@ -472,6 +478,7 @@ views {
 
     include server
     include server.controlPlane
+    include server.workflowCatalog
     include server.artifactService
     include server.runOrchestrator
     include server.plannerStrategy

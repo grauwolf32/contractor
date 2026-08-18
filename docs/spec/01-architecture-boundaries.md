@@ -35,6 +35,10 @@ The domain/application layers depend on ports with no ADK, SQLAlchemy, FastAPI
 or A2A types in their signatures:
 
 - `RunStateStore` — load and compare-and-swap `PlannerRunState`;
+- `WorkflowCatalog` — expose one immutable catalog snapshot, resolve an enabled
+  exact/default `WorkflowProfile` and its allowed Planner-profile key, and
+  return canonical profile identity without web-framework or configuration-
+  loader types;
 - `PlannerStrategy` — propose typed Planner commands from one exact RunState;
   decomposing, static-manifest and deterministic passthrough Planners implement
   this same Server-local port and produce `TaskSpec`, not `WorkerJob`, values;
@@ -114,6 +118,11 @@ or A2A types in their signatures:
   changes MUST participate in the `RunStateStore` caller-owned Unit of Work.
   Control Plane MUST NOT perform a separate best-effort submission/cancellation
   audit write after the state mutation.
+- **ARC-017** — Workflow-catalog loading and atomic snapshot resolution MUST be
+  behind `WorkflowCatalog`. Control Plane adapts request/response DTOs but MUST
+  NOT construct expected-output, completion or authorization semantics itself.
+  Run creation persists the resolved `WorkflowProfileRef` and derived RunSpec;
+  later recovery MUST NOT depend on catalog availability or current defaults.
 
 ## Acceptance
 
@@ -141,3 +150,6 @@ or A2A types in their signatures:
 12. A fault between submission/cancellation state mutation and its required
     audit append commits both or neither; result settlement reads one exact
     model-invocation evidence snapshot.
+13. A fake `WorkflowCatalog` can drive run-submission tests without FastAPI or a
+    configuration loader; swapping the catalog adapter cannot change an
+    already-committed RunSpec or its output acceptance.

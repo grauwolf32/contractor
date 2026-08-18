@@ -73,8 +73,9 @@ Attempt's staged output is never promoted and is removed by retention policy.
 `PlannerRunState` is a `run`-scoped versioned artifact containing:
 
 - `schema_version`, `run_id` and logical plan generation;
-- the exact immutable `RunSpec` and `PlannerStrategyRef` selected when the run
-  is created, including their verified hashes;
+- the exact immutable `RunSpec`, including its `WorkflowProfileRef`, and
+  `PlannerStrategyRef` selected when the run is created, including their
+  verified hashes;
 - immutable Task definitions that permanently bind each `TaskId` to one exact
   `TaskSpec` hash, optional explicit `supersedes_task_id` relations and
   dependency edges accepted from the selected Planner strategy;
@@ -216,11 +217,12 @@ precondition or multi-record Unit of Work.
   in the Server Attempt record together with its exact gate seal/revocation
   version. Its fencing/gate-version acceptance, staged-ref promotion and Worker-
   budget settlement MUST commit or roll back together.
-- **ART-019** — The exact `RunSpec` and `PlannerStrategyRef`, including their
-  recoverable content, implementation/configuration identity and verified
-  hashes, MUST be pinned in the first RunState version and remain unchanged for
-  that run. Recovery MUST fail safely rather than substitute deployment defaults
-  or a reassigned strategy version.
+- **ART-019** — The exact `RunSpec` with its `WorkflowProfileRef` and the exact
+  `PlannerStrategyRef`, including all recoverable content,
+  implementation/configuration identity and verified hashes, MUST be pinned in
+  the first RunState version and remain unchanged for that run. Recovery MUST
+  fail safely rather than substitute deployment defaults, current catalog
+  enablement or a reassigned strategy/profile version.
 - **ART-020** — Every authoritative task definition MUST be an exact immutable
   TaskId/`TaskSpec`-hash binding accepted under the pinned RunSpec. A Planner
   proposal MUST NOT contain an Attempt-specific `WorkerJob` or rebind an existing

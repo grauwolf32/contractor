@@ -118,6 +118,46 @@ and an atomic publication commit of the manifest plus exact dependency records.
 A later Git/object-store importer is another producer of the same manifest
 contract; it does not add filesystem paths to `RunSpec`.
 
+### `WorkflowProfile` and `WorkflowProfileRef`
+
+`WorkflowProfile` is the immutable product contract exposed by the workflow
+catalog. Required fields are `protocol_version`, stable public `workflow_key`,
+`profile_version`, product-capability family, objective contract, named input
+bindings, named output bindings, deterministic run completion/failure policy,
+allowed Planner profile keys, bounded caller-override contract,
+authorization-policy contract and `profile_sha256`.
+
+Each input binding declares its name, cardinality, accepted artifact kinds,
+media types and schema versions. Each output binding declares its name,
+cardinality, artifact kind, media type, schema version, whether it is required
+or conditionally required and the versioned validator contract used before
+acceptance. Conditions are closed, versioned data expressions over the accepted
+objective/inputs; they are not executable code. An output binding may designate
+one primary deliverable and supporting provenance/validation artifacts, but a
+summary or terminal transport status is never an implicit output.
+
+Allowed Planner profile keys are public catalog choices that resolve to exact
+`PlannerStrategyRef` values at submission. The override contract is a closed
+schema with limits and authorization rules; it cannot accept implementation
+modules, Agent endpoints, credentials or a policy wider than the profile.
+Enabled/disabled state and which version is the current submission default are
+deployment catalog metadata, not fields whose mutation changes the immutable
+profile.
+
+`WorkflowProfileRef` required fields are `protocol_version`, `workflow_key`,
+`profile_version` and `profile_sha256`. The tuple of key and version MUST resolve
+to exactly one canonical profile body and digest in a release. Reassigning that
+tuple to different semantics is forbidden. `profile_sha256` uses the canonical
+rules above over the complete `WorkflowProfile` with only its self-digest
+omitted.
+
+At submission, Server resolves one enabled exact profile (using the enabled
+default only when the client omitted a version), validates and authorizes the
+objective, exact inputs, Planner choice and overrides against that same catalog
+snapshot, and derives the immutable RunSpec. Recovery and result acceptance use
+the committed RunSpec and profile ref; they never re-resolve a mutable catalog
+default or require the old profile to remain enabled.
+
 ### `PlannerStrategyRef`
 
 Required fields: `protocol_version`, `strategy_id`, `strategy_version`,
@@ -138,11 +178,12 @@ defaults and reassignable version labels are not sufficient recovery identity.
 ### `RunSpec`, `TaskSpec` and routing
 
 `RunSpec` is the immutable accepted run input. Required fields:
-`protocol_version`, `run_spec_version`, objective contract/value, expected run
-outputs, exact input artifacts, default Worker routing/capability policy, retry
-policy, deterministic run completion/failure policy, budget/deadline allocation
-and exact tool/model/sandbox policy refs, plus `run_spec_sha256`. Large objective
-content is referenced as an `ArtifactRef`.
+`protocol_version`, `run_spec_version`, exact `workflow_profile_ref`, objective
+contract/value, expected run outputs derived from that profile, exact input
+artifacts, default Worker routing/capability policy, retry policy, deterministic
+run completion/failure policy, budget/deadline allocation and exact
+tool/model/sandbox policy refs, plus `run_spec_sha256`. Large objective content
+is referenced as an `ArtifactRef`.
 
 `TaskSpec` is an immutable unit of planned work. Required fields:
 `protocol_version`, `task_spec_version`, `worker_kind`, `job_contract`, typed
@@ -733,6 +774,18 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   state. Query, redelivery and replacement inspection MUST replay that exact
   canonical DTO/media type/digest; they MUST NOT reconstruct, replace or combine
   terminal outcomes from session events, provider state or mutable defaults.
+- **CON-045** — Every `RunSpec` MUST contain the exact `WorkflowProfileRef`
+  selected at submission. Server MUST derive its objective, input, expected-
+  output, completion and authorization constraints from one hash-verified
+  profile plus authorized bounded overrides. A caller or Planner MUST NOT add,
+  remove or weaken output bindings or authorization constraints outside that
+  contract.
+- **CON-046** — Workflow-profile resolution MUST be atomic with respect to one
+  catalog snapshot. Omitting a profile version selects the enabled default from
+  that snapshot and persists its exact ref; supplying a version selects only
+  that enabled exact version. Recovery, retry, result acceptance and output
+  validation MUST use the committed RunSpec and MUST NOT re-resolve the current
+  catalog, even if the selected profile is later disabled or its default moves.
 
 ## Acceptance
 
@@ -858,3 +911,14 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
     makes `GetTask` replay byte-identical canonical data, media type, digest,
     state and usage. A crash before that commit exposes no terminal outcome, and
     a replacement cannot manufacture one from provider/session observations.
+40. Workflow-profile fixtures reject duplicate key/version tuples with different
+    bytes, wrong profile digests, unknown input/output kinds, open override
+    fields and executable condition expressions. Canonically equivalent profile
+    input yields the same `WorkflowProfileRef`.
+41. A submission through a default and one through an explicit profile version
+    commit exact profile refs. Moving the default and disabling the prior
+    profile changes new resolution only; recovery and output acceptance for the
+    existing Runs remain byte-identical.
+42. A caller cannot remove a required output, substitute an unapproved validator
+    or widen a live-target/tool policy. The resulting RunSpec contains only
+    profile-derived constraints plus authorized bounded overrides.

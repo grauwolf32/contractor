@@ -143,9 +143,10 @@ another framework or custom code.
   contracts. A successful transport or WorkerResult MUST NOT make the Run a
   product success when a required deliverable is absent or invalid.
 - **SCP-013** — Every accepted product deliverable MUST be attributable to the
-  exact project snapshot, input artifacts, workflow/execution profile and
-  effective model/tool/prompt/sandbox policy versions that produced it. Optional
-  diagnostic detail MUST NOT be required to establish that provenance.
+  exact project snapshot, input artifacts, `WorkflowProfileRef`,
+  `PlannerStrategyRef`, Worker execution provenance and effective
+  model/tool/prompt/sandbox policy versions that produced it. Optional diagnostic
+  detail MUST NOT be required to establish that provenance.
 - **SCP-014** — Live-target interaction is a distinct, explicitly authorized
   product capability. Source analysis, API/architecture generation, tracing and
   static verification MUST NOT acquire live-target or unrestricted egress
@@ -154,6 +155,12 @@ another framework or custom code.
   framework or A2A adapter MUST NOT change the semantics of a pinned workflow-
   profile version. A semantic objective/input/output/authorization change
   requires a new cataloged workflow-profile version.
+- **SCP-016** — Every accepted Run MUST pin an immutable
+  `WorkflowProfileRef`. The workflow key is a stable public product name, not a
+  mutable semantic contract: changing objective, input, output, completion or
+  authorization semantics requires a new profile version and digest. Disabling
+  a profile or changing the catalog default MUST NOT change recovery or output
+  acceptance for an existing Run.
 
 ## Non-goals for the first release
 
@@ -202,3 +209,6 @@ another framework or custom code.
 12. A static-analysis Run has no live-target capability. An exploitability Run
     sends traffic only when its exact target/operation/egress/time authorization
     is valid and returns a typed verdict plus bounded evidence.
+13. A Run submitted through a catalog default records the exact resolved
+    `WorkflowProfileRef`; changing that default or disabling the old profile
+    does not change its RunSpec, recovery behavior or required outputs.

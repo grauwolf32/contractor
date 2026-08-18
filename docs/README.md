@@ -1,5 +1,11 @@
 # Contractor v2 architecture
 
+> **Architecture revision in progress.**
+> [`core-execution-model.md`](core-execution-model.md) records the current
+> Workflow/Planner/Control Plane/Runtime Agent/Worker agreement. The LikeC4
+> model and detailed specifications still contain parts of an earlier candidate
+> and are not authoritative where they conflict with that document.
+
 [`architecture.c4`](architecture.c4) is the canonical architecture map. It
 contains seven focused views:
 
@@ -39,8 +45,8 @@ Contractor ports and does not instantiate those components.
 4. Every process owns one shared SQLAlchemy `AsyncEngine`; individual
    operations use short-lived `AsyncSession` instances.
 5. `PlannerRunState` is a versioned artifact and the authoritative state of
-   the plan. It pins the exact decomposing, static or passthrough Planner
-   strategy and immutable RunSpec.
+   the plan. It pins the exact immutable workflow profile, RunSpec and
+   decomposing, static or passthrough Planner strategy.
    ADK session events are invocation history, not a competing source of truth.
 6. Contractor owns the framework-neutral Planner/Worker, tool-policy and A2A
    boundaries. The default ADK profile supplies optional Runner, LlmAgent,
