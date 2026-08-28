@@ -16,6 +16,12 @@ security are initial Workflow examples, not a closed product-capability enum or
 a restriction on future Workflows. Domain semantics live in YAML Workflow,
 Planner and AgentTemplate definitions rather than in Scheduler branching.
 
+The first slice loads those definitions from `configs/` with four fixed
+subtrees: `workflows`, `agent-templates`, `model-policies` and `instructions`.
+YAML document identity comes from
+`kind + metadata.name + metadata.version`, not its file name;
+[00](00-workflow-and-planner.md) owns the complete loading contract.
+
 ## Reading order
 
 | Document | Owns |
@@ -24,7 +30,7 @@ Planner and AgentTemplate definitions rather than in Scheduler branching.
 | [01](01-agent-template.md) | Reusable Worker behavior and Stage binding |
 | [02](02-runtime-and-a2a.md) | Allocation and the single-slot Runtime Agent acting as Worker/A2A Server |
 | [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
-| [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, sessions, finalization, recovery and metrics |
+| [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
@@ -35,7 +41,7 @@ point for links that previously targeted the monolithic working agreement.
 
 ```text
 Workflow
-  -> Workflow Scheduler forks exact UserScope inputs into RunArtifactSpace
+  -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs into RunArtifactSpace
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
   -> Control Plane prepares Worker allocations
@@ -45,7 +51,17 @@ Workflow
   -> Planner returns one candidate StageResult
   -> Workflow Scheduler persists finalizing, drains Workers and collects reports
   -> Workflow Scheduler accepts the terminal result, binds outputs and releases allocations
+  -> an explicit successful Workflow transition freezes required outputs and commits Run success
 ```
+
+If Scheduler-owned cancellation or interruption wins before `finalizing`, the
+alternative path is `aborting`: Scheduler stores StageTermination, fences
+writes, performs a bounded best-effort drain and reaches `cancelled` or
+`interrupted` without waiting for terminal A2A Task state.
+
+WorkflowRun separately owns `initializing`, `running`, `cancelling` and terminal
+`succeeded`/`failed`/`cancelled` states. Cancel and success serialize on the
+durable Run row; the first committed transition wins.
 
 The boundaries are deliberately narrow:
 

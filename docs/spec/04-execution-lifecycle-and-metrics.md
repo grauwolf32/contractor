@@ -21,44 +21,101 @@ one attempt to execute that node in one WorkflowRun. There is no additional
 Each StageExecution records at least:
 
 - its `stage_execution_id`, `run_id` and stable Stage name;
-- an attempt number within that Run and optional `previous_execution_id`;
+- an attempt number for that stable Stage name within the Run and optional
+  `previous_execution_id`;
 - a reference to the WorkflowRun's exact validated snapshot and the selected
   Stage specification within it;
-- exact AgentTemplate and WorkerRuntime refs plus Runtime Agent process identity;
-- globally unique allocation IDs and the Planner session ID;
-- lifecycle timestamps, the one normalized semantic result, separate
-  StageMetrics and accepted exact artifact versions.
+- exact AgentTemplate and WorkerRuntime refs plus Runtime Agent process
+  identities for participants that were prepared;
+- globally unique allocation IDs and, when Planner started, its invocation and
+  session IDs;
+- lifecycle timestamps, one terminal outcome, separate StageMetrics and any
+  accepted exact artifact versions.
 
-One StageExecution owns exactly one Planner instance, one Planner invocation,
-one Planner ADK Session and at most one terminal StageResult. A Workflow retry
-creates a new StageExecution with a new Planner and Session; it never reopens a
-terminal execution.
+One StageExecution owns at most one Planner instance, one Planner invocation
+and one Planner ADK Session. They do not exist until preparation succeeds and
+Workflow Scheduler starts Planner. A Workflow retry creates a new
+StageExecution and, if preparation succeeds, a new Planner and Session; it
+never reopens a terminal execution.
 
 Cross-attempt state is explicit. A retry may receive Workflow context, accepted
-prior results and Run-scoped artifact refs selected by Workflow policy. It does
-not inherit the previous Planner's ADK State or private subtask plan.
+prior results and Run-scoped artifact refs selected by Workflow policy. The new
+StageExecution resolves and pins its own StageContext snapshot, so it may see
+bindings advanced by the previous attempt but never inherits that attempt's
+pinned context implicitly. It also does not inherit the previous Planner's ADK
+State or private subtask plan.
+
+## Terminal outcome
+
+`StageResult` and `StageTermination` represent different terminal facts:
+
+- `StageResult` is the normalized semantic result of a Planner invocation. It
+  produces terminal execution state `succeeded` or `failed` and may reference
+  exact result artifacts;
+- `StageTermination` is a durable Scheduler decision that execution must end
+  without an accepted semantic result. It is recorded when execution enters
+  `aborting`, produces terminal execution state `cancelled` or `interrupted`,
+  and never publishes declared outputs.
+
+```python
+class StageTermination(BaseModel):
+    outcome: Literal["cancelled", "interrupted"]
+    code: str
+    message: str
+    retryable: bool
+    phase: Literal["preparing", "running"]
+    occurred_at: datetime
+```
+
+`code` is stable and machine-readable; `message` is diagnostic. `retryable` is
+an input to Workflow policy, not an instruction to reopen or automatically
+retry the same StageExecution.
+
+The cardinalities depend on lifecycle state:
+
+- before Planner starts, Planner invocation, Planner Session, StageResult and
+  StageTermination may all be absent;
+- `running` and normal `finalizing` require exactly one Planner invocation and
+  one Planner Session;
+- `aborting` requires exactly one StageTermination and no accepted StageResult.
+  Planner invocation and Session may be absent when abort began during
+  preparation;
+- `succeeded` and `failed` require exactly one accepted StageResult and no
+  StageTermination;
+- `cancelled` and `interrupted` require exactly one StageTermination and no
+  accepted StageResult. Planner invocation and Session are absent when
+  termination happened during preparation and present when Planner had
+  already started.
+
+Consequently every terminal StageExecution contains exactly one of an accepted
+`StageResult` or a `StageTermination`, never both. A rejected or superseded
+Planner candidate may be retained for audit but is not an accepted
+StageResult.
 
 ## Completion ownership
 
 A Planner implementation owns the semantic condition that ends its invocation:
 
 - `PassthroughPlanner` waits for its required remote Worker invocation to
-  complete, accepting either an immediate A2A Message or a terminal A2A Task,
-  and maps that outcome to a candidate StageResult;
+  produce an immediate A2A Message, a terminal Task, or an interrupted Task
+  state that the baseline maps to a stable failed candidate;
 - a Streamline-style Planner completes successfully only through its explicit
   `finish` operation;
 - exhausting a hard token/step/deadline budget without a valid `finish`
-  produces a failed candidate with a stable budget-exhaustion error;
-- an expected Worker failure is mapped by the Planner strategy into a failed or
-  cancelled candidate as appropriate.
+  lets the Planner invocation runner stop the strategy and produce a failed
+  candidate with a stable budget-exhaustion error without awaiting outstanding
+  A2A Tasks;
+- an expected Worker failure is mapped by the Planner strategy into a failed
+  candidate with a stable error.
 
 Planner does not update StageExecution storage. Its `finish` operation ends the
 Planner invocation and produces a candidate result. Workflow Scheduler validates
 and normalizes that candidate, may replace an invalid claimed success with a failed
 `result_contract_violation`, and owns the durable transition to a terminal
-state. A caught Planner exception becomes a failed candidate with a stable
-Planner error; loss of the active Server/Planner before any candidate is durable
-becomes `interrupted` during recovery.
+state. An exception handled by the Planner strategy may become a failed
+candidate with a stable Planner error. An exception escaping the Planner
+invocation, or loss of the active Server/Planner before any candidate is
+durable, produces an `interrupted` StageTermination.
 
 This separation keeps Planner strategies independent of RunStore and gives
 cancellation, recovery and result acceptance one durable writer.
@@ -70,24 +127,34 @@ The minimum StageExecution lifecycle is:
 ```text
 preparing -> running -> finalizing -> succeeded
                                  \-> failed
-                                 \-> cancelled
 
-preparing / running -------------> interrupted
+preparing / running -> aborting -> cancelled
+                              \-> interrupted
 ```
 
-- `preparing`: templates are resolved and required allocations are prepared;
+- `preparing`: the StageContext artifact snapshot is pinned, exact templates
+  are loaded and required allocations are prepared;
 - `running`: one Planner invocation may use the fixed Worker set;
 - `finalizing`: Planner has stopped and its candidate result plus exact artifact
   versions are durable; allocations are draining and reports are collected;
+- `aborting`: Scheduler has durably rejected semantic completion, stored the
+  StageTermination and fenced further work; cancellation and drain are bounded
+  by the recorded abort deadline;
+- `succeeded` and `failed` contain an accepted StageResult; `cancelled` and
+  `interrupted` contain a StageTermination;
 - terminal states are immutable. Workflow policy may create another
   StageExecution for retry or escalation.
 
 Preparation failure before Planner start still produces a durable execution
 outcome. Temporary lack of capacity is not such a failure: it keeps the
-StageExecution in `preparing` without reserving any slot. Once all required
-slots have been atomically reserved, an initialization failure drains/releases the whole
-batch and makes the StageExecution `interrupted` with a retryable infrastructure
-error before Workflow policy selects the next action.
+StageExecution in `preparing` without reserving any slot. A missing required
+Stage context artifact is detected before allocation and produces
+`context_artifact_missing`, a non-retryable interrupted StageTermination. Once
+all required slots have been atomically reserved, an initialization failure
+drains/releases the whole batch and makes the StageExecution `interrupted` with
+a retryable StageTermination whose code identifies the infrastructure error.
+Workflow policy then selects the next action. No Planner or Planner Session is
+created for either execution.
 
 ### Entering finalizing
 
@@ -97,14 +164,57 @@ stop:
 - the candidate StageResult without assuming telemetry completeness;
 - the exact committed versions/revisions referenced by that result;
 - Planner session identity and available Planner report;
-- a unique `finalization_id`, deadline and the allocation set to drain.
+- a unique `finalization_id`, deadline and the allocation set to drain;
+- a Server-side fence that makes Artifact API writes from those allocations
+  fail from this transition onward.
+
+Every candidate ArtifactRef must already contain the revision selected by
+Planner. Scheduler verifies that `(RunScope, namespace, name, revision)` exists
+and resolves to a retained immutable version, then pins that version in the same
+transition. It never substitutes the current binding, even when that binding
+has advanced since Planner selected the result.
 
 After this transition neither Planner nor Worker may change the semantic result
-or its referenced artifact versions. Declared `outputs/<slot>` bindings are
-created only when Scheduler accepts the terminal successful result.
+or its referenced artifact versions. The private Artifact API rejects new
+writes even if a stale Worker Task remains active. Declared `outputs/<slot>`
+bindings are created only when Scheduler accepts the terminal successful result
+and the WorkflowRun is still `running` in that same transaction. If Run
+`cancelling` won first, StageResult remains valid for audit but cannot advance
+the Workflow or create Run output bindings.
 
-StageMetrics is a separate StageExecution field populated while finalizing. It
-is not embedded into or used to rewrite the stored StageResult.
+StageMetrics is a separate StageExecution field populated while finalizing or
+aborting. It is not embedded into or used to rewrite the stored StageResult or
+StageTermination.
+
+### Entering aborting
+
+`aborting` is the bounded path for external cancellation, loss of a required
+participant, an unrecoverable Planner invocation error, or another
+Scheduler-owned interruption. Workflow Scheduler atomically records:
+
+- the StageTermination, including its origin phase and stable reason;
+- a unique `abort_id`, abort deadline and every allocation that must stop;
+- the write fence for those allocations and the fact that no Planner candidate
+  may now be accepted.
+
+The transition to `finalizing` and the transition to `aborting` compete through
+one durable compare-and-set from `running`; only one may win. A Planner
+candidate arriving after `aborting` starts may be retained for diagnostics but
+cannot become the StageResult. Once `finalizing` is durable, the Stage result
+has won this StageExecution race and a later cancellation cannot replace it
+with a StageTermination.
+
+Scheduler then cancels the in-process Planner invocation and requests A2A Task
+cancellation best-effort. Neither a successful `CancelTask` response nor an
+observed terminal A2A Task is required for progress. Control Plane drains the
+allocations through the authoritative private control protocol. At the abort
+deadline, any allocation that has not confirmed shutdown is marked lost and
+fenced, its reports are recorded as incomplete, and Scheduler commits the
+terminal state named by StageTermination.
+
+An execution aborted during `preparing` follows the same contract. If it has no
+Planner and no reserved allocations, `aborting` can complete immediately after
+the durable transition.
 
 ## Sessions and State
 
@@ -218,9 +328,9 @@ idempotent.
   records an incomplete placeholder with unknown fields. Absence from a map
   means the participant was not started or was not applicable.
 - Report collection is best-effort and cannot raise into Planner or change a
-  semantically valid StageResult into failure.
+  semantically valid StageResult or a durable StageTermination.
 - Reports delivered after StageExecution is terminal may be retained as related
-  telemetry but never mutate the frozen StageResult.
+  telemetry but never mutate the frozen StageResult or StageTermination.
 - External observability exporters are optional adapters over Contractor-owned
   reports; no LangChain/Langfuse-style service is required.
 
@@ -244,19 +354,54 @@ Workflow Scheduler
 
 Worker finalization performs no model/tool calls and cannot mutate artifacts. It
 only serializes already accumulated data and destroys the in-process runtime
-instance. The command is idempotent for `finalization_id`. Runtime Agent waits
-only until the supplied deadline; if it cannot guarantee that the Worker stopped,
-it exits its own process rather than reusing the slot. Control Plane then records
-an incomplete report from the facts it can observe.
+instance. An active A2A Task is asked to cancel locally but finalization does not
+wait for the A2A protocol to report a terminal state. The command is idempotent
+for `finalization_id`. Runtime Agent waits only until the supplied deadline; if
+it cannot guarantee that the Worker stopped, it exits its own process rather
+than reusing the slot. Control Plane then records an incomplete report from the
+facts it can observe, and Scheduler accepts the already durable candidate.
 
 Runtime Agent keeps the resulting `AllocationFinalReport` with the allocation
 until `release`. If the response is lost, repeating the same `finalization_id`
 returns that cached report even though the Worker has already exited; a
 different finalization ID for the same draining allocation is rejected.
 
+### Abort drain
+
+Abort uses a separate idempotent private control command:
+
+```text
+Workflow Scheduler
+  -> RunStore: record aborting, StageTermination, abort_id and deadline
+  -> Control Plane: abort(abort_id, allocations, deadline)
+  -> Runtime Agent: reject new A2A Tasks and request local Task cancellation
+  -> same process: flush bounded reports and destroy Worker instance
+  -> Runtime Agent: return ExecutionReport plus RuntimeReport
+  -> Workflow Scheduler: commit the cancelled/interrupted terminal state
+  -> Control Plane: release route, sandbox, lease and slot
+```
+
+The command performs no semantic work and does not depend on A2A `CancelTask`
+delivery. It is idempotent for `abort_id`; retries return the cached report when
+available. Scheduler waits no longer than the durable abort deadline. At that
+deadline an unconfirmed allocation is marked lost, its reports are incomplete,
+and the StageExecution becomes terminal deterministically.
+
+A lost allocation is not offered for placement. If its Runtime Agent later
+reconnects, reconciliation reissues the same abort before the slot may become
+idle. If it remains disconnected, the agent's control-lease watchdog
+ultimately destroys the Worker or exits the process. Late reports may enrich
+related telemetry but never change the StageTermination.
+
 The allocation remains reserved through `draining`/stopped state until
 StageExecution becomes terminal. Only then does `release` remove routing,
-grants, sandbox and lease and make the Runtime Agent slot available again.
+grants, SandboxProfile workspace and lease. Release is idempotent: Runtime
+Agent retains the old allocation identity and cannot become `idle` until
+profile cleanup succeeds and it receives the release acknowledgement. Cleanup
+failure does not rewrite the already terminal Stage outcome; it keeps that
+Runtime Agent fenced and unavailable while release is retried or an operator
+repairs it. Control Plane does not offer the slot for placement until a
+subsequent confirmed heartbeat reports the matching idle state.
 
 Incremental per-A2A-Task report delivery is not required for the first slice.
 It may later reduce data loss from a hard Worker crash without changing the
@@ -272,33 +417,47 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 - the in-memory Runtime Agent Registry does not survive Server restart and is
   not a recovery authority; still-running agent processes register again;
 - every allocation reported after re-registration is reconciled by its globally
-  unique ID: `finalizing` resumes idempotent finalization, while terminal,
-  interrupted or unknown allocations are drained and released;
+  unique ID: `finalizing` resumes idempotent finalization, `aborting` resumes
+  the idempotent abort, and terminal or unknown allocations are drained and
+  released;
 - a terminal StageExecution is never rerun;
 - `finalizing` with a durable candidate and pinned versions reissues the same
   idempotent finalization, then accepts the candidate even if reports remain
   incomplete;
-- `preparing` or `running` without a candidate becomes `interrupted`; remaining
-  allocations stop or expire and Workflow policy chooses retry, escalation or
-  Run failure;
+- `preparing` or `running` without a candidate enters `aborting`; Scheduler
+  records a retryable interrupted StageTermination, remaining allocations stop
+  or become lost at the abort deadline, and Workflow policy then chooses retry,
+  escalation or Run failure;
 - a Runtime Agent process restart never reattaches its old Worker; an affected
   in-process Worker no longer exists, and an affected `preparing` or `running`
-  StageExecution follows the same `interrupted` path;
-- expiry of the 60-second Runtime Agent control lease follows that same path;
-  the agent independently drains and terminates its Worker after 60 seconds
-  without an acknowledged heartbeat;
-- retry always creates a fresh StageExecution and Planner Session.
+  StageExecution follows the same `aborting -> interrupted` path;
+- expiry of either side's 60-second confirmed Runtime Agent control lease
+  follows that same path; the agent independently drains and terminates its
+  Worker after 60 seconds without a new acknowledged heartbeat, then remains
+  fenced with the allocation ID until release is acknowledged;
+- retry always creates a fresh StageExecution and, if preparation succeeds, a
+  fresh Planner Session.
 
 ## Invariants
 
-1. One StageExecution is one attempt, one Planner invocation and one Planner
-   Session.
+1. One StageExecution is one attempt and owns at most one Planner invocation
+   and one Planner Session; both are required only after Planner starts.
 2. Planner owns completion semantics; Workflow Scheduler is the only durable
    StageExecution writer.
-3. Candidate result and exact referenced artifact versions are durable before
-   Worker drain begins.
-4. Finalization cannot perform semantic work or artifact mutation.
-5. Missing telemetry never invalidates an otherwise valid StageResult.
-6. Planner Session persistence does not imply Planner resume.
-7. Runtime Agent has no direct PostgreSQL or external telemetry credentials.
-8. Allocations are released only after StageExecution is terminal.
+3. Every terminal StageExecution contains exactly one accepted StageResult or
+   one StageTermination. A StageResult belongs to Planner completion; a
+   StageTermination belongs to Scheduler-controlled interruption or
+   cancellation.
+4. `finalizing` and `aborting` are mutually exclusive compare-and-set outcomes;
+   a late Planner candidate cannot replace a durable StageTermination.
+5. Candidate result and exact referenced artifact versions are durable before
+   normal Worker drain begins; StageTermination and its abort deadline are
+   durable before abort drain begins.
+6. Finalization and abort cannot perform semantic work or artifact mutation.
+7. Neither A2A cancellation delivery nor terminal Task observation can extend
+   finalization or abort past its durable deadline.
+8. Missing telemetry never invalidates an otherwise valid StageResult or
+   StageTermination.
+9. Planner Session persistence does not imply Planner resume.
+10. Runtime Agent has no direct PostgreSQL or external telemetry credentials.
+11. Allocations are released only after StageExecution is terminal.
