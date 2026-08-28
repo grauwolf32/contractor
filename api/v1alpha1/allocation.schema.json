@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/allocation.schema.json",
+  "$defs": {
+    "allocationSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "agentTemplate", "runtimeSettings"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "runId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
+        "runtimeSettings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["llmGatewayUrl", "llmGatewayToken", "artifactApiUrl", "requestTimeoutSeconds"],
+          "properties": {
+            "llmGatewayUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
+            "llmGatewayToken": {"type": "string", "minLength": 1},
+            "artifactApiUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
+            "requestTimeoutSeconds": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {"$ref": "#/$defs/allocationSpec"},
+    {
+      "title": "PrepareAllocationRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "spec"],
+      "properties": {"apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"}, "spec": {"$ref": "#/$defs/allocationSpec"}}
+    },
+    {
+      "title": "FinalizeAllocationRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "allocationId", "finalizationId", "deadline"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "finalizationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "deadline": {"$ref": "common.schema.json#/$defs/timestamp"}
+      }
+    },
+    {
+      "title": "AbortAllocationRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "allocationId", "abortId", "reason", "deadline"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "abortId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "reason": {"$ref": "common.schema.json#/$defs/terminationError"},
+        "deadline": {"$ref": "common.schema.json#/$defs/timestamp"}
+      }
+    },
+    {
+      "title": "ReleaseAllocationRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "allocationId"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
+      }
+    }
+  ]
+}

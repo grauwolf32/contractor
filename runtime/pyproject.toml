@@ -5,6 +5,7 @@ description = "Single-slot Python Runtime Agent for Contractor v2"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "pydantic>=2.11,<3",
   "starlette>=0.47,<1",
   "uvicorn>=0.35,<1",
 ]
@@ -19,6 +20,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
   "httpx>=0.28,<1",
+  "jsonschema>=4.25,<5",
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
 ]

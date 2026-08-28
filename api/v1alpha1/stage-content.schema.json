@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/stage-content.schema.json",
+  "oneOf": [
+    {
+      "title": "StageContentRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "objective", "instructions", "parameters", "artifacts"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "objective": {"type": "string", "minLength": 1},
+        "instructions": {"type": "string", "minLength": 1},
+        "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
+        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}}
+      }
+    },
+    {
+      "title": "StageContentResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "outcome", "summary", "artifacts"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "outcome": {"enum": ["succeeded", "failed"]},
+        "summary": {"type": "string", "minLength": 1},
+        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
+        "error": {"$ref": "common.schema.json#/$defs/terminationError"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"outcome": {"const": "failed"}}},
+          "then": {"required": ["error"]},
+          "else": {"not": {"required": ["error"]}}
+        }
+      ]
+    }
+  ]
+}

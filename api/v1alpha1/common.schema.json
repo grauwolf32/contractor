@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/common.schema.json",
+  "$defs": {
+    "apiVersion": {"const": "contractor/v1alpha1"},
+    "opaqueId": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "selector": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "name"],
+      "properties": {
+        "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "name": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "revision": {"$ref": "#/$defs/opaqueId"}
+      }
+    },
+    "exactArtifactRef": {
+      "allOf": [
+        {"$ref": "#/$defs/artifactRef"},
+        {"required": ["revision"]}
+      ]
+    },
+    "terminationError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"$ref": "#/$defs/opaqueId"},
+        "message": {"$ref": "#/$defs/opaqueId"},
+        "retryable": {"type": "boolean"}
+      }
+    },
+    "agentTemplateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateId", "version", "digest"],
+      "properties": {
+        "templateId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "workerRuntimeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeId", "version"],
+      "properties": {
+        "runtimeId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "modelPolicyRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "version", "digest"],
+      "properties": {
+        "policyId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "toolsetRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolsetId", "version"],
+      "properties": {
+        "toolsetId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "sandboxProfileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sandboxProfileId", "version"],
+      "properties": {
+        "sandboxProfileId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "resolvedAgentTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "description", "runtime", "instructions", "modelPolicy", "toolsets", "sandboxProfile"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/agentTemplateRef"},
+        "description": {"type": "string", "minLength": 1},
+        "runtime": {"$ref": "#/$defs/workerRuntimeRef"},
+        "instructions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "digest", "text"],
+          "properties": {
+            "ref": {"type": "string", "minLength": 1},
+            "digest": {"$ref": "#/$defs/digest"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        "modelPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "model", "maxOutputTokens"],
+          "properties": {
+            "ref": {"$ref": "#/$defs/modelPolicyRef"},
+            "model": {"type": "string", "minLength": 1},
+            "maxOutputTokens": {"type": "integer", "minimum": 1},
+            "temperature": {"type": "number", "minimum": 0}
+          }
+        },
+        "toolsets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref", "tools"],
+            "properties": {
+              "ref": {"$ref": "#/$defs/toolsetRef"},
+              "tools": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+            }
+          }
+        },
+        "sandboxProfile": {"$ref": "#/$defs/sandboxProfileRef"}
+      }
+    }
+  }
+}

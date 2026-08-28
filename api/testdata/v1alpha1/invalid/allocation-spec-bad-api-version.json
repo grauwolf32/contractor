@@ -1,0 +1,10 @@
+{
+  "apiVersion": "contractor/v9",
+  "allocationId": "a",
+  "runId": "r",
+  "stageExecutionId": "s",
+  "logicalAgentName": "builder",
+  "namespace": "builder",
+  "agentTemplate": {},
+  "runtimeSettings": {}
+}

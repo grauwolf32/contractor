@@ -1,0 +1,12 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "outcome": "succeeded",
+  "summary": "The exact result artifact was written.",
+  "artifacts": {
+    "copied": {
+      "namespace": "builder",
+      "name": "copied",
+      "revision": "019c-revision-2"
+    }
+  }
+}

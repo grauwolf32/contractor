@@ -1,0 +1,8 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "objective": "Do work",
+  "instructions": "Follow instructions",
+  "parameters": {},
+  "artifacts": {},
+  "runId": "must-not-be-accepted"
+}

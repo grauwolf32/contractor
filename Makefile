@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -15,6 +15,10 @@ test-go:
 
 test-runtime:
 	cd runtime && uv run pytest
+
+test-contracts:
+	go test ./internal/contracts/...
+	cd runtime && uv run pytest tests/test_contracts.py
 
 test: test-go test-runtime
 

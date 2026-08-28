@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/artifact.schema.json",
+  "oneOf": [
+    {"$ref": "common.schema.json#/$defs/artifactRef"},
+    {
+      "title": "ArtifactReadOrWriteResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "artifact", "mediaType", "size"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "artifact": {"$ref": "common.schema.json#/$defs/exactArtifactRef"},
+        "mediaType": {"type": "string", "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$"},
+        "size": {"type": "integer", "minimum": 0}
+      }
+    }
+  ]
+}

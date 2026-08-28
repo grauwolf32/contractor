@@ -1,0 +1,13 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "objective": "Copy the source artifact",
+  "instructions": "Use the exact input and return the written revision.",
+  "parameters": {"mode": "strict"},
+  "artifacts": {
+    "source": {
+      "namespace": "inputs",
+      "name": "source",
+      "revision": "019c-revision-1"
+    }
+  }
+}

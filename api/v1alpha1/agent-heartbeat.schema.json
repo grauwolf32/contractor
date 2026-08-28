@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/agent-heartbeat.schema.json",
+  "oneOf": [
+    {
+      "title": "AgentHeartbeat",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "instanceId", "heartbeatSeq", "echoedAckSeq", "observedState"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "instanceId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "heartbeatSeq": {"type": "integer", "minimum": 1},
+        "echoedAckSeq": {"type": "integer", "minimum": 0},
+        "observedState": {"enum": ["idle", "allocated", "draining", "fenced"]},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"observedState": {"const": "idle"}}},
+          "then": {"not": {"required": ["allocationId"]}},
+          "else": {"required": ["allocationId"]}
+        }
+      ]
+    },
+    {
+      "title": "HeartbeatResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "ackSeq", "action"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "ackSeq": {"type": "integer", "minimum": 1},
+        "action": {"enum": ["continue", "drain", "release", "reregister"]},
+        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ id: MVP-002
 title: Define versioned cross-language wire contracts and golden fixtures
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-001]
 languages: [go, python]
 

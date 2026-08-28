@@ -1,0 +1,11 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "allocationId": "019c-allocation-1",
+  "abortId": "019c-abort-1",
+  "reason": {
+    "code": "run_cancelled",
+    "message": "The user cancelled the WorkflowRun",
+    "retryable": false
+  },
+  "deadline": "2026-08-29T10:05:00Z"
+}
