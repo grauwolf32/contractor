@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -23,6 +23,10 @@ test-contracts:
 test-config:
 	go test ./internal/config/...
 	go run ./cmd/contractor-server config validate --root ./configs
+
+test-postgres:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	go test -count=1 ./internal/persistence/postgres ./internal/runstore
 
 test: test-go test-runtime
 

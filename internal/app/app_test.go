@@ -70,6 +70,9 @@ func TestParseConfig(t *testing.T) {
 		if key == "CONTRACTOR_PUBLIC_LISTEN" {
 			return "127.0.0.1:9000"
 		}
+		if key == "CONTRACTOR_DATABASE_URL" {
+			return "postgres://contractor:secret@database/contractor"
+		}
 		return ""
 	}
 	cfg, err := ParseConfig([]string{"serve", "--shutdown-timeout=2s"}, env)
@@ -81,6 +84,9 @@ func TestParseConfig(t *testing.T) {
 	}
 	if cfg.ShutdownTimeout != 2*time.Second {
 		t.Fatalf("shutdown timeout = %s", cfg.ShutdownTimeout)
+	}
+	if cfg.DatabaseURL != "postgres://contractor:secret@database/contractor" {
+		t.Fatalf("database URL was not read from the shared environment setting")
 	}
 }
 
@@ -96,5 +102,29 @@ func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("RunCLI config validate: %v", err)
+	}
+}
+
+func TestParseMigrationDatabaseURL(t *testing.T) {
+	t.Parallel()
+
+	fromEnvironment, err := parseMigrationDatabaseURL(nil, func(key string) string {
+		if key == "CONTRACTOR_DATABASE_URL" {
+			return "postgres://environment"
+		}
+		return ""
+	})
+	if err != nil || fromEnvironment != "postgres://environment" {
+		t.Fatalf("environment database URL = (%q, %v)", fromEnvironment, err)
+	}
+	fromFlag, err := parseMigrationDatabaseURL(
+		[]string{"--database-url", "postgres://flag"},
+		func(string) string { return "postgres://environment" },
+	)
+	if err != nil || fromFlag != "postgres://flag" {
+		t.Fatalf("flag database URL = (%q, %v)", fromFlag, err)
+	}
+	if _, err := parseMigrationDatabaseURL(nil, func(string) string { return "" }); err == nil {
+		t.Fatal("missing migration database URL succeeded")
 	}
 }

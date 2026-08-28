@@ -3,7 +3,7 @@ id: MVP-004
 title: Add PostgreSQL migrations and durable Workflow execution stores
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-001, MVP-002]
 languages: [go, sql]
 

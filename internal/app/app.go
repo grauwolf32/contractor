@@ -16,6 +16,7 @@ import (
 type Config struct {
 	ListenAddress   string
 	ShutdownTimeout time.Duration
+	DatabaseURL     string
 }
 
 // RunCLI parses process configuration and runs the Server until cancellation.
@@ -27,6 +28,9 @@ func RunCLI(
 ) error {
 	if len(args) > 0 && args[0] == "config" {
 		return runConfigCLI(args[1:], logger)
+	}
+	if len(args) > 0 && args[0] == "migrate" {
+		return runMigrateCLI(ctx, args[1:], getenv, logger)
 	}
 
 	cfg, err := ParseConfig(args, getenv)

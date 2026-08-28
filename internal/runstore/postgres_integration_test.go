@@ -1,0 +1,367 @@
+package runstore
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	run := createTestRun(t, ctx, store, "run-lifecycle")
+	if run.State != RunInitializing || run.WorkflowSnapshot == nil {
+		t.Fatalf("created Run = %+v", run)
+	}
+	run, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"})
+	if err != nil {
+		t.Fatalf("start Run: %v", err)
+	}
+	if run.State != RunRunning || run.StartedAt == nil {
+		t.Fatalf("started Run = %+v", run)
+	}
+
+	revision := "revision-1"
+	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		StageExecutionID: "stage-lifecycle", RunID: run.RunID, StageName: "copy", Attempt: 1,
+		StageSpecSchemaVersion:    "contractor/v1alpha1",
+		StageSpecSnapshot:         json.RawMessage(`{"objective":"copy"}`),
+		StageContextSchemaVersion: "contractor/v1alpha1",
+		StageContext: StageContextSnapshot{
+			Parameters: map[string]string{"mode": "strict"},
+			Artifacts: map[string]PinnedContextArtifact{
+				"source": {
+					Required: true,
+					Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &revision},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create StageExecution: %v", err)
+	}
+	if execution.State != StagePreparing || execution.PlannerSessionID != nil {
+		t.Fatalf("preparing StageExecution = %+v", execution)
+	}
+
+	err = store.RecordStageAllocation(ctx, StageAllocation{
+		AllocationID: "allocation-1", StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "artifact_builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+		},
+		WorkerRuntimeRef:       contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentInstanceID: "runtime-agent-1",
+	})
+	if err != nil {
+		t.Fatalf("record allocation: %v", err)
+	}
+	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" {
+		t.Fatalf("allocations = (%+v, %v)", allocations, err)
+	}
+
+	err = store.StartPlanner(ctx, StartPlannerParams{
+		StageExecutionID: execution.StageExecutionID,
+		SessionID:        "session-1", InvocationID: "invocation-1",
+		StateSchemaVersion: "contractor/v1alpha1", InitialState: json.RawMessage(`{"step":0}`),
+		Reason: Reason{Code: "planner_started"},
+	})
+	if err != nil {
+		t.Fatalf("start Planner: %v", err)
+	}
+	execution, err = store.GetStageExecution(ctx, execution.StageExecutionID)
+	if err != nil || execution.State != StageRunning || execution.PlannerSessionID == nil || *execution.PlannerSessionID != "session-1" {
+		t.Fatalf("running StageExecution = (%+v, %v)", execution, err)
+	}
+
+	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
+		EventID: "event-1", SessionID: "session-1", SequenceNumber: 1,
+		EventSchemaVersion: "contractor/v1alpha1", Event: json.RawMessage(`{"kind":"started"}`),
+		NewStateSchemaVersion: "contractor/v1alpha1", NewState: json.RawMessage(`{"step":1}`),
+	})
+	if err != nil {
+		t.Fatalf("append Planner event: %v", err)
+	}
+	session, err := store.GetPlannerSession(ctx, "session-1")
+	if err != nil || string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
+		t.Fatalf("Planner session = (%+v, %v)", session, err)
+	}
+	events, err := store.ListPlannerEvents(ctx, "session-1", 0)
+	if err != nil || len(events) != 1 || events[0].EventID != "event-1" {
+		t.Fatalf("Planner events = (%+v, %v)", events, err)
+	}
+
+	resultRevision := "revision-result-1"
+	candidate := contracts.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    contracts.StageSucceeded,
+		Summary:    "copied",
+		Artifacts: map[string]contracts.ArtifactRef{
+			"copied": {Namespace: "builder", Name: "result", Revision: &resultRevision},
+		},
+	}
+	err = store.EnterFinalizing(ctx, EnterFinalizingParams{
+		StageExecutionID:    execution.StageExecutionID,
+		ResultSchemaVersion: "contractor/v1alpha1", Candidate: candidate,
+		FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
+		Reason: Reason{Code: "planner_completed"},
+	})
+	if err != nil {
+		t.Fatalf("enter finalizing: %v", err)
+	}
+	err = store.EnterAborting(ctx, EnterAbortingParams{
+		StageExecutionID: execution.StageExecutionID, ExpectedState: StageRunning,
+		TerminationSchemaVersion: "contractor/v1alpha1",
+		Termination: StageTermination{
+			Outcome: TerminationInterrupted, Code: "late_abort", Message: "late abort",
+			Retryable: true, Phase: TerminationRunning, OccurredAt: time.Now(),
+		},
+		AbortID: "late-abort", Deadline: time.Now().Add(time.Minute), Reason: Reason{Code: "late_abort"},
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("late abort error = %v, want conflict", err)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); err != nil {
+		t.Fatalf("complete StageResult: %v", err)
+	}
+	execution, err = store.GetStageExecution(ctx, execution.StageExecutionID)
+	if err != nil || execution.State != StageSucceeded || execution.CandidateResult == nil || execution.AcceptedResult == nil {
+		t.Fatalf("terminal StageExecution = (%+v, %v)", execution, err)
+	}
+	if got := *execution.AcceptedResult.Artifacts["copied"].Revision; got != resultRevision {
+		t.Fatalf("accepted artifact revision = %q, want %q", got, resultRevision)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second completion error = %v, want conflict", err)
+	}
+
+	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		StageExecutionID: "stage-aborted", RunID: run.RunID, StageName: "precheck", Attempt: 1,
+		StageSpecSchemaVersion: "contractor/v1alpha1", StageSpecSnapshot: json.RawMessage(`{"objective":"check"}`),
+		StageContextSchemaVersion: "contractor/v1alpha1", StageContext: StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatalf("create aborting StageExecution: %v", err)
+	}
+	termination := StageTermination{
+		Outcome: TerminationInterrupted, Code: "context_artifact_missing", Message: "source is missing",
+		Retryable: false, Phase: TerminationPreparing, OccurredAt: time.Now(),
+	}
+	err = store.EnterAborting(ctx, EnterAbortingParams{
+		StageExecutionID: "stage-aborted", ExpectedState: StagePreparing,
+		TerminationSchemaVersion: "contractor/v1alpha1", Termination: termination,
+		AbortID: "abort-1", Deadline: time.Now().Add(time.Minute), Reason: Reason{Code: termination.Code},
+	})
+	if err != nil {
+		t.Fatalf("enter aborting during preparation: %v", err)
+	}
+	if err := store.CompleteStageTermination(ctx, "stage-aborted"); err != nil {
+		t.Fatalf("complete StageTermination: %v", err)
+	}
+	aborted, err := store.GetStageExecution(ctx, "stage-aborted")
+	if err != nil || aborted.State != StageInterrupted || aborted.Termination == nil || aborted.PlannerSessionID != nil {
+		t.Fatalf("interrupted StageExecution = (%+v, %v)", aborted, err)
+	}
+
+	executions, err := store.ListStageExecutions(ctx, run.RunID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("StageExecution list = (%+v, %v)", executions, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE stage_executions
+SET candidate_stage_result = jsonb_set(candidate_stage_result, '{summary}', '"rewritten"')
+WHERE stage_execution_id = 'stage-lifecycle'`)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("candidate rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+}
+
+func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	createTestRun(t, ctx, store, "run-race")
+
+	var transitions int32
+	var conflicts int32
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, err := store.TransitionRun(ctx, "run-race", RunInitializing, RunRunning, Reason{Code: "ready"})
+			switch {
+			case err == nil:
+				atomic.AddInt32(&transitions, 1)
+			case errors.Is(err, ErrConflict):
+				atomic.AddInt32(&conflicts, 1)
+			default:
+				t.Errorf("transition race: %v", err)
+			}
+		}()
+	}
+	wait.Wait()
+	if transitions != 1 || conflicts != 1 {
+		t.Fatalf("transition race successes=%d conflicts=%d", transitions, conflicts)
+	}
+
+	type claimResult struct {
+		run WorkflowRun
+		err error
+	}
+	claimResults := make(chan claimResult, 2)
+	for _, claimID := range []string{"claim-a", "claim-b"} {
+		wait.Add(1)
+		go func(claimID string) {
+			defer wait.Done()
+			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute)
+			claimResults <- claimResult{run: run, err: err}
+		}(claimID)
+	}
+	wait.Wait()
+	close(claimResults)
+	var claimed WorkflowRun
+	var claims, noWork int
+	for result := range claimResults {
+		if result.err == nil {
+			claims++
+			claimed = result.run
+		} else if errors.Is(result.err, ErrNoWork) {
+			noWork++
+		} else {
+			t.Fatalf("claim race: %v", result.err)
+		}
+	}
+	if claims != 1 || noWork != 1 || claimed.SchedulerClaim == nil {
+		t.Fatalf("claim race claims=%d noWork=%d claimed=%+v", claims, noWork, claimed)
+	}
+	if err := store.RenewRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID, 2*time.Minute); err != nil {
+		t.Fatalf("renew claim: %v", err)
+	}
+	if err := store.ReleaseRunClaim(ctx, claimed.RunID, "wrong-claim"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("wrong release error = %v", err)
+	}
+	if err := store.ReleaseRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID); err != nil {
+		t.Fatalf("release claim: %v", err)
+	}
+
+	rollback := errors.New("force rollback")
+	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txStore := NewPostgresStore(tx)
+		if _, err := txStore.CreateRun(ctx, testRunParams("run-rolled-back")); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("transaction error = %v, want rollback sentinel", err)
+	}
+	if _, err := store.GetRun(ctx, "run-rolled-back"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rolled-back Run lookup error = %v", err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := NewPostgresStore(tx).CreateRun(ctx, testRunParams("run-committed"))
+		return err
+	})
+	if err != nil {
+		t.Fatalf("commit explicit transaction: %v", err)
+	}
+	if _, err := store.GetRun(ctx, "run-committed"); err != nil {
+		t.Fatalf("get committed Run: %v", err)
+	}
+}
+
+func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {
+	t.Helper()
+	run, err := store.CreateRun(ctx, testRunParams(runID))
+	if err != nil {
+		t.Fatalf("create test Run %q: %v", runID, err)
+	}
+	return run
+}
+
+func testRunParams(runID string) CreateRunParams {
+	return CreateRunParams{
+		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: "contractor/v1alpha1",
+		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+		Parameters:            map[string]string{"mode": "strict"},
+	}
+}
+
+func isolatedRunStorePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	adminConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		t.Fatalf("parse test database URL: %v", err)
+	}
+	admin, err := pgxpool.NewWithConfig(ctx, adminConfig)
+	if err != nil {
+		t.Fatalf("open test admin pool: %v", err)
+	}
+	if err := admin.Ping(ctx); err != nil {
+		admin.Close()
+		t.Fatalf("ping test database: %v", err)
+	}
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	schema := "contractor_test_" + hex.EncodeToString(random)
+	identifier := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
+		admin.Close()
+		t.Fatalf("create isolated schema: %v", err)
+	}
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatalf("open isolated pool: %v", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		t.Fatalf("ping isolated pool: %v", err)
+	}
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+		pool.Close()
+		t.Fatalf("apply migrations: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Close()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
+			t.Logf("drop isolated schema: %v", err)
+		}
+		admin.Close()
+	})
+	return pool
+}

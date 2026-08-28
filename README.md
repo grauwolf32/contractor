@@ -40,3 +40,28 @@ The target deployment is deliberately small:
 ```shell
 likec4 validate docs/spec
 ```
+
+## Implementation commands
+
+The implementation is being built incrementally in the order recorded under
+`tasks/`. The current Go server and Python Runtime Agent checks run with:
+
+```shell
+make verify
+go run ./cmd/contractor-server config validate --root ./configs
+```
+
+Server and migration commands share `CONTRACTOR_DATABASE_URL` (or the
+`--database-url` flag). Migrations are forward-only and safe to invoke again:
+
+```shell
+CONTRACTOR_DATABASE_URL='postgres://...' \
+  go run ./cmd/contractor-server migrate
+```
+
+PostgreSQL integration tests create and remove isolated schemas inside the
+caller-provided test database:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-postgres
+```

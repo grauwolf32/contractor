@@ -28,6 +28,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		listenAddress = defaultListenAddress
 	}
 	shutdownTimeout := defaultShutdownTimeout
+	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -38,6 +39,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		shutdownTimeout,
 		"graceful shutdown timeout",
 	)
+	flags.StringVar(&databaseURL, "database-url", databaseURL, "PostgreSQL connection URL")
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse serve flags: %w", err)
 	}
@@ -51,5 +53,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, errors.New("shutdown timeout must be positive")
 	}
 
-	return Config{ListenAddress: listenAddress, ShutdownTimeout: shutdownTimeout}, nil
+	return Config{
+		ListenAddress: listenAddress, ShutdownTimeout: shutdownTimeout, DatabaseURL: databaseURL,
+	}, nil
 }
