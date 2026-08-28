@@ -3,7 +3,7 @@ id: MVP-001
 title: Bootstrap the Go Server and Python Runtime Agent monorepo
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: []
 languages: [go, python]
 

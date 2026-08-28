@@ -234,3 +234,10 @@ __marimo__/
 
 # Contractor run-output dir (defaults to <project>/.contractor)
 .contractor/
+
+# Contractor v2 Go build output and local runtime state
+/contractor-server
+/.build/
+/bin/
+/coverage.out
+/.local/
