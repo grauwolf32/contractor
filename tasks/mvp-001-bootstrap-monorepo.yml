@@ -1,0 +1,94 @@
+schema_version: "1.0"
+id: MVP-001
+title: Bootstrap the Go Server and Python Runtime Agent monorepo
+milestone: mvp
+priority: P0
+status: planned
+depends_on: []
+languages: [go, python]
+
+goal: >-
+  Turn the documentation-only repository into a buildable monorepo with one Go
+  Server binary and one installable Python Runtime Agent package, without yet
+  implementing domain behavior.
+
+context:
+  architecture: >-
+    The Go process owns public APIs, configuration loading, Workflow Scheduler,
+    Control Plane, persistence, and Planner implementations. The Python process
+    owns one single-slot Runtime Agent and creates one in-process Worker while
+    allocated. No Python code is imported by the Go server and no Worker
+    implementation runs in the Server process.
+  repository_module: github.com/grauwolf32/contractor
+  supported_versions:
+    go: "1.25"
+    python: "3.13"
+
+scope:
+  in:
+    - Create the root Go module and a cmd/contractor-server entry point.
+    - Create internal packages for app wiring, configuration, HTTP, persistence, scheduler, controlplane, planner, and artifacts.
+    - Create runtime/pyproject.toml and runtime/src/contractor_runtime using uv and Python src layout.
+    - Add minimal health commands/endpoints that prove both processes start and stop cleanly.
+    - Add Make targets for formatting, linting, unit tests, builds, and aggregate verification.
+    - Add ignore rules only for generated build, Python, test, and local-secret files.
+  out:
+    - PostgreSQL schemas or business entities.
+    - Network protocol DTOs.
+    - ADK, A2A, TLS, Workflow, or Artifact behavior.
+    - Docker or Kubernetes deployment.
+
+deliverables:
+  - path: go.mod
+    description: Root Go module targeting Go 1.25.
+  - path: cmd/contractor-server/main.go
+    description: Signal-aware Server entry point with configuration errors reported to stderr.
+  - path: internal/app
+    description: Composition root with no domain logic in main.go.
+  - path: runtime/pyproject.toml
+    description: Python 3.13 project with runtime and development dependency groups.
+  - path: runtime/src/contractor_runtime
+    description: Importable package and signal-aware CLI entry point.
+  - path: Makefile
+    description: Stable developer commands used by later tasks and CI.
+
+requirements:
+  - id: R1
+    text: The Go binary must use context cancellation for SIGINT/SIGTERM and must not call os.Exit below main.
+  - id: R2
+    text: The Python CLI must expose contractor-runtime through project.scripts and use asyncio cancellation for shutdown.
+  - id: R3
+    text: Both processes must emit structured logs without logging environment variables or secrets.
+  - id: R4
+    text: Package boundaries must keep Runtime Agent dependencies, including ADK, out of go.mod.
+  - id: R5
+    text: Tests must not require PostgreSQL, a network connection, an LLM, or certificates at this stage.
+  - id: R6
+    text: Make targets must include fmt, lint, test-go, test-runtime, test, build, and verify.
+
+acceptance_criteria:
+  - id: A1
+    given: A clean checkout with Go 1.25 and uv installed.
+    when: make verify is run.
+    then: Go formatting/tests/build and Python formatting/lint/tests all succeed.
+  - id: A2
+    given: The Go binary is started with a temporary listen address.
+    when: Its health endpoint is requested and then SIGTERM is sent.
+    then: It returns HTTP 200 and exits within five seconds with status zero.
+  - id: A3
+    given: The Python runtime CLI is started in skeleton mode.
+    when: Its health endpoint is requested and then SIGTERM is sent.
+    then: It returns HTTP 200 and exits within five seconds with status zero.
+  - id: A4
+    given: The repository dependency files.
+    when: They are inspected.
+    then: Go contains no Python/ADK bridge and Python contains no Server persistence implementation.
+
+tests:
+  - {name: go-unit, command: "make test-go", covers: [A1, A2]}
+  - {name: runtime-unit, command: "make test-runtime", covers: [A1, A3]}
+  - {name: all-static-and-build, command: "make verify", covers: [A1, A4]}
+
+notes:
+  - Use net/http and log/slog in Go; do not introduce a web framework.
+  - Use pytest and ruff for Python. A static type checker may be added, but must be wired into make verify if introduced.

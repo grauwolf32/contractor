@@ -1,0 +1,104 @@
+schema_version: "1.0"
+id: MVP-014
+title: Implement the Go happy-path Workflow Scheduler
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-006, MVP-008, MVP-010, MVP-013]
+languages: [go]
+
+goal: >-
+  Drive one running single-Stage WorkflowRun through preparation, Planner
+  invocation, candidate persistence, Worker finalization, exact output binding,
+  and atomic Run success.
+
+context:
+  ownership: >-
+    Scheduler owns WorkflowRun progression and durable StageExecution lifecycle.
+    Planner only returns a candidate. Control Plane only manages capacity and
+    allocations. Runtime Agent only owns its current Worker instance.
+  mvp_graph_limit: >-
+    The executable MVP fixture has exactly one Stage, one Agent binding,
+    passthrough@1, and a succeeded transition. Parser may retain other graph
+    shapes, but Scheduler returns a clear unsupported error rather than silently
+    misexecuting them until V1-003.
+
+scope:
+  in:
+    - In-process Scheduler loop with graceful shutdown, wake signal, polling fallback, and injected clock.
+    - Durable claim of runnable WorkflowRun and creation of one StageExecution attempt.
+    - StageContext exact artifact pinning before allocation.
+    - Exact AgentTemplate resolution from stored Workflow snapshot.
+    - Control Plane reserve/prepare, Planner creation/invocation, and candidate persistence.
+    - Durable finalizing transition plus immediate allocation write fence.
+    - Bounded finalize report collection.
+    - One transaction for final Stage success, exact output bindings, and WorkflowRun succeeded.
+    - Release after terminal commit and best-effort recovery of incomplete happy-path states.
+  out:
+    - Public cancel, abort deadline, retry, multi-Stage transitions, parallel runs tuning, or full lease-loss handling.
+
+happy_path_order:
+  - Claim running Run and read its immutable Workflow snapshot.
+  - Create StageExecution in preparing with attempt 1.
+  - Resolve every StageContext artifact to an exact current revision and persist the snapshot.
+  - Reserve and prepare the complete Worker set; store exact handles/allocation IDs.
+  - Create Planner session and transition StageExecution to running.
+  - Invoke passthrough@1 once and persist candidate StageResult.
+  - In one durable transition enter finalizing and set every allocation write fence before requesting Worker finalization.
+  - Collect bounded final reports; missing telemetry cannot invalidate a semantic result.
+  - Validate exact artifact refs/media types and atomically write terminal StageResult, outputs bindings, and WorkflowRun succeeded.
+  - Release routes, grants, workspace, secrets, lease, and slots only after terminal commit.
+
+failure_baseline:
+  - Missing required StageContext artifact terminates interrupted with code context_artifact_missing, retryable false, phase preparing, and creates no allocation or Planner session.
+  - Preparation failure drains any partial remote work and terminates interrupted with a durable typed reason.
+  - Planner/A2A failure before candidate terminates interrupted after bounded cleanup.
+  - Invalid candidate is never bound as output and ends the Run failed in the MVP graph.
+  - A cleanup/report failure after a valid candidate does not change the semantic candidate; affected slot remains unavailable until reconciled.
+
+deliverables:
+  - {path: internal/scheduler, description: Loop, Stage executor, ports, lifecycle orchestration, and recovery logic.}
+  - {path: internal/app, description: Scheduler wiring, health/readiness, and shutdown ordering.}
+
+requirements:
+  - id: R1
+    text: Scheduler never holds a PostgreSQL transaction open across Control Plane, Runtime Agent, A2A, Artifact blob streaming, or LLM calls.
+  - id: R2
+    text: Every external operation has a durable idempotency identity and bounded context deadline.
+  - id: R3
+    text: A versionless artifact is resolved/pinned exactly once before it becomes StageContext or StageResult authority.
+  - id: R4
+    text: Entering finalizing and enabling Server write fences are ordered so no post-candidate Worker write can be accepted.
+  - id: R5
+    text: Terminal Stage acceptance, exact Workflow output mappings, required output validation, and Run success commit atomically.
+  - id: R6
+    text: Restart recovery never invokes Planner twice when its durable session already records completion.
+
+acceptance_criteria:
+  - id: A1
+    given: One valid runnable Run, one idle compatible Runtime Agent, and a valid Worker result.
+    when: Scheduler executes it.
+    then: State order is preparing, running, finalizing, succeeded; Run succeeds; exact output is frozen; allocation releases.
+  - id: A2
+    given: Missing required context before allocation.
+    when: Scheduler executes.
+    then: Stage is interrupted with context_artifact_missing, no Planner/session/allocation exists, and Run follows failure baseline.
+  - id: A3
+    given: Worker attempts a write after durable finalizing.
+    when: Private Artifact API handles it.
+    then: It is rejected and accepted output still points to the candidate's exact earlier revision.
+  - id: A4
+    given: Scheduler crashes after candidate persistence or terminal transaction.
+    when: It restarts.
+    then: It resumes finalization/release without a second semantic Worker invocation or duplicate output revision.
+  - id: A5
+    given: Output binding or terminal Run update is forced to fail.
+    when: Transaction rolls back.
+    then: Neither output binding nor succeeded Run state is visible.
+
+tests:
+  - {name: scheduler-unit, command: "go test -race ./internal/scheduler/...", covers: [A1, A2, A3, A4, A5]}
+  - {name: scheduler-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A4, A5]}
+
+notes:
+  - Use ports/interfaces for RunStore, ArtifactStore, ControlPlane, PlannerFactory, and clock so lifecycle tests are deterministic.

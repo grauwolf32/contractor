@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: V1-006
+title: Add the model-backed Go ADK StreamlinePlanner
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [V1-003, V1-004, V1-005]
+languages: [go]
+
+goal: >-
+  Support non-trivial Stage-local planning in the Go Server with one Google ADK
+  root Planner, a fixed prepared Worker set, durable PostgreSQL session state,
+  and explicit finish/escalate termination.
+
+context:
+  framework: google.golang.org/adk/v2
+  worker_access: >-
+    Workers are fixed logical subagents/adapters built from WorkerHandles before
+    Planner begins. Planner cannot request capacity, choose AgentTemplates, or
+    address Runtime Agent process identity.
+  completion: >-
+    Planner must explicitly call finish with a valid StageResult or escalate
+    with a failed semantic result. If it does neither before deadline/model-call
+    or cumulative token budget, Scheduler aborts execution with a durable
+    interrupted StageTermination.
+  persistence: >-
+    Exactly one PostgreSQL-backed ADK Session is associated with one
+    StageExecution. Restart recovery may inspect it but resuming a partially
+    completed model invocation remains out of scope.
+
+scope:
+  in:
+    - Exact streamline@1 PlannerFactory descriptor and configuration validation.
+    - Go ADK root LLM agent constructed from Stage objective and resolved Planner instructions.
+    - PostgreSQL ADK SessionService adapter over Contractor planner session/event tables.
+    - Fixed A2A Worker adapters/tools keyed by logical binding name.
+    - Contractor-owned finish and escalate tools with strict argument/result validation.
+    - Deployment-owned Planner LLM Gateway URL/token/model settings with redaction.
+    - Deadline, maximum model calls, cumulative input/output token budget, and bounded event/report collection.
+    - Deterministic fake model tests plus optional LiteLLM smoke test.
+  out:
+    - Dynamic Worker creation, nested Workflow changes, concurrent Worker calls, human input, session resume, provider-specific parameters in Workflow, or multiple root Planners.
+
+planner_limits:
+  max_model_calls: 32
+  max_cumulative_tokens: 200000
+  max_wall_time: 30m
+  max_worker_calls: 64
+
+deliverables:
+  - {path: internal/planner/streamline, description: Google ADK Go root Planner, fixed Worker adapters, finish/escalate tools, and budgets.}
+  - {path: internal/planner/session, description: PostgreSQL-backed ADK SessionService adapter.}
+  - {path: internal/config, description: Exact streamline@1 descriptor and deployment Planner settings validation.}
+  - {path: tests/integration/streamline, description: Fake-model multi-Worker, budget, recovery, and redaction scenarios.}
+
+requirements:
+  - id: R1
+    text: Pin a known-compatible Go ADK version and isolate all ADK types behind Planner/Session interfaces used by Scheduler.
+  - id: R2
+    text: Stage objective is the Planner goal; resolved Stage instructions are operating guidance; parameters and exact artifact refs remain structured context.
+  - id: R3
+    text: Only prepared logical Worker names are callable and every A2A call preserves the same Stage deadline and exact ArtifactRefs.
+  - id: R4
+    text: finish validates declared result slots, exact revisions, and media types before returning a candidate; it cannot durably accept outputs.
+  - id: R5
+    text: Token/call/deadline exhaustion produces interrupted StageTermination with stable code, phase running, and explicit retryable policy.
+  - id: R6
+    text: Planner Gateway token and provider payload secrets are redacted from ADK events, reports, logs, database, and public API.
+
+acceptance_criteria:
+  - id: A1
+    given: Two fixed fake Workers and a fake model choosing them sequentially before finish.
+    when: StreamlinePlanner runs.
+    then: Only those Workers are invoked, one candidate is returned, and Scheduler remains the acceptance owner.
+  - id: A2
+    given: Fake model attempts an unknown Worker or invalid finish ref.
+    when: Tool validation runs.
+    then: Call is rejected without capacity/artifact side effects and Planner may correct within budget.
+  - id: A3
+    given: Model never calls finish/escalate.
+    when: Any configured budget is exhausted.
+    then: Planner stops, Scheduler enters bounded abort, and durable termination names the exhausted limit.
+  - id: A4
+    given: Planner session/event writes and process restart after completed finish.
+    when: Scheduler recovers.
+    then: It reuses recorded completion and never invokes model or Worker again.
+  - id: A5
+    given: Known Planner Gateway token embedded in provider error.
+    when: Logs/events/reports persist.
+    then: Token is absent.
+
+tests:
+  - {name: streamline-unit, command: "go test ./internal/planner/streamline/...", covers: [A1, A2, A3, A5]}
+  - {name: adk-session-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A4]}
+  - {name: streamline-integration, command: "make test-streamline", covers: [A1, A2, A3, A4]}
+
+notes:
+  - Official ADK Go A2A helpers may be used only behind the existing WorkerInvoker interface. If their experimental API is unsuitable, keep the proven direct A2A Go adapter and expose it to ADK as a tool/subagent adapter.

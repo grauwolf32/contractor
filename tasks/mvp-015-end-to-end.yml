@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: MVP-015
+title: Prove the local Go-to-Python end-to-end MVP
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-003, MVP-006, MVP-007, MVP-009, MVP-011, MVP-012, MVP-014]
+languages: [go, python]
+
+goal: >-
+  Provide one repeatable automated scenario that starts the actual Go Server,
+  Python Runtime Agent, PostgreSQL, local mTLS, and a deterministic
+  OpenAI-compatible fake LLM Gateway, then verifies a complete artifact-producing
+  WorkflowRun.
+
+context:
+  mvp_definition: >-
+    The user uploads one text artifact, creates exact Workflow
+    artifact-copy@1, and receives identical bytes as one frozen Run output. Go
+    PassthroughPlanner invokes the Python adk@1 Worker over A2A 1.0. The Worker
+    uses explicitly selected run-artifacts tools. No external LLM or cloud
+    account is required for the automated test.
+  infrastructure: >-
+    The test accepts CONTRACTOR_TEST_DATABASE_URL. CI supplies PostgreSQL as a
+    service. It must not silently switch production repositories to SQLite or
+    require Docker on the developer machine.
+
+scope:
+  in:
+    - Executable artifact-copy@1 Workflow, AgentTemplate, ModelPolicy, and instructions under configs/e2e.
+    - Deterministic OpenAI-compatible fake gateway that produces a read tool call, write tool call, and valid final result based on prior tool output.
+    - Process harness generating temporary CA/leaves, migrating isolated PostgreSQL state, assigning free ports, starting processes, and collecting redacted logs.
+    - Public API client steps for upload, Run creation, polling, and output download.
+    - Assertions on DB lifecycle, exact revisions/lineage, Agent registration, A2A call count, metrics summary, and workspace cleanup.
+    - Operator README for local MVP and optional real LiteLLM smoke run.
+  out:
+    - Performance/load testing, multiple Workers, cancellation, retries, real provider calls in CI, Docker Compose, or production deployment.
+
+fixture_contract:
+  workflow:
+    selector: artifact-copy@1
+    stage: copy
+    planner: passthrough@1
+    input_slot: source
+    result_slot: copied
+    output_slot: result
+  agent_template:
+    runtime: adk@1
+    toolsets:
+      run-artifacts@1: [read_artifact, write_artifact]
+    sandbox_profile: local-workdir@1
+  data:
+    media_type: text/plain
+    bytes: "contractor-e2e-input\n"
+
+deliverables:
+  - {path: configs/e2e, description: Complete isolated MVP configuration set.}
+  - {path: tests/e2e, description: Process harness, fake gateway, API client, and assertions.}
+  - {path: docs/development.md, description: Exact local commands, required environment, ports, and troubleshooting.}
+  - {path: Makefile, description: test-e2e and run-local targets.}
+
+requirements:
+  - id: R1
+    text: Harness uses temporary directories and explicit child PIDs, always terminates children, and never deletes repository or broad system paths.
+  - id: R2
+    text: Readiness waits are bounded and report the failing process plus redacted recent logs.
+  - id: R3
+    text: Fake Gateway is bound to loopback, accepts only the test token, and implements only the minimal request semantics used by the real ADK model adapter.
+  - id: R4
+    text: The test verifies mTLS by including at least one rejected unauthenticated private request.
+  - id: R5
+    text: The end-to-end path uses production Server/Runtime binaries and repositories; fakes are limited to the external LLM Gateway.
+  - id: R6
+    text: A real LiteLLM smoke command is opt-in and never runs in CI or logs its token.
+
+acceptance_criteria:
+  - id: A1
+    given: PostgreSQL and normal build prerequisites but no external LLM.
+    when: make test-e2e runs.
+    then: It exits zero and the downloaded output bytes/media type equal the uploaded input.
+  - id: A2
+    given: The completed Run.
+    when: Durable state is inspected through API/test queries.
+    then: One StageExecution followed preparing/running/finalizing/succeeded, one Planner invocation and one allocation were used, and output is an exact frozen revision.
+  - id: A3
+    given: The original UserScope binding after Worker modified its Run copy.
+    when: It is downloaded.
+    then: Its exact revision and bytes are unchanged.
+  - id: A4
+    given: End-to-end teardown.
+    when: Runtime state and filesystem are inspected.
+    then: Slot was released, allocation secrets/state/tools/routes were cleared, and local-workdir directory no longer exists.
+  - id: A5
+    given: An unauthenticated or wrong-CA private request.
+    when: It targets Go or Python private listener.
+    then: TLS rejects it and no state changes.
+
+tests:
+  - {name: complete-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e", covers: [A1, A2, A3, A4, A5]}
+  - {name: full-verification, command: "make verify", covers: [A1]}
+
+notes:
+  - This task is the MVP milestone gate. Do not add V1 hardening features here unless required to make the happy path deterministic and safe.

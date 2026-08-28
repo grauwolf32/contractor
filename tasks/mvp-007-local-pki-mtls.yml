@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: MVP-007
+title: Provide local CA bootstrap and reusable mTLS verification
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-001]
+languages: [go, python]
+
+goal: >-
+  Make every private Server/Runtime Agent connection mutually authenticated by
+  one deployment CA, including the special Control Plane URI SAN check required
+  by Runtime Agents.
+
+context:
+  trust_model:
+    server: Accept any unexpired client certificate chaining to the configured deployment CA as a Runtime Agent peer.
+    runtime_agent: >-
+      Accept a peer only when its certificate chains to the same CA and at least
+      one URI SAN begins with urn:contractor:control-plane:.
+    equality: Runtime Agent certificates have equal capabilities; instanceId is not a credential.
+  local_files: Generated private keys and certificates live below .local/pki and are gitignored.
+
+scope:
+  in:
+    - A non-interactive local PKI command that creates one CA, one Control Plane certificate, and configurable Runtime Agent certificates.
+    - Correct EKUs, validity windows, URI/DNS SANs, secure file modes, and atomic file replacement.
+    - Go TLS config helpers for private server and private client roles.
+    - Python SSL context helpers for Runtime Agent outgoing and incoming roles.
+    - Unit/integration tests for accepted and rejected certificate chains/SANs.
+  out:
+    - Production certificate delivery, rotation, revocation, HSM, ACME, or public API TLS.
+
+deliverables:
+  - {path: cmd/contractor-pki, description: Go CLI for init-ca, issue-control-plane, and issue-agent operations.}
+  - {path: internal/mtls, description: Go verification helpers with explicit role semantics.}
+  - {path: runtime/src/contractor_runtime/mtls.py, description: Python SSL contexts and Control Plane SAN verifier.}
+  - {path: .gitignore, description: Ignore generated local keys and certificates.}
+
+requirements:
+  - id: R1
+    text: Use ECDSA P-256 keys and SHA-256 signatures for local certificates; serials must be random and non-zero.
+  - id: R2
+    text: CA key is mode 0600; leaf keys are mode 0600; commands refuse to overwrite an existing CA unless an explicit force flag is supplied.
+  - id: R3
+    text: The default local Control Plane URI SAN is urn:contractor:control-plane:local and has both clientAuth and serverAuth EKU.
+  - id: R4
+    text: Runtime Agent leaf certificates have clientAuth and serverAuth EKU and configurable localhost DNS/IP SANs but no privileged URI SAN.
+  - id: R5
+    text: Verification rejects wrong CA, expired/not-yet-valid leaf, missing required EKU, and a CA-valid Control Plane certificate without the URI prefix.
+  - id: R6
+    text: Neither helper disables hostname/chain verification; custom SAN verification is additional.
+
+acceptance_criteria:
+  - id: A1
+    given: A newly generated local CA and leaves.
+    when: Go Server and Python Runtime verification tests connect in both directions.
+    then: The handshakes succeed.
+  - id: A2
+    given: A CA-valid server leaf lacking the Control Plane URI SAN prefix.
+    when: Runtime Agent verifies it.
+    then: Handshake fails before any HTTP request is processed.
+  - id: A3
+    given: A self-signed or foreign-CA Runtime Agent leaf.
+    when: Server verifies it.
+    then: Handshake fails.
+  - id: A4
+    given: Generated local output.
+    when: Git status and filesystem modes are inspected.
+    then: No key is tracked and all private keys are mode 0600.
+
+tests:
+  - {name: go-mtls, command: "go test ./internal/mtls/... ./cmd/contractor-pki/...", covers: [A1, A2, A3, A4]}
+  - {name: python-mtls, command: "cd runtime && uv run pytest tests/test_mtls.py", covers: [A1, A2, A3]}
+  - {name: cross-language-handshake, command: "make test-mtls", covers: [A1, A2, A3]}
+
+notes:
+  - Keep the PKI command in Go to avoid shell/OpenSSL behavior differences and make certificate properties directly testable.

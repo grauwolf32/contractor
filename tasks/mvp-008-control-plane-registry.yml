@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: MVP-008
+title: Implement the in-memory Go Runtime Agent registry and allocation reservation
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-002, MVP-007]
+languages: [go]
+
+goal: >-
+  Let mTLS-authenticated Runtime Agents register and heartbeat, let the
+  Scheduler atomically reserve compatible idle slots, and expose authoritative
+  allocation state to private APIs.
+
+context:
+  persistence_rule: >-
+    Registrations, observed state, heartbeat sequences, confirmed control
+    leases, slot availability, routes, and active allocation grants exist only
+    in memory in the first single-Control-Plane process. Durable Run/Stage state
+    remains in PostgreSQL.
+  timing:
+    heartbeat_interval: 10s
+    confirmed_lease: 60s
+  process_identity: Runtime Agent creates a new opaque instanceId on every process start; it never adopts an old allocation.
+
+scope:
+  in:
+    - mTLS-only register and heartbeat HTTP handlers using MVP-002 DTOs.
+    - Concurrency-safe in-memory Registry with injected clock.
+    - Monotonic heartbeat/ack bookkeeping and observed-versus-authoritative state.
+    - Compatibility filtering by runtime, Toolset versions/tools, and SandboxProfile.
+    - Atomic reserve-all operation for a Stage's fixed AgentTemplate bindings.
+    - Idempotent reservation lookup by stageExecutionId.
+    - Read API for active allocation-to-run mapping and write-fence state.
+  out:
+    - Calling Runtime Agent prepare/finalize/abort endpoints.
+    - Full lease-loss abort orchestration; V1-002 adds it.
+    - Multi-replica shared coordination or durable runtime_agents tables.
+
+private_http:
+  - {method: POST, path: /private/v1/agents/register, auth: any deployment-CA Runtime Agent certificate}
+  - {method: POST, path: "/private/v1/agents/{instanceId}/heartbeat", auth: any deployment-CA Runtime Agent certificate}
+
+state_rules:
+  - Registration of a new instanceId starts with no authoritative allocation; allocated/fenced observation triggers reconciliation rather than adoption.
+  - heartbeatSeq must increase for one process; replays return the prior safe response and never extend confirmed lease.
+  - Control Plane issues a new ackSeq but confirms its lease only after a later heartbeat echoes that ack.
+  - ReserveAll locks the registry once, chooses distinct idle compatible instances, and returns all reservations or none.
+  - A reserved slot is immediately unavailable even before remote prepare finishes.
+  - An allocation grant contains allocationId, runId, stageExecutionId, namespace, read/write policy, and a writeFenced boolean.
+
+deliverables:
+  - {path: internal/controlplane/registry.go, description: Registry interface and concurrency-safe implementation.}
+  - {path: internal/controlplane/http.go, description: Private registration/heartbeat routes and strict errors.}
+  - {path: internal/controlplane/allocation.go, description: Reservation and active grant models.}
+
+requirements:
+  - id: R1
+    text: Registry uses one clear synchronization strategy and never calls network/database code while holding its lock.
+  - id: R2
+    text: Register/heartbeat derive peer trust from successful mTLS; instanceId is data and not treated as a credential.
+  - id: R3
+    text: Unknown capability refs or missing selected tools make an agent incompatible instead of partially preparing it.
+  - id: R4
+    text: ReserveAll is deterministic under an injected agent ordering for tests but makes no placement-quality promise.
+  - id: R5
+    text: The package exposes SetWriteFence before finalization/abort and Release only for exact allocation IDs.
+  - id: R6
+    text: No registry or heartbeat table migration is introduced.
+
+acceptance_criteria:
+  - id: A1
+    given: Two compatible idle agents and a two-binding Stage.
+    when: ReserveAll runs concurrently twice for different stages.
+    then: No slot is assigned twice and each call gets a complete set or no set.
+  - id: A2
+    given: One compatible slot for a two-binding Stage.
+    when: ReserveAll runs.
+    then: It returns no reservations and leaves the slot idle.
+  - id: A3
+    given: Replayed/out-of-order heartbeats and heartbeats echoing an old ack.
+    when: Handlers process them.
+    then: Confirmed lease is not advanced incorrectly.
+  - id: A4
+    given: A foreign-CA HTTP client.
+    when: It calls either private route.
+    then: TLS rejects it before handler invocation.
+  - id: A5
+    given: A Stage retries the same reservation operation by stageExecutionId.
+    when: ReserveAll is called again.
+    then: It receives the same allocation identities without consuming more slots.
+
+tests:
+  - {name: registry-race, command: "go test -race ./internal/controlplane/...", covers: [A1, A2, A3, A5]}
+  - {name: registry-mtls, command: "go test ./internal/controlplane/... -run MTLS", covers: [A4]}
+
+notes:
+  - V1-002 will turn expired/mismatched observations into durable Stage aborts. Preserve enough state and typed events to add that without replacing Registry.

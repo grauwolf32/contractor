@@ -1,0 +1,122 @@
+schema_version: "1.0"
+id: MVP-002
+title: Define versioned cross-language wire contracts and golden fixtures
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-001]
+languages: [go, python]
+
+goal: >-
+  Establish the JSON contracts shared by the Go Control Plane/Planner and the
+  Python Runtime Agent before either side implements network behavior.
+
+context:
+  transport_rules:
+    control_and_artifact: HTTPS JSON with application/json
+    a2a: A2A 1.0 over HTTP JSON-RPC using a DataPart for Contractor payloads
+    json_fields: camelCase
+    timestamps: RFC 3339 UTC
+    ids: Opaque non-empty strings; production code will generate UUIDs.
+  compatibility_rule: >-
+    Every payload carries apiVersion contractor/v1alpha1. Decoders reject an
+    unknown apiVersion and unknown JSON object fields. Adding an optional field
+    later requires a new fixture and must preserve old decoding.
+
+scope:
+  in:
+    - JSON Schema files for registration, heartbeat, allocation lifecycle, Artifact API, and StageContent.
+    - Equivalent strict Go structs and Pydantic v2 models.
+    - Language-neutral valid and invalid JSON fixtures.
+    - Cross-language tests that decode the same valid fixtures and reject the same invalid fixtures.
+  out:
+    - HTTP handlers or clients.
+    - Database entities.
+    - Generated code or a schema registry service.
+
+required_contracts:
+  - name: AgentRegistration
+    fields: [apiVersion, instanceId, startedAt, controlUrl, a2aUrl, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, observedState, allocationId]
+    rules:
+      - observedState is idle, allocated, draining, or fenced.
+      - allocationId is required only for allocated, draining, or fenced.
+  - name: AgentHeartbeat
+    request_fields: [apiVersion, instanceId, heartbeatSeq, echoedAckSeq, observedState, allocationId]
+    response_fields: [apiVersion, ackSeq, action, allocationId]
+    rules:
+      - Sequences are unsigned monotonically increasing integers.
+      - action is continue, drain, release, or reregister.
+  - name: AllocationSpec
+    fields: [apiVersion, allocationId, runId, stageExecutionId, logicalAgentName, namespace, agentTemplate, runtimeSettings]
+    rules:
+      - agentTemplate is the complete resolved template, including exact digests and resolved instruction text.
+      - runtimeSettings carries URLs/tokens and is never part of the AgentTemplate digest.
+  - name: AllocationLifecycle
+    operations: [prepare, finalize, abort, release]
+    rules:
+      - prepare is idempotent by stageExecutionId plus allocationId.
+      - finalize carries finalizationId and deadline.
+      - abort carries abortId, durable reason code, and deadline.
+      - release carries allocationId and is idempotent.
+  - name: ArtifactRef
+    fields: [namespace, name, revision]
+    rules:
+      - revision is optional for read and forbidden on a write target.
+      - every successful read/write response contains a non-empty revision.
+  - name: StageContentRequest
+    fields: [apiVersion, objective, instructions, parameters, artifacts]
+    rules:
+      - objective and instructions are non-empty strings.
+      - parameters is a string-to-string map.
+      - artifacts maps Stage-local names to exact ArtifactRefs with revisions.
+  - name: StageContentResult
+    fields: [apiVersion, outcome, summary, artifacts, error]
+    rules:
+      - outcome is succeeded or failed.
+      - artifacts maps declared result slot names to exact versioned ArtifactRefs.
+      - error is absent on success and contains code, message, retryable on failure.
+
+deliverables:
+  - {path: api/v1alpha1, description: JSON Schema documents and format README expressed as YAML or Markdown outside the task directory.}
+  - {path: api/testdata/v1alpha1, description: Valid and invalid golden JSON documents.}
+  - {path: internal/contracts, description: Strict Go wire DTOs and validation helpers.}
+  - {path: runtime/src/contractor_runtime/contracts.py, description: Strict Pydantic v2 wire DTOs.}
+
+requirements:
+  - id: R1
+    text: Contract DTOs are transport-only and must not import persistence, HTTP, ADK, or scheduler packages.
+  - id: R2
+    text: Secrets in RuntimeSettings must use redacting string representations in both languages.
+  - id: R3
+    text: JSON round trips preserve absent optional values instead of inventing defaults.
+  - id: R4
+    text: Schema and language validation must reject a versionless StageContent result artifact.
+  - id: R5
+    text: Invalid state/allocationId combinations and unknown fields have negative fixtures.
+
+acceptance_criteria:
+  - id: A1
+    given: Every valid golden JSON file.
+    when: Go and Python contract tests decode it.
+    then: Both accept it and re-encoding preserves its semantic JSON value.
+  - id: A2
+    given: Every invalid golden JSON file.
+    when: Both language test suites decode it.
+    then: Both reject it for the documented reason.
+  - id: A3
+    given: RuntimeSettings containing a recognizable token.
+    when: The object is formatted or logged.
+    then: The token bytes do not appear.
+  - id: A4
+    given: A StageContentResult with an unversioned artifact.
+    when: Validation runs.
+    then: Validation fails before Planner can return a candidate StageResult.
+
+tests:
+  - {name: go-contracts, command: "go test ./internal/contracts/...", covers: [A1, A2, A3, A4]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_contracts.py", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make test-contracts", covers: [A1, A2]}
+
+notes:
+  - Keep schemas hand-reviewed; code generation is intentionally deferred.
+  - A2A envelope types come from official SDKs later. This task defines only the Contractor DataPart payload.

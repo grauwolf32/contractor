@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V1-005
+title: Harden lifecycle races, idempotency, and private-boundary security
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [V1-001, V1-002, V1-003, V1-004]
+languages: [go, python]
+
+goal: >-
+  Convert the principal failure and race cases into deterministic regression
+  tests and close any fail-open behavior before calling the first slice stable.
+
+context:
+  focus: >-
+    This task does not add product features. It audits and hardens invariants at
+    transaction, mTLS, allocation, Artifact, digest, deadline, and process
+    boundaries using fault injection and race-enabled tests.
+
+scope:
+  in:
+    - Cancel versus success/output commit races.
+    - Duplicate/reordered prepare, Planner completion, finalize, abort, release, heartbeat, and Artifact requests.
+    - Ambiguous timeout after remote allocation preparation or A2A delivery.
+    - Wrong-CA/missing-SAN/stale-allocation/private API attacks.
+    - Digest tampering and config path/symlink traversal.
+    - Post-finalizing and post-aborting Artifact writes.
+    - Scheduler/Runtime process restart at every durable lifecycle boundary.
+    - Go race detector and Python async task leak checks.
+  out:
+    - Penetration testing of LLM providers, container sandboxing, multi-tenancy, quotas, or multiple Control Plane replicas.
+
+deliverables:
+  - {path: tests/faults, description: Lifecycle crash/retry/race and private-boundary attack matrix.}
+  - {path: internal, description: Targeted idempotency, fencing, validation, and redaction fixes exposed by the matrix.}
+  - {path: runtime/tests, description: Stale-allocation, cancellation, secret, and async-leak regression tests.}
+  - {path: docs/development.md, description: Repeatable hardening commands and fault-test prerequisites.}
+
+requirements:
+  - id: R1
+    text: Every mutating private/public operation has documented idempotency behavior and a test for response loss/retry.
+  - id: R2
+    text: Unknown, released, mismatched, or write-fenced allocation IDs fail closed for A2A and Artifact operations.
+  - id: R3
+    text: mTLS chain/EKU/SAN verification cannot be disabled by ordinary configuration and no production insecure flag exists.
+  - id: R4
+    text: Workflow output acceptance always uses candidate exact revision and cannot race a current binding advance.
+  - id: R5
+    text: All background goroutines/asyncio tasks stop under test deadlines; leaked resources fail tests.
+  - id: R6
+    text: Errors exposed over HTTP/A2A remain stable/redacted while internal logs retain a request/correlation ID.
+
+acceptance_criteria:
+  - id: A1
+    given: A test matrix covering every durable lifecycle boundary.
+    when: Server or Runtime is killed and restarted.
+    then: No duplicate semantic invocation/output occurs and Run reaches a documented terminal/recoverable state.
+  - id: A2
+    given: Candidate ref R1 and a concurrent binding advance to R2.
+    when: Scheduler finalizes.
+    then: It validates/binds R1 exactly or fails; it never substitutes R2.
+  - id: A3
+    given: Stale allocation with valid CA certificate.
+    when: It calls Artifact/A2A after finalizing, aborting, or release.
+    then: Request is denied and creates no side effect.
+  - id: A4
+    given: All Go packages under race detector and Python async tests.
+    when: Hardening suite runs repeatedly.
+    then: No data race, task leak, unbounded wait, or flaky ordering dependency appears.
+  - id: A5
+    given: Logs and API responses from injected secrets/tampering failures.
+    when: Searched.
+    then: Secrets are absent and every failure has a correlation ID.
+
+tests:
+  - {name: go-race, command: "go test -race ./...", covers: [A1, A2, A3, A4]}
+  - {name: python-hardening, command: "cd runtime && uv run pytest -W error tests", covers: [A3, A4, A5]}
+  - {name: fault-matrix, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-faults", covers: [A1, A2, A3, A5]}

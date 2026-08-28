@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: MVP-009
+title: Implement Python Runtime Agent registration, heartbeat, and private server shell
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-002, MVP-007, MVP-008]
+languages: [python]
+
+goal: >-
+  Run a single-slot Python process that authenticates to the Go Control Plane,
+  registers a fresh process identity, maintains sequenced heartbeats, and
+  exposes an mTLS private HTTP server ready for allocation handlers.
+
+context:
+  process_model: >-
+    One Runtime Agent process owns exactly one exclusive slot. A Worker will be
+    an allocation-scoped in-process object added later, not a child process,
+    container, or second daemon.
+  state_machine: [starting, idle, allocated, draining, fenced, stopping]
+  timing:
+    heartbeat_interval: 10s
+    confirmed_lease: 60s
+
+scope:
+  in:
+    - Strict environment/CLI configuration with redacted secrets.
+    - New random instanceId and startedAt for every process launch.
+    - mTLS HTTP client for register/heartbeat and mTLS ASGI private listener.
+    - Control Plane URI SAN prefix verification on every inbound private connection.
+    - Sequenced heartbeat loop with echoed ack and injected clock/backoff for tests.
+    - Thread/async-safe one-slot state holder and diagnostic health endpoint.
+    - Empty prepare/finalize/abort/release route shells returning typed not-implemented until MVP-010.
+  out:
+    - Constructing Worker, tools, A2A routes, Artifact client, or LLM client.
+    - Reusing an instanceId across restart.
+    - Full 60-second self-termination behavior; V1-002 completes it.
+
+configuration:
+  required:
+    - control_plane_url
+    - advertised_control_url
+    - advertised_a2a_url
+    - ca_file
+    - certificate_file
+    - private_key_file
+  optional:
+    heartbeat_interval_seconds: 10
+    confirmed_lease_seconds: 60
+    listen_address: "127.0.0.1:9443"
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/settings.py, description: Strict settings and SecretStr/redaction behavior.}
+  - {path: runtime/src/contractor_runtime/state.py, description: Single-slot process state machine.}
+  - {path: runtime/src/contractor_runtime/control_client.py, description: Registration and heartbeat loop.}
+  - {path: runtime/src/contractor_runtime/server.py, description: Private mTLS app and lifecycle route shell.}
+
+requirements:
+  - id: R1
+    text: Startup does not report idle until settings/certificates validate, orphan-workdir cleanup succeeds, private listener is accepting, and registration succeeds.
+  - id: R2
+    text: Heartbeat sequence increases monotonically and echoedAckSeq changes only after a valid response was received.
+  - id: R3
+    text: Response timeouts/retries use bounded exponential backoff with jitter but the normal heartbeat cadence remains 10 seconds.
+  - id: R4
+    text: Logs never contain certificate private key bytes, bearer tokens, RuntimeSettings, or full exception representations that embed them.
+  - id: R5
+    text: "The private listener requires a CA-valid peer plus URI SAN prefix urn:contractor:control-plane: before dispatch."
+  - id: R6
+    text: Shutdown cancels heartbeat and HTTP serving, drains state, and completes within a configured grace period.
+
+acceptance_criteria:
+  - id: A1
+    given: Valid local PKI and a test Control Plane.
+    when: Runtime starts.
+    then: It registers one fresh instanceId and emits sequential heartbeats reporting idle.
+  - id: A2
+    given: Two consecutive process starts with identical settings.
+    when: Registrations are observed.
+    then: Their instanceIds differ.
+  - id: A3
+    given: Heartbeat response loss followed by recovery.
+    when: Requests continue.
+    then: Runtime repeats safe state, does not claim an unreceived ack, and resumes after a valid response.
+  - id: A4
+    given: A CA-valid client certificate without the Control Plane URI SAN.
+    when: It calls the private listener.
+    then: The connection/request is rejected before a route handler mutates state.
+  - id: A5
+    given: SIGTERM during an in-flight heartbeat.
+    when: Runtime shuts down.
+    then: It exits cleanly without an unhandled asyncio task.
+
+tests:
+  - {name: runtime-state, command: "cd runtime && uv run pytest tests/test_state.py", covers: [A2, A5]}
+  - {name: runtime-heartbeat, command: "cd runtime && uv run pytest tests/test_control_client.py", covers: [A1, A3]}
+  - {name: runtime-private-mtls, command: "cd runtime && uv run pytest tests/test_server_mtls.py", covers: [A4]}
+
+notes:
+  - Use httpx AsyncClient for outgoing private HTTP unless the chosen A2A stack supplies a clearly better general client.
+  - The ASGI server integration must expose the verified peer certificate to middleware; never replace the SAN check with a spoofable header.

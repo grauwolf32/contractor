@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: MVP-005
+title: Implement the scoped PostgreSQL ArtifactStore core
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-004]
+languages: [go, sql]
+
+goal: >-
+  Persist immutable artifact payload versions and mutable logical bindings for
+  UserScope and RunScope, including exact input forks and atomic output binds.
+
+context:
+  public_ref:
+    shape: "ArtifactRef(namespace, name, revision?)"
+    rule: Scope is authenticated context and never appears in ArtifactRef.
+  scopes:
+    user: "UserScope(userId): durable user library"
+    run: "RunScope(runId): one WorkflowRun working artifact space"
+  namespaces:
+    inputs: Mutable working copies forked from UserScope inputs.
+    outputs: Scheduler-managed frozen Workflow outputs; Workers never write here.
+    other: Intermediate Worker namespaces.
+  mvp_backend: PostgreSQL bytea for immutable payloads, with SHA-256 deduplication allowed but not required.
+
+scope:
+  in:
+    - Artifact blob/version/binding/lineage migrations.
+    - Scope-bound read, list, create, and compare-and-swap update operations.
+    - Exact UserScope-to-RunScope input fork without copying payload bytes.
+    - Scheduler-only exact revision pin and outputs binding operation.
+    - Retention of revisions referenced by Run inputs, StageContext, StageResult, or outputs.
+  out:
+    - HTTP endpoints, S3, multipart streaming, garbage collection, or output publication to UserScope.
+    - Domain-specific archive extraction or semantic merging.
+
+storage_contract:
+  payload:
+    fields: [mediaType, bytes, sha256, size]
+    media_type: Lowercase type/subtype without parameters; only */* is a supported wildcard in declarations, not stored payloads.
+    max_size: 16777216
+  write:
+    target_ref: Must be versionless.
+    create: expectedRevision absent and binding does not exist.
+    update: expectedRevision equals the current opaque revision.
+    conflict: Stale/missing precondition returns ArtifactConflict and never overwrites.
+  read:
+    versionless: Resolve current binding and return an exact versioned ref.
+    versioned: Return that historical version and never fall forward.
+  list:
+    result: Versionless current binding refs only, sorted deterministically by namespace then name.
+
+deliverables:
+  - {path: internal/persistence/migrations, description: Artifact registry/blob/binding/lineage schema additions.}
+  - {path: internal/artifacts, description: Scope types, ArtifactRef, service, repository, validation, and PostgreSQL implementation.}
+
+requirements:
+  - id: R1
+    text: A binding key is scopeKind + scopeId + namespace + name; revision is an opaque immutable selection token.
+  - id: R2
+    text: A fork resolves and records the exact source revision, creates inputs/<slot> in RunScope, and reuses the immutable payload row.
+  - id: R3
+    text: Updating a Run binding never advances or mutates the source UserScope binding.
+  - id: R4
+    text: The API exposes a transaction-scoped BindOutputExact method that validates the selected revision and creates outputs/<slot> without accepting Worker authority.
+  - id: R5
+    text: Invalid namespace/name, parameterized media type, oversized content, revision on write target, and stale CAS all return distinct typed errors.
+  - id: R6
+    text: SQL constraints prevent a binding from pointing outside its own scope and prevent revision reuse for a logical binding.
+
+acceptance_criteria:
+  - id: A1
+    given: A UserScope artifact and one Run input fork.
+    when: The Run copy is updated.
+    then: UserScope still resolves to its original exact revision and bytes.
+  - id: A2
+    given: Two writers with the same expected revision.
+    when: Both update concurrently.
+    then: Exactly one advances the binding and the other receives ArtifactConflict.
+  - id: A3
+    given: A historical exact ref whose current binding advanced.
+    when: It is read.
+    then: Original bytes and media type are returned.
+  - id: A4
+    given: A Scheduler-selected exact intermediate revision.
+    when: BindOutputExact runs in a caller transaction.
+    then: outputs/<slot> references exactly that immutable payload and is visible only after commit.
+  - id: A5
+    given: An attempt to store content above 16 MiB or a parameterized media type.
+    when: Write is called.
+    then: It fails before committing blob or binding rows.
+
+tests:
+  - {name: artifact-unit, command: "go test ./internal/artifacts/...", covers: [A2, A5]}
+  - {name: artifact-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A2, A3, A4, A5]}
+
+notes:
+  - Do not expose database IDs, blob IDs, or physical locations through ArtifactRef.
+  - Keep payload access behind ArtifactStore even though bytea is the initial backend.

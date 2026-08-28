@@ -1,0 +1,94 @@
+schema_version: "1.0"
+id: MVP-004
+title: Add PostgreSQL migrations and durable Workflow execution stores
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-001, MVP-002]
+languages: [go, sql]
+
+goal: >-
+  Provide the transactional persistence boundary needed by Run creation,
+  Scheduler recovery, Stage lifecycle, and durable Planner sessions.
+
+context:
+  ownership: >-
+    PostgreSQL stores durable WorkflowRun and StageExecution truth. Live Runtime
+    Agent registrations and heartbeat leases remain in Control Plane memory and
+    must not be added to these tables.
+  states:
+    workflow_run: [initializing, running, cancelling, succeeded, failed, cancelled]
+    stage_execution: [preparing, running, finalizing, aborting, succeeded, failed, interrupted, cancelled]
+  terminal_models:
+    stage_result: Present only for succeeded or failed semantic outcomes.
+    stage_termination: Present only for interrupted or cancelled outcomes and contains code, message, retryable, phase.
+
+scope:
+  in:
+    - Embedded forward-only SQL migrations and a migration command.
+    - pgx/v5 connection pool configuration and transaction helper.
+    - Tables for WorkflowRun snapshots, StageExecution attempts, pinned StageContext, candidate/final result, StageTermination, and Planner sessions/events.
+    - Repository interfaces and PostgreSQL implementations with optimistic state transitions.
+    - Claim/query primitives required by one Scheduler process.
+  out:
+    - Artifact tables, Runtime Agent registry, metrics payloads, or public HTTP.
+    - Multiple active Scheduler replicas beyond safe row claiming primitives.
+
+data_rules:
+  - All IDs, timestamps, attempt numbers, state, and state-change reason fields are explicit columns.
+  - Resolved Workflow snapshots and structured result/termination payloads use validated JSONB plus schema version.
+  - maxAttempts includes the initial attempt; every Stage retry gets a new stage_execution_id and incremented attempt.
+  - A StageExecution has zero Planner session rows while preparing and exactly one after Planner creation.
+  - Exactly one of terminal StageResult or StageTermination is present according to terminal state.
+  - Candidate StageResult is persisted before entering finalizing and is immutable afterwards.
+  - State transitions use compare-and-swap predicates; a stale expected state returns a typed conflict, not success.
+
+deliverables:
+  - {path: internal/persistence/migrations, description: Embedded numbered PostgreSQL SQL files.}
+  - {path: internal/persistence/postgres, description: Pool creation, migration runner, and transaction utilities.}
+  - {path: internal/runstore, description: Domain repository interfaces and PostgreSQL implementation.}
+  - {path: cmd/contractor-server, description: migrate subcommand using the same database configuration as serve.}
+
+requirements:
+  - id: R1
+    text: Migrations are idempotently tracked and two simultaneous migrators cannot apply the same migration twice.
+  - id: R2
+    text: Use CHECK constraints for legal states and terminal payload consistency; do not use PostgreSQL enum types.
+  - id: R3
+    text: Store methods accept context.Context, preserve cancellation, wrap errors with operation and stable typed causes, and never begin hidden nested transactions.
+  - id: R4
+    text: Provide a transaction-scoped API so Artifact output binding and Run success can later commit atomically.
+  - id: R5
+    text: Scheduler claim queries use row locking and cannot return one runnable Run to two concurrent callers.
+  - id: R6
+    text: Runtime Agent liveness and allocation leases are absent from durable schema.
+
+acceptance_criteria:
+  - id: A1
+    given: An empty supported PostgreSQL database.
+    when: Migrations run twice.
+    then: Both commands succeed and the second makes no schema changes.
+  - id: A2
+    given: A Run and StageExecution in preparing.
+    when: Valid lifecycle transitions are applied with correct expected states.
+    then: Stored state and immutable payloads match exactly.
+  - id: A3
+    given: Two transactions claiming the same runnable Run or transitioning the same state.
+    when: They race.
+    then: At most one wins and the loser receives a typed conflict/no-work result.
+  - id: A4
+    given: An invalid terminal row combination or illegal state string.
+    when: Direct SQL attempts to commit it.
+    then: PostgreSQL rejects the transaction.
+  - id: A5
+    given: The final schema.
+    when: Table names are inspected.
+    then: No runtime_agents or heartbeat lease table exists.
+
+tests:
+  - {name: store-unit, command: "go test ./internal/runstore/...", covers: [A2, A3]}
+  - {name: postgres-integration, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A2, A3, A4, A5]}
+
+notes:
+  - Integration tests must create isolated rows/schemas and clean them without dropping a caller-provided database.
+  - Keep SQL visible and reviewable; do not introduce an ORM.

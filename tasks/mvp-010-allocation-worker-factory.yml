@@ -1,0 +1,97 @@
+schema_version: "1.0"
+id: MVP-010
+title: Implement idempotent allocation lifecycle and Python Worker factory boundary
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-002, MVP-003, MVP-008, MVP-009]
+languages: [go, python]
+
+goal: >-
+  Turn a complete AllocationSpec into one prepared allocation-local Worker
+  context in the Python Runtime Agent and give the Go Control Plane reliable
+  prepare/finalize/abort/release operations.
+
+context:
+  allocation_model: >-
+    The Runtime Agent has one slot. It constructs one in-process Worker from a
+    resolved AgentTemplate and destroys it during finalize or abort. Control
+    Plane reserves a complete Stage batch before calling any agent and drains
+    the whole batch if one prepare fails.
+  sandbox_profile: >-
+    local-workdir@1 creates a fresh empty allocation directory under one
+    configured dedicated root. This is lifecycle isolation only, not an OS,
+    process, or network security boundary.
+
+scope:
+  in:
+    - Python WorkerRuntimeFactory and ToolsetFactory protocols plus descriptor registries.
+    - Built-in descriptor registration for adk@1, run-artifacts@1, and local-workdir@1.
+    - AllocationSpec validation and exact digest verification.
+    - In-memory allocation context, State.metrics skeleton, runtime settings, workspace, and selected tool construction.
+    - Idempotent private prepare/finalize/abort/release handlers.
+    - Go RuntimeControlClient and Control Plane prepare-all/cleanup orchestration.
+    - Stub WorkerRuntime used to test lifecycle before ADK is added.
+  out:
+    - Real Artifact tools, LLM calls, or A2A task execution.
+    - Container sandboxing or multiple simultaneous allocations.
+
+validation_rules:
+  - Recompute exact instruction, ModelPolicy, and AgentTemplate digests; mismatch is non-retryable template_digest_mismatch.
+  - Reject unsupported runtime/profile/toolset ref, unknown selected tool, duplicate visible tool name, wrong namespace, or malformed RuntimeSettings.
+  - Construct only explicitly selected tools; run-artifacts tools are never implicit.
+  - Keep RuntimeSettings secrets only in allocation memory and exclude them from logs, repr, Agent Card, reports, and durable responses.
+  - A repeated prepare with the same stageExecutionId/allocationId returns the same ready result; another allocation while busy returns conflict.
+
+lifecycle_rules:
+  prepare: "idle -> allocated only after workspace, tools, State, and WorkerRuntime all succeed; rollback all resources on failure"
+  finalize: "allocated -> draining; reject new work, stop Worker without semantic calls, return cached bounded report"
+  abort: "allocated/draining -> draining; cancel locally within deadline, force Runtime Agent process exit if in-process stop cannot be guaranteed"
+  release: "only after terminal owner decision; remove workspace/secrets/state/routes and become idle; cleanup failure remains fenced"
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/allocation.py, description: Allocation context and idempotent lifecycle service.}
+  - {path: runtime/src/contractor_runtime/factories.py, description: Runtime/Toolset/Sandbox descriptor and factory protocols.}
+  - {path: runtime/src/contractor_runtime/workspace.py, description: Safe local-workdir@1 lifecycle.}
+  - {path: internal/controlplane/runtime_client.go, description: mTLS client and prepare/finalize/abort/release batch orchestration.}
+
+requirements:
+  - id: R1
+    text: Workspace paths are generated internally, resolved below the dedicated root, never accepted from AllocationSpec, and never recursively delete the root itself.
+  - id: R2
+    text: Runtime startup removes only recognized Contractor allocation directories under its dedicated root before registering idle.
+  - id: R3
+    text: Prepare rollback leaves no tool, State, secret, route, or workspace residue and reports a typed preparation failure.
+  - id: R4
+    text: Finalize/abort IDs are idempotency keys; same ID returns cached result and a different ID for the same operation conflicts.
+  - id: R5
+    text: Go prepare-all returns WorkerHandles only when every reserved Runtime Agent is ready; otherwise it drains/releases every reservation.
+  - id: R6
+    text: WorkerHandle contains exact template/runtime refs, allocationId, Agent Card, and lease/deadline only; no secret or host path.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid resolved template and RuntimeSettings.
+    when: Prepare succeeds.
+    then: Exactly one context exists, only selected tool stubs are constructed, and repeated prepare returns the same handle.
+  - id: A2
+    given: A bad digest or unsupported ref.
+    when: Prepare runs.
+    then: It returns the stable non-retryable error and leaves the slot clean/idle.
+  - id: A3
+    given: A two-agent batch whose second prepare fails.
+    when: Go orchestration runs.
+    then: No partial WorkerHandle set is returned and the first allocation is drained and released.
+  - id: A4
+    given: Finalize followed by release.
+    when: Both complete.
+    then: Worker is destroyed, report is returned once/cached, secrets are absent from memory, workdir is removed, and slot is idle.
+  - id: A5
+    given: Workspace cleanup failure.
+    when: Release runs.
+    then: Runtime reports fenced and refuses a new allocation.
+
+tests:
+  - {name: runtime-allocation, command: "cd runtime && uv run pytest tests/test_allocation.py", covers: [A1, A2, A4, A5]}
+  - {name: control-batch, command: "go test ./internal/controlplane/... -run 'Prepare|Finalize|Release'", covers: [A3]}
+  - {name: cross-language-lifecycle, command: "make test-control-integration", covers: [A1, A2, A3, A4]}

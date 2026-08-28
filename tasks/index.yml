@@ -1,0 +1,91 @@
+schema_version: "1.0"
+
+project:
+  name: contractor-v2
+  objective: >-
+    Deliver a single-VM workflow runtime whose Control Plane and public server
+    are implemented in Go and whose single-slot Runtime Agent is implemented in
+    Python.
+
+execution_policy:
+  task_files_are_self_contained: true
+  dependency_rule: >-
+    A task may start only after every ID in depends_on is complete. The worker
+    may inspect code produced by those dependencies but is not expected to read
+    docs/spec or know earlier design discussions.
+  change_rule: >-
+    Keep each implementation task in its own commit unless two tasks must be
+    landed atomically to keep the repository buildable.
+  completion_rule: >-
+    A task is complete only when every acceptance criterion passes and all
+    commands listed under tests succeed.
+  priorities:
+    P0: Required for the first runnable MVP.
+    P1: Required to harden the MVP into the specified first slice.
+
+fixed_decisions:
+  server:
+    language: Go 1.25
+    module: github.com/grauwolf32/contractor
+    http_stack: Go standard library net/http
+    database_driver: github.com/jackc/pgx/v5
+  runtime_agent:
+    language: Python 3.13
+    packaging: uv with a src-layout package
+    agent_framework: Google ADK Python
+    a2a_sdk: Official a2a-sdk Python package
+  planner:
+    mvp: >-
+      passthrough@1 is deterministic Go code and makes one A2A call. It records
+      a durable Contractor planner session but does not need an LLM or ADK event
+      loop.
+    after_mvp: >-
+      streamline@1 uses Google ADK Go with a PostgreSQL-backed SessionService
+      and fixed A2A Workers.
+  a2a:
+    protocol: A2A 1.0
+    binding: HTTP JSON-RPC
+    go_sdk: github.com/a2aproject/a2a-go/v2
+  persistence:
+    database: PostgreSQL
+    mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
+  deployment:
+    topology: One VM, one Server process, PostgreSQL, and one or more identical single-slot Runtime Agent processes.
+    private_security: Deployment-CA mTLS
+    public_auth: One configured bearer token mapped to one configured user for MVP only.
+
+milestones:
+  - id: mvp
+    exit_task: MVP-015
+    outcome: >-
+      A local user uploads one artifact, starts one exact Workflow version, and
+      receives one frozen output after a Go Scheduler invokes one Python ADK
+      Worker over A2A. All private traffic uses mTLS.
+  - id: first-slice-hardening
+    exit_task: V1-006
+    outcome: >-
+      Cancellation, lease fencing, retry, metrics, race safety, and the first
+      model-backed Streamline Planner satisfy the v2 first-slice contracts.
+
+tasks:
+  - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
+  - {id: MVP-002, file: mvp-002-wire-contracts.yml}
+  - {id: MVP-003, file: mvp-003-config-loader.yml}
+  - {id: MVP-004, file: mvp-004-postgres-state.yml}
+  - {id: MVP-005, file: mvp-005-artifact-store.yml}
+  - {id: MVP-006, file: mvp-006-public-run-api.yml}
+  - {id: MVP-007, file: mvp-007-local-pki-mtls.yml}
+  - {id: MVP-008, file: mvp-008-control-plane-registry.yml}
+  - {id: MVP-009, file: mvp-009-runtime-control-client.yml}
+  - {id: MVP-010, file: mvp-010-allocation-worker-factory.yml}
+  - {id: MVP-011, file: mvp-011-private-artifact-api.yml}
+  - {id: MVP-012, file: mvp-012-python-adk-a2a.yml}
+  - {id: MVP-013, file: mvp-013-go-passthrough-planner.yml}
+  - {id: MVP-014, file: mvp-014-workflow-scheduler.yml}
+  - {id: MVP-015, file: mvp-015-end-to-end.yml}
+  - {id: V1-001, file: v1-001-cancellation-abort.yml}
+  - {id: V1-002, file: v1-002-lease-fencing.yml}
+  - {id: V1-003, file: v1-003-retry-multistage.yml}
+  - {id: V1-004, file: v1-004-metrics.yml}
+  - {id: V1-005, file: v1-005-races-security.yml}
+  - {id: V1-006, file: v1-006-streamline-planner.yml}

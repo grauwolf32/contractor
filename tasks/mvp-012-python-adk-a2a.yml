@@ -1,0 +1,111 @@
+schema_version: "1.0"
+id: MVP-012
+title: Implement the Python ADK Worker and allocation-scoped A2A 1.0 server
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-010, MVP-011]
+languages: [python]
+
+goal: >-
+  Instantiate adk@1 from the resolved AgentTemplate, expose that in-process
+  Worker through the Runtime Agent's own A2A endpoint, and return a strict
+  Contractor StageContentResult.
+
+context:
+  libraries:
+    agent_framework: Google ADK Python
+    a2a: Official a2a-sdk supporting A2A 1.0
+    binding: HTTP JSON-RPC
+  process_rule: >-
+    Runtime Agent, A2A server, Worker runtime, State, tools, and metric collector
+    are objects in one Python process. Do not launch an adk api_server, child
+    Worker process, or proxy service.
+  model_access: >-
+    AgentTemplate ModelPolicy contains model alias, maxOutputTokens, and optional
+    temperature. LLM Gateway URL/token arrive only in allocation RuntimeSettings.
+
+scope:
+  in:
+    - AdkWorkerRuntimeFactory for runtime ref adk@1.
+    - LLM Gateway model adapter configured from resolved ModelPolicy plus RuntimeSettings.
+    - Allocation-local ADK in-memory Session/State with a reserved metrics section.
+    - A2A 1.0 Agent Card and JSON-RPC routes activated only for the current allocation.
+    - Sequential SendMessage handling for StageContentRequest DataPart.
+    - Strict conversion of the final Worker output to StageContentResult.
+    - Per-call and per-tool bounded metrics accumulation for later finalization.
+    - Deterministic fake model adapter for unit/integration tests.
+  out:
+    - Planner implementation, streaming, concurrent Tasks, push notifications, long-lived task resumption, or INPUT_REQUIRED/AUTH_REQUIRED interaction.
+
+a2a_contract:
+  agent_card:
+    - Name includes logical Agent name but no runId, token, host path, or instruction text.
+    - Exactly one MVP skill accepts application/vnd.contractor.stage-content+json.
+    - URL and allocation identity are active only while allocated.
+  request:
+    - Accept exactly one Contractor StageContentRequest DataPart.
+    - Reject text-only or wrong-version payloads with a stable failed response.
+    - Handle one task at a time; a concurrent SendMessage receives busy/conflict.
+  response:
+    - Return an immediate Message or a terminal completed/failed Task accepted by A2A 1.0.
+    - Contractor payload is exactly one StageContentResult DataPart.
+    - Every returned artifact ref has a revision and was obtained from ArtifactClient, never invented by the model.
+
+worker_rules:
+  - Reusable AgentTemplate instructions configure Worker behavior and remain separate from Stage objective/instructions in StageContentRequest.
+  - Model-visible tools are exactly the explicitly selected Toolset members.
+  - ADK State is allocation-local in memory and is destroyed on release.
+  - State.metrics counts LLM calls, token usage when reported, tool calls, bounded tool argument summaries, errors, and final outcome.
+  - maxOutputTokens applies to every LLM call; temperature is omitted when absent.
+  - Model output is untrusted. Validate StageContentResult, selected artifact slot names, and exact refs before returning it.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: ADK factory, session/state, model adapter, execution, and result validation.}
+  - {path: runtime/src/contractor_runtime/a2a_server.py, description: Dynamic allocation-scoped A2A card/routes/executor.}
+  - {path: runtime/src/contractor_runtime/metrics.py, description: Bounded in-memory execution collector.}
+  - {path: runtime/tests/fakes, description: Deterministic model and A2A fixtures requiring no external LLM.}
+
+requirements:
+  - id: R1
+    text: Pin compatible ADK and A2A SDK versions in uv.lock and add a dependency smoke test that constructs the real classes used.
+  - id: R2
+    text: A2A handlers verify the current allocation is active and reject stale URLs/IDs after finalize, abort, or release.
+  - id: R3
+    text: LLM Gateway token is passed through the supported model-client API and is absent from exceptions, events persisted elsewhere, State metrics, and Agent Card.
+  - id: R4
+    text: Artifact payload bytes are never placed in A2A; StageContent carries ArtifactRefs only.
+  - id: R5
+    text: finalize/abort can locally cancel an active ADK invocation without waiting for an A2A terminal state and can obtain the cached bounded report.
+  - id: R6
+    text: Tests run with the deterministic fake model and do not contact a provider.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid allocation selecting read_artifact and write_artifact.
+    when: Fake model performs one read and one write and returns success.
+    then: A2A response is terminal/valid, result ref is exact, only selected tools ran, and metrics count calls.
+  - id: A2
+    given: A model response with an invented/unversioned artifact ref or unknown result field.
+    when: Worker validates it.
+    then: It returns a failed Contractor result and does not promote the invalid ref.
+  - id: A3
+    given: A stale A2A request after finalize or release.
+    when: It reaches the Runtime Agent listener.
+    then: It is rejected and no ADK/model/tool call occurs.
+  - id: A4
+    given: A long-running fake model call.
+    when: Abort is invoked.
+    then: Invocation stops within the supplied deadline or the Runtime Agent chooses process termination; report is bounded.
+  - id: A5
+    given: Runtime logs, metrics, Agent Card, and A2A response.
+    when: They are searched for the configured gateway token.
+    then: Token is absent.
+
+tests:
+  - {name: adk-runtime, command: "cd runtime && uv run pytest tests/test_adk_runtime.py", covers: [A1, A2, A4, A5]}
+  - {name: a2a-runtime, command: "cd runtime && uv run pytest tests/test_a2a_server.py", covers: [A1, A2, A3]}
+  - {name: dependency-smoke, command: "cd runtime && uv run pytest tests/test_dependency_smoke.py", covers: [A1]}
+
+notes:
+  - Keep ADK-specific types behind AdkWorkerRuntime; allocation and control modules depend only on WorkerRuntime protocol.

@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: MVP-013
+title: Implement the Go PassthroughPlanner and A2A client adapter
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-002, MVP-004, MVP-007, MVP-012]
+languages: [go]
+
+goal: >-
+  Execute one prepared Stage by having deterministic Go Planner code invoke one
+  named Python Worker over A2A and return one validated candidate StageResult.
+
+context:
+  planner_boundary: >-
+    Workflow Scheduler selects/prepares Workers and owns durable acceptance.
+    Planner receives only StageContext and a fixed map from logical Agent name
+    to WorkerHandle. It cannot choose a template, runtime, physical agent, or
+    additional allocation.
+  mvp_strategy: >-
+    passthrough@1 supports exactly one Stage Agent binding and performs exactly
+    one A2A SendMessage. It does not call an LLM. It still creates one durable
+    Planner session and records request/result events for the StageExecution.
+  transport:
+    sdk: github.com/a2aproject/a2a-go/v2
+    protocol: A2A 1.0 HTTP JSON-RPC
+    auth: Control Plane mTLS certificate
+
+scope:
+  in:
+    - Framework-neutral Planner and PlannerFactory interfaces.
+    - PlannerFactory registry with exact passthrough@1 descriptor.
+    - PostgreSQL PlannerSessionService using MVP-004 tables.
+    - A2A client factory using WorkerHandle Agent Card and private mTLS.
+    - Deterministic StageContentRequest construction.
+    - Immediate Message and terminal Task response handling.
+    - Strict StageContentResult-to-candidate StageResult validation.
+  out:
+    - Model-backed planning, dynamic subagents, concurrent A2A tasks, interactive input/auth states, or retry decisions.
+
+prompt_contract: |
+  Objective:
+  <exact Stage objective>
+
+  Instructions:
+  <exact resolved Stage instructions text>
+  The combined text is used as the single Worker task text when required by the
+  A2A/ADK adapter. String Run parameters and exact StageContext artifact refs
+  remain separate fields in StageContentRequest and are not interpolated.
+
+result_rules:
+  - A succeeded/failed Worker Contractor payload becomes a candidate StageResult only after schema validation.
+  - Every candidate artifact has an exact revision and key matching a declared Stage result slot.
+  - Unknown/missing required result slots or incompatible media types are rejected before finalizing.
+  - INPUT_REQUIRED, AUTH_REQUIRED, invalid envelopes, timeout, unavailable Worker, and nonterminal Task at deadline become a typed Planner failure for Scheduler to interrupt/abort; Planner does not wait forever.
+  - Planner returns the candidate but never writes terminal StageExecution or Workflow output rows.
+
+deliverables:
+  - {path: internal/planner, description: Planner interfaces, registry, StageContext, result/error types, and passthrough implementation.}
+  - {path: internal/planner/a2a, description: Official A2A Go client adapter with mTLS and bounded polling.}
+  - {path: internal/planner/session, description: PostgreSQL durable session/event adapter.}
+
+requirements:
+  - id: R1
+    text: Planner requires exactly one WorkerHandle for passthrough@1 and addresses it only by logical binding name.
+  - id: R2
+    text: One StageExecution creates at most one session and at most one Planner invocation; idempotent recovery returns recorded completion instead of invoking twice.
+  - id: R3
+    text: A2A request/deadline/cancellation derive from the Stage execution context and have no unbounded polling loop.
+  - id: R4
+    text: Session events contain bounded/redacted structured facts, not artifact bytes, gateway tokens, or RuntimeSettings.
+  - id: R5
+    text: SDK types do not leak into Scheduler interfaces; tests can substitute a fake WorkerInvoker.
+
+acceptance_criteria:
+  - id: A1
+    given: One prepared fake Worker returning valid success with exact ref.
+    when: PassthroughPlanner runs.
+    then: It sends exactly one request, records one session/invocation, and returns the candidate without accepting it durably.
+  - id: A2
+    given: Immediate Message and terminal completed Task variants carrying equivalent payloads.
+    when: Adapter handles them.
+    then: They produce equivalent candidates.
+  - id: A3
+    given: Nonterminal/input-required/auth-required response or deadline.
+    when: Planner handles it.
+    then: It returns promptly with the documented typed interruption cause.
+  - id: A4
+    given: Invalid/unversioned/unknown artifact output.
+    when: Result validation runs.
+    then: No candidate StageResult is returned.
+  - id: A5
+    given: Recovery calls Run again after a completed durable session event.
+    when: Planner executes.
+    then: It returns the recorded result and does not make a second A2A call.
+
+tests:
+  - {name: planner-unit, command: "go test ./internal/planner/...", covers: [A1, A3, A4, A5]}
+  - {name: a2a-adapter, command: "go test ./internal/planner/a2a/...", covers: [A2, A3]}
+  - {name: planner-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A5]}
+
+notes:
+  - Google ADK Go is intentionally not needed for deterministic passthrough. V1-006 introduces it for streamline@1 after the vertical slice works.

@@ -1,0 +1,99 @@
+schema_version: "1.0"
+id: MVP-006
+title: Add the single-user public Artifact and WorkflowRun API
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-003, MVP-004, MVP-005]
+languages: [go]
+
+goal: >-
+  Let one authenticated local user upload input bytes, create a Run from an
+  exact Workflow selector, and inspect Run state and frozen outputs.
+
+context:
+  auth: >-
+    MVP has one configured bearer token mapped server-side to one configured
+    user ID. The request never chooses arbitrary userId. Missing or incorrect
+    credentials return 401. This is explicitly not the future multi-tenant
+    authorization model.
+  public_base_path: /v1
+  response_errors: JSON object with code, message, and retryable; never expose SQL, paths, stack traces, or secrets.
+
+scope:
+  in:
+    - Bearer authentication middleware and request ID middleware.
+    - Raw-body artifact create/update/read endpoints scoped to the authenticated user.
+    - Run creation endpoint with exact Workflow selector, string parameters, and user ArtifactRef input bindings.
+    - Atomic Run initialization and input forks.
+    - Run status endpoint returning Stage attempts, termination/result summaries, and exact output refs when present.
+    - Output download endpoint resolved only inside the authenticated Run owner context.
+  out:
+    - User management, token issuance, quotas, refresh tokens, UI, or publishing Run outputs back to UserScope.
+    - Run cancellation; it is added by V1-001.
+
+http_contract:
+  - method: PUT
+    path: /v1/artifacts/{namespace}/{name}
+    request: Raw body, mandatory Content-Type, optional If-Match exact revision; If-None-Match:* for create.
+    response: "201/200 JSON {artifact:{namespace,name,revision}, mediaType, size}"
+  - method: GET
+    path: /v1/artifacts/{namespace}/{name}
+    request: Optional revision query parameter.
+    response: Raw bytes with Content-Type and ETag set to exact revision.
+  - method: POST
+    path: /v1/runs
+    request: "{workflow:'id@version', parameters:{string:string}, artifacts:{inputSlot:ArtifactRef}}"
+    response: "202 JSON {runId,state:'running'}"
+  - method: GET
+    path: /v1/runs/{runId}
+    response: Validated JSON projection with immutable Workflow selector/snapshot identity, state, attempts, and outputs.
+  - method: GET
+    path: /v1/runs/{runId}/outputs/{slot}
+    response: Exact frozen output bytes, media type, and revision ETag.
+
+run_initialization_rules:
+  - Workflow must resolve exactly by id@version from the immutable loaded configuration Snapshot.
+  - Unknown/non-string parameters, missing required parameters, and missing required inputs are rejected before creating a runnable Run.
+  - Optional absent parameters and inputs remain absent; empty string is a supplied string.
+  - Each versionless UserScope input is resolved once; exact source revision and lineage are recorded.
+  - All input forks and transition initializing to running are atomic. No runnable partial Run is observable.
+  - The complete resolved Workflow snapshot is stored; later config file edits cannot affect this Run.
+
+deliverables:
+  - {path: internal/httpapi/public, description: Handlers, strict DTOs, auth, errors, and routing.}
+  - {path: internal/app, description: Public listener wiring and graceful shutdown.}
+
+requirements:
+  - id: R1
+    text: Use bounded streaming reads; never call io.ReadAll before enforcing the 16 MiB limit.
+  - id: R2
+    text: Namespace/name path values are decoded once and validated by ArtifactStore, preventing slash/path traversal aliases.
+  - id: R3
+    text: The bearer token and database URL are redacted from logs and error responses.
+  - id: R4
+    text: Status and output lookups verify the Run owner derived from authentication and return 404 for another owner.
+  - id: R5
+    text: Handler tests use fakes; PostgreSQL integration tests cover atomic input fork and Run initialization.
+
+acceptance_criteria:
+  - id: A1
+    given: Valid credentials and one uploaded UserScope artifact.
+    when: A valid exact Workflow Run is created.
+    then: It returns 202, stores the resolved snapshot, forks the exact source revision, and becomes running.
+  - id: A2
+    given: Missing/incorrect auth, unknown fields, non-string parameters, or missing required inputs.
+    when: The relevant endpoint is called.
+    then: It returns a stable 4xx error and creates no partial Run or artifact binding.
+  - id: A3
+    given: A Run created from a versionless user ref and then a newer user revision.
+    when: The Run input is read internally.
+    then: It still resolves to the originally forked bytes.
+  - id: A4
+    given: A succeeded Run with output binding.
+    when: Owner downloads the output.
+    then: Returned ETag, media type, and bytes match the exact frozen revision.
+
+tests:
+  - {name: public-handler-unit, command: "go test ./internal/httpapi/public/...", covers: [A2, A4]}
+  - {name: public-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A2, A3]}

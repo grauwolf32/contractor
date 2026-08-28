@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V1-002
+title: Complete confirmed heartbeat leases, self-termination, fencing, and reconciliation
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [V1-001]
+languages: [go, python]
+
+goal: >-
+  Prevent split-brain slot reuse and permanently running Stages when heartbeat
+  requests or responses are lost asymmetrically.
+
+context:
+  timing:
+    heartbeat_interval: 10s
+    confirmed_lease: 60s
+  round_trip_rule: >-
+    Runtime sends heartbeatSeq and echoedAckSeq. Control Plane returns ackSeq.
+    Control Plane confirms/renews its lease only when a later heartbeat echoes
+    an ack it issued; Runtime renews its local lease only after receiving a new
+    valid ack. Request receipt alone is insufficient.
+  self_termination: >-
+    On local lease loss Runtime rejects new tasks, drains/destroys Worker, exits
+    process if stop cannot be guaranteed, otherwise retains allocationId and
+    becomes fenced. It never silently becomes idle.
+
+scope:
+  in:
+    - Control Plane expiry scanner and durable Stage abort event integration.
+    - Runtime symmetric watchdog with monotonic clock.
+    - observed/authoritative reconciliation actions continue, drain, release, reregister.
+    - Fenced slot behavior and idempotent release acknowledgement.
+    - Restart/new instance identity handling and unknown old allocation cleanup.
+    - Fault-injection tests for request-only, response-only, full partition, delayed/replayed messages, and process restart.
+  out:
+    - Multiple active Control Plane replicas or durable shared fleet registry.
+
+deliverables:
+  - {path: internal/controlplane, description: Confirmed-lease expiry scanner, reconciliation actions, and abort events.}
+  - {path: runtime/src/contractor_runtime/lease.py, description: Symmetric watchdog, drain, self-exit, and fenced-state logic.}
+  - {path: tests/integration/lease, description: Asymmetric partition and restart fault harness.}
+
+requirements:
+  - id: R1
+    text: Wall-clock changes cannot extend leases; both sides use monotonic elapsed time in memory.
+  - id: R2
+    text: Expiry makes an active allocation irreversibly lost for that StageExecution and starts/resumes bounded abort; late heartbeat cannot revive it.
+  - id: R3
+    text: Runtime fenced with allocationId cannot accept prepare until a confirmed response establishes authoritative release.
+  - id: R4
+    text: Control Plane never offers an observed idle/fenced/mismatched instance while it authoritatively owns another active allocation.
+  - id: R5
+    text: Lost release response is safe; Runtime keeps reporting the old fenced allocation and Control Plane repeats idempotent release.
+  - id: R6
+    text: An idle Runtime that loses its local control lease also fences until a confirmed response establishes it unallocated.
+
+acceptance_criteria:
+  - id: A1
+    given: Heartbeat requests reach Control Plane but all responses are lost.
+    when: 60 seconds elapse on injected clocks.
+    then: Neither side treats the lease as confirmed; Worker stops, Stage aborts, and slot is not reused.
+  - id: A2
+    given: Responses arrive but subsequent echoed acknowledgements do not.
+    when: Control Plane lease expires.
+    then: Allocation is lost and late echoed ack cannot revive it.
+  - id: A3
+    given: Runtime restarts during allocation.
+    when: New instance registers idle.
+    then: Old allocation aborts; new identity is withheld until reconciliation confirms no conflicting authority.
+  - id: A4
+    given: Release response is lost repeatedly.
+    when: Heartbeats continue.
+    then: Same release is reissued, slot remains fenced, and exactly one later confirmed release makes it reusable.
+  - id: A5
+    given: Worker cannot guarantee in-process termination.
+    when: Local lease expires.
+    then: Runtime process exits rather than reports idle/fenced with a possibly live Worker.
+
+tests:
+  - {name: control-lease, command: "go test -race ./internal/controlplane/... -run 'Lease|Reconcile|Partition'", covers: [A1, A2, A3, A4]}
+  - {name: runtime-watchdog, command: "cd runtime && uv run pytest tests/test_lease_watchdog.py", covers: [A1, A4, A5]}
+  - {name: partition-integration, command: "make test-lease-integration", covers: [A1, A2, A3, A4]}

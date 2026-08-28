@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V1-001
+title: Add WorkflowRun cancellation and bounded Stage abort
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [MVP-015]
+languages: [go, python]
+
+goal: >-
+  Make user cancellation and pre-candidate infrastructure failures terminate
+  deterministically without waiting forever for A2A Task state or an
+  unreachable Runtime Agent.
+
+context:
+  run_states: "initializing/running -> cancelling -> cancelled"
+  stage_states: "preparing/running -> aborting -> cancelled or interrupted"
+  terminal_payload: >-
+    StageTermination is separate from semantic StageResult and contains code,
+    message, retryable, and phase. preparing failures may have no Planner,
+    session, invocation, or allocation.
+  abort_rule: >-
+    Scheduler persists StageTermination, abortId, and deadline before remote
+    drain. At the deadline it terminates durably even if A2A CancelTask or the
+    Runtime Agent never confirms.
+
+scope:
+  in:
+    - Authenticated POST /v1/runs/{runId}/cancel with idempotent semantics.
+    - WorkflowRun cancelling/cancelled persistence and scheduler handling.
+    - StageExecution aborting state, durable StageTermination, abort ID/deadline.
+    - Immediate Artifact write fence before remote abort.
+    - Best-effort Runtime Agent abort and bounded report collection.
+    - Deterministic terminal commit at deadline and later release/reconciliation.
+    - Cancel-versus-success serialization on the durable Run row.
+  out:
+    - Retrying interrupted Stages; V1-003 owns transition behavior.
+    - Full heartbeat lease loss; V1-002 owns automatic detection.
+
+deliverables:
+  - {path: internal/httpapi/public, description: Idempotent authenticated Run cancel endpoint.}
+  - {path: internal/scheduler, description: Durable cancelling/aborting orchestration and bounded deadline handling.}
+  - {path: runtime/src/contractor_runtime/allocation.py, description: Idempotent abort and cached report behavior.}
+  - {path: internal/runstore, description: StageTermination and Run cancellation transition methods.}
+
+requirements:
+  - id: R1
+    text: A Run in cancelling starts no new Stage and evaluates no Stage on-transition after cancellation wins.
+  - id: R2
+    text: First committed durable Run transition wins between cancellation and successful final output transaction.
+  - id: R3
+    text: Abort does not depend on A2A CancelTask and does not wait for INPUT_REQUIRED, AUTH_REQUIRED, or nonterminal Task to become terminal.
+  - id: R4
+    text: Reports are best effort; an unreachable allocation is marked lost/incomplete and cannot hold StageExecution open past deadline.
+  - id: R5
+    text: Late result/report cannot change frozen StageTermination, Run state, or outputs.
+  - id: R6
+    text: Abort and cancel APIs are idempotent and safe after response loss.
+
+acceptance_criteria:
+  - id: A1
+    given: A running Worker whose A2A task ignores cancellation.
+    when: User cancels Run.
+    then: Stage enters aborting, writes fence immediately, and reaches cancelled by deadline without terminal A2A state.
+  - id: A2
+    given: An unreachable Runtime Agent.
+    when: Abort deadline expires.
+    then: Stage/Run terminate, allocation remains unavailable for reconciliation, and reports are marked incomplete.
+  - id: A3
+    given: Cancel and final success transaction race.
+    when: Cancel commits first.
+    then: No output binding or Run success appears.
+  - id: A4
+    given: The same race.
+    when: Success/output transaction commits first.
+    then: Cancel returns the already-terminal success without rewriting it.
+  - id: A5
+    given: A late Worker candidate after cancel.
+    when: Scheduler receives it.
+    then: Candidate is ignored for semantics and cannot create outputs.
+
+tests:
+  - {name: cancel-handler, command: "go test ./internal/httpapi/public/... -run Cancel", covers: [A1, A4]}
+  - {name: abort-lifecycle, command: "go test -race ./internal/scheduler/... -run 'Abort|Cancel|Race'", covers: [A1, A2, A3, A4, A5]}
+  - {name: runtime-abort, command: "cd runtime && uv run pytest tests/test_abort.py", covers: [A1, A2]}

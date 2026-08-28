@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: MVP-011
+title: Add the allocation-bound private Artifact API and selected Runtime tools
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-002, MVP-005, MVP-008, MVP-010]
+languages: [go, python]
+
+goal: >-
+  Let an allocated Python Worker list/read/write artifacts only inside its
+  authoritative RunScope while preserving exact revisions, CAS, reserved
+  outputs, and Scheduler write fences.
+
+context:
+  trust: >-
+    The private Go endpoint requires a deployment-CA client certificate and an
+    allocationId. Control Plane resolves that active allocation to runId and
+    grant; the request never supplies runId or userId. All CA-valid Runtime
+    Agent certificates are peers, so authorization is allocation-state based,
+    not certificate-to-instance binding.
+  tool_selection: >-
+    run-artifacts@1 exports list_artifacts, read_artifact, write_artifact. A
+    Worker sees only names explicitly selected by AgentTemplate. Selecting a
+    tool does not expand its Server-side grant.
+
+scope:
+  in:
+    - Private mTLS list/read/write HTTP handlers backed by ArtifactStore.
+    - Active allocation lookup and hard RunScope/write grant enforcement.
+    - Immediate write fence when Stage enters finalizing or aborting.
+    - Python allocation-bound ArtifactClient with bounded streaming.
+    - Python run-artifacts@1 Toolset factory exposing only selected ADK-compatible tools.
+    - Tool-call metrics hooks recording bounded name/arguments/result/error metadata.
+  out:
+    - Planner Artifact access, UserScope publication, S3, domain Toolsets, or Artifact authorization by namespace alone.
+
+private_http:
+  - method: GET
+    path: /private/v1/allocations/{allocationId}/artifacts
+    behavior: List current versionless refs, optionally filter by namespace.
+  - method: GET
+    path: /private/v1/allocations/{allocationId}/artifacts/{namespace}/{name}
+    behavior: Read optional exact revision and return bytes, media type, exact revision.
+  - method: PUT
+    path: /private/v1/allocations/{allocationId}/artifacts/{namespace}/{name}
+    behavior: Bounded body, Content-Type, create/update precondition, return exact revision.
+
+grant_rules:
+  - Reads/list are limited to the current allocation's RunScope.
+  - Writes are allowed to inputs and non-reserved namespaces while the allocation is active and unfenced.
+  - Writes to outputs are always forbidden; only Scheduler binds outputs.
+  - Once finalizing or aborting is durable, SetWriteFence runs before Worker drain and all later writes fail.
+  - Unknown, released, mismatched, or fenced allocations fail closed.
+
+deliverables:
+  - {path: internal/httpapi/privateartifacts, description: Private routes, allocation authorization, streaming, and errors.}
+  - {path: runtime/src/contractor_runtime/artifacts.py, description: Async scope-safe client.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Explicit Toolset descriptor/factory and selected tools.}
+
+requirements:
+  - id: R1
+    text: Neither public DTO nor URL accepts runId; it is resolved only from active allocation state.
+  - id: R2
+    text: Write target revision is forbidden and expected revision uses one unambiguous HTTP precondition representation.
+  - id: R3
+    text: Python client preserves the exact revision returned by every read/write and never silently converts it to versionless.
+  - id: R4
+    text: Tool argument/error metrics are bounded and redact payload bytes, tokens, URLs with credentials, and configured secret values.
+  - id: R5
+    text: Unselected tools are not instantiated and are absent from the Worker runtime's model-visible tool list.
+
+acceptance_criteria:
+  - id: A1
+    given: An active allocation for Run A and an existing artifact in Run B.
+    when: Client attempts to address Run B using any request value.
+    then: No such scope selector exists and Run B bytes cannot be returned.
+  - id: A2
+    given: A template selecting only list_artifacts and read_artifact.
+    when: Tools are constructed.
+    then: write_artifact is absent even though the allocation grant could allow writes.
+  - id: A3
+    given: A template selecting write_artifact and an active grant.
+    when: It writes inputs/x and then outputs/x.
+    then: The first follows CAS rules and the second is forbidden.
+  - id: A4
+    given: Scheduler sets the write fence.
+    when: A previously running Worker sends another write.
+    then: Server rejects it and ArtifactStore is unchanged.
+  - id: A5
+    given: Read/write success.
+    when: Python converts the response into ArtifactRef.
+    then: revision is non-empty and survives contract serialization.
+
+tests:
+  - {name: private-artifact-go, command: "go test ./internal/httpapi/privateartifacts/...", covers: [A1, A3, A4]}
+  - {name: runtime-artifact-tools, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_run_artifacts_toolset.py", covers: [A2, A3, A5]}
+  - {name: private-artifact-integration, command: "make test-artifact-integration", covers: [A1, A3, A4, A5]}

@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V1-004
+title: Persist bounded Planner, Worker, allocation, and Stage metrics
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [MVP-015]
+languages: [go, python, sql]
+
+goal: >-
+  Preserve useful execution statistics without introducing an external agent
+  observability framework or allowing telemetry to affect semantic outcomes.
+
+context:
+  worker_collection: >-
+    Python Worker uses allocation-local in-memory ADK State with reserved
+    metrics section. It accumulates across sequential A2A tasks and sends one
+    bounded final ExecutionReport during finalize or abort.
+  planner_collection: >-
+    Go Planner records a durable session/event stream and produces one bounded
+    Planner ExecutionReport.
+  authority: >-
+    Control Plane binds a Worker report to trusted allocation identity. Reports
+    are telemetry only and cannot create StageResult, StageTermination, or
+    Artifact bindings.
+
+scope:
+  in:
+    - Versioned ExecutionReport, RuntimeReport, AllocationFinalReport, and StageMetrics DTOs.
+    - PostgreSQL report/aggregate migrations and retention timestamps.
+    - Python ADK callbacks/model/tool hooks for counts, timing, tokens when supplied, bounded arguments, and errors.
+    - Go Planner/A2A timing and error report generation.
+    - Scheduler assembly and persistence in finalizing/aborting.
+    - Public Run status summary without sensitive detail.
+  out:
+    - LangChain, Langfuse, mandatory OpenTelemetry backend, billing, exact provider-cost calculation, or incremental crash-safe event streaming.
+
+bounded_policy:
+  max_tool_records_per_allocation: 1000
+  max_error_records_per_allocation: 100
+  max_argument_summary_bytes: 4096
+  max_error_message_bytes: 4096
+  max_report_json_bytes: 1048576
+  retention_days: 30
+  overflow: Keep aggregate counters, drop oldest detail, and set truncated true.
+
+deliverables:
+  - {path: internal/telemetry, description: Versioned reports, redaction, aggregation, persistence, and retention cleanup.}
+  - {path: internal/persistence/migrations, description: Execution report and Stage aggregate schema.}
+  - {path: runtime/src/contractor_runtime/metrics.py, description: Final bounded ADK/model/tool collection implementation.}
+  - {path: internal/httpapi/public, description: Safe summary projection on Run status.}
+
+requirements:
+  - id: R1
+    text: Reports include participant identity, allocation/session IDs, start/end time, completion/incomplete flag, counters, and bounded detail/truncation marker.
+  - id: R2
+    text: Redaction removes configured secrets, auth headers, gateway URLs containing credentials, artifact bytes, and oversized/raw tool values before persistence/logging.
+  - id: R3
+    text: Missing or late reports create incomplete placeholders or related telemetry but never change a frozen semantic terminal outcome.
+  - id: R4
+    text: Finalization performs no new model/tool calls; it serializes existing state and destroys Worker.
+  - id: R5
+    text: Report idempotency keys prevent duplicate persistence after response loss.
+  - id: R6
+    text: Retention cleanup is bounded/batched and does not delete active or referenced execution truth.
+
+acceptance_criteria:
+  - id: A1
+    given: Worker with LLM/tool successes/errors above detail limits.
+    when: It finalizes.
+    then: Aggregate counts are exact, detail respects all limits, truncated is true, and JSON is within 1 MiB.
+  - id: A2
+    given: Known secrets embedded in tool arguments and provider exception.
+    when: Reports persist and status is returned.
+    then: Secret byte sequences are absent.
+  - id: A3
+    given: Runtime unreachable at finalization deadline.
+    when: Scheduler completes semantic acceptance/abort.
+    then: Incomplete placeholder is stored and terminal state is unchanged.
+  - id: A4
+    given: Same final report delivered twice.
+    when: Control Plane persists it.
+    then: One logical report exists and aggregates are not doubled.
+  - id: A5
+    given: Reports older than retention and active/new reports.
+    when: Cleanup runs.
+    then: Only eligible old telemetry is removed in bounded batches.
+
+tests:
+  - {name: runtime-metrics, command: "cd runtime && uv run pytest tests/test_metrics.py", covers: [A1, A2]}
+  - {name: server-metrics, command: "go test ./internal/telemetry/... ./internal/scheduler/... -run Metrics", covers: [A2, A3, A4, A5]}
+  - {name: metrics-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A3, A4, A5]}

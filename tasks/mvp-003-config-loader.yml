@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: MVP-003
+title: Implement the strict versioned configuration loader in Go
+milestone: mvp
+priority: P0
+status: planned
+depends_on: [MVP-001]
+languages: [go]
+
+goal: >-
+  Load ModelPolicy, AgentTemplate, Workflow, and instruction resources from a
+  configs root into one immutable, dependency-resolved in-memory snapshot.
+
+context:
+  directory_contract: |
+    configs/
+      workflows/          # recursive *.yaml, kind Workflow
+      agent-templates/    # recursive *.yaml, kind AgentTemplate
+      model-policies/     # recursive *.yaml, kind ModelPolicy
+      instructions/       # arbitrary strict UTF-8 text resources
+  identity: >-
+    YAML lookup identity is kind + metadata.name + metadata.version. File name
+    and nesting are organizational. Instruction identity is its normalized path
+    relative to configs, for example instructions/openapi/planner.md.
+  selectors:
+    syntax: "<id>@<version>"
+    id_regex: "^[a-z][a-z0-9_-]*$"
+    version_regex: "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+
+scope:
+  in:
+    - Strict YAML decoding with duplicate-key and unknown-field rejection.
+    - Exact v1alpha1 DTOs for ModelPolicy, AgentTemplate, and the Workflow fields used by the MVP.
+    - Dependency order ModelPolicy then AgentTemplate then Workflow.
+    - Exact selector resolution against registered planner/runtime/toolset/sandbox descriptors.
+    - Strict UTF-8 instruction loading, path containment, and digesting.
+    - ModelPolicy and AgentTemplate canonical digests.
+    - Immutable snapshot publication only after the complete set validates.
+  out:
+    - Hot reload or watching files.
+    - S3 loading.
+    - Executing Workflows or constructing Workers.
+
+schemas:
+  model_policy:
+    metadata: [name, version]
+    spec: [model, maxOutputTokens, temperature]
+    rules:
+      - model is a non-empty opaque string.
+      - maxOutputTokens is a positive integer.
+      - temperature is optional, finite, and at least zero.
+  agent_template:
+    metadata: [name, version]
+    spec: [description, runtime, instructions, modelPolicy, toolsets, sandboxProfile]
+    rules:
+      - description is non-empty; runtime is adk@1 for MVP.
+      - instructions contains exactly ref.
+      - toolsets is mandatory and may be empty; each selection has exact ref and a non-empty unique tools list.
+      - run-artifacts@1 exports exactly list_artifacts, read_artifact, write_artifact.
+      - sandboxProfile is local-workdir@1.
+  workflow:
+    metadata: [name, version]
+    required_spec: [parameters, inputs, outputs, entryStage, stages]
+    mvp_limit: Exactly one reachable Stage is sufficient for this task, but the parser must retain typed transition fields for later tasks.
+
+digest_rules:
+  instruction: "sha256:<lowercase hex> over exact source bytes after strict UTF-8 validation; perform no newline, BOM, or Unicode normalization"
+  model_policy: "SHA-256 over RFC 8785 JCS normalized manifest"
+  agent_template: >-
+    SHA-256 over RFC 8785 JCS resolved manifest including exact ModelPolicy,
+    Toolset, SandboxProfile, and instruction ref/digest; exclude the computed
+    AgentTemplate digest and carry instruction text beside the digest manifest.
+
+deliverables:
+  - {path: internal/config, description: Source DTOs, resolved DTOs, loader, registries, and immutable Snapshot API.}
+  - {path: internal/config/testdata, description: Minimal valid set plus focused invalid sets.}
+  - {path: configs, description: One executable MVP example configuration and its instruction files.}
+
+requirements:
+  - id: R1
+    text: The loader recursively reads only regular .yaml files in the three manifest subtrees; multi-document and empty YAML are invalid.
+  - id: R2
+    text: Duplicate kind/name/version anywhere invalidates the whole load.
+  - id: R3
+    text: Absolute refs, URI schemes, backslashes, empty segments, dot segments, and symlink escapes are rejected.
+  - id: R4
+    text: Unknown selectors, tools, cross-toolset visible-name collisions, and mismatched subtree kind are errors with source file context.
+  - id: R5
+    text: YAML comments, key order, and scalar presentation do not change a semantic digest; semantic changes and instruction byte changes do.
+  - id: R6
+    text: Returned maps/slices cannot be mutated to affect future resolves; copy or encapsulate as needed.
+
+acceptance_criteria:
+  - id: A1
+    given: The valid test configuration.
+    when: It is loaded.
+    then: Exact Workflow, AgentTemplate, ModelPolicy, instructions, and digests are available by name/version.
+  - id: A2
+    given: Any invalid fixture described by R1 through R4.
+    when: Load is attempted.
+    then: No partial Snapshot is returned and the error identifies the offending file and contract.
+  - id: A3
+    given: Two presentation-only variants of the same semantic YAML.
+    when: Digests are computed.
+    then: Digests match; changing one semantic value or one instruction byte makes them differ.
+  - id: A4
+    given: A previously returned resolved object.
+    when: Caller-owned data is mutated.
+    then: A later resolve returns the original immutable content.
+
+tests:
+  - {name: config-unit, command: "go test ./internal/config/...", covers: [A1, A2, A3, A4]}
+  - {name: repository-config-smoke, command: "go run ./cmd/contractor-server config validate --root ./configs", covers: [A1]}
+
+notes:
+  - Use yaml.v3 node-level decoding where necessary to guarantee duplicate-key rejection.
+  - The worker implementing this task must include all descriptor fixtures in Go; Toolsets and SandboxProfiles are registered code, not YAML files.

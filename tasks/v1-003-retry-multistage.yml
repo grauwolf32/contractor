@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V1-003
+title: Add validated multi-Stage transitions and bounded retry
+milestone: first-slice-hardening
+priority: P1
+status: planned
+depends_on: [MVP-015, V1-001]
+languages: [go]
+
+goal: >-
+  Execute serial Workflow graphs beyond the one-Stage MVP while guaranteeing
+  that repeated execution is explicit, bounded, recoverable, and observable.
+
+context:
+  transition_keys: [succeeded, failed, interrupted]
+  actions:
+    succeeded: [next, succeed]
+    failed: [next, retry, fail]
+    interrupted: [next, retry, fail]
+  retry_shape: "retry: {maxAttempts: <positive integer>, then: <next|fail action>}"
+  repetition_rule: >-
+    next edges must form an acyclic graph. Repeating the same Stage is supported
+    only by retry, whose maxAttempts includes the first execution. Every attempt
+    creates a new immutable StageExecution and fresh StageContext snapshot.
+
+scope:
+  in:
+    - Complete Workflow graph validation for entry, reachability, output mappings, legal typed actions, acyclic next edges, and bounded retry.
+    - Scheduler selection of the next ready serial Stage after a terminal attempt.
+    - Retry eligibility requiring StageTermination/failed error retryable true and remaining attempts.
+    - Fresh context pinning, allocation, Planner session, and Worker for each attempt.
+    - Durable transition decisions enabling restart recovery without duplicating attempts.
+    - Terminal WorkflowRun failed/succeeded behavior when graph actions finish.
+  out:
+    - Concurrent StageExecutions, expression predicates, dynamic graph expansion, unbounded loops, backoff/jitter configuration, or resume of one attempt.
+
+deliverables:
+  - {path: internal/config, description: Complete serial graph/transition/retry validation.}
+  - {path: internal/scheduler, description: Durable next/retry/terminal transition evaluation.}
+  - {path: internal/runstore, description: Atomic transition-decision and new-attempt persistence methods.}
+  - {path: configs/examples, description: Valid multi-Stage and bounded-retry examples.}
+
+requirements:
+  - id: R1
+    text: Workflow load rejects missing targets, unreachable Stages, next cycles, illegal actions, zero/unbounded maxAttempts, incompatible output mapping, and any path without a terminal action.
+  - id: R2
+    text: Retry requires explicit retryable true; false/missing retryable or exhausted attempts executes then immediately.
+  - id: R3
+    text: Run cancellation prevents creation of another attempt even if a retry transition was previously eligible.
+  - id: R4
+    text: The durable transition decision and new StageExecution creation occur atomically or through an idempotency key so recovery cannot create duplicates.
+  - id: R5
+    text: A retry re-resolves versionless StageContext bindings to a fresh exact snapshot; prior attempt snapshots never change.
+  - id: R6
+    text: A later Stage may reuse an earlier Agent namespace and consume its current artifact binding, subject to its declared context/result contract.
+
+acceptance_criteria:
+  - id: A1
+    given: maxAttempts 3 and two retryable interrupted attempts.
+    when: Third attempt succeeds.
+    then: Exactly three StageExecution rows exist with attempts 1,2,3 and Run continues via succeeded.
+  - id: A2
+    given: Non-retryable first failure.
+    when: Transition evaluates.
+    then: No second attempt is created and then action executes.
+  - id: A3
+    given: Three exhausted attempts and then fail.
+    when: Last attempt terminates retryable.
+    then: Run becomes failed exactly once.
+  - id: A4
+    given: Context binding advances between attempts.
+    when: Retry prepares.
+    then: New attempt pins the new exact revision and old attempt retains the old one.
+  - id: A5
+    given: A Workflow with A next B and B next A.
+    when: Configuration loads.
+    then: It is rejected as an unbounded next cycle.
+
+tests:
+  - {name: workflow-graph, command: "go test ./internal/config/... -run 'Graph|Transition|Cycle'", covers: [A5]}
+  - {name: scheduler-retry, command: "go test -race ./internal/scheduler/... -run 'Retry|MultiStage'", covers: [A1, A2, A3, A4]}
+  - {name: retry-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A3, A4]}
