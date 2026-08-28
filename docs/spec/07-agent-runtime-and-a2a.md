@@ -21,8 +21,9 @@ or concurrent rollout uses a new nonce and cannot adopt prior execution. The
 live process renews a heartbeat lease until it begins graceful drain.
 
 `WorkerRegistry` chooses only a healthy Agent whose registered capability
-descriptor satisfies the immutable `TaskSpec` carried by `WorkerJob`. After
-selection, dispatcher commits the exact `WorkerDispatchEnvelope` from spec 02;
+descriptor satisfies the immutable `TaskSpec` and selected AgentTemplate
+carried by `WorkerJob`. After selection, dispatcher commits the exact
+`WorkerDispatchEnvelope` from spec 02;
 initial routing may be round-robin, but selection remains behind the registry
 port.
 
@@ -33,8 +34,9 @@ deduplication, durable task mapping, dispatch-envelope verification, artifact
 grants, fencing data, cancellation, sandbox ownership and terminal result
 staging. It verifies that the envelope's selected capability and Worker
 implementation ID/version/digest match the current registration and loaded
-implementation before it reads input content, acquires resources or invokes an
-Agent-local `WorkerStrategy` with the portable `WorkerJob`.
+implementation, and that the complete AgentTemplate matches the TaskSpec ref and
+hash, before it reads input content, acquires resources or invokes an Agent-local
+`WorkerStrategy` with the portable `WorkerJob`.
 
 A strategy may directly perform the objective or use its own logic and state to
 alternate between planning and working. Those internal phases are not selected
@@ -181,7 +183,8 @@ still applies the original Attempt fence and result-acceptance rules.
 3. `WorkerGateway` sends that versioned dispatch envelope over A2A.
 4. Agent deduplicates by `attempt_id`, idempotency key, A2A message ID, exact
    WorkerJob hash and assignment hash.
-5. Agent validates the exact `TaskSpec`/`job_contract`, verifies the selected
+5. Agent validates the exact `TaskSpec`, complete AgentTemplate and
+   template-derived `worker_kind`/`job_contract`, verifies the selected
    capability and implementation provenance against its loaded strategy,
    verifies the resolved-input/grant-set hash, and persists the mapping. Only
    then may it load the exact granted inputs,
@@ -533,9 +536,10 @@ query/cancel of already submitted work without issuing a new Attempt.
   create/change/submit success; it may replay only a terminal record committed
   before replacement as constrained by `A2A-045`.
 - **A2A-042** — Agent MUST verify the WorkerJob's exact resolved bindings and
-  transitive input-grant-set hash before reading or materializing any input. A
-  missing/extra snapshot blob, mutable alias or grant not usable by the exact
-  assigned mapping MUST fail before strategy/model/tool start.
+  transitive input-grant-set hash, including selected AgentTemplate
+  configuration refs, before reading or materializing any input. A missing/extra
+  snapshot/config blob, mutable alias or grant not usable by the exact assigned
+  mapping MUST fail before strategy/model/tool start.
 - **A2A-043** — Server MUST seal or revoke a Server-owned Attempt
   operation-start gate before declaring a lost/cancelled/fenced Attempt safe to
   overlap or retry. Agent model/tool intent creation MUST serialize with and
@@ -594,6 +598,11 @@ query/cancel of already submitted work without issuing a new Attempt.
   inspection MUST replay its exact canonical DTO, terminal state, media type,
   digest and usage. Provider/session observations MUST NOT synthesize or alter a
   terminal outcome.
+- **A2A-053** — Before mapping or Worker start, AgentRuntime MUST verify that
+  WorkerJob contains one complete hash-valid AgentTemplate, its identity equals
+  TaskSpec.agent_template_ref, its contracts match the selected registered
+  capability and every effective Task policy is within the template. Agent MUST
+  NOT fetch a template alias or accept local default substitution.
 
 ## Acceptance
 
@@ -641,19 +650,19 @@ query/cancel of already submitted work without issuing a new Attempt.
     detects multiple exact matches, accepts no result, fences the Attempt and
     quarantines the Agent rather than selecting an arbitrary task.
 18. The same Attempt-specific `WorkerJob` fixture for one immutable root
-    `TaskSpec` passes the shared protocol, lifecycle and normalized-result-schema
-    assertions through an ADK-backed strategy and a minimal non-ADK strategy;
-    semantic output bytes need not be identical.
+    `TaskSpec` and complete AgentTemplate passes the shared protocol, lifecycle
+    and normalized-result-schema assertions through an ADK-backed strategy and a
+    minimal non-ADK strategy; semantic output bytes need not be identical.
 19. A strategy alternates through multiple private planning and working steps;
     Server observes one Attempt, one aggregate usage record and one terminal
     `WorkerResult`.
 20. Cancelling or reaching the deadline of that boundary Attempt stops all
     private strategy steps and owned resources before a terminal `canceled`
     response is emitted.
-21. An Agent advertising a familiar framework but not the exact `job_contract`
-    is rejected for routing, while an Agent using any implementation that
-    advertises the semantic contract and required policy capabilities is
-    eligible.
+21. An Agent advertising a familiar framework but not the AgentTemplate's exact
+    `worker_kind`/`job_contract` is rejected for routing, while an Agent using any
+    implementation that advertises the semantic contract and required policy
+    capabilities is eligible.
 22. Replacing an Agent binary between registration and result cannot pass a
     different strategy/build digest as the originally assigned execution.
 23. An Agent advertising two implementations for one job contract receives an
@@ -710,3 +719,7 @@ query/cancel of already submitted work without issuing a new Attempt.
     leaves no terminal outcome. A replacement can expose the former under the
     original fence/gate evidence but cannot synthesize the latter from provider
     or ADK session state.
+36. A dispatch whose AgentTemplate body, hash or TaskSpec ref differs is
+    rejected before input read, sandbox acquisition, model/tool invocation or
+    task mapping. The same exact template succeeds through both ADK and non-ADK
+    Worker adapters.

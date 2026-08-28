@@ -12,6 +12,9 @@ This specification governs the default ADK-backed Planner and Worker adapters.
 The Contractor domain DTOs and A2A Worker profile are framework-neutral: a
 passthrough Server Planner does not require ADK planning primitives, and a
 conforming Worker Agent may implement its local strategy without ADK.
+`AgentTemplate` is likewise Contractor-owned: an ADK Worker adapter translates
+its verified instruction/model/tool policy into ADK configuration only after
+AgentRuntime accepts the WorkerJob; ADK objects never become template fields.
 
 ## Reused ADK capabilities
 
@@ -165,6 +168,11 @@ privileged DDL.
   caps and retention. Disabling or pruning it MUST leave authoritative
   lifecycle, accounting, effect and audit records intact; credentials and tool
   secrets MUST be removed before any session event is persisted.
+- **ADK-018** — The ADK Worker adapter MUST construct `LlmAgent`, model and tool
+  declarations only from the complete hash-verified AgentTemplate and effective
+  TaskSpec delivered in WorkerJob. It MUST NOT resolve a template alias, merge a
+  deployment-default prompt/tool or persist an ADK object as template or result
+  provenance.
 
 ## ADK-profile and isolation capability tests
 
@@ -197,3 +205,6 @@ privileged DDL.
     nonpersistent ADK detail changes only optional diagnostics/database load.
     Canary credentials never enter session history, and pruning it leaves final
     status, accepted usage, effects and audit unchanged.
+15. The same AgentTemplate/TaskSpec fixture produces equivalent allowed tool and
+    model policy in ADK and minimal non-ADK Workers; changing its hash or adding
+    an ADK-local default tool fails before Runner invocation.

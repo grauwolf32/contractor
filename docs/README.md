@@ -1,11 +1,16 @@
 # Contractor v2 architecture
 
-[`architecture.c4`](architecture.c4) is the canonical architecture map. It
-contains seven focused views:
+Status: **Earlier candidate; retained for comparison**
+
+The current working design is [`spec-2`](spec-2/README.md). This document and
+[`architecture.c4`](architecture.c4) describe the earlier, more detailed
+candidate; they are canonical only within that candidate and are not implicitly
+normative for `spec-2`. The model contains seven focused views:
 
 - `index` — processes and external infrastructure;
-- `orchestration` — decomposing/static/passthrough strategy selection through
-  CAS/outbox and A2A to a Worker;
+- `orchestration` — WorkflowProfile/AgentTemplate resolution followed by
+  decomposing/static/passthrough strategy selection through CAS/outbox and A2A
+  to a Worker;
 - `workerAttempt` — Agent-side deduplication, framework-neutral Worker strategy,
   optional ADK/native bindings, tools and sandbox;
 - `serverPersistence` — Server adapters sharing one engine and transaction
@@ -75,6 +80,11 @@ Contractor ports and does not instantiate those components.
 17. Security audit is append-only and retained independently from lossy
     telemetry; model invocation evidence and budget settlement remain
     authoritative even when ADK/OTel diagnostic detail is pruned.
+18. WorkflowProfile is the product-facing objective/input/output contract.
+    AgentTemplate is a separate immutable, framework-neutral Worker behavior
+    contract. Server resolves complete allowed templates into RunSpec at
+    submission, TaskSpec selects one exact ref and WorkerJob carries its complete
+    content; execution and recovery never consult mutable catalog defaults.
 
 ## Local commands
 

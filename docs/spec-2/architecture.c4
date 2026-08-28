@@ -1,0 +1,427 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+
+  element system
+
+  element component {
+    style {
+      shape rectangle
+    }
+  }
+
+  element storage {
+    style {
+      shape storage
+    }
+  }
+
+  tag contractor
+  tag adk
+  tag external
+  tag optional
+  tag contextOnly
+}
+
+global {
+  styleGroup ownership {
+    style element.tag = #contractor {
+      color primary
+    }
+    style element.tag = #adk {
+      color green
+    }
+    style element.tag = #external {
+      color gray
+      border dashed
+    }
+    style element.tag = #optional {
+      opacity 60%
+    }
+  }
+}
+
+model {
+  apiClient = actor 'User / API Client' {
+    #external
+  }
+
+  llmGateway = system 'LLM Gateway — LiteLLM or compatible backend' {
+    #external
+  }
+
+  llmProvider = system 'Model Provider' {
+    #external
+  }
+
+  artifactDatabase = system 'PostgreSQL — Contractor State' {
+    #external
+
+    runState = storage 'Workflow snapshots / Runs / StageExecutions / semantic results' {
+      #contractor
+    }
+
+    plannerSessions = storage 'Planner ADK Sessions — diagnostic, not resumable' {
+      #contractor
+    }
+
+    executionReports = storage 'Execution reports / accepted StageMetrics' {
+      #contractor
+    }
+
+    artifactVersions = storage 'Artifact versions / scoped logical bindings / CAS' {
+      #contractor
+    }
+
+    artifactEvents = storage 'Scoped artifact events / grants / lineage' {
+      #contractor
+    }
+  }
+
+  blobBackend = system 'Artifact Blob Backend — PostgreSQL or S3' {
+    #external
+  }
+
+  telemetryBackend = system 'Telemetry Backend — optional' {
+    #external
+    #optional
+  }
+
+  server = system 'Contractor Server' {
+    #contractor
+
+    publicApi = component 'Run API' {
+      #contractor
+    }
+
+    userArtifactApi = component 'User Artifact API' {
+      #contractor
+    }
+
+    workflowCatalog = component 'Workflow Catalog' {
+      #contractor
+    }
+
+    agentTemplateCatalog = component 'AgentTemplate Catalog — versioned behavior definitions' {
+      #contractor
+    }
+
+    workflowScheduler = component 'Workflow Scheduler' {
+      #contractor
+    }
+
+    plannerFactories = component 'PlannerFactory Registry' {
+      #contractor
+    }
+
+    plannerAgent = component 'Planner ADK Agent — one per StageExecution' {
+      #adk
+    }
+
+    plannerSessionService = component 'Database-backed Planner SessionService' {
+      #adk
+    }
+
+    remoteWorkers = component 'RemoteA2aAgent subagents' {
+      #adk
+    }
+
+    plannerArtifactAdapter = component 'ADK ArtifactService Adapter' {
+      #contractor
+    }
+
+    controlPlane = component 'Control Plane' {
+      #contractor
+    }
+
+    runtimeRegistry = component 'Runtime Agent Registry / Slot Allocator' {
+      #contractor
+    }
+
+    artifactService = component 'ArtifactStore Service — UserScope / RunScope' {
+      #contractor
+    }
+
+    artifactRegistry = component 'Artifact Registry Adapter' {
+      #contractor
+    }
+
+    blobStore = component 'ArtifactBlobStore Adapter' {
+      #contractor
+    }
+
+    runStore = component 'WorkflowRun / StageExecution Store' {
+      #contractor
+    }
+
+    telemetry = component 'Execution Report Collector / optional exporters' {
+      #contractor
+    }
+
+    publicApi -> workflowScheduler 'Start / query / cancel Workflow Run'
+    userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
+    workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
+    workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
+    workflowScheduler -> controlPlane 'Prepare / finalize / release allocations'
+    workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
+    plannerFactories -> plannerAgent 'Construct one root Planner for prepared Stage'
+    plannerAgent -> remoteWorkers 'Route work to fixed named subagents'
+    workflowScheduler -> runStore 'Persist snapshots, attempts, candidates and terminal results'
+    workflowScheduler -> artifactService 'Pin/fork inputs; pin and bind accepted Run outputs'
+    plannerAgent -> plannerArtifactAdapter 'ADK artifact operations'
+    plannerAgent -> plannerSessionService 'One database-backed Session per StageExecution'
+    plannerArtifactAdapter -> artifactService 'Configured current-Run artifact access'
+
+    controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
+    artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
+    artifactService -> blobStore 'Stream immutable content'
+    controlPlane -> telemetry 'Bind allocation final reports to trusted execution identity'
+    workflowScheduler -> telemetry 'Assemble bounded StageMetrics while finalizing'
+    plannerAgent -> telemetry 'Planner ExecutionReport'
+  }
+
+  runtimeAgent = system 'Runtime Agent — N identical single-slot processes' {
+    #contractor
+
+    controlEndpoint = component 'Private Control Endpoint' {
+      #contractor
+    }
+
+    registryClient = component 'Registration / Heartbeat Client' {
+      #contractor
+    }
+
+    slotManager = component 'Exclusive Slot / Allocation Context' {
+      #contractor
+    }
+
+    a2aServer = component 'Allocation-scoped A2A Server' {
+      #contractor
+    }
+
+    workerRuntime = component 'In-process Worker Runtime — ADK initially, configured by AgentTemplate' {
+      #contractor
+    }
+
+    workerState = component 'In-memory Worker Session / State' {
+      #contractor
+    }
+
+    executionCollector = component 'Execution / allocation report collector' {
+      #contractor
+    }
+
+    sandboxManager = component 'Tool Sandbox / Work Directory' {
+      #contractor
+    }
+
+    namespaceTools = component 'Namespace-bound read/write tools' {
+      #contractor
+    }
+
+    runArtifactTools = component 'Current-Run scoped artifact tools' {
+      #contractor
+    }
+
+    artifactClient = component 'Private Artifact API Client / ADK Adapter' {
+      #contractor
+    }
+
+    modelClient = component 'Model Client — optional' {
+      #contractor
+      #optional
+    }
+
+    controlEndpoint -> slotManager 'Reserve / configure / finalize / release the only slot'
+    slotManager -> workerRuntime 'Create / destroy one in-process Worker instance'
+    slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
+    slotManager -> workerState 'Create / destroy allocation-local Session and State'
+    slotManager -> sandboxManager 'Prepare / clean tool state'
+    a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
+    workerRuntime -> workerState 'Read / update in-memory allocation State'
+    workerRuntime -> executionCollector 'Accumulate bounded metrics across allocation'
+    controlEndpoint -> executionCollector 'Finalize cached reports without semantic work'
+    workerRuntime -> namespaceTools 'Read/write fixed own Namespace'
+    workerRuntime -> runArtifactTools 'Read/list explicit Run refs; write granted non-output refs'
+    namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
+    runArtifactTools -> artifactClient 'Read/write/list with explicit CAS preconditions'
+    workerRuntime -> modelClient 'Model calls when required'
+  }
+
+  apiClient -> server 'Operate Workflow Runs' #contextOnly
+  apiClient -> server.publicApi 'Submit / query / cancel Run'
+  apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
+
+  runtimeAgent.registryClient -> server.controlPlane 'Agent mTLS: register / heartbeat / availability'
+  server.controlPlane -> runtimeAgent.controlEndpoint 'Control Plane mTLS: AllocationSpec + RuntimeSettings / finalize / release'
+  server.remoteWorkers -> runtimeAgent.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
+  runtimeAgent.artifactClient -> server.artifactService 'Agent mTLS + allocation ID: RunScope operations; no DB/S3 credentials'
+
+  server.artifactRegistry -> artifactDatabase 'Transactional registry writes and reads'
+  server.blobStore -> blobBackend 'Immutable blob operations'
+  server.runStore -> artifactDatabase.runState 'Durable WorkflowRun and StageExecution state'
+  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist Planner ADK events and State'
+  server.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
+
+  runtimeAgent.executionCollector -> server.controlPlane 'Trusted allocation final report'
+
+  server.plannerAgent -> llmGateway 'Planner model calls when model-backed'
+  runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied URL/token'
+  llmGateway -> llmProvider 'Provider requests'
+
+  server.telemetry -> telemetryBackend 'Export when configured'
+}
+
+views {
+  view index {
+    title 'Contractor v2 — System Context'
+
+    include apiClient
+    include server
+    include runtimeAgent
+    include artifactDatabase
+    include blobBackend
+    include llmGateway
+    include llmProvider
+    include telemetryBackend
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view stageExecution {
+    title 'Contractor v2 — Prepared Stage Execution'
+
+    include server
+    include server.publicApi
+    include server.workflowCatalog
+    include server.agentTemplateCatalog
+    include server.workflowScheduler
+    include server.plannerFactories
+    include server.plannerAgent
+    include server.plannerSessionService
+    include server.remoteWorkers
+    include server.controlPlane
+    include server.runtimeRegistry
+    include server.runStore
+    include server.telemetry
+
+    include runtimeAgent
+    include runtimeAgent.controlEndpoint
+    include runtimeAgent.registryClient
+    include runtimeAgent.slotManager
+    include runtimeAgent.a2aServer
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.workerState
+    include runtimeAgent.executionCollector
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view plannerAndA2A {
+    title 'Contractor v2 — Planner and A2A Worker Boundary'
+
+    include server
+    include server.workflowScheduler
+    include server.plannerFactories
+    include server.plannerAgent
+    include server.plannerSessionService
+    include server.remoteWorkers
+
+    include runtimeAgent
+    include runtimeAgent.a2aServer
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.workerState
+    include runtimeAgent.executionCollector
+
+    include llmGateway
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view runtimeLifecycle {
+    title 'Contractor v2 — Single-process Runtime Agent / Worker Lifecycle'
+
+    include server
+    include server.workflowScheduler
+    include server.agentTemplateCatalog
+    include server.controlPlane
+    include server.runtimeRegistry
+
+    include runtimeAgent
+    include runtimeAgent.controlEndpoint
+    include runtimeAgent.registryClient
+    include runtimeAgent.slotManager
+    include runtimeAgent.sandboxManager
+    include runtimeAgent.a2aServer
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.workerState
+    include runtimeAgent.executionCollector
+    include runtimeAgent.artifactClient
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view artifacts {
+    title 'Contractor v2 — ArtifactStore Scopes, Forks and Run Namespaces'
+
+    include apiClient
+    include server
+    include server.userArtifactApi
+    include server.workflowScheduler
+    include server.plannerAgent
+    include server.plannerArtifactAdapter
+    include server.artifactService
+    include server.artifactRegistry
+    include server.blobStore
+
+    include runtimeAgent
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.namespaceTools
+    include runtimeAgent.runArtifactTools
+    include runtimeAgent.artifactClient
+
+    include artifactDatabase
+    include artifactDatabase.artifactVersions
+    include artifactDatabase.artifactEvents
+    include blobBackend
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view controlPlane {
+    title 'Contractor v2 — Control Plane and Single-slot Runtime Fleet'
+
+    include server
+    include server.workflowScheduler
+    include server.agentTemplateCatalog
+    include server.controlPlane
+    include server.runtimeRegistry
+
+    include runtimeAgent
+    include runtimeAgent.controlEndpoint
+    include runtimeAgent.registryClient
+    include runtimeAgent.slotManager
+    include runtimeAgent.workerRuntime
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+}

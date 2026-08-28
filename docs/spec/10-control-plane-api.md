@@ -17,7 +17,9 @@ The initial HTTP API is versioned under `/v1`:
 - `GET /v1/runs/{run_id}/artifacts` — list authorized output refs;
 - `GET /v1/artifacts/{artifact_id}/versions/{version}` — fetch metadata/content;
 - `GET /v1/runs/{run_id}/events` — paginated diagnostic timeline;
-- `GET /v1/workflows` — versioned public workflow/profile catalog;
+- `GET /v1/workflows` — versioned public `WorkflowProfile` catalog;
+- `GET /v1/agent-templates` — authorized versioned AgentTemplate catalog
+  metadata and contract/policy identities;
 - `GET /v1/agents` — fleet status for operators;
 - `/health/live` and `/health/ready` — process probes.
 
@@ -25,13 +27,16 @@ The exact web framework is an adapter choice. Public responses expose v2 DTOs,
 not ADK Session/Event, SQLAlchemy or A2A SDK models.
 
 `POST /v1/runs` accepts a versioned objective, exact input ArtifactRefs,
-expected-output contracts, an authorized workflow/execution profile and an
-authorized Planner-profile selection. Bounded caller overrides are part of the
-profile schema. Server resolves these inputs to an immutable `RunSpec` and
-exact `PlannerStrategyRef` and commits both before returning success. Unknown
-objective fields, artifact kinds, policy overrides and output contracts fail
-closed. The request never accepts a caller-constructed `TaskSpec`, `WorkerJob`,
-Attempt/fencing identity, implementation module or unvalidated Agent endpoint.
+expected-output contracts, an authorized WorkflowProfile, optional
+AgentTemplate selections allowed by that profile and an authorized Planner-
+profile selection. Bounded caller overrides are part of the WorkflowProfile
+schema. Server resolves the profile-authorized template set, narrowed by any
+permitted caller selection, into exact complete AgentTemplates in an immutable
+`RunSpec`; it commits that and the exact `PlannerStrategyRef` before returning
+success. Unknown objective fields, artifact kinds, templates, policy overrides
+and output contracts fail closed. The request never accepts a caller-constructed
+AgentTemplate, `TaskSpec`, `WorkerJob`, Attempt/fencing identity, implementation
+module or unvalidated Agent endpoint.
 
 The first release has one canonical source-ingestion path. A caller uploads
 content as bounded streaming multipart to `POST /v1/artifacts`, declaring its
@@ -88,9 +93,10 @@ it is not part of the public Control Plane `/v1` contract.
   registration operations and MUST NOT authorize public run, artifact,
   telemetry or operator endpoints.
 - **API-013** — Run submission MUST validate the objective against its declared
-  contract and resolve the requested/default execution and strategy profiles to
-  an immutable authorized `RunSpec` and `PlannerStrategyRef`. Recovery MUST NOT
-  re-resolve either from current defaults.
+  contract and resolve the requested/default AgentTemplates and strategy
+  profile through the WorkflowProfile to an immutable authorized `RunSpec` and
+  `PlannerStrategyRef`. Recovery MUST NOT re-resolve either from current
+  defaults.
 - **API-014** — Run status MUST expose the selected strategy identity and, when
   authorized, the exact RunSpec identity. Event queries MUST distinguish
   authoritative lifecycle entries from optional/sampled diagnostic detail.
@@ -110,13 +116,20 @@ it is not part of the public Control Plane `/v1` contract.
   or content-reading `/v1` routes in an unauthenticated bootstrap mode.
 - **API-018** — Workflow catalog entries MUST expose stable public key,
   objective/input/output contract versions, allowed Planner profiles and
-  bounded override schema. They MUST NOT expose implementation modules,
-  credentials or mutable Agent endpoints. Run submission MUST reject an unknown
-  key or input/output contract mismatch before creating RunState.
+  allowed/default AgentTemplateRefs plus bounded override schema. They MUST NOT
+  expose implementation modules, credentials or mutable Agent endpoints. Run
+  submission MUST reject an unknown key, template selection or input/output
+  contract mismatch before creating RunState.
 - **API-019** — Fleet status, audit facts and ADK/session diagnostic detail
   require an explicit operator permission in addition to tenant/run scope. A
   normal run owner receives only its normalized, redacted lifecycle/detail and
   cannot enumerate Agent endpoints, other principals or audit targets.
+- **API-020** — The AgentTemplate catalog endpoint MUST expose stable identity,
+  version/hash, description, worker/job and objective/input/output contract
+  metadata plus non-secret policy identities only. It MUST NOT return protected
+  instruction content, credentials, implementation modules/images or mutable
+  Agent endpoints. Run submission resolves the complete authorized template
+  server-side and pins it before success.
 
 ## Acceptance
 
@@ -130,9 +143,9 @@ it is not part of the public Control Plane `/v1` contract.
    response version matches the verified RunState without changing its plan.
 7. Agent mTLS credentials can use fleet-control endpoints but receive a
    forbidden response from every public Control Plane operation.
-8. Submitting the same objective with decomposing and passthrough profiles pins
-   the requested exact RunSpec and strategy in two runs; later default changes
-   affect neither run.
+8. Submitting the same objective with decomposing and passthrough Planner
+   profiles pins the requested exact RunSpec, AgentTemplates and strategy in two
+   runs; later default changes affect neither run.
 9. A caller-supplied TaskSpec/WorkerJob, implementation module or unauthorized
    exact Agent target is rejected before RunState creation.
 10. A streamed upload with a wrong size/digest or interrupted body never
@@ -155,3 +168,7 @@ it is not part of the public Control Plane `/v1` contract.
     either RunState/projection/applicable outbox/required audit facts all
     committed or none; an API success is never returned for a missing required
     audit fact.
+16. A caller may select only an AgentTemplateRef allowed by the WorkflowProfile;
+    forged template bodies, unknown versions and cross-scope templates fail
+    before RunState creation, while the catalog response reveals no protected
+    instruction or runtime/deployment secret.

@@ -13,7 +13,7 @@ verification verdicts and, when explicitly authorized, live-target
 exploitability evidence.
 
 A Contractor Run is a finite assessment or artifact-production job. A user or
-automation client selects a versioned workflow profile, supplies its exact
+automation client selects a versioned `WorkflowProfile`, supplies its exact
 inputs and receives typed output artifacts plus status, provenance and usage.
 The long-running Server and distributed Agents are the v2 delivery mechanism;
 they are not the product purpose. Planner/Worker topology may change without
@@ -43,12 +43,12 @@ The primary users and jobs are:
 | Authorized exploitability assessment | exact finding plus target, credential, egress, operation and time authorization | bounded HTTP/tool evidence and a typed exploitability verdict |
 | Prompt-directed specialist analysis | project snapshot, free-form objective and bounded workflow policy | typed artifacts declared by the selected specialist/output contract |
 
-The versioned workflow catalog defines which of these capabilities are enabled
-in a deployment and their exact objective/input/output schemas. A model's prose
-or a terminal Agent status is not by itself a product deliverable: required
-artifacts must satisfy the accepted workflow output contracts. Intermediate
-plans, prompts, sessions and telemetry are implementation or diagnostic data
-unless an output contract explicitly promotes them.
+The versioned `WorkflowProfile` catalog defines which of these capabilities are
+enabled in a deployment and their exact objective/input/output schemas. A
+model's prose or a terminal Agent status is not by itself a product deliverable:
+required artifacts must satisfy the accepted workflow output contracts.
+Intermediate plans, prompts, sessions and telemetry are implementation or
+diagnostic data unless an output contract explicitly promotes them.
 
 The product contract is the selected workflow's objective, input/output,
 authorization, outcome and provenance semantics. Server/Agent placement, A2A,
@@ -56,6 +56,18 @@ Planner strategy, Worker framework, database layout and telemetry are runtime
 choices. A Server decomposer and passthrough plus Agent-local ReAct are valid
 substitutes only when both satisfy the same pinned product contract; an execution
 experiment does not silently redefine the workflow.
+
+A `WorkflowProfile` names that product contract and the bounded ways a caller
+may select or override execution. It binds each declared Worker role to one or
+more allowed versioned `AgentTemplate` values and selects a default. An
+`AgentTemplate` is the reusable, framework-neutral execution definition for one
+Worker role: its job contract, instruction policy, model/tool/sandbox policy and
+minimum capabilities. It is not an Agent process, deployment, conversation or
+Planner strategy. Run submission resolves the profile-authorized set, narrowed
+by any permitted caller selection, into the immutable `RunSpec`; every
+`TaskSpec` names one of those exact templates, and the `WorkerJob` carries the
+resolved template so neither dispatch nor recovery consults mutable catalog
+defaults.
 
 ## v2 engineering goal
 
@@ -82,8 +94,8 @@ boundary:
 
 - a **decomposing Planner** maintains the current subtask/DAG state and emits
   one or more typed Task definitions;
-- a **static Planner** instantiates a versioned one-or-more-Task template
-  manifest against the accepted RunSpec;
+- a **static Planner** instantiates a versioned `StaticPlanManifest` containing
+  one or more Task nodes against the accepted RunSpec;
 - a **passthrough Planner** is a deterministic stub that creates one root Task,
   without decomposing the objective. Authorized exact/capability routing remains
   in RunSpec/TaskSpec policy, not Planner configuration. Passthrough is the
@@ -138,22 +150,27 @@ another framework or custom code.
 - **SCP-011** — Source projects MUST enter as immutable, checksummed project
   snapshot artifacts. A client, Git importer or future connector may produce a
   snapshot, but a Run MUST NOT depend on a Server-local project path.
-- **SCP-012** — Every enabled workflow profile MUST name its product capability,
+- **SCP-012** — Every enabled `WorkflowProfile` MUST name its product capability,
   objective contract, exact accepted input kinds and required typed output
   contracts. A successful transport or WorkerResult MUST NOT make the Run a
   product success when a required deliverable is absent or invalid.
 - **SCP-013** — Every accepted product deliverable MUST be attributable to the
-  exact project snapshot, input artifacts, workflow/execution profile and
-  effective model/tool/prompt/sandbox policy versions that produced it. Optional
-  diagnostic detail MUST NOT be required to establish that provenance.
+  exact project snapshot, input artifacts, WorkflowProfile, AgentTemplate and
+  effective model/tool/instruction/sandbox policy versions that produced it.
+  Optional diagnostic detail MUST NOT be required to establish that provenance.
 - **SCP-014** — Live-target interaction is a distinct, explicitly authorized
   product capability. Source analysis, API/architecture generation, tracing and
   static verification MUST NOT acquire live-target or unrestricted egress
   authority implicitly.
 - **SCP-015** — Replacing a Planner strategy, Worker implementation, Agent
-  framework or A2A adapter MUST NOT change the semantics of a pinned workflow-
-  profile version. A semantic objective/input/output/authorization change
-  requires a new cataloged workflow-profile version.
+  framework or A2A adapter MUST NOT change the semantics of a pinned
+  `WorkflowProfile` version. A semantic objective/input/output/authorization
+  change requires a new cataloged `WorkflowProfile` version.
+- **SCP-016** — Every AgentTemplate MUST be immutable, versioned, content-
+  hashed and framework-neutral. It MUST NOT contain a mutable Agent endpoint,
+  runtime image, credential or framework-native object. Changing template
+  behavior requires a new version/hash; a Run MUST pin the exact resolved
+  template content independently of later catalog changes.
 
 ## Non-goals for the first release
 
@@ -202,3 +219,7 @@ another framework or custom code.
 12. A static-analysis Run has no live-target capability. An exploitability Run
     sends traffic only when its exact target/operation/egress/time authorization
     is valid and returns a typed verdict plus bounded evidence.
+13. Two Runs may use different allowed AgentTemplates for the same pinned
+    WorkflowProfile and still satisfy its identical product contracts; their
+    provenance identifies the exact template versions/hashes, and changing a
+    catalog default after submission changes neither Run.

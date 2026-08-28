@@ -25,7 +25,7 @@ loading the full value into ADK session memory.
 - `run` — shared by Planner and attempts in one run;
 - `attempt` — private staging area for one Attempt;
 - `user` — explicitly published reusable data;
-- `system` — controlled templates or static assets.
+- `system` — controlled AgentTemplates, instruction policies or static assets.
 
 Agents receive grants for exact input refs and their Attempt staging scope.
 They cannot list or read unrelated run/user artifacts.
@@ -74,7 +74,8 @@ Attempt's staged output is never promoted and is removed by retention policy.
 
 - `schema_version`, `run_id` and logical plan generation;
 - the exact immutable `RunSpec` and `PlannerStrategyRef` selected when the run
-  is created, including their verified hashes;
+  is created, including the complete allowed AgentTemplates and all verified
+  hashes;
 - immutable Task definitions that permanently bind each `TaskId` to one exact
   `TaskSpec` hash, optional explicit `supersedes_task_id` relations and
   dependency edges accepted from the selected Planner strategy;
@@ -88,7 +89,7 @@ Chat history, full tool output and telemetry remain referenced artifacts or
 sessions instead of being copied wholesale into RunState.
 
 With the static Planner, the authoritative graph is the deterministic
-run-specific instantiation of the pinned one-or-more-Task template manifest.
+run-specific instantiation of the pinned `StaticPlanManifest`.
 Passthrough is the static Planner's constrained specialization: its graph
 contains exactly one logical root Task and zero dependency edges.
 Retries add immutable Attempts for that existing Task and do not add another
@@ -131,8 +132,9 @@ commit `TaskSpec`/edge changes and Planner accounting, but it does not create an
 Attempt-specific WorkerJob or execute outbox record. After those TaskSpecs are
 committed, a deterministic scheduler CAS may create a new Attempt, reserve its
 budget, materialize its exact Attempt-specific `WorkerJob` from the accepted
-TaskSpec and append the execute outbox record. That CAS also inserts grants for
-exactly the resolved input refs and creates the Attempt with a closed
+TaskSpec plus its RunSpec-pinned AgentTemplate and append the execute outbox
+record. That CAS also inserts grants for exactly the resolved input and selected
+AgentTemplate configuration refs and creates the Attempt with a closed
 operation-start gate. `RunStateStore` owns the only `AsyncSession` and transaction
 for each such CAS; Artifact, Run and Attempt repositories plus required Audit
 appends receive that caller-owned session and cannot commit independently.
@@ -226,11 +228,12 @@ precondition or multi-record Unit of Work.
   proposal MUST NOT contain an Attempt-specific `WorkerJob` or rebind an existing
   TaskId; revised work creates a new TaskId with explicit `supersedes_task_id`.
   Only after that Task definition is committed may a deterministic scheduler CAS
-  materialize a new WorkerJob for a new Attempt, insert its exact resolved-input
-  grants and append its execute outbox record. A policy retry MUST reuse the
-  exact TaskId/TaskSpec while creating a new Attempt ID, reservation, fence,
-  grants and WorkerJob; transport redelivery MUST reuse the exact committed
-  WorkerJob/grants for the existing Attempt.
+  materialize a new WorkerJob with its complete pinned AgentTemplate for a new
+  Attempt, insert its exact resolved-input grants and append its execute outbox
+  record. A policy retry MUST reuse the exact TaskId/TaskSpec/AgentTemplate
+  binding while creating a new Attempt ID, reservation, fence, grants and
+  WorkerJob; transport redelivery MUST reuse the exact committed WorkerJob/grants
+  for the existing Attempt.
 - **ART-021** — RunState MUST record an explicit Task resolution and exact
   evidence when static/conditional work is executed, reused or
   skipped/not-applicable. Reuse MUST identify the validated immutable output
@@ -244,10 +247,10 @@ precondition or multi-record Unit of Work.
   exact refs and write only beneath the Attempt workspace. A Server or Agent host
   path MUST NOT substitute for a snapshot ref.
 - **ART-023** — Attempt input grants MUST be the immutable, hash-identified
-  closure of resolved TaskSpec bindings, including every blob referenced by a
-  compound project snapshot. Grant creation MUST NOT follow mutable aliases or
-  grant unrelated artifacts; Agent MUST verify the grant-set hash before
-  materialization.
+  closure of resolved TaskSpec bindings and selected AgentTemplate
+  execution-configuration refs, including every blob referenced by a compound
+  artifact. Grant creation MUST NOT follow mutable aliases or grant unrelated
+  artifacts; Agent MUST verify the grant-set hash before materialization.
 - **ART-024** — Execute-outbox authorization MUST be represented by the exact
   current Attempt, WorkerJob hash, fence and cancellation/supersession facts.
   `run_state_version` records command provenance only; an unrelated later CAS
@@ -264,6 +267,11 @@ precondition or multi-record Unit of Work.
   normalized usage and resulting non-open operation-start-gate version in one
   Server transaction. Result acceptance MUST reject an absent, open or changed
   terminal-ingest gate version before promotion or settlement.
+- **ART-027** — The first RunState version MUST pin the complete bounded
+  AgentTemplate set resolved for the Run inside its hashed RunSpec. TaskSpec,
+  WorkerJob and result provenance MUST retain the exact selected template ref
+  and hash. Catalog retirement or default changes MUST NOT alter recovery,
+  retry, artifact retention or provenance for that Run.
 
 ## Acceptance
 
@@ -292,17 +300,18 @@ precondition or multi-record Unit of Work.
 13. A crash after terminal-result ingestion but before RunState CAS leaves the
     result durable but unaccepted; recovery promotes and settles it exactly once.
 14. Recovery verifies and reuses the exact pinned RunSpec, PlannerStrategyRef
-    and immutable TaskId/TaskSpec bindings; changing deployment defaults does
-    not change, retarget or re-plan the run.
+    and immutable TaskId/TaskSpec/AgentTemplate bindings; changing deployment
+    defaults does not change, retarget or re-plan the run.
 15. A passthrough run recovers from its one root TaskSpec without requiring any
     Agent-private subtask or reasoning state and never creates a second root
     Task.
 16. A Planner proposal commits no Attempt-specific WorkerJob. The first
     scheduler dispatch and a policy retry create different WorkerJobs from the
-    same exact TaskId/TaskSpec, while redelivery reuses byte-identical job data
-    for the existing Attempt. Rebinding that TaskId fails; an authorized revision
-    creates a new TaskId and supersedes relation, atomically cancels/fences an
-    eligible nonterminal prior Task and leaves terminal history unchanged.
+    same exact TaskId/TaskSpec/AgentTemplate binding, while redelivery reuses
+    byte-identical job data for the existing Attempt. Rebinding that TaskId
+    fails; an authorized revision creates a new TaskId and supersedes relation,
+    atomically cancels/fences an eligible nonterminal prior Task and leaves
+    terminal history unchanged.
 17. Static conditional fixtures commit explicit executed, reused and
     skipped/not-applicable resolutions. Reused outputs name exact validated refs,
     and an unrelated artifact with the same logical name never satisfies a
@@ -338,3 +347,6 @@ precondition or multi-record Unit of Work.
     Either the intent commits first and is present in the evidence snapshot, or
     result/usage plus gate seal commit first and the intent reaches no provider.
     The acceptance CAS pins the exact terminal-ingest gate version.
+26. Remove or replace an AgentTemplate in the live catalog after submission;
+    RunState recovery, retry and retained output provenance continue to use the
+    exact complete template pinned in the first RunState version.

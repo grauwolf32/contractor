@@ -50,7 +50,8 @@ deterministic configuration:
 ```text
 publish project snapshot
   → POST /runs
-  → create PlannerRunState artifact
+  → resolve WorkflowProfile + exact AgentTemplate set
+  → create PlannerRunState artifact with pinned templates
   → select a one-node static/passthrough plan
   → commit an Attempt and dispatch outbox record
   → deliver one A2A attempt idempotently

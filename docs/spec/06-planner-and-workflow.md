@@ -7,12 +7,15 @@ Depends on: [02](02-domain-contracts.md), [03](03-adk-integration.md), [05](05-a
 
 - `RunOrchestrator` owns run commands, scheduler ticks, cancellation and
   recovery.
+- `AgentTemplateCatalog` resolves the WorkflowProfile's authorized/default
+  templates only during Run submission; the immutable RunSpec then owns their
+  complete content for planning, dispatch and recovery.
 - `PlannerStrategy` is a Server-local port selected by the exact
   `PlannerStrategyRef` pinned with the immutable RunSpec when the run is created.
 - The decomposing strategy uses the current subtask state model and may use ADK
   `Workflow` plus `LlmAgent` to propose `TaskSpec` and dependency changes.
 - The static strategy deterministically instantiates a pinned, versioned
-  one-or-more-Task template manifest against the accepted RunSpec. Passthrough
+  `StaticPlanManifest` against the accepted RunSpec. Passthrough
   is its constrained specialization: it proposes exactly one root TaskSpec and
   zero edges without semantic decomposition or a Planner model call.
 - `PlannerStateMachine` validates and applies TaskSpec/edge proposals to a pure
@@ -25,8 +28,9 @@ Depends on: [02](02-domain-contracts.md), [03](03-adk-integration.md), [05](05-a
   of mapped A2A tasks and is the only caller of `WorkerGateway`; that gateway is
   the only route to Worker execution or remote cancellation.
 
-Every scheduler/recovery turn loads and verifies the exact pinned `RunSpec` and
-`PlannerStrategyRef` from one exact RunState version. The strategy is invoked
+Every scheduler/recovery turn loads and verifies the exact pinned `RunSpec`,
+its complete AgentTemplates and `PlannerStrategyRef` from one exact RunState
+version. The strategy is invoked
 only when committed state requires initial plan formation or an authorized plan
 revision that adds a new, superseding Task definition. A
 decomposing-strategy invocation may start a fresh ADK Workflow; a
@@ -58,8 +62,10 @@ The decomposing, static and passthrough implementations are alternative bindings
 of the same `PlannerStrategy`; they are not different distributed protocols.
 
 The decomposing strategy proposes immutable TaskId/TaskSpec definitions and
-edges for the Server-owned subtask DAG. The static strategy validates its pinned
-manifest's template-local node/edge keys, binds the accepted RunSpec and applies
+edges for the Server-owned subtask DAG, selecting each Task's AgentTemplate only
+from the exact set in RunSpec. The static strategy validates its pinned
+manifest's template-local node/edge keys and AgentTemplateRefs, binds the
+accepted RunSpec and applies
 the pinned ID-derivation version to produce exact run-specific TaskIds,
 TaskSpecs and edges. Passthrough applies the same mapping to the RunSpec-derived
 high-level objective and must yield exactly one root TaskSpec and zero edges. No
@@ -69,11 +75,12 @@ dispatch envelope.
 After a TaskSpec-containing plan version commits, the deterministic scheduler
 computes readiness from that committed version. A dispatch CAS creates a new
 Attempt, reserves its concrete budget, derives its effective deadline and
-materializes one immutable `WorkerJob` from the exact TaskSpec before appending
-the execute outbox record. Transport redelivery reuses that job byte-for-byte;
+materializes one immutable `WorkerJob` from the exact TaskSpec plus the complete
+selected AgentTemplate before appending the execute outbox record. Transport
+redelivery reuses that job byte-for-byte;
 a policy retry creates a new Attempt and WorkerJob for the same immutable
-TaskId/TaskSpec. Revised work is not a retry: it is a newly identified Task with
-an explicit `supersedes_task_id` relation.
+TaskId/TaskSpec/AgentTemplate binding. Revised work is not a retry: it is a newly
+identified Task with an explicit `supersedes_task_id` relation.
 
 The receiving Worker Agent may directly execute the objective or alternate
 between planning and working using Agent-private state. Those phases do not
@@ -97,7 +104,7 @@ and any reassignment creates a new Attempt.
 The Planner may propose only typed plan commands such as:
 
 - add a new TaskId permanently bound to an immutable `TaskSpec` whose policies
-  narrow the accepted RunSpec;
+  narrow its selected AgentTemplate and the accepted RunSpec;
 - add a dependency edge;
 - mark planning complete;
 - add a new TaskId/TaskSpec with `supersedes_task_id` after an authorized
@@ -132,13 +139,14 @@ winning RunState CAS.
   directly and MUST NOT propose an Attempt-specific `WorkerJob`. It proposes
   immutable TaskSpecs only. After the TaskSpec is committed, only the
   deterministic scheduler may create an Attempt and materialize the WorkerJob
-  in a winning CAS with its budget reservation and dispatch outbox record.
+  with the complete RunSpec-pinned AgentTemplate in a winning CAS with its
+  budget reservation and dispatch outbox record.
 - **PLN-005** — Every scheduler decision MUST be reproducible from one loaded
   RunState version and committed repository data.
 - **PLN-006** — Retry policy MUST specify maximum Attempts, retryable error
   classes, deadline and backoff. A retry creates a new immutable Attempt ID and
-  WorkerJob for the same exact TaskId/TaskSpec. A revised TaskSpec is new work
-  under a new TaskId, not a retry of the prior Task.
+  WorkerJob for the same exact TaskId/TaskSpec/AgentTemplate binding. A revised
+  TaskSpec is new work under a new TaskId, not a retry of the prior Task.
 - **PLN-007** — Completed tasks MUST NOT be executed again after Server restart.
 - **PLN-008** — Cancellation prevents new dispatches, requests cancellation of
   active Attempts and reaches a defined terminal state after a bounded drain.
@@ -286,6 +294,15 @@ winning RunState CAS.
   ingestion atomically stored result/error/usage and sealed/revoked the Attempt
   operation-start gate. It MUST pin that exact non-open gate version; an open,
   absent or changed version blocks promotion and settlement.
+- **PLN-040** — Every Planner proposal MUST select exactly one AgentTemplateRef
+  from the immutable RunSpec for each TaskSpec. `PlannerStateMachine` MUST
+  validate the template's objective/input/output contract and policy ceilings;
+  an unknown, changed or widened template selection is rejected before plan
+  commit.
+- **PLN-041** — Scheduler MUST materialize the complete AgentTemplate pinned in
+  RunSpec into WorkerJob in the same CAS that creates the Attempt. Dispatch,
+  retry and recovery MUST use that committed value and MUST NOT call
+  AgentTemplateCatalog or apply a newer catalog default.
 
 ## Dispatch outbox
 
@@ -342,9 +359,9 @@ deadline.
 ## Recovery algorithm
 
 1. Load the run projection and current RunState ref.
-2. Verify/upcast the artifact, exact RunSpec, PlannerStrategyRef and TaskSpecs,
-   then check the projection-version invariant; repair the projection before
-   continuing when it is stale.
+2. Verify/upcast the artifact, exact RunSpec and its complete AgentTemplates,
+   PlannerStrategyRef and TaskSpecs, then check the projection-version
+   invariant; repair the projection before continuing when it is stale.
 3. Reconcile active Attempt leases, ambiguous A2A mappings and committed results,
    then CAS deterministic result/loss/cancellation transitions and seal/revoke
    the affected Server-owned operation-start gates atomically.
@@ -357,16 +374,17 @@ deadline.
    new TaskId/TaskSpec with `supersedes_task_id`. Static/passthrough initialization
    is skipped when its manifest/root TaskSpec is already committed; only the
    decomposing ADK binding may start an ADK Workflow.
-6. Validate immutable TaskId/TaskSpec bindings, supersedes relations, edge-ID
-   input references and DAG rules, then CAS accepted proposals without creating
-   a WorkerJob or execute outbox record and reload the winning committed version.
+6. Validate immutable TaskId/TaskSpec/AgentTemplate bindings, supersedes
+   relations, edge-ID input references and DAG rules, then CAS accepted
+   proposals without creating a WorkerJob or execute outbox record and reload
+   the winning committed version.
 7. Compute explicit conditional/reuse resolutions, dependency/join satisfaction,
    exact resolved inputs, readiness, retry eligibility, predispatch failures and
    terminal outcome deterministically from that committed version.
 8. CAS scheduler transitions. For every newly dispatched/retried Task, create a
    new Attempt with a closed operation-start gate, reservation, fence and
-   Attempt-specific WorkerJob from its exact TaskSpec and append the execute
-   outbox record in that transaction.
+   Attempt-specific WorkerJob from its exact TaskSpec plus pinned AgentTemplate,
+   and append the execute outbox record in that transaction.
 9. `AttemptIoWorker` resumes nonterminal mappings, then independently claims and
    delivers committed outbox records using their committed dispatch identity.
 
@@ -411,10 +429,12 @@ deadline.
     terminal result exactly once.
 15. Decomposing, static and passthrough proposals contain TaskSpecs/edges only.
     Their plan CAS creates no Attempt-specific WorkerJob or execute outbox row;
-    a later scheduler CAS creates both from the winning committed TaskSpec.
+    a later scheduler CAS creates both from the winning committed TaskSpec and
+    its RunSpec-pinned AgentTemplate.
 16. Passthrough creates one root Task. Its first Attempt and a policy retry use
-    different immutable WorkerJobs derived from the same exact TaskSpec, while
-    transport redelivery reuses byte-identical job data for one Attempt.
+    different immutable WorkerJobs derived from the same exact
+    TaskSpec/AgentTemplate binding, while transport redelivery reuses byte-
+    identical job data for one Attempt.
 17. The passthrough root job succeeds when its Agent alternates planning and
     working internally; no mode flag or private subtask becomes part of a Server
     Task, Attempt or RunState transition.
@@ -425,8 +445,9 @@ deadline.
     incompatible targets follow the declared policy without silently routing
     elsewhere.
 19. Restart after a static or passthrough plan commit skips strategy invocation,
-    recovers its exact pinned RunSpec, PlannerStrategyRef and TaskId/TaskSpec
-    bindings and does not duplicate a Task or WorkerJob.
+    recovers its exact pinned RunSpec, PlannerStrategyRef and
+    TaskId/TaskSpec/AgentTemplate bindings and does not duplicate a Task or
+    WorkerJob.
 20. Passthrough completion requires no second strategy invocation; all internal
     model/tool usage settles against the root Worker reservation and exceeding
     its budget or deadline stops the Attempt.
@@ -465,3 +486,9 @@ deadline.
     intent either commits first and appears in evidence, or result/usage plus
     gate seal commit first and it performs no provider I/O. The scheduler pins
     that exact terminal-ingest gate version before promotion/settlement.
+30. A decomposing proposal and a StaticPlanManifest node that select an
+    AgentTemplate outside RunSpec both fail before plan commit. Valid selections
+    produce WorkerJobs containing the byte-identical pinned template.
+31. Change the live AgentTemplate catalog between plan commit, retry and Server
+    restart; no execution path consults it, and the retry retains the same
+    template identity/content while receiving a new Attempt identity and fence.

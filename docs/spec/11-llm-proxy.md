@@ -17,8 +17,8 @@ checks. Provider credentials, routing and model serving belong to the Proxy.
 - **LLM-002** — Contractor configuration uses stable model aliases rather than
   provider-specific model IDs in domain contracts.
 - **LLM-003** — Requests MUST propagate trace context and the non-secret
-  `run_id`, `task_id`, `attempt_id`, caller role and budget class as supported
-  metadata.
+  `run_id`, `task_id`, `attempt_id`, AgentTemplate identity/hash, caller role
+  and budget class as supported metadata.
 - **LLM-004** — Every enabled model-backed Server/Agent strategy MUST
   authenticate to Proxy without receiving underlying provider credentials.
 - **LLM-005** — Connect, response, stream-idle and total invocation deadlines
@@ -98,6 +98,11 @@ checks. Provider credentials, routing and model serving belong to the Proxy.
   ambiguous result retains its complete maximum until authoritative
   reconciliation, or policy settles it at that maximum; timeout, Agent loss,
   cancellation and telemetry absence MUST NOT release it.
+- **LLM-020** — A Worker model invocation MUST use the exact effective model and
+  instruction policy derived from the hash-verified AgentTemplate and TaskSpec
+  in WorkerJob. Local adapter defaults MAY fill only fields explicitly left
+  open by that versioned policy and MUST be recorded in resolved provenance;
+  they cannot substitute another template, prompt or model policy.
 
 ## Acceptance
 
@@ -142,3 +147,7 @@ checks. Provider credentials, routing and model serving belong to the Proxy.
     over-budget calls until authoritative reconciliation or maximum-charge
     settlement; the test covers a retry whose possible duplicate provider
     charge was included in that immutable maximum.
+15. A fake Worker attempts to replace the pinned AgentTemplate instruction or
+    model policy with a local default; no Proxy request is sent. A permitted
+    explicitly open field resolves once and is recorded with the exact template
+    identity/hash.

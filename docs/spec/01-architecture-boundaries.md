@@ -10,7 +10,7 @@ The canonical component map is [`../architecture.c4`](../architecture.c4).
 | Area | ADK-owned | Contractor-owned |
 |---|---|---|
 | Agent execution | Optional ADK binding: `Runner`, `LlmAgent`, tool declaration/dispatch hooks | portable Worker strategy, capability providers and the enforcing `ToolInvoker`/policies |
-| Workflow | Optional decomposing-Planner binding: graph nodes, routing, concurrency and local replay | Planner strategy selection, run semantics, authoritative RunState and distributed dispatch |
+| Workflow | Optional decomposing-Planner binding: graph nodes, routing, concurrency and local replay | WorkflowProfile/AgentTemplate catalog and resolution, Planner strategy selection, run semantics, authoritative RunState and distributed dispatch |
 | Sessions | `DatabaseSessionService` and its tables | engine lifecycle and session identity policy |
 | A2A | Optional ADK client/server bridge | Contractor A2A profile, adapter ports/translation, registry, routing, leases, fencing and effective cancellation |
 | Artifacts | `BaseArtifactService` contract and context API | PostgreSQL implementation, CAS, ACL and retention |
@@ -35,6 +35,9 @@ The domain/application layers depend on ports with no ADK, SQLAlchemy, FastAPI
 or A2A types in their signatures:
 
 - `RunStateStore` — load and compare-and-swap `PlannerRunState`;
+- `AgentTemplateCatalog` — resolve an authorized, versioned AgentTemplate by
+  exact identity/hash and enumerate only the templates allowed by a
+  WorkflowProfile; resolved Runs do not call it during dispatch or recovery;
 - `PlannerStrategy` — propose typed Planner commands from one exact RunState;
   decomposing, static-manifest and deterministic passthrough Planners implement
   this same Server-local port and produce `TaskSpec`, not `WorkerJob`, values;
@@ -68,6 +71,11 @@ or A2A types in their signatures:
   retention independent of diagnostic telemetry;
 - `EventPublisher` — non-blocking domain event publication;
 - `SandboxManager` — acquire and release an attempt-scoped workspace lease.
+
+In the single-VM baseline, `AgentTemplateCatalog` is an in-process Server
+component backed by validated startup configuration, optionally referencing
+system-scoped artifacts. It is not a separate service, Kubernetes CRD/controller
+or Agent-discovery mechanism.
 
 ## Requirements
 
@@ -114,6 +122,11 @@ or A2A types in their signatures:
   changes MUST participate in the `RunStateStore` caller-owned Unit of Work.
   Control Plane MUST NOT perform a separate best-effort submission/cancellation
   audit write after the state mutation.
+- **ARC-017** — `AgentTemplateCatalog` is a Server-side configuration boundary,
+  not a runtime service locator. Planner, scheduler and Agent code MUST consume
+  only the exact AgentTemplate values pinned in RunSpec/WorkerJob and MUST NOT
+  resolve a mutable alias, Agent endpoint or implementation module from the
+  catalog while executing or recovering a Run.
 
 ## Acceptance
 
@@ -141,3 +154,6 @@ or A2A types in their signatures:
 12. A fault between submission/cancellation state mutation and its required
     audit append commits both or neither; result settlement reads one exact
     model-invocation evidence snapshot.
+13. Replacing `AgentTemplateCatalog` with a fake changes catalog resolution
+    only; a previously accepted Run executes from its pinned templates after
+    the fake or deployment defaults change.

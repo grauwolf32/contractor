@@ -118,13 +118,51 @@ and an atomic publication commit of the manifest plus exact dependency records.
 A later Git/object-store importer is another producer of the same manifest
 contract; it does not add filesystem paths to `RunSpec`.
 
+### `WorkflowProfile`, `AgentTemplateRef` and `AgentTemplate`
+
+`WorkflowProfile` is the product-facing catalog definition. Required fields are
+`protocol_version`, `workflow_profile_key`, `workflow_profile_version`,
+`product_capability`, exact objective/input/output contract refs,
+`authorization_policy`, allowed Planner profiles, bounded caller-override
+schema, a bounded map of named Worker roles to allowed/default
+`AgentTemplateRef` values and `workflow_profile_sha256`. It contains no
+implementation module, mutable Agent endpoint or credential. Any profile-
+content change, including an allowed/default template binding, creates a new
+`WorkflowProfile` version/hash; the objective/input/output/authorization portion
+remains the product contract and the template remains an execution definition.
+
+`AgentTemplateRef` contains `agent_template_id`, `agent_template_version` and
+`agent_template_sha256`. The three fields identify one immutable template; a
+mutable alias such as `latest` is not a recovery identity.
+
+`AgentTemplate` is a reusable, framework-neutral Worker behavior definition.
+Required fields are `protocol_version`, `agent_template_id`,
+`agent_template_version`, `description`, `worker_kind`, exact `job_contract`,
+versioned task-objective/input/output contracts, versioned instruction policy,
+minimum required capabilities and exact model/tool/sandbox policy refs, plus
+`agent_template_sha256`. The description is bounded, non-secret catalog text;
+the instruction policy may be `none` for a fully deterministic Worker. A model-
+backed policy is a bounded Contractor DTO or an exact `ArtifactRef`, never an
+ADK/framework prompt object or mutable file path.
+
+Every `ArtifactRef` contained by a selected template is included in the
+Attempt's exact input-grant closure under a reserved execution-configuration
+namespace; it is not exposed as a caller/product input binding.
+
+An AgentTemplate contains no Planner strategy, retry/budget policy, Agent ID or
+endpoint, runtime image/module/class, credential or framework session state.
+Workflow/run policy owns authorization and ceilings; `TaskSpec` owns the exact
+task instance; the registered capability and committed dispatch envelope own
+runtime implementation selection. Template fields may be narrowed by RunSpec
+and TaskSpec policy but never widened or silently replaced.
+
 ### `PlannerStrategyRef`
 
 Required fields: `protocol_version`, `strategy_id`, `strategy_version`,
 `strategy_implementation_sha256`, `strategy_config` and
 `strategy_config_sha256`. Initial `strategy_id` values are `decomposing`,
 `static` and `passthrough`. `static` deterministically instantiates a pinned
-one-or-more-task template manifest; `passthrough` is its constrained
+`StaticPlanManifest`; `passthrough` is its constrained
 one-root-Task specialization/stub.
 
 Strategy configuration contains only inputs that change how the Server forms a
@@ -138,19 +176,32 @@ defaults and reassignable version labels are not sufficient recovery identity.
 ### `RunSpec`, `TaskSpec` and routing
 
 `RunSpec` is the immutable accepted run input. Required fields:
-`protocol_version`, `run_spec_version`, objective contract/value, expected run
-outputs, exact input artifacts, default Worker routing/capability policy, retry
-policy, deterministic run completion/failure policy, budget/deadline allocation
-and exact tool/model/sandbox policy refs, plus `run_spec_sha256`. Large objective
-content is referenced as an `ArtifactRef`.
+`protocol_version`, `run_spec_version`, exact `workflow_profile_key`,
+`workflow_profile_version` and `workflow_profile_sha256`, objective
+contract/value, expected run outputs, exact input artifacts, a bounded
+collection of authorized complete `AgentTemplate` values—resolved from the
+profile and narrowed by any permitted caller selection—with unique exact
+`AgentTemplateRef` identities, exact effective role-to-template allow-lists and
+defaults, default Worker routing/capability policy, retry policy, deterministic
+run completion/failure policy, budget/deadline allocation and exact
+tool/model/instruction/sandbox policy ceilings, plus
+`run_spec_sha256`. Large objective content is referenced as an `ArtifactRef`.
 
 `TaskSpec` is an immutable unit of planned work. Required fields:
-`protocol_version`, `task_spec_version`, `worker_kind`, `job_contract`, typed
-objective, expected output bindings, input bindings,
-`required_capabilities`, `routing_constraint`, retry policy, Worker-budget
-policy, tool/model/sandbox policy refs, a versioned `activation_condition`
-(`always` by default), a versioned `reuse_policy` (`never` by default) and
-`task_spec_sha256`.
+`protocol_version`, `task_spec_version`, exact `agent_template_ref`,
+`worker_kind`, `job_contract`, typed objective, expected output bindings, input
+bindings, `required_capabilities`, `routing_constraint`, retry policy,
+Worker-budget policy, effective instruction/tool/model/sandbox policy refs, a
+versioned `activation_condition` (`always` by default), a versioned
+`reuse_policy` (`never` by default) and `task_spec_sha256`.
+
+The referenced complete AgentTemplate is read from the immutable RunSpec.
+`worker_kind`, `job_contract` and declared objective/input/output contracts are
+derived from it and validated against the TaskSpec values/bindings; they are
+not independently chosen mutable defaults. Every effective policy is the
+validated intersection of the template, RunSpec ceiling and Task-specific
+narrowing. A TaskSpec whose template is absent from RunSpec or whose contract
+or policy widens either source is invalid before it can enter RunState.
 
 An accepted Task definition contains `task_id`, the exact `task_spec` and hash,
 and optional `supersedes_task_id`. RunState permanently binds that TaskId to the
@@ -172,7 +223,7 @@ executable code.
 matching by default, or an authorized exact Agent/capability/implementation
 constraint. It selects a semantic implementation, never an internal
 planning/working phase. A Planner may narrow `RunSpec` policy for a Task but may
-not widen it.
+not widen either the selected AgentTemplate or RunSpec.
 
 ### Dependency and Task-resolution contracts
 
@@ -181,7 +232,9 @@ A `StaticPlanManifest` is immutable reusable configuration. Required fields are
 uniquely keyed Task templates, uniquely keyed dependency templates,
 objective/input/output mappings, activation/reuse policies, join rules and the
 manifest content digest pinned by `PlannerStrategyRef`. A Task template has a
-stable `template_node_key`; a dependency template has a stable
+stable `template_node_key`, one exact AgentTemplateRef allowed by RunSpec and
+the task-instance mappings/narrowing needed to construct a TaskSpec; a
+dependency template has a stable
 `template_edge_key` and refers only to predecessor/successor template node keys
 plus their named output/input bindings. Template-local keys are not runtime
 TaskIds or edge IDs.
@@ -216,20 +269,23 @@ evidence.
 ### `WorkerJob`
 
 Required fields: `protocol_version`, `run_id`, `task_id`, `attempt_id`,
-exact `task_spec` plus `task_spec_sha256`, exact resolved input bindings,
+exact `task_spec` plus `task_spec_sha256`, the complete selected
+`agent_template` plus `agent_template_sha256`, exact resolved input bindings,
 `input_grant_set_sha256`, `workspace`, concrete reserved `budget`, effective
 `deadline`, `idempotency_key`, `fencing_token` and `trace_context`.
 
 The deterministic scheduler materializes a new immutable `WorkerJob` for each
-Attempt from the accepted `TaskSpec` by adding Attempt-specific identity,
-reservation, deadline, workspace, fence and trace data. Transport redelivery of
-one Attempt reuses its exact `WorkerJob`; a policy retry creates a new Attempt
-and `WorkerJob` for the same Task/TaskSpec.
+Attempt from the accepted `TaskSpec` and its RunSpec-pinned AgentTemplate by
+adding Attempt-specific identity, reservation, deadline, workspace, fence and
+trace data. Transport redelivery of one Attempt reuses its exact `WorkerJob`; a
+policy retry creates a new Attempt and `WorkerJob` for the same
+Task/TaskSpec/AgentTemplate binding.
 
 The same envelope therefore represents a narrow decomposed/static Task or the
 passthrough root objective. It contains no `planning`/`working` execution-mode
-flag and no ADK prompt, session, Agent or tool object. The receiving Agent
-chooses its internal execution strategy.
+flag and no ADK prompt, session, Agent or tool object. Its AgentTemplate carries
+only the portable instruction/policy contract. The receiving Agent chooses its
+internal execution strategy.
 
 ### `WorkerDispatchEnvelope`
 
@@ -249,9 +305,10 @@ Required fields: `protocol_version`, `attempt_id`, `outcome`,
 `fencing_token`, `execution_provenance`, `output_artifacts`, `summary`, `usage`,
 and optional `error`. `execution_provenance` identifies the selected Worker
 strategy/capability implementation ID, version and immutable build/configuration
-digest; framework name/version is optional diagnostic metadata. `outcome` is
-exactly `succeeded`, `failed` or `cancelled`; `lost` is inferred by Server when
-a lease expires and is never asserted by an Agent result.
+digest plus the exact AgentTemplate identity/hash; framework name/version is
+optional diagnostic metadata. `outcome` is exactly `succeeded`, `failed` or
+`cancelled`; `lost` is inferred by Server when a lease expires and is never
+asserted by an Agent result.
 
 `usage` is a versioned normalized aggregate for the whole Attempt. It includes
 model invocation/token/cost totals, tool-call totals by versioned tool contract,
@@ -581,15 +638,18 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   versioned and idempotent by `cancel_command_id`; the acknowledged tombstone
   version MUST never decrease.
 - **CON-018** — `RunSpec` and every `TaskSpec` MUST validate their objectives
-  and expected outputs against exact declared contracts. `worker_kind` alone is
-  not a complete description of work, and a Task policy MUST NOT widen its
-  accepted Run policy.
-- **CON-019** — A `WorkerJob` MUST contain one exact, hash-verified `TaskSpec`
-  and only scalar/DTO fields plus exact artifact references. Framework state,
-  Python callables and implicit Server filesystem context are forbidden.
-- **CON-020** — Agent capability matching MUST include a compatible
-  `job_contract` version. The Agent's use of ADK, another framework or custom
-  logic MUST NOT change the wire DTO.
+  and expected outputs against the exact contracts declared by the selected
+  AgentTemplate and WorkflowProfile. An AgentTemplate or `worker_kind` alone is
+  not a complete product description of work, and a Task policy MUST NOT widen
+  its accepted template or Run policy.
+- **CON-019** — A `WorkerJob` MUST contain one exact, hash-verified `TaskSpec`,
+  its complete hash-verified AgentTemplate and only scalar/DTO fields plus exact
+  artifact references. Framework state, Python callables and implicit Server
+  filesystem context are forbidden.
+- **CON-020** — Agent capability matching MUST include the selected
+  AgentTemplate's compatible `worker_kind` and exact `job_contract` version.
+  The Agent's use of ADK, another framework or custom logic MUST NOT change the
+  template or wire DTO.
 - **CON-021** — Agent-internal planning/working phases and local subtasks are
   not Server `Task` or `Attempt` records. A `WorkerResult` terminates the one
   boundary Attempt identified by its `attempt_id`, regardless of the internal
@@ -598,15 +658,17 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   deterministic/versioned DTO rules and remain immutable for the run. Exact
   implementation/configuration digests are required; recovery MUST stop safely
   instead of using a deployment default or reassigned version label.
-- **CON-023** — `RunSpec` is authoritative for submitted objective, outputs and
-  run-wide Worker execution constraints; `PlannerStrategyRef` is authoritative
-  only for plan formation. Conflicting or widened Planner/Task configuration
-  MUST be rejected rather than resolved by undocumented precedence.
+- **CON-023** — `RunSpec` is authoritative for submitted objective, outputs,
+  allowed AgentTemplates and run-wide Worker execution constraints;
+  `PlannerStrategyRef` is authoritative only for plan formation. Conflicting or
+  widened Planner/template/Task configuration MUST be rejected rather than
+  resolved by undocumented precedence.
 - **CON-024** — Planner strategies MUST produce immutable `TaskSpec` values,
   never Attempt-specific `WorkerJob` values. The scheduler MUST create one new
-  WorkerJob per Attempt; redelivery MUST reuse the exact job for that Attempt. A
-  retry retains the TaskId/TaskSpec binding; revised work uses a new TaskId with
-  an explicit `supersedes_task_id`.
+  WorkerJob per Attempt using the TaskSpec's exact RunSpec-pinned AgentTemplate;
+  redelivery MUST reuse the exact job for that Attempt. A retry retains the
+  TaskId/TaskSpec/AgentTemplate binding; revised work uses a new TaskId with an
+  explicit `supersedes_task_id`.
 - **CON-025** — Dispatcher MUST commit a `WorkerDispatchEnvelope` with selected
   `capability_id` and Worker implementation digest before send. Agent MUST
   verify and persist it before reading inputs or starting work, and
@@ -616,7 +678,7 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   preserve unknown measurements and MUST NOT infer zero usage from missing ADK
   or telemetry detail.
 - **CON-027** — Static planning MUST deterministically instantiate a pinned,
-  versioned one-or-more-Task template manifest against the exact RunSpec. Only
+  versioned `StaticPlanManifest` against the exact RunSpec. Only
   template-local node/edge keys occur in the reusable manifest; the pinned ID
   derivation maps them to byte-identical run-specific Task definitions and
   edges. Passthrough MUST be exactly the one-root-Task, zero-edge specialization;
@@ -636,9 +698,9 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   tool/model access and take a defined predispatch Task failure transition.
 - **CON-030** — Conditional, reuse and join decisions MUST use versioned
   declarative policies plus immutable `TaskResolution` evidence. A cache/reuse
-  fingerprint MUST cover the exact TaskSpec, resolved inputs, effective policy
-  refs and permitted producer provenance; a familiar artifact name or mutable
-  latest-version lookup is insufficient.
+  fingerprint MUST cover the exact TaskSpec, selected AgentTemplate, resolved
+  inputs, effective policy refs and permitted producer provenance; a familiar
+  artifact name or mutable latest-version lookup is insufficient.
 - **CON-031** — Every Agent-owned execution/effect record MUST pin the exact
   assigned registration identity/generation/Server epoch. A newer registration
   with a different instance nonce fences writes/reconciliation from the prior
@@ -733,6 +795,26 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
   state. Query, redelivery and replacement inspection MUST replay that exact
   canonical DTO/media type/digest; they MUST NOT reconstruct, replace or combine
   terminal outcomes from session events, provider state or mutable defaults.
+- **CON-045** — `AgentTemplateRef` and `AgentTemplate` MUST obey the canonical,
+  versioned and hash-verified DTO rules. A template MUST remain framework-
+  neutral and MUST NOT contain deployment/runtime selection, credentials,
+  mutable locations or Planner/Attempt state.
+- **CON-046** — RunSpec MUST contain every complete AgentTemplate a Planner may
+  select. Every TaskSpec MUST reference exactly one member, and the scheduler
+  MUST copy that exact template into each Attempt's WorkerJob. Planning,
+  dispatch and recovery MUST fail closed rather than re-resolve a missing or
+  changed template from the current catalog.
+- **CON-047** — Template contract/policy, RunSpec authorization/ceilings and
+  TaskSpec narrowing MUST be validated in that order. A Planner or caller MUST
+  NOT substitute a template outside the RunSpec set, change its
+  worker/job/input/output contract or widen its instruction/model/tool/sandbox
+  authority. Conflict is a typed predispatch failure, not undocumented
+  precedence.
+- **CON-048** — WorkflowProfile MUST remain the sole catalog contract for the
+  public product capability, objective/input/output and authorization semantics.
+  Its AgentTemplate role bindings constrain execution choices but MUST NOT turn
+  template instructions, framework or Worker implementation details into
+  product success criteria; required typed outputs still decide Run success.
 
 ## Acceptance
 
@@ -751,18 +833,20 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
    cancellation tombstone and never produce two tasks or a post-cancel start.
 9. Golden fixtures cover Attempt-control request, acknowledgement, idempotent
    replay, stale fence and incompatible-version errors.
-10. Golden `TaskSpec`/`WorkerJob` fixtures cover both a typed narrow Task and a
-    root objective using the same envelope and A2A mapping.
+10. Golden AgentTemplate/`TaskSpec`/`WorkerJob` fixtures cover both a typed
+    narrow Task and a root objective using the same envelope and A2A mapping.
 11. Capability matching accepts ADK and non-ADK Agents implementing the same
     `job_contract` and rejects an Agent supporting only an incompatible version.
 12. No serialized DTO reveals an Agent-internal planning/working phase or
     private subtask object.
 13. Separate `PlannerStrategyRef` and `RunSpec` fixtures survive restart with
-    exact Planner code/config and Worker execution policy; changing current
-    process defaults does not change or retarget the recovered run.
-14. A Planner proposal contains TaskSpecs only; first execution and a policy
-    retry create different Attempt-specific WorkerJobs, while transport
-    redelivery reuses byte-identical job data.
+    exact Planner code/config, AgentTemplates and Worker execution policy;
+    changing current process defaults does not change or retarget the recovered
+    run.
+14. A Planner proposal contains TaskSpecs with AgentTemplateRefs only; first
+    execution and a policy retry create different Attempt-specific WorkerJobs
+    carrying the same complete template, while transport redelivery reuses
+    byte-identical job data.
 15. A committed dispatch-envelope fixture selects one of two compatible local
     implementations by `capability_id`; the Agent rejects a changed/unregistered
     implementation before reading inputs or starting work.
@@ -780,9 +864,10 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
 20. Dependency fixtures cover executed, reused, skipped, failed and cancelled
     predecessors plus all/threshold joins; missing policy and missing,
     duplicated or mismatched edge/input references fail closed before dispatch.
-21. Reuse fixtures accept only an exact fingerprint/provenance/output match and
-    commit immutable TaskResolution evidence; same-name or changed-input
-    artifacts do not satisfy the Task.
+21. Reuse fixtures accept only an exact
+    TaskSpec/AgentTemplate/input/provenance/output fingerprint match and commit
+    immutable TaskResolution evidence; same-name, changed-template or changed-
+    input artifacts do not satisfy the Task.
 22. After a new instance nonce/lease generation registers for one AgentId, the
     old process cannot create or mutate task mappings, effect records or model
     evidence even though its stable Agent database login is unchanged.
@@ -858,3 +943,12 @@ pre-assignment `closed` state. Internal `cancelled` maps to A2A task state
     makes `GetTask` replay byte-identical canonical data, media type, digest,
     state and usage. A crash before that commit exposes no terminal outcome, and
     a replacement cannot manufacture one from provider/session observations.
+40. AgentTemplate golden fixtures reject a changed body under the same ref,
+    mutable aliases, embedded credentials/endpoints/modules and a TaskSpec whose
+    template is absent from RunSpec or whose policies widen it.
+41. Two TaskSpecs using different allowed AgentTemplates can instantiate the
+    same product objective/output contract, while their WorkerJobs and results
+    preserve distinct exact template identities and hashes.
+42. After catalog defaults change, retry and restart reproduce the complete
+    AgentTemplate already pinned in RunSpec/WorkerJob byte-for-byte and perform
+    no catalog lookup.

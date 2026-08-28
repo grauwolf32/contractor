@@ -14,6 +14,8 @@ Depends on: all subsystem specifications
   implementation, plus adapter-specific cases;
 - one shared Planner-strategy invariant suite applied to static, passthrough and
   decomposing strategies, plus strategy-specific cases;
+- AgentTemplate catalog, canonical-hash, resolution and policy-narrowing
+  contract fixtures;
 - scheduled/release, workflow-specific quality evaluations for substitutable
   strategy configurations;
 - one deterministic CI fixture for the evaluation manifest/report schema;
@@ -60,14 +62,14 @@ model responses.
   fleet-control clients.
 - **TST-012** — Every scheduled/release comparison MUST be driven by an
   immutable, versioned evaluation manifest. Each candidate pins its exact
-  `PlannerStrategyRef`, case-specific accepted `RunSpec`, Worker routing,
-  capability and implementation constraints, budget/deadline policy and all
-  relevant prompt, model, tool and sandbox policy digests. Each case pins its ID
-  and exact input `ArtifactRef` values. The manifest also pins the scorer name,
-  version and configuration digest, evaluation-tool version and configuration
-  digest,
-  repetition count and order, the seed assigned to each repetition (or an
-  explicit unsupported marker), and requested model-resolution policy.
+  `PlannerStrategyRef`, case-specific accepted `RunSpec`, exact AgentTemplates,
+  Worker routing, capability and implementation constraints, budget/deadline
+  policy and all relevant instruction, model, tool and sandbox policy digests.
+  Each case pins its ID and exact input `ArtifactRef` values. The manifest also
+  pins the scorer name, version and configuration digest, evaluation-tool
+  version and configuration digest, repetition count and order, the seed
+  assigned to each repetition (or an explicit unsupported marker), and requested
+  model-resolution policy.
 - **TST-013** — Evaluation tooling MUST derive stable child-run submission and
   evaluator idempotency keys from the manifest digest, candidate, case and
   repetition. It MUST derive the final-report publication key from the manifest
@@ -142,6 +144,11 @@ model responses.
   sandbox policy and total budget class MUST be paired; unavoidable Task-
   granularity/placement differences are recorded and the conclusion is labeled
   an end-to-end coordination-strategy comparison, not a Planner-only causal claim.
+- **TST-022** — Every enabled WorkflowProfile/AgentTemplate catalog fixture MUST
+  validate exact references, canonical hashes, objective/input/output contract
+  compatibility and policy narrowing. Tests MUST prove a submitted Run pins
+  complete templates and that planning, retry and recovery perform no catalog
+  lookup or mutable-default substitution.
 
 ## Scheduled/release strategy evaluation
 
@@ -253,9 +260,10 @@ Each entry records:
   v2 `PlannerStrategyRef` (`static`, its `passthrough` specialization, or
   `decomposing`) plus its implementation/configuration digests and intended
   `TaskSpec` graph mapping;
-- the exact v2 workflow/execution/catalog profile version and digest, RunSpec
-  contract, Worker capability/implementation constraints and resolved tool,
-  prompt, requested/resolved model and sandbox-policy versions/digests,
+- the exact v2 WorkflowProfile version/digest, selected AgentTemplate
+  versions/digests, RunSpec contract, Worker capability/implementation
+  constraints and resolved tool, instruction, requested/resolved model and
+  sandbox-policy versions/digests,
   separately from the corresponding resolved v1 values;
 - for any external effect, the source behavior and candidate v2 effect class,
   target/environment, operation, egress, credential and time authorization,
@@ -266,9 +274,9 @@ Each entry records:
   `retired`), rationale, unresolved compatibility gaps and evidence refs.
 
 `validated` means the versioned workflow-catalog fixture exposes the same public
-key in an enabled profile and an authenticated submission with exact authorized
-inputs resolves the recorded RunSpec and PlannerStrategyRef. Anonymous,
-wrong-scope and wrong-contract submissions must fail before RunState creation.
+key in an enabled `WorkflowProfile` and an authenticated submission with exact
+authorized inputs resolves the recorded RunSpec and PlannerStrategyRef.
+Anonymous, wrong-scope and wrong-contract submissions must fail before RunState creation.
 An implementation absent from the tested enabled catalog remains `in_progress`
 or is deliberately `deferred`; it is not `validated` merely because an internal
 Worker fixture passes.
@@ -304,6 +312,8 @@ migrated.
   locked Google ADK `2.7.1` adapter profile;
 - `PlannerStrategy` and framework-neutral `WorkerStrategy` ports plus a no-ADK
   import/conformance profile;
+- WorkflowProfile and AgentTemplate DTO/catalog fixtures with immutable
+  submission-time resolution;
 - DTO fixtures and generated Control Plane API skeleton.
 
 Exit: `SCP`, `ARC` and `CON` core tests pass without ADK; enabling the ADK
@@ -330,7 +340,8 @@ Exit: concurrent CAS, restart and connection-budget tests pass.
 - authenticated, idempotent blob/project-snapshot publication and exact input
   selection; no Server-local project path;
 - one deterministic one-node static plan (the passthrough specialization) that
-  proposes one root `TaskSpec` through the shared Planner state machine;
+  proposes one root `TaskSpec` selecting one pinned AgentTemplate through the
+  shared Planner state machine;
 - private HTTPS/mTLS registry API with one Agent capability and durable lease;
 - persistence-capability rotation plus new-nonce replacement cleanup-only tests;
   the first Worker declares `non_resumable`, so Phase 2 does not implement
@@ -347,7 +358,8 @@ Exit:
 
 ```text
 submit → static/passthrough → one TaskSpec → one Task → first Attempt
-       → WorkerJob → A2A → Worker → staged artifact → accepted terminal status
+       → WorkerJob + AgentTemplate → A2A → Worker → staged artifact
+       → accepted terminal status
 ```
 
 passes, including Server restart, duplicate transport delivery and fake-port
@@ -446,11 +458,11 @@ Do not copy `TaskRunner` as a second durable scheduler or expose Agent-private
 planning/working steps as Server Tasks.
 
 Exit per workflow: its migration-ledger entry is `validated`; its enabled
-workflow-catalog profile and authenticated/negative submission fixtures pass;
-behavioral fixtures pass, outputs are documented, failure/effect semantics are
-explicit, the chosen v2 migration meets the v1-baseline quality gate, any
-genuine substitute comparison has a finalized scheduled/release report, and no
-v1 runtime import remains.
+`WorkflowProfile` catalog entry and authenticated/negative submission fixtures
+pass; behavioral fixtures pass, outputs are documented, failure/effect
+semantics are explicit, the chosen v2 migration meets the v1-baseline quality
+gate, any genuine substitute comparison has a finalized scheduled/release
+report, and no v1 runtime import remains.
 
 ### Phase 5 — Production readiness
 
@@ -475,8 +487,9 @@ The release candidate automates all of the following:
 
 1. Submit an idempotent run and observe one Run ID.
 2. Every enabled Planner strategy commits typed `TaskSpec` values through the
-   same RunState state machine; the scheduler materializes Attempt-specific
-   `WorkerJob` values and dispatches them through the same A2A path.
+   same RunState state machine; each selects an AgentTemplate pinned in RunSpec,
+   and the scheduler materializes Attempt-specific `WorkerJob` values containing
+   that complete template and dispatches them through the same A2A path.
 3. Enabled ADK sessions, artifacts and bounded telemetry projections use the
    same PostgreSQL database through one pool per process without duplicating
    every ADK event into Contractor telemetry.
@@ -516,6 +529,9 @@ The release candidate automates all of the following:
     exact recovery grants permit only their declared mapping actions and a
     non-open operation-start gate prevents every late model/tool start before
     external I/O.
+19. Changing or removing a live catalog AgentTemplate after Run submission does
+    not change planning, retry, restart recovery or result provenance; forged,
+    widened or hash-mismatched templates fail before dispatch/Worker start.
 
 ## Traceability rule
 

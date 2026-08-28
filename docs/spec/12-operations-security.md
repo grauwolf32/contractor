@@ -11,7 +11,8 @@ PostgreSQL connection or sandbox startup.
 
 Startup order:
 
-1. parse and validate configuration;
+1. parse and validate configuration, including every enabled WorkflowProfile,
+   AgentTemplate and their exact cross-references/hashes;
 2. construct engine and verify database compatibility;
 3. construct repositories, the selected Planner/Worker strategies and only the
    ADK services required by configured ADK-backed adapters, using the shared
@@ -144,6 +145,11 @@ Startup order:
   unconfirmed, rollout/recovery MUST register a new nonce and accept only cleanup
   authority for prior mappings; an expected-generation registration CAS is
   necessary but insufficient to choose between two live same-nonce processes.
+- **OPS-027** — Server readiness MUST fail for an enabled WorkflowProfile whose
+  default/allowed AgentTemplate is missing, hash-invalid, contract-incompatible
+  or contains forbidden credential/runtime/deployment fields. Agent readiness
+  depends on supported semantic worker/job/policy capabilities, not on loading
+  every catalog template or sharing the Server catalog filesystem.
 
 ## Acceptance
 
@@ -211,3 +217,7 @@ Startup order:
     one new generation. Without external exclusive-incarnation proof, neither is
     allowed same-nonce continuation and recovery uses a new nonce plus cleanup-
     only grants.
+23. Startup rejects a WorkflowProfile with a missing or changed AgentTemplate
+    and exposes no ready API. A valid Server resolves it while an Agent starts
+    with only compatible registered capabilities and no access to the Server's
+    mutable catalog source.

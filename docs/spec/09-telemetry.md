@@ -61,7 +61,8 @@ policy applies.
 Every persisted diagnostic sample has a globally unique `event_id`, timestamp,
 `trace_id`/`span_id`, source process and optional `run_id`, `task_id`,
 `attempt_id`, `agent_id`, Planner strategy identity, Worker strategy identity
-and ADK invocation/session IDs when present.
+and exact AgentTemplate identity/hash plus ADK invocation/session IDs when
+present.
 The sink enforces unique `event_id` for idempotent batch retry.
 
 Rollups use a deterministic source/window/metric key and a source checkpoint so
@@ -133,6 +134,10 @@ evaluation artifacts; it never depends on sampled or dropped telemetry.
   RunState/run, Attempt, budget/model-invocation, artifact and audit owners.
   Removing telemetry projections, OTel data or ADK diagnostic detail MUST leave
   that lifecycle, requested/resolved model evidence and accepted usage unchanged.
+- **TEL-021** — AgentTemplate identity/hash is authoritative provenance from
+  RunSpec, WorkerJob and WorkerResult, not a telemetry-derived label. Optional
+  samples and rollups MAY copy that bounded identity for comparison, but losing
+  them MUST NOT prevent exact template attribution.
 
 ## Acceptance
 
@@ -169,3 +174,5 @@ evaluation artifacts; it never depends on sampled or dropped telemetry.
     cursor without rereading old pages; when the service exposes no cursor, one
     capped terminal scan or callback aggregate is used and truncated detail is
     reported explicitly.
+14. Deleting every optional diagnostic record still leaves each accepted result
+    attributable to the exact AgentTemplate from durable Run/Attempt evidence.

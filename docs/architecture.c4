@@ -84,7 +84,7 @@ model {
       #adk
     }
 
-    artifacts = storage 'Artifacts + staged/promoted PlannerRunState versions' {
+    artifacts = storage 'Artifacts + staged/promoted PlannerRunState versions + system template assets' {
       #contractor
     }
 
@@ -105,6 +105,10 @@ model {
     #contractor
 
     controlPlane = component 'Control Plane API' {
+      #contractor
+    }
+
+    agentTemplateCatalog = component 'WorkflowProfile / AgentTemplate Catalog' {
       #contractor
     }
 
@@ -213,12 +217,14 @@ model {
     }
 
     controlPlane -> runOrchestrator 'Submit / cancel / query run'
+    controlPlane -> agentTemplateCatalog 'List authorized public metadata'
     controlPlane -> runRepository 'Read durable status projection'
     controlPlane -> telemetryQuery 'Read diagnostics'
     controlPlane -> workerRegistry 'Read fleet status'
     controlPlane -> artifactService 'Stream source artifacts / publish ProjectSnapshotManifest'
     controlPlane -> auditRepository 'Append fail-closed request/authorization denials; state-change audit uses RunState UoW'
 
+    runOrchestrator -> agentTemplateCatalog 'Submission only: resolve exact allowed/default AgentTemplates'
     runOrchestrator -> runRepository 'Reserve model budget when needed; settle / reconcile Proxy usage'
     runOrchestrator -> modelInvocationRepository 'Read exact invocation evidence/version for result accounting'
     runOrchestrator -> runStateStore 'Load state / commit scheduler, cancellation and recovery decisions'
@@ -472,6 +478,7 @@ views {
 
     include server
     include server.controlPlane
+    include server.agentTemplateCatalog
     include server.artifactService
     include server.runOrchestrator
     include server.plannerStrategy

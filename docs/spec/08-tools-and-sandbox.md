@@ -13,8 +13,9 @@ bindings, adapts into one Attempt-scoped Contractor `ToolInvoker`; a strategy
 never receives the underlying tool implementation or an unscoped dispatcher.
 
 `ToolInvoker` validates the exact versioned contract and effective `TaskSpec`
-policy on every call, applies cancellation/deadline and artifact limits, records
-usage and invokes the registered implementation. Prompt/tool declaration
+policy derived within the selected AgentTemplate and RunSpec ceilings on every
+call, applies cancellation/deadline and artifact limits, records usage and
+invokes the registered implementation. Prompt/tool declaration
 filtering is discovery only; authorization is enforced again at invocation.
 
 Tool inputs and small results are JSON-compatible DTOs. Large results are
@@ -209,6 +210,11 @@ security audit; an outside-scope request fails before external I/O.
   required by the pinned reconciliation protocol remains allowed and cannot
   change the original request identity. The gate check, intent insert and
   external-call ordering MUST make a late-intent race impossible.
+- **TLS-027** — AgentTemplate tool policy is a reusable authorization ceiling,
+  not invocation authority by itself. `ToolInvoker` MUST enforce the exact
+  effective TaskSpec policy produced by intersecting template and RunSpec
+  ceilings; an unlisted template, changed template hash or widened Task policy
+  fails before tool discovery can cause external I/O.
 
 ## Acceptance
 
@@ -261,3 +267,6 @@ security audit; an outside-scope request fails before external I/O.
     commits first, retry sees it and follows its protocol; if the gate transition
     commits first, the tool sends no provider request. A snapshot followed by a
     late external effect is impossible.
+19. A framework advertises a tool allowed by its local defaults but absent from
+    the exact AgentTemplate/TaskSpec intersection; `ToolInvoker` rejects it
+    before implementation or network I/O through both ADK and non-ADK adapters.
