@@ -1,0 +1,4 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: worker, version: "1"}
+spec: {model: worker-model, maxOutputTokens: 4096}

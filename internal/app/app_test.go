@@ -83,3 +83,18 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("shutdown timeout = %s", cfg.ShutdownTimeout)
 	}
 }
+
+func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	err := RunCLI(
+		context.Background(),
+		[]string{"config", "validate", "--root", "../../configs"},
+		func(string) string { panic("config validate must not read serve environment") },
+		logger,
+	)
+	if err != nil {
+		t.Fatalf("RunCLI config validate: %v", err)
+	}
+}

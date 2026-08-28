@@ -1,0 +1,5 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+kind: ModelPolicy
+metadata: {name: worker, version: "1"}
+spec: {model: worker-model, maxOutputTokens: 4096}

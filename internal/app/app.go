@@ -25,6 +25,10 @@ func RunCLI(
 	getenv func(string) string,
 	logger *slog.Logger,
 ) error {
+	if len(args) > 0 && args[0] == "config" {
+		return runConfigCLI(args[1:], logger)
+	}
+
 	cfg, err := ParseConfig(args, getenv)
 	if err != nil {
 		return err

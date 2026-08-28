@@ -3,7 +3,7 @@ id: MVP-003
 title: Implement the strict versioned configuration loader in Go
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-001]
 languages: [go]
 

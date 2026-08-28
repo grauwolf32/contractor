@@ -1,0 +1,31 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: artifact-copy
+  version: "1"
+spec:
+  parameters:
+    objective: {required: false}
+  inputs:
+    source: {required: true, mediaTypes: [text/plain]}
+  outputs:
+    result: {required: true, mediaTypes: [text/plain]}
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the source artifact into the declared result artifact
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        builder: {template: artifact_builder@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain]}
+      workflowOutputs: {result: copied}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
