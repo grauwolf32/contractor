@@ -1,75 +1,69 @@
-# Contractor v2 implementation specifications
+# Contractor v2 — working specifications
 
-These documents define what must be implemented. They are normative design
-inputs, not a description of the v1 codebase.
+Status: **Working agreement**
 
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT** and **MAY** have
-their usual RFC 2119 meaning. Every normative requirement has a stable ID so it
-can later be linked to code and tests.
+This directory is the canonical working specification for Contractor v2. It
+captures the deliberately small execution model from the current design
+discussion; removed historical documents do not supply implicit requirements.
 
-## Status model
+The target deployment is one VM or one physical host. Server, PostgreSQL and
+one or more lightweight Runtime Agent processes may all run on that host.
+Nothing in this model requires Kubernetes, a controller or a separate control-
+plane service.
 
-- `Draft` — can still change during implementation discovery.
-- `Accepted` — implementation may depend on the contract.
-- `Implemented` — all mandatory acceptance scenarios pass.
+The execution core is domain-neutral. Code understanding and application
+security are initial Workflow examples, not a closed product-capability enum or
+a restriction on future Workflows. Domain semantics live in YAML Workflow,
+Planner and AgentTemplate definitions rather than in Scheduler branching.
 
-## Specification index
+## Reading order
 
-| Spec | Scope | Depends on |
-|---|---|---|
-| [00](00-product-scope.md) | Product scope and non-goals | — |
-| [01](01-architecture-boundaries.md) | Components, ports and allowed dependencies | 00 |
-| [02](02-domain-contracts.md) | IDs, DTOs and state machines | 00–01 |
-| [03](03-adk-integration.md) | Optional Google ADK adapter profile | 01–02 |
-| [04](04-database-runtime.md) | PostgreSQL, engine lifecycle and migrations | 01–03 |
-| [05](05-artifacts-and-run-state.md) | PgArtifactService and authoritative RunState | 02, 04 |
-| [06](06-planner-and-workflow.md) | Planner, DAG and recovery semantics | 02–05 |
-| [07](07-agent-runtime-and-a2a.md) | Agent fleet, A2A and attempt lifecycle | 02–06 |
-| [08](08-tools-and-sandbox.md) | Framework-neutral tools and attempt-scoped sandbox | 02, 07 |
-| [09](09-telemetry.md) | Derived observability and bounded projections | 02, 04, 07 |
-| [10](10-control-plane-api.md) | Public API and status projection | 02, 05–07 |
-| [11](11-llm-proxy.md) | Shared model gateway contract | 02–03 |
-| [12](12-operations-security.md) | Startup, shutdown, failure and security | 04–11 |
-| [13](13-testing-and-roadmap.md) | Test matrix, vertical slices and v1 migration | all |
+| Document | Owns |
+|---|---|
+| [00](00-workflow-and-planner.md) | Workflow Scheduler, Stage, Planner and StageResult |
+| [01](01-agent-template.md) | Reusable Worker behavior and Stage binding |
+| [02](02-runtime-and-a2a.md) | Allocation and the single-slot Runtime Agent acting as Worker/A2A Server |
+| [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
+| [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, sessions, finalization, recovery and metrics |
+| [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
+| [LikeC4](architecture.c4) | Component map and focused architecture views |
 
-## Dependency order
+[`core-execution-model.md`](core-execution-model.md) is a short navigation entry
+point for links that previously targeted the monolithic working agreement.
 
-```text
-scope → architecture → contracts → framework / ADK adapter boundary
-                                  ↓
-                              database → artifacts / RunState → planner / DAG
-                                  │                              ↓
-                                  ├→ telemetry              agent / A2A → sandbox
-                                  └→ LLM Proxy                   ↓
-                                           control plane → operations → migration
-```
-
-The first executable milestone proves the portable seam with the smallest
-deterministic configuration:
+## Smallest useful mental model
 
 ```text
-publish project snapshot
-  → POST /runs
-  → resolve WorkflowProfile + exact AgentTemplate set
-  → create PlannerRunState artifact with pinned templates
-  → select a one-node static/passthrough plan
-  → commit an Attempt and dispatch outbox record
-  → deliver one A2A attempt idempotently
-  → run one real Worker strategy
-  → stage a Worker result artifact
-  → accept/promote it in a Server RunState CAS
-  → expose final status and derived observability
+Workflow
+  -> Workflow Scheduler forks exact UserScope inputs into RunArtifactSpace
+  -> selects a ready Stage
+  -> resolve its AgentTemplate bindings
+  -> Control Plane prepares Worker allocations
+  -> PlannerFactory creates one Planner ADK agent
+  -> Planner talks through A2A to allocated Runtime Agents acting as Workers
+  -> all participants exchange durable data through RunArtifactSpace
+  -> Planner returns one candidate StageResult
+  -> Workflow Scheduler persists finalizing, drains Workers and collects reports
+  -> Workflow Scheduler accepts the terminal result, binds outputs and releases allocations
 ```
 
-The same port/conformance suites then add decomposing planning and alternate
-ADK/non-ADK Worker implementations without changing the domain or wire DTOs.
+The boundaries are deliberately narrow:
 
-## Definition of done for a spec
+| Concept | Responsibility |
+|---|---|
+| Workflow | Product-specific Stage graph and transition/acceptance policy |
+| Workflow Scheduler | WorkflowRun progression and durable StageExecution lifecycle |
+| Planner | Stage-local decomposition and routing among prepared Workers |
+| AgentTemplate | Immutable, reusable Worker behavior/configuration |
+| Control Plane | Capacity and allocation lifecycle |
+| Runtime Agent | One process and one slot: control client, A2A Server and one in-process Worker runtime while allocated |
+| ArtifactStore | One physical artifact service, registry and blob boundary |
+| UserScope | Authenticated user's durable artifact library |
+| RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 
-A spec can become `Implemented` only when:
+## Specification rule
 
-1. every `MUST` has a code or configuration implementation;
-2. every listed acceptance scenario is automated;
-3. public DTO fixtures are versioned;
-4. failure and cancellation paths are tested;
-5. architecture and operational documentation remain consistent.
+Each decision has one owning document. Other documents link to it instead of
+repeating a second normative version. Unresolved behavior stays in
+[05](05-first-slice-and-open-decisions.md) rather than being inferred from
+historical designs.

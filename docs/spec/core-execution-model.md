@@ -14,6 +14,5 @@ The current working agreement is split across the documents indexed in
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.
-The previous `docs/spec` candidate is not implicitly normative for this design
-track; deferred choices are listed explicitly in
-[05](05-first-slice-and-open-decisions.md).
+Removed historical candidates supply no implicit requirements; deferred choices
+are listed explicitly in [05](05-first-slice-and-open-decisions.md).
