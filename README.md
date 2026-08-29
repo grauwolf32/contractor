@@ -65,3 +65,17 @@ caller-provided test database:
 ```shell
 CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-postgres
 ```
+
+For a local private mTLS deployment, generate the CA and both node identities
+without OpenSSL-specific shell scripts:
+
+```shell
+go run ./cmd/contractor-pki init-ca
+go run ./cmd/contractor-pki issue-control-plane
+go run ./cmd/contractor-pki issue-agent --name agent-local
+make test-mtls
+```
+
+Generated certificates and 0600 private keys live under `.local/pki/` and are
+ignored by Git. `init-ca` refuses to replace an existing CA unless `--force` is
+explicitly supplied.

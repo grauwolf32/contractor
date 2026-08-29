@@ -241,3 +241,5 @@ __marimo__/
 /bin/
 /coverage.out
 /.local/
+# Local deployment CA and leaf private keys are always generated state.
+/.local/pki/

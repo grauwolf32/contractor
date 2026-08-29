@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -27,6 +27,10 @@ test-config:
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	go test -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/artifacts ./internal/httpapi/public
+
+test-mtls:
+	go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...
+	cd runtime && uv run pytest tests/test_mtls.py
 
 test: test-go test-runtime
 

@@ -3,7 +3,7 @@ id: MVP-007
 title: Provide local CA bootstrap and reusable mTLS verification
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-001]
 languages: [go, python]
 
