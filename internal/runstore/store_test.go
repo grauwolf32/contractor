@@ -16,8 +16,7 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 
 	valid := [][2]WorkflowRunState{
 		{RunInitializing, RunRunning}, {RunInitializing, RunFailed},
-		{RunInitializing, RunCancelling}, {RunRunning, RunSucceeded},
-		{RunRunning, RunFailed}, {RunRunning, RunCancelling},
+		{RunRunning, RunSucceeded}, {RunRunning, RunFailed},
 		{RunCancelling, RunCancelled},
 	}
 	for _, transition := range valid {
@@ -26,6 +25,7 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 		}
 	}
 	for _, transition := range [][2]WorkflowRunState{
+		{RunInitializing, RunCancelling}, {RunRunning, RunCancelling},
 		{RunRunning, RunCancelled}, {RunSucceeded, RunRunning},
 		{RunCancelling, RunSucceeded}, {"unknown", RunRunning},
 	} {
@@ -68,6 +68,32 @@ func TestStageTerminationValidation(t *testing.T) {
 	valid.Phase = "unknown"
 	if err := valid.Validate(); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid StageTermination error = %v", err)
+	}
+}
+
+func TestWorkflowRunCancellationValidation(t *testing.T) {
+	t.Parallel()
+
+	requestedBy := "user-1"
+	reason := "no longer needed"
+	valid := WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+		RequestedBy: &requestedBy, Reason: &reason,
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid WorkflowRunCancellation: %v", err)
+	}
+
+	invalid := []WorkflowRunCancellation{
+		{},
+		{Code: "deadline", RequestedAt: time.Now()},
+		{Code: CancellationUserRequested},
+		{Code: CancellationUserRequested, RequestedAt: time.Now(), Reason: func() *string { value := " "; return &value }()},
+	}
+	for _, cancellation := range invalid {
+		if err := cancellation.Validate(); !errors.Is(err, ErrInvalid) {
+			t.Errorf("invalid cancellation %+v error = %v", cancellation, err)
+		}
 	}
 }
 

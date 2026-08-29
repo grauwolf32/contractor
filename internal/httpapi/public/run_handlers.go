@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
+
+const maxCancellationReasonBytes = 4096
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -79,6 +82,54 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.dependencies.RunNotifier.Wake()
 	}
 	writeJSON(w, http.StatusAccepted, createRunResponse{RunID: runID, State: runstore.RunRunning})
+}
+
+func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var request cancelRunRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if request.Reason != nil {
+		trimmed := strings.TrimSpace(*request.Reason)
+		if trimmed == "" || len([]byte(trimmed)) > maxCancellationReasonBytes {
+			h.handleError(w, fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest))
+			return
+		}
+		request.Reason = &trimmed
+	}
+	run, err := h.ownedRun(r)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	requestedBy := h.dependencies.UserID
+	run, err = h.dependencies.Runs.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
+		Code:        runstore.CancellationUserRequested,
+		RequestedAt: h.dependencies.Now().UTC().Round(0),
+		RequestedBy: &requestedBy,
+		Reason:      request.Reason,
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if run.State == runstore.RunCancelling {
+		status = http.StatusAccepted
+		if notifier, ok := h.dependencies.RunNotifier.(RunCancellationNotifier); ok {
+			notifier.Cancel(run.RunID)
+		} else if h.dependencies.RunNotifier != nil {
+			h.dependencies.RunNotifier.Wake()
+		}
+	}
+	writeJSON(w, status, cancelRunResponse{
+		RunID: run.RunID, State: run.State, Cancellation: run.Cancellation,
+	})
 }
 
 func validateRunInputs(workflow config.ResolvedWorkflow, request createRunRequest) error {
@@ -171,7 +222,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, Attempts: attempts, Outputs: outputs,
+		State: run.State, Cancellation: run.Cancellation, Attempts: attempts, Outputs: outputs,
 	})
 }
 

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -42,6 +43,9 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
 		RunNotifier:  notifier,
+		Now: func() time.Time {
+			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
@@ -169,9 +173,95 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 	}
 }
 
-type recordingRunNotifier struct{ calls int }
+type recordingRunNotifier struct {
+	calls         int
+	cancellations []string
+}
 
 func (n *recordingRunNotifier) Wake() { n.calls++ }
+func (n *recordingRunNotifier) Cancel(runID string) {
+	n.cancellations = append(n.cancellations, runID)
+}
+
+func TestCancelRunIsOwnedStrictDurableAndIdempotent(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["run-cancel"] = runstore.WorkflowRun{
+		RunID: "run-cancel", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		State: runstore.RunRunning,
+	}
+
+	request := authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel",
+		bytes.NewReader([]byte(`{"reason":"  user changed direction  "}`)),
+	)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("cancel Run = status %d, body %s", response.Code, response.Body.String())
+	}
+	var first cancelRunResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.State != runstore.RunCancelling || first.Cancellation == nil ||
+		first.Cancellation.Reason == nil || *first.Cancellation.Reason != "user changed direction" ||
+		first.Cancellation.RequestedBy == nil || *first.Cancellation.RequestedBy != "user-1" {
+		t.Fatalf("cancel response = %+v", first)
+	}
+
+	repeat := authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel",
+		bytes.NewReader([]byte(`{"reason":"must not replace winner"}`)),
+	)
+	repeated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(repeated, repeat)
+	stored := fixture.runs.runs["run-cancel"]
+	if repeated.Code != http.StatusAccepted || stored.Cancellation == nil ||
+		stored.Cancellation.Reason == nil || *stored.Cancellation.Reason != "user changed direction" ||
+		len(fixture.notifier.cancellations) != 2 {
+		t.Fatalf("repeat = status %d, cancellation %+v, notifications %v", repeated.Code, stored.Cancellation, fixture.notifier.cancellations)
+	}
+
+	terminalRun := fixture.runs.runs["run-cancel"]
+	terminalRun.State = runstore.RunCancelled
+	fixture.runs.runs["run-cancel"] = terminalRun
+	terminal := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(terminal, authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel", bytes.NewReader([]byte(`{}`)),
+	))
+	if terminal.Code != http.StatusOK || len(fixture.notifier.cancellations) != 2 {
+		t.Fatalf("terminal repeat = status %d, notifications %v", terminal.Code, fixture.notifier.cancellations)
+	}
+}
+
+func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["foreign"] = runstore.WorkflowRun{RunID: "foreign", OwnerID: "user-2", State: runstore.RunRunning}
+	fixture.runs.runs["owned"] = runstore.WorkflowRun{RunID: "owned", OwnerID: "user-1", State: runstore.RunSucceeded}
+
+	tests := []struct {
+		method string
+		target string
+		body   string
+		status int
+	}{
+		{http.MethodPost, "/v1/runs/foreign/cancel", `{}`, http.StatusNotFound},
+		{http.MethodPost, "/v1/runs/owned/cancel?force=true", `{}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `{"reason":" "}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `{"unexpected":true}`, http.StatusBadRequest},
+		{http.MethodGet, "/v1/runs/owned/cancel", `{}`, http.StatusMethodNotAllowed},
+	}
+	for _, test := range tests {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(test.method, test.target, bytes.NewReader([]byte(test.body))))
+		if response.Code != test.status {
+			t.Errorf("%s %s = %d, want %d: %s", test.method, test.target, response.Code, test.status, response.Body.String())
+		}
+	}
+	if fixture.runs.runs["owned"].Cancellation != nil || len(fixture.notifier.cancellations) != 0 {
+		t.Fatal("invalid cancellation changed state or notified Scheduler")
+	}
+}
 
 func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	fixture := newHandlerFixture(t)

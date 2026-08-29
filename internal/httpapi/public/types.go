@@ -6,6 +6,7 @@ package public
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -16,6 +17,7 @@ import (
 type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }
 
 type RunWriter interface {
@@ -39,6 +41,10 @@ type RunNotifier interface {
 	Wake()
 }
 
+type RunCancellationNotifier interface {
+	Cancel(string)
+}
+
 type Dependencies struct {
 	Config       *config.Snapshot
 	Runs         RunReader
@@ -49,6 +55,7 @@ type Dependencies struct {
 	NewID        func(string) (string, error)
 	NewRequestID func() (string, error)
 	RunNotifier  RunNotifier
+	Now          func() time.Time
 }
 
 var errInvalidRequest = errors.New("invalid public API request")
@@ -64,6 +71,16 @@ type createRunResponse struct {
 	State runstore.WorkflowRunState `json:"state"`
 }
 
+type cancelRunRequest struct {
+	Reason *string `json:"reason"`
+}
+
+type cancelRunResponse struct {
+	RunID        string                            `json:"runId"`
+	State        runstore.WorkflowRunState         `json:"state"`
+	Cancellation *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
+}
+
 type artifactWriteResponse struct {
 	Artifact  contracts.ArtifactRef `json:"artifact"`
 	MediaType string                `json:"mediaType"`
@@ -71,11 +88,12 @@ type artifactWriteResponse struct {
 }
 
 type runStatusResponse struct {
-	RunID    string                           `json:"runId"`
-	Workflow string                           `json:"workflow"`
-	State    runstore.WorkflowRunState        `json:"state"`
-	Attempts []stageAttemptResponse           `json:"attempts"`
-	Outputs  map[string]contracts.ArtifactRef `json:"outputs"`
+	RunID        string                            `json:"runId"`
+	Workflow     string                            `json:"workflow"`
+	State        runstore.WorkflowRunState         `json:"state"`
+	Cancellation *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
+	Attempts     []stageAttemptResponse            `json:"attempts"`
+	Outputs      map[string]contracts.ArtifactRef  `json:"outputs"`
 }
 
 type stageAttemptResponse struct {

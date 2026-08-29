@@ -330,6 +330,79 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 }
 
+func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	requestedBy := "user-1"
+	reason := "stop this work"
+	requestedAt := time.Date(2026, 8, 29, 12, 0, 0, 123, time.FixedZone("request-zone", 3*60*60))
+	first, err := store.RequestRunCancellation(ctx, createTestRun(t, ctx, store, "run-cancel").RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: requestedAt,
+		RequestedBy: &requestedBy, Reason: &reason,
+	})
+	if err != nil {
+		t.Fatalf("request cancellation: %v", err)
+	}
+	if first.State != RunCancelling || first.Cancellation == nil ||
+		first.Cancellation.RequestedAt.Location() != time.UTC ||
+		!first.Cancellation.RequestedAt.Equal(requestedAt) || first.Cancellation.Reason == nil ||
+		*first.Cancellation.Reason != reason || first.CancellationSchemaVersion == nil {
+		t.Fatalf("cancelling Run = %+v", first)
+	}
+
+	differentReason := "must not replace the winner"
+	repeated, err := store.RequestRunCancellation(ctx, first.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: requestedAt.Add(time.Hour), Reason: &differentReason,
+	})
+	if err != nil {
+		t.Fatalf("repeat cancellation: %v", err)
+	}
+	if repeated.Cancellation == nil || repeated.Cancellation.Reason == nil ||
+		*repeated.Cancellation.Reason != reason || !repeated.Cancellation.RequestedAt.Equal(requestedAt) {
+		t.Fatalf("repeated cancellation replaced the first payload: %+v", repeated.Cancellation)
+	}
+
+	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute)
+	if err != nil || claimed.RunID != first.RunID || claimed.State != RunCancelling {
+		t.Fatalf("claim cancelling Run = (%+v, %v)", claimed, err)
+	}
+	if err := store.RenewRunClaim(ctx, first.RunID, "cancel-claim", time.Minute); err != nil {
+		t.Fatalf("renew cancelling Run claim: %v", err)
+	}
+	cancelled, err := store.TransitionRun(
+		ctx, first.RunID, RunCancelling, RunCancelled, Reason{Code: CancellationUserRequested},
+	)
+	if err != nil || cancelled.State != RunCancelled || cancelled.FinishedAt == nil || cancelled.Cancellation == nil {
+		t.Fatalf("finish cancelled Run = (%+v, %v)", cancelled, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs
+SET run_cancellation = jsonb_set(run_cancellation, '{reason}', '"rewritten"')
+WHERE run_id = $1`, first.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("cancellation rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	succeeded := createTestRun(t, ctx, store, "run-succeeded-before-cancel")
+	succeeded, err = store.TransitionRun(ctx, succeeded.RunID, RunInitializing, RunRunning, Reason{Code: "ready"})
+	if err == nil {
+		succeeded, err = store.TransitionRun(ctx, succeeded.RunID, RunRunning, RunSucceeded, Reason{Code: "completed"})
+	}
+	if err != nil {
+		t.Fatalf("finish success before cancellation: %v", err)
+	}
+	afterCancel, err := store.RequestRunCancellation(ctx, succeeded.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	})
+	if err != nil || afterCancel.State != RunSucceeded || afterCancel.Cancellation != nil {
+		t.Fatalf("cancel terminal success = (%+v, %v)", afterCancel, err)
+	}
+}
+
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {
 	t.Helper()
 	run, err := store.CreateRun(ctx, testRunParams(runID))

@@ -45,20 +45,49 @@ type SchedulerClaim struct {
 }
 
 type WorkflowRun struct {
-	RunID                 string
-	OwnerID               string
-	WorkflowName          string
-	WorkflowVersion       string
-	WorkflowSchemaVersion string
-	WorkflowSnapshot      json.RawMessage
-	Parameters            map[string]string
-	State                 WorkflowRunState
-	StateReason           Reason
-	SchedulerClaim        *SchedulerClaim
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	StartedAt             *time.Time
-	FinishedAt            *time.Time
+	RunID                     string
+	OwnerID                   string
+	WorkflowName              string
+	WorkflowVersion           string
+	WorkflowSchemaVersion     string
+	WorkflowSnapshot          json.RawMessage
+	Parameters                map[string]string
+	State                     WorkflowRunState
+	StateReason               Reason
+	CancellationSchemaVersion *string
+	Cancellation              *WorkflowRunCancellation
+	SchedulerClaim            *SchedulerClaim
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+	StartedAt                 *time.Time
+	FinishedAt                *time.Time
+}
+
+const CancellationUserRequested = "user_cancelled"
+
+type WorkflowRunCancellation struct {
+	Code        string    `json:"code"`
+	RequestedAt time.Time `json:"requestedAt"`
+	RequestedBy *string   `json:"requestedBy,omitempty"`
+	Reason      *string   `json:"reason,omitempty"`
+}
+
+func (c WorkflowRunCancellation) Validate() error {
+	if c.Code != CancellationUserRequested {
+		return invalidf("WorkflowRunCancellation code must be %q", CancellationUserRequested)
+	}
+	if c.RequestedAt.IsZero() {
+		return invalidf("WorkflowRunCancellation requestedAt is required")
+	}
+	for field, value := range map[string]*string{
+		"requestedBy": c.RequestedBy,
+		"reason":      c.Reason,
+	} {
+		if value != nil && strings.TrimSpace(*value) == "" {
+			return invalidf("WorkflowRunCancellation %s must not be empty", field)
+		}
+	}
+	return nil
 }
 
 type CreateRunParams struct {

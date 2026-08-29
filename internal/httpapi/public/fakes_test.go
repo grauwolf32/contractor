@@ -210,6 +210,26 @@ func (f *fakeRunStore) TransitionRun(
 	return run, nil
 }
 
+func (f *fakeRunStore) RequestRunCancellation(
+	_ context.Context,
+	runID string,
+	cancellation runstore.WorkflowRunCancellation,
+) (runstore.WorkflowRun, error) {
+	run, ok := f.runs[runID]
+	if !ok {
+		return runstore.WorkflowRun{}, runstore.ErrNotFound
+	}
+	if run.State == runstore.RunInitializing || run.State == runstore.RunRunning {
+		version := contracts.APIVersion
+		run.State = runstore.RunCancelling
+		run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
+		run.CancellationSchemaVersion = &version
+		run.Cancellation = &cancellation
+		f.runs[runID] = run
+	}
+	return run, nil
+}
+
 func (f *fakeRunStore) ListStageExecutions(_ context.Context, runID string) ([]runstore.StageExecution, error) {
 	return append([]runstore.StageExecution(nil), f.executions[runID]...), nil
 }

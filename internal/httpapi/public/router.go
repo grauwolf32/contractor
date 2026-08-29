@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type handler struct {
@@ -30,6 +31,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.NewRequestID == nil {
 		dependencies.NewRequestID = func() (string, error) { return randomID("request_") }
 	}
+	if dependencies.Now == nil {
+		dependencies.Now = time.Now
+	}
 	current := &handler{
 		dependencies: dependencies,
 		tokenDigest:  sha256.Sum256([]byte(dependencies.BearerToken.Reveal())),
@@ -39,10 +43,12 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("PUT /v1/artifacts/{namespace}/{name}", current.putArtifact)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}", current.getArtifact)
 	mux.HandleFunc("POST /v1/runs", current.createRun)
+	mux.HandleFunc("POST /v1/runs/{runID}/cancel", current.cancelRun)
 	mux.HandleFunc("GET /v1/runs/{runID}", current.getRun)
 	mux.HandleFunc("GET /v1/runs/{runID}/outputs/{slot}", current.getRunOutput)
 	mux.HandleFunc("/v1/artifacts/{namespace}/{name}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs/{runID}/outputs/{slot}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/cancel", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs/{runID}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)

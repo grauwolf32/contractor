@@ -19,6 +19,7 @@ type Repository interface {
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
+	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
 	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
 	RenewRunClaim(context.Context, string, string, time.Duration) error
 	ReleaseRunClaim(context.Context, string, string) error
@@ -141,6 +142,47 @@ RETURNING `+workflowRunColumns,
 	return result, nil
 }
 
+func (s *PostgresStore) RequestRunCancellation(
+	ctx context.Context,
+	runID string,
+	cancellation WorkflowRunCancellation,
+) (WorkflowRun, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return WorkflowRun{}, err
+	}
+	if err := cancellation.Validate(); err != nil {
+		return WorkflowRun{}, err
+	}
+	cancellation.RequestedAt = cancellation.RequestedAt.UTC().Round(0)
+	encoded, err := json.Marshal(cancellation)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("request WorkflowRun cancellation: encode payload: %w", err)
+	}
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
+UPDATE workflow_runs
+SET state = 'cancelling',
+    state_reason_code = 'user_cancelled',
+    state_reason_message = COALESCE($4, ''),
+    cancellation_schema_version = $2,
+    run_cancellation = $3::jsonb,
+    updated_at = clock_timestamp(),
+    finished_at = NULL
+WHERE run_id = $1 AND state IN ('initializing', 'running')
+RETURNING `+workflowRunColumns,
+		runID, contracts.APIVersion, encoded, cancellation.Reason,
+	))
+	if err == nil {
+		return result, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return WorkflowRun{}, fmt.Errorf("request WorkflowRun %q cancellation: %w", runID, err)
+	}
+	// A repeated cancellation or terminal-state race is an idempotent read of
+	// the committed winner. This second statement gets a fresh READ COMMITTED
+	// snapshot after any conflicting UPDATE finished.
+	return s.GetRun(ctx, runID)
+}
+
 func (s *PostgresStore) ClaimRunnableRun(
 	ctx context.Context,
 	claimID string,
@@ -160,7 +202,7 @@ func (s *PostgresStore) ClaimRunnableRun(
 WITH candidate AS (
     SELECT run_id
     FROM workflow_runs
-    WHERE state = 'running'
+    WHERE state IN ('running', 'cancelling')
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
     ORDER BY created_at, run_id
     FOR UPDATE SKIP LOCKED
@@ -226,7 +268,7 @@ func (s *PostgresStore) RenewRunClaim(
 UPDATE workflow_runs
 SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond'),
     updated_at = clock_timestamp()
-WHERE run_id = $1 AND state = 'running' AND scheduler_claim_id = $2`,
+WHERE run_id = $1 AND state IN ('running', 'cancelling') AND scheduler_claim_id = $2`,
 		runID, claimID, duration.Microseconds())
 	if err != nil {
 		return fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
@@ -260,8 +302,8 @@ func validateCreateRun(params CreateRunParams) error {
 
 func validateRunTransition(expected, next WorkflowRunState) error {
 	allowed := map[WorkflowRunState]map[WorkflowRunState]bool{
-		RunInitializing: {RunRunning: true, RunFailed: true, RunCancelling: true},
-		RunRunning:      {RunSucceeded: true, RunFailed: true, RunCancelling: true},
+		RunInitializing: {RunRunning: true, RunFailed: true},
+		RunRunning:      {RunSucceeded: true, RunFailed: true},
 		RunCancelling:   {RunCancelled: true},
 	}
 	if !allowed[expected][next] {
