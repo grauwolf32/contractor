@@ -19,6 +19,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"agent-heartbeat.json":              roundTrip[AgentHeartbeat],
 		"heartbeat-response.json":           roundTrip[HeartbeatResponse],
 		"allocation-spec.json":              roundTrip[AllocationSpec],
+		"allocation-final-response.json":    roundTrip[AllocationFinalResponse],
 		"finalize-allocation.json":          roundTrip[FinalizeAllocationRequest],
 		"abort-allocation.json":             roundTrip[AbortAllocationRequest],
 		"release-allocation.json":           roundTrip[ReleaseAllocationRequest],

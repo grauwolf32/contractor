@@ -44,9 +44,8 @@ def test_factory_constructs_only_explicitly_selected_tools(
         assert read["artifact"]["revision"] == "revision-read"
         assert base64.b64decode(read["dataBase64"]) == b"payload"
         assert state.metrics.counters["tool_calls"] == 2
-        assert all(
-            "dataBase64" not in entry.get("result", {}) for entry in state.metrics.tool_calls
-        )
+        assert all(entry.result_size_bytes is not None for entry in state.metrics.tool_calls)
+        assert "dataBase64" not in repr(state.metrics.tool_calls)
 
     asyncio.run(scenario())
 
@@ -64,7 +63,8 @@ def test_metrics_bound_events_and_redact_credential_bearing_urls() -> None:
 
     assert len(state.metrics.tool_calls) == MAX_METRIC_TOOL_CALLS
     assert state.metrics.truncated
-    assert state.metrics.tool_calls[0]["arguments"] == {
+    assert state.metrics.tool_calls[0].call_id == "tool-00000004"
+    assert state.metrics.tool_calls[0].arguments == {
         "callback": "[REDACTED_URL]",
         "plain": "https://example.test/path",
     }
@@ -88,7 +88,8 @@ def test_write_tool_preserves_exact_revision_and_redacts_payload_metrics() -> No
         assert result["artifact"]["revision"] == "revision-write"
         assert client.write_expected_revision == "revision-old"
         metric = state.metrics.tool_calls[0]
-        assert metric["arguments"]["data_base64"] == {
+        assert metric.arguments is not None
+        assert metric.arguments["data_base64"] == {
             "redacted": True,
             "size": len(encoded),
         }
@@ -115,11 +116,10 @@ def test_tool_error_metrics_are_bounded_typed_and_secret_free() -> None:
             )
         assert state.metrics.counters["tool_errors"] == 1
         assert state.metrics.errors[0].code == "tool_write_artifact_failed"
-        assert state.metrics.tool_calls[0]["error"] == {
-            "type": "ArtifactAPIError",
-            "code": "artifact_access_denied",
-            "retryable": False,
-        }
+        assert state.metrics.tool_calls[0].error is not None
+        assert state.metrics.tool_calls[0].error.code == "artifact_access_denied"
+        assert state.metrics.tool_calls[0].error.retryable is False
+        assert "ArtifactAPIError" in state.metrics.tool_calls[0].error.message
         assert SECRET not in repr(state.metrics)
 
     asyncio.run(scenario())

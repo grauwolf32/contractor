@@ -2,6 +2,7 @@ package public
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const testBearerToken = "test-bearer-token"
@@ -24,6 +26,7 @@ type handlerFixture struct {
 	runs       *fakeRunStore
 	unit       *fakeUnitOfWork
 	notifier   *recordingRunNotifier
+	metrics    *fakeMetricsReader
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -37,8 +40,10 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 	runs := newFakeRunStore()
 	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
 	notifier := &recordingRunNotifier{}
+	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	handler, err := NewHandler(Dependencies{
 		Config: snapshot, Runs: runs, Artifacts: service, Transactions: unit,
+		Metrics:     metrics,
 		BearerToken: contracts.NewSecretString(testBearerToken), UserID: "user-1",
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
@@ -52,7 +57,7 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 	}
 	return handlerFixture{
 		handler: handler, repository: repository, artifacts: service,
-		runs: runs, unit: unit, notifier: notifier,
+		runs: runs, unit: unit, notifier: notifier, metrics: metrics,
 	}
 }
 
@@ -263,6 +268,59 @@ func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
 	}
 }
 
+func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["run-metrics"] = runstore.WorkflowRun{
+		RunID: "run-metrics", OwnerID: "user-1", WorkflowName: "artifact-copy",
+		WorkflowVersion: "1", State: runstore.RunRunning,
+	}
+	fixture.runs.executions["run-metrics"] = []runstore.StageExecution{{
+		StageExecutionID: "stage-metrics", RunID: "run-metrics", StageName: "copy",
+		Attempt: 1, State: runstore.StageRunning,
+	}}
+	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
+		StageExecutionID: "stage-metrics",
+		Metrics: contracts.StageMetrics{
+			Workers: map[string]contracts.ExecutionReport{
+				"builder": {
+					ReportID: "worker-secret", Complete: true,
+					Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+					ToolCalls: []contracts.ToolCallRecord{{
+						CallID: "call-secret", Tool: "probe",
+						Arguments: map[string]any{"token": "must-not-be-public"},
+						Outcome:   contracts.ToolCallSucceeded,
+					}},
+					Errors: []contracts.ExecutionError{},
+				},
+			},
+			Runtime: map[string]contracts.RuntimeReport{"builder": {Complete: true}},
+		},
+		Summary: telemetry.Summary{
+			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1,
+		},
+	}
+
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-metrics", bytes.NewReader(nil),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status response = %d: %s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "must-not-be-public") ||
+		strings.Contains(response.Body.String(), "call-secret") {
+		t.Fatalf("public status leaked detailed telemetry: %s", response.Body.String())
+	}
+	var result runStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Attempts) != 1 || result.Attempts[0].Metrics == nil ||
+		result.Attempts[0].Metrics.ModelCalls != 2 || result.Attempts[0].Metrics.ToolCalls != 1 {
+		t.Fatalf("public metrics summary = %+v", result.Attempts)
+	}
+}
+
 func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{
@@ -306,4 +364,18 @@ func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, expected
 	if body.Code != expected || strings.TrimSpace(body.Message) == "" {
 		t.Fatalf("error response = %+v, want code %q", body, expected)
 	}
+}
+
+type fakeMetricsReader struct {
+	records map[string]telemetry.StageMetricsRecord
+}
+
+func (f *fakeMetricsReader) GetStageMetrics(
+	_ context.Context, stageExecutionID string,
+) (telemetry.StageMetricsRecord, error) {
+	record, ok := f.records[stageExecutionID]
+	if !ok {
+		return telemetry.StageMetricsRecord{}, telemetry.ErrNotFound
+	}
+	return record, nil
 }

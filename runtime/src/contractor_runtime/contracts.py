@@ -403,29 +403,119 @@ class ReleaseAllocationRequest(VersionedWireModel):
         return _require_text("allocationId", value)
 
 
+class ExecutionError(WireModel):
+    code: str
+    message: str = Field(max_length=4096)
+    retryable: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_error(self) -> Self:
+        _require_text("code", self.code)
+        _require_text("message", self.message)
+        return self
+
+
+class ToolMetrics(WireModel):
+    calls: int | None = Field(default=None, ge=0)
+    succeeded: int | None = Field(default=None, ge=0)
+    failed: int | None = Field(default=None, ge=0)
+
+
+class ExecutionMetrics(WireModel):
+    duration_ms: int | None = Field(default=None, ge=0)
+    model_calls: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    tools: dict[str, ToolMetrics] = Field(default_factory=dict)
+
+    @field_validator("tools")
+    @classmethod
+    def validate_tools(cls, value: dict[str, ToolMetrics]) -> dict[str, ToolMetrics]:
+        for name in value:
+            _require_text("tool name", name)
+        return value
+
+
+class ToolCallOutcome(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class ToolCallRecord(WireModel):
+    call_id: str
+    tool: str
+    arguments: dict[str, Any] | None = None
+    arguments_truncated: bool = False
+    outcome: ToolCallOutcome
+    duration_ms: int | None = Field(default=None, ge=0)
+    result_size_bytes: int | None = Field(default=None, ge=0)
+    error: ExecutionError | None = None
+
+    @model_validator(mode="after")
+    def validate_call(self) -> Self:
+        _require_text("callId", self.call_id)
+        _require_text("tool", self.tool)
+        if self.arguments is None and self.arguments_truncated:
+            raise ValueError("absent arguments cannot be marked truncated")
+        if (self.outcome is ToolCallOutcome.SUCCEEDED) == (self.error is not None):
+            raise ValueError("tool outcome and error are inconsistent")
+        return self
+
+
 class ExecutionReport(WireModel):
+    report_id: str
+    complete: bool
+    metrics: ExecutionMetrics
+    tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    errors: list[ExecutionError] = Field(default_factory=list)
+    truncated: bool = False
+
+    @field_validator("report_id")
+    @classmethod
+    def validate_report_id(cls, value: str) -> str:
+        return _require_text("reportId", value)
+
+
+class RuntimeReport(WireModel):
+    complete: bool
+    duration_ms: int | None = Field(default=None, ge=0)
+    stop_reason: str | None = None
+
+    @field_validator("stop_reason")
+    @classmethod
+    def validate_stop_reason(cls, value: str | None) -> str | None:
+        if value is not None:
+            _require_text("stopReason", value)
+        return value
+
+
+class AllocationFinalReport(WireModel):
+    report_id: str
     allocation_id: str
     started_at: datetime
     finished_at: datetime
-    complete: bool
-    counters: dict[str, int]
-    errors: list[TerminationError]
-    truncated: bool
+    worker: ExecutionReport
+    runtime: RuntimeReport
 
     @model_validator(mode="after")
     def validate_report(self) -> Self:
+        _require_text("reportId", self.report_id)
         _require_text("allocationId", self.allocation_id)
         _require_aware_datetime("startedAt", self.started_at)
         _require_aware_datetime("finishedAt", self.finished_at)
         if self.finished_at < self.started_at:
             raise ValueError("finishedAt must not precede startedAt")
-        if any(not key or value < 0 for key, value in self.counters.items()):
-            raise ValueError("counters require non-empty keys and non-negative values")
+        if (
+            len(self.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
+            > 1024 * 1024
+        ):
+            raise ValueError("allocation final report exceeds 1 MiB")
         return self
 
 
 class AllocationFinalResponse(VersionedWireModel):
-    report: ExecutionReport
+    report: AllocationFinalReport
 
 
 class ArtifactRef(WireModel):

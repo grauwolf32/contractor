@@ -14,12 +14,13 @@ from typing import Any
 from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
+    AllocationFinalReport,
     AllocationFinalResponse,
     AllocationSpec,
-    ExecutionReport,
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
+    RuntimeReport,
     RuntimeSettings,
     TerminationError,
     WorkerHandle,
@@ -37,8 +38,6 @@ from contractor_runtime.metrics import MetricsState
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace
 
-MAX_REPORT_COUNTERS = 128
-MAX_REPORT_ERRORS = 64
 RESERVED_NAMESPACES = frozenset({"inputs", "outputs"})
 
 
@@ -661,27 +660,27 @@ def _build_report(
     context: _AllocationContext,
     finished_at: datetime,
     reason: TerminationError | None,
-) -> ExecutionReport:
+) -> AllocationFinalReport:
     metrics = context.worker_state.metrics if context.worker_state is not None else MetricsState()
-    counter_items = sorted(metrics.counters.items())
-    errors = list(metrics.errors)
-    truncated = metrics.truncated
-    if reason is not None:
-        errors.append(reason)
-    if len(counter_items) > MAX_REPORT_COUNTERS:
-        counter_items = counter_items[:MAX_REPORT_COUNTERS]
-        truncated = True
-    if len(errors) > MAX_REPORT_ERRORS:
-        errors = errors[:MAX_REPORT_ERRORS]
-        truncated = True
-    return ExecutionReport(
+    duration_ms = max(0, int((finished_at - context.started_at).total_seconds() * 1000))
+    errors = (reason,) if reason is not None else ()
+    stop_reason = reason.code if reason is not None else "finalized"
+    worker = metrics.build_report(
+        report_id=f"worker-{context.allocation_id}",
+        duration_ms=duration_ms,
+        extra_errors=errors,
+    )
+    return AllocationFinalReport(
+        reportId=f"allocation-final-{context.allocation_id}",
         allocationId=context.allocation_id,
         startedAt=context.started_at,
         finishedAt=finished_at,
-        complete=True,
-        counters=dict(counter_items),
-        errors=errors,
-        truncated=truncated,
+        worker=worker,
+        runtime=RuntimeReport(
+            complete=True,
+            durationMs=duration_ms,
+            stopReason=stop_reason,
+        ),
     )
 
 

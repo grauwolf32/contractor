@@ -86,13 +86,21 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		t.Fatalf("allocations = (%+v, %v)", allocations, err)
 	}
 	reportFinished := time.Now().UTC()
+	modelCalls := int64(3)
 	reportParams := RecordStageExecutionReportParams{
 		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
-		Report: contracts.ExecutionReport{
-			AllocationID: allocation.AllocationID,
-			StartedAt:    reportFinished.Add(-time.Second), FinishedAt: reportFinished,
-			Complete: true, Counters: map[string]int64{"llm_calls": 3},
+		Report: contracts.AllocationFinalReport{
+			ReportID: "allocation-report-1", AllocationID: allocation.AllocationID,
+			StartedAt: reportFinished.Add(-time.Second), FinishedAt: reportFinished,
+			Worker: contracts.ExecutionReport{
+				ReportID: "worker-report-1", Complete: true,
+				Metrics: contracts.ExecutionMetrics{
+					ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+				},
+				ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+			},
+			Runtime: contracts.RuntimeReport{Complete: true},
 		},
 	}
 	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
@@ -102,17 +110,19 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		t.Fatalf("idempotent execution report: %v", err)
 	}
 	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
-	if err != nil || len(reports) != 1 || reports[0].Report.Counters["llm_calls"] != 3 {
+	if err != nil || len(reports) != 1 || reports[0].Report.Worker.Metrics.ModelCalls == nil ||
+		*reports[0].Report.Worker.Metrics.ModelCalls != 3 {
 		t.Fatalf("execution reports = (%+v, %v)", reports, err)
 	}
 	differentReport := reportParams
-	differentReport.Report.Counters = map[string]int64{"llm_calls": 4}
+	differentCalls := int64(4)
+	differentReport.Report.Worker.Metrics.ModelCalls = &differentCalls
 	if err := store.RecordStageExecutionReport(ctx, differentReport); !errors.Is(err, ErrConflict) {
 		t.Fatalf("mismatched execution report error = %v, want conflict", err)
 	}
 	if _, err := pool.Exec(ctx, `
-UPDATE stage_execution_reports
-SET report = jsonb_set(report, '{complete}', 'false')
+UPDATE allocation_execution_reports
+SET report = jsonb_set(report, '{worker,complete}', 'false')
 WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("execution report rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}

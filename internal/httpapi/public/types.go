@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 type RunReader interface {
@@ -31,6 +32,10 @@ type RunWriter interface {
 	) (runstore.WorkflowRun, error)
 }
 
+type MetricsReader interface {
+	GetStageMetrics(context.Context, string) (telemetry.StageMetricsRecord, error)
+}
+
 // UnitOfWork supplies transaction-bound Run and Artifact stores. The callback
 // commits only when it returns nil.
 type UnitOfWork interface {
@@ -48,6 +53,7 @@ type RunCancellationNotifier interface {
 type Dependencies struct {
 	Config       *config.Snapshot
 	Runs         RunReader
+	Metrics      MetricsReader
 	Artifacts    *artifacts.Service
 	Transactions UnitOfWork
 	BearerToken  contracts.SecretString
@@ -103,6 +109,7 @@ type stageAttemptResponse struct {
 	State            runstore.StageExecutionState  `json:"state"`
 	Result           *contracts.StageContentResult `json:"result,omitempty"`
 	Termination      *runstore.StageTermination    `json:"termination,omitempty"`
+	Metrics          *telemetry.Summary            `json:"metrics,omitempty"`
 }
 
 type errorResponse struct {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -68,13 +69,28 @@ type passthroughPlanner struct {
 	sessions   SessionService
 	invoker    WorkerInvoker
 	inspector  ArtifactInspector
+	reportMu   sync.RWMutex
+	report     contracts.ExecutionReport
+	hasReport  bool
 }
 
-func (p *passthroughPlanner) Run(ctx context.Context) (contracts.StageContentResult, error) {
+func (p *passthroughPlanner) Run(
+	ctx context.Context,
+) (candidate contracts.StageContentResult, runErr error) {
+	reportStarted := time.Now()
+	var identity SessionIdentity
+	var invoked bool
+	var invokeDurationMS int64
+	var invokeFailure *Failure
+	defer func() {
+		p.finishReport(reportStarted, identity, invoked, invokeDurationMS, invokeFailure, runErr)
+	}()
+
 	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
 	if err != nil {
 		return contracts.StageContentResult{}, sessionError("start", err)
 	}
+	identity = started.Identity
 	if started.Completion != nil {
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
@@ -105,10 +121,15 @@ func (p *passthroughPlanner) Run(ctx context.Context) (contracts.StageContentRes
 
 	invokeContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
+	invoked = true
+	invokeStarted := time.Now()
 	result, err := p.invoker.Invoke(
 		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
 	)
+	invokeDurationMS = max(0, time.Since(invokeStarted).Milliseconds())
 	if err != nil {
+		failure := FailureFrom(err)
+		invokeFailure = &failure
 		return contracts.StageContentResult{}, p.fail(
 			ctx, started.Identity, NewErrorFromFailure(FailureFrom(err), err),
 		)
@@ -124,6 +145,71 @@ func (p *passthroughPlanner) Run(ctx context.Context) (contracts.StageContentRes
 	}
 	return cloneStageResult(result), nil
 }
+
+func (p *passthroughPlanner) ExecutionReport() (contracts.ExecutionReport, bool) {
+	p.reportMu.RLock()
+	defer p.reportMu.RUnlock()
+	return p.report, p.hasReport
+}
+
+func (p *passthroughPlanner) finishReport(
+	startedAt time.Time,
+	identity SessionIdentity,
+	invoked bool,
+	invokeDurationMS int64,
+	invokeFailure *Failure,
+	runErr error,
+) {
+	durationMS := max(0, time.Since(startedAt).Milliseconds())
+	reportID := "planner-unavailable-" + p.invocation.StageExecutionID
+	if identity.SessionID != "" {
+		reportID = "planner-" + identity.SessionID
+	}
+	report := contracts.ExecutionReport{
+		ReportID: reportID,
+		Complete: true,
+		Metrics: contracts.ExecutionMetrics{
+			DurationMS: int64Pointer(durationMS),
+			Tools:      map[string]contracts.ToolMetrics{},
+		},
+		ToolCalls: []contracts.ToolCallRecord{},
+		Errors:    []contracts.ExecutionError{},
+	}
+	if invoked {
+		calls, succeeded, failed := int64(1), int64(1), int64(0)
+		outcome := contracts.ToolCallSucceeded
+		var executionError *contracts.ExecutionError
+		if invokeFailure != nil {
+			succeeded, failed = 0, 1
+			outcome = contracts.ToolCallFailed
+			retryable := invokeFailure.Retryable
+			executionError = &contracts.ExecutionError{
+				Code: invokeFailure.Code, Message: invokeFailure.Message, Retryable: &retryable,
+			}
+		}
+		report.Metrics.Tools["a2a.invoke"] = contracts.ToolMetrics{
+			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
+		}
+		report.ToolCalls = append(report.ToolCalls, contracts.ToolCallRecord{
+			CallID: "a2a-" + reportID, Tool: "a2a.invoke",
+			Arguments: map[string]any{"binding": p.binding}, Outcome: outcome,
+			DurationMS: &invokeDurationMS, Error: executionError,
+		})
+	}
+	if runErr != nil {
+		failure := FailureFrom(runErr)
+		retryable := failure.Retryable
+		report.Errors = append(report.Errors, contracts.ExecutionError{
+			Code: failure.Code, Message: failure.Message, Retryable: &retryable,
+		})
+	}
+	p.reportMu.Lock()
+	p.report = report
+	p.hasReport = true
+	p.reportMu.Unlock()
+}
+
+func int64Pointer(value int64) *int64 { return &value }
 
 func (p *passthroughPlanner) recoverCompletion(
 	ctx context.Context, completion Completion,

@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -51,12 +52,13 @@ type runStatus struct {
 }
 
 type runAttempt struct {
-	StageExecutionID string          `json:"stageExecutionId"`
-	Stage            string          `json:"stage"`
-	Attempt          int             `json:"attempt"`
-	State            string          `json:"state"`
-	Result           json.RawMessage `json:"result,omitempty"`
-	Termination      json.RawMessage `json:"termination,omitempty"`
+	StageExecutionID string             `json:"stageExecutionId"`
+	Stage            string             `json:"stage"`
+	Attempt          int                `json:"attempt"`
+	State            string             `json:"state"`
+	Result           json.RawMessage    `json:"result,omitempty"`
+	Termination      json.RawMessage    `json:"termination,omitempty"`
+	Metrics          *telemetry.Summary `json:"metrics,omitempty"`
 }
 
 func TestLocalGoToPythonArtifactCopy(t *testing.T) {
@@ -155,6 +157,12 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	if len(completed.Attempts) != 1 || completed.Attempts[0].Stage != "copy" ||
 		completed.Attempts[0].Attempt != 1 || completed.Attempts[0].State != "succeeded" {
 		t.Fatalf("unexpected Stage attempts: %+v", completed.Attempts)
+	}
+	if completed.Attempts[0].Metrics == nil ||
+		completed.Attempts[0].Metrics.ModelCalls != 3 ||
+		completed.Attempts[0].Metrics.ToolCalls != 3 ||
+		!completed.Attempts[0].Metrics.ReportsComplete {
+		t.Fatalf("unexpected public metrics summary: %+v", completed.Attempts[0].Metrics)
 	}
 	output, ok := completed.Outputs["result"]
 	if !ok || output.Revision == nil {
@@ -343,18 +351,25 @@ func assertDurableExecution(
 		t.Fatalf("execution reports = (%+v, %v), want one", reports, err)
 	}
 	report := reports[0]
-	if report.AllocationID != allocations[0].AllocationID || report.LogicalAgentName != "builder" || !report.Report.Complete {
+	if report.AllocationID != allocations[0].AllocationID || report.LogicalAgentName != "builder" ||
+		!report.Report.Worker.Complete || !report.Report.Runtime.Complete {
 		t.Fatalf("invalid trusted report envelope: %+v", report)
 	}
-	wantCounters := map[string]int64{
-		"llm_calls": 3, "tool_calls": 2,
-		"tool_calls.read_artifact": 1, "tool_calls.write_artifact": 1,
-		"outcomes.succeeded": 1, "input_tokens": 21,
-		"output_tokens": 9, "total_tokens": 30,
+	workerMetrics := report.Report.Worker.Metrics
+	wantCounters := map[string]struct {
+		got  *int64
+		want int64
+	}{
+		"llm_calls":      {workerMetrics.ModelCalls, 3},
+		"input_tokens":   {workerMetrics.InputTokens, 21},
+		"output_tokens":  {workerMetrics.OutputTokens, 9},
+		"total_tokens":   {workerMetrics.TotalTokens, 30},
+		"read_artifact":  {workerMetrics.Tools["read_artifact"].Calls, 1},
+		"write_artifact": {workerMetrics.Tools["write_artifact"].Calls, 1},
 	}
-	for key, want := range wantCounters {
-		if report.Report.Counters[key] != want {
-			t.Fatalf("report counter %s = %d, want %d; all=%v", key, report.Report.Counters[key], want, report.Report.Counters)
+	for key, counter := range wantCounters {
+		if counter.got == nil || *counter.got != counter.want {
+			t.Fatalf("report counter %s = %v, want %d; all=%+v", key, counter.got, counter.want, workerMetrics)
 		}
 	}
 

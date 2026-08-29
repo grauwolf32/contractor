@@ -26,8 +26,8 @@ var runtimePathIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type RuntimeLifecycle interface {
 	Prepare(context.Context, Reservation, contracts.RuntimeSettings) (contracts.WorkerHandle, error)
-	Finalize(context.Context, Reservation, string, time.Time) (contracts.ExecutionReport, error)
-	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.ExecutionReport, error)
+	Finalize(context.Context, Reservation, string, time.Time) (contracts.AllocationFinalReport, error)
+	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
 }
 
@@ -115,20 +115,20 @@ func (c *RuntimeControlClient) Finalize(
 	reservation Reservation,
 	finalizationID string,
 	deadline time.Time,
-) (contracts.ExecutionReport, error) {
+) (contracts.AllocationFinalReport, error) {
 	request := contracts.FinalizeAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		FinalizationID: finalizationID, Deadline: deadline,
 	}
 	if err := request.Validate(); err != nil {
-		return contracts.ExecutionReport{}, fmt.Errorf("build finalize request: %w", err)
+		return contracts.AllocationFinalReport{}, fmt.Errorf("build finalize request: %w", err)
 	}
 	var response contracts.AllocationFinalResponse
 	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "finalize", request, &response); err != nil {
-		return contracts.ExecutionReport{}, err
+		return contracts.AllocationFinalReport{}, err
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
-		return contracts.ExecutionReport{}, errors.New("Runtime Agent final report identifies another allocation")
+		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent final report identifies another allocation")
 	}
 	return response.Report, nil
 }
@@ -139,20 +139,20 @@ func (c *RuntimeControlClient) Abort(
 	abortID string,
 	reason contracts.TerminationError,
 	deadline time.Time,
-) (contracts.ExecutionReport, error) {
+) (contracts.AllocationFinalReport, error) {
 	request := contracts.AbortAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		AbortID: abortID, Reason: reason, Deadline: deadline,
 	}
 	if err := request.Validate(); err != nil {
-		return contracts.ExecutionReport{}, fmt.Errorf("build abort request: %w", err)
+		return contracts.AllocationFinalReport{}, fmt.Errorf("build abort request: %w", err)
 	}
 	var response contracts.AllocationFinalResponse
 	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "abort", request, &response); err != nil {
-		return contracts.ExecutionReport{}, err
+		return contracts.AllocationFinalReport{}, err
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
-		return contracts.ExecutionReport{}, errors.New("Runtime Agent abort report identifies another allocation")
+		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent abort report identifies another allocation")
 	}
 	return response.Report, nil
 }
@@ -502,7 +502,7 @@ func (c *RuntimeBatchController) FinalizeAll(
 	reservations []Reservation,
 	finalizationID string,
 	deadline time.Time,
-) (map[string]contracts.ExecutionReport, error) {
+) (map[string]contracts.AllocationFinalReport, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
@@ -512,7 +512,7 @@ func (c *RuntimeBatchController) FinalizeAll(
 			failures = append(failures, fmt.Errorf("fence allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 	}
-	reports := make(map[string]contracts.ExecutionReport, len(reservations))
+	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		report, err := c.runtime.Finalize(ctx, reservation, finalizationID, deadline)
 		if err != nil {
@@ -530,12 +530,12 @@ func (c *RuntimeBatchController) AbortAll(
 	abortID string,
 	reason contracts.TerminationError,
 	deadline time.Time,
-) (map[string]contracts.ExecutionReport, error) {
+) (map[string]contracts.AllocationFinalReport, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
 	var failures []error
-	reports := make(map[string]contracts.ExecutionReport, len(reservations))
+	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		if err := c.registry.SetWriteFence(reservation.Grant.AllocationID); err != nil {
 			failures = append(failures, fmt.Errorf("fence allocation %q: %w", reservation.Grant.AllocationID, err))

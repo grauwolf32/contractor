@@ -42,6 +42,9 @@ type Repository interface {
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
 	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error
 	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
+	RecordPlannerExecutionReport(context.Context, RecordPlannerExecutionReportParams) error
+	RebuildStageMetrics(context.Context, string, string) error
+	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
 }
 
 // PostgresStore never starts a transaction. Pass a pgx.Tx to NewPostgresStore

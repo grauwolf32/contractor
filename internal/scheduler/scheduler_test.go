@@ -50,7 +50,8 @@ func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 		"fence", "enter_finalizing", "finalize", "record_report", "accept", "release",
 	)
 	if len(harness.store.reports) != 1 ||
-		harness.store.reports[0].Report.Counters["llm_calls"] != 1 {
+		harness.store.reports[0].Report.Worker.Metrics.ModelCalls == nil ||
+		*harness.store.reports[0].Report.Worker.Metrics.ModelCalls != 1 {
 		t.Fatalf("persisted execution reports = %+v", harness.store.reports)
 	}
 	if !reflect.DeepEqual(harness.persistence.stageStates, []runstore.StageExecutionState{
@@ -149,7 +150,7 @@ func TestSchedulerInvalidCandidateAbortsWithoutPublishingOutput(t *testing.T) {
 	}
 }
 
-func TestSchedulerTelemetryPersistenceFailureDoesNotChangeSemanticResult(t *testing.T) {
+func TestSchedulerMetricsPersistenceFailureDoesNotChangeSemanticResult(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.store.reportError = errors.New("telemetry database unavailable")
 
@@ -291,7 +292,7 @@ func TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate(t *testing.T) {
 		t.Fatalf("late candidate became semantic output: stage=%+v outputs=%v", execution, harness.persistence.outputs)
 	}
 	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
-		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Complete {
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Worker.Complete {
 		t.Fatalf("bounded abort/report calls = abort:%d finalize:%d reports:%+v",
 			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.store.reports)
 	}
@@ -300,7 +301,7 @@ func TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate(t *testing.T) {
 	)
 }
 
-func TestSchedulerCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocation(t *testing.T) {
+func TestSchedulerMetricsCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocation(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.requestCancellation("runtime is unreachable")
 	execution := harness.persistedExecution(t, runstore.StageAborting)
@@ -330,9 +331,9 @@ func TestSchedulerCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocatio
 			harness.allocator.fenced[allocationID])
 	}
 	if _, stillUnavailable := harness.allocator.grants[allocationID]; !stillUnavailable ||
-		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Complete ||
-		len(harness.store.reports[0].Report.Errors) != 1 ||
-		harness.store.reports[0].Report.Errors[0].Code != "allocation_report_unavailable" {
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Worker.Complete ||
+		len(harness.store.reports[0].Report.Worker.Errors) != 1 ||
+		harness.store.reports[0].Report.Worker.Errors[0].Code != "allocation_report_unavailable" {
 		t.Fatalf("lost allocation/report = grants:%v reports:%+v", harness.allocator.grants, harness.store.reports)
 	}
 }
@@ -899,6 +900,24 @@ func (s *memorySchedulerStore) RecordStageExecutionReport(
 	return nil
 }
 
+func (s *memorySchedulerStore) RecordPlannerExecutionReport(
+	_ context.Context, _ runstore.RecordPlannerExecutionReportParams,
+) error {
+	return nil
+}
+
+func (s *memorySchedulerStore) RebuildStageMetrics(
+	_ context.Context, _, _ string,
+) error {
+	return nil
+}
+
+func (s *memorySchedulerStore) CleanupExpiredTelemetry(
+	_ context.Context, _ time.Time, _ int,
+) (int64, error) {
+	return 0, nil
+}
+
 func (s *memorySchedulerStore) EnterAborting(
 	_ context.Context, params runstore.EnterAbortingParams,
 ) error {
@@ -1264,7 +1283,7 @@ func (w *memoryWorkers) PrepareAll(
 
 func (w *memoryWorkers) FinalizeAll(
 	_ context.Context, reservations []controlplane.Reservation, _ string, _ time.Time,
-) (map[string]contracts.ExecutionReport, error) {
+) (map[string]contracts.AllocationFinalReport, error) {
 	w.finalizeCalls++
 	for _, reservation := range reservations {
 		if !w.allocator.fenced[reservation.Grant.AllocationID] {
@@ -1272,23 +1291,39 @@ func (w *memoryWorkers) FinalizeAll(
 		}
 	}
 	w.events.add("finalize")
-	reports := make(map[string]contracts.ExecutionReport, len(reservations))
+	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
-		reports[reservation.Grant.LogicalAgentName] = contracts.ExecutionReport{
-			AllocationID: reservation.Grant.AllocationID,
-			StartedAt:    w.clock.now.Add(-time.Second), FinishedAt: w.clock.now,
-			Complete: true, Counters: map[string]int64{"llm_calls": 1},
-		}
+		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(
+			reservation.Grant.AllocationID, w.clock.now,
+		)
 	}
 	return reports, nil
 }
 
 func (w *memoryWorkers) AbortAll(
 	_ context.Context, _ []controlplane.Reservation, _ string, _ contracts.TerminationError, _ time.Time,
-) (map[string]contracts.ExecutionReport, error) {
+) (map[string]contracts.AllocationFinalReport, error) {
 	w.abortCalls++
 	w.events.add("abort")
-	return map[string]contracts.ExecutionReport{}, w.abortError
+	return map[string]contracts.AllocationFinalReport{}, w.abortError
+}
+
+func schedulerTestAllocationReport(
+	allocationID string, finishedAt time.Time,
+) contracts.AllocationFinalReport {
+	modelCalls := int64(1)
+	return contracts.AllocationFinalReport{
+		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
+		StartedAt: finishedAt.Add(-time.Second), FinishedAt: finishedAt,
+		Worker: contracts.ExecutionReport{
+			ReportID: "worker-" + allocationID, Complete: true,
+			Metrics: contracts.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+			},
+			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+		},
+		Runtime: contracts.RuntimeReport{Complete: true},
+	}
 }
 
 func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplane.Reservation) error {

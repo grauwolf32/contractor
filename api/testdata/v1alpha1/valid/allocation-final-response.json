@@ -1,0 +1,26 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "report": {
+    "reportId": "allocation-final-allocation-1",
+    "allocationId": "allocation-1",
+    "startedAt": "2026-08-29T09:00:00Z",
+    "finishedAt": "2026-08-29T09:00:01Z",
+    "worker": {
+      "reportId": "worker-allocation-1",
+      "complete": true,
+      "metrics": {
+        "durationMs": 1000,
+        "modelCalls": 1,
+        "tools": {}
+      },
+      "toolCalls": [],
+      "errors": [],
+      "truncated": false
+    },
+    "runtime": {
+      "complete": true,
+      "durationMs": 1000,
+      "stopReason": "finalized"
+    }
+  }
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const maxCancellationReasonBytes = 4096
@@ -211,6 +212,15 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	for _, execution := range executions {
+		var metrics *telemetry.Summary
+		if h.dependencies.Metrics != nil {
+			if record, metricsErr := h.dependencies.Metrics.GetStageMetrics(
+				r.Context(), execution.StageExecutionID,
+			); metricsErr == nil {
+				value := record.Summary
+				metrics = &value
+			}
+		}
 		attempts = append(attempts, stageAttemptResponse{
 			StageExecutionID: execution.StageExecutionID,
 			Stage:            execution.StageName,
@@ -218,6 +228,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			State:            execution.State,
 			Result:           execution.AcceptedResult,
 			Termination:      execution.Termination,
+			Metrics:          metrics,
 		})
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{

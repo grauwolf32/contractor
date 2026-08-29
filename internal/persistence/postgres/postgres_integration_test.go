@@ -59,10 +59,12 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 
 	tables := schemaTables(t, ctx, first)
 	wantTables := []string{
+		"allocation_execution_reports",
 		"artifact_binding_revisions", "artifact_bindings", "artifact_blobs",
 		"artifact_lineage", "artifact_pins", "artifact_scopes", "artifact_versions",
-		"contractor_schema_migrations", "planner_events", "planner_sessions",
-		"stage_allocations", "stage_execution_reports", "stage_executions",
+		"contractor_schema_migrations", "planner_events",
+		"planner_execution_reports", "planner_sessions", "stage_allocations",
+		"stage_execution_reports", "stage_executions", "stage_metrics",
 		"stage_transition_decisions", "workflow_runs",
 	}
 	if strings.Join(tables, ",") != strings.Join(wantTables, ",") {

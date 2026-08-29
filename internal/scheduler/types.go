@@ -52,6 +52,9 @@ type Store interface {
 	RecordStageAllocation(context.Context, runstore.StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
+	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
+	RebuildStageMetrics(context.Context, string, string) error
+	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
 	EnterAborting(context.Context, runstore.EnterAbortingParams) error
 }
 
@@ -146,14 +149,14 @@ type WorkerController interface {
 		[]controlplane.Reservation,
 		string,
 		time.Time,
-	) (map[string]contracts.ExecutionReport, error)
+	) (map[string]contracts.AllocationFinalReport, error)
 	AbortAll(
 		context.Context,
 		[]controlplane.Reservation,
 		string,
 		contracts.TerminationError,
 		time.Time,
-	) (map[string]contracts.ExecutionReport, error)
+	) (map[string]contracts.AllocationFinalReport, error)
 	ReleaseAll(context.Context, []controlplane.Reservation) error
 }
 
@@ -172,15 +175,18 @@ func (realClock) Now() time.Time                                { return time.No
 func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
 
 type Options struct {
-	PollInterval        time.Duration
-	ClaimDuration       time.Duration
-	OperationTimeout    time.Duration
-	PlannerTimeout      time.Duration
-	FinalizationTimeout time.Duration
-	AbortTimeout        time.Duration
-	LeaseScanInterval   time.Duration
-	RuntimeSettings     contracts.RuntimeSettings
-	Clock               Clock
-	NewID               func(string) (string, error)
-	Logger              *slog.Logger
+	PollInterval           time.Duration
+	ClaimDuration          time.Duration
+	OperationTimeout       time.Duration
+	PlannerTimeout         time.Duration
+	FinalizationTimeout    time.Duration
+	AbortTimeout           time.Duration
+	LeaseScanInterval      time.Duration
+	RuntimeSettings        contracts.RuntimeSettings
+	TelemetrySecrets       []string
+	MetricsCleanupInterval time.Duration
+	MetricsCleanupBatch    int
+	Clock                  Clock
+	NewID                  func(string) (string, error)
+	Logger                 *slog.Logger
 }

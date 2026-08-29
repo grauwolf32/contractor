@@ -68,6 +68,13 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		sessions.facts.InstructionsDigest == invocation.Stage.Instructions.Text {
 		t.Fatalf("request facts are not redacted/bounded: %+v", sessions.facts)
 	}
+	report, ok := first.(ReportProvider).ExecutionReport()
+	if !ok || !report.Complete || len(report.ToolCalls) != 1 ||
+		report.ToolCalls[0].Outcome != contracts.ToolCallSucceeded ||
+		report.Metrics.Tools["a2a.invoke"].Calls == nil ||
+		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
+		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
+	}
 
 	recovered, err := registry.Create(PassthroughRef, invocation)
 	if err != nil {
@@ -168,6 +175,12 @@ func TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation(t *testi
 	var plannerError *Error
 	if !errors.As(err, &plannerError) || plannerError.Code != "worker_input_required" {
 		t.Fatalf("Run error = %v", err)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || len(report.ToolCalls) != 1 ||
+		report.ToolCalls[0].Outcome != contracts.ToolCallFailed ||
+		len(report.Errors) != 1 || report.Errors[0].Code != "worker_input_required" {
+		t.Fatalf("failed Planner report = (%+v, %t)", report, ok)
 	}
 	recovered, _ := factory.Create(invocation)
 	_, err = recovered.Run(context.Background())

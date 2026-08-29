@@ -69,7 +69,7 @@ def test_response_partition_expires_worker_and_late_ack_cannot_revive(tmp_path: 
                 deadline=spec.lease_expires_at,
             )
         )
-        assert response.report.errors[-1].code == "control_lease_expired"
+        assert response.report.worker.errors[-1].code == "control_lease_expired"
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )

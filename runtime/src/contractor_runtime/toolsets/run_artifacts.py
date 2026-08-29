@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
@@ -23,6 +24,7 @@ class ToolMetrics(Protocol):
         result: Mapping[str, Any] | None = None,
         error: Exception | None = None,
         secrets: tuple[str, ...] = (),
+        duration_ms: int | None = None,
     ) -> None: ...
 
 
@@ -87,20 +89,24 @@ class _BaseTool:
     async def close(self) -> None:
         self._secrets = ()
 
-    def _success(self, arguments: Mapping[str, Any], result: Mapping[str, Any]) -> None:
+    def _success(
+        self, arguments: Mapping[str, Any], result: Mapping[str, Any], started_ns: int
+    ) -> None:
         self._metrics.record_tool_call(
             self.name,
             arguments=arguments,
             result=result,
             secrets=self._secrets,
+            duration_ms=_elapsed_ms(started_ns),
         )
 
-    def _failure(self, arguments: Mapping[str, Any], error: Exception) -> None:
+    def _failure(self, arguments: Mapping[str, Any], error: Exception, started_ns: int) -> None:
         self._metrics.record_tool_call(
             self.name,
             arguments=arguments,
             error=error,
             secrets=self._secrets,
+            duration_ms=_elapsed_ms(started_ns),
         )
 
 
@@ -109,14 +115,15 @@ class ListArtifactsTool(_BaseTool):
     description = "List current artifact refs in this Workflow Run, optionally by namespace."
 
     async def __call__(self, namespace: str | None = None) -> list[dict[str, Any]]:
+        started_ns = time.perf_counter_ns()
         arguments = {"namespace": namespace}
         try:
             refs = await self._client.list_artifacts(namespace)
             result = [ref.model_dump(by_alias=True, exclude_none=True) for ref in refs]
-            self._success(arguments, {"count": len(result)})
+            self._success(arguments, {"count": len(result)}, started_ns)
             return result
         except Exception as error:
-            self._failure(arguments, error)
+            self._failure(arguments, error, started_ns)
             raise
 
 
@@ -130,6 +137,7 @@ class ReadArtifactTool(_BaseTool):
         name: str,
         revision: str | None = None,
     ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
         arguments = {"namespace": namespace, "name": name, "revision": revision}
         try:
             value = await self._client.read_artifact(
@@ -148,10 +156,11 @@ class ReadArtifactTool(_BaseTool):
                     "mediaType": value.media_type,
                     "size": len(value.data),
                 },
+                started_ns,
             )
             return result
         except Exception as error:
-            self._failure(arguments, error)
+            self._failure(arguments, error, started_ns)
             raise
 
 
@@ -167,6 +176,7 @@ class WriteArtifactTool(_BaseTool):
         data_base64: str,
         expected_revision: str | None = None,
     ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
         arguments = {
             "namespace": namespace,
             "name": name,
@@ -195,10 +205,11 @@ class WriteArtifactTool(_BaseTool):
                     "mediaType": result.media_type,
                     "size": result.size,
                 },
+                started_ns,
             )
             return serialized
         except Exception as error:
-            self._failure(arguments, error)
+            self._failure(arguments, error, started_ns)
             raise
 
 
@@ -209,3 +220,7 @@ def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) 
 class _UnavailableTransport:
     async def request(self, *_: Any, **__: Any) -> Any:
         raise RuntimeError("Artifact transport is not configured")
+
+
+def _elapsed_ms(started_ns: int) -> int:
+    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

@@ -195,42 +195,16 @@ func (r ReleaseAllocationRequest) Validate() error {
 	return validateOpaqueID("allocationId", r.AllocationID)
 }
 
-type ExecutionReport struct {
-	AllocationID string             `json:"allocationId"`
-	StartedAt    time.Time          `json:"startedAt"`
-	FinishedAt   time.Time          `json:"finishedAt"`
-	Complete     bool               `json:"complete"`
-	Counters     map[string]int64   `json:"counters"`
-	Errors       []TerminationError `json:"errors"`
-	Truncated    bool               `json:"truncated"`
-}
-
 type AllocationFinalResponse struct {
-	APIVersion string          `json:"apiVersion"`
-	Report     ExecutionReport `json:"report"`
+	APIVersion string                `json:"apiVersion"`
+	Report     AllocationFinalReport `json:"report"`
 }
 
 func (r AllocationFinalResponse) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("report.allocationId", r.Report.AllocationID); err != nil {
-		return err
-	}
-	if r.Report.StartedAt.IsZero() || r.Report.FinishedAt.IsZero() || r.Report.FinishedAt.Before(r.Report.StartedAt) {
-		return invalidf("report timestamps are invalid")
-	}
-	for key, value := range r.Report.Counters {
-		if key == "" || value < 0 {
-			return invalidf("report counters must have non-empty names and non-negative values")
-		}
-	}
-	for _, item := range r.Report.Errors {
-		if err := validateTerminationError(item); err != nil {
-			return err
-		}
-	}
-	return nil
+	return r.Report.Validate()
 }
 
 func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {

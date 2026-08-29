@@ -24,16 +24,18 @@ import (
 )
 
 const (
-	defaultPollInterval        = time.Second
-	defaultClaimDuration       = 2 * time.Minute
-	defaultOperationTimeout    = 15 * time.Second
-	defaultPlannerTimeout      = 45 * time.Second
-	defaultFinalizationTimeout = 10 * time.Second
-	defaultAbortTimeout        = 10 * time.Second
-	defaultLeaseScanInterval   = time.Second
-	maxCandidateBytes          = 256 * 1024
-	maxCandidateSummaryBytes   = 64 * 1024
-	maxCandidateArtifacts      = 128
+	defaultPollInterval           = time.Second
+	defaultClaimDuration          = 2 * time.Minute
+	defaultOperationTimeout       = 15 * time.Second
+	defaultPlannerTimeout         = 45 * time.Second
+	defaultFinalizationTimeout    = 10 * time.Second
+	defaultAbortTimeout           = 10 * time.Second
+	defaultLeaseScanInterval      = time.Second
+	defaultMetricsCleanupInterval = 24 * time.Hour
+	defaultMetricsCleanupBatch    = 500
+	maxCandidateBytes             = 256 * 1024
+	maxCandidateSummaryBytes      = 64 * 1024
+	maxCandidateArtifacts         = 128
 )
 
 type Scheduler struct {
@@ -65,8 +67,9 @@ func New(
 	applyOptionDefaults(&options)
 	if options.PollInterval <= 0 || options.ClaimDuration <= 0 || options.OperationTimeout <= 0 ||
 		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 ||
-		options.LeaseScanInterval <= 0 {
-		return nil, fmt.Errorf("Scheduler durations must be positive")
+		options.LeaseScanInterval <= 0 || options.MetricsCleanupInterval <= 0 ||
+		options.MetricsCleanupBatch <= 0 || options.MetricsCleanupBatch > 10_000 {
+		return nil, fmt.Errorf("Scheduler durations must be positive and cleanup batch must be at most 10000")
 	}
 	if err := validateRuntimeSettings(options.RuntimeSettings); err != nil {
 		return nil, err
@@ -100,6 +103,12 @@ func applyOptionDefaults(options *Options) {
 	if options.LeaseScanInterval == 0 {
 		options.LeaseScanInterval = defaultLeaseScanInterval
 	}
+	if options.MetricsCleanupInterval == 0 {
+		options.MetricsCleanupInterval = defaultMetricsCleanupInterval
+	}
+	if options.MetricsCleanupBatch == 0 {
+		options.MetricsCleanupBatch = defaultMetricsCleanupBatch
+	}
 	if options.Clock == nil {
 		options.Clock = realClock{}
 	}
@@ -109,6 +118,7 @@ func applyOptionDefaults(options *Options) {
 	if options.Logger == nil {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	options.TelemetrySecrets = append([]string(nil), options.TelemetrySecrets...)
 }
 
 func validateRuntimeSettings(settings contracts.RuntimeSettings) error {
@@ -159,10 +169,14 @@ func (s *Scheduler) interruptRun(runID string, cause error) {
 func (s *Scheduler) Run(ctx context.Context) error {
 	monitorContext, cancelMonitor := context.WithCancel(ctx)
 	var monitor sync.WaitGroup
-	monitor.Add(1)
+	monitor.Add(2)
 	go func() {
 		defer monitor.Done()
 		s.monitorAllocationLosses(monitorContext)
+	}()
+	go func() {
+		defer monitor.Done()
+		s.monitorMetricsRetention(monitorContext)
 	}()
 	defer func() {
 		cancelMonitor()
@@ -268,6 +282,26 @@ func (s *Scheduler) monitorAllocationLosses(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-s.options.Clock.After(s.options.LeaseScanInterval):
+		}
+	}
+}
+
+func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
+	for {
+		cleanupContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+		deleted, err := s.store.CleanupExpiredTelemetry(
+			cleanupContext, s.options.Clock.Now(), s.options.MetricsCleanupBatch,
+		)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			s.options.Logger.Warn("telemetry retention cleanup failed", "error", err)
+		} else if deleted > 0 {
+			s.options.Logger.Info("expired telemetry removed", "rows", deleted)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.options.Clock.After(s.options.MetricsCleanupInterval):
 		}
 	}
 }
@@ -658,6 +692,7 @@ func (s *Scheduler) prepareAndPlan(
 		return errors.Join(err, loadErr)
 	}
 	execution = currentExecution
+	s.persistPlannerReport(execution, instance)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
 	}
@@ -1024,7 +1059,7 @@ func (s *Scheduler) resumeAborting(
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
 	_ = s.fenceRecordedAllocations(context.WithoutCancel(ctx), execution.StageExecutionID, reservations)
-	var reports map[string]contracts.ExecutionReport
+	var reports map[string]contracts.AllocationFinalReport
 	if len(reservations) > 0 && execution.AbortDeadline.After(s.options.Clock.Now()) {
 		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
 		var err error
@@ -1111,7 +1146,7 @@ func (s *Scheduler) resumeFinalizing(
 	if reservations == nil && len(workflow.stage.Agents) > 0 {
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
-	var reports map[string]contracts.ExecutionReport
+	var reports map[string]contracts.AllocationFinalReport
 	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.options.Clock.Now()) {
 		finalizeContext, cancelFinalize := context.WithDeadline(ctx, *execution.FinalizationDeadline)
 		var err error
@@ -1273,8 +1308,12 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 func (s *Scheduler) persistReports(
 	execution runstore.StageExecution,
 	reservations []controlplane.Reservation,
-	reports map[string]contracts.ExecutionReport,
+	reports map[string]contracts.AllocationFinalReport,
 ) {
+	// A crash can resume directly in finalizing/aborting without recreating the
+	// Planner instance. Ensure its durable session still has a report record;
+	// an already persisted complete report wins over this placeholder.
+	s.persistPlannerReport(execution, nil)
 	listContext, cancelList := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 	allocations, err := s.store.ListStageAllocations(listContext, execution.StageExecutionID)
 	cancelList()
@@ -1302,24 +1341,31 @@ func (s *Scheduler) persistReports(
 		reservation, live := byName[allocation.LogicalAgentName]
 		if !ok || report.AllocationID != allocation.AllocationID ||
 			(live && reservation.Grant.AllocationID != allocation.AllocationID) {
-			report = contracts.ExecutionReport{
+			retryable := true
+			report = contracts.AllocationFinalReport{
+				ReportID:     "allocation-final-missing-" + allocation.AllocationID,
 				AllocationID: allocation.AllocationID,
 				StartedAt:    startedAt,
 				FinishedAt:   finishedAt,
-				Complete:     false,
-				Counters:     map[string]int64{},
-				Errors: []contracts.TerminationError{{
-					Code:      "allocation_report_unavailable",
-					Message:   "Runtime Agent did not return an execution report before lifecycle completion",
-					Retryable: true,
-				}},
+				Worker: contracts.ExecutionReport{
+					ReportID:  "worker-missing-" + allocation.AllocationID,
+					Complete:  false,
+					Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+					ToolCalls: []contracts.ToolCallRecord{},
+					Errors: []contracts.ExecutionError{{
+						Code:      "allocation_report_unavailable",
+						Message:   "Runtime Agent did not return an execution report before lifecycle completion",
+						Retryable: &retryable,
+					}},
+				},
+				Runtime: contracts.RuntimeReport{Complete: false},
 			}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 		err := s.store.RecordStageExecutionReport(ctx, runstore.RecordStageExecutionReportParams{
 			StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 			LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
-			Report: report,
+			Report: report, Secrets: s.telemetrySecrets(),
 		})
 		cancel()
 		if err != nil {
@@ -1330,6 +1376,74 @@ func (s *Scheduler) persistReports(
 			)
 		}
 	}
+	s.rebuildStageMetrics(execution.StageExecutionID)
+}
+
+func (s *Scheduler) persistPlannerReport(
+	execution runstore.StageExecution,
+	instance planner.Planner,
+) {
+	if execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil {
+		return
+	}
+	report := contracts.ExecutionReport{
+		ReportID:  "planner-missing-" + *execution.PlannerSessionID,
+		Complete:  false,
+		Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+		ToolCalls: []contracts.ToolCallRecord{},
+		Errors:    []contracts.ExecutionError{},
+	}
+	if provider, ok := instance.(planner.ReportProvider); ok {
+		if provided, available := provider.ExecutionReport(); available {
+			report = provided
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	startedAt := execution.CreatedAt.UTC().Round(0)
+	if execution.PlannerStartedAt != nil {
+		startedAt = execution.PlannerStartedAt.UTC().Round(0)
+	}
+	if startedAt.IsZero() {
+		startedAt = s.options.Clock.Now().UTC().Round(0)
+	}
+	finishedAt := startedAt
+	if report.Metrics.DurationMS != nil {
+		finishedAt = startedAt.Add(time.Duration(*report.Metrics.DurationMS) * time.Millisecond)
+	}
+	err := s.store.RecordPlannerExecutionReport(ctx, runstore.RecordPlannerExecutionReportParams{
+		StageExecutionID: execution.StageExecutionID,
+		SessionID:        *execution.PlannerSessionID, InvocationID: *execution.PlannerInvocationID,
+		StartedAt: startedAt, FinishedAt: finishedAt,
+		ReportSchemaVersion: contracts.APIVersion, Report: report,
+		Secrets: s.telemetrySecrets(),
+	})
+	cancel()
+	if err != nil {
+		s.options.Logger.Warn(
+			"Planner report persistence failed",
+			"stage_execution_id", execution.StageExecutionID,
+		)
+		return
+	}
+	s.rebuildStageMetrics(execution.StageExecutionID)
+}
+
+func (s *Scheduler) rebuildStageMetrics(stageExecutionID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	err := s.store.RebuildStageMetrics(ctx, stageExecutionID, contracts.APIVersion)
+	cancel()
+	if err != nil {
+		s.options.Logger.Warn(
+			"StageMetrics persistence failed", "stage_execution_id", stageExecutionID,
+		)
+	}
+}
+
+func (s *Scheduler) telemetrySecrets() []string {
+	result := make([]string, 0, len(s.options.TelemetrySecrets)+1)
+	result = append(result, s.options.TelemetrySecrets...)
+	result = append(result, s.options.RuntimeSettings.LLMGatewayToken.Reveal())
+	return result
 }
 
 func (s *Scheduler) existingLiveReservations(

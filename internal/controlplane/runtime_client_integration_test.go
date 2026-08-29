@@ -118,7 +118,7 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 		t.Fatalf("unexpected cross-language WorkerHandle: %+v", handle)
 	}
 	report, err := client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
-	if err != nil || !report.Complete {
+	if err != nil || !report.Worker.Complete || !report.Runtime.Complete {
 		t.Fatalf("cross-language finalize = (%+v, %v)", report, err)
 	}
 	if err := client.Release(ctx, reservation); err != nil {

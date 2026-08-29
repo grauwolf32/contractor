@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-29, implementation tasks through `V1-003` are complete. The
+As of 2026-08-29, implementation tasks through `V1-004` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -11,14 +11,16 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - validated serial multi-Stage Workflow graphs and explicit bounded retry;
 - one immutable PostgreSQL transition decision per completed StageExecution,
   atomically committed with either the next/retry execution or terminal Run;
-- fresh exact StageContext artifact pins for every retry attempt.
+- fresh exact StageContext artifact pins for every retry attempt;
+- bounded Python Worker and Go Planner reports with independent Runtime facts;
+- immutable PostgreSQL telemetry, idempotent StageMetrics aggregation,
+  terminal-only 30-day retention cleanup, and a safe public summary.
 
-The next planned task is [`V1-004`](../tasks/v1-004-metrics.yml), which adds
-durable metric aggregates and retention. `V1-005` race/security hardening and
-the `streamline@1` Planner in `V1-006` remain pending. The authoritative task
-status is [`tasks/index.yml`](../tasks/index.yml); detailed V1-003 completion
-evidence is recorded in
-[`v1-003-retry-multistage.yml`](../tasks/v1-003-retry-multistage.yml).
+The next planned task is [`V1-005`](../tasks/v1-005-races-security.yml), the
+race/security hardening matrix. The `streamline@1` Planner in `V1-006` remains
+pending. The authoritative task status is
+[`tasks/index.yml`](../tasks/index.yml); detailed V1-004 completion evidence is
+recorded in [`v1-004-metrics.yml`](../tasks/v1-004-metrics.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -62,11 +64,25 @@ The scenario uploads `contractor-e2e-input\n`, executes
   A2A JSON-RPC 1.0 and mTLS;
 - only `read_artifact` and `write_artifact` are visible to the model;
 - the exact Worker result is linked to a distinct frozen Workflow output;
-- the bounded Worker `ExecutionReport` contains model, token, tool, and outcome
-  counters;
+- the bounded Worker `ExecutionReport` contains model, token and tool
+  aggregates plus bounded diagnostic records;
+- the Planner, Worker and Runtime reports form durable `StageMetrics`, while
+  public Run status exposes only the safe aggregate summary;
 - release removes the allocation route, in-memory Worker state and local
   workspace;
 - private listeners reject a client that trusts the CA but has no certificate.
+
+To smoke-test the real ADK/LiteLLM adapter and provider-supplied token usage
+without making the deterministic suite depend on a live model, point the
+opt-in test at any OpenAI-compatible gateway:
+
+```shell
+cd runtime
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_LIVE_LLM_MODEL='worker-model' \
+  uv run pytest tests/test_live_gateway.py
+```
 
 ## Manual local stack
 

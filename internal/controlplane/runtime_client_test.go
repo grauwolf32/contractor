@@ -189,10 +189,7 @@ func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
 		}
 		response := contracts.AllocationFinalResponse{
 			APIVersion: contracts.APIVersion,
-			Report: contracts.ExecutionReport{
-				AllocationID: "allocation_1", StartedAt: time.Now().Add(-time.Second).UTC(),
-				FinishedAt: time.Now().UTC(), Complete: true, Counters: map[string]int64{},
-			},
+			Report:     testExecutionReport("allocation_1"),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(response)
@@ -236,7 +233,7 @@ func (r *recordingRuntime) Prepare(
 
 func (r *recordingRuntime) Finalize(
 	_ context.Context, reservation Reservation, _ string, _ time.Time,
-) (contracts.ExecutionReport, error) {
+) (contracts.AllocationFinalReport, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.finalized = append(r.finalized, reservation.Grant.AllocationID)
@@ -249,7 +246,7 @@ func (r *recordingRuntime) Abort(
 	_ string,
 	_ contracts.TerminationError,
 	_ time.Time,
-) (contracts.ExecutionReport, error) {
+) (contracts.AllocationFinalReport, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.aborted = append(r.aborted, reservation.Grant.AllocationID)
@@ -301,11 +298,17 @@ func testRuntimeSettings() contracts.RuntimeSettings {
 	}
 }
 
-func testExecutionReport(allocationID string) contracts.ExecutionReport {
+func testExecutionReport(allocationID string) contracts.AllocationFinalReport {
 	now := time.Now().UTC()
-	return contracts.ExecutionReport{
-		AllocationID: allocationID, StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Complete: true, Counters: map[string]int64{},
+	return contracts.AllocationFinalReport{
+		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
+		StartedAt: now.Add(-time.Second), FinishedAt: now,
+		Worker: contracts.ExecutionReport{
+			ReportID: "worker-" + allocationID, Complete: true,
+			Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+		},
+		Runtime: contracts.RuntimeReport{Complete: true},
 	}
 }
 

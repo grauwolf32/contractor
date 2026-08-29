@@ -2,169 +2,109 @@ package runstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
-	"sort"
+	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 func (s *PostgresStore) RecordStageExecutionReport(
 	ctx context.Context,
 	params RecordStageExecutionReportParams,
 ) error {
-	if err := validateOpaque("stageExecutionID", params.StageExecutionID); err != nil {
-		return err
-	}
-	if err := validateOpaque("allocationID", params.AllocationID); err != nil {
-		return err
-	}
-	if err := validateOpaque("logicalAgentName", params.LogicalAgentName); err != nil {
-		return err
-	}
-	if err := validateOpaque("reportSchemaVersion", params.ReportSchemaVersion); err != nil {
-		return err
-	}
-	report := normalizeExecutionReport(params.Report)
-	if report.AllocationID != params.AllocationID {
-		return fmt.Errorf("%w: execution report identifies another allocation", ErrInvalid)
-	}
-	if err := (contracts.AllocationFinalResponse{
-		APIVersion: params.ReportSchemaVersion,
-		Report:     report,
-	}).Validate(); err != nil {
-		return fmt.Errorf("%w: invalid execution report: %v", ErrInvalid, err)
-	}
-	encoded, err := json.Marshal(report)
-	if err != nil {
-		return fmt.Errorf("encode execution report: %w", err)
-	}
-	command, err := s.db.Exec(ctx, `
-INSERT INTO stage_execution_reports (
-    stage_execution_id, allocation_id, logical_agent_name,
-    report_schema_version, report
-) VALUES ($1, $2, $3, $4, $5::jsonb)
-ON CONFLICT DO NOTHING`,
-		params.StageExecutionID, params.AllocationID, params.LogicalAgentName,
-		params.ReportSchemaVersion, encoded,
+	err := telemetry.NewRepository(s.db).RecordAllocationReport(
+		ctx,
+		telemetry.AllocationReportEnvelope{
+			StageExecutionID:    params.StageExecutionID,
+			AllocationID:        params.AllocationID,
+			LogicalAgentName:    params.LogicalAgentName,
+			ReportSchemaVersion: params.ReportSchemaVersion,
+			Report:              params.Report,
+			Secrets:             params.Secrets,
+		},
 	)
-	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "23503":
-			return fmt.Errorf("record StageExecution report: %w", ErrNotFound)
-		case "23505":
-			return fmt.Errorf("record StageExecution report: %w", ErrConflict)
-		default:
-			return fmt.Errorf("record StageExecution report: %w", err)
-		}
-	}
-	if command.RowsAffected() == 1 {
-		return nil
-	}
-	existing, err := s.executionReportForIdentity(
-		ctx, params.StageExecutionID, params.AllocationID, params.LogicalAgentName,
-	)
-	if err != nil {
-		return err
-	}
-	if existing.StageExecutionID != params.StageExecutionID ||
-		existing.LogicalAgentName != params.LogicalAgentName ||
-		existing.ReportSchemaVersion != params.ReportSchemaVersion ||
-		!reflect.DeepEqual(existing.Report, report) {
-		return fmt.Errorf("record StageExecution report: %w", ErrConflict)
-	}
-	return nil
+	return mapTelemetryError("record StageExecution report", err)
 }
 
 func (s *PostgresStore) ListStageExecutionReports(
 	ctx context.Context,
 	stageExecutionID string,
 ) ([]StageExecutionReport, error) {
-	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT stage_execution_id, allocation_id, logical_agent_name,
-       report_schema_version, report, received_at
-FROM stage_execution_reports
-WHERE stage_execution_id = $1
-ORDER BY logical_agent_name`, stageExecutionID)
+	rows, err := telemetry.NewRepository(s.db).ListAllocationReports(ctx, stageExecutionID)
 	if err != nil {
-		return nil, fmt.Errorf("list StageExecution reports: %w", err)
+		return nil, mapTelemetryError("list StageExecution reports", err)
 	}
-	defer rows.Close()
-	result := make([]StageExecutionReport, 0)
-	for rows.Next() {
-		current, err := scanStageExecutionReport(rows)
-		if err != nil {
-			return nil, fmt.Errorf("list StageExecution reports: %w", err)
-		}
-		result = append(result, current)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list StageExecution reports: %w", err)
+	result := make([]StageExecutionReport, 0, len(rows))
+	for _, item := range rows {
+		result = append(result, StageExecutionReport{
+			StageExecutionID:    item.StageExecutionID,
+			AllocationID:        item.AllocationID,
+			LogicalAgentName:    item.LogicalAgentName,
+			ReportSchemaVersion: item.ReportSchemaVersion,
+			Report:              item.Report,
+			ReceivedAt:          item.ReceivedAt,
+			ExpiresAt:           item.ExpiresAt,
+		})
 	}
 	return result, nil
 }
 
-func (s *PostgresStore) executionReportForIdentity(
+func (s *PostgresStore) RecordPlannerExecutionReport(
 	ctx context.Context,
-	stageExecutionID, allocationID, logicalAgentName string,
-) (StageExecutionReport, error) {
-	result, err := scanStageExecutionReport(s.db.QueryRow(ctx, `
-SELECT stage_execution_id, allocation_id, logical_agent_name,
-       report_schema_version, report, received_at
-FROM stage_execution_reports
-WHERE allocation_id = $1
-   OR (stage_execution_id = $2 AND logical_agent_name = $3)
-ORDER BY (allocation_id = $1) DESC
-LIMIT 1`, allocationID, stageExecutionID, logicalAgentName))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return StageExecutionReport{}, fmt.Errorf("get StageExecution report: %w", ErrNotFound)
-	}
+	params RecordPlannerExecutionReportParams,
+) error {
+	err := telemetry.NewRepository(s.db).RecordPlannerReport(
+		ctx,
+		telemetry.PlannerReportEnvelope{
+			StageExecutionID:    params.StageExecutionID,
+			SessionID:           params.SessionID,
+			InvocationID:        params.InvocationID,
+			StartedAt:           params.StartedAt,
+			FinishedAt:          params.FinishedAt,
+			ReportSchemaVersion: params.ReportSchemaVersion,
+			Report:              params.Report,
+			Secrets:             params.Secrets,
+		},
+	)
+	return mapTelemetryError("record Planner execution report", err)
+}
+
+func (s *PostgresStore) RebuildStageMetrics(
+	ctx context.Context,
+	stageExecutionID string,
+	schemaVersion string,
+) error {
+	_, err := telemetry.NewRepository(s.db).RebuildStageMetrics(
+		ctx, stageExecutionID, schemaVersion,
+	)
+	return mapTelemetryError("rebuild StageMetrics", err)
+}
+
+func (s *PostgresStore) CleanupExpiredTelemetry(
+	ctx context.Context,
+	now time.Time,
+	batchSize int,
+) (int64, error) {
+	deleted, err := telemetry.NewRepository(s.db).CleanupExpired(ctx, now, batchSize)
 	if err != nil {
-		return StageExecutionReport{}, fmt.Errorf("get StageExecution report: %w", err)
+		return deleted, mapTelemetryError("cleanup expired telemetry", err)
 	}
-	return result, nil
+	return deleted, nil
 }
 
-type reportScanner interface {
-	Scan(...any) error
-}
-
-func scanStageExecutionReport(row reportScanner) (StageExecutionReport, error) {
-	var result StageExecutionReport
-	var encoded []byte
-	if err := row.Scan(
-		&result.StageExecutionID, &result.AllocationID, &result.LogicalAgentName,
-		&result.ReportSchemaVersion, &encoded, &result.ReceivedAt,
-	); err != nil {
-		return StageExecutionReport{}, err
+func mapTelemetryError(operation string, err error) error {
+	if err == nil {
+		return nil
 	}
-	if err := json.Unmarshal(encoded, &result.Report); err != nil {
-		return StageExecutionReport{}, fmt.Errorf("decode execution report: %w", err)
+	switch {
+	case errors.Is(err, telemetry.ErrInvalid):
+		return fmt.Errorf("%s: %w", operation, ErrInvalid)
+	case errors.Is(err, telemetry.ErrConflict):
+		return fmt.Errorf("%s: %w", operation, ErrConflict)
+	case errors.Is(err, telemetry.ErrNotFound):
+		return fmt.Errorf("%s: %w", operation, ErrNotFound)
+	default:
+		return fmt.Errorf("%s: %w", operation, err)
 	}
-	result.Report = normalizeExecutionReport(result.Report)
-	return result, nil
-}
-
-func normalizeExecutionReport(source contracts.ExecutionReport) contracts.ExecutionReport {
-	result := source
-	result.StartedAt = result.StartedAt.UTC().Round(0)
-	result.FinishedAt = result.FinishedAt.UTC().Round(0)
-	result.Counters = make(map[string]int64, len(source.Counters))
-	keys := make([]string, 0, len(source.Counters))
-	for key := range source.Counters {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		result.Counters[key] = source.Counters[key]
-	}
-	result.Errors = append([]contracts.TerminationError{}, source.Errors...)
-	return result
 }

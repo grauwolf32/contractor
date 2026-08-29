@@ -88,6 +88,12 @@ type Planner interface {
 	Run(context.Context) (contracts.StageContentResult, error)
 }
 
+// ReportProvider exposes telemetry collected by a Planner implementation after
+// Run returns. Scheduler treats it as best-effort and never as semantic input.
+type ReportProvider interface {
+	ExecutionReport() (contracts.ExecutionReport, bool)
+}
+
 type Factory interface {
 	Ref() string
 	Create(Invocation) (Planner, error)

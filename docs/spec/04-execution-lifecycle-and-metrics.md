@@ -292,12 +292,22 @@ class ExecutionReport(BaseModel):
     metrics: ExecutionMetrics
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     errors: list[ExecutionError] = Field(default_factory=list)
+    truncated: bool = False
 
 
 class RuntimeReport(BaseModel):
     complete: bool
     duration_ms: int | None = None
     stop_reason: str | None = None
+
+
+class AllocationFinalReport(BaseModel):
+    report_id: str
+    allocation_id: AllocationID
+    started_at: datetime
+    finished_at: datetime
+    worker: ExecutionReport
+    runtime: RuntimeReport
 
 
 class StageMetrics(BaseModel):
@@ -334,9 +344,17 @@ idempotent.
 - External observability exporters are optional adapters over Contractor-owned
   reports; no LangChain/Langfuse-style service is required.
 
-Exact byte/count limits and retention periods are deployment policy left to the
-first implementation, but an unbounded argument, error or record list is not a
-conforming implementation.
+The first-slice bounded policy is fixed: at most 1,000 tool-call records and 100
+errors per participant, at most 4,096 UTF-8/JSON bytes per argument summary or
+error message, and at most 1 MiB per final allocation report. Overflow removes
+the oldest detail, preserves aggregate counters and sets `truncated`. Durable
+telemetry expires after 30 days; cleanup is batch-bounded and may delete only
+telemetry belonging to a terminal StageExecution. These values may become
+deployment policy later without changing the report shape.
+
+The public Run status exposes only aggregate counts and report completeness.
+Tool arguments, report/session/allocation identities and error messages remain
+on the authenticated Server side and are never part of that projection.
 
 ## Worker drain and finalization
 

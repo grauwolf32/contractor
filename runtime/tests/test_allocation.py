@@ -140,7 +140,8 @@ def test_finalize_report_and_release_erase_context_and_workspace(tmp_path: Path)
         first = await service.finalize(request)
         second = await service.finalize(request)
         assert second == first
-        assert first.report.complete
+        assert first.report.worker.complete
+        assert first.report.runtime.complete
         assert first.report.allocation_id == spec.allocation_id
         assert SECRET not in first.model_dump_json(by_alias=True)
         with pytest.raises(AllocationError) as conflict:

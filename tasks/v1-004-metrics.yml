@@ -3,7 +3,7 @@ id: V1-004
 title: Persist bounded Planner, Worker, allocation, and Stage metrics
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: complete
 depends_on: [MVP-015]
 languages: [go, python, sql]
 
@@ -90,3 +90,24 @@ tests:
   - {name: runtime-metrics, command: "cd runtime && uv run pytest tests/test_metrics.py", covers: [A1, A2]}
   - {name: server-metrics, command: "go test ./internal/telemetry/... ./internal/scheduler/... -run Metrics", covers: [A2, A3, A4, A5]}
   - {name: metrics-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A3, A4, A5]}
+
+completion:
+  implementation:
+    - Python ADK State accumulates allocation-wide model, token, tool, timing, outcome, and bounded diagnostic records without retaining tool results or artifact bytes.
+    - Runtime Agent returns one idempotent AllocationFinalReport that separates the Worker ExecutionReport from Runtime lifecycle facts.
+    - passthrough@1 emits a bounded Planner report for its A2A invocation; Scheduler stores incomplete Planner or Worker placeholders when a participant report is unavailable.
+    - Control Plane independently redacts configured secrets, auth/payload fields, and credential-bearing URLs before persistence.
+    - PostgreSQL stores immutable allocation and Planner reports, regenerates idempotent StageMetrics aggregates, and exposes a bounded terminal-only 30-day cleanup operation.
+    - Public Run status includes only a safe aggregate summary and never diagnostic arguments, error messages, report IDs, or allocation/session identities.
+  durable_schema:
+    migration: internal/persistence/migrations/000006_metrics.sql
+    retention: 30 days, terminal StageExecution only, caller-selected bounded batches.
+  verified_by:
+    - cd runtime && uv run pytest tests/test_metrics.py
+    - go test ./internal/telemetry/... ./internal/scheduler/... -run Metrics
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - make test-control-integration
+    - make test-artifact-integration
+    - cd runtime && CONTRACTOR_LIVE_LLM_GATEWAY_URL=http://... CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN=... CONTRACTOR_LIVE_LLM_MODEL=worker-model uv run pytest tests/test_live_gateway.py
+    - make verify

@@ -26,6 +26,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -155,6 +156,7 @@ func RunCLI(
 		scheduler.Options{
 			OperationTimeout: cfg.RuntimeRequestTimeout,
 			RuntimeSettings:  runtimeSettings,
+			TelemetrySecrets: []string{cfg.DatabaseURL, cfg.PublicBearerToken.Reveal()},
 			Logger:           logger,
 		},
 	)
@@ -163,6 +165,7 @@ func RunCLI(
 	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Config: snapshot, Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
+		Metrics:      telemetry.NewRepository(pool),
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,
 		RunNotifier: workflowScheduler,

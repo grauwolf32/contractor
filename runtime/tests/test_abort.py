@@ -34,9 +34,10 @@ def test_abort_is_idempotent_and_returns_cached_metrics(tmp_path: Path) -> None:
         second = await service.abort(request)
 
         assert second == first
-        assert first.report.complete
-        assert first.report.counters == {"llm_calls": 1}
-        assert [error.code for error in first.report.errors] == ["user_cancelled"]
+        assert first.report.worker.complete
+        assert first.report.runtime.complete
+        assert first.report.worker.metrics.model_calls == 1
+        assert [error.code for error in first.report.worker.errors] == ["user_cancelled"]
         assert (await state.snapshot()).process_state is ProcessState.DRAINING
         assert not (await service.snapshot()).has_worker  # type: ignore[union-attr]
 
