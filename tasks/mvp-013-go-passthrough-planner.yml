@@ -3,7 +3,7 @@ id: MVP-013
 title: Implement the Go PassthroughPlanner and A2A client adapter
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-002, MVP-004, MVP-007, MVP-012]
 languages: [go]
 

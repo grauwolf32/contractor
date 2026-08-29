@@ -26,7 +26,7 @@ test-config:
 
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
-	go test -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/artifacts ./internal/httpapi/public
+	go test -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session
 
 test-mtls:
 	go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...
