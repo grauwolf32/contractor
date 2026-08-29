@@ -3,7 +3,7 @@ id: MVP-011
 title: Add the allocation-bound private Artifact API and selected Runtime tools
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-002, MVP-005, MVP-008, MVP-010]
 languages: [go, python]
 

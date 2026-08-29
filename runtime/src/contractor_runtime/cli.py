@@ -9,6 +9,7 @@ import signal
 from collections.abc import Callable, Sequence
 
 from contractor_runtime.allocation import AllocationService
+from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.log import configure_logging
@@ -49,7 +50,17 @@ async def serve(
     control = ControlClient(settings, runtime_state, control_transport)
     allocation_service = AllocationService(
         runtime_state,
-        built_in_factories(settings.work_root),
+        built_in_factories(
+            settings.work_root,
+            artifact_client_factory=lambda allocation_id, runtime_settings: ArtifactClient(
+                allocation_id,
+                MTLSArtifactTransport(
+                    runtime_settings.artifact_api_url,
+                    outgoing_tls,
+                    runtime_settings.request_timeout_seconds,
+                ),
+            ),
+        ),
         a2a_base_url=settings.advertised_a2a_url,
     )
     application = create_app(runtime_state, allocation_service=allocation_service)

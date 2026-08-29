@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -34,6 +34,9 @@ test-mtls:
 
 test-control-integration:
 	go test -tags=integration -count=1 ./internal/controlplane -run TestCrossLanguageMTLSAllocationLifecycle
+
+test-artifact-integration:
+	go test -tags=integration -count=1 ./internal/httpapi/privateartifacts -run TestCrossLanguagePrivateArtifactLifecycle
 
 test: test-go test-runtime
 

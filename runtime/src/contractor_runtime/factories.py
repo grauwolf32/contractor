@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ResolvedAgentTemplate, RuntimeSettings
+from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 
@@ -62,6 +64,7 @@ class ToolsetFactory(Protocol):
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
+        state: Any,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -85,9 +88,12 @@ class FactoryRegistry:
         _validate_registry("SandboxProfile", self.sandbox_profiles)
 
 
-def built_in_factories(work_root: Path) -> FactoryRegistry:
+def built_in_factories(
+    work_root: Path,
+    artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = None,
+) -> FactoryRegistry:
     runtime = StubADKWorkerRuntimeFactory()
-    toolset = RunArtifactsToolsetFactory()
+    toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
@@ -132,35 +138,6 @@ class StubWorkerRuntime:
 
     async def abort(self, deadline: datetime) -> None:
         self.stopped = True
-
-
-class RunArtifactsToolsetFactory:
-    ref = "run-artifacts@1"
-    exported_tools = frozenset({"list_artifacts", "read_artifact", "write_artifact"})
-
-    async def create_selected(
-        self,
-        *,
-        selected: Sequence[str],
-        allocation_id: str,
-        run_id: str,
-        namespace: str,
-        runtime_settings: RuntimeSettings,
-        workspace: AllocationWorkspace,
-    ) -> Mapping[str, ToolInstance]:
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        return {name: StubTool(name=name, toolset_ref=self.ref) for name in selected}
-
-
-@dataclass(frozen=True, slots=True)
-class StubTool:
-    name: str
-    toolset_ref: str
-
-    async def close(self) -> None:
-        return None
 
 
 def _validate_registry(kind: str, entries: Mapping[str, Any]) -> None:

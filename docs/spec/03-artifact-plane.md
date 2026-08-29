@@ -114,6 +114,15 @@ The Server's private Artifact API authenticates the Runtime Agent through mTLS,
 binds the request to its active allocation and enforces the hard Run boundary,
 reserved-Namespace policy, byte limits and write preconditions.
 
+The initial private HTTP binding has one unambiguous write protocol. Creating a
+binding requires `If-None-Match: *`; updating it requires exactly one quoted,
+strong `If-Match` value containing the expected opaque revision. A PUT without
+one of those preconditions, a weak validator, or a list of validators is
+rejected. Successful reads return the resolved revision in `ETag`; successful
+writes return the same exact revision in both `ETag` and the versioned
+`ArtifactWriteResult`. The allocation ID is the only authority-bearing path
+value: neither URL nor body accepts a Run or User scope selector.
+
 Tool selection and Artifact authorization are independent checks. Selecting
 `write_artifact` only constructs and exposes that model tool; it never broadens
 the Server-side allocation grant. A grant likewise does not cause an

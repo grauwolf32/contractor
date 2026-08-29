@@ -55,6 +55,26 @@ type ArtifactWriteResult struct {
 	Size       int64       `json:"size"`
 }
 
+type ArtifactListResult struct {
+	APIVersion string        `json:"apiVersion"`
+	Artifacts  []ArtifactRef `json:"artifacts"`
+}
+
+func (r ArtifactListResult) Validate() error {
+	if err := validateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	for _, artifact := range r.Artifacts {
+		if err := artifact.Validate(); err != nil {
+			return err
+		}
+		if artifact.Revision != nil {
+			return invalidf("listed artifact refs must be versionless")
+		}
+	}
+	return nil
+}
+
 func (r ArtifactWriteResult) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err

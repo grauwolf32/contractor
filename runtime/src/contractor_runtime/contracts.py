@@ -465,6 +465,16 @@ class ArtifactWriteResult(ArtifactReadResult):
     pass
 
 
+class ArtifactListResult(VersionedWireModel):
+    artifacts: list[ArtifactRef]
+
+    @model_validator(mode="after")
+    def validate_artifacts(self) -> Self:
+        if any(artifact.revision is not None for artifact in self.artifacts):
+            raise ValueError("listed artifact refs must be versionless")
+        return self
+
+
 class StageContentRequest(VersionedWireModel):
     objective: str
     instructions: str

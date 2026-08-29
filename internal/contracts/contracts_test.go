@@ -23,6 +23,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"abort-allocation.json":             roundTrip[AbortAllocationRequest],
 		"release-allocation.json":           roundTrip[ReleaseAllocationRequest],
 		"artifact-read-result.json":         roundTrip[ArtifactReadResult],
+		"artifact-list-result.json":         roundTrip[ArtifactListResult],
 		"stage-content-request.json":        roundTrip[StageContentRequest],
 		"stage-content-result-success.json": roundTrip[StageContentResult],
 		"stage-content-result-failure.json": roundTrip[StageContentResult],

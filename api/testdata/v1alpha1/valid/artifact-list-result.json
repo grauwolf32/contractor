@@ -1,0 +1,7 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "artifacts": [
+    {"namespace": "analysis", "name": "report"},
+    {"namespace": "inputs", "name": "source"}
+  ]
+}
