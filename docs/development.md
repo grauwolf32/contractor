@@ -1,5 +1,25 @@
 # Local development
 
+## Implementation checkpoint
+
+As of 2026-08-29, implementation tasks through `V1-003` are complete. The
+repository contains the runnable Go Server/Python Runtime Agent MVP plus:
+
+- durable Run cancellation and bounded `aborting` cleanup;
+- symmetric 10-second heartbeat / 60-second confirmed allocation leases,
+  Runtime self-fencing, and two-phase release reconciliation;
+- validated serial multi-Stage Workflow graphs and explicit bounded retry;
+- one immutable PostgreSQL transition decision per completed StageExecution,
+  atomically committed with either the next/retry execution or terminal Run;
+- fresh exact StageContext artifact pins for every retry attempt.
+
+The next planned task is [`V1-004`](../tasks/v1-004-metrics.yml), which adds
+durable metric aggregates and retention. `V1-005` race/security hardening and
+the `streamline@1` Planner in `V1-006` remain pending. The authoritative task
+status is [`tasks/index.yml`](../tasks/index.yml); detailed V1-003 completion
+evidence is recorded in
+[`v1-003-retry-multistage.yml`](../tasks/v1-003-retry-multistage.yml).
+
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
 creates a temporary deployment CA, uses an isolated PostgreSQL schema, and

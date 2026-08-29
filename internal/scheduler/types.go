@@ -60,13 +60,35 @@ type ContextPin struct {
 	Ref  contracts.ArtifactRef
 }
 
-type ResultAcceptance struct {
-	RunID              string
-	StageExecutionID   string
-	Result             contracts.StageContentResult
-	WorkflowOutputs    map[string]string
-	OutputContracts    map[string]workflowconfig.ArtifactSlot
-	ExpectedRunOutcome runstore.WorkflowRunState
+type NextStageCreation struct {
+	Params      runstore.CreateStageExecutionParams
+	ContextPins []ContextPin
+}
+
+// StageProgression is the complete post-Stage policy decision. NextStage is
+// present exactly for next/retry; TerminalRunState is present exactly for
+// succeed/fail. Persistence commits the decision together with the target
+// StageExecution or terminal WorkflowRun transition.
+type StageProgression struct {
+	Decision         runstore.RecordStageTransitionDecisionParams
+	NextStage        *NextStageCreation
+	TerminalRunState runstore.WorkflowRunState
+	RunReason        runstore.Reason
+}
+
+type ResultProgression struct {
+	RunID            string
+	StageExecutionID string
+	Result           contracts.StageContentResult
+	WorkflowOutputs  map[string]string
+	OutputContracts  map[string]workflowconfig.ArtifactSlot
+	Progression      StageProgression
+}
+
+type TerminationProgression struct {
+	RunID            string
+	StageExecutionID string
+	Progression      StageProgression
 }
 
 // AtomicPersistence is deliberately high-level: implementations either commit
@@ -78,13 +100,14 @@ type AtomicPersistence interface {
 		[]ContextPin,
 	) (runstore.StageExecution, error)
 	EnterFinalizingWithResult(context.Context, runstore.EnterFinalizingParams) error
-	AcceptResultAndFinishRun(context.Context, ResultAcceptance) error
+	CommitResultProgression(context.Context, ResultProgression) error
 	AcceptResultDuringCancellation(
 		context.Context,
 		string,
 		string,
 		contracts.StageContentResult,
 	) error
+	CommitTerminationProgression(context.Context, TerminationProgression) error
 	CommitTerminationAndFinishRun(
 		context.Context,
 		string,

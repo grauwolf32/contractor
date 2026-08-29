@@ -64,6 +64,20 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 }
 
+func TestWorkflowExamplesLoad(t *testing.T) {
+	for _, name := range []string{"bounded_retry_workflow.yaml", "multi_stage_workflow.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			root := copyConfigTree(t)
+			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))
+			writeFile(t, filepath.Join(root, "workflows", name), example)
+			snapshot := mustLoad(t, root, MVPDescriptors())
+			if snapshot.Counts().Workflows != 2 {
+				t.Fatalf("example Workflow count = %d", snapshot.Counts().Workflows)
+			}
+		})
+	}
+}
+
 func TestStoredFixtures(t *testing.T) {
 	t.Parallel()
 
@@ -273,6 +287,140 @@ func TestToolsetVisibleNameCollision(t *testing.T) {
 		t.Fatalf("Load() = (%v, %v), want collision error", snapshot, err)
 	}
 }
+
+func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
+	t.Parallel()
+	root := copyConfigTree(t)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(multiStageWorkflowYAML))
+
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := workflow.Stages["build"].On.Failed.Retry
+	if len(workflow.Stages) != 2 || retry == nil || retry.MaxAttempts != 3 ||
+		retry.Then.Kind != TransitionNext || retry.Then.NextStage != "review" {
+		t.Fatalf("resolved multi-Stage Workflow = %+v", workflow)
+	}
+}
+
+func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
+	t.Parallel()
+	root := copyConfigTree(t)
+	cyclic := strings.Replace(
+		multiStageWorkflowYAML,
+		"    review:\n"+reviewStageYAML,
+		"    review:\n"+strings.Replace(reviewStageYAML, "succeed: {}", "next: build", 1),
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(cyclic))
+
+	snapshot, err := Load(root, MVPDescriptors())
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "Cycle") {
+		t.Fatalf("Load(cycle) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
+	t.Parallel()
+	root := copyConfigTree(t)
+	workflow := multiStageWorkflowYAML + "    orphan:\n" + reviewStageYAML
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := Load(root, MVPDescriptors())
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "unreachable") {
+		t.Fatalf("Load(unreachable) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T) {
+	t.Parallel()
+	root := copyConfigTree(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"      workflowOutputs:\n        result: copied\n",
+		"",
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := Load(root, MVPDescriptors())
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "without required output") {
+		t.Fatalf("Load(missing output path) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
+	t.Parallel()
+
+	root := copyConfigTree(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"          copied: {required: true, mediaTypes: [text/plain]}\n      workflowOutputs:",
+		"          copied: {required: false, mediaTypes: [text/plain]}\n      workflowOutputs:",
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "without required output") {
+		t.Fatalf("Load() = (%v, %v), want required output error", snapshot, err)
+	}
+}
+
+const multiStageWorkflowYAML = `apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: artifact-copy
+  version: "1"
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [text/plain]}
+  outputs:
+    result: {required: true, mediaTypes: [text/plain]}
+  entryStage: build
+  stages:
+    build:
+      objective: Build a candidate
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        builder: {template: artifact_builder@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain]}
+      on:
+        succeeded: {next: review}
+        failed:
+          retry:
+            maxAttempts: 3
+            then: {next: review}
+        interrupted: {fail: {}}
+    review:
+` + reviewStageYAML
+
+const reviewStageYAML = `      objective: Review the candidate
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        reviewer: {template: artifact_builder@1, namespace: builder}
+      context:
+        artifacts:
+          candidate: {namespace: builder, name: copied, required: true}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain]}
+      workflowOutputs:
+        result: copied
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
+`
 
 func mustLoad(t *testing.T, root string, descriptors Descriptors) *Snapshot {
 	t.Helper()

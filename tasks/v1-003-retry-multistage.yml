@@ -3,7 +3,8 @@ id: V1-003
 title: Add validated multi-Stage transitions and bounded retry
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: completed
+completed_on: 2026-08-29
 depends_on: [MVP-015, V1-001]
 languages: [go]
 
@@ -80,3 +81,23 @@ tests:
   - {name: workflow-graph, command: "go test ./internal/config/... -run 'Graph|Transition|Cycle'", covers: [A5]}
   - {name: scheduler-retry, command: "go test -race ./internal/scheduler/... -run 'Retry|MultiStage'", covers: [A1, A2, A3, A4]}
   - {name: retry-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A3, A4]}
+
+completion:
+  implementation:
+    - Resolved Workflow snapshots are revalidated as reachable acyclic serial graphs before execution.
+    - Scheduler executes one active StageExecution at a time and follows next, retry, succeed, and fail decisions.
+    - Every retry has a new immutable StageExecution, direct lineage, fresh exact StageContext pins, allocation, and Planner session.
+    - PostgreSQL records the source decision and creates its target StageExecution atomically; cancellation wins on the locked WorkflowRun row and creates no target.
+    - Successful Stage output mappings are committed at each Stage, and terminal Run progression verifies and freezes Workflow outputs.
+  durable_schema:
+    migration: internal/persistence/migrations/000005_stage_transition_decisions.sql
+    decision_identity: One immutable decision per source StageExecution.
+  examples:
+    - configs/examples/bounded_retry_workflow.yaml
+    - configs/examples/multi_stage_workflow.yaml
+  verified_by:
+    - go test -race ./internal/scheduler/... -run 'Retry|MultiStage'
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - go test -race ./...
+    - make verify

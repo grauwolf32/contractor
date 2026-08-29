@@ -403,6 +403,208 @@ func TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort(t *testing.T) 
 	}
 }
 
+func TestSchedulerRetryCreatesThreeFreshAttemptsBeforeSuccess(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	harness.artifacts.current["run-1/inputs/source"] = "input-r1"
+	harness.artifacts.values["run-1/inputs/source/input-r2"] = ResolvedArtifact{
+		Ref: exactRef("inputs", "source", "input-r2"), MediaType: "text/plain",
+	}
+	harness.planners.runErrors = []error{
+		planner.NewError("transient_one", "first transient failure", true, nil),
+		planner.NewError("transient_two", "second transient failure", true, nil),
+		nil,
+	}
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		if harness.planners.runCalls == 1 {
+			harness.artifacts.current["run-1/inputs/source"] = "input-r2"
+		}
+	}
+
+	for iteration := 0; iteration < 3; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 3 {
+		t.Fatalf("retry terminal state = run:%s stages:%+v", harness.store.run.State, harness.store.stages)
+	}
+	for index, execution := range harness.store.stages {
+		if execution.Attempt != index+1 {
+			t.Fatalf("attempt[%d] = %d", index, execution.Attempt)
+		}
+		if index == 0 && execution.PreviousExecutionID != nil {
+			t.Fatalf("first attempt has previous execution: %v", execution.PreviousExecutionID)
+		}
+		if index > 0 && (execution.PreviousExecutionID == nil ||
+			*execution.PreviousExecutionID != harness.store.stages[index-1].StageExecutionID) {
+			t.Fatalf("attempt[%d] lineage = %v", index, execution.PreviousExecutionID)
+		}
+	}
+	firstRef := harness.store.stages[0].StageContext.Artifacts["source"].Artifact
+	secondRef := harness.store.stages[1].StageContext.Artifacts["source"].Artifact
+	if firstRef == nil || secondRef == nil || firstRef.Revision == nil || secondRef.Revision == nil ||
+		*firstRef.Revision != "input-r1" || *secondRef.Revision != "input-r2" {
+		t.Fatalf("fresh retry contexts = first:%+v second:%+v", firstRef, secondRef)
+	}
+	if got := []runstore.StageTransitionAction{
+		harness.persistence.decisions[0].Action,
+		harness.persistence.decisions[1].Action,
+		harness.persistence.decisions[2].Action,
+	}; !reflect.DeepEqual(got, []runstore.StageTransitionAction{
+		runstore.StageTransitionRetry, runstore.StageTransitionRetry, runstore.StageTransitionSucceed,
+	}) {
+		t.Fatalf("retry decisions = %v", got)
+	}
+}
+
+func TestSchedulerRetryNonRetryableFailureExecutesThenImmediately(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	harness.planners.runErrors = []error{
+		planner.NewError("permanent", "permanent failure", false, nil),
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 1 ||
+		harness.persistence.decisions[0].Action != runstore.StageTransitionFail {
+		t.Fatalf("non-retryable progression = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerRetryExhaustionFailsAfterMaximumAttempts(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	failure := planner.NewError("still_unavailable", "transient failure persisted", true, nil)
+	harness.planners.runErrors = []error{failure, failure, failure}
+
+	for iteration := 0; iteration < 3; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 3 ||
+		len(harness.persistence.decisions) != 3 ||
+		harness.persistence.decisions[2].Action != runstore.StageTransitionFail {
+		t.Fatalf("exhausted retry = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerRetryCancellationPreventsNewAttempt(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	harness.planners.runErrors = []error{
+		planner.NewError("transient", "retry would otherwise be eligible", true, nil),
+	}
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("cancel before retry decision")
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("cancel/retry race = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureMultiStageWorkflow(t, harness)
+	harness.artifacts.current["run-1/builder/copied"] = "result-r1"
+
+	for iteration := 0; iteration < 2; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].StageName != "build" || harness.store.stages[1].StageName != "review" ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		harness.store.stages[1].State != runstore.StageSucceeded {
+		t.Fatalf("multi-Stage lifecycle = run:%s stages:%+v", harness.store.run.State, harness.store.stages)
+	}
+	draft := harness.store.stages[1].StageContext.Artifacts["draft"].Artifact
+	if draft == nil || draft.Revision == nil || draft.Namespace != "builder" || *draft.Revision != "result-r1" {
+		t.Fatalf("later Stage context = %+v", draft)
+	}
+	if got := []runstore.StageTransitionAction{
+		harness.persistence.decisions[0].Action,
+		harness.persistence.decisions[1].Action,
+	}; !reflect.DeepEqual(got, []runstore.StageTransitionAction{
+		runstore.StageTransitionNext, runstore.StageTransitionSucceed,
+	}) {
+		t.Fatalf("multi-Stage decisions = %v", got)
+	}
+}
+
+func configureRetryWorkflow(t *testing.T, harness *schedulerHarness, maxAttempts int) {
+	t.Helper()
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	retry := workflowconfig.TransitionAction{
+		Kind: workflowconfig.TransitionRetry,
+		Retry: &workflowconfig.RetryTransition{
+			MaxAttempts: maxAttempts,
+			Then:        workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail},
+		},
+	}
+	stage.On.Failed = retry
+	stage.On.Interrupted = retry
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
+	installHarnessWorkflow(t, harness)
+}
+
+func configureMultiStageWorkflow(t *testing.T, harness *schedulerHarness) {
+	t.Helper()
+	encodedStage, err := json.Marshal(harness.workflow.Stages[harness.workflow.EntryStage])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var build workflowconfig.ResolvedStage
+	var review workflowconfig.ResolvedStage
+	if err := json.Unmarshal(encodedStage, &build); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(encodedStage, &review); err != nil {
+		t.Fatal(err)
+	}
+	build.WorkflowOutputs = map[string]string{}
+	build.On.Succeeded = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionNext, NextStage: "review"}
+	review.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+		"draft": {Namespace: "builder", Name: "copied", Required: true},
+	}
+	harness.workflow.EntryStage = "build"
+	harness.workflow.Stages = map[string]workflowconfig.ResolvedStage{"build": build, "review": review}
+	installHarnessWorkflow(t, harness)
+}
+
+func installHarnessWorkflow(t *testing.T, harness *schedulerHarness) {
+	t.Helper()
+	if err := workflowconfig.ValidateWorkflowGraph(harness.workflow); err != nil {
+		t.Fatalf("test Workflow graph: %v", err)
+	}
+	encoded, err := json.Marshal(harness.workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.store.run.WorkflowSnapshot = encoded
+	harness.allocator.workflow = harness.workflow
+}
+
 type schedulerHarness struct {
 	t           *testing.T
 	workflow    workflowconfig.ResolvedWorkflow
@@ -720,6 +922,7 @@ type memoryAtomicPersistence struct {
 	events      *eventRecorder
 	outputs     map[string]contracts.ArtifactRef
 	stageStates []runstore.StageExecutionState
+	decisions   []runstore.StageTransitionDecision
 }
 
 func (p *memoryAtomicPersistence) CreateStageWithContext(
@@ -769,39 +972,91 @@ func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 	return runstore.ErrConflict
 }
 
-func (p *memoryAtomicPersistence) AcceptResultAndFinishRun(
-	_ context.Context, acceptance ResultAcceptance,
+func (p *memoryAtomicPersistence) CommitResultProgression(
+	_ context.Context, value ResultProgression,
 ) error {
-	if err := validateAcceptance(acceptance); err != nil {
+	if err := validateResultProgression(value); err != nil {
 		return err
 	}
 	if p.store.run.State != runstore.RunRunning {
 		return runstore.ErrConflict
 	}
 	for index := range p.store.stages {
-		if p.store.stages[index].StageExecutionID != acceptance.StageExecutionID ||
+		if p.store.stages[index].StageExecutionID != value.StageExecutionID ||
 			p.store.stages[index].State != runstore.StageFinalizing {
 			continue
 		}
-		result := cloneStageResult(acceptance.Result)
+		result := cloneStageResult(value.Result)
 		p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
 		p.store.stages[index].AcceptedResult = &result
 		p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
 		p.stageStates = append(p.stageStates, p.store.stages[index].State)
 		if result.Outcome == contracts.StageSucceeded {
-			for output, resultName := range acceptance.WorkflowOutputs {
+			for output, resultName := range value.WorkflowOutputs {
 				if source, ok := result.Artifacts[resultName]; ok {
 					revision := "output-" + *source.Revision
 					p.outputs[output] = exactRef("outputs", output, revision)
 				}
 			}
 		}
-		p.store.run.State = acceptance.ExpectedRunOutcome
-		p.store.claimID = ""
+		p.commitProgression(value.Progression)
 		p.events.add("accept")
 		return nil
 	}
 	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) CommitTerminationProgression(
+	_ context.Context,
+	value TerminationProgression,
+) error {
+	if err := validateTerminationProgression(value); err != nil {
+		return err
+	}
+	if value.RunID != p.store.run.RunID || p.store.run.State != runstore.RunRunning {
+		return runstore.ErrConflict
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == value.StageExecutionID &&
+			p.store.stages[index].State == runstore.StageAborting {
+			terminal := runstore.StageExecutionState(p.store.stages[index].Termination.Outcome)
+			p.store.stages[index].State = terminal
+			p.stageStates = append(p.stageStates, runstore.StageAborting, terminal)
+			p.commitProgression(value.Progression)
+			p.events.add("commit_termination")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
+	decision := runstore.StageTransitionDecision{
+		SourceExecutionID: value.Decision.SourceExecutionID,
+		RunID:             value.Decision.RunID,
+		Action:            value.Decision.Action,
+		TargetStageName:   value.Decision.TargetStageName,
+		TargetExecutionID: value.Decision.TargetExecutionID,
+	}
+	p.decisions = append(p.decisions, decision)
+	if value.NextStage != nil {
+		params := value.NextStage.Params
+		p.store.stages = append(p.store.stages, runstore.StageExecution{
+			StageExecutionID: params.StageExecutionID, RunID: params.RunID,
+			StageName: params.StageName, Attempt: params.Attempt,
+			PreviousExecutionID:       params.PreviousExecutionID,
+			StageSpecSchemaVersion:    params.StageSpecSchemaVersion,
+			StageSpecSnapshot:         params.StageSpecSnapshot,
+			StageContextSchemaVersion: params.StageContextSchemaVersion,
+			StageContext:              params.StageContext, State: runstore.StagePreparing,
+		})
+		p.stageStates = append(p.stageStates, runstore.StagePreparing)
+	}
+	if value.TerminalRunState != "" {
+		p.store.run.State = value.TerminalRunState
+		p.store.run.StateReason = value.RunReason
+		p.store.claimID = ""
+	}
 }
 
 func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
@@ -880,15 +1135,16 @@ func (r *memoryArtifactResolver) Resolve(
 }
 
 type memoryAllocator struct {
-	workflow     workflowconfig.ResolvedWorkflow
-	clock        staticClock
-	events       *eventRecorder
-	grants       map[string]controlplane.AllocationGrant
-	cached       []controlplane.Reservation
-	fenced       map[string]bool
-	reserveCalls int
-	reserveError error
-	losses       []controlplane.AllocationLoss
+	workflow           workflowconfig.ResolvedWorkflow
+	clock              staticClock
+	events             *eventRecorder
+	grants             map[string]controlplane.AllocationGrant
+	cached             []controlplane.Reservation
+	fenced             map[string]bool
+	reserveCalls       int
+	allocationSequence int
+	reserveError       error
+	losses             []controlplane.AllocationLoss
 }
 
 func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -897,8 +1153,8 @@ func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([
 	if a.reserveError != nil {
 		return nil, a.reserveError
 	}
-	if len(a.cached) == 0 {
-		a.cached = []controlplane.Reservation{a.reservation(request.StageExecutionID)}
+	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != request.StageExecutionID {
+		a.cached = []controlplane.Reservation{a.reservationForRequest(request)}
 		for _, reservation := range a.cached {
 			a.grants[reservation.Grant.AllocationID] = reservation.Grant
 		}
@@ -906,18 +1162,29 @@ func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([
 	return append([]controlplane.Reservation(nil), a.cached...), nil
 }
 
-func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Reservation {
-	binding := a.workflow.Stages[a.workflow.EntryStage].Agents["builder"]
+func (a *memoryAllocator) reservationForRequest(request controlplane.ReservationRequest) controlplane.Reservation {
+	a.allocationSequence++
+	binding := request.Bindings[0]
 	return controlplane.Reservation{
 		Grant: controlplane.AllocationGrant{
-			AllocationID: "allocation-1", RuntimeInstanceID: "runtime-1",
-			RunID: "run-1", StageExecutionID: stageExecutionID,
-			LogicalAgentName: "builder", Namespace: binding.Namespace,
+			AllocationID: fmt.Sprintf("allocation-%d", a.allocationSequence), RuntimeInstanceID: "runtime-1",
+			RunID: request.RunID, StageExecutionID: request.StageExecutionID,
+			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
-		AgentTemplate: binding.Template, LeaseExpiresAt: a.clock.now.Add(time.Minute),
+		AgentTemplate: binding.AgentTemplate, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 	}
+}
+
+func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Reservation {
+	binding := a.workflow.Stages[a.workflow.EntryStage].Agents["builder"]
+	return a.reservationForRequest(controlplane.ReservationRequest{
+		RunID: "run-1", StageExecutionID: stageExecutionID,
+		Bindings: []controlplane.BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
+		}},
+	})
 }
 
 func (a *memoryAllocator) GetGrant(allocationID string) (controlplane.AllocationGrant, error) {
@@ -948,6 +1215,9 @@ func (a *memoryAllocator) Release(allocationID string) error {
 		return controlplane.ErrAllocationNotFound
 	}
 	delete(a.grants, allocationID)
+	if len(a.cached) > 0 && a.cached[0].Grant.AllocationID == allocationID {
+		a.cached = nil
+	}
 	return nil
 }
 
@@ -1030,12 +1300,15 @@ func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplan
 	for _, reservation := range reservations {
 		delete(w.allocator.grants, reservation.Grant.AllocationID)
 	}
+	w.allocator.cached = nil
 	return nil
 }
 
 type memoryPlannerRegistry struct {
 	store       *memorySchedulerStore
 	result      contracts.StageContentResult
+	results     []contracts.StageContentResult
+	runErrors   []error
 	events      *eventRecorder
 	createCalls int
 	runCalls    int
@@ -1066,6 +1339,13 @@ func (r *memoryPlannerRegistry) Create(
 			r.onRun()
 		}
 		r.events.add("planner")
+		callIndex := r.runCalls - 1
+		if callIndex < len(r.runErrors) && r.runErrors[callIndex] != nil {
+			return contracts.StageContentResult{}, r.runErrors[callIndex]
+		}
+		if callIndex < len(r.results) {
+			return cloneStageResult(r.results[callIndex]), nil
+		}
 		return cloneStageResult(r.result), nil
 	}), nil
 }

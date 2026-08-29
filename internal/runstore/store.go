@@ -26,6 +26,9 @@ type Repository interface {
 	CreateStageExecution(context.Context, CreateStageExecutionParams) (StageExecution, error)
 	GetStageExecution(context.Context, string) (StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]StageExecution, error)
+	RecordStageTransitionDecision(context.Context, RecordStageTransitionDecisionParams) (StageTransitionDecision, error)
+	GetStageTransitionDecision(context.Context, string) (StageTransitionDecision, error)
+	ListStageTransitionDecisions(context.Context, string) ([]StageTransitionDecision, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]StageExecution, error)
 	StartPlanner(context.Context, StartPlannerParams) error
 	EnterFinalizing(context.Context, EnterFinalizingParams) error

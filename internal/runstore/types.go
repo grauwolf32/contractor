@@ -193,6 +193,35 @@ type StageExecution struct {
 	TerminalAt                   *time.Time
 }
 
+// StageTransitionAction is the durable Scheduler decision made after one
+// StageExecution reaches a semantic terminal outcome. A next/retry decision
+// identifies the newly-created execution in the same transaction.
+type StageTransitionAction string
+
+const (
+	StageTransitionNext    StageTransitionAction = "next"
+	StageTransitionRetry   StageTransitionAction = "retry"
+	StageTransitionSucceed StageTransitionAction = "succeed"
+	StageTransitionFail    StageTransitionAction = "fail"
+)
+
+type StageTransitionDecision struct {
+	SourceExecutionID string
+	RunID             string
+	Action            StageTransitionAction
+	TargetStageName   *string
+	TargetExecutionID *string
+	DecidedAt         time.Time
+}
+
+type RecordStageTransitionDecisionParams struct {
+	SourceExecutionID string
+	RunID             string
+	Action            StageTransitionAction
+	TargetStageName   *string
+	TargetExecutionID *string
+}
+
 type StartPlannerParams struct {
 	StageExecutionID   string
 	SessionID          string

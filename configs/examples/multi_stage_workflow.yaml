@@ -1,0 +1,82 @@
+# Copy this file under configs/workflows/ to load it. It reuses the example
+# artifact_builder@1 AgentTemplate and instruction resources in this repository.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: artifact-build-review
+  version: "1"
+
+spec:
+  parameters:
+    objective:
+      required: false
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  entryStage: build
+  stages:
+    build:
+      objective: Build a draft from the source artifact
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          draft:
+            required: true
+            mediaTypes: [text/plain]
+      on:
+        succeeded:
+          next: review
+        failed:
+          fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+
+    review:
+      objective: Review the draft and produce the final result
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          draft:
+            namespace: builder
+            name: copied
+            required: true
+      result:
+        artifacts:
+          reviewed:
+            required: true
+            mediaTypes: [text/plain]
+      workflowOutputs:
+        result: reviewed
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

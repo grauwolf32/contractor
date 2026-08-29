@@ -145,11 +145,11 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	err := fixture.persistence.AcceptResultAndFinishRun(ctx, ResultAcceptance{
+	err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
-		WorkflowOutputs:    fixture.workflow.Stages["copy"].WorkflowOutputs,
-		OutputContracts:    fixture.workflow.Outputs,
-		ExpectedRunOutcome: runstore.RunSucceeded,
+		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
+		OutputContracts: fixture.workflow.Outputs,
+		Progression:     terminalSuccessProgression("run-1", fixture.executionID),
 	})
 	if !errors.Is(err, runstore.ErrConflict) {
 		t.Fatalf("acceptance error = %v, want Run CAS conflict", err)
@@ -200,11 +200,11 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	go func() {
 		defer wait.Done()
 		<-start
-		acceptanceResult <- fixture.persistence.AcceptResultAndFinishRun(ctx, ResultAcceptance{
+		acceptanceResult <- fixture.persistence.CommitResultProgression(ctx, ResultProgression{
 			RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
-			WorkflowOutputs:    fixture.workflow.Stages["copy"].WorkflowOutputs,
-			OutputContracts:    fixture.workflow.Outputs,
-			ExpectedRunOutcome: runstore.RunSucceeded,
+			WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
+			OutputContracts: fixture.workflow.Outputs,
+			Progression:     terminalSuccessProgression("run-1", fixture.executionID),
 		})
 	}()
 	go func() {
@@ -256,6 +256,128 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 		}
 	default:
 		t.Fatalf("unexpected race winner state %q", run.State)
+	}
+}
+
+func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	workflow := loadSchedulerWorkflow(t)
+	store := runstore.NewPostgresStore(pool)
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
+	persistence, err := NewPostgresPersistence(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stageJSON, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := "stage-retry-1"
+	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{"objective": "copy exactly"},
+			Artifacts: map[string]runstore.PinnedContextArtifact{
+				"source": {Required: true, Artifact: &original.Ref},
+			},
+		},
+	}, []ContextPin{{Name: "source", Ref: original.Ref}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	termination := runstore.StageTermination{
+		Outcome: runstore.TerminationInterrupted,
+		Code:    "runtime_unavailable", Message: "runtime unavailable", Retryable: true,
+		Phase: runstore.TerminationPreparing, OccurredAt: time.Now().UTC(),
+	}
+	if err := store.EnterAborting(ctx, runstore.EnterAbortingParams{
+		StageExecutionID: sourceID, ExpectedState: runstore.StagePreparing,
+		TerminationSchemaVersion: contracts.APIVersion, Termination: termination,
+		AbortID: "abort-retry-1", Deadline: time.Now().Add(time.Minute),
+		Reason: runstore.Reason{Code: "stage_interrupted"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	advanced, err := runArtifacts.Write(
+		ctx,
+		contracts.ArtifactRef{Namespace: "inputs", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("new source\n")},
+		original.Ref.Revision,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetID, targetStage := "stage-retry-2", workflow.EntryStage
+	previous := sourceID
+	err = persistence.CommitTerminationProgression(ctx, TerminationProgression{
+		RunID: "run-1", StageExecutionID: sourceID,
+		Progression: StageProgression{
+			Decision: runstore.RecordStageTransitionDecisionParams{
+				SourceExecutionID: sourceID, RunID: "run-1", Action: runstore.StageTransitionRetry,
+				TargetStageName: &targetStage, TargetExecutionID: &targetID,
+			},
+			NextStage: &NextStageCreation{
+				Params: runstore.CreateStageExecutionParams{
+					StageExecutionID: targetID, RunID: "run-1", StageName: targetStage,
+					Attempt: 2, PreviousExecutionID: &previous,
+					StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+					StageContextSchemaVersion: contracts.APIVersion,
+					StageContext: runstore.StageContextSnapshot{
+						Parameters: map[string]string{"objective": "copy exactly"},
+						Artifacts: map[string]runstore.PinnedContextArtifact{
+							"source": {Required: true, Artifact: &advanced.Ref},
+						},
+					},
+				},
+				ContextPins: []ContextPin{{Name: "source", Ref: advanced.Ref}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executions, err := store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 2 || executions[0].State != runstore.StageInterrupted ||
+		executions[1].State != runstore.StagePreparing || executions[1].Attempt != 2 ||
+		executions[1].PreviousExecutionID == nil || *executions[1].PreviousExecutionID != sourceID {
+		t.Fatalf("retry executions = (%+v, %v)", executions, err)
+	}
+	first := executions[0].StageContext.Artifacts["source"].Artifact
+	second := executions[1].StageContext.Artifacts["source"].Artifact
+	if first == nil || second == nil || first.Revision == nil || second.Revision == nil ||
+		*first.Revision == *second.Revision || *second.Revision != *advanced.Ref.Revision {
+		t.Fatalf("retry context revisions = first:%+v second:%+v", first, second)
+	}
+	decision, err := store.GetStageTransitionDecision(ctx, sourceID)
+	if err != nil || decision.Action != runstore.StageTransitionRetry ||
+		decision.TargetExecutionID == nil || *decision.TargetExecutionID != targetID {
+		t.Fatalf("retry decision = (%+v, %v)", decision, err)
+	}
+	run, err := store.GetRun(ctx, "run-1")
+	if err != nil || run.State != runstore.RunRunning {
+		t.Fatalf("retry Run = (%+v, %v)", run, err)
+	}
+}
+
+func terminalSuccessProgression(runID, sourceExecutionID string) StageProgression {
+	return StageProgression{
+		Decision: runstore.RecordStageTransitionDecisionParams{
+			SourceExecutionID: sourceExecutionID,
+			RunID:             runID,
+			Action:            runstore.StageTransitionSucceed,
+		},
+		TerminalRunState: runstore.RunSucceeded,
+		RunReason:        runstore.Reason{Code: "workflow_succeeded"},
 	}
 }
 

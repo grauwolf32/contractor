@@ -67,6 +67,15 @@ milestones:
       Cancellation, lease fencing, retry, metrics, race safety, and the first
       model-backed Streamline Planner satisfy the v2 first-slice contracts.
 
+current_checkpoint:
+  completed_through: V1-003
+  next_task: V1-004
+  summary: >-
+    The runnable MVP, bounded cancellation, symmetric confirmed allocation
+    leases, serial multi-Stage progression, and bounded retry are implemented.
+    Metrics aggregation/retention, the final race-security matrix, and the
+    Streamline Planner remain planned.
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}

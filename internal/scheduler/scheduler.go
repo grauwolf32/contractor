@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -353,10 +354,26 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 		if err != nil {
 			return err
 		}
-	} else if len(executions) == 1 {
-		execution = executions[0]
 	} else {
-		return s.failUnsupportedRun(ctx, run.RunID, fmt.Errorf("multiple StageExecutions are unsupported"))
+		active := make([]runstore.StageExecution, 0, 1)
+		for _, candidate := range executions {
+			switch candidate.State {
+			case runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageAborting:
+				active = append(active, candidate)
+			}
+		}
+		if len(active) != 1 {
+			return s.failInvalidRunState(
+				ctx,
+				run.RunID,
+				fmt.Errorf("running WorkflowRun has %d active StageExecutions", len(active)),
+			)
+		}
+		execution = active[0]
+		workflow, err = workflow.selectStage(execution.StageName)
+		if err != nil {
+			return s.failInvalidRunState(ctx, run.RunID, err)
+		}
 	}
 	if err := validatePersistedExecution(execution, run, workflow); err != nil {
 		return s.failInvalidRunState(ctx, run.RunID, err)
@@ -378,10 +395,8 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 		return s.resumeFinalizing(ctx, run, workflow, execution, nil)
 	case runstore.StageAborting:
 		return s.resumeAborting(ctx, run, workflow, execution, nil)
-	case runstore.StageInterrupted, runstore.StageCancelled:
-		return s.finishRunFromTerminalTermination(ctx, run, execution)
-	case runstore.StageSucceeded, runstore.StageFailed:
-		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("terminal Stage exists in a still-running MVP Run"))
+	case runstore.StageInterrupted, runstore.StageCancelled, runstore.StageSucceeded, runstore.StageFailed:
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("running WorkflowRun selected a terminal StageExecution"))
 	default:
 		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("unknown StageExecution state %q", execution.State))
 	}
@@ -420,6 +435,9 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 
 	execution := active[0]
 	var reservations []controlplane.Reservation
+	if workflowErr == nil {
+		workflow, workflowErr = workflow.selectStage(execution.StageName)
+	}
 	if workflowErr == nil {
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
@@ -491,9 +509,25 @@ func (s *Scheduler) createStageExecution(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 ) (runstore.StageExecution, error) {
+	creation, err := s.buildStageCreation(ctx, run, workflow, 1, nil)
+	if err != nil {
+		return runstore.StageExecution{}, err
+	}
+	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.persistence.CreateStageWithContext(operationContext, creation.Params, creation.ContextPins)
+}
+
+func (s *Scheduler) buildStageCreation(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	attempt int,
+	previousExecutionID *string,
+) (NextStageCreation, error) {
 	stageExecutionID, err := s.options.NewID("stage_execution_")
 	if err != nil {
-		return runstore.StageExecution{}, fmt.Errorf("generate StageExecution ID: %w", err)
+		return NextStageCreation{}, fmt.Errorf("generate StageExecution ID: %w", err)
 	}
 	contextSnapshot := runstore.StageContextSnapshot{
 		Parameters: cloneParameters(run.Parameters),
@@ -514,10 +548,10 @@ func (s *Scheduler) createStageExecution(
 			continue
 		}
 		if resolveErr != nil {
-			return runstore.StageExecution{}, fmt.Errorf("resolve StageContext artifact %q: %w", name, resolveErr)
+			return NextStageCreation{}, fmt.Errorf("resolve StageContext artifact %q: %w", name, resolveErr)
 		}
 		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name {
-			return runstore.StageExecution{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
+			return NextStageCreation{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
 		}
 		exact := cloneArtifactRef(resolved.Ref)
 		contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{
@@ -528,16 +562,15 @@ func (s *Scheduler) createStageExecution(
 	}
 	encodedStage, err := stageSnapshot(workflow.stage)
 	if err != nil {
-		return runstore.StageExecution{}, err
+		return NextStageCreation{}, err
 	}
-	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-	defer cancel()
-	return s.persistence.CreateStageWithContext(operationContext, runstore.CreateStageExecutionParams{
+	return NextStageCreation{Params: runstore.CreateStageExecutionParams{
 		StageExecutionID: stageExecutionID,
-		RunID:            run.RunID, StageName: workflow.stageName, Attempt: 1,
+		RunID:            run.RunID, StageName: workflow.stageName, Attempt: attempt,
+		PreviousExecutionID:    previousExecutionID,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: contextSnapshot,
-	}, pins)
+	}, ContextPins: pins}, nil
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {
@@ -1018,21 +1051,45 @@ func (s *Scheduler) resumeAborting(
 		cancelCommit()
 		return err
 	}
-	expected, next := runstore.RunRunning, runstore.RunFailed
-	reason := runstore.Reason{Code: execution.Termination.Code}
 	if current.State == runstore.RunCancelling {
-		expected, next = runstore.RunCancelling, runstore.RunCancelled
-		reason.Code = runstore.CancellationUserRequested
+		err = s.persistence.CommitTerminationAndFinishRun(
+			commitContext,
+			run.RunID,
+			execution.StageExecutionID,
+			runstore.RunCancelling,
+			runstore.RunCancelled,
+			runstore.Reason{Code: runstore.CancellationUserRequested},
+		)
+		cancelCommit()
+		if err != nil {
+			return err
+		}
+		_ = s.releaseTerminal(execution.StageExecutionID, reservations)
+		return nil
 	}
-	err = s.persistence.CommitTerminationAndFinishRun(
+	progression, err := s.buildProgression(
 		commitContext,
-		run.RunID,
-		execution.StageExecutionID,
-		expected,
-		next,
-		reason,
+		run,
+		workflow,
+		execution,
+		workflow.stage.On.Interrupted,
+		execution.Termination.Retryable,
+		execution.Termination.Code,
 	)
+	if err == nil {
+		err = s.persistence.CommitTerminationProgression(commitContext, TerminationProgression{
+			RunID: run.RunID, StageExecutionID: execution.StageExecutionID, Progression: progression,
+		})
+	}
 	cancelCommit()
+	if errors.Is(err, runstore.ErrConflict) {
+		stateContext, cancelState := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+		latest, loadErr := s.store.GetRun(stateContext, run.RunID)
+		cancelState()
+		if loadErr == nil && latest.State == runstore.RunCancelling {
+			return s.resumeAborting(ctx, latest, workflow, execution, reservations)
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -1080,19 +1137,30 @@ func (s *Scheduler) resumeFinalizing(
 	if current.State == runstore.RunCancelling {
 		return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
 	}
-	outcome := runstore.RunFailed
-	if execution.CandidateResult.Outcome == contracts.StageSucceeded {
-		outcome = runstore.RunSucceeded
+	action := workflow.stage.On.Succeeded
+	retryable := false
+	reasonCode := "workflow_succeeded"
+	if execution.CandidateResult.Outcome == contracts.StageFailed {
+		action = workflow.stage.On.Failed
+		retryable = execution.CandidateResult.Error != nil && execution.CandidateResult.Error.Retryable
+		reasonCode = "stage_failed"
+		if execution.CandidateResult.Error != nil {
+			reasonCode = execution.CandidateResult.Error.Code
+		}
 	}
 	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
-	err = s.persistence.AcceptResultAndFinishRun(commitContext, ResultAcceptance{
-		RunID:              run.RunID,
-		StageExecutionID:   execution.StageExecutionID,
-		Result:             cloneStageResult(*execution.CandidateResult),
-		WorkflowOutputs:    cloneStringMap(workflow.stage.WorkflowOutputs),
-		OutputContracts:    cloneArtifactSlots(workflow.workflow.Outputs),
-		ExpectedRunOutcome: outcome,
-	})
+	progression, err := s.buildProgression(
+		commitContext, run, workflow, execution, action, retryable, reasonCode,
+	)
+	if err == nil {
+		err = s.persistence.CommitResultProgression(commitContext, ResultProgression{
+			RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+			Result:          cloneStageResult(*execution.CandidateResult),
+			WorkflowOutputs: cloneStringMap(workflow.stage.WorkflowOutputs),
+			OutputContracts: cloneArtifactSlots(workflow.workflow.Outputs),
+			Progression:     progression,
+		})
+	}
 	cancelCommit()
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
@@ -1107,6 +1175,78 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	return nil
+}
+
+func (s *Scheduler) buildProgression(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	action workflowconfig.TransitionAction,
+	retryable bool,
+	reasonCode string,
+) (StageProgression, error) {
+	selected := action
+	if action.Kind == workflowconfig.TransitionRetry {
+		if action.Retry == nil {
+			return StageProgression{}, fmt.Errorf("retry Transition has no bounded policy")
+		}
+		if !retryable || execution.Attempt >= action.Retry.MaxAttempts {
+			selected = action.Retry.Then
+		}
+	}
+	decision := runstore.RecordStageTransitionDecisionParams{
+		SourceExecutionID: execution.StageExecutionID,
+		RunID:             run.RunID,
+	}
+	switch selected.Kind {
+	case workflowconfig.TransitionRetry:
+		targetWorkflow, err := workflow.selectStage(execution.StageName)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		previous := execution.StageExecutionID
+		creation, err := s.buildStageCreation(ctx, run, targetWorkflow, execution.Attempt+1, &previous)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		targetStage, targetExecution := creation.Params.StageName, creation.Params.StageExecutionID
+		decision.Action = runstore.StageTransitionRetry
+		decision.TargetStageName = &targetStage
+		decision.TargetExecutionID = &targetExecution
+		return StageProgression{Decision: decision, NextStage: &creation}, nil
+	case workflowconfig.TransitionNext:
+		targetWorkflow, err := workflow.selectStage(selected.NextStage)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		creation, err := s.buildStageCreation(ctx, run, targetWorkflow, 1, nil)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		targetStage, targetExecution := creation.Params.StageName, creation.Params.StageExecutionID
+		decision.Action = runstore.StageTransitionNext
+		decision.TargetStageName = &targetStage
+		decision.TargetExecutionID = &targetExecution
+		return StageProgression{Decision: decision, NextStage: &creation}, nil
+	case workflowconfig.TransitionSucceed:
+		decision.Action = runstore.StageTransitionSucceed
+		return StageProgression{
+			Decision: decision, TerminalRunState: runstore.RunSucceeded,
+			RunReason: runstore.Reason{Code: "workflow_succeeded"},
+		}, nil
+	case workflowconfig.TransitionFail:
+		if strings.TrimSpace(reasonCode) == "" {
+			reasonCode = "stage_failed"
+		}
+		decision.Action = runstore.StageTransitionFail
+		return StageProgression{
+			Decision: decision, TerminalRunState: runstore.RunFailed,
+			RunReason: runstore.Reason{Code: reasonCode},
+		}, nil
+	default:
+		return StageProgression{}, fmt.Errorf("unknown Workflow Transition action %q", selected.Kind)
+	}
 }
 
 func (s *Scheduler) acceptFinalizingDuringCancellation(
@@ -1251,6 +1391,9 @@ func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
 			return false, err
 		}
 		workflow, err := decodeExecutableWorkflow(run)
+		if err == nil {
+			workflow, err = workflow.selectStage(execution.StageName)
+		}
 		if err != nil || validatePersistedExecution(execution, run, workflow) != nil {
 			continue
 		}

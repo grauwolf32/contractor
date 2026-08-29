@@ -570,6 +570,17 @@ outer progression decision without pretending that Planner returned a semantic
 result, again only while the Run is `running`. In `cancelling`, terminal Stage
 outcomes contribute only to reaching Run quiescence.
 
+For every accepted StageResult or committed interrupted StageTermination while
+the Run remains `running`, Scheduler records one immutable transition decision
+keyed by the source `stage_execution_id`. The decision is exactly one of
+`next`, `retry`, `succeed`, or `fail`. A `next`/`retry` decision includes the
+target Stage name and newly created StageExecution ID; terminal decisions have
+no target. Completing the source execution, applying successful output
+mappings, recording this decision, and either creating/pinning the target
+execution or making the Run terminal are one database transaction. Recovery
+therefore observes either the old active source or the complete committed
+progression and never manufactures a second attempt for the same outcome.
+
 ## WorkflowRun lifecycle
 
 WorkflowRun has an explicit durable lifecycle:

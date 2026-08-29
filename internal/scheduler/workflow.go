@@ -41,46 +41,46 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot contains trailing JSON", ErrUnsupportedWorkflow)
 	}
 	if workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion ||
-		len(workflow.Stages) != 1 || strings.TrimSpace(workflow.EntryStage) == "" {
-		return executableWorkflow{}, fmt.Errorf("%w: only one exact entry Stage is supported", ErrUnsupportedWorkflow)
+		strings.TrimSpace(workflow.EntryStage) == "" {
+		return executableWorkflow{}, fmt.Errorf("%w: Workflow identity or entry Stage is invalid", ErrUnsupportedWorkflow)
 	}
-	stage, ok := workflow.Stages[workflow.EntryStage]
-	if !ok || len(stage.Agents) != 1 ||
-		stage.Planner.PlannerID+"@"+stage.Planner.Version != planner.PassthroughRef {
-		return executableWorkflow{}, fmt.Errorf("%w: MVP requires one passthrough@1 Agent Stage", ErrUnsupportedWorkflow)
+	if err := workflowconfig.ValidateWorkflowGraph(workflow); err != nil {
+		return executableWorkflow{}, fmt.Errorf("%w: invalid Workflow graph: %v", ErrUnsupportedWorkflow, err)
 	}
-	if stage.On.Succeeded.Kind != workflowconfig.TransitionSucceed ||
-		stage.On.Failed.Kind != workflowconfig.TransitionFail ||
-		stage.On.Interrupted.Kind != workflowconfig.TransitionFail {
-		return executableWorkflow{}, fmt.Errorf("%w: MVP requires terminal succeed/fail transitions", ErrUnsupportedWorkflow)
-	}
-	if strings.TrimSpace(stage.Objective) == "" || strings.TrimSpace(stage.Instructions.Text) == "" {
-		return executableWorkflow{}, fmt.Errorf("%w: Stage semantic input is incomplete", ErrUnsupportedWorkflow)
-	}
-	for logicalName, binding := range stage.Agents {
-		if strings.TrimSpace(logicalName) == "" || strings.TrimSpace(binding.Namespace) == "" ||
-			binding.Namespace == "inputs" || binding.Namespace == "outputs" ||
-			strings.Contains(binding.Namespace, "/") {
-			return executableWorkflow{}, fmt.Errorf("%w: Stage Agent binding is invalid", ErrUnsupportedWorkflow)
+	for stageName, stage := range workflow.Stages {
+		if len(stage.Agents) != 1 ||
+			stage.Planner.PlannerID+"@"+stage.Planner.Version != planner.PassthroughRef {
+			return executableWorkflow{}, fmt.Errorf(
+				"%w: Stage %q requires one passthrough@1 Agent in the first slice",
+				ErrUnsupportedWorkflow, stageName,
+			)
 		}
-		if err := binding.Template.Validate(); err != nil {
-			return executableWorkflow{}, fmt.Errorf("%w: resolved AgentTemplate is invalid: %v", ErrUnsupportedWorkflow, err)
+		if strings.TrimSpace(stage.Objective) == "" || strings.TrimSpace(stage.Instructions.Text) == "" {
+			return executableWorkflow{}, fmt.Errorf("%w: Stage %q semantic input is incomplete", ErrUnsupportedWorkflow, stageName)
 		}
-	}
-	for outputName, resultName := range stage.WorkflowOutputs {
-		if _, ok := workflow.Outputs[outputName]; !ok {
-			return executableWorkflow{}, fmt.Errorf("%w: undeclared Workflow output mapping", ErrUnsupportedWorkflow)
-		}
-		if _, ok := stage.Result.Artifacts[resultName]; !ok {
-			return executableWorkflow{}, fmt.Errorf("%w: undeclared Stage result mapping", ErrUnsupportedWorkflow)
+		for logicalName, binding := range stage.Agents {
+			if strings.TrimSpace(logicalName) == "" || strings.TrimSpace(binding.Namespace) == "" ||
+				binding.Namespace == "inputs" || binding.Namespace == "outputs" ||
+				strings.Contains(binding.Namespace, "/") {
+				return executableWorkflow{}, fmt.Errorf("%w: Stage %q Agent binding is invalid", ErrUnsupportedWorkflow, stageName)
+			}
+			if err := binding.Template.Validate(); err != nil {
+				return executableWorkflow{}, fmt.Errorf("%w: resolved AgentTemplate is invalid: %v", ErrUnsupportedWorkflow, err)
+			}
 		}
 	}
-	for outputName, slot := range workflow.Outputs {
-		if _, mapped := stage.WorkflowOutputs[outputName]; slot.Required && !mapped {
-			return executableWorkflow{}, fmt.Errorf("%w: required output %q is not mapped", ErrUnsupportedWorkflow, outputName)
-		}
+	result := executableWorkflow{workflow: workflow}
+	return result.selectStage(workflow.EntryStage)
+}
+
+func (w executableWorkflow) selectStage(name string) (executableWorkflow, error) {
+	stage, ok := w.workflow.Stages[name]
+	if !ok {
+		return executableWorkflow{}, fmt.Errorf("%w: Workflow Stage %q does not exist", ErrUnsupportedWorkflow, name)
 	}
-	return executableWorkflow{workflow: workflow, stageName: workflow.EntryStage, stage: stage}, nil
+	w.stageName = name
+	w.stage = stage
+	return w, nil
 }
 
 func validatePersistedExecution(
@@ -88,8 +88,9 @@ func validatePersistedExecution(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 ) error {
-	if execution.RunID != run.RunID || execution.StageName != workflow.stageName || execution.Attempt != 1 ||
-		execution.PreviousExecutionID != nil || execution.StageSpecSchemaVersion != contracts.APIVersion ||
+	if execution.RunID != run.RunID || execution.StageName != workflow.stageName || execution.Attempt <= 0 ||
+		(execution.Attempt == 1) != (execution.PreviousExecutionID == nil) ||
+		execution.StageSpecSchemaVersion != contracts.APIVersion ||
 		execution.StageContextSchemaVersion != contracts.APIVersion {
 		return fmt.Errorf("persisted StageExecution identity differs from the Workflow snapshot")
 	}
