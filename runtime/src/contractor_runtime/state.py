@@ -140,13 +140,25 @@ class RuntimeState:
             self._allocation_id = allocation_id
             self._process_state = ProcessState.FENCED
 
-    async def release_allocation(self, allocation_id: str) -> None:
+    async def fence_control_lease(self) -> None:
+        """Fence the current slot without inventing an allocation identity."""
+
         async with self._lock:
-            if self._allocation_id != allocation_id or self._process_state not in {
-                ProcessState.DRAINING,
-                ProcessState.FENCED,
-            }:
-                raise RuntimeError("release requires the draining or fenced allocation")
+            if self._process_state in {ProcessState.STARTING, ProcessState.STOPPING}:
+                raise RuntimeError("cannot fence the current process state")
+            self._process_state = ProcessState.FENCED
+
+    async def confirm_release(self, allocation_id: str | None) -> None:
+        async with self._lock:
+            if self._process_state is ProcessState.IDLE and self._allocation_id is None:
+                if allocation_id is None:
+                    return
+                raise RuntimeError("released allocation identity no longer matches")
+            if (
+                self._process_state is not ProcessState.FENCED
+                or self._allocation_id != allocation_id
+            ):
+                raise RuntimeError("release confirmation requires the matching fenced slot")
             self._allocation_id = None
             self._process_state = ProcessState.IDLE
 

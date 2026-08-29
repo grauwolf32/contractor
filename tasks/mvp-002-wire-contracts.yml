@@ -39,7 +39,7 @@ required_contracts:
     fields: [apiVersion, instanceId, startedAt, controlUrl, a2aUrl, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, observedState, allocationId]
     rules:
       - observedState is idle, allocated, draining, or fenced.
-      - allocationId is required only for allocated, draining, or fenced.
+      - allocationId is required for allocated/draining, forbidden for idle, and optional for fenced because an idle slot also fences on local control-lease loss.
   - name: AgentHeartbeat
     request_fields: [apiVersion, instanceId, heartbeatSeq, echoedAckSeq, observedState, allocationId]
     response_fields: [apiVersion, ackSeq, action, allocationId]

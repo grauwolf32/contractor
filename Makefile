@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-e2e run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-e2e run-local test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -37,6 +37,11 @@ test-control-integration:
 
 test-artifact-integration:
 	go test -tags=integration -count=1 ./internal/httpapi/privateartifacts -run TestCrossLanguagePrivateArtifactLifecycle
+
+test-lease-integration:
+	go test -race -count=1 ./tests/integration/lease
+	go test -race -count=1 ./internal/controlplane/... ./internal/scheduler/... -run 'Lease|Reconcile|Partition'
+	cd runtime && uv run pytest tests/test_lease_watchdog.py
 
 test-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)

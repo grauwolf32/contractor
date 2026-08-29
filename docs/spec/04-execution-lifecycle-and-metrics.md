@@ -394,14 +394,16 @@ ultimately destroys the Worker or exits the process. Late reports may enrich
 related telemetry but never change the StageTermination.
 
 The allocation remains reserved through `draining`/stopped state until
-StageExecution becomes terminal. Only then does `release` remove routing,
-grants, SandboxProfile workspace and lease. Release is idempotent: Runtime
-Agent retains the old allocation identity and cannot become `idle` until
-profile cleanup succeeds and it receives the release acknowledgement. Cleanup
-failure does not rewrite the already terminal Stage outcome; it keeps that
-Runtime Agent fenced and unavailable while release is retried or an operator
-repairs it. Control Plane does not offer the slot for placement until a
-subsequent confirmed heartbeat reports the matching idle state.
+StageExecution becomes terminal. Only then does two-phase release begin. The
+private Runtime request idempotently removes the SandboxProfile workspace,
+tools and secrets but leaves the old allocation identity `fenced`; after its
+successful response, Control Plane removes its route, grant and lease. A
+subsequent heartbeat `release` action confirms that authoritative edge and lets
+Runtime Agent clear its retained identity/report and become `idle`. A lost
+private response therefore leaves both sides retry-safe, while cleanup failure
+keeps that Runtime Agent fenced without rewriting the terminal Stage outcome.
+Control Plane does not offer the slot until a confirmed heartbeat reports the
+matching idle state.
 
 Incremental per-A2A-Task report delivery is not required for the first slice.
 It may later reduce data loss from a hard Worker crash without changing the

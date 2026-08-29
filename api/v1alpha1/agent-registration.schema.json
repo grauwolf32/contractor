@@ -29,9 +29,12 @@
   },
   "allOf": [
     {
+      "if": {"properties": {"observedState": {"enum": ["allocated", "draining"]}}},
+      "then": {"required": ["allocationId"]}
+    },
+    {
       "if": {"properties": {"observedState": {"const": "idle"}}},
-      "then": {"not": {"required": ["allocationId"]}},
-      "else": {"required": ["allocationId"]}
+      "then": {"not": {"required": ["allocationId"]}}
     }
   ]
 }

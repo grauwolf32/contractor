@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from contractor_runtime.control_client import ControlClient, ControlClientError, MTLSJSONTransport
+from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import runtime_agent_client_context
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -82,6 +83,59 @@ def test_wrong_ack_is_rejected_without_changing_echo() -> None:
             await client.heartbeat_once()
         assert client.sequence == 1
         assert client.echoed_ack == 0
+
+    asyncio.run(scenario())
+
+
+def test_valid_reconciliation_actions_are_applied_after_ack() -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-actions")
+        handler = RecordingReconciliation()
+        watchdog = LeaseWatchdog(noop_expiry)
+        transport = FakeTransport(
+            [
+                registration_response(),
+                heartbeat_response(1, action="drain", allocation_id="allocation-1"),
+                heartbeat_response(2, action="release", allocation_id="allocation-1"),
+            ]
+        )
+        client = ControlClient(
+            make_settings(),
+            state,
+            transport,
+            watchdog=watchdog,
+            reconciliation=handler,
+        )
+        await client.register()
+        await state.commit_allocation("allocation-1")
+        await client.heartbeat_once()
+        await client.heartbeat_once()
+
+        assert handler.drains == [("allocation-1", 10.0)]
+        assert handler.releases == ["allocation-1"]
+        assert watchdog.last_ack == 2
+
+    asyncio.run(scenario())
+
+
+def test_reregister_action_starts_a_new_confirmed_lease_generation() -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-reregister")
+        transport = FakeTransport(
+            [
+                registration_response(),
+                heartbeat_response(1, action="reregister"),
+                registration_response(),
+            ]
+        )
+        watchdog = LeaseWatchdog(noop_expiry)
+        client = ControlClient(make_settings(), state, transport, watchdog=watchdog)
+
+        await client.register()
+        await client.heartbeat_once()
+
+        assert [path for path, _ in transport.requests].count("/private/v1/agents/register") == 2
+        assert not watchdog.expired
 
     asyncio.run(scenario())
 
@@ -234,8 +288,33 @@ def registration_response() -> Mapping[str, Any]:
     }
 
 
-def heartbeat_response(sequence: int) -> Mapping[str, Any]:
-    return {"apiVersion": "contractor/v1alpha1", "ackSeq": sequence, "action": "continue"}
+def heartbeat_response(
+    sequence: int, *, action: str = "continue", allocation_id: str | None = None
+) -> Mapping[str, Any]:
+    response: dict[str, Any] = {
+        "apiVersion": "contractor/v1alpha1",
+        "ackSeq": sequence,
+        "action": action,
+    }
+    if allocation_id is not None:
+        response["allocationId"] = allocation_id
+    return response
+
+
+async def noop_expiry() -> None:
+    return
+
+
+class RecordingReconciliation:
+    def __init__(self) -> None:
+        self.drains: list[tuple[str, float]] = []
+        self.releases: list[str | None] = []
+
+    async def reconcile_drain(self, allocation_id: str, grace: float) -> None:
+        self.drains.append((allocation_id, grace))
+
+    async def confirm_release(self, allocation_id: str | None) -> None:
+        self.releases.append(allocation_id)
 
 
 def make_settings() -> Settings:

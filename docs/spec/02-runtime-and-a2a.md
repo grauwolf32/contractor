@@ -112,12 +112,12 @@ Control Plane responds with:
 ```text
 RuntimeAgentHeartbeatAck
   ack_sequence         equal to the accepted request sequence
-  heartbeat_interval
-  lease_duration
-  authoritative_state
-  allocation_id?
   action               continue | drain | release | reregister
+  allocation_id?
 ```
+
+Heartbeat interval and lease duration are returned by registration, not
+repeated in every acknowledgement.
 
 `last_ack_sequence` echoes the newest response the Runtime Agent actually
 received. Control Plane maintains two different liveness facts:
@@ -151,7 +151,8 @@ Runtime Agent maintains the symmetric monotonic watchdog. If 60 seconds pass
 without a new valid ack, the agent:
 
 1. rejects new A2A Tasks and enters `draining`;
-2. asks its active in-process Worker runtime to finalize the accumulated report;
+2. asks its active in-process Worker runtime to abort and snapshots the
+   accumulated report without further semantic work;
 3. stops and destroys that Worker instance within the configured shutdown grace;
 4. if in-process termination cannot be guaranteed, exits the Runtime Agent
    process instead of reusing the slot;
@@ -170,6 +171,10 @@ idempotent release action.
 ### Observed/authoritative reconciliation
 
 - matching live allocation IDs and a confirmed lease allow `continue`;
+- after reservation and before the private `prepare` commits locally, an
+  authoritative allocation may transiently coexist with an observed idle slot;
+  this bounded preparation transition receives `continue` and is not treated
+  as allocation loss;
 - observed `draining` is valid only when Control Plane has issued finalization
   or abort for that allocation;
 - observed `fenced`, `idle` or another allocation while Control Plane still
@@ -240,11 +245,13 @@ For one allocation the Runtime Agent:
 7. on finalization or abort, rejects new Tasks, requests cancellation of any
    active Task, serializes the accumulated execution report and destroys the
    Worker runtime instance;
-8. after the terminal Stage outcome is committed and Control Plane's
-   idempotent release is acknowledged, clears allocation State, tools,
-   RuntimeSettings, access tokens, retained allocation identity and cached
-   report, cleans the profile workspace, then becomes `idle` and frees the
-   slot.
+8. after the terminal Stage outcome is committed, an idempotent private release
+   removes allocation State, tools, RuntimeSettings, access tokens and the
+   profile workspace, but retains the allocation identity and cached report in
+   `fenced` state;
+9. after Control Plane has removed its authority, a subsequent heartbeat
+   `release` action confirms that edge; only then does Runtime Agent clear the
+   retained identity/report, become `idle` and free the slot.
 
 The Worker runtime may use ADK or another future in-process adapter without
 changing Workflow Scheduler or Planner contracts. Its dependencies live in the
@@ -259,11 +266,13 @@ A2A cancellation to reach a terminal Task state.
 
 The first-slice `local-workdir@1` SandboxProfile is prepared before any Toolset
 factory or Worker can run. Failure to create its fresh allocation directory is
-an allocation-preparation failure. During release, Runtime Agent reports the
-allocation cleared only after removing that directory. Cleanup failure keeps
-the old allocation identity `fenced` and the slot unavailable; an idempotent
-release retry repeats cleanup. Before registering an idle slot after process
-startup, Runtime Agent also removes recognized orphan allocation directories
+an allocation-preparation failure. During release, Runtime Agent acknowledges
+local cleanup only after removing that directory, while continuing to report
+the old allocation identity as `fenced`. Cleanup failure keeps the slot
+unavailable and an idempotent release retry repeats cleanup. A lost HTTP
+response is therefore safe: neither side can infer an idle slot. Before
+registering an idle slot after process startup, Runtime Agent also removes
+recognized orphan allocation directories
 under its dedicated configured work root. The profile does not add a process,
 container, filesystem-permission or network security boundary.
 

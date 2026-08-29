@@ -19,6 +19,7 @@ from contractor_runtime.contracts import (
     HeartbeatResponse,
     ReconciliationAction,
 )
+from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -31,6 +32,12 @@ MAX_CONTROL_HEADERS = 64
 
 class ControlTransport(Protocol):
     async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]: ...
+
+
+class ReconciliationHandler(Protocol):
+    async def reconcile_drain(self, allocation_id: str, shutdown_grace_seconds: float) -> None: ...
+
+    async def confirm_release(self, allocation_id: str | None) -> None: ...
 
 
 class ControlClientError(Exception):
@@ -136,12 +143,16 @@ class ControlClient:
         state: RuntimeState,
         transport: ControlTransport,
         *,
+        watchdog: LeaseWatchdog | None = None,
+        reconciliation: ReconciliationHandler | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = random.random,
     ) -> None:
         self._settings = settings
         self._state = state
         self._transport = transport
+        self._watchdog = watchdog
+        self._reconciliation = reconciliation
         self._sleep = sleep
         self._jitter = jitter
         self._sequence = 0
@@ -180,6 +191,12 @@ class ControlClient:
         snapshot = await self._state.snapshot()
         if snapshot.process_state is ProcessState.STARTING:
             await self._state.mark_registered()
+        elif snapshot.process_state is ProcessState.FENCED and snapshot.allocation_id is None:
+            # Registration has established that the Control Plane owns no
+            # allocation for this identity, so an idle lease loss may clear.
+            await self._state.confirm_release(None)
+        if self._watchdog is not None:
+            await self._watchdog.arm(self._timing.confirmed_lease_seconds)
         return response
 
     async def register_until_stopped(self, stop: asyncio.Event) -> bool:
@@ -211,7 +228,19 @@ class ControlClient:
         if response.ack_seq != self._sequence:
             raise ControlClientError("heartbeat response acknowledged the wrong sequence")
         self._echoed_ack = response.ack_seq
-        if response.action is ReconciliationAction.REREGISTER:
+        if self._watchdog is not None:
+            await self._watchdog.acknowledge(response.ack_seq, self._timing.confirmed_lease_seconds)
+        if response.action is ReconciliationAction.DRAIN:
+            if self._reconciliation is None or response.allocation_id is None:
+                raise ControlClientError("heartbeat drain action cannot be applied")
+            await self._reconciliation.reconcile_drain(
+                response.allocation_id, self._settings.shutdown_grace_seconds
+            )
+        elif response.action is ReconciliationAction.RELEASE:
+            if self._reconciliation is None:
+                raise ControlClientError("heartbeat release action cannot be applied")
+            await self._reconciliation.confirm_release(response.allocation_id)
+        elif response.action is ReconciliationAction.REREGISTER:
             await self.register()
         return response
 

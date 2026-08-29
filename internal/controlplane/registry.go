@@ -24,12 +24,14 @@ type Registry interface {
 	SetWriteFence(string) error
 	Release(string) error
 	GetAgent(string) (AgentSnapshot, error)
+	PollAllocationLosses() []AllocationLoss
 }
 
 type RegistryOptions struct {
 	HeartbeatInterval time.Duration
 	ConfirmedLease    time.Duration
 	Now               func() time.Time
+	MonotonicNow      func() time.Duration
 	NewID             func(string) (string, error)
 	AgentOrderKey     func(contracts.AgentRegistration) string
 }
@@ -43,6 +45,7 @@ type AgentSnapshot struct {
 	ConfirmedLeaseExpiresAt   time.Time
 	AuthoritativeAllocationID *string
 	ReconciliationRequired    bool
+	LeaseExpired              bool
 }
 
 type InMemoryRegistry struct {
@@ -54,8 +57,10 @@ type InMemoryRegistry struct {
 	heartbeatInterval time.Duration
 	confirmedLease    time.Duration
 	now               func() time.Time
+	monotonicNow      func() time.Duration
 	newID             func(string) (string, error)
 	agentOrderKey     func(contracts.AgentRegistration) string
+	pendingLosses     []AllocationLoss
 }
 
 type agentEntry struct {
@@ -69,6 +74,12 @@ type agentEntry struct {
 	confirmedLeaseExpiresAt   time.Time
 	authoritativeAllocationID *string
 	reconciliationRequired    bool
+	confirmedLeaseDeadline    time.Duration
+	leaseExpired              bool
+	allocationLost            bool
+	allocationActivated       bool
+	superseded                bool
+	blockedByInstanceID       *string
 	issuedAcks                map[uint64]struct{}
 	heartbeatResponses        map[uint64]contracts.HeartbeatResponse
 	heartbeatOrder            []uint64
@@ -76,6 +87,7 @@ type agentEntry struct {
 
 type storedReservation struct {
 	reservation Reservation
+	loss        *AllocationLoss
 }
 
 type stageReservation struct {
@@ -97,6 +109,10 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
+	if options.MonotonicNow == nil {
+		started := time.Now()
+		options.MonotonicNow = func() time.Duration { return time.Since(started) }
+	}
 	if options.NewID == nil {
 		options.NewID = randomID
 	}
@@ -109,7 +125,8 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		agents: make(map[string]*agentEntry), allocations: make(map[string]storedReservation),
 		stageReservations: make(map[string]stageReservation),
 		heartbeatInterval: options.HeartbeatInterval, confirmedLease: options.ConfirmedLease,
-		now: options.Now, newID: options.NewID, agentOrderKey: options.AgentOrderKey,
+		now: options.Now, monotonicNow: options.MonotonicNow,
+		newID: options.NewID, agentOrderKey: options.AgentOrderKey,
 	}, nil
 }
 
@@ -142,12 +159,27 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 		existing.registration.ObservedState = normalized.ObservedState
 		existing.registration.AllocationID = cloneString(normalized.AllocationID)
 		existing.lastSeenAt = now
+		if existing.leaseExpired && existing.authoritativeAllocationID == nil {
+			r.resetExpiredLease(existing)
+		}
+		r.detectObservedLoss(existing, LossRuntimeMismatch)
 		existing.reconciliationRequired = registrationNeedsReconciliation(existing)
 		return snapshotAgent(existing), nil
 	}
 	entry := &agentEntry{
 		registration: normalized, identity: identity, orderKey: orderKey, lastSeenAt: now,
 		issuedAcks: make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]contracts.HeartbeatResponse),
+	}
+	for instanceID, existing := range r.agents {
+		if existing.superseded || !sameRuntimeEndpoint(existing.registration, normalized) {
+			continue
+		}
+		existing.superseded = true
+		existing.reconciliationRequired = true
+		r.markAllocationLost(existing, LossRuntimeRestarted)
+		if existing.authoritativeAllocationID != nil {
+			entry.blockedByInstanceID = cloneString(&instanceID)
+		}
 	}
 	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
 	r.agents[normalized.InstanceID] = entry
@@ -167,6 +199,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 			APIVersion: contracts.APIVersion, AckSeq: heartbeat.HeartbeatSeq, Action: contracts.ActionReregister,
 		}, nil
 	}
+	r.expireEntry(entry, r.monotonicNow())
 	if heartbeat.HeartbeatSeq <= entry.lastHeartbeatSeq {
 		if response, exists := entry.heartbeatResponses[heartbeat.HeartbeatSeq]; exists {
 			entry.lastSeenAt = now
@@ -174,10 +207,11 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 		}
 		return contracts.HeartbeatResponse{}, ErrHeartbeatOutOfOrder
 	}
-	if heartbeat.EchoedAckSeq > entry.lastConfirmedAckSeq {
+	if !entry.leaseExpired && heartbeat.EchoedAckSeq > entry.lastConfirmedAckSeq {
 		if _, issued := entry.issuedAcks[heartbeat.EchoedAckSeq]; issued {
 			entry.lastConfirmedAckSeq = heartbeat.EchoedAckSeq
 			entry.confirmedLeaseExpiresAt = now.Add(r.confirmedLease)
+			entry.confirmedLeaseDeadline = r.monotonicNow() + r.confirmedLease
 		}
 	}
 	entry.lastSeenAt = now
@@ -185,8 +219,9 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 	entry.lastIssuedAckSeq = heartbeat.HeartbeatSeq
 	entry.registration.ObservedState = heartbeat.ObservedState
 	entry.registration.AllocationID = cloneString(heartbeat.AllocationID)
+	r.detectObservedLoss(entry, LossRuntimeMismatch)
 	response, reconciliation := heartbeatAction(entry, heartbeat.HeartbeatSeq)
-	entry.reconciliationRequired = reconciliation
+	entry.reconciliationRequired = reconciliation || registrationNeedsReconciliation(entry)
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
 	return cloneHeartbeatResponse(response), nil
 }
@@ -213,7 +248,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		allocationIDs[index] = allocationID
 	}
 
-	now := r.now()
+	monotonicNow := r.monotonicNow()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if existing, ok := r.stageReservations[request.StageExecutionID]; ok {
@@ -230,7 +265,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 
 	available := make([]*agentEntry, 0, len(r.agents))
 	for _, entry := range r.agents {
-		if isPlacementEligible(entry, now) {
+		if isPlacementEligible(entry, monotonicNow) {
 			available = append(available, entry)
 		}
 	}
@@ -271,6 +306,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 			AgentTemplate: cloneAgentTemplate(binding.AgentTemplate), LeaseExpiresAt: entry.confirmedLeaseExpiresAt,
 		}
 		entry.authoritativeAllocationID = cloneString(&allocationID)
+		entry.allocationActivated = false
 		r.allocations[allocationID] = storedReservation{reservation: reservation}
 		reservations[index] = cloneReservation(reservation)
 	}
@@ -317,8 +353,16 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 		return ErrAllocationNotFound
 	}
 	entry.authoritativeAllocationID = nil
+	entry.allocationLost = false
+	entry.allocationActivated = false
 	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
 	delete(r.allocations, allocationID)
+	for _, candidate := range r.agents {
+		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
+			candidate.blockedByInstanceID = nil
+			candidate.reconciliationRequired = registrationNeedsReconciliation(candidate)
+		}
+	}
 	return nil
 }
 
@@ -330,6 +374,21 @@ func (r *InMemoryRegistry) GetAgent(instanceID string) (AgentSnapshot, error) {
 		return AgentSnapshot{}, ErrAgentNotFound
 	}
 	return snapshotAgent(entry), nil
+}
+
+// PollAllocationLosses expires monotonic deadlines and drains the one-shot
+// loss edge queue. A late heartbeat can update diagnostics but cannot remove a
+// loss already attached to an allocation.
+func (r *InMemoryRegistry) PollAllocationLosses() []AllocationLoss {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := r.monotonicNow()
+	for _, entry := range r.agents {
+		r.expireEntry(entry, now)
+	}
+	result := append([]AllocationLoss(nil), r.pendingLosses...)
+	r.pendingLosses = nil
+	return result
 }
 
 func (r *InMemoryRegistry) existingReservations(existing stageReservation) ([]Reservation, error) {
@@ -359,10 +418,14 @@ func (r *InMemoryRegistry) recordHeartbeat(entry *agentEntry, sequence uint64, r
 
 func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatResponse, bool) {
 	response := contracts.HeartbeatResponse{APIVersion: contracts.APIVersion, AckSeq: sequence}
+	if entry.leaseExpired && entry.authoritativeAllocationID == nil {
+		response.Action = contracts.ActionReregister
+		return response, true
+	}
 	if entry.authoritativeAllocationID == nil {
 		if entry.registration.ObservedState == contracts.AgentIdle {
 			response.Action = contracts.ActionContinue
-			return response, false
+			return response, entry.blockedByInstanceID != nil || entry.superseded
 		}
 		response.AllocationID = cloneString(entry.registration.AllocationID)
 		if entry.registration.ObservedState == contracts.AgentFenced {
@@ -373,8 +436,27 @@ func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatRes
 		return response, true
 	}
 	response.AllocationID = cloneString(entry.authoritativeAllocationID)
+	if entry.leaseExpired || entry.superseded {
+		response.Action = contracts.ActionDrain
+		return response, true
+	}
+	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+		entry.registration.AllocationID == nil {
+		// Reservation authority precedes the private prepare call. The Runtime
+		// may legitimately report idle during that bounded transition.
+		response.Action = contracts.ActionContinue
+		return response, false
+	}
 	if entry.registration.ObservedState == contracts.AgentAllocated && entry.registration.AllocationID != nil &&
 		*entry.registration.AllocationID == *entry.authoritativeAllocationID {
+		// A grant marked lost never becomes live again, even if a delayed
+		// heartbeat happens to match its old identity.
+		// heartbeatAction has no Registry pointer, so WriteFenced/lost paths are
+		// represented by reconciliationRequired set by detectObservedLoss.
+		if entry.reconciliationRequired {
+			response.Action = contracts.ActionDrain
+			return response, true
+		}
 		response.Action = contracts.ActionContinue
 		return response, false
 	}
@@ -383,16 +465,25 @@ func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatRes
 }
 
 func registrationNeedsReconciliation(entry *agentEntry) bool {
+	if entry.leaseExpired || entry.allocationLost || entry.superseded || entry.blockedByInstanceID != nil {
+		return true
+	}
 	if entry.authoritativeAllocationID == nil {
 		return entry.registration.ObservedState != contracts.AgentIdle
+	}
+	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+		entry.registration.AllocationID == nil {
+		return false
 	}
 	return entry.registration.ObservedState != contracts.AgentAllocated || entry.registration.AllocationID == nil ||
 		*entry.registration.AllocationID != *entry.authoritativeAllocationID
 }
 
-func isPlacementEligible(entry *agentEntry, now time.Time) bool {
+func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 	return entry.authoritativeAllocationID == nil && !entry.reconciliationRequired &&
-		entry.registration.ObservedState == contracts.AgentIdle && entry.confirmedLeaseExpiresAt.After(now)
+		!entry.leaseExpired && !entry.superseded && entry.blockedByInstanceID == nil &&
+		entry.registration.ObservedState == contracts.AgentIdle &&
+		entry.confirmedLeaseDeadline > monotonicNow
 }
 
 func isCompatible(registration contracts.AgentRegistration, template contracts.ResolvedAgentTemplate) bool {
@@ -489,7 +580,86 @@ func snapshotAgent(entry *agentEntry) AgentSnapshot {
 		LastConfirmedAckSeq: entry.lastConfirmedAckSeq, ConfirmedLeaseExpiresAt: entry.confirmedLeaseExpiresAt,
 		AuthoritativeAllocationID: cloneString(entry.authoritativeAllocationID),
 		ReconciliationRequired:    entry.reconciliationRequired,
+		LeaseExpired:              entry.leaseExpired,
 	}
+}
+
+func (r *InMemoryRegistry) expireEntry(entry *agentEntry, monotonicNow time.Duration) {
+	if entry.leaseExpired || entry.confirmedLeaseDeadline == 0 ||
+		monotonicNow < entry.confirmedLeaseDeadline {
+		return
+	}
+	entry.leaseExpired = true
+	entry.reconciliationRequired = true
+	r.markAllocationLost(entry, LossControlLeaseExpired)
+}
+
+func (r *InMemoryRegistry) markAllocationLost(entry *agentEntry, reason AllocationLossReason) {
+	if entry.authoritativeAllocationID == nil {
+		return
+	}
+	allocationID := *entry.authoritativeAllocationID
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.loss != nil {
+		return
+	}
+	loss := AllocationLoss{
+		AllocationID: allocationID, RuntimeInstanceID: entry.registration.InstanceID,
+		RunID:            stored.reservation.Grant.RunID,
+		StageExecutionID: stored.reservation.Grant.StageExecutionID,
+		Reason:           reason,
+	}
+	stored.reservation.Grant.WriteFenced = true
+	stored.reservation.Grant.Lost = true
+	stored.loss = &loss
+	r.allocations[allocationID] = stored
+	entry.allocationLost = true
+	entry.reconciliationRequired = true
+	r.pendingLosses = append(r.pendingLosses, loss)
+}
+
+func (r *InMemoryRegistry) detectObservedLoss(entry *agentEntry, reason AllocationLossReason) {
+	if entry.authoritativeAllocationID == nil {
+		return
+	}
+	allocationID := *entry.authoritativeAllocationID
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.loss != nil {
+		return
+	}
+	matching := entry.registration.AllocationID != nil &&
+		*entry.registration.AllocationID == allocationID
+	if matching && entry.registration.ObservedState == contracts.AgentAllocated {
+		entry.allocationActivated = true
+		return
+	}
+	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+		entry.registration.AllocationID == nil {
+		return
+	}
+	valid := matching && entry.registration.ObservedState == contracts.AgentAllocated
+	if matching && stored.reservation.Grant.WriteFenced &&
+		(entry.registration.ObservedState == contracts.AgentDraining ||
+			entry.registration.ObservedState == contracts.AgentFenced) {
+		valid = true
+	}
+	if !valid {
+		r.markAllocationLost(entry, reason)
+	}
+}
+
+func (r *InMemoryRegistry) resetExpiredLease(entry *agentEntry) {
+	entry.leaseExpired = false
+	entry.confirmedLeaseDeadline = 0
+	entry.confirmedLeaseExpiresAt = time.Time{}
+	entry.lastConfirmedAckSeq = 0
+	entry.issuedAcks = make(map[uint64]struct{})
+	entry.heartbeatResponses = make(map[uint64]contracts.HeartbeatResponse)
+	entry.heartbeatOrder = nil
+}
+
+func sameRuntimeEndpoint(left, right contracts.AgentRegistration) bool {
+	return left.ControlURL == right.ControlURL || left.A2AURL == right.A2AURL
 }
 
 func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {

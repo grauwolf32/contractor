@@ -47,7 +47,7 @@ lifecycle_rules:
   prepare: "idle -> allocated only after workspace, tools, State, and WorkerRuntime all succeed; rollback all resources on failure"
   finalize: "allocated -> draining; reject new work, stop Worker without semantic calls, return cached bounded report"
   abort: "allocated/draining -> draining; cancel locally within deadline, force Runtime Agent process exit if in-process stop cannot be guaranteed"
-  release: "only after terminal owner decision; remove workspace/secrets/state/routes and become idle; cleanup failure remains fenced"
+  release: "only after terminal owner decision; remove workspace/secrets/state and remain fenced until a confirmed heartbeat release action permits idle; cleanup failure remains fenced"
 
 deliverables:
   - {path: runtime/src/contractor_runtime/allocation.py, description: Allocation context and idempotent lifecycle service.}

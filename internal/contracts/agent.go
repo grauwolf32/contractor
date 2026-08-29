@@ -117,10 +117,11 @@ func (r HeartbeatResponse) Validate() error {
 	}
 	switch r.Action {
 	case ActionContinue, ActionReregister:
-	case ActionDrain, ActionRelease:
+	case ActionDrain:
 		if r.AllocationID == nil {
 			return invalidf("allocationId is required for action %s", r.Action)
 		}
+	case ActionRelease:
 	default:
 		return invalidf("unknown heartbeat action %q", r.Action)
 	}
@@ -187,7 +188,12 @@ func validateObservedAllocation(state AgentObservedState, allocationID *string) 
 			return invalidf("idle agent must not report allocationId")
 		}
 		return nil
-	case AgentAllocated, AgentDraining, AgentFenced:
+	case AgentFenced:
+		if allocationID == nil {
+			return nil
+		}
+		return validateOpaqueID("allocationId", *allocationID)
+	case AgentAllocated, AgentDraining:
 		if allocationID == nil {
 			return invalidf("%s agent must report allocationId", state)
 		}

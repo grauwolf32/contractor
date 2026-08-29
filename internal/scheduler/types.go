@@ -17,8 +17,19 @@ var (
 	ErrDeferred                 = errors.New("WorkflowRun execution is deferred")
 	ErrClaimLost                = errors.New("WorkflowRun scheduler claim was lost")
 	ErrRunCancellationRequested = errors.New("WorkflowRun cancellation was requested")
+	ErrAllocationLeaseLost      = errors.New("Runtime Agent allocation lease was lost")
 	ErrUnsupportedWorkflow      = errors.New("Workflow is outside the executable MVP shape")
 )
+
+type AllocationLeaseLossError struct {
+	Loss controlplane.AllocationLoss
+}
+
+func (e *AllocationLeaseLossError) Error() string {
+	return "allocation " + e.Loss.AllocationID + " was lost: " + string(e.Loss.Reason)
+}
+
+func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost }
 
 // Store is the non-transactional durable state boundary used while no remote
 // operation is in flight. AtomicPersistence owns the short multi-resource
@@ -98,6 +109,7 @@ type Allocator interface {
 	GetGrant(string) (controlplane.AllocationGrant, error)
 	SetWriteFence(string) error
 	Release(string) error
+	PollAllocationLosses() []controlplane.AllocationLoss
 }
 
 type WorkerController interface {
@@ -143,6 +155,7 @@ type Options struct {
 	PlannerTimeout      time.Duration
 	FinalizationTimeout time.Duration
 	AbortTimeout        time.Duration
+	LeaseScanInterval   time.Duration
 	RuntimeSettings     contracts.RuntimeSettings
 	Clock               Clock
 	NewID               func(string) (string, error)

@@ -364,6 +364,45 @@ func TestSchedulerCancelAcceptsAlreadyFinalizingResultForAuditOnly(t *testing.T)
 	assertOrderedEvents(t, harness.events.values, "finalize", "record_report", "accept_cancelled", "release")
 }
 
+func TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		reservation := harness.allocator.cached[0]
+		reservation.Grant.Lost = true
+		reservation.Grant.WriteFenced = true
+		harness.allocator.cached[0] = reservation
+		grant := harness.allocator.grants[reservation.Grant.AllocationID]
+		grant.Lost = true
+		grant.WriteFenced = true
+		harness.allocator.grants[reservation.Grant.AllocationID] = grant
+		harness.allocator.losses = append(harness.allocator.losses, controlplane.AllocationLoss{
+			AllocationID:      reservation.Grant.AllocationID,
+			RuntimeInstanceID: reservation.Grant.RuntimeInstanceID,
+			RunID:             harness.store.run.RunID,
+			StageExecutionID:  reservation.Grant.StageExecutionID,
+			Reason:            controlplane.LossControlLeaseExpired,
+		})
+		harness.scheduler.pollAllocationLosses()
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunFailed || execution.State != runstore.StageInterrupted ||
+		execution.Termination == nil || execution.Termination.Code != "control_lease_expired" ||
+		!execution.Termination.Retryable || execution.CandidateResult != nil {
+		t.Fatalf("lease-loss lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.persistence.outputs) != 0 {
+		t.Fatalf("lease-loss remote path = abort:%d finalize:%d outputs:%v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.persistence.outputs)
+	}
+}
+
 type schedulerHarness struct {
 	t           *testing.T
 	workflow    workflowconfig.ResolvedWorkflow
@@ -849,6 +888,7 @@ type memoryAllocator struct {
 	fenced       map[string]bool
 	reserveCalls int
 	reserveError error
+	losses       []controlplane.AllocationLoss
 }
 
 func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -909,6 +949,12 @@ func (a *memoryAllocator) Release(allocationID string) error {
 	}
 	delete(a.grants, allocationID)
 	return nil
+}
+
+func (a *memoryAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
+	result := append([]controlplane.AllocationLoss(nil), a.losses...)
+	a.losses = nil
+	return result
 }
 
 type memoryWorkers struct {

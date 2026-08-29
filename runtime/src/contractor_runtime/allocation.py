@@ -91,6 +91,7 @@ class _AllocationContext:
     termination_kind: str | None = None
     termination_id: str | None = None
     terminal_response: AllocationFinalResponse | None = None
+    release_prepared: bool = False
 
 
 class AllocationService:
@@ -266,6 +267,8 @@ class AllocationService:
                 raise _conflict("allocation must be draining or fenced before release")
             if context.worker is not None:
                 raise _conflict("Worker must be stopped before release")
+            if context.release_prepared:
+                return
             try:
                 await _close_tools(context.tools)
                 await context.sandbox.cleanup(context.workspace)
@@ -284,10 +287,80 @@ class AllocationService:
             context.worker_state = None
             context.runtime_settings = None
             context.prepare_response = None
-            context.terminal_response = None
-            await self._state.release_allocation(context.allocation_id)
+            context.release_prepared = True
+            await self._state.fence_allocation(context.allocation_id)
+
+    async def confirm_release(self, allocation_id: str | None) -> None:
+        """Apply a heartbeat-confirmed authoritative release.
+
+        The private release endpoint only prepares local cleanup. Keeping this
+        second edge separate makes a lost HTTP response safe: the slot remains
+        fenced and the same release can be retried.
+        """
+
+        async with self._lock:
+            context = self._context
+            if context is None:
+                if allocation_id is not None and self._released_allocation_id == allocation_id:
+                    return
+                await self._state.confirm_release(allocation_id)
+                return
+            if allocation_id != context.allocation_id:
+                raise _conflict("release action identifies another allocation")
+            if context.worker is not None:
+                raise _conflict("active Worker must be drained before release")
+            if not context.release_prepared:
+                try:
+                    await _close_tools(context.tools)
+                    await context.sandbox.cleanup(context.workspace)
+                except Exception as error:
+                    await self._state.fence_allocation(context.allocation_id)
+                    raise AllocationError(
+                        "allocation_cleanup_failed",
+                        f"allocation cleanup failed ({type(error).__name__})",
+                        retryable=True,
+                        status_code=503,
+                    ) from None
+                context.tools.clear()
+                context.worker_state = None
+                context.runtime_settings = None
+                context.prepare_response = None
+                context.release_prepared = True
+            await self._state.confirm_release(context.allocation_id)
             self._released_allocation_id = context.allocation_id
+            context.terminal_response = None
             self._context = None
+
+    async def expire_control_lease(self, shutdown_grace_seconds: float) -> None:
+        async with self._lock:
+            context = self._context
+            if context is None:
+                await self._state.fence_control_lease()
+                return
+            await self._stop_worker_for_fence(
+                context,
+                shutdown_grace_seconds,
+                TerminationError(
+                    code="control_lease_expired",
+                    message="Runtime Agent confirmed control lease expired",
+                    retryable=True,
+                ),
+            )
+
+    async def reconcile_drain(self, allocation_id: str, shutdown_grace_seconds: float) -> None:
+        async with self._lock:
+            context = self._context
+            if context is None or context.allocation_id != allocation_id:
+                return
+            await self._stop_worker_for_fence(
+                context,
+                shutdown_grace_seconds,
+                TerminationError(
+                    code="control_plane_reconciliation",
+                    message="Control Plane requested allocation reconciliation",
+                    retryable=True,
+                ),
+            )
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
         if spec.namespace in RESERVED_NAMESPACES:
@@ -408,6 +481,18 @@ class AllocationService:
     ) -> AllocationFinalResponse:
         async with self._lock:
             context = self._require_context(allocation_id)
+            if (
+                context.termination_kind == "lease"
+                and context.worker is None
+                and context.terminal_response is not None
+            ):
+                # A local confirmed-lease loss may stop the Worker before the
+                # Scheduler observes the matching Control Plane loss. Bind the
+                # cached report to the first authoritative terminal operation
+                # instead of trying to stop an already absent Worker.
+                context.termination_kind = kind
+                context.termination_id = operation_id
+                return context.terminal_response
             if context.termination_kind is not None:
                 if context.termination_kind == kind and context.termination_id == operation_id:
                     if context.terminal_response is None:
@@ -460,6 +545,61 @@ class AllocationService:
             )
             context.terminal_response = response
             return response
+
+    async def _stop_worker_for_fence(
+        self,
+        context: _AllocationContext,
+        timeout_seconds: float,
+        reason: TerminationError,
+    ) -> None:
+        """Stop a Worker after authority is lost without making the slot idle."""
+
+        if timeout_seconds <= 0:
+            raise ValueError("Worker shutdown grace must be positive")
+        if context.worker is None:
+            await self._state.fence_allocation(context.allocation_id)
+            return
+
+        state = await self._state.snapshot()
+        if state.process_state is ProcessState.ALLOCATED:
+            await self._state.begin_draining(context.allocation_id)
+        worker = context.worker
+        deadline = self._now() + timedelta(seconds=timeout_seconds)
+        stop_task = asyncio.create_task(
+            worker.abort(deadline), name=f"worker-lease-abort-{context.allocation_id}"
+        )
+        try:
+            done, _ = await asyncio.wait({stop_task}, timeout=timeout_seconds)
+            if not done:
+                stop_task.cancel()
+                stop_task.add_done_callback(_consume_background_task)
+                raise TimeoutError
+            await stop_task
+        except asyncio.CancelledError:
+            if not stop_task.done():
+                stop_task.cancel()
+                stop_task.add_done_callback(_consume_background_task)
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise
+        except Exception as error:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise AllocationError(
+                "worker_stop_unconfirmed",
+                f"in-process Worker stop could not be guaranteed ({type(error).__name__})",
+                retryable=False,
+                status_code=503,
+            ) from None
+
+        context.worker = None
+        context.termination_kind = "lease"
+        context.termination_id = None
+        context.terminal_response = AllocationFinalResponse(
+            apiVersion=API_VERSION,
+            report=_build_report(context, self._now(), reason),
+        )
+        await self._state.fence_allocation(context.allocation_id)
 
     async def _rollback_prepare(
         self,

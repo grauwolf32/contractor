@@ -29,6 +29,7 @@ const (
 	defaultPlannerTimeout      = 45 * time.Second
 	defaultFinalizationTimeout = 10 * time.Second
 	defaultAbortTimeout        = 10 * time.Second
+	defaultLeaseScanInterval   = time.Second
 	maxCandidateBytes          = 256 * 1024
 	maxCandidateSummaryBytes   = 64 * 1024
 	maxCandidateArtifacts      = 128
@@ -62,7 +63,8 @@ func New(
 	}
 	applyOptionDefaults(&options)
 	if options.PollInterval <= 0 || options.ClaimDuration <= 0 || options.OperationTimeout <= 0 ||
-		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 {
+		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 ||
+		options.LeaseScanInterval <= 0 {
 		return nil, fmt.Errorf("Scheduler durations must be positive")
 	}
 	if err := validateRuntimeSettings(options.RuntimeSettings); err != nil {
@@ -93,6 +95,9 @@ func applyOptionDefaults(options *Options) {
 	}
 	if options.AbortTimeout == 0 {
 		options.AbortTimeout = defaultAbortTimeout
+	}
+	if options.LeaseScanInterval == 0 {
+		options.LeaseScanInterval = defaultLeaseScanInterval
 	}
 	if options.Clock == nil {
 		options.Clock = realClock{}
@@ -135,18 +140,33 @@ func (s *Scheduler) Wake() {
 // public API has already made cancellation durable. A different Scheduler
 // process observes the same state through claim reconciliation.
 func (s *Scheduler) Cancel(runID string) {
+	s.interruptRun(runID, ErrRunCancellationRequested)
+	s.Wake()
+}
+
+func (s *Scheduler) interruptRun(runID string, cause error) {
 	s.activeMu.Lock()
 	cancel := s.active[runID]
 	s.activeMu.Unlock()
 	if cancel != nil {
-		cancel(ErrRunCancellationRequested)
+		cancel(cause)
 	}
-	s.Wake()
 }
 
 // Run serves claims serially. One Scheduler instance therefore executes one
 // Stage at a time; PostgreSQL claims still protect against another process.
 func (s *Scheduler) Run(ctx context.Context) error {
+	monitorContext, cancelMonitor := context.WithCancel(ctx)
+	var monitor sync.WaitGroup
+	monitor.Add(1)
+	go func() {
+		defer monitor.Done()
+		s.monitorAllocationLosses(monitorContext)
+	}()
+	defer func() {
+		cancelMonitor()
+		monitor.Wait()
+	}()
 	for {
 		worked, err := s.RunOnce(ctx)
 		if ctx.Err() != nil {
@@ -169,6 +189,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 // RunOnce claims and advances at most one WorkflowRun.
 func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
+	s.pollAllocationLosses()
 	released, err := s.recoverTerminalRelease(ctx)
 	if err != nil || released {
 		return released, err
@@ -207,13 +228,15 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	}()
 
 	err = s.executeRun(executionContext, run)
-	if errors.Is(context.Cause(executionContext), ErrRunCancellationRequested) && ctx.Err() == nil {
-		// The cancellation context intentionally cannot be reused for cleanup.
-		// Retain the same durable claim while executing the bounded cancel path.
+	if cause := context.Cause(executionContext); ctx.Err() == nil &&
+		(errors.Is(cause, ErrRunCancellationRequested) || errors.Is(cause, ErrAllocationLeaseLost)) {
+		// The interrupted context intentionally cannot be reused for cleanup.
+		// Retain the same durable claim while entering the authoritative bounded path.
 		current, loadErr := s.store.GetRun(ctx, run.RunID)
 		if loadErr != nil {
 			err = loadErr
-		} else if current.State == runstore.RunCancelling {
+		} else if current.State == runstore.RunCancelling ||
+			(errors.Is(cause, ErrAllocationLeaseLost) && current.State == runstore.RunRunning) {
 			err = s.executeRun(ctx, current)
 		} else {
 			err = nil
@@ -230,10 +253,36 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 		err = releaseErr
 	}
 	if cause := context.Cause(executionContext); cause != nil &&
-		!errors.Is(cause, context.Canceled) && !errors.Is(cause, ErrRunCancellationRequested) && err == nil {
+		!errors.Is(cause, context.Canceled) && !errors.Is(cause, ErrRunCancellationRequested) &&
+		!errors.Is(cause, ErrAllocationLeaseLost) && err == nil {
 		err = cause
 	}
 	return true, err
+}
+
+func (s *Scheduler) monitorAllocationLosses(ctx context.Context) {
+	for {
+		s.pollAllocationLosses()
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.options.Clock.After(s.options.LeaseScanInterval):
+		}
+	}
+}
+
+func (s *Scheduler) pollAllocationLosses() {
+	for _, loss := range s.allocator.PollAllocationLosses() {
+		s.options.Logger.Warn(
+			"Runtime Agent allocation was lost",
+			"run_id", loss.RunID,
+			"stage_execution_id", loss.StageExecutionID,
+			"allocation_id", loss.AllocationID,
+			"reason", loss.Reason,
+		)
+		s.interruptRun(loss.RunID, &AllocationLeaseLossError{Loss: loss})
+		s.Wake()
+	}
 }
 
 func (s *Scheduler) renewClaim(
@@ -521,8 +570,16 @@ func (s *Scheduler) prepareAndPlan(
 			Code: "control_plane_state_lost", Message: "Control Plane lost the active allocation set", Retryable: true,
 		})
 	}
+	if errors.Is(err, errControlPlaneAllocationLost) {
+		return s.beginAbort(context.WithoutCancel(ctx), run, workflow, execution, reservations, planner.Failure{
+			Code: "control_lease_expired", Message: "Runtime Agent allocation control lease was lost", Retryable: true,
+		})
+	}
 	if err != nil {
 		return err
+	}
+	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
+		return cause
 	}
 	if fresh {
 		if err := s.recordReservations(ctx, execution.StageExecutionID, reservations); err != nil {
@@ -539,6 +596,9 @@ func (s *Scheduler) prepareAndPlan(
 	if err != nil {
 		failure := infrastructureFailure("allocation_preparation_failed", "Worker allocation preparation failed", err)
 		return s.beginAbort(ctx, run, workflow, execution, nil, failure)
+	}
+	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
+		return cause
 	}
 
 	invocation := planner.Invocation{
@@ -557,6 +617,9 @@ func (s *Scheduler) prepareAndPlan(
 		})
 	}
 	candidate, err := instance.Run(ctx)
+	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
+		return cause
+	}
 	currentExecution, loadErr := s.store.GetStageExecution(ctx, execution.StageExecutionID)
 	if loadErr != nil {
 		return errors.Join(err, loadErr)
@@ -602,7 +665,10 @@ func (s *Scheduler) prepareAndPlan(
 	return s.resumeFinalizing(ctx, run, workflow, execution, reservations)
 }
 
-var errControlPlaneStateLost = errors.New("Control Plane state for durable allocations is unavailable")
+var (
+	errControlPlaneStateLost      = errors.New("Control Plane state for durable allocations is unavailable")
+	errControlPlaneAllocationLost = errors.New("Runtime Agent allocation is irreversibly lost")
+)
 
 func (s *Scheduler) liveOrNewReservations(
 	ctx context.Context,
@@ -618,11 +684,23 @@ func (s *Scheduler) liveOrNewReservations(
 		return nil, false, errControlPlaneStateLost
 	}
 	if len(recorded) > 0 {
+		lost := false
 		for _, allocation := range recorded {
 			grant, grantErr := s.allocator.GetGrant(allocation.AllocationID)
 			if grantErr != nil || grant.StageExecutionID != execution.StageExecutionID {
 				return nil, false, errControlPlaneStateLost
 			}
+			lost = lost || grant.Lost
+		}
+		if lost {
+			reservations, reserveErr := s.allocator.ReserveAll(controlplane.ReservationRequest{
+				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+				Bindings: bindingRequirements(workflow.stage),
+			})
+			if reserveErr != nil {
+				return nil, false, errControlPlaneAllocationLost
+			}
+			return reservations, false, errControlPlaneAllocationLost
 		}
 	}
 	reservations, err := s.allocator.ReserveAll(controlplane.ReservationRequest{
@@ -634,6 +712,11 @@ func (s *Scheduler) liveOrNewReservations(
 	}
 	if err := verifyReservations(run, workflow, execution, recorded, reservations); err != nil {
 		return nil, false, err
+	}
+	for _, reservation := range reservations {
+		if reservation.Grant.Lost {
+			return reservations, false, errControlPlaneAllocationLost
+		}
 	}
 	return reservations, len(recorded) == 0, nil
 }

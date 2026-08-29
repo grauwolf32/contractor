@@ -3,7 +3,7 @@ id: V1-002
 title: Complete confirmed heartbeat leases, self-termination, fencing, and reconciliation
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: completed
 depends_on: [V1-001]
 languages: [go, python]
 
@@ -78,6 +78,6 @@ acceptance_criteria:
     then: Runtime process exits rather than reports idle/fenced with a possibly live Worker.
 
 tests:
-  - {name: control-lease, command: "go test -race ./internal/controlplane/... -run 'Lease|Reconcile|Partition'", covers: [A1, A2, A3, A4]}
+  - {name: control-lease, command: "go test -race ./internal/controlplane/... ./internal/scheduler/... -run 'Lease|Reconcile|Partition'", covers: [A1, A2, A3, A4]}
   - {name: runtime-watchdog, command: "cd runtime && uv run pytest tests/test_lease_watchdog.py", covers: [A1, A4, A5]}
   - {name: partition-integration, command: "make test-lease-integration", covers: [A1, A2, A3, A4]}

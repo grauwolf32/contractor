@@ -36,6 +36,26 @@ type AllocationGrant struct {
 	ReadPolicy        ArtifactReadPolicy
 	WritePolicy       ArtifactWritePolicy
 	WriteFenced       bool
+	Lost              bool
+}
+
+type AllocationLossReason string
+
+const (
+	LossControlLeaseExpired AllocationLossReason = "control_lease_expired"
+	LossRuntimeMismatch     AllocationLossReason = "runtime_state_mismatch"
+	LossRuntimeRestarted    AllocationLossReason = "runtime_restarted"
+)
+
+// AllocationLoss is an irreversible edge emitted once for the durable
+// StageExecution owner. The Registry retains the fenced grant until normal
+// bounded abort/release reconciliation removes it.
+type AllocationLoss struct {
+	AllocationID      string
+	RuntimeInstanceID string
+	RunID             string
+	StageExecutionID  string
+	Reason            AllocationLossReason
 }
 
 type Reservation struct {

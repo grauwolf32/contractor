@@ -218,7 +218,7 @@ func TestInjectedOrderingIsDeterministic(t *testing.T) {
 	clock := newTestClock()
 	var counter atomic.Uint64
 	registry, err := NewRegistry(RegistryOptions{
-		Now: clock.Now,
+		Now: clock.Now, MonotonicNow: clock.MonotonicNow,
 		NewID: func(prefix string) (string, error) {
 			return fmt.Sprintf("%s%d", prefix, counter.Add(1)), nil
 		},
@@ -266,6 +266,216 @@ func TestRegistrationNeverAdoptsObservedAllocation(t *testing.T) {
 	}
 }
 
+func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-lease", StageExecutionID: "stage-lease",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	// Ack 2 was received before the simulated response-only partition. Every
+	// later request repeats it and therefore cannot renew the confirmed lease.
+	allocated := func(sequence, echoed uint64) contracts.AgentHeartbeat {
+		return contracts.AgentHeartbeat{
+			APIVersion: contracts.APIVersion, InstanceID: "agent-1",
+			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
+			ObservedState: contracts.AgentAllocated, AllocationID: &allocationID,
+		}
+	}
+	if _, err := registry.Heartbeat(allocated(3, 2)); err != nil {
+		t.Fatal(err)
+	}
+	for sequence := uint64(4); sequence <= 8; sequence++ {
+		clock.Advance(10 * time.Second)
+		if _, err := registry.Heartbeat(allocated(sequence, 2)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("lease expired early: %+v", losses)
+	}
+	clock.Advance(10 * time.Second)
+	losses := registry.PollAllocationLosses()
+	if len(losses) != 1 || losses[0].AllocationID != allocationID ||
+		losses[0].Reason != LossControlLeaseExpired {
+		t.Fatalf("lease losses = %+v", losses)
+	}
+	grant, err := registry.GetGrant(allocationID)
+	if err != nil || !grant.Lost || !grant.WriteFenced {
+		t.Fatalf("lost grant = (%+v, %v)", grant, err)
+	}
+	// Ack 7 was issued while responses were supposedly lost. Even a delayed
+	// echo cannot revive the already-lost allocation.
+	if response, err := registry.Heartbeat(allocated(9, 7)); err != nil || response.Action != contracts.ActionDrain {
+		t.Fatalf("late ack response = (%+v, %v)", response, err)
+	}
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("loss edge was emitted more than once: %+v", losses)
+	}
+	snapshot, _ := registry.GetAgent("agent-1")
+	if !snapshot.LeaseExpired || !snapshot.ReconciliationRequired {
+		t.Fatalf("expired agent snapshot = %+v", snapshot)
+	}
+}
+
+func TestReservationAllowsIdleOnlyUntilAllocationIsObservedActive(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-1")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-prepare", StageExecutionID: "stage-prepare",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+
+	response, err := registry.Heartbeat(heartbeat("agent-1", 3, 2))
+	if err != nil || response.Action != contracts.ActionContinue {
+		t.Fatalf("idle preparation transition = (%+v, %v)", response, err)
+	}
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("reservation-to-prepare transition was lost: %+v", losses)
+	}
+	active := contracts.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "agent-1",
+		HeartbeatSeq: 4, EchoedAckSeq: 3,
+		ObservedState: contracts.AgentAllocated, AllocationID: &allocationID,
+	}
+	if response, err = registry.Heartbeat(active); err != nil || response.Action != contracts.ActionContinue {
+		t.Fatalf("allocation activation = (%+v, %v)", response, err)
+	}
+	response, err = registry.Heartbeat(heartbeat("agent-1", 5, 4))
+	if err != nil || response.Action != contracts.ActionDrain {
+		t.Fatalf("post-activation idle mismatch = (%+v, %v)", response, err)
+	}
+	losses := registry.PollAllocationLosses()
+	if len(losses) != 1 || losses[0].Reason != LossRuntimeMismatch {
+		t.Fatalf("post-activation losses = %+v", losses)
+	}
+}
+
+func TestLeaseUsesMonotonicClockNotWallClock(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+
+	clock.JumpWall(24 * time.Hour)
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("wall-clock jump expired lease: %+v", losses)
+	}
+	clock.JumpWall(-48 * time.Hour)
+	clock.Advance(time.Minute)
+	registry.PollAllocationLosses()
+	snapshot, _ := registry.GetAgent("agent-1")
+	if !snapshot.LeaseExpired {
+		t.Fatal("monotonic deadline did not expire after one minute")
+	}
+}
+
+func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	oldRegistration := testRegistration("agent-old")
+	registerReadyWith(t, registry, oldRegistration)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-old", StageExecutionID: "stage-old",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := testRegistration("agent-new")
+	restarted.ControlURL = oldRegistration.ControlURL
+	restarted.A2AURL = oldRegistration.A2AURL
+	registerReadyWith(t, registry, restarted)
+	losses := registry.PollAllocationLosses()
+	if len(losses) != 1 || losses[0].Reason != LossRuntimeRestarted {
+		t.Fatalf("restart losses = %+v", losses)
+	}
+	_, err = registry.ReserveAll(ReservationRequest{
+		RunID: "run-new", StageExecutionID: "stage-new",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("new instance was offered before reconciliation: %v", err)
+	}
+	if err := registry.Release(reservations[0].Grant.AllocationID); err != nil {
+		t.Fatal(err)
+	}
+	available, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-new", StageExecutionID: "stage-new-after-release",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil || available[0].Grant.RuntimeInstanceID != "agent-new" {
+		t.Fatalf("new instance after reconciliation = (%+v, %v)", available, err)
+	}
+}
+
+func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-release", StageExecutionID: "stage-release",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Release(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	fenced := func(sequence, echoed uint64) contracts.AgentHeartbeat {
+		return contracts.AgentHeartbeat{
+			APIVersion: contracts.APIVersion, InstanceID: "agent-1",
+			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
+			ObservedState: contracts.AgentFenced, AllocationID: &allocationID,
+		}
+	}
+	for sequence := uint64(3); sequence <= 4; sequence++ {
+		response, err := registry.Heartbeat(fenced(sequence, sequence-1))
+		if err != nil || response.Action != contracts.ActionRelease ||
+			response.AllocationID == nil || *response.AllocationID != allocationID {
+			t.Fatalf("release reconciliation %d = (%+v, %v)", sequence, response, err)
+		}
+	}
+	if _, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-too-early", StageExecutionID: "stage-too-early",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	}); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("fenced slot was reused: %v", err)
+	}
+	response, err := registry.Heartbeat(heartbeat("agent-1", 5, 4))
+	if err != nil || response.Action != contracts.ActionContinue {
+		t.Fatalf("confirmed idle reconciliation = (%+v, %v)", response, err)
+	}
+}
+
 func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	t.Helper()
 	snapshot, err := config.Load("../config/testdata/valid", config.MVPDescriptors())
@@ -282,8 +492,9 @@ func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 func testRegistration(instanceID string) contracts.AgentRegistration {
 	return contracts.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
-		StartedAt:  time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
-		ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444",
+		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
+		ControlURL:        "https://" + instanceID + ".example:9443",
+		A2AURL:            "https://" + instanceID + ".example:9444",
 		SupportedRuntimes: []string{"adk@1"},
 		SupportedToolsets: []contracts.ToolsetCapability{{
 			Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
@@ -321,7 +532,7 @@ func newTestRegistry(t *testing.T, clock *testClock) *InMemoryRegistry {
 	t.Helper()
 	var counter atomic.Uint64
 	registry, err := NewRegistry(RegistryOptions{
-		Now: clock.Now,
+		Now: clock.Now, MonotonicNow: clock.MonotonicNow,
 		NewID: func(prefix string) (string, error) {
 			return fmt.Sprintf("%s%d", prefix, counter.Add(1)), nil
 		},
@@ -333,8 +544,9 @@ func newTestRegistry(t *testing.T, clock *testClock) *InMemoryRegistry {
 }
 
 type testClock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu        sync.Mutex
+	now       time.Time
+	monotonic time.Duration
 }
 
 func newTestClock() *testClock {
@@ -351,4 +563,17 @@ func (c *testClock) Advance(duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = c.now.Add(duration)
+	c.monotonic += duration
+}
+
+func (c *testClock) JumpWall(duration time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(duration)
+}
+
+func (c *testClock) MonotonicNow() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.monotonic
 }

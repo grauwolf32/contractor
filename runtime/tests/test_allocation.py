@@ -155,8 +155,15 @@ def test_finalize_report_and_release_erase_context_and_workspace(tmp_path: Path)
         )
         await service.release(release)
         await service.release(release)
-        assert await service.snapshot() is None
+        assert await service.snapshot() is not None
         assert not workspace.exists()
+        state_snapshot = await state.snapshot()
+        assert state_snapshot.process_state is ProcessState.FENCED
+        assert state_snapshot.allocation_id == spec.allocation_id
+
+        await service.confirm_release(spec.allocation_id)
+        await service.confirm_release(spec.allocation_id)
+        assert await service.snapshot() is None
         state_snapshot = await state.snapshot()
         assert state_snapshot.process_state is ProcessState.IDLE
         assert state_snapshot.allocation_id is None
@@ -202,6 +209,8 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(tmp_path: Pa
             await service.prepare(make_spec(allocation_id="allocation-new"))
 
         await service.release(release)
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        await service.confirm_release(spec.allocation_id)
         assert (await state.snapshot()).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())

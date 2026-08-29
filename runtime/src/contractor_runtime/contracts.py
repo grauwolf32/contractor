@@ -163,7 +163,7 @@ class HeartbeatResponse(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_response(self) -> Self:
-        if self.action in {ReconciliationAction.DRAIN, ReconciliationAction.RELEASE}:
+        if self.action is ReconciliationAction.DRAIN:
             _require_text("allocationId", self.allocation_id or "")
         elif self.allocation_id is not None:
             _require_text("allocationId", self.allocation_id)
@@ -537,6 +537,8 @@ def _validate_observed_allocation(state: AgentObservedState, allocation_id: str 
     if state is AgentObservedState.IDLE:
         if allocation_id is not None:
             raise ValueError("idle agent must not report allocationId")
+        return
+    if state is AgentObservedState.FENCED and allocation_id is None:
         return
     _require_text("allocationId", allocation_id or "")
 
