@@ -254,6 +254,116 @@ func TestSchedulerAbortsRunningStageWhenVolatileControlPlaneStateWasLost(t *test
 	}
 }
 
+func TestSchedulerCancelsRunWithoutCreatingStage(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("stop before work starts")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 0 ||
+		harness.planners.createCalls != 0 || harness.allocator.reserveCalls != 0 {
+		t.Fatalf("cancel-before-Stage = run:%s stages:%v planners:%d reserves:%d",
+			harness.store.run.State, harness.store.stages, harness.planners.createCalls, harness.allocator.reserveCalls)
+	}
+}
+
+func TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("late candidate must not win")
+		harness.scheduler.Cancel(harness.store.run.RunID)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunCancelled || execution.State != runstore.StageCancelled ||
+		execution.Termination == nil || execution.Termination.Outcome != runstore.TerminationCancelled ||
+		execution.Termination.Code != runstore.CancellationUserRequested {
+		t.Fatalf("cancelled lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if execution.CandidateResult != nil || execution.AcceptedResult != nil || len(harness.persistence.outputs) != 0 {
+		t.Fatalf("late candidate became semantic output: stage=%+v outputs=%v", execution, harness.persistence.outputs)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Complete {
+		t.Fatalf("bounded abort/report calls = abort:%d finalize:%d reports:%+v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.store.reports)
+	}
+	assertOrderedEvents(t, harness.events.values,
+		"planner", "fence", "enter_aborting", "abort", "record_report", "commit_termination", "release",
+	)
+}
+
+func TestSchedulerCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("runtime is unreachable")
+	execution := harness.persistedExecution(t, runstore.StageAborting)
+	abortID := "abort-recovery"
+	deadline := harness.clock.now.Add(-time.Second)
+	execution.TerminationSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.Termination = &runstore.StageTermination{
+		Outcome: runstore.TerminationCancelled, Code: runstore.CancellationUserRequested,
+		Message: "runtime is unreachable", Retryable: false,
+		Phase: runstore.TerminationRunning, OccurredAt: harness.clock.now.Add(-2 * time.Second),
+	}
+	execution.AbortID = &abortID
+	execution.AbortDeadline = &deadline
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.installRecordedReservation(execution.StageExecutionID)
+	harness.workers.releaseError = errors.New("runtime unreachable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	allocationID := harness.store.allocations[0].AllocationID
+	if harness.workers.abortCalls != 0 || harness.store.run.State != runstore.RunCancelled ||
+		harness.store.stages[0].State != runstore.StageCancelled || !harness.allocator.fenced[allocationID] {
+		t.Fatalf("deadline cancel = aborts:%d run:%s stage:%s fenced:%v",
+			harness.workers.abortCalls, harness.store.run.State, harness.store.stages[0].State,
+			harness.allocator.fenced[allocationID])
+	}
+	if _, stillUnavailable := harness.allocator.grants[allocationID]; !stillUnavailable ||
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Complete ||
+		len(harness.store.reports[0].Report.Errors) != 1 ||
+		harness.store.reports[0].Report.Errors[0].Code != "allocation_report_unavailable" {
+		t.Fatalf("lost allocation/report = grants:%v reports:%+v", harness.allocator.grants, harness.store.reports)
+	}
+}
+
+func TestSchedulerCancelAcceptsAlreadyFinalizingResultForAuditOnly(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("result already won Stage race")
+	execution := harness.persistedExecution(t, runstore.StageFinalizing)
+	result := cloneStageResult(harness.planners.result)
+	finalizationID := "finalization-before-cancel"
+	deadline := harness.clock.now.Add(time.Minute)
+	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.CandidateResult = &result
+	execution.FinalizationID = &finalizationID
+	execution.FinalizationDeadline = &deadline
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.installRecordedReservation(execution.StageExecutionID)
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution = harness.store.stages[0]
+	if harness.store.run.State != runstore.RunCancelled || execution.State != runstore.StageSucceeded ||
+		execution.AcceptedResult == nil || len(harness.persistence.outputs) != 0 {
+		t.Fatalf("audit-only result = run:%s stage:%+v outputs:%v",
+			harness.store.run.State, execution, harness.persistence.outputs)
+	}
+	assertOrderedEvents(t, harness.events.values, "finalize", "record_report", "accept_cancelled", "release")
+}
+
 type schedulerHarness struct {
 	t           *testing.T
 	workflow    workflowconfig.ResolvedWorkflow
@@ -385,6 +495,18 @@ func (h *schedulerHarness) installRecordedReservation(stageExecutionID string) {
 	}}
 }
 
+func (h *schedulerHarness) requestCancellation(reason string) {
+	requestedBy := "user-1"
+	h.store.run.State = runstore.RunCancelling
+	h.store.run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
+	h.store.run.Cancellation = &runstore.WorkflowRunCancellation{
+		Code: runstore.CancellationUserRequested, RequestedAt: h.clock.now,
+		RequestedBy: &requestedBy, Reason: &reason,
+	}
+	version := contracts.APIVersion
+	h.store.run.CancellationSchemaVersion = &version
+}
+
 type eventRecorder struct{ values []string }
 
 func (r *eventRecorder) add(value string) { r.values = append(r.values, value) }
@@ -409,7 +531,8 @@ type memorySchedulerStore struct {
 func (s *memorySchedulerStore) ClaimRunnableRun(
 	_ context.Context, claimID string, duration time.Duration,
 ) (runstore.WorkflowRun, error) {
-	if s.run.State != runstore.RunRunning || s.claimID != "" || duration <= 0 {
+	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunCancelling ||
+		s.claimID != "" || duration <= 0 {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}
 	s.claimID = claimID
@@ -563,6 +686,9 @@ type memoryAtomicPersistence struct {
 func (p *memoryAtomicPersistence) CreateStageWithContext(
 	_ context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
 ) (runstore.StageExecution, error) {
+	if p.store.run.State != runstore.RunRunning {
+		return runstore.StageExecution{}, runstore.ErrConflict
+	}
 	execution := runstore.StageExecution{
 		StageExecutionID: params.StageExecutionID, RunID: params.RunID, StageName: params.StageName,
 		Attempt: params.Attempt, PreviousExecutionID: params.PreviousExecutionID,
@@ -579,6 +705,9 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 	_ context.Context, params runstore.EnterFinalizingParams,
 ) error {
+	if p.store.run.State != runstore.RunRunning {
+		return runstore.ErrConflict
+	}
 	for _, reservation := range p.allocator.cached {
 		if !p.allocator.fenced[reservation.Grant.AllocationID] {
 			return errors.New("candidate persisted before write fence")
@@ -607,6 +736,9 @@ func (p *memoryAtomicPersistence) AcceptResultAndFinishRun(
 	if err := validateAcceptance(acceptance); err != nil {
 		return err
 	}
+	if p.store.run.State != runstore.RunRunning {
+		return runstore.ErrConflict
+	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID != acceptance.StageExecutionID ||
 			p.store.stages[index].State != runstore.StageFinalizing {
@@ -633,18 +765,49 @@ func (p *memoryAtomicPersistence) AcceptResultAndFinishRun(
 	return runstore.ErrConflict
 }
 
-func (p *memoryAtomicPersistence) CommitTerminationAndFailRun(
-	_ context.Context, runID, stageExecutionID string, _ runstore.Reason,
+func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
+	_ context.Context,
+	runID string,
+	stageExecutionID string,
+	result contracts.StageContentResult,
 ) error {
-	if runID != p.store.run.RunID {
-		return runstore.ErrNotFound
+	if runID != p.store.run.RunID || p.store.run.State != runstore.RunCancelling {
+		return runstore.ErrConflict
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == stageExecutionID &&
+			p.store.stages[index].State == runstore.StageFinalizing {
+			accepted := cloneStageResult(result)
+			p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
+			p.store.stages[index].AcceptedResult = &accepted
+			p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
+			p.store.run.State = runstore.RunCancelled
+			p.store.claimID = ""
+			p.events.add("accept_cancelled")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
+	_ context.Context,
+	runID string,
+	stageExecutionID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	_ runstore.Reason,
+) error {
+	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
+		return runstore.ErrConflict
 	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == stageExecutionID &&
 			p.store.stages[index].State == runstore.StageAborting {
-			p.store.stages[index].State = runstore.StageInterrupted
-			p.stageStates = append(p.stageStates, runstore.StageAborting, runstore.StageInterrupted)
-			p.store.run.State = runstore.RunFailed
+			terminal := runstore.StageExecutionState(p.store.stages[index].Termination.Outcome)
+			p.store.stages[index].State = terminal
+			p.stageStates = append(p.stageStates, runstore.StageAborting, terminal)
+			p.store.run.State = nextRunState
 			p.store.claimID = ""
 			p.events.add("commit_termination")
 			return nil
@@ -758,6 +921,7 @@ type memoryWorkers struct {
 	abortCalls    int
 	releaseCalls  int
 	prepareError  error
+	abortError    error
 	releaseError  error
 }
 
@@ -808,7 +972,7 @@ func (w *memoryWorkers) AbortAll(
 ) (map[string]contracts.ExecutionReport, error) {
 	w.abortCalls++
 	w.events.add("abort")
-	return map[string]contracts.ExecutionReport{}, nil
+	return map[string]contracts.ExecutionReport{}, w.abortError
 }
 
 func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplane.Reservation) error {

@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	ErrDeferred            = errors.New("WorkflowRun execution is deferred")
-	ErrClaimLost           = errors.New("WorkflowRun scheduler claim was lost")
-	ErrUnsupportedWorkflow = errors.New("Workflow is outside the executable MVP shape")
+	ErrDeferred                 = errors.New("WorkflowRun execution is deferred")
+	ErrClaimLost                = errors.New("WorkflowRun scheduler claim was lost")
+	ErrRunCancellationRequested = errors.New("WorkflowRun cancellation was requested")
+	ErrUnsupportedWorkflow      = errors.New("Workflow is outside the executable MVP shape")
 )
 
 // Store is the non-transactional durable state boundary used while no remote
@@ -67,7 +68,20 @@ type AtomicPersistence interface {
 	) (runstore.StageExecution, error)
 	EnterFinalizingWithResult(context.Context, runstore.EnterFinalizingParams) error
 	AcceptResultAndFinishRun(context.Context, ResultAcceptance) error
-	CommitTerminationAndFailRun(context.Context, string, string, runstore.Reason) error
+	AcceptResultDuringCancellation(
+		context.Context,
+		string,
+		string,
+		contracts.StageContentResult,
+	) error
+	CommitTerminationAndFinishRun(
+		context.Context,
+		string,
+		string,
+		runstore.WorkflowRunState,
+		runstore.WorkflowRunState,
+		runstore.Reason,
+	) error
 }
 
 type ResolvedArtifact struct {

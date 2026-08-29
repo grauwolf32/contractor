@@ -3,7 +3,7 @@ id: V1-001
 title: Add WorkflowRun cancellation and bounded Stage abort
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: completed
 depends_on: [MVP-015]
 languages: [go, python]
 

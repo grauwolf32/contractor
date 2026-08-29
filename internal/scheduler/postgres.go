@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -34,6 +35,9 @@ func (p *PostgresPersistence) CreateStageWithContext(
 	var created runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
+		if err := lockRunState(ctx, tx, params.RunID, runstore.RunRunning); err != nil {
+			return err
+		}
 		var err error
 		created, err = store.CreateStageExecution(ctx, params)
 		if err != nil {
@@ -70,11 +74,15 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 	params runstore.EnterFinalizingParams,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		execution, err := runstore.NewPostgresStore(tx).GetStageExecution(ctx, params.StageExecutionID)
+		store := runstore.NewPostgresStore(tx)
+		execution, err := store.GetStageExecution(ctx, params.StageExecutionID)
 		if err != nil {
 			return err
 		}
+		if err := lockRunState(ctx, tx, execution.RunID, runstore.RunRunning); err != nil {
+			return err
+		}
+		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 		scope, err := artifacts.RunScope(execution.RunID)
 		if err != nil {
 			return err
@@ -91,7 +99,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 				return fmt.Errorf("pin StageResult artifact %q: %w", name, err)
 			}
 		}
-		return runstore.NewPostgresStore(tx).EnterFinalizing(ctx, params)
+		return store.EnterFinalizing(ctx, params)
 	})
 }
 
@@ -104,6 +112,12 @@ func (p *PostgresPersistence) AcceptResultAndFinishRun(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
+		if err := lockRunState(ctx, tx, acceptance.RunID, runstore.RunRunning); err != nil {
+			return err
+		}
+		if err := lockStageForRun(ctx, tx, acceptance.StageExecutionID, acceptance.RunID); err != nil {
+			return err
+		}
 		if err := store.CompleteStageResult(
 			ctx,
 			acceptance.StageExecutionID,
@@ -163,13 +177,52 @@ func (p *PostgresPersistence) AcceptResultAndFinishRun(
 	})
 }
 
-func (p *PostgresPersistence) CommitTerminationAndFailRun(
+func (p *PostgresPersistence) AcceptResultDuringCancellation(
 	ctx context.Context,
 	runID string,
 	stageExecutionID string,
+	result contracts.StageContentResult,
+) error {
+	if runID == "" || stageExecutionID == "" {
+		return fmt.Errorf("Run and StageExecution IDs are required")
+	}
+	if err := result.Validate(); err != nil {
+		return fmt.Errorf("invalid StageResult acceptance: %w", err)
+	}
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, runstore.RunCancelling); err != nil {
+			return err
+		}
+		if err := lockStageForRun(ctx, tx, stageExecutionID, runID); err != nil {
+			return err
+		}
+		store := runstore.NewPostgresStore(tx)
+		if err := store.CompleteStageResult(ctx, stageExecutionID, contracts.APIVersion, result); err != nil {
+			return err
+		}
+		_, err := store.TransitionRun(
+			ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
+			runstore.Reason{Code: runstore.CancellationUserRequested},
+		)
+		return err
+	})
+}
+
+func (p *PostgresPersistence) CommitTerminationAndFinishRun(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
 	reason runstore.Reason,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, expectedRunState); err != nil {
+			return err
+		}
+		if err := lockStageForRun(ctx, tx, stageExecutionID, runID); err != nil {
+			return err
+		}
 		store := runstore.NewPostgresStore(tx)
 		if err := store.CompleteStageTermination(ctx, stageExecutionID); err != nil {
 			return err
@@ -177,12 +230,55 @@ func (p *PostgresPersistence) CommitTerminationAndFailRun(
 		_, err := store.TransitionRun(
 			ctx,
 			runID,
-			runstore.RunRunning,
-			runstore.RunFailed,
+			expectedRunState,
+			nextRunState,
 			reason,
 		)
 		return err
 	})
+}
+
+func lockRunState(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	expected runstore.WorkflowRunState,
+) error {
+	var actual runstore.WorkflowRunState
+	err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).Scan(&actual)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("lock WorkflowRun %q: %w", runID, runstore.ErrNotFound)
+	}
+	if err != nil {
+		return fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
+	}
+	if actual != expected {
+		return &runstore.StateConflictError{
+			Resource: "WorkflowRun", ID: runID, Expected: string(expected),
+		}
+	}
+	return nil
+}
+
+func lockStageForRun(ctx context.Context, tx pgx.Tx, stageExecutionID, runID string) error {
+	var actualRunID string
+	err := tx.QueryRow(
+		ctx,
+		`SELECT run_id FROM stage_executions WHERE stage_execution_id = $1 FOR UPDATE`,
+		stageExecutionID,
+	).Scan(&actualRunID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("lock StageExecution %q: %w", stageExecutionID, runstore.ErrNotFound)
+	}
+	if err != nil {
+		return fmt.Errorf("lock StageExecution %q: %w", stageExecutionID, err)
+	}
+	if actualRunID != runID {
+		return &runstore.StateConflictError{
+			Resource: "StageExecution Run", ID: stageExecutionID, Expected: runID,
+		}
+	}
+	return nil
 }
 
 func validateAcceptance(value ResultAcceptance) error {

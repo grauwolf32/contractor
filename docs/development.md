@@ -125,6 +125,22 @@ curl --fail --silent --show-error \
   "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/result"
 ```
 
+Cancellation is an idempotent durable request. It interrupts an active local
+Planner immediately; another Server process observes the same `cancelling`
+state while renewing its claim. To cancel instead of waiting for the result:
+
+```shell
+jq -n --arg reason 'no longer needed' '{reason:$reason}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H 'Content-Type: application/json' --data-binary @- \
+    "http://127.0.0.1:8080/v1/runs/$RUN_ID/cancel"
+```
+
+The response is `202 Accepted` while bounded cleanup is in progress and `200 OK`
+when the Run was already terminal. Repeating the request never replaces
+the first cancellation reason or changes a successful terminal Run.
+
 Using a real LiteLLM/provider is deliberately opt-in: point
 `CONTRACTOR_LLM_GATEWAY_URL` and `CONTRACTOR_LLM_GATEWAY_TOKEN` at that gateway
 and run the manual stack above. CI and `make test-e2e` never use provider

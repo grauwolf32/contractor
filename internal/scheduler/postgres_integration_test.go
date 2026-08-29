@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -138,13 +139,9 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	fixture := createFinalizingFixture(t, ctx, pool)
-	if _, err := fixture.store.TransitionRun(
-		ctx,
-		"run-1",
-		runstore.RunRunning,
-		runstore.RunCancelling,
-		runstore.Reason{Code: "user_cancelled"},
-	); err != nil {
+	if _, err := fixture.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+		Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,6 +167,95 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	run, err := fixture.store.GetRun(ctx, "run-1")
 	if err != nil || run.State != runstore.RunCancelling {
 		t.Fatalf("winning Run state = (%+v, %v)", run, err)
+	}
+	if err := fixture.persistence.AcceptResultDuringCancellation(
+		ctx, "run-1", fixture.executionID, fixture.result,
+	); err != nil {
+		t.Fatalf("accept finalizing result for audit: %v", err)
+	}
+	execution, err = fixture.store.GetStageExecution(ctx, fixture.executionID)
+	run, runErr := fixture.store.GetRun(ctx, "run-1")
+	listed, listErr := runStore.List(ctx, &outputs)
+	if err != nil || runErr != nil || listErr != nil || execution.State != runstore.StageSucceeded ||
+		execution.AcceptedResult == nil || run.State != runstore.RunCancelled || len(listed) != 0 {
+		t.Fatalf("audit-only acceptance = stage:(%+v,%v) run:(%+v,%v) outputs:(%v,%v)",
+			execution, err, run, runErr, listed, listErr)
+	}
+}
+
+func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	fixture := createFinalizingFixture(t, ctx, pool)
+
+	start := make(chan struct{})
+	var wait sync.WaitGroup
+	wait.Add(2)
+	acceptanceResult := make(chan error, 1)
+	cancellationResult := make(chan struct {
+		run runstore.WorkflowRun
+		err error
+	}, 1)
+	go func() {
+		defer wait.Done()
+		<-start
+		acceptanceResult <- fixture.persistence.AcceptResultAndFinishRun(ctx, ResultAcceptance{
+			RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
+			WorkflowOutputs:    fixture.workflow.Stages["copy"].WorkflowOutputs,
+			OutputContracts:    fixture.workflow.Outputs,
+			ExpectedRunOutcome: runstore.RunSucceeded,
+		})
+	}()
+	go func() {
+		defer wait.Done()
+		<-start
+		run, err := fixture.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+			Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+		})
+		cancellationResult <- struct {
+			run runstore.WorkflowRun
+			err error
+		}{run: run, err: err}
+	}()
+	close(start)
+	wait.Wait()
+	acceptErr := <-acceptanceResult
+	cancelResult := <-cancellationResult
+	if cancelResult.err != nil {
+		t.Fatalf("cancel race error: %v", cancelResult.err)
+	}
+
+	run, err := fixture.store.GetRun(ctx, "run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run-1")
+	outputs := "outputs"
+	listed, err := runArtifacts.List(ctx, &outputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch run.State {
+	case runstore.RunSucceeded:
+		if acceptErr != nil || cancelResult.run.State != runstore.RunSucceeded || len(listed) != 1 {
+			t.Fatalf("success won race: accept=%v cancel=%+v outputs=%v", acceptErr, cancelResult, listed)
+		}
+	case runstore.RunCancelling:
+		if !errors.Is(acceptErr, runstore.ErrConflict) || cancelResult.run.State != runstore.RunCancelling || len(listed) != 0 {
+			t.Fatalf("cancel won race: accept=%v cancel=%+v outputs=%v", acceptErr, cancelResult, listed)
+		}
+		if err := fixture.persistence.AcceptResultDuringCancellation(
+			ctx, "run-1", fixture.executionID, fixture.result,
+		); err != nil {
+			t.Fatalf("finish cancellation winner: %v", err)
+		}
+		finished, err := fixture.store.GetRun(ctx, "run-1")
+		if err != nil || finished.State != runstore.RunCancelled {
+			t.Fatalf("finished cancellation winner = (%+v, %v)", finished, err)
+		}
+	default:
+		t.Fatalf("unexpected race winner state %q", run.State)
 	}
 }
 
