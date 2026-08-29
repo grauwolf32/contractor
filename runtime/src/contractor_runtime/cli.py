@@ -1,4 +1,4 @@
-"""Runtime Agent command-line entry point."""
+"""Runtime Agent process entry point and bounded shutdown orchestration."""
 
 from __future__ import annotations
 
@@ -6,57 +6,124 @@ import asyncio
 import contextlib
 import logging
 import signal
-from collections.abc import Generator, Sequence
+from collections.abc import Callable, Sequence
 
-import uvicorn
-
-from contractor_runtime.app import create_app
+from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
 from contractor_runtime.log import configure_logging
+from contractor_runtime.mtls import runtime_agent_client_context, runtime_agent_server_context
+from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings, parse_settings
+from contractor_runtime.state import RuntimeState
+from contractor_runtime.workspace import cleanup_orphan_workdirs
 
 logger = logging.getLogger(__name__)
 
 
-class RuntimeServer(uvicorn.Server):
-    """Uvicorn server whose signals are coordinated by the asyncio entry point."""
-
-    @contextlib.contextmanager
-    def capture_signals(self) -> Generator[None]:
-        yield
-
-
-async def serve(settings: Settings) -> None:
-    config = uvicorn.Config(
-        create_app(),
-        host=settings.host,
-        port=settings.port,
-        access_log=False,
-        log_config=None,
+async def serve(
+    settings: Settings,
+    *,
+    state: RuntimeState | None = None,
+    transport: ControlTransport | None = None,
+    stop_requested: asyncio.Event | None = None,
+    server_factory: Callable[..., RuntimeServer] = RuntimeServer,
+    install_signal_handlers: bool = True,
+) -> None:
+    runtime_state = state or RuntimeState()
+    stop = stop_requested or asyncio.Event()
+    cleanup_orphan_workdirs(settings.work_root)
+    outgoing_tls = runtime_agent_client_context(
+        ca_file=settings.ca_file,
+        certificate_file=settings.certificate_file,
+        private_key_file=settings.private_key_file,
     )
-    server = RuntimeServer(config)
-    stop_requested = asyncio.Event()
+    incoming_tls = runtime_agent_server_context(
+        ca_file=settings.ca_file,
+        certificate_file=settings.certificate_file,
+        private_key_file=settings.private_key_file,
+    )
+    control_transport = transport or MTLSJSONTransport(
+        settings.control_plane_url, outgoing_tls, settings.request_timeout_seconds
+    )
+    control = ControlClient(settings, runtime_state, control_transport)
+    application = create_app(runtime_state)
+    server = server_factory(create_server_config(settings, application, incoming_tls))
+
     loop = asyncio.get_running_loop()
     handled_signals = (signal.SIGINT, signal.SIGTERM)
-    for handled_signal in handled_signals:
-        loop.add_signal_handler(handled_signal, stop_requested.set)
-
-    logger.info("runtime agent listening on %s", settings.listen_address)
-    server_task = asyncio.create_task(server.serve(), name="runtime-http-server")
-    stop_task = asyncio.create_task(stop_requested.wait(), name="runtime-stop-signal")
-    try:
-        done, _ = await asyncio.wait({server_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
-        if stop_task in done and not server_task.done():
-            server.should_exit = True
-        await server_task
-        if not server.started:
-            raise RuntimeError("runtime HTTP server failed to start")
-    finally:
-        stop_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await stop_task
+    if install_signal_handlers:
         for handled_signal in handled_signals:
-            loop.remove_signal_handler(handled_signal)
+            loop.add_signal_handler(handled_signal, stop.set)
+
+    server_task = asyncio.create_task(server.serve(), name="runtime-private-server")
+    registration_task: asyncio.Task[bool] | None = None
+    heartbeat_task: asyncio.Task[None] | None = None
+    stop_task = asyncio.create_task(stop.wait(), name="runtime-stop-signal")
+    try:
+        await _wait_until_listening(server, server_task, settings.request_timeout_seconds)
+        logger.info("runtime agent private listener is accepting on %s", settings.listen_address)
+        registration_task = asyncio.create_task(
+            control.register_until_stopped(stop), name="runtime-registration"
+        )
+        done, _ = await asyncio.wait(
+            {registration_task, server_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+        if server_task in done:
+            await server_task
+            raise RuntimeError("runtime private server stopped before shutdown")
+        if stop_task in done:
+            return
+        if not await registration_task:
+            return
+        logger.info("runtime agent registered", extra={"instanceId": runtime_state.instance_id})
+        heartbeat_task = asyncio.create_task(
+            control.run_heartbeats(stop), name="runtime-heartbeats"
+        )
+        done, _ = await asyncio.wait(
+            {heartbeat_task, server_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+        if server_task in done:
+            await server_task
+            raise RuntimeError("runtime private server stopped before shutdown")
+        if heartbeat_task in done:
+            await heartbeat_task
+            raise RuntimeError("runtime heartbeat loop stopped before shutdown")
+    finally:
+        stop.set()
+        for task in (registration_task, heartbeat_task):
+            if task is not None and not task.done():
+                task.cancel()
+        await runtime_state.begin_stopping()
+        server.should_exit = True
+        for task in (registration_task, heartbeat_task, stop_task):
+            if task is not None:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        try:
+            await asyncio.wait_for(server_task, timeout=settings.shutdown_grace_seconds)
+        except TimeoutError:
+            server.force_exit = True
+            server_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await server_task
+        if install_signal_handlers:
+            for handled_signal in handled_signals:
+                loop.remove_signal_handler(handled_signal)
         logger.info("runtime agent stopped")
+
+
+async def _wait_until_listening(
+    server: RuntimeServer,
+    server_task: asyncio.Task[None],
+    timeout_seconds: float,
+) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout_seconds
+    while not server.started:
+        if server_task.done():
+            await server_task
+            raise RuntimeError("runtime private listener failed to start")
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError("runtime private listener readiness timed out")
+        await asyncio.sleep(0.01)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -66,3 +133,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(serve(settings))
     except KeyboardInterrupt:
         logger.info("runtime agent interrupted")
+    except Exception as error:
+        logger.error("runtime agent failed (%s)", type(error).__name__)
+        raise SystemExit(1) from None

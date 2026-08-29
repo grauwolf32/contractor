@@ -3,7 +3,7 @@ id: MVP-009
 title: Implement Python Runtime Agent registration, heartbeat, and private server shell
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-002, MVP-007, MVP-008]
 languages: [python]
 

@@ -1,0 +1,134 @@
+"""Concurrency-safe process and single-slot Runtime Agent state."""
+
+from __future__ import annotations
+
+import asyncio
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import StrEnum
+
+from contractor_runtime.contracts import (
+    API_VERSION,
+    AgentHeartbeat,
+    AgentObservedState,
+    AgentRegistration,
+    ToolsetCapability,
+)
+from contractor_runtime.settings import Settings
+
+
+class ProcessState(StrEnum):
+    STARTING = "starting"
+    IDLE = "idle"
+    ALLOCATED = "allocated"
+    DRAINING = "draining"
+    FENCED = "fenced"
+    STOPPING = "stopping"
+
+
+@dataclass(frozen=True, slots=True)
+class StateSnapshot:
+    instance_id: str
+    started_at: datetime
+    process_state: ProcessState
+    allocation_id: str | None
+    route_dispatches: int
+
+
+class RuntimeState:
+    """Owns the process identity and one exclusive allocation slot."""
+
+    def __init__(self, *, now: datetime | None = None, instance_id: str | None = None) -> None:
+        self._lock = asyncio.Lock()
+        self._instance_id = instance_id or f"runtime-{uuid.uuid4()}"
+        self._started_at = now or datetime.now(UTC)
+        self._process_state = ProcessState.STARTING
+        self._allocation_id: str | None = None
+        self._route_dispatches = 0
+
+    @property
+    def instance_id(self) -> str:
+        return self._instance_id
+
+    @property
+    def started_at(self) -> datetime:
+        return self._started_at
+
+    async def snapshot(self) -> StateSnapshot:
+        async with self._lock:
+            return StateSnapshot(
+                instance_id=self._instance_id,
+                started_at=self._started_at,
+                process_state=self._process_state,
+                allocation_id=self._allocation_id,
+                route_dispatches=self._route_dispatches,
+            )
+
+    async def registration(self, settings: Settings) -> AgentRegistration:
+        """Build a registration without publishing an internal idle transition.
+
+        The wire contract has no ``starting`` value. The request advertises the
+        slot state it will enter only if this registration is acknowledged;
+        internal state remains ``starting`` until that response validates.
+        """
+
+        async with self._lock:
+            observed_state, allocation_id = self._wire_state(prospective_idle=True)
+            return AgentRegistration(
+                apiVersion=API_VERSION,
+                instanceId=self._instance_id,
+                startedAt=self._started_at,
+                controlUrl=settings.advertised_control_url,
+                a2aUrl=settings.advertised_a2a_url,
+                supportedRuntimes=["adk@1"],
+                supportedToolsets=[
+                    ToolsetCapability(
+                        ref="run-artifacts@1",
+                        tools=["list_artifacts", "read_artifact", "write_artifact"],
+                    )
+                ],
+                supportedSandboxProfiles=["local-workdir@1"],
+                observedState=observed_state,
+                allocationId=allocation_id,
+            )
+
+    async def mark_registered(self) -> None:
+        async with self._lock:
+            if self._process_state is not ProcessState.STARTING:
+                raise RuntimeError("registration acknowledgement requires starting state")
+            self._process_state = ProcessState.IDLE
+
+    async def heartbeat(self, sequence: int, echoed_ack: int) -> AgentHeartbeat:
+        async with self._lock:
+            observed_state, allocation_id = self._wire_state(prospective_idle=False)
+            return AgentHeartbeat(
+                apiVersion=API_VERSION,
+                instanceId=self._instance_id,
+                heartbeatSeq=sequence,
+                echoedAckSeq=echoed_ack,
+                observedState=observed_state,
+                allocationId=allocation_id,
+            )
+
+    async def begin_stopping(self) -> None:
+        async with self._lock:
+            self._process_state = ProcessState.STOPPING
+
+    async def record_route_dispatch(self) -> None:
+        async with self._lock:
+            self._route_dispatches += 1
+
+    def _wire_state(self, *, prospective_idle: bool) -> tuple[AgentObservedState, str | None]:
+        if self._process_state is ProcessState.STARTING and prospective_idle:
+            return AgentObservedState.IDLE, None
+        mapping = {
+            ProcessState.IDLE: AgentObservedState.IDLE,
+            ProcessState.ALLOCATED: AgentObservedState.ALLOCATED,
+            ProcessState.DRAINING: AgentObservedState.DRAINING,
+            ProcessState.FENCED: AgentObservedState.FENCED,
+        }
+        observed = mapping.get(self._process_state)
+        if observed is None:
+            raise RuntimeError(f"state {self._process_state} cannot emit a heartbeat")
+        return observed, self._allocation_id
