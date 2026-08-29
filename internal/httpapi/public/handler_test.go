@@ -22,6 +22,7 @@ type handlerFixture struct {
 	artifacts  *artifacts.Service
 	runs       *fakeRunStore
 	unit       *fakeUnitOfWork
+	notifier   *recordingRunNotifier
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -34,16 +35,21 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 	service := artifacts.NewService(repository)
 	runs := newFakeRunStore()
 	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
+	notifier := &recordingRunNotifier{}
 	handler, err := NewHandler(Dependencies{
 		Config: snapshot, Runs: runs, Artifacts: service, Transactions: unit,
 		BearerToken: contracts.NewSecretString(testBearerToken), UserID: "user-1",
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
+		RunNotifier:  notifier,
 	})
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
-	return handlerFixture{handler: handler, repository: repository, artifacts: service, runs: runs, unit: unit}
+	return handlerFixture{
+		handler: handler, repository: repository, artifacts: service,
+		runs: runs, unit: unit, notifier: notifier,
+	}
 }
 
 func authenticatedRequest(method, target string, body *bytes.Reader) *http.Request {
@@ -127,7 +133,7 @@ func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 		}
 		assertErrorCode(t, response, "invalid_request")
 	}
-	if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 {
+	if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 || fixture.notifier.calls != 0 {
 		t.Fatalf("invalid requests used transaction %d times or created %d Runs", fixture.unit.calls, len(fixture.runs.runs))
 	}
 }
@@ -149,6 +155,9 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("create Run = status %d, body %s", response.Code, response.Body.String())
 	}
+	if fixture.notifier.calls != 1 {
+		t.Fatalf("Scheduler wake calls = %d", fixture.notifier.calls)
+	}
 	run := fixture.runs.runs["run_fixed"]
 	if run.State != runstore.RunRunning || run.OwnerID != "user-1" || len(run.WorkflowSnapshot) == 0 {
 		t.Fatalf("stored Run = %+v", run)
@@ -159,6 +168,10 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 		t.Fatalf("forked input = (%+v, %v)", forked, err)
 	}
 }
+
+type recordingRunNotifier struct{ calls int }
+
+func (n *recordingRunNotifier) Wake() { n.calls++ }
 
 func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	fixture := newHandlerFixture(t)

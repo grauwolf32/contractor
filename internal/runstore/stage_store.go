@@ -72,6 +72,40 @@ func (s *PostgresStore) GetStageExecution(ctx context.Context, stageExecutionID 
 	return result, nil
 }
 
+// ListTerminalStageExecutionsWithAllocations supports best-effort release
+// recovery after the semantic terminal transaction committed. Stage allocation
+// rows remain immutable provenance, so callers determine liveness through the
+// volatile Control Plane registry before issuing an idempotent release.
+func (s *PostgresStore) ListTerminalStageExecutionsWithAllocations(
+	ctx context.Context,
+) ([]StageExecution, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT `+stageExecutionColumns+`
+FROM stage_executions AS execution
+WHERE execution.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+  AND EXISTS (
+      SELECT 1 FROM stage_allocations AS allocation
+      WHERE allocation.stage_execution_id = execution.stage_execution_id
+  )
+ORDER BY execution.terminal_at, execution.stage_execution_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list terminal StageExecutions with allocations: %w", err)
+	}
+	defer rows.Close()
+	result := make([]StageExecution, 0)
+	for rows.Next() {
+		execution, err := scanStageExecution(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan terminal StageExecution with allocations: %w", err)
+		}
+		result = append(result, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate terminal StageExecutions with allocations: %w", err)
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err

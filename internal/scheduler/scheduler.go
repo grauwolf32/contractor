@@ -1,0 +1,956 @@
+package scheduler
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/url"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+)
+
+const (
+	defaultPollInterval        = time.Second
+	defaultClaimDuration       = 2 * time.Minute
+	defaultOperationTimeout    = 15 * time.Second
+	defaultPlannerTimeout      = 45 * time.Second
+	defaultFinalizationTimeout = 10 * time.Second
+	defaultAbortTimeout        = 10 * time.Second
+	maxCandidateBytes          = 256 * 1024
+	maxCandidateSummaryBytes   = 64 * 1024
+	maxCandidateArtifacts      = 128
+)
+
+type Scheduler struct {
+	store       Store
+	persistence AtomicPersistence
+	artifacts   ArtifactResolver
+	allocator   Allocator
+	workers     WorkerController
+	planners    PlannerRegistry
+	options     Options
+	wake        chan struct{}
+}
+
+func New(
+	store Store,
+	persistence AtomicPersistence,
+	artifactResolver ArtifactResolver,
+	allocator Allocator,
+	workers WorkerController,
+	planners PlannerRegistry,
+	options Options,
+) (*Scheduler, error) {
+	if store == nil || persistence == nil || artifactResolver == nil || allocator == nil ||
+		workers == nil || planners == nil {
+		return nil, fmt.Errorf("Scheduler dependencies are incomplete")
+	}
+	applyOptionDefaults(&options)
+	if options.PollInterval <= 0 || options.ClaimDuration <= 0 || options.OperationTimeout <= 0 ||
+		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 {
+		return nil, fmt.Errorf("Scheduler durations must be positive")
+	}
+	if err := validateRuntimeSettings(options.RuntimeSettings); err != nil {
+		return nil, err
+	}
+	return &Scheduler{
+		store: store, persistence: persistence, artifacts: artifactResolver,
+		allocator: allocator, workers: workers, planners: planners, options: options,
+		wake: make(chan struct{}, 1),
+	}, nil
+}
+
+func applyOptionDefaults(options *Options) {
+	if options.PollInterval == 0 {
+		options.PollInterval = defaultPollInterval
+	}
+	if options.ClaimDuration == 0 {
+		options.ClaimDuration = defaultClaimDuration
+	}
+	if options.OperationTimeout == 0 {
+		options.OperationTimeout = defaultOperationTimeout
+	}
+	if options.PlannerTimeout == 0 {
+		options.PlannerTimeout = defaultPlannerTimeout
+	}
+	if options.FinalizationTimeout == 0 {
+		options.FinalizationTimeout = defaultFinalizationTimeout
+	}
+	if options.AbortTimeout == 0 {
+		options.AbortTimeout = defaultAbortTimeout
+	}
+	if options.Clock == nil {
+		options.Clock = realClock{}
+	}
+	if options.NewID == nil {
+		options.NewID = schedulerID
+	}
+	if options.Logger == nil {
+		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+}
+
+func validateRuntimeSettings(settings contracts.RuntimeSettings) error {
+	for name, raw := range map[string]string{
+		"LLM Gateway URL":  settings.LLMGatewayURL,
+		"Artifact API URL": settings.ArtifactAPIURL,
+	} {
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Host == "" || parsed.User != nil ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return fmt.Errorf("Scheduler %s is invalid", name)
+		}
+	}
+	if settings.LLMGatewayToken.Reveal() == "" || settings.RequestTimeoutSeconds <= 0 {
+		return fmt.Errorf("Scheduler RuntimeSettings require a gateway token and positive timeout")
+	}
+	return nil
+}
+
+// Wake requests an immediate claim attempt. It is edge-triggered and never
+// blocks a public API handler.
+func (s *Scheduler) Wake() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+// Run serves claims serially. One Scheduler instance therefore executes one
+// Stage at a time; PostgreSQL claims still protect against another process.
+func (s *Scheduler) Run(ctx context.Context) error {
+	for {
+		worked, err := s.RunOnce(ctx)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err != nil && !errors.Is(err, ErrDeferred) {
+			s.options.Logger.Error("Workflow Scheduler iteration failed", "error", err)
+		}
+		if worked && err == nil {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-s.wake:
+		case <-s.options.Clock.After(s.options.PollInterval):
+		}
+	}
+}
+
+// RunOnce claims and advances at most one WorkflowRun.
+func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
+	released, err := s.recoverTerminalRelease(ctx)
+	if err != nil || released {
+		return released, err
+	}
+	claimID, err := s.options.NewID("claim_")
+	if err != nil {
+		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
+	}
+	claimContext, cancelClaim := context.WithTimeout(ctx, s.options.OperationTimeout)
+	run, err := s.store.ClaimRunnableRun(claimContext, claimID, s.options.ClaimDuration)
+	cancelClaim()
+	if errors.Is(err, runstore.ErrNoWork) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	executionContext, cancelExecution := context.WithCancelCause(ctx)
+	stopRenewal := make(chan struct{})
+	var renewal sync.WaitGroup
+	renewal.Add(1)
+	go func() {
+		defer renewal.Done()
+		s.renewClaim(executionContext, cancelExecution, stopRenewal, run.RunID, claimID)
+	}()
+
+	err = s.executeRun(executionContext, run)
+	close(stopRenewal)
+	cancelExecution(nil)
+	renewal.Wait()
+
+	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	releaseErr := s.store.ReleaseRunClaim(releaseContext, run.RunID, claimID)
+	cancelRelease()
+	if releaseErr != nil && !errors.Is(releaseErr, runstore.ErrConflict) && err == nil {
+		err = releaseErr
+	}
+	if cause := context.Cause(executionContext); cause != nil && !errors.Is(cause, context.Canceled) && err == nil {
+		err = cause
+	}
+	return true, err
+}
+
+func (s *Scheduler) renewClaim(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	stop <-chan struct{},
+	runID string,
+	claimID string,
+) {
+	interval := s.options.ClaimDuration / 3
+	if interval <= 0 {
+		interval = time.Millisecond
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-stop:
+			return
+		case <-s.options.Clock.After(interval):
+		}
+		renewContext, renewCancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+		err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
+		renewCancel()
+		if err != nil {
+			cancel(errors.Join(ErrClaimLost, err))
+			return
+		}
+	}
+}
+
+func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) error {
+	workflow, err := decodeExecutableWorkflow(run)
+	if err != nil {
+		return s.failUnsupportedRun(ctx, run.RunID, err)
+	}
+	executions, err := s.store.ListStageExecutions(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	var execution runstore.StageExecution
+	if len(executions) == 0 {
+		execution, err = s.createStageExecution(ctx, run, workflow)
+		if err != nil {
+			return err
+		}
+	} else if len(executions) == 1 {
+		execution = executions[0]
+	} else {
+		return s.failUnsupportedRun(ctx, run.RunID, fmt.Errorf("multiple StageExecutions are unsupported"))
+	}
+	if err := validatePersistedExecution(execution, run, workflow); err != nil {
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
+
+	switch execution.State {
+	case runstore.StagePreparing:
+		if missing := missingRequiredContext(execution); missing != "" {
+			return s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
+				Code:      "context_artifact_missing",
+				Message:   "Required Stage context artifact is unavailable",
+				Retryable: false,
+			})
+		}
+		return s.prepareAndPlan(ctx, run, workflow, execution)
+	case runstore.StageRunning:
+		return s.prepareAndPlan(ctx, run, workflow, execution)
+	case runstore.StageFinalizing:
+		return s.resumeFinalizing(ctx, run, workflow, execution, nil)
+	case runstore.StageAborting:
+		return s.resumeAborting(ctx, run, workflow, execution, nil)
+	case runstore.StageInterrupted, runstore.StageCancelled:
+		return s.finishRunFromTerminalTermination(ctx, run, execution)
+	case runstore.StageSucceeded, runstore.StageFailed:
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("terminal Stage exists in a still-running MVP Run"))
+	default:
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("unknown StageExecution state %q", execution.State))
+	}
+}
+
+func (s *Scheduler) failUnsupportedRun(ctx context.Context, runID string, cause error) error {
+	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	_, err := s.store.TransitionRun(
+		operationContext,
+		runID,
+		runstore.RunRunning,
+		runstore.RunFailed,
+		runstore.Reason{Code: "unsupported_workflow_shape"},
+	)
+	if err != nil {
+		return errors.Join(cause, err)
+	}
+	return nil
+}
+
+func (s *Scheduler) failInvalidRunState(ctx context.Context, runID string, cause error) error {
+	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	_, err := s.store.TransitionRun(
+		operationContext,
+		runID,
+		runstore.RunRunning,
+		runstore.RunFailed,
+		runstore.Reason{Code: "scheduler_state_invalid"},
+	)
+	if err != nil {
+		return errors.Join(cause, err)
+	}
+	return nil
+}
+
+func (s *Scheduler) createStageExecution(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+) (runstore.StageExecution, error) {
+	stageExecutionID, err := s.options.NewID("stage_execution_")
+	if err != nil {
+		return runstore.StageExecution{}, fmt.Errorf("generate StageExecution ID: %w", err)
+	}
+	contextSnapshot := runstore.StageContextSnapshot{
+		Parameters: cloneParameters(run.Parameters),
+		Artifacts:  make(map[string]runstore.PinnedContextArtifact, len(workflow.stage.Context.Artifacts)),
+	}
+	pins := make([]ContextPin, 0, len(workflow.stage.Context.Artifacts))
+	names := make([]string, 0, len(workflow.stage.Context.Artifacts))
+	for name := range workflow.stage.Context.Artifacts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		declaration := workflow.stage.Context.Artifacts[name]
+		current := contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name}
+		resolved, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
+		if errors.Is(resolveErr, artifacts.ErrArtifactNotFound) {
+			contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{Required: declaration.Required}
+			continue
+		}
+		if resolveErr != nil {
+			return runstore.StageExecution{}, fmt.Errorf("resolve StageContext artifact %q: %w", name, resolveErr)
+		}
+		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name {
+			return runstore.StageExecution{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
+		}
+		exact := cloneArtifactRef(resolved.Ref)
+		contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{
+			Required: declaration.Required,
+			Artifact: &exact,
+		}
+		pins = append(pins, ContextPin{Name: name, Ref: exact})
+	}
+	encodedStage, err := stageSnapshot(workflow.stage)
+	if err != nil {
+		return runstore.StageExecution{}, err
+	}
+	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.persistence.CreateStageWithContext(operationContext, runstore.CreateStageExecutionParams{
+		StageExecutionID: stageExecutionID,
+		RunID:            run.RunID, StageName: workflow.stageName, Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
+		StageContextSchemaVersion: contracts.APIVersion, StageContext: contextSnapshot,
+	}, pins)
+}
+
+func missingRequiredContext(execution runstore.StageExecution) string {
+	names := make([]string, 0, len(execution.StageContext.Artifacts))
+	for name := range execution.StageContext.Artifacts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		value := execution.StageContext.Artifacts[name]
+		if value.Required && value.Artifact == nil {
+			return name
+		}
+	}
+	return ""
+}
+
+func (s *Scheduler) prepareAndPlan(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+) error {
+	reservations, fresh, err := s.liveOrNewReservations(ctx, run, workflow, execution)
+	if errors.Is(err, controlplane.ErrInsufficientCapacity) {
+		return ErrDeferred
+	}
+	if errors.Is(err, errControlPlaneStateLost) {
+		return s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
+			Code: "control_plane_state_lost", Message: "Control Plane lost the active allocation set", Retryable: true,
+		})
+	}
+	if err != nil {
+		return err
+	}
+	if fresh {
+		if err := s.recordReservations(ctx, execution.StageExecutionID, reservations); err != nil {
+			s.releaseUnprepared(reservations)
+			return s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
+				Code: "allocation_record_failed", Message: "Stage allocation provenance could not be recorded", Retryable: true,
+			})
+		}
+	}
+
+	prepareContext, cancelPrepare := context.WithTimeout(ctx, s.options.OperationTimeout)
+	handles, err := s.workers.PrepareAll(prepareContext, reservations, s.options.RuntimeSettings)
+	cancelPrepare()
+	if err != nil {
+		failure := infrastructureFailure("allocation_preparation_failed", "Worker allocation preparation failed", err)
+		return s.beginAbort(ctx, run, workflow, execution, nil, failure)
+	}
+
+	invocation := planner.Invocation{
+		StageExecutionID: execution.StageExecutionID,
+		RunID:            run.RunID,
+		Stage:            workflow.stage,
+		Context:          plannerContext(execution.StageContext),
+		Workers:          handles,
+		Deadline:         s.options.Clock.Now().Add(s.options.PlannerTimeout),
+	}
+	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
+	instance, err := s.planners.Create(plannerRef, invocation)
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "planner_initialization_failed", Message: "Planner could not be initialized", Retryable: false,
+		})
+	}
+	candidate, err := instance.Run(ctx)
+	currentExecution, loadErr := s.store.GetStageExecution(ctx, execution.StageExecutionID)
+	if loadErr != nil {
+		return errors.Join(err, loadErr)
+	}
+	execution = currentExecution
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
+	}
+	if err := s.validateCandidate(ctx, run.RunID, workflow.stage, candidate); err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "result_contract_violation", Message: "Planner candidate violates the Stage result contract", Retryable: false,
+		})
+	}
+	if err := s.fenceAll(reservations); err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "allocation_fence_failed", Message: "Stage allocations could not be write-fenced", Retryable: true,
+		})
+	}
+	finalizationID, err := s.options.NewID("finalization_")
+	if err != nil {
+		return err
+	}
+	deadline := s.options.Clock.Now().Add(s.options.FinalizationTimeout)
+	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
+	err = s.persistence.EnterFinalizingWithResult(transitionContext, runstore.EnterFinalizingParams{
+		StageExecutionID:    execution.StageExecutionID,
+		ResultSchemaVersion: contracts.APIVersion,
+		Candidate:           candidate,
+		FinalizationID:      finalizationID,
+		Deadline:            deadline,
+		Reason:              runstore.Reason{Code: "planner_completed"},
+	})
+	cancelTransition()
+	if err != nil {
+		return err
+	}
+	execution.State = runstore.StageFinalizing
+	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
+	clonedCandidate := cloneStageResult(candidate)
+	execution.CandidateResult = &clonedCandidate
+	execution.FinalizationID = &finalizationID
+	execution.FinalizationDeadline = &deadline
+	return s.resumeFinalizing(ctx, run, workflow, execution, reservations)
+}
+
+var errControlPlaneStateLost = errors.New("Control Plane state for durable allocations is unavailable")
+
+func (s *Scheduler) liveOrNewReservations(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+) ([]controlplane.Reservation, bool, error) {
+	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil {
+		return nil, false, err
+	}
+	if execution.State == runstore.StageRunning && len(recorded) == 0 {
+		return nil, false, errControlPlaneStateLost
+	}
+	if len(recorded) > 0 {
+		for _, allocation := range recorded {
+			grant, grantErr := s.allocator.GetGrant(allocation.AllocationID)
+			if grantErr != nil || grant.StageExecutionID != execution.StageExecutionID {
+				return nil, false, errControlPlaneStateLost
+			}
+		}
+	}
+	reservations, err := s.allocator.ReserveAll(controlplane.ReservationRequest{
+		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+		Bindings: bindingRequirements(workflow.stage),
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if err := verifyReservations(run, workflow, execution, recorded, reservations); err != nil {
+		return nil, false, err
+	}
+	return reservations, len(recorded) == 0, nil
+}
+
+func (s *Scheduler) recordReservations(
+	ctx context.Context,
+	stageExecutionID string,
+	reservations []controlplane.Reservation,
+) error {
+	for _, reservation := range reservations {
+		operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+		err := s.store.RecordStageAllocation(operationContext, runstore.StageAllocation{
+			AllocationID:           reservation.Grant.AllocationID,
+			StageExecutionID:       stageExecutionID,
+			LogicalAgentName:       reservation.Grant.LogicalAgentName,
+			Namespace:              reservation.Grant.Namespace,
+			AgentTemplateRef:       reservation.AgentTemplate.Ref,
+			WorkerRuntimeRef:       reservation.AgentTemplate.Runtime,
+			RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
+		})
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Scheduler) releaseUnprepared(reservations []controlplane.Reservation) {
+	for _, reservation := range reservations {
+		if err := s.allocator.Release(reservation.Grant.AllocationID); err != nil {
+			s.options.Logger.Warn("release unprepared allocation failed", "allocation_id", reservation.Grant.AllocationID)
+		}
+	}
+}
+
+func verifyReservations(
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	recorded []runstore.StageAllocation,
+	reservations []controlplane.Reservation,
+) error {
+	if len(reservations) != len(workflow.stage.Agents) {
+		return fmt.Errorf("Control Plane returned an incomplete allocation set")
+	}
+	recordedByName := make(map[string]runstore.StageAllocation, len(recorded))
+	for _, allocation := range recorded {
+		recordedByName[allocation.LogicalAgentName] = allocation
+	}
+	seen := make(map[string]struct{}, len(reservations))
+	for _, reservation := range reservations {
+		grant := reservation.Grant
+		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
+		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
+			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
+			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() {
+			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
+		}
+		if _, duplicate := seen[grant.LogicalAgentName]; duplicate {
+			return fmt.Errorf("Control Plane returned duplicate logical Agent allocations")
+		}
+		seen[grant.LogicalAgentName] = struct{}{}
+		if persisted, exists := recordedByName[grant.LogicalAgentName]; exists &&
+			(persisted.AllocationID != grant.AllocationID ||
+				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
+				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
+				persisted.WorkerRuntimeRef != binding.Template.Runtime) {
+			return fmt.Errorf("live Control Plane allocation differs from durable provenance")
+		}
+	}
+	if len(recorded) > 0 && len(recordedByName) != len(seen) {
+		return fmt.Errorf("durable allocation set is incomplete")
+	}
+	return nil
+}
+
+func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext {
+	result := planner.StageContext{
+		Parameters: cloneParameters(snapshot.Parameters),
+		Artifacts:  make(map[string]*contracts.ArtifactRef, len(snapshot.Artifacts)),
+	}
+	for name, pinned := range snapshot.Artifacts {
+		if pinned.Artifact != nil {
+			ref := cloneArtifactRef(*pinned.Artifact)
+			result.Artifacts[name] = &ref
+		} else {
+			result.Artifacts[name] = nil
+		}
+	}
+	return result
+}
+
+func (s *Scheduler) validateCandidate(
+	ctx context.Context,
+	runID string,
+	stage workflowconfig.ResolvedStage,
+	result contracts.StageContentResult,
+) error {
+	if err := result.Validate(); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil || len(encoded) > maxCandidateBytes || len(result.Summary) > maxCandidateSummaryBytes ||
+		len(result.Artifacts) > maxCandidateArtifacts {
+		return fmt.Errorf("StageResult exceeds its bounded contract")
+	}
+	for name := range result.Artifacts {
+		if _, declared := stage.Result.Artifacts[name]; !declared {
+			return fmt.Errorf("undeclared Stage result artifact %q", name)
+		}
+	}
+	if result.Outcome == contracts.StageSucceeded {
+		for name, slot := range stage.Result.Artifacts {
+			if _, present := result.Artifacts[name]; slot.Required && !present {
+				return fmt.Errorf("required Stage result artifact %q is missing", name)
+			}
+		}
+	}
+	names := sortedArtifactNames(result.Artifacts)
+	for _, name := range names {
+		ref := result.Artifacts[name]
+		resolved, err := s.artifacts.Resolve(ctx, runID, ref)
+		if err != nil {
+			return fmt.Errorf("verify Stage result artifact %q: %w", name, err)
+		}
+		if !sameExactRef(ref, resolved.Ref) ||
+			!acceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {
+			return fmt.Errorf("Stage result artifact %q differs from its declared exact version or media type", name)
+		}
+	}
+	return nil
+}
+
+func (s *Scheduler) fenceAll(reservations []controlplane.Reservation) error {
+	var failures []error
+	for _, reservation := range reservations {
+		if err := s.allocator.SetWriteFence(reservation.Grant.AllocationID); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func (s *Scheduler) beginAbort(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	reservations []controlplane.Reservation,
+	failure planner.Failure,
+) error {
+	if execution.State != runstore.StagePreparing && execution.State != runstore.StageRunning {
+		return fmt.Errorf("cannot abort StageExecution from %s", execution.State)
+	}
+	_ = s.fenceAll(reservations)
+	abortID, err := s.options.NewID("abort_")
+	if err != nil {
+		return err
+	}
+	deadline := s.options.Clock.Now().Add(s.options.AbortTimeout)
+	phase := runstore.TerminationPreparing
+	if execution.State == runstore.StageRunning {
+		phase = runstore.TerminationRunning
+	}
+	termination := runstore.StageTermination{
+		Outcome: runstore.TerminationInterrupted,
+		Code:    failure.Code, Message: failure.Message, Retryable: failure.Retryable,
+		Phase: phase, OccurredAt: s.options.Clock.Now(),
+	}
+	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
+	err = s.store.EnterAborting(transitionContext, runstore.EnterAbortingParams{
+		StageExecutionID:         execution.StageExecutionID,
+		ExpectedState:            execution.State,
+		TerminationSchemaVersion: contracts.APIVersion,
+		Termination:              termination,
+		AbortID:                  abortID,
+		Deadline:                 deadline,
+		Reason:                   runstore.Reason{Code: "stage_interrupted"},
+	})
+	cancelTransition()
+	if err != nil {
+		return err
+	}
+	execution.State = runstore.StageAborting
+	execution.TerminationSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.Termination = &termination
+	execution.AbortID = &abortID
+	execution.AbortDeadline = &deadline
+	return s.resumeAborting(ctx, run, workflow, execution, reservations)
+}
+
+func (s *Scheduler) resumeAborting(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	reservations []controlplane.Reservation,
+) error {
+	if execution.Termination == nil || execution.AbortID == nil || execution.AbortDeadline == nil {
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("aborting StageExecution is incomplete"))
+	}
+	if reservations == nil {
+		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
+	}
+	if len(reservations) > 0 && execution.AbortDeadline.After(s.options.Clock.Now()) {
+		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
+		_, err := s.workers.AbortAll(
+			abortContext,
+			reservations,
+			*execution.AbortID,
+			contracts.TerminationError{
+				Code:      execution.Termination.Code,
+				Message:   execution.Termination.Message,
+				Retryable: execution.Termination.Retryable,
+			},
+			*execution.AbortDeadline,
+		)
+		cancelAbort()
+		if err != nil {
+			s.options.Logger.Warn("bounded allocation abort was incomplete", "stage_execution_id", execution.StageExecutionID)
+		}
+	}
+	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	err := s.persistence.CommitTerminationAndFailRun(
+		commitContext,
+		run.RunID,
+		execution.StageExecutionID,
+		runstore.Reason{Code: execution.Termination.Code},
+	)
+	cancelCommit()
+	if err != nil {
+		return err
+	}
+	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
+	return nil
+}
+
+func (s *Scheduler) resumeFinalizing(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	reservations []controlplane.Reservation,
+) error {
+	if execution.CandidateResult == nil || execution.FinalizationID == nil ||
+		execution.FinalizationDeadline == nil {
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("finalizing StageExecution is incomplete"))
+	}
+	if reservations == nil {
+		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
+	}
+	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.options.Clock.Now()) {
+		finalizeContext, cancelFinalize := context.WithDeadline(ctx, *execution.FinalizationDeadline)
+		_, err := s.workers.FinalizeAll(
+			finalizeContext,
+			reservations,
+			*execution.FinalizationID,
+			*execution.FinalizationDeadline,
+		)
+		cancelFinalize()
+		if err != nil {
+			s.options.Logger.Warn("bounded allocation finalization was incomplete", "stage_execution_id", execution.StageExecutionID)
+		}
+	}
+	outcome := runstore.RunFailed
+	if execution.CandidateResult.Outcome == contracts.StageSucceeded {
+		outcome = runstore.RunSucceeded
+	}
+	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	err := s.persistence.AcceptResultAndFinishRun(commitContext, ResultAcceptance{
+		RunID:              run.RunID,
+		StageExecutionID:   execution.StageExecutionID,
+		Result:             cloneStageResult(*execution.CandidateResult),
+		WorkflowOutputs:    cloneStringMap(workflow.stage.WorkflowOutputs),
+		OutputContracts:    cloneArtifactSlots(workflow.workflow.Outputs),
+		ExpectedRunOutcome: outcome,
+	})
+	cancelCommit()
+	if err != nil {
+		return err
+	}
+	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
+	return nil
+}
+
+func (s *Scheduler) existingLiveReservations(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+) []controlplane.Reservation {
+	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(recorded) == 0 {
+		return nil
+	}
+	for _, allocation := range recorded {
+		if _, err := s.allocator.GetGrant(allocation.AllocationID); err != nil {
+			return nil
+		}
+	}
+	reservations, err := s.allocator.ReserveAll(controlplane.ReservationRequest{
+		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+		Bindings: bindingRequirements(workflow.stage),
+	})
+	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
+		return nil
+	}
+	return reservations
+}
+
+func (s *Scheduler) releaseTerminal(
+	stageExecutionID string,
+	reservations []controlplane.Reservation,
+) error {
+	if len(reservations) == 0 {
+		return nil
+	}
+	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	defer cancelRelease()
+	if err := s.workers.ReleaseAll(releaseContext, reservations); err != nil {
+		s.options.Logger.Warn(
+			"terminal allocation release was incomplete",
+			"stage_execution_id", stageExecutionID,
+		)
+		return err
+	}
+	return nil
+}
+
+func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
+	listContext, cancelList := context.WithTimeout(ctx, s.options.OperationTimeout)
+	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext)
+	cancelList()
+	if err != nil {
+		return false, err
+	}
+	for _, execution := range executions {
+		runContext, cancelRun := context.WithTimeout(ctx, s.options.OperationTimeout)
+		run, err := s.store.GetRun(runContext, execution.RunID)
+		cancelRun()
+		if err != nil {
+			return false, err
+		}
+		workflow, err := decodeExecutableWorkflow(run)
+		if err != nil || validatePersistedExecution(execution, run, workflow) != nil {
+			continue
+		}
+		reservations := s.existingLiveReservations(ctx, run, workflow, execution)
+		if len(reservations) == 0 {
+			continue
+		}
+		return true, s.releaseTerminal(execution.StageExecutionID, reservations)
+	}
+	return false, nil
+}
+
+func (s *Scheduler) finishRunFromTerminalTermination(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	execution runstore.StageExecution,
+) error {
+	if execution.Termination == nil {
+		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("terminal interrupted Stage has no termination"))
+	}
+	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	_, err := s.store.TransitionRun(
+		operationContext,
+		run.RunID,
+		runstore.RunRunning,
+		runstore.RunFailed,
+		runstore.Reason{Code: execution.Termination.Code},
+	)
+	return err
+}
+
+func infrastructureFailure(code, message string, cause error) planner.Failure {
+	retryable := true
+	var apiError *controlplane.RuntimeAPIError
+	if errors.As(cause, &apiError) {
+		retryable = apiError.Retryable
+	}
+	return planner.Failure{Code: code, Message: message, Retryable: retryable}
+}
+
+func cloneParameters(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	for name, value := range source {
+		result[name] = value
+	}
+	return result
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	for name, value := range source {
+		result[name] = value
+	}
+	return result
+}
+
+func cloneArtifactSlots(
+	source map[string]workflowconfig.ArtifactSlot,
+) map[string]workflowconfig.ArtifactSlot {
+	result := make(map[string]workflowconfig.ArtifactSlot, len(source))
+	for name, slot := range source {
+		slot.MediaTypes = append([]string(nil), slot.MediaTypes...)
+		result[name] = slot
+	}
+	return result
+}
+
+func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
+	result := source
+	if source.Revision != nil {
+		revision := *source.Revision
+		result.Revision = &revision
+	}
+	return result
+}
+
+func cloneStageResult(source contracts.StageContentResult) contracts.StageContentResult {
+	result := source
+	result.Artifacts = make(map[string]contracts.ArtifactRef, len(source.Artifacts))
+	for name, ref := range source.Artifacts {
+		result.Artifacts[name] = cloneArtifactRef(ref)
+	}
+	if source.Error != nil {
+		cloned := *source.Error
+		result.Error = &cloned
+	}
+	return result
+}
+
+func sameExactRef(left, right contracts.ArtifactRef) bool {
+	return left.Namespace == right.Namespace && left.Name == right.Name &&
+		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
+}
+
+func stringPointer(value string) *string { return &value }
+
+func schedulerID(prefix string) (string, error) {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return prefix + hex.EncodeToString(buffer), nil
+}

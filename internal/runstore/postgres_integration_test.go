@@ -60,7 +60,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		t.Fatalf("preparing StageExecution = %+v", execution)
 	}
 
-	err = store.RecordStageAllocation(ctx, StageAllocation{
+	allocation := StageAllocation{
 		AllocationID: "allocation-1", StageExecutionID: execution.StageExecutionID,
 		LogicalAgentName: "builder", Namespace: "builder",
 		AgentTemplateRef: contracts.AgentTemplateRef{
@@ -68,9 +68,18 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		},
 		WorkerRuntimeRef:       contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
 		RuntimeAgentInstanceID: "runtime-agent-1",
-	})
+	}
+	err = store.RecordStageAllocation(ctx, allocation)
 	if err != nil {
 		t.Fatalf("record allocation: %v", err)
+	}
+	if err := store.RecordStageAllocation(ctx, allocation); err != nil {
+		t.Fatalf("idempotent allocation record: %v", err)
+	}
+	different := allocation
+	different.RuntimeAgentInstanceID = "another-runtime-agent"
+	if err := store.RecordStageAllocation(ctx, different); !errors.Is(err, ErrConflict) {
+		t.Fatalf("mismatched allocation record error = %v, want conflict", err)
 	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" {

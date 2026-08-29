@@ -75,6 +75,9 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	if h.dependencies.RunNotifier != nil {
+		h.dependencies.RunNotifier.Wake()
+	}
 	writeJSON(w, http.StatusAccepted, createRunResponse{RunID: runID, State: runstore.RunRunning})
 }
 

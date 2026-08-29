@@ -35,6 +35,10 @@ type UnitOfWork interface {
 	Do(context.Context, func(RunWriter, *artifacts.Service) error) error
 }
 
+type RunNotifier interface {
+	Wake()
+}
+
 type Dependencies struct {
 	Config       *config.Snapshot
 	Runs         RunReader
@@ -44,6 +48,7 @@ type Dependencies struct {
 	UserID       string
 	NewID        func(string) (string, error)
 	NewRequestID func() (string, error)
+	RunNotifier  RunNotifier
 }
 
 var errInvalidRequest = errors.New("invalid public API request")

@@ -22,6 +22,33 @@ type RunArtifactInspector struct {
 	store RunArtifactReader
 }
 
+// ArtifactServiceInspector resolves the RunScope supplied by each invocation
+// and is suitable for a process-wide PlannerFactory registry.
+type ArtifactServiceInspector struct {
+	service *artifacts.Service
+}
+
+func NewArtifactServiceInspector(service *artifacts.Service) (*ArtifactServiceInspector, error) {
+	if service == nil {
+		return nil, fmt.Errorf("ArtifactStore service is required")
+	}
+	return &ArtifactServiceInspector{service: service}, nil
+}
+
+func (i *ArtifactServiceInspector) Inspect(
+	ctx context.Context, runID string, ref contracts.ArtifactRef,
+) (ArtifactMetadata, error) {
+	store, err := i.service.Run(runID)
+	if err != nil {
+		return ArtifactMetadata{}, err
+	}
+	result, err := inspectExact(ctx, store, ref)
+	if err != nil {
+		return ArtifactMetadata{}, err
+	}
+	return ArtifactMetadata{MediaType: result.Payload.MediaType}, nil
+}
+
 func NewRunArtifactInspector(runID string, store RunArtifactReader) (*RunArtifactInspector, error) {
 	if strings.TrimSpace(runID) == "" || store == nil {
 		return nil, fmt.Errorf("Run ID and RunScope artifact reader are required")
@@ -38,13 +65,23 @@ func (i *RunArtifactInspector) Inspect(
 	if err := ref.ValidateExact(); err != nil {
 		return ArtifactMetadata{}, err
 	}
-	result, err := i.store.Read(ctx, cloneArtifactRef(ref))
+	result, err := inspectExact(ctx, i.store, ref)
 	if err != nil {
 		return ArtifactMetadata{}, err
 	}
+	return ArtifactMetadata{MediaType: result.Payload.MediaType}, nil
+}
+
+func inspectExact(
+	ctx context.Context, store RunArtifactReader, ref contracts.ArtifactRef,
+) (artifacts.ReadResult, error) {
+	result, err := store.Read(ctx, cloneArtifactRef(ref))
+	if err != nil {
+		return artifacts.ReadResult{}, err
+	}
 	if result.Ref.Namespace != ref.Namespace || result.Ref.Name != ref.Name ||
 		result.Ref.Revision == nil || ref.Revision == nil || *result.Ref.Revision != *ref.Revision {
-		return ArtifactMetadata{}, fmt.Errorf("ArtifactStore resolved a different artifact revision")
+		return artifacts.ReadResult{}, fmt.Errorf("ArtifactStore resolved a different artifact revision")
 	}
-	return ArtifactMetadata{MediaType: result.Payload.MediaType}, nil
+	return result, nil
 }

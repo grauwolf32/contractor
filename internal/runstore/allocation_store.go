@@ -50,28 +50,55 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err != nil {
 		return fmt.Errorf("record Stage allocation: encode WorkerRuntime ref: %w", err)
 	}
-	tag, err := s.db.Exec(ctx, `
+	var insertedID string
+	err = s.db.QueryRow(ctx, `
 INSERT INTO stage_allocations (
     allocation_id, stage_execution_id, logical_agent_name, namespace,
     agent_template_ref, worker_runtime_ref, runtime_agent_instance_id
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)`,
+) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)
+ON CONFLICT DO NOTHING
+RETURNING allocation_id`,
 		allocation.AllocationID, allocation.StageExecutionID, allocation.LogicalAgentName,
 		allocation.Namespace, templateRef, runtimeRef, allocation.RuntimeAgentInstanceID,
-	)
-	if err != nil {
-		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == "23505" {
+	).Scan(&insertedID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		existing, loadErr := s.ListStageAllocations(ctx, allocation.StageExecutionID)
+		if loadErr != nil {
+			return fmt.Errorf("inspect conflicting Stage allocation %q: %w", allocation.AllocationID, loadErr)
+		}
+		for _, current := range existing {
+			if current.AllocationID != allocation.AllocationID &&
+				current.LogicalAgentName != allocation.LogicalAgentName {
+				continue
+			}
+			if sameStageAllocation(current, allocation) {
+				return nil
+			}
 			return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, ErrConflict)
 		}
+		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, ErrConflict)
+	}
+	if err != nil {
+		sqlState := persistencepostgres.SQLState(err)
 		if sqlState == "23503" {
 			return fmt.Errorf("record Stage allocation for execution %q: %w", allocation.StageExecutionID, ErrNotFound)
 		}
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, err)
 	}
-	if tag.RowsAffected() != 1 {
+	if insertedID != allocation.AllocationID {
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, ErrConflict)
 	}
 	return nil
+}
+
+func sameStageAllocation(left, right StageAllocation) bool {
+	return left.AllocationID == right.AllocationID &&
+		left.StageExecutionID == right.StageExecutionID &&
+		left.LogicalAgentName == right.LogicalAgentName &&
+		left.Namespace == right.Namespace &&
+		left.AgentTemplateRef == right.AgentTemplateRef &&
+		left.WorkerRuntimeRef == right.WorkerRuntimeRef &&
+		left.RuntimeAgentInstanceID == right.RuntimeAgentInstanceID
 }
 
 func (s *PostgresStore) ListStageAllocations(
