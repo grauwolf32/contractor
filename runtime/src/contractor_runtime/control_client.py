@@ -7,6 +7,7 @@ import json
 import logging
 import random
 import ssl
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -105,6 +106,7 @@ class MTLSJSONTransport:
                 "Content-Type: application/json\r\n"
                 f"Content-Length: {len(body)}\r\n"
                 "Accept: application/json\r\n"
+                f"X-Request-ID: request_{uuid.uuid4().hex}\r\n"
                 "Connection: close\r\n\r\n"
             ).encode("ascii") + body
             writer.write(request)

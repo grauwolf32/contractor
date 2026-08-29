@@ -53,6 +53,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 
 	createBody := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(createBody))
+	create.Header.Set(idempotencyKeyHeader, "postgres-create-run")
 	createResponse := httptest.NewRecorder()
 	handler.ServeHTTP(createResponse, create)
 	if createResponse.Code != http.StatusAccepted {
@@ -61,6 +62,26 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	storedRun, err := runs.GetRun(ctx, "run-public")
 	if err != nil || storedRun.State != runstore.RunRunning || storedRun.OwnerID != "user-1" || len(storedRun.WorkflowSnapshot) == 0 {
 		t.Fatalf("stored Run = (%+v, %v)", storedRun, err)
+	}
+	nextRunID = "run-duplicate-must-not-exist"
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(createBody))
+	retry.Header.Set(idempotencyKeyHeader, "postgres-create-run")
+	retryResponse := httptest.NewRecorder()
+	handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted || retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != createResponse.Body.String() {
+		t.Fatalf("POST Run retry = %d headers=%v body=%s", retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if _, err := runs.GetRun(ctx, nextRunID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("response-loss retry created another Run: %v", err)
+	}
+	differentBody := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"different"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	reused := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(differentBody))
+	reused.Header.Set(idempotencyKeyHeader, "postgres-create-run")
+	reusedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(reusedResponse, reused)
+	if reusedResponse.Code != http.StatusConflict {
+		t.Fatalf("reused Idempotency-Key = %d %s", reusedResponse.Code, reusedResponse.Body.String())
 	}
 
 	user, _ := service.User("user-1")
@@ -85,6 +106,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	nextRunID = "run-rollback"
 	missingBody := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"missing"}}}`)
 	missing := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(missingBody))
+	missing.Header.Set(idempotencyKeyHeader, "postgres-missing-run")
 	missingResponse := httptest.NewRecorder()
 	handler.ServeHTTP(missingResponse, missing)
 	if missingResponse.Code != http.StatusNotFound {

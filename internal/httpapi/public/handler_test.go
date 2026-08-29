@@ -64,6 +64,9 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 func authenticatedRequest(method, target string, body *bytes.Reader) *http.Request {
 	request := httptest.NewRequest(method, target, body)
 	request.Header.Set("Authorization", "Bearer "+testBearerToken)
+	if method == http.MethodPost && target == "/v1/runs" {
+		request.Header.Set(idempotencyKeyHeader, "test-create-run")
+	}
 	return request
 }
 
@@ -108,6 +111,63 @@ func TestArtifactCreateUpdateAndExactRead(t *testing.T) {
 	fixture.handler.ServeHTTP(read, exact)
 	if read.Code != http.StatusOK || read.Body.String() != "first" || read.Header().Get("ETag") != `"revision-1"` {
 		t.Fatalf("exact read = status %d, ETag %q, body %q", read.Code, read.Header().Get("ETag"), read.Body.String())
+	}
+}
+
+func TestArtifactResponseLossRetryFailsCASWithoutAnotherRevision(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	create := func() *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPut,
+			"/v1/artifacts/projects/source",
+			bytes.NewReader([]byte("first")),
+		)
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-None-Match", "*")
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	first := create()
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create = %d %s", first.Code, first.Body.String())
+	}
+	retry := create()
+	if retry.Code != http.StatusConflict || fixture.repository.next != 1 {
+		t.Fatalf("lost-response create retry = status %d revisions %d body %s", retry.Code, fixture.repository.next, retry.Body.String())
+	}
+
+	oldETag := first.Header().Get("ETag")
+	update := func() *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPut,
+			"/v1/artifacts/projects/source",
+			bytes.NewReader([]byte("second")),
+		)
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-Match", oldETag)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	accepted := update()
+	if accepted.Code != http.StatusOK {
+		t.Fatalf("first update = %d %s", accepted.Code, accepted.Body.String())
+	}
+	lostResponseRetry := update()
+	if lostResponseRetry.Code != http.StatusConflict || fixture.repository.next != 2 {
+		t.Fatalf("lost-response update retry = status %d revisions %d body %s", lostResponseRetry.Code, fixture.repository.next, lostResponseRetry.Body.String())
+	}
+	current := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source",
+		bytes.NewReader(nil),
+	)
+	read := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(read, current)
+	if read.Code != http.StatusOK || read.Body.String() != "second" ||
+		read.Header().Get("ETag") != accepted.Header().Get("ETag") {
+		t.Fatalf("current artifact after retry = %d etag=%q body=%q", read.Code, read.Header().Get("ETag"), read.Body.String())
 	}
 }
 
@@ -175,6 +235,77 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 	forked, err := runArtifacts.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
 	if err != nil || string(forked.Payload.Data) != "source" || written.Ref.Revision == nil {
 		t.Fatalf("forked input = (%+v, %v)", forked, err)
+	}
+}
+
+func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() {
+		t.Fatalf("retry create = %d headers=%v body=%s", retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if len(fixture.runs.runs) != 1 || fixture.notifier.calls != 1 || fixture.repository.writes != 1 {
+		t.Fatalf("retry side effects = runs:%d wakes:%d artifact writes:%d",
+			len(fixture.runs.runs), fixture.notifier.calls, fixture.repository.writes)
+	}
+
+	different := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"different"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	conflict := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(different))
+	conflictResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflictResponse, conflict)
+	if conflictResponse.Code != http.StatusConflict {
+		t.Fatalf("idempotency key reuse = %d %s", conflictResponse.Code, conflictResponse.Body.String())
+	}
+}
+
+func TestCreateRunRequiresValidIdempotencyKey(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	for _, key := range []string{"", "two words", strings.Repeat("x", 129)} {
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		request.Header.Del(idempotencyKeyHeader)
+		if key != "" {
+			request.Header.Set(idempotencyKeyHeader, key)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("key %q status = %d %s", key, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
+	omitted, err := createRunRequestDigest(createRunRequest{Workflow: "empty@1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Parameters: map[string]string{},
+		Artifacts: map[string]contracts.ArtifactRef{},
+	})
+	if err != nil || explicit != omitted {
+		t.Fatalf("semantic request digests = omitted:%q explicit:%q error:%v", omitted, explicit, err)
 	}
 }
 
@@ -361,7 +492,8 @@ func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, expected
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode error response: %v; body %q", err, response.Body.String())
 	}
-	if body.Code != expected || strings.TrimSpace(body.Message) == "" {
+	if body.Code != expected || strings.TrimSpace(body.Message) == "" ||
+		body.RequestID != "request-fixed" || response.Header().Get("X-Request-ID") != body.RequestID {
 		t.Fatalf("error response = %+v, want code %q", body, expected)
 	}
 }

@@ -3,7 +3,7 @@ id: V1-005
 title: Harden lifecycle races, idempotency, and private-boundary security
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: complete
 depends_on: [V1-001, V1-002, V1-003, V1-004]
 languages: [go, python]
 
@@ -76,3 +76,23 @@ tests:
   - {name: go-race, command: "go test -race ./...", covers: [A1, A2, A3, A4]}
   - {name: python-hardening, command: "cd runtime && uv run pytest -W error tests", covers: [A3, A4, A5]}
   - {name: fault-matrix, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-faults", covers: [A1, A2, A3, A5]}
+
+completion:
+  implementation:
+    - Public Run creation uses an owner-scoped Idempotency-Key and request digest, returning the original Run after response loss without duplicate input forks or Scheduler wake.
+    - Public/private Artifact PUT response-loss retries consume CAS preconditions without creating another revision.
+    - Scheduler output acceptance binds the candidate exact revision even when its logical binding advances concurrently, and Run cancel/success remains serialized on the Run row.
+    - Every Go and Python HTTP boundary emits a bounded correlation ID; private clients propagate it, REST errors return it, and 5xx logs omit raw paths and exception messages.
+    - The Runtime strict-warning fixture quarantines only known pinned dependency warnings while preserving -W error for application warnings, and shutdown explicitly checks for leaked asyncio tasks.
+    - tests/faults/matrix.yml inventories response-loss semantics for all mutating first-slice operations and maps every durable lifecycle phase plus race, attack, and resource cases to concrete tests.
+  durable_schema:
+    migration: internal/persistence/migrations/000007_public_idempotency.sql
+    identity: Authenticated owner plus Idempotency-Key; SHA-256 digest detects semantic key reuse.
+  verified_by:
+    - make verify
+    - go test -race ./...
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-faults
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - make test-control-integration
+    - make test-artifact-integration

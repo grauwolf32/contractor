@@ -168,18 +168,20 @@ func RunCLI(
 		Metrics:      telemetry.NewRepository(pool),
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,
-		RunNotifier: workflowScheduler,
+		RunNotifier: workflowScheduler, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure public API: %w", err)
 	}
 
-	controlHandler, err := controlplane.NewHTTPHandler(registry)
+	controlHandler, err := controlplane.NewHTTPHandler(
+		registry, controlplane.HTTPOptions{Logger: logger},
+	)
 	if err != nil {
 		return fmt.Errorf("configure private Control Plane API: %w", err)
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
-		Registry: registry, Artifacts: artifactService,
+		Registry: registry, Artifacts: artifactService, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure private Artifact API: %w", err)

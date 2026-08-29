@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -37,7 +38,10 @@ func (h *handler) writeError(
 	message string,
 	retryable bool,
 ) {
-	writeJSON(w, status, errorResponse{Code: code, Message: message, Retryable: retryable})
+	writeJSON(w, status, errorResponse{
+		Code: code, Message: message, Retryable: retryable,
+		RequestID: requestid.FromResponse(w),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

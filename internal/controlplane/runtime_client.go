@@ -18,6 +18,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 const maxRuntimeResponseBytes = 1 << 20
@@ -243,6 +244,7 @@ func (c *RuntimeControlClient) do(ctx context.Context, target string, body []byt
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
+	request.Header.Set(requestid.Header, requestid.Ensure(ctx))
 	response, err := c.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("call Runtime Agent: %w", err)

@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 var (
@@ -21,6 +22,7 @@ type errorResponse struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
 }
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
@@ -47,7 +49,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 }
 
 func (h *handler) writeError(w http.ResponseWriter, status int, code, message string, retryable bool) {
-	writeJSON(w, status, errorResponse{Code: code, Message: message, Retryable: retryable})
+	writeJSON(w, status, errorResponse{
+		Code: code, Message: message, Retryable: retryable,
+		RequestID: requestid.FromResponse(w),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 import ssl
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -25,6 +26,7 @@ MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
 MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 MEDIA_TYPE_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$"
 )
@@ -39,11 +41,14 @@ class ArtifactTransportError(ArtifactClientError):
 
 
 class ArtifactAPIError(ArtifactClientError):
-    def __init__(self, status_code: int, code: str, retryable: bool) -> None:
+    def __init__(
+        self, status_code: int, code: str, retryable: bool, request_id: str | None = None
+    ) -> None:
         super().__init__(f"Artifact API returned HTTP {status_code} ({code})")
         self.status_code = status_code
         self.code = code
         self.retryable = retryable
+        self.request_id = request_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,23 +213,27 @@ class ArtifactClient:
             return
         code = "invalid_error_response"
         retryable = False
+        request_id: str | None = None
         if len(response.body) <= MAX_ARTIFACT_JSON_BYTES:
             try:
                 value = json.loads(response.body)
                 if (
                     isinstance(value, dict)
-                    and set(value) == {"code", "message", "retryable"}
+                    and set(value) == {"code", "message", "retryable", "requestId"}
                     and isinstance(value["code"], str)
                     and value["code"].strip()
                     and isinstance(value["message"], str)
                     and value["message"].strip()
                     and isinstance(value["retryable"], bool)
+                    and isinstance(value["requestId"], str)
+                    and REQUEST_ID_PATTERN.fullmatch(value["requestId"]) is not None
                 ):
                     code = value["code"]
                     retryable = value["retryable"]
+                    request_id = value["requestId"]
             except (UnicodeDecodeError, json.JSONDecodeError):
                 pass
-        raise ArtifactAPIError(response.status_code, code, retryable)
+        raise ArtifactAPIError(response.status_code, code, retryable, request_id)
 
 
 class MTLSArtifactTransport:
@@ -289,6 +298,7 @@ class MTLSArtifactTransport:
                 "Content-Length": str(len(body)),
                 "Connection": "close",
                 **headers,
+                "X-Request-ID": f"request_{uuid.uuid4().hex}",
             }
             encoded_headers = _encode_headers(request_headers)
             request = f"{method} {target} HTTP/1.1\r\n".encode("ascii")

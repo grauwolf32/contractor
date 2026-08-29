@@ -266,6 +266,27 @@ func TestRegistrationNeverAdoptsObservedAllocation(t *testing.T) {
 	}
 }
 
+func TestRegistrationResponseLossRetryIsIdempotent(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registration := testRegistration("agent-retry")
+	first, err := registry.Register(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(time.Second)
+	replayed, err := registry.Register(registration)
+	if err != nil || replayed.Registration.InstanceID != first.Registration.InstanceID ||
+		replayed.AuthoritativeAllocationID != nil {
+		t.Fatalf("registration retry = (%+v, %v), first %+v", replayed, err, first)
+	}
+	changed := registration
+	changed.ControlURL = "https://different.example:9443"
+	if _, err := registry.Register(changed); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("changed registration identity error = %v", err)
+	}
+}
+
 func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)

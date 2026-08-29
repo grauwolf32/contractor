@@ -17,6 +17,7 @@ import (
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
+	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
@@ -90,6 +91,74 @@ RETURNING `+workflowRunColumns,
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
 	}
 	return result, nil
+}
+
+// CreateRunIdempotent atomically claims one public create-Run key. The bool is
+// true only for the transaction that inserted the Run. A concurrent or later
+// retry with the same owner, key, and request digest receives the existing Run;
+// reuse of the key for another request fails closed.
+func (s *PostgresStore) CreateRunIdempotent(
+	ctx context.Context,
+	params CreateRunIdempotentParams,
+) (WorkflowRun, bool, error) {
+	if err := validateCreateRun(params.CreateRunParams); err != nil {
+		return WorkflowRun{}, false, err
+	}
+	if err := validateIdempotencyKey(params.IdempotencyKey); err != nil {
+		return WorkflowRun{}, false, err
+	}
+	if !digestPattern.MatchString(params.RequestDigest) {
+		return WorkflowRun{}, false, invalidf("request digest is invalid")
+	}
+	parameters := params.Parameters
+	if parameters == nil {
+		parameters = map[string]string{}
+	}
+	encodedParameters, err := json.Marshal(parameters)
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode parameters: %w", err)
+	}
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
+INSERT INTO workflow_runs (
+    run_id, owner_id, workflow_name, workflow_version,
+    workflow_schema_version, workflow_snapshot, parameters,
+    request_idempotency_key, request_digest,
+    state, state_reason_code, state_reason_message
+) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, 'initializing', 'created', '')
+ON CONFLICT DO NOTHING
+RETURNING `+workflowRunColumns,
+		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
+		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
+		params.IdempotencyKey, params.RequestDigest,
+	))
+	if err == nil {
+		return result, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, err)
+	}
+	var existingRunID, existingDigest string
+	err = s.db.QueryRow(ctx, `
+SELECT run_id, request_digest
+FROM workflow_runs
+WHERE owner_id = $1 AND request_idempotency_key = $2`,
+		params.OwnerID, params.IdempotencyKey,
+	).Scan(&existingRunID, &existingDigest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Another unique identity, normally run_id, caused the conflict.
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, ErrConflict)
+	}
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("read idempotent WorkflowRun: %w", err)
+	}
+	if existingDigest != params.RequestDigest {
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+	}
+	existing, err := s.GetRun(ctx, existingRunID)
+	if err != nil {
+		return WorkflowRun{}, false, err
+	}
+	return existing, false, nil
 }
 
 func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, error) {
@@ -301,6 +370,20 @@ func validateCreateRun(params CreateRunParams) error {
 	for name := range params.Parameters {
 		if strings.TrimSpace(name) == "" {
 			return invalidf("parameter name is required")
+		}
+	}
+	return nil
+}
+
+func validateIdempotencyKey(value string) error {
+	if len(value) == 0 || len(value) > 128 {
+		return invalidf("idempotency key must contain 1 to 128 characters")
+	}
+	for index, character := range value {
+		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
+		if !valid {
+			return invalidf("idempotency key contains an invalid character")
 		}
 	}
 	return nil

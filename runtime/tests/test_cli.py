@@ -56,6 +56,14 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
         assert transport.heartbeat_cancelled
         assert fake_server.stopped
         assert (await state.snapshot()).process_state is ProcessState.STOPPING
+        await asyncio.sleep(0)
+        current = asyncio.current_task()
+        leaked = [
+            pending
+            for pending in asyncio.all_tasks()
+            if pending is not current and not pending.done()
+        ]
+        assert leaked == []
 
     asyncio.run(scenario())
 

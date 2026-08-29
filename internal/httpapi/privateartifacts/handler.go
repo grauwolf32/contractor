@@ -5,11 +5,13 @@ package privateartifacts
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 type AllocationRegistry interface {
@@ -17,8 +19,10 @@ type AllocationRegistry interface {
 }
 
 type Dependencies struct {
-	Registry  AllocationRegistry
-	Artifacts *artifacts.Service
+	Registry     AllocationRegistry
+	Artifacts    *artifacts.Service
+	NewRequestID func() (string, error)
+	Logger       *slog.Logger
 }
 
 type handler struct{ dependencies Dependencies }
@@ -35,7 +39,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.methodNotAllowed)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
-	return current.requireMTLS(mux), nil
+	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{
+		Generator: dependencies.NewRequestID, Logger: dependencies.Logger,
+		Boundary: "artifact-private-api", TrustIncoming: true,
+	}), nil
 }
 
 func (h *handler) requireMTLS(next http.Handler) http.Handler {

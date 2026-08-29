@@ -183,6 +183,44 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 }
 
+func TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	fixture := createFinalizingFixture(t, ctx, pool)
+	runArtifacts, err := fixture.artifacts.Run("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := fixture.result.Artifacts["copied"]
+	advanced, err := runArtifacts.Write(
+		ctx,
+		contracts.ArtifactRef{Namespace: selected.Namespace, Name: selected.Name},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("advanced binding\n")},
+		selected.Revision,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if advanced.Ref.Revision == nil || selected.Revision == nil || *advanced.Ref.Revision == *selected.Revision {
+		t.Fatalf("binding did not advance: selected=%+v advanced=%+v", selected, advanced.Ref)
+	}
+
+	err = fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
+		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
+		OutputContracts: fixture.workflow.Outputs,
+		Progression:     terminalSuccessProgression("run-1", fixture.executionID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"})
+	if err != nil || string(output.Payload.Data) != "copied\n" {
+		t.Fatalf("output substituted current binding: payload=%q error=%v", output.Payload.Data, err)
+	}
+}
+
 func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

@@ -295,6 +295,21 @@ release. A token that must expire during a long allocation requires an explicit
 private refresh operation; silently replacing the active settings snapshot is
 not allowed.
 
+### Correlation and redacted boundary failures
+
+Every public and private HTTP response carries one bounded `X-Request-ID`.
+Public ingress always generates its own value. Private Control Plane, lifecycle,
+Artifact and A2A hops propagate one syntactically valid incoming value and
+replace missing, duplicated or malformed values. REST error objects repeat it
+as `requestId`; A2A retains its protocol error envelope and carries correlation
+in the HTTP header.
+
+Server-side 5xx diagnostics record the request ID, boundary, method, status and
+safe error type. They do not record raw URL paths, request bodies, artifact
+bytes, provider exception messages, RuntimeSettings or tokens. This gives an
+operator a stable lookup key without turning a user-controlled path or nested
+tool argument into a logging channel.
+
 ## WorkerHandle
 
 A ready handle contains only what Workflow Scheduler and Planner need to address

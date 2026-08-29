@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-29, implementation tasks through `V1-004` are complete. The
+As of 2026-08-29, implementation tasks through `V1-005` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -14,13 +14,19 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - fresh exact StageContext artifact pins for every retry attempt;
 - bounded Python Worker and Go Planner reports with independent Runtime facts;
 - immutable PostgreSQL telemetry, idempotent StageMetrics aggregation,
-  terminal-only 30-day retention cleanup, and a safe public summary.
+  terminal-only 30-day retention cleanup, and a safe public summary;
+- response-loss-safe public Run creation through a required `Idempotency-Key`;
+- exact candidate-revision output acceptance under concurrent binding changes;
+- bounded correlation IDs and redacted diagnostics on public and private HTTP
+  boundaries;
+- an executable lifecycle crash/retry/race/security matrix under Go's race
+  detector and Python's strict warning/task-shutdown gate.
 
-The next planned task is [`V1-005`](../tasks/v1-005-races-security.yml), the
-race/security hardening matrix. The `streamline@1` Planner in `V1-006` remains
-pending. The authoritative task status is
-[`tasks/index.yml`](../tasks/index.yml); detailed V1-004 completion evidence is
-recorded in [`v1-004-metrics.yml`](../tasks/v1-004-metrics.yml).
+The next planned task is the model-backed `streamline@1` Planner in
+[`V1-006`](../tasks/v1-006-streamline-planner.yml). The authoritative task
+status is [`tasks/index.yml`](../tasks/index.yml); detailed V1-005 completion
+evidence is recorded in
+[`v1-005-races-security.yml`](../tasks/v1-005-races-security.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -49,6 +55,49 @@ Run the complete MVP gate:
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-e2e
 ```
+
+## Hardening gates
+
+The executable fault inventory is
+[`tests/faults/matrix.yml`](../tests/faults/matrix.yml). It documents every
+mutating first-slice operation's response-loss semantics and maps lifecycle
+crashes, retries, races, stale-allocation attacks, mTLS failures, tampering,
+redaction, and resource shutdown to concrete tests. Its schema test also fails
+if a referenced test is renamed or removed.
+
+Run the deterministic local gates with the same PostgreSQL prerequisite:
+
+```shell
+make verify
+go test -race ./...
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-postgres test-faults test-e2e
+make test-control-integration
+make test-artifact-integration
+```
+
+`make test-faults` runs the relevant Go packages under the race detector and
+the complete Runtime Agent suite as `pytest -W error`. Only precise warnings
+emitted by the pinned ADK/A2A/Starlette dependencies are quarantined; every
+other warning fails the suite. The Runtime shutdown test also asserts that no
+asyncio task remains pending after an in-flight heartbeat is cancelled.
+
+All API responses carry a bounded `X-Request-ID`. REST error bodies repeat it
+as `requestId`; A2A responses carry it in the HTTP header. Public requests never
+get to choose this value. Trusted private hops propagate one valid incoming
+value, while malformed or repeated values are replaced. Server-side 5xx logs
+record the request ID, boundary, method, status, and safe error type without
+raw request paths, bodies, artifact bytes, or exception messages.
+
+Public Run creation requires exactly one `Idempotency-Key` of 1–128 safe ASCII
+characters. Retrying the same semantic request with the same authenticated
+user/key returns the original Run and `Idempotency-Replayed: true`; reusing the
+key for different content returns `409 Conflict`. Artifact PUT remains CAS:
+after a lost successful response, repeating the consumed `If-None-Match` or
+`If-Match` precondition returns conflict and creates no second revision; use a
+GET to reconcile the accepted exact revision.
+
+## Automated MVP evidence
 
 The harness allocates loopback ports dynamically and removes its schema,
 certificates, process state, and work directories on exit. PostgreSQL itself is
@@ -149,6 +198,7 @@ RUN_ID="$(jq -n --argjson source "$INPUT_REF" \
   '{workflow:"artifact-copy@1",parameters:{},artifacts:{source:$source}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H "Idempotency-Key: local-run-$(date +%s)" \
     -H 'Content-Type: application/json' --data-binary @- \
     http://127.0.0.1:8080/v1/runs | jq -r .runId)"
 

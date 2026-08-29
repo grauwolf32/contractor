@@ -100,6 +100,12 @@ type CreateRunParams struct {
 	Parameters            map[string]string
 }
 
+type CreateRunIdempotentParams struct {
+	CreateRunParams
+	IdempotencyKey string
+	RequestDigest  string
+}
+
 type PinnedContextArtifact struct {
 	Required bool                   `json:"required"`
 	Artifact *contracts.ArtifactRef `json:"artifact,omitempty"`

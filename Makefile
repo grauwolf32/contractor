@@ -1,11 +1,11 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-e2e run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-faults test-e2e run-local test build verify
 
 fmt:
-	gofmt -w cmd internal
+	gofmt -w cmd internal tests
 	cd runtime && uv run ruff format .
 
 lint:
-	test -z "$$(gofmt -l cmd internal)"
+	test -z "$$(gofmt -l cmd internal tests)"
 	go vet ./...
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
@@ -15,6 +15,9 @@ test-go:
 
 test-runtime:
 	cd runtime && uv run pytest
+
+test-runtime-hardening:
+	cd runtime && uv run pytest -W error tests
 
 test-contracts:
 	go test ./internal/contracts/...
@@ -42,6 +45,12 @@ test-lease-integration:
 	go test -race -count=1 ./tests/integration/lease
 	go test -race -count=1 ./internal/controlplane/... ./internal/scheduler/... -run 'Lease|Reconcile|Partition'
 	cd runtime && uv run pytest tests/test_lease_watchdog.py
+
+test-faults:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	go test -race -count=1 ./tests/faults ./tests/integration/lease ./internal/requestid ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/mtls ./internal/config ./internal/planner/...
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/runstore ./internal/scheduler ./internal/telemetry
+	cd runtime && uv run pytest -W error tests
 
 test-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)

@@ -240,6 +240,7 @@ func createRun(t *testing.T, client *http.Client, baseURL string, input artifact
 	}
 	request.Header.Set("Authorization", "Bearer "+publicToken)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "e2e-create-run")
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
 	var payload struct {

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 const maxPrivateJSONBody = 1 << 20
@@ -17,11 +19,24 @@ type privateErrorResponse struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
 }
 
-func NewHTTPHandler(registry Registry) (http.Handler, error) {
+type HTTPOptions struct {
+	NewRequestID func() (string, error)
+	Logger       *slog.Logger
+}
+
+func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {
 	if registry == nil {
 		return nil, errors.New("Control Plane registry is required")
+	}
+	if len(supplied) > 1 {
+		return nil, errors.New("at most one Control Plane HTTP options value is allowed")
+	}
+	options := HTTPOptions{}
+	if len(supplied) == 1 {
+		options = supplied[0]
 	}
 	handler := &privateHTTPHandler{registry: registry}
 	mux := http.NewServeMux()
@@ -30,7 +45,10 @@ func NewHTTPHandler(registry Registry) (http.Handler, error) {
 	mux.HandleFunc("/private/v1/agents/{instanceID}/heartbeat", handler.methodNotAllowed)
 	mux.HandleFunc("/private/v1/agents/register", handler.methodNotAllowed)
 	mux.HandleFunc("/", handler.notFound)
-	return handler.requireMTLS(mux), nil
+	return requestid.Middleware(handler.requireMTLS(mux), requestid.Options{
+		Generator: options.NewRequestID, Logger: options.Logger,
+		Boundary: "control-plane-private-api", TrustIncoming: true,
+	}), nil
 }
 
 type privateHTTPHandler struct{ registry Registry }
@@ -129,7 +147,10 @@ func decodePrivateJSON[T contracts.Validatable](w http.ResponseWriter, r *http.R
 }
 
 func writePrivateError(w http.ResponseWriter, status int, code, message string, retryable bool) {
-	writePrivateJSON(w, status, privateErrorResponse{Code: code, Message: message, Retryable: retryable})
+	writePrivateJSON(w, status, privateErrorResponse{
+		Code: code, Message: message, Retryable: retryable,
+		RequestID: requestid.FromResponse(w),
+	})
 }
 
 func writePrivateJSON(w http.ResponseWriter, status int, value any) {

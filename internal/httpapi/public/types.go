@@ -6,6 +6,7 @@ package public
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -23,6 +24,10 @@ type RunReader interface {
 
 type RunWriter interface {
 	CreateRun(context.Context, runstore.CreateRunParams) (runstore.WorkflowRun, error)
+	CreateRunIdempotent(
+		context.Context,
+		runstore.CreateRunIdempotentParams,
+	) (runstore.WorkflowRun, bool, error)
 	TransitionRun(
 		context.Context,
 		string,
@@ -62,6 +67,7 @@ type Dependencies struct {
 	NewRequestID func() (string, error)
 	RunNotifier  RunNotifier
 	Now          func() time.Time
+	Logger       *slog.Logger
 }
 
 var errInvalidRequest = errors.New("invalid public API request")
@@ -116,4 +122,5 @@ type errorResponse struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
 }

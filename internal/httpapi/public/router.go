@@ -1,7 +1,6 @@
 package public
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 type handler struct {
@@ -75,17 +76,10 @@ func (h *handler) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-type requestIDContextKey struct{}
-
 func (h *handler) withRequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID, err := h.dependencies.NewRequestID()
-		if err != nil {
-			h.writeError(w, http.StatusInternalServerError, "internal_error", "request could not be processed", true)
-			return
-		}
-		w.Header().Set("X-Request-ID", requestID)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDContextKey{}, requestID)))
+	return requestid.Middleware(next, requestid.Options{
+		Generator: h.dependencies.NewRequestID,
+		Logger:    h.dependencies.Logger, Boundary: "public-api",
 	})
 }
 

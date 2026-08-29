@@ -137,6 +137,7 @@ def test_api_error_is_typed_and_does_not_echo_server_message() -> None:
                         "code": "allocation_write_fenced",
                         "message": recognizable,
                         "retryable": False,
+                        "requestId": "artifact-request-1",
                     },
                 )
             ]
@@ -151,6 +152,7 @@ def test_api_error_is_typed_and_does_not_echo_server_message() -> None:
             )
         assert raised.value.code == "allocation_write_fenced"
         assert not raised.value.retryable
+        assert raised.value.request_id == "artifact-request-1"
         assert recognizable not in str(raised.value)
 
     asyncio.run(scenario())

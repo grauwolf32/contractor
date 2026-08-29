@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 const (
@@ -391,7 +392,10 @@ type boundedRoundTripper struct {
 }
 
 func (t boundedRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	response, err := t.base.RoundTrip(request)
+	outgoing := request.Clone(request.Context())
+	outgoing.Header = request.Header.Clone()
+	outgoing.Header.Set(requestid.Header, requestid.Ensure(request.Context()))
+	response, err := t.base.RoundTrip(outgoing)
 	if err != nil {
 		return nil, err
 	}

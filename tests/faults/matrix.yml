@@ -1,0 +1,268 @@
+schema_version: "1.0"
+
+policy:
+  retry_rule: >-
+    A caller may repeat an operation only according to its declared semantics.
+    Unknown outcomes are never converted into an unkeyed second semantic
+    invocation.
+  crash_rule: >-
+    PostgreSQL is authoritative for WorkflowRun, StageExecution, Planner
+    completion, exact Artifact revisions, transitions, and reports. Runtime
+    process memory is disposable and a lost active allocation is aborted.
+  secret_rule: >-
+    Boundary errors expose a stable code and X-Request-ID/requestId, while logs
+    record the correlation ID and error type without raw paths, bodies, tokens,
+    artifact bytes, or provider error messages.
+
+operations:
+  - id: public.run.create
+    semantics: keyed-replay
+    identity: owner_id + Idempotency-Key + canonical request digest
+    response_loss: Same key and digest returns the existing Run; key reuse with another digest conflicts.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestCreateRunResponseLossRetryReturnsExistingRun}
+  - id: public.run.cancel
+    semantics: convergent
+    identity: run_id
+    response_loss: Repetition preserves the first cancellation request; a terminal Run is unchanged.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestCancelRunIsOwnedStrictDurableAndIdempotent}
+  - id: public.artifact.put
+    semantics: conditional-cas
+    identity: owner + namespace + name + If-None-Match/If-Match revision
+    response_loss: Repeating the consumed precondition conflicts and creates no revision; GET reconciles the accepted revision.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestArtifactResponseLossRetryFailsCASWithoutAnotherRevision}
+  - id: control.agent.register
+    semantics: convergent
+    identity: instance_id plus advertised endpoint
+    response_loss: Re-registration never adopts an observed allocation and reconciliation remains authoritative.
+    test: {source: internal/controlplane/registry_test.go, symbol: TestRegistrationResponseLossRetryIsIdempotent}
+  - id: control.agent.heartbeat
+    semantics: sequence-replay
+    identity: instance_id + heartbeat_seq + echoed_ack_seq
+    response_loss: Duplicate or old sequences return/reconcile safely and never extend a lease from an unconfirmed ack.
+    test: {source: internal/controlplane/registry_test.go, symbol: TestConfirmedLeaseRequiresEchoOfIssuedAck}
+  - id: runtime.allocation.prepare
+    semantics: keyed-replay
+    identity: allocation_id + exact AllocationSpec fingerprint
+    response_loss: The same spec returns the cached WorkerHandle; a different allocation or fingerprint conflicts.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools}
+  - id: runtime.allocation.finalize
+    semantics: keyed-replay
+    identity: allocation_id + finalization_id
+    response_loss: The same key returns the cached final report; a different finalization key conflicts.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_finalize_report_and_release_erase_context_and_workspace}
+  - id: runtime.allocation.abort
+    semantics: keyed-replay
+    identity: allocation_id + abort_id
+    response_loss: The same key returns cached bounded metrics; another termination identity conflicts.
+    test: {source: runtime/tests/test_abort.py, symbol: test_abort_is_idempotent_and_returns_cached_metrics}
+  - id: runtime.allocation.release
+    semantics: convergent
+    identity: allocation_id
+    response_loss: Cleanup may be repeated; the slot remains fenced until Control Plane acknowledges release.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_cleanup_failure_fences_slot_until_idempotent_release_retry}
+  - id: private.artifact.put
+    semantics: conditional-cas
+    identity: allocation_id + namespace + name + expected revision
+    response_loss: A consumed precondition cannot create another revision, and a fenced allocation cannot write.
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactResponseLossRetryCreatesNoSecondRevision}
+  - id: planner.worker.invoke
+    semantics: single-attempt
+    identity: durable planner invocation_id + A2A message_id
+    response_loss: Passthrough performs no blind transport retry; recovery returns durable completion or interrupts the Stage for Workflow policy.
+    test: {source: internal/planner/passthrough_test.go, symbol: TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation}
+  - id: scheduler.result.commit
+    semantics: transactional-replay
+    identity: stage_execution_id + transition decision
+    response_loss: Candidate acceptance, exact output binding, transition, and terminal Run update commit atomically; recovery observes the durable state.
+    test: {source: internal/scheduler/postgres_integration_test.go, symbol: TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses}
+  - id: telemetry.report.persist
+    semantics: keyed-replay
+    identity: allocation_id/finalization_id or planner invocation_id
+    response_loss: An identical report is accepted once; a different report under the same identity conflicts.
+    test: {source: internal/telemetry/postgres_integration_test.go, symbol: TestMetricsPostgresIdempotencyRedactionAggregationAndRetention}
+
+cases:
+  - id: preparing-required-context-missing
+    category: crash
+    phase: preparing
+    boundary: scheduler-postgres
+    fault: Required exact StageContext input cannot be resolved before allocation.
+    expected: Durable non-retryable preparing termination exists without Planner, Session, or allocation.
+    requirements: [R1]
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerMissingRequiredContextInterruptsWithoutAllocation}
+  - id: preparing-partial-runtime-failure
+    category: retry
+    phase: preparing
+    boundary: control-plane-runtime
+    fault: One Runtime prepare fails after another slot became ready.
+    expected: Every reserved allocation is fenced, aborted, and released; no partial WorkerHandle set escapes.
+    requirements: [R1, R2]
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestPrepareAllCleansEveryReservationAfterPartialFailure}
+  - id: running-ambiguous-a2a-delivery
+    category: retry
+    phase: running
+    boundary: planner-a2a
+    fault: A2A transport fails after the request may have been delivered.
+    expected: Passthrough records one typed failure and never performs an unkeyed second invocation.
+    requirements: [R1]
+    test: {source: internal/planner/passthrough_test.go, symbol: TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation}
+  - id: running-control-plane-state-loss
+    category: crash
+    phase: running
+    boundary: scheduler-control-plane
+    fault: Server restarts while PostgreSQL says running but the in-memory allocation registry is gone.
+    expected: Stage enters bounded aborting and terminates interrupted instead of recreating or adopting the Worker.
+    requirements: [R1, R2]
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerAbortsRunningStageWhenVolatileControlPlaneStateWasLost}
+  - id: finalizing-server-restart
+    category: crash
+    phase: finalizing
+    boundary: scheduler-postgres
+    fault: Scheduler restarts after candidate and finalization identity are durable.
+    expected: It resumes finalization without invoking Planner or Worker semantically again.
+    requirements: [R1]
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation}
+  - id: finalizing-binding-advance
+    category: race
+    phase: finalizing
+    boundary: scheduler-artifact
+    fault: Candidate selects revision R1, then the logical intermediate binding advances to R2.
+    expected: Workflow output binds R1 exactly and never substitutes R2.
+    requirements: [R4]
+    test: {source: internal/scheduler/postgres_integration_test.go, symbol: TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances}
+  - id: finalizing-cancel-versus-success
+    category: race
+    phase: finalizing
+    boundary: public-scheduler-postgres
+    fault: User cancellation and successful output commit contend concurrently.
+    expected: Run-row serialization chooses exactly one outcome; cancellation never publishes outputs.
+    requirements: [R1, R4]
+    test: {source: internal/scheduler/postgres_integration_test.go, symbol: TestPostgresCancelAndSuccessRaceSerializesOnRunRow}
+  - id: aborting-worker-unreachable
+    category: retry
+    phase: aborting
+    boundary: scheduler-runtime
+    fault: Runtime does not return a complete report before the abort deadline.
+    expected: Allocation is fenced and Stage reaches a deterministic terminal interruption with incomplete metrics marked.
+    requirements: [R1, R2, R5]
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerMetricsCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocation}
+  - id: terminal-release-response-loss
+    category: retry
+    phase: terminal
+    boundary: control-plane-runtime
+    fault: Runtime cleanup succeeds but its release response is lost.
+    expected: Slot stays fenced, release is repeated, and capacity is not reused before acknowledgement.
+    requirements: [R1, R2]
+    test: {source: internal/controlplane/registry_test.go, symbol: TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse}
+  - id: terminal-server-restart-before-release
+    category: crash
+    phase: terminal
+    boundary: scheduler-control-plane
+    fault: Terminal transaction commits before allocation release and Server restarts.
+    expected: Recovery retries release without changing the terminal Stage or output.
+    requirements: [R1, R2]
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerRestartRetriesReleaseAfterTerminalTransaction}
+  - id: heartbeat-response-only-partition
+    category: race
+    phase: running
+    boundary: control-plane-runtime
+    fault: Heartbeat requests arrive but only responses are lost for 60 seconds.
+    expected: Neither authority renews from an unconfirmed ack; allocation is irreversibly fenced and drained.
+    requirements: [R2, R5]
+    test: {source: tests/integration/lease/lease_test.go, symbol: TestAsymmetricPartitionsFenceBothAuthorities}
+  - id: runtime-restart-with-old-allocation
+    category: crash
+    phase: running
+    boundary: control-plane-runtime
+    fault: A new Runtime process registers on the same endpoint while the old allocation is authoritative.
+    expected: The new instance is withheld until the old allocation is explicitly released.
+    requirements: [R2]
+    test: {source: internal/controlplane/registry_test.go, symbol: TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased}
+  - id: stale-allocation-a2a
+    category: attack
+    phase: finalizing
+    boundary: runtime-a2a
+    fault: A CA-valid peer invokes A2A after drain or release using the old allocation ID.
+    expected: Request fails closed and the model invocation count does not change.
+    requirements: [R2, R3]
+    test: {source: runtime/tests/test_a2a_server.py, symbol: test_a2a_sdk_round_trip_and_stale_allocation_rejection}
+  - id: stale-allocation-artifact-write
+    category: attack
+    phase: finalizing
+    boundary: private-artifact-api
+    fault: A valid Runtime certificate uses a write-fenced allocation capability.
+    expected: Write is rejected and no repository mutation occurs.
+    requirements: [R2, R3]
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactWriteFenceRejectsLaterWriteWithoutMutation}
+  - id: wrong-ca-and-role
+    category: attack
+    phase: preparing
+    boundary: mtls
+    fault: Peer is signed by another CA or lacks the Control Plane URI SAN role.
+    expected: TLS/private dispatch fails before application mutation; no insecure configuration bypass exists.
+    requirements: [R3]
+    test: {source: internal/mtls/mtls_test.go, symbol: TestRoleSpecificTLSHandshakes}
+  - id: template-digest-tampering
+    category: attack
+    phase: preparing
+    boundary: runtime-config
+    fault: Resolved AgentTemplate bytes do not match the signed semantic digest.
+    expected: Preparation fails non-retryably and leaves no slot, Worker, tools, or workspace residue.
+    requirements: [R2, R3]
+    test: {source: runtime/tests/test_allocation.py, symbol: test_bad_digest_and_unsupported_ref_leave_no_residue}
+  - id: instruction-path-symlink-escape
+    category: attack
+    phase: preparing
+    boundary: config-loader
+    fault: Manifest instruction ref traverses or resolves through a symlink outside configs root.
+    expected: The complete config load fails before any resolved snapshot is published.
+    requirements: [R3]
+    test: {source: internal/config/config_test.go, symbol: TestInstructionPathAndFilesystemContainment}
+  - id: public-run-create-response-loss
+    category: retry
+    phase: preparing
+    boundary: public-api-postgres
+    fault: Run initialization commits but the HTTP response is lost and the client repeats the request.
+    expected: The same Run is returned and input forks, Scheduler wake, and semantic execution occur once.
+    requirements: [R1]
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestCreateRunResponseLossRetryReturnsExistingRun}
+  - id: artifact-put-response-loss
+    category: retry
+    phase: running
+    boundary: public-artifact-api
+    fault: Artifact create/update commits but the response is lost and the same CAS precondition is retried.
+    expected: Retry conflicts without another revision and exact/current reads reconcile the committed value.
+    requirements: [R1, R4]
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestArtifactResponseLossRetryFailsCASWithoutAnotherRevision}
+  - id: planner-completion-recovery
+    category: crash
+    phase: running
+    boundary: planner-postgres
+    fault: Server restarts after durable Planner completion but before Scheduler consumes it.
+    expected: Begin returns recorded completion and does not invoke Worker again.
+    requirements: [R1]
+    test: {source: internal/planner/session/postgres_integration_test.go, symbol: TestPostgresSessionPersistsCompletionForRecovery}
+  - id: report-response-loss
+    category: retry
+    phase: terminal
+    boundary: telemetry-postgres
+    fault: Final report persistence commits and its caller retries after an unknown outcome.
+    expected: Identical reports are idempotent; different duplicate content conflicts and aggregation is not doubled.
+    requirements: [R1]
+    test: {source: internal/telemetry/postgres_integration_test.go, symbol: TestMetricsPostgresIdempotencyRedactionAggregationAndRetention}
+  - id: runtime-shutdown-task-leak
+    category: resource
+    phase: running
+    boundary: runtime-process
+    fault: Shutdown arrives while heartbeat transport is blocked.
+    expected: Heartbeat is cancelled, listener exits, and the event loop has no pending background task.
+    requirements: [R5]
+    test: {source: runtime/tests/test_cli.py, symbol: test_shutdown_cancels_inflight_heartbeat_and_stops_listener}
+  - id: correlated-secret-bearing-failure
+    category: attack
+    phase: preparing
+    boundary: runtime-http
+    fault: An internal failure and raw request path contain a recognizable injected secret.
+    expected: Response and logs omit the secret while both retain the same bounded correlation ID.
+    requirements: [R6]
+    test: {source: runtime/tests/test_app.py, symbol: test_internal_failure_is_correlated_and_does_not_log_injected_secret}

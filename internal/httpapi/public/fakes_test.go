@@ -160,12 +160,21 @@ func (*fakeArtifactRepository) PinExact(context.Context, artifacts.Scope, artifa
 func (*fakeArtifactRepository) FreezeOutputs(context.Context, artifacts.Scope) error { return nil }
 
 type fakeRunStore struct {
-	runs       map[string]runstore.WorkflowRun
-	executions map[string][]runstore.StageExecution
+	runs              map[string]runstore.WorkflowRun
+	executions        map[string][]runstore.StageExecution
+	idempotencyClaims map[string]fakeIdempotencyClaim
+}
+
+type fakeIdempotencyClaim struct {
+	runID  string
+	digest string
 }
 
 func newFakeRunStore() *fakeRunStore {
-	return &fakeRunStore{runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution)}
+	return &fakeRunStore{
+		runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution),
+		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
+	}
 }
 
 func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunParams) (runstore.WorkflowRun, error) {
@@ -180,6 +189,26 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 	}
 	f.runs[params.RunID] = run
 	return run, nil
+}
+
+func (f *fakeRunStore) CreateRunIdempotent(
+	ctx context.Context,
+	params runstore.CreateRunIdempotentParams,
+) (runstore.WorkflowRun, bool, error) {
+	key := params.OwnerID + "\x00" + params.IdempotencyKey
+	if existing, ok := f.idempotencyClaims[key]; ok {
+		if existing.digest != params.RequestDigest {
+			return runstore.WorkflowRun{}, false, runstore.ErrConflict
+		}
+		run, err := f.GetRun(ctx, existing.runID)
+		return run, false, err
+	}
+	run, err := f.CreateRun(ctx, params.CreateRunParams)
+	if err != nil {
+		return runstore.WorkflowRun{}, false, err
+	}
+	f.idempotencyClaims[key] = fakeIdempotencyClaim{runID: run.RunID, digest: params.RequestDigest}
+	return run, true, nil
 }
 
 func (f *fakeRunStore) GetRun(_ context.Context, runID string) (runstore.WorkflowRun, error) {

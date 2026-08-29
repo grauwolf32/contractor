@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
@@ -24,6 +25,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get(requestid.Header) != "scheduler-request-1" {
+			t.Errorf("request ID = %q", request.Header.Get(requestid.Header))
 		}
 		decoder := json.NewDecoder(request.Body)
 		decoder.DisallowUnknownFields()
@@ -51,7 +55,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handle, err := client.Prepare(context.Background(), reservation, settings)
+	handle, err := client.Prepare(
+		requestid.With(context.Background(), "scheduler-request-1"), reservation, settings,
+	)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}

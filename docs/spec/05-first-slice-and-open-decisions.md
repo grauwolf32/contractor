@@ -40,6 +40,9 @@ This slice must demonstrate:
 - Run creation selects an exact Workflow `<id>@<version>` and stores its
   complete resolved snapshot; later configuration-file edits cannot
   reinterpret that Run;
+- public Run creation requires an owner-scoped `Idempotency-Key`; response-loss
+  retry returns the same Run without repeating input forks or Scheduler wake,
+  while reuse with different validated content conflicts;
 - template resolution happens before allocation and the exact ref is retained;
 - `planner` and `template` accept only the exact `<id>@<version>` grammar;
   malformed, unversioned, `latest`, range and unknown selectors are rejected,
@@ -102,6 +105,9 @@ This slice must demonstrate:
 - tests cover both outcomes of the Run cancel-versus-success race: the first
   durable Run transition wins, and a finalizing Stage accepted after cancel
   does not create Workflow outputs;
+- a candidate exact artifact revision remains authoritative if its logical
+  binding advances before finalization; Scheduler never substitutes the newer
+  current revision;
 - bounded retry tests show that `maxAttempts` includes the first execution,
   every retry creates a new StageExecution, non-retryable outcomes and exhausted
   attempts execute `then`, and Run cancellation prevents another attempt;
@@ -169,7 +175,13 @@ This slice must demonstrate:
 - release clears the allocation's A2A identity, State, tools, access context
   and `local-workdir@1` directory; cleanup failure keeps the Runtime Agent
   fenced, while startup removes recognized orphan allocation directories
-  before advertising an idle slot.
+  before advertising an idle slot;
+- public/private HTTP and A2A responses carry a bounded correlation ID, REST
+  failures repeat it in their redacted body, and 5xx logs omit raw paths,
+  bodies, secrets and provider exception messages;
+- the executable fault matrix covers every durable lifecycle phase and every
+  mutating first-slice operation under response loss, restart, races, fencing,
+  mTLS/tampering attacks and bounded resource shutdown.
 
 ## Deliberately deferred
 
@@ -181,28 +193,16 @@ implicitly:
 - exact count, name-length, value-length and total-size limits for string Run
   parameters;
 - exact maximum size for a resolved UTF-8 instruction resource;
-- exact framework-neutral StageContent DTO;
-- exact in-process WorkerRuntime factory contract;
 - ADK subagent interaction mode for each Planner strategy;
-- initial A2A 1.0 transport binding; direct Planner-to-Runtime-Agent
-  authentication already uses the deployment mTLS identity defined in
-  [02](02-runtime-and-a2a.md);
 - Planner artifact authority and whether it receives domain toolsets;
-- exact numeric limits and retention for tool-call detail and execution
-  telemetry;
 - optional incremental Worker metric delivery for retaining detail across a
   hard process crash;
-- initial blob backend and upload/streaming/retention limits;
-- public User Artifact API DTOs and explicit Run-output publication endpoint;
-- error classification after ambiguous allocation initialization or A2A
-  delivery; bounded Workflow retry and cancellation are defined in
-  [00](00-workflow-and-planner.md) and
-  [04](04-execution-lifecycle-and-metrics.md);
+- S3 blob backend, streaming uploads, and longer-term Artifact retention;
+- explicit Run-output publication endpoint;
 - concrete graceful-drain timeout before forced Worker termination after lease
   loss;
 - shared Runtime Agent Registry and coordination for multiple active Control
   Plane replicas;
-- exact RuntimeSettings DTO and LLM Gateway client protocol;
 - RuntimeSettings token issuance, expiry/refresh and concrete redaction rules;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;

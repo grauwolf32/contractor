@@ -190,6 +190,7 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
 
     async def scenario() -> None:
         received: list[dict[str, Any]] = []
+        received_request_ids: list[str] = []
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_context.minimum_version = ssl.TLSVersion.TLSv1_3
         server_context.verify_mode = ssl.CERT_REQUIRED
@@ -210,6 +211,7 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
                     headers[name.decode().lower()] = value.decode().strip()
                 payload = json.loads(await reader.readexactly(int(headers["content-length"])))
                 received.append(payload)
+                received_request_ids.append(headers["x-request-id"])
                 if request_line.startswith(b"POST /private/v1/agents/register "):
                     response = registration_response()
                 else:
@@ -253,6 +255,9 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
             await server.wait_closed()
         assert [item.get("heartbeatSeq") for item in received[1:]] == [1, 2]
         assert [item.get("echoedAckSeq") for item in received[1:]] == [0, 1]
+        assert len(received_request_ids) == 3
+        assert all(value.startswith("request_") for value in received_request_ids)
+        assert len(set(received_request_ids)) == 3
 
     asyncio.run(scenario())
 

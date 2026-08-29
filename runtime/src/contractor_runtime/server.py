@@ -6,7 +6,9 @@ import asyncio
 import contextlib
 import logging
 import math
+import re
 import ssl
+import uuid
 from collections.abc import Generator, Mapping
 from typing import Any
 
@@ -35,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 VERIFIED_PEER_EXTENSION = "contractor.mtls.peer_certificate"
 MAX_LIFECYCLE_REQUEST_BYTES = 1 << 20
+REQUEST_ID_HEADER = b"x-request-id"
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class VerifiedMTLSH11Protocol(H11Protocol):
@@ -78,17 +82,78 @@ class VerifiedPeerMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http" and VERIFIED_PEER_EXTENSION not in scope.get("extensions", {}):
+            request_id = str(scope.get("state", {}).get("request_id", "request-unavailable"))
             response = JSONResponse(
                 {
                     "code": "mtls_required",
                     "message": "verified mTLS is required",
                     "retryable": False,
+                    "requestId": request_id,
                 },
                 status_code=401,
             )
             await response(scope, receive, send)
             return
         await self._app(scope, receive, send)
+
+
+class CorrelationIDMiddleware:
+    """Propagate one bounded private request ID through responses and logs."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        request_id = _request_id(scope)
+        copied = dict(scope)
+        state = dict(copied.get("state", {}))
+        state["request_id"] = request_id
+        copied["state"] = state
+        status_code = 500
+        response_started = False
+
+        async def send_with_request_id(message: Mapping[str, Any]) -> None:
+            nonlocal response_started, status_code
+            if message["type"] == "http.response.start":
+                response_started = True
+                status_code = int(message["status"])
+                headers = [
+                    (name, value)
+                    for name, value in message.get("headers", [])
+                    if name.lower() != REQUEST_ID_HEADER
+                ]
+                headers.append((REQUEST_ID_HEADER, request_id.encode("ascii")))
+                message = {**message, "headers": headers}
+            await send(message)  # type: ignore[arg-type]
+
+        try:
+            await self._app(copied, receive, send_with_request_id)
+        except Exception as error:
+            copied["state"]["error_type"] = type(error).__name__
+            if response_started:
+                raise
+            response = JSONResponse(
+                {
+                    "code": "internal_error",
+                    "message": "private request could not be processed",
+                    "retryable": True,
+                    "requestId": request_id,
+                },
+                status_code=500,
+            )
+            await response(copied, receive, send_with_request_id)
+        finally:
+            if status_code >= 500:
+                logger.error(
+                    "private HTTP request failed request_id=%s method=%s status=%d error_type=%s",
+                    request_id,
+                    scope.get("method", ""),
+                    status_code,
+                    copied["state"].get("error_type", "handled_failure"),
+                )
 
 
 def create_app(
@@ -161,28 +226,34 @@ def create_app(
                     "code": "invalid_request",
                     "message": "request does not match the allocation lifecycle contract",
                     "retryable": False,
+                    "requestId": request.state.request_id,
                 },
                 status_code=422,
             )
         except AllocationError as error:
-            return JSONResponse(error.payload(), status_code=error.status_code)
+            return JSONResponse(
+                {**error.payload(), "requestId": request.state.request_id},
+                status_code=error.status_code,
+            )
         except Exception as error:
-            logger.error("allocation lifecycle handler failed (%s)", type(error).__name__)
+            request.state.error_type = type(error).__name__
             return JSONResponse(
                 {
                     "code": "internal_error",
                     "message": "allocation lifecycle operation failed",
                     "retryable": True,
+                    "requestId": request.state.request_id,
                 },
                 status_code=500,
             )
 
-    async def lifecycle_unavailable_without_dispatch(_: Request) -> JSONResponse:
+    async def lifecycle_unavailable_without_dispatch(request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "code": "allocation_service_unavailable",
                 "message": "allocation lifecycle service is not configured",
                 "retryable": True,
+                "requestId": request.state.request_id,
             },
             status_code=503,
         )
@@ -217,7 +288,21 @@ def create_app(
         application = AllocationA2AGateway(application, allocation_service)
     if require_verified_peer:
         application = VerifiedPeerMiddleware(application)
-    return application
+    return CorrelationIDMiddleware(application)
+
+
+def _request_id(scope: Scope) -> str:
+    values: list[str] = []
+    for name, value in scope.get("headers", []):
+        if name.lower() != REQUEST_ID_HEADER:
+            continue
+        try:
+            values.append(value.decode("ascii"))
+        except UnicodeDecodeError:
+            return f"request_{uuid.uuid4().hex}"
+    if len(values) == 1 and REQUEST_ID_PATTERN.fullmatch(values[0]) is not None:
+        return values[0]
+    return f"request_{uuid.uuid4().hex}"
 
 
 async def _decode_request[RequestModel: BaseModel](

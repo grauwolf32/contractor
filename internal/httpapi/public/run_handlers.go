@@ -1,6 +1,8 @@
 package public
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +17,8 @@ import (
 )
 
 const maxCancellationReasonBytes = 4096
+
+const idempotencyKeyHeader = "Idempotency-Key"
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -35,6 +39,16 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	requestDigest, err := createRunRequestDigest(request)
+	if err != nil {
+		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
+		return
+	}
 	workflowSnapshot, err := json.Marshal(workflow)
 	if err != nil {
 		h.handleError(w, fmt.Errorf("encode resolved Workflow: %w", err))
@@ -46,15 +60,28 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	created := false
+	var storedRun runstore.WorkflowRun
 	err = h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
-		if _, err := runs.CreateRun(r.Context(), runstore.CreateRunParams{
-			RunID: runID, OwnerID: h.dependencies.UserID,
-			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
-			WorkflowSchemaVersion: contracts.APIVersion,
-			WorkflowSnapshot:      workflowSnapshot,
-			Parameters:            cloneParameters(request.Parameters),
-		}); err != nil {
-			return err
+		var createErr error
+		storedRun, created, createErr = runs.CreateRunIdempotent(
+			r.Context(), runstore.CreateRunIdempotentParams{
+				CreateRunParams: runstore.CreateRunParams{
+					RunID: runID, OwnerID: h.dependencies.UserID,
+					WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+					WorkflowSchemaVersion: contracts.APIVersion,
+					WorkflowSnapshot:      workflowSnapshot,
+					Parameters:            cloneParameters(request.Parameters),
+				},
+				IdempotencyKey: idempotencyKey,
+				RequestDigest:  requestDigest,
+			},
+		)
+		if createErr != nil {
+			return createErr
+		}
+		if !created {
+			return nil
 		}
 
 		slots := sortedArtifactSlots(request.Artifacts)
@@ -69,7 +96,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 				return fmt.Errorf("%w: input %q has unsupported media type", errInvalidRequest, slot)
 			}
 		}
-		_, err := runs.TransitionRun(
+		storedRun, err = runs.TransitionRun(
 			r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
 			runstore.Reason{Code: "initialized"},
 		)
@@ -79,10 +106,47 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	if h.dependencies.RunNotifier != nil {
+	if created && h.dependencies.RunNotifier != nil {
 		h.dependencies.RunNotifier.Wake()
 	}
-	writeJSON(w, http.StatusAccepted, createRunResponse{RunID: runID, State: runstore.RunRunning})
+	if !created {
+		w.Header().Set("Idempotency-Replayed", "true")
+	}
+	writeJSON(w, http.StatusAccepted, createRunResponse{RunID: storedRun.RunID, State: storedRun.State})
+}
+
+func requireIdempotencyKey(r *http.Request) (string, error) {
+	values := r.Header.Values(idempotencyKeyHeader)
+	if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 128 {
+		return "", fmt.Errorf("%w: exactly one bounded Idempotency-Key is required", errInvalidRequest)
+	}
+	for index, character := range values[0] {
+		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
+		if !valid {
+			return "", fmt.Errorf("%w: Idempotency-Key contains an invalid character", errInvalidRequest)
+		}
+	}
+	return values[0], nil
+}
+
+func createRunRequestDigest(request createRunRequest) (string, error) {
+	parameters := request.Parameters
+	if parameters == nil {
+		parameters = map[string]string{}
+	}
+	artifactRefs := request.Artifacts
+	if artifactRefs == nil {
+		artifactRefs = map[string]contracts.ArtifactRef{}
+	}
+	encoded, err := json.Marshal(createRunRequest{
+		Workflow: request.Workflow, Parameters: parameters, Artifacts: artifactRefs,
+	})
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
 func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {

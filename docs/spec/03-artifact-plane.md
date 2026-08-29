@@ -205,6 +205,13 @@ versioned write target is invalid because `ref.revision` and
 returns `ArtifactConflict`; infrastructure never silently overwrites or
 semantically merges the winner.
 
+CAS is also the response-loss contract. If a create/update committed but its
+response was lost, repeating the already-consumed `If-None-Match: *` or
+`If-Match: <old revision>` fails with `ArtifactConflict` and creates no new
+version. The caller reconciles through a current or exact read; the Server does
+not guess whether a different payload under the same stale precondition was an
+intended replay.
+
 ArtifactReadResult and ArtifactWriteResult always contain a versioned ref. An
 old revision remains resolvable to its immutable internal version for as long
 as Run input provenance, a StageContext snapshot, a StageResult, a Run output

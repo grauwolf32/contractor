@@ -623,6 +623,14 @@ StageExecution. Cancellation is accepted from `initializing` or `running` by
 compare-and-set. Repeating cancellation is idempotent; cancellation of any
 terminal Run returns that existing terminal state without mutation.
 
+Public `POST /v1/runs` requires exactly one bounded `Idempotency-Key`. The
+Server binds it to the authenticated owner and a canonical digest of the
+validated request in the same transaction as Run creation and exact input
+forks. A retry with the same owner, key and digest returns the existing Run and
+does not repeat input forks or Scheduler notification. Reusing the key with a
+different digest is a conflict. Thus losing the successful HTTP response cannot
+create a second WorkflowRun or semantic execution.
+
 Run success is committed only when all of the following are true:
 
 - Workflow policy selected an explicit successful terminal transition;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 func TestInvokerHandlesImmediateMessageAndTerminalTaskEqually(t *testing.T) {
@@ -172,7 +174,12 @@ func TestOfficialGoSDKJSONRPCRoundTrip(t *testing.T) {
 			yield(resultMessage(successResult()), nil)
 		}
 	})
-	server := httptest.NewServer(a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(executor)))
+	a2aHandler := a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(executor))
+	receivedRequestID := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedRequestID = r.Header.Get(requestid.Header)
+		a2aHandler.ServeHTTP(w, r)
+	}))
 	defer server.Close()
 	invoker, err := New(server.Client(), Options{PollInterval: time.Millisecond})
 	if err != nil {
@@ -180,10 +187,14 @@ func TestOfficialGoSDKJSONRPCRoundTrip(t *testing.T) {
 	}
 
 	result, err := invoker.Invoke(
-		context.Background(), "builder", workerHandle(server.URL), stageRequest(),
+		requestid.With(context.Background(), "planner-request-1"),
+		"builder", workerHandle(server.URL), stageRequest(),
 	)
 	if err != nil || !reflect.DeepEqual(result, successResult()) {
 		t.Fatalf("official SDK round trip = (%+v, %v)", result, err)
+	}
+	if receivedRequestID != "planner-request-1" {
+		t.Fatalf("A2A request ID = %q", receivedRequestID)
 	}
 }
 

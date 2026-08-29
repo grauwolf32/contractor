@@ -86,6 +86,25 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	}
 }
 
+func TestPrivateArtifactResponseLossRetryCreatesNoSecondRevision(t *testing.T) {
+	repository := newMemoryRepository()
+	registry := &fakeRegistry{grant: testGrant("run-a")}
+	handler := newTestHandler(t, registry, repository)
+
+	created := putArtifact(t, handler, "inputs", "source", "*", []byte("first"))
+	if created.Code != http.StatusCreated {
+		t.Fatalf("first create = %d %s", created.Code, created.Body.String())
+	}
+	retry := putArtifact(t, handler, "inputs", "source", "*", []byte("first"))
+	if retry.Code != http.StatusConflict || repository.next != 1 {
+		t.Fatalf("lost-response retry = status %d revisions %d body %s", retry.Code, repository.next, retry.Body.String())
+	}
+	current, exists := repository.current("run-a", "inputs", "source")
+	if !exists || current.revision != "revision-1" || string(current.data) != "first" {
+		t.Fatalf("current after retry = (%+v, %v)", current, exists)
+	}
+}
+
 func TestPrivateArtifactWriteFenceRejectsLaterWriteWithoutMutation(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.seed("run-a", "inputs", "source", "revision-a", []byte("before fence"))
@@ -107,6 +126,13 @@ func TestPrivateArtifactWriteFenceRejectsLaterWriteWithoutMutation(t *testing.T)
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "allocation_write_fenced") {
 		t.Fatalf("fenced write = %d %s", response.Code, response.Body.String())
+	}
+	var failure errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil ||
+		failure.RequestID != "artifact-request-fixed" ||
+		response.Header().Get("X-Request-ID") != failure.RequestID {
+		t.Fatalf("fenced write correlation = headers:%v body:%+v error:%v",
+			response.Header(), failure, err)
 	}
 	current, _ := repository.current("run-a", "inputs", "source")
 	if repository.writeCalls != writesBefore || string(current.data) != "before fence" {
@@ -147,6 +173,7 @@ func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepo
 	t.Helper()
 	handler, err := NewHandler(Dependencies{
 		Registry: registry, Artifacts: artifacts.NewService(repository),
+		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})
 	if err != nil {
 		t.Fatal(err)

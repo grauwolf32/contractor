@@ -21,7 +21,9 @@ import (
 
 func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	handler, err := NewHTTPHandler(registry)
+	handler, err := NewHTTPHandler(registry, HTTPOptions{
+		NewRequestID: func() (string, error) { return "control-request-fixed", nil },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +36,13 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	handler.ServeHTTP(unauthenticated, request)
 	if unauthenticated.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", unauthenticated.Code)
+	}
+	var unauthenticatedError privateErrorResponse
+	if err := json.Unmarshal(unauthenticated.Body.Bytes(), &unauthenticatedError); err != nil ||
+		unauthenticated.Header().Get("X-Request-ID") != "control-request-fixed" ||
+		unauthenticatedError.RequestID != "control-request-fixed" {
+		t.Fatalf("unauthenticated correlation = headers:%v body:%+v error:%v",
+			unauthenticated.Header(), unauthenticatedError, err)
 	}
 
 	trusted := httptest.NewRecorder()

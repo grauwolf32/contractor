@@ -68,13 +68,13 @@ milestones:
       model-backed Streamline Planner satisfy the v2 first-slice contracts.
 
 current_checkpoint:
-  completed_through: V1-004
-  next_task: V1-005
+  completed_through: V1-005
+  next_task: V1-006
   summary: >-
     The runnable MVP, bounded cancellation, symmetric confirmed allocation
-    leases, serial multi-Stage progression, bounded retry, and bounded durable
-    Planner/Worker/Runtime metrics are implemented. The final race-security
-    matrix and the Streamline Planner remain planned.
+    leases, serial multi-Stage progression, bounded retry, bounded durable
+    Planner/Worker/Runtime metrics, and the executable race/security hardening
+    matrix are implemented. The Streamline Planner remains planned.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
