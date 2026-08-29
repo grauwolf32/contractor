@@ -61,6 +61,8 @@ type ResolvedAgentTemplate struct {
 	SandboxProfile SandboxProfileRef    `json:"sandboxProfile"`
 }
 
+func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
+
 type RuntimeSettings struct {
 	LLMGatewayURL         string       `json:"llmGatewayUrl"`
 	LLMGatewayToken       SecretString `json:"llmGatewayToken"`

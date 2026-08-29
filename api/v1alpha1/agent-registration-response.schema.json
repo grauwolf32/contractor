@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/agent-registration-response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "heartbeatIntervalSeconds", "confirmedLeaseSeconds"],
+  "properties": {
+    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+    "heartbeatIntervalSeconds": {"type": "integer", "minimum": 1},
+    "confirmedLeaseSeconds": {"type": "integer", "minimum": 2}
+  }
+}

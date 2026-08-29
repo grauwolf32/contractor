@@ -15,6 +15,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 
 	cases := map[string]func([]byte) ([]byte, error){
 		"agent-registration.json":           roundTrip[AgentRegistration],
+		"agent-registration-response.json":  roundTrip[AgentRegistrationResponse],
 		"agent-heartbeat.json":              roundTrip[AgentHeartbeat],
 		"heartbeat-response.json":           roundTrip[HeartbeatResponse],
 		"allocation-spec.json":              roundTrip[AllocationSpec],

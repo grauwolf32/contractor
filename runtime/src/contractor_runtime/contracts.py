@@ -131,6 +131,17 @@ class AgentRegistration(VersionedWireModel):
         return self
 
 
+class AgentRegistrationResponse(VersionedWireModel):
+    heartbeat_interval_seconds: int = Field(gt=0)
+    confirmed_lease_seconds: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_timing(self) -> Self:
+        if self.confirmed_lease_seconds <= self.heartbeat_interval_seconds:
+            raise ValueError("confirmed lease must exceed heartbeat interval")
+        return self
+
+
 class AgentHeartbeat(VersionedWireModel):
     instance_id: str
     heartbeat_seq: int = Field(gt=0)

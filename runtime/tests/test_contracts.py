@@ -13,6 +13,7 @@ from contractor_runtime.contracts import (
     AbortAllocationRequest,
     AgentHeartbeat,
     AgentRegistration,
+    AgentRegistrationResponse,
     AllocationSpec,
     ArtifactReadResult,
     FinalizeAllocationRequest,
@@ -27,6 +28,7 @@ FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration.json": AgentRegistration,
+    "agent-registration-response.json": AgentRegistrationResponse,
     "agent-heartbeat.json": AgentHeartbeat,
     "heartbeat-response.json": HeartbeatResponse,
     "allocation-spec.json": AllocationSpec,
@@ -52,6 +54,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
 
 FIXTURE_SCHEMAS = {
     "agent-registration": "agent-registration.schema.json",
+    "agent-registration-response": "agent-registration-response.schema.json",
     "agent-heartbeat": "agent-heartbeat.schema.json",
     "heartbeat-response": "agent-heartbeat.schema.json",
     "allocation-spec": "allocation.schema.json",

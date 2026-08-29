@@ -38,6 +38,25 @@ type AgentRegistration struct {
 	AllocationID             *string             `json:"allocationId,omitempty"`
 }
 
+type AgentRegistrationResponse struct {
+	APIVersion               string `json:"apiVersion"`
+	HeartbeatIntervalSeconds int    `json:"heartbeatIntervalSeconds"`
+	ConfirmedLeaseSeconds    int    `json:"confirmedLeaseSeconds"`
+}
+
+func (r AgentRegistrationResponse) Validate() error {
+	if err := validateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	if r.HeartbeatIntervalSeconds <= 0 || r.ConfirmedLeaseSeconds <= 0 {
+		return invalidf("heartbeat interval and confirmed lease must be positive")
+	}
+	if r.ConfirmedLeaseSeconds <= r.HeartbeatIntervalSeconds {
+		return invalidf("confirmed lease must exceed heartbeat interval")
+	}
+	return nil
+}
+
 func (r AgentRegistration) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err

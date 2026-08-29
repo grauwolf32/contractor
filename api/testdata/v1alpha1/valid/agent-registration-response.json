@@ -1,0 +1,5 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "heartbeatIntervalSeconds": 10,
+  "confirmedLeaseSeconds": 60
+}

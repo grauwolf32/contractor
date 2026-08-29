@@ -3,7 +3,7 @@ id: MVP-008
 title: Implement the in-memory Go Runtime Agent registry and allocation reservation
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-002, MVP-007]
 languages: [go]
 
