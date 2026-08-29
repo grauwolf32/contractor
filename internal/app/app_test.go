@@ -67,11 +67,17 @@ func TestParseConfig(t *testing.T) {
 	t.Parallel()
 
 	env := func(key string) string {
-		if key == "CONTRACTOR_PUBLIC_LISTEN" {
+		switch key {
+		case "CONTRACTOR_PUBLIC_LISTEN":
 			return "127.0.0.1:9000"
-		}
-		if key == "CONTRACTOR_DATABASE_URL" {
+		case "CONTRACTOR_DATABASE_URL":
 			return "postgres://contractor:secret@database/contractor"
+		case "CONTRACTOR_CONFIG_ROOT":
+			return "/srv/contractor/configs"
+		case "CONTRACTOR_PUBLIC_USER_ID":
+			return "local-user"
+		case "CONTRACTOR_PUBLIC_BEARER_TOKEN":
+			return "private-token"
 		}
 		return ""
 	}
@@ -87,6 +93,29 @@ func TestParseConfig(t *testing.T) {
 	}
 	if cfg.DatabaseURL != "postgres://contractor:secret@database/contractor" {
 		t.Fatalf("database URL was not read from the shared environment setting")
+	}
+	if cfg.ConfigRoot != "/srv/contractor/configs" || cfg.PublicUserID != "local-user" ||
+		cfg.PublicBearerToken.Reveal() != "private-token" {
+		t.Fatalf("public API settings were not parsed: %+v", cfg)
+	}
+}
+
+func TestProcessHandlerKeepsHealthPublicAndMountsAPI(t *testing.T) {
+	t.Parallel()
+	api := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	handler := NewHandler(api)
+
+	health := httptest.NewRecorder()
+	handler.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if health.Code != http.StatusOK {
+		t.Fatalf("health status = %d", health.Code)
+	}
+	public := httptest.NewRecorder()
+	handler.ServeHTTP(public, httptest.NewRequest(http.MethodPost, "/v1/runs", nil))
+	if public.Code != http.StatusAccepted {
+		t.Fatalf("public API status = %d", public.Code)
 	}
 }
 
