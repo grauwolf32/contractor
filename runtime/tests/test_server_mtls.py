@@ -61,8 +61,8 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
         status, body = request(
             port, control_plane_context, "POST", "/private/v1/allocations/a/prepare"
         )
-        assert status == 501
-        assert b"not_implemented" in body
+        assert status == 503
+        assert b"allocation_service_unavailable" in body
         assert asyncio.run(state.snapshot()).route_dispatches == 1
     finally:
         server.should_exit = True

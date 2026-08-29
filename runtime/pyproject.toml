@@ -5,6 +5,7 @@ description = "Single-slot Python Runtime Agent for Contractor v2"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "jcs>=0.2,<1",
   "pydantic>=2.11,<3",
   "starlette>=0.47,<1",
   "uvicorn>=0.35,<1",

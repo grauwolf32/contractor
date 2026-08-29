@@ -5,7 +5,7 @@
     "allocationSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "agentTemplate", "runtimeSettings"],
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "runtimeSettings"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
@@ -13,6 +13,7 @@
         "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
         "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
         "runtimeSettings": {
           "type": "object",

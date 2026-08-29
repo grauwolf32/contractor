@@ -465,8 +465,13 @@ AllocationSpec
   complete AgentTemplate + exact ref
   exact WorkerRuntimeRef
   RuntimeSettings supplied by Control Plane
-  lease, deadline and resource limits
+  exact lease_expires_at, deadline and resource limits
 ```
+
+`lease_expires_at` is copied from Control Plane's confirmed allocation lease;
+Runtime Agent does not derive a later value from its local heartbeat settings.
+Private wire timestamps are normalized to UTC microsecond precision, which is
+preserved exactly by Go, Python and PostgreSQL.
 
 `RuntimeSettings` contains deployment-owned connection and execution settings,
 not Worker semantics. The initial settings include at least:

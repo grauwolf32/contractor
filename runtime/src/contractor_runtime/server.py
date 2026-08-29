@@ -1,4 +1,4 @@
-"""Private mTLS ASGI server and allocation lifecycle route shell."""
+"""Private mTLS ASGI server and allocation lifecycle routes."""
 
 from __future__ import annotations
 
@@ -11,13 +11,21 @@ from collections.abc import Generator, Mapping
 from typing import Any
 
 import uvicorn
+from pydantic import BaseModel, ValidationError
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.protocols.http.h11_impl import H11Protocol
 
+from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.contracts import (
+    AbortAllocationRequest,
+    FinalizeAllocationRequest,
+    PrepareAllocationRequest,
+    ReleaseAllocationRequest,
+)
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -25,6 +33,7 @@ from contractor_runtime.state import ProcessState, RuntimeState
 logger = logging.getLogger(__name__)
 
 VERIFIED_PEER_EXTENSION = "contractor.mtls.peer_certificate"
+MAX_LIFECYCLE_REQUEST_BYTES = 1 << 20
 
 
 class VerifiedMTLSH11Protocol(H11Protocol):
@@ -81,7 +90,12 @@ class VerifiedPeerMiddleware:
         await self._app(scope, receive, send)
 
 
-def create_app(state: RuntimeState | None = None, *, require_verified_peer: bool = True) -> ASGIApp:
+def create_app(
+    state: RuntimeState | None = None,
+    *,
+    allocation_service: AllocationService | None = None,
+    require_verified_peer: bool = True,
+) -> ASGIApp:
     runtime_state = state or RuntimeState()
 
     async def health(_: Request) -> JSONResponse:
@@ -96,15 +110,80 @@ def create_app(state: RuntimeState | None = None, *, require_verified_peer: bool
             status_code=200 if ready else 503,
         )
 
-    async def lifecycle_not_implemented(_: Request) -> JSONResponse:
+    async def prepare(request: Request) -> Response:
+        return await lifecycle_call(request, PrepareAllocationRequest, "prepare")
+
+    async def finalize(request: Request) -> Response:
+        return await lifecycle_call(request, FinalizeAllocationRequest, "finalize")
+
+    async def abort(request: Request) -> Response:
+        return await lifecycle_call(request, AbortAllocationRequest, "abort")
+
+    async def release(request: Request) -> Response:
+        return await lifecycle_call(request, ReleaseAllocationRequest, "release")
+
+    async def lifecycle_call[RequestModel: BaseModel](
+        request: Request,
+        model: type[RequestModel],
+        operation: str,
+    ) -> Response:
         await runtime_state.record_route_dispatch()
+        if allocation_service is None:
+            return await lifecycle_unavailable_without_dispatch(request)
+        try:
+            value = await _decode_request(request, model)
+            allocation_id = (
+                value.spec.allocation_id
+                if isinstance(value, PrepareAllocationRequest)
+                else value.allocation_id
+            )
+            if request.path_params["allocation_id"] != allocation_id:
+                raise AllocationError(
+                    "allocation_id_mismatch",
+                    "path allocation ID does not match the request body",
+                    retryable=False,
+                    status_code=409,
+                )
+            if operation == "prepare":
+                result = await allocation_service.prepare(value.spec)
+            elif operation == "finalize":
+                result = await allocation_service.finalize(value)
+            elif operation == "abort":
+                result = await allocation_service.abort(value)
+            else:
+                await allocation_service.release(value)
+                return Response(status_code=204)
+            return JSONResponse(result.model_dump(mode="json", by_alias=True, exclude_none=True))
+        except ValidationError:
+            return JSONResponse(
+                {
+                    "code": "invalid_request",
+                    "message": "request does not match the allocation lifecycle contract",
+                    "retryable": False,
+                },
+                status_code=422,
+            )
+        except AllocationError as error:
+            return JSONResponse(error.payload(), status_code=error.status_code)
+        except Exception as error:
+            logger.error("allocation lifecycle handler failed (%s)", type(error).__name__)
+            return JSONResponse(
+                {
+                    "code": "internal_error",
+                    "message": "allocation lifecycle operation failed",
+                    "retryable": True,
+                },
+                status_code=500,
+            )
+
+    async def lifecycle_unavailable_without_dispatch(_: Request) -> JSONResponse:
         return JSONResponse(
             {
-                "code": "not_implemented",
-                "message": "allocation lifecycle is added by MVP-010",
-                "retryable": False,
+                "code": "allocation_service_unavailable",
+                "message": "allocation lifecycle service is not configured",
+                "retryable": True,
             },
-            status_code=501,
+            status_code=503,
         )
 
     application: ASGIApp = Starlette(
@@ -113,22 +192,22 @@ def create_app(state: RuntimeState | None = None, *, require_verified_peer: bool
             Route("/readyz", readiness, methods=["GET"]),
             Route(
                 "/private/v1/allocations/{allocation_id}/prepare",
-                lifecycle_not_implemented,
+                prepare,
                 methods=["POST"],
             ),
             Route(
                 "/private/v1/allocations/{allocation_id}/finalize",
-                lifecycle_not_implemented,
+                finalize,
                 methods=["POST"],
             ),
             Route(
                 "/private/v1/allocations/{allocation_id}/abort",
-                lifecycle_not_implemented,
+                abort,
                 methods=["POST"],
             ),
             Route(
                 "/private/v1/allocations/{allocation_id}/release",
-                lifecycle_not_implemented,
+                release,
                 methods=["POST"],
             ),
         ]
@@ -136,6 +215,39 @@ def create_app(state: RuntimeState | None = None, *, require_verified_peer: bool
     if require_verified_peer:
         application = VerifiedPeerMiddleware(application)
     return application
+
+
+async def _decode_request[RequestModel: BaseModel](
+    request: Request, model: type[RequestModel]
+) -> RequestModel:
+    content_types = request.headers.getlist("content-type")
+    if content_types != ["application/json"]:
+        raise _invalid_request()
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            parsed_length = int(content_length)
+            if parsed_length < 0 or parsed_length > MAX_LIFECYCLE_REQUEST_BYTES:
+                raise _invalid_request()
+        except ValueError:
+            raise _invalid_request() from None
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_LIFECYCLE_REQUEST_BYTES:
+            raise _invalid_request()
+    if not body:
+        raise _invalid_request()
+    return model.model_validate_json(bytes(body))
+
+
+def _invalid_request() -> AllocationError:
+    return AllocationError(
+        "invalid_request",
+        "request does not match the allocation lifecycle contract",
+        retryable=False,
+        status_code=422,
+    )
 
 
 def create_server_config(

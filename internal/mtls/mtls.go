@@ -53,6 +53,21 @@ func ControlPlaneClientConfig(files Files, serverName string) (*tls.Config, erro
 	return clientConfig(files, serverName, false)
 }
 
+// ControlPlaneEndpointClientConfig authenticates Agent endpoints selected at
+// runtime. net/http fills ServerName from each request URL before the TLS
+// handshake, preserving normal DNS/IP verification across multiple agents.
+func ControlPlaneEndpointClientConfig(files Files) (*tls.Config, error) {
+	identity, roots, err := load(files)
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{identity},
+		RootCAs:      roots,
+	}, nil
+}
+
 // RuntimeAgentClientConfig authenticates the endpoint normally and then
 // applies the additional Control Plane URI SAN role check.
 func RuntimeAgentClientConfig(files Files, serverName string) (*tls.Config, error) {

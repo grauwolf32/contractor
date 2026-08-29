@@ -115,6 +115,41 @@ class RuntimeState:
         async with self._lock:
             self._process_state = ProcessState.STOPPING
 
+    async def commit_allocation(self, allocation_id: str) -> None:
+        async with self._lock:
+            if self._process_state is not ProcessState.IDLE or self._allocation_id is not None:
+                raise RuntimeError("allocation commit requires an idle slot")
+            self._allocation_id = allocation_id
+            self._process_state = ProcessState.ALLOCATED
+
+    async def begin_draining(self, allocation_id: str) -> None:
+        async with self._lock:
+            if self._allocation_id != allocation_id or self._process_state not in {
+                ProcessState.ALLOCATED,
+                ProcessState.DRAINING,
+            }:
+                raise RuntimeError("draining requires the active allocation")
+            self._process_state = ProcessState.DRAINING
+
+    async def fence_allocation(self, allocation_id: str) -> None:
+        async with self._lock:
+            if self._allocation_id not in {None, allocation_id}:
+                raise RuntimeError("cannot fence a different active allocation")
+            if self._process_state in {ProcessState.STARTING, ProcessState.STOPPING}:
+                raise RuntimeError("cannot fence the current process state")
+            self._allocation_id = allocation_id
+            self._process_state = ProcessState.FENCED
+
+    async def release_allocation(self, allocation_id: str) -> None:
+        async with self._lock:
+            if self._allocation_id != allocation_id or self._process_state not in {
+                ProcessState.DRAINING,
+                ProcessState.FENCED,
+            }:
+                raise RuntimeError("release requires the draining or fenced allocation")
+            self._allocation_id = None
+            self._process_state = ProcessState.IDLE
+
     async def record_route_dispatch(self) -> None:
         async with self._lock:
             self._route_dispatches += 1

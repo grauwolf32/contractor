@@ -1,0 +1,564 @@
+"""Idempotent lifecycle for the Runtime Agent's one allocation slot."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import os
+from collections.abc import Callable, Mapping, MutableMapping
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from contractor_runtime.contracts import (
+    API_VERSION,
+    AbortAllocationRequest,
+    AllocationFinalResponse,
+    AllocationSpec,
+    ExecutionReport,
+    FinalizeAllocationRequest,
+    PrepareAllocationResponse,
+    ReleaseAllocationRequest,
+    RuntimeSettings,
+    TerminationError,
+    WorkerHandle,
+)
+from contractor_runtime.digests import TemplateDigestMismatch, verify_template_digests
+from contractor_runtime.factories import (
+    FactoryRegistry,
+    SandboxFactory,
+    ToolInstance,
+    WorkerBuildContext,
+    WorkerRuntime,
+    WorkerRuntimeFactory,
+)
+from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.workspace import AllocationWorkspace
+
+MAX_REPORT_COUNTERS = 128
+MAX_REPORT_ERRORS = 64
+RESERVED_NAMESPACES = frozenset({"inputs", "outputs"})
+
+
+class AllocationError(Exception):
+    """Stable private-API error which never includes allocation secrets."""
+
+    def __init__(self, code: str, message: str, *, retryable: bool, status_code: int) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.retryable = retryable
+        self.status_code = status_code
+
+    def payload(self) -> dict[str, Any]:
+        return {"code": self.code, "message": self.message, "retryable": self.retryable}
+
+
+@dataclass(slots=True)
+class MetricsState:
+    counters: dict[str, int] = field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[TerminationError] = field(default_factory=list)
+    truncated: bool = False
+
+
+@dataclass(slots=True)
+class WorkerState:
+    metrics: MetricsState = field(default_factory=MetricsState)
+
+
+@dataclass(frozen=True, slots=True)
+class AllocationSnapshot:
+    allocation_id: str
+    stage_execution_id: str
+    process_state: ProcessState
+    workspace: str
+    tool_names: tuple[str, ...]
+    has_runtime_settings: bool
+    has_worker: bool
+
+
+@dataclass(slots=True)
+class _AllocationContext:
+    allocation_id: str
+    run_id: str
+    stage_execution_id: str
+    logical_agent_name: str
+    namespace: str
+    fingerprint: str
+    started_at: datetime
+    workspace: AllocationWorkspace
+    sandbox: SandboxFactory
+    tools: dict[str, ToolInstance]
+    worker_state: WorkerState | None
+    runtime_settings: RuntimeSettings | None = field(repr=False)
+    worker: WorkerRuntime | None = field(repr=False)
+    prepare_response: PrepareAllocationResponse | None = None
+    termination_kind: str | None = None
+    termination_id: str | None = None
+    terminal_response: AllocationFinalResponse | None = None
+
+
+class AllocationService:
+    """Constructs, drains, and erases exactly one in-process Worker context."""
+
+    def __init__(
+        self,
+        state: RuntimeState,
+        factories: FactoryRegistry,
+        *,
+        a2a_base_url: str,
+        now: Callable[[], datetime] | None = None,
+        force_exit: Callable[[int], Any] = os._exit,
+    ) -> None:
+        self._state = state
+        self._factories = factories
+        self._a2a_base_url = a2a_base_url.rstrip("/")
+        self._now = now or (lambda: datetime.now(UTC))
+        self._force_exit = force_exit
+        self._lock = asyncio.Lock()
+        self._context: _AllocationContext | None = None
+        self._released_allocation_id: str | None = None
+
+    async def snapshot(self) -> AllocationSnapshot | None:
+        async with self._lock:
+            context = self._context
+            if context is None:
+                return None
+            state = await self._state.snapshot()
+            return AllocationSnapshot(
+                allocation_id=context.allocation_id,
+                stage_execution_id=context.stage_execution_id,
+                process_state=state.process_state,
+                workspace=str(context.workspace.path),
+                tool_names=tuple(sorted(context.tools)),
+                has_runtime_settings=context.runtime_settings is not None,
+                has_worker=context.worker is not None,
+            )
+
+    async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
+        async with self._lock:
+            fingerprint = _spec_fingerprint(spec)
+            if self._context is not None:
+                context = self._context
+                if (
+                    context.allocation_id == spec.allocation_id
+                    and context.stage_execution_id == spec.stage_execution_id
+                ):
+                    if context.fingerprint != fingerprint or context.prepare_response is None:
+                        raise _conflict("prepare request differs from the active allocation")
+                    return context.prepare_response
+                raise _conflict("Runtime Agent already owns another allocation")
+
+            state = await self._state.snapshot()
+            if state.process_state is not ProcessState.IDLE:
+                raise _conflict("Runtime Agent slot is not idle")
+            self._validate_spec(spec)
+
+            sandbox = self._sandbox_factory(spec)
+            runtime_factory = self._runtime_factory(spec)
+            workspace: AllocationWorkspace | None = None
+            tools: dict[str, ToolInstance] = {}
+            worker_state: WorkerState | None = None
+            worker: WorkerRuntime | None = None
+            try:
+                workspace = await sandbox.prepare()
+                tools = await self._create_tools(spec, workspace)
+                worker_state = WorkerState()
+                worker = await runtime_factory.create(
+                    WorkerBuildContext(
+                        allocation_id=spec.allocation_id,
+                        run_id=spec.run_id,
+                        stage_execution_id=spec.stage_execution_id,
+                        logical_agent_name=spec.logical_agent_name,
+                        namespace=spec.namespace,
+                        agent_template=spec.agent_template,
+                        workspace=workspace,
+                        tools=tools,
+                        state=worker_state,
+                        a2a_base_url=self._a2a_base_url,
+                        runtime_settings=spec.runtime_settings,
+                    )
+                )
+                handle = WorkerHandle(
+                    allocationId=spec.allocation_id,
+                    agentTemplateRef=spec.agent_template.ref,
+                    workerRuntimeRef=spec.agent_template.runtime,
+                    agentCard=dict(worker.agent_card),
+                    leaseExpiresAt=spec.lease_expires_at,
+                )
+                self._assert_safe_handle(handle, spec.runtime_settings, workspace)
+                response = PrepareAllocationResponse(
+                    apiVersion=API_VERSION,
+                    workerHandle=handle,
+                )
+                context = _AllocationContext(
+                    allocation_id=spec.allocation_id,
+                    run_id=spec.run_id,
+                    stage_execution_id=spec.stage_execution_id,
+                    logical_agent_name=spec.logical_agent_name,
+                    namespace=spec.namespace,
+                    fingerprint=fingerprint,
+                    started_at=self._now(),
+                    workspace=workspace,
+                    sandbox=sandbox,
+                    tools=tools,
+                    worker_state=worker_state,
+                    runtime_settings=spec.runtime_settings,
+                    worker=worker,
+                    prepare_response=response,
+                )
+                await self._state.commit_allocation(spec.allocation_id)
+                self._context = context
+                self._released_allocation_id = None
+                return response
+            except AllocationError:
+                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                raise
+            except asyncio.CancelledError:
+                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                raise
+            except Exception as error:
+                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                raise AllocationError(
+                    "allocation_preparation_failed",
+                    f"allocation resource preparation failed ({type(error).__name__})",
+                    retryable=True,
+                    status_code=503,
+                ) from None
+
+    async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:
+        return await self._terminate(
+            allocation_id=request.allocation_id,
+            kind="finalize",
+            operation_id=request.finalization_id,
+            deadline=request.deadline,
+            reason=None,
+        )
+
+    async def abort(self, request: AbortAllocationRequest) -> AllocationFinalResponse:
+        return await self._terminate(
+            allocation_id=request.allocation_id,
+            kind="abort",
+            operation_id=request.abort_id,
+            deadline=request.deadline,
+            reason=request.reason,
+        )
+
+    async def release(self, request: ReleaseAllocationRequest) -> None:
+        async with self._lock:
+            if self._context is None:
+                if self._released_allocation_id == request.allocation_id:
+                    return
+                raise _not_found()
+            context = self._require_context(request.allocation_id)
+            state = await self._state.snapshot()
+            if state.process_state not in {ProcessState.DRAINING, ProcessState.FENCED}:
+                raise _conflict("allocation must be draining or fenced before release")
+            if context.worker is not None:
+                raise _conflict("Worker must be stopped before release")
+            try:
+                await _close_tools(context.tools)
+                await context.sandbox.cleanup(context.workspace)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                await self._state.fence_allocation(context.allocation_id)
+                raise AllocationError(
+                    "allocation_cleanup_failed",
+                    f"allocation cleanup failed ({type(error).__name__})",
+                    retryable=True,
+                    status_code=503,
+                ) from None
+
+            context.tools.clear()
+            context.worker_state = None
+            context.runtime_settings = None
+            context.prepare_response = None
+            context.terminal_response = None
+            await self._state.release_allocation(context.allocation_id)
+            self._released_allocation_id = context.allocation_id
+            self._context = None
+
+    def _validate_spec(self, spec: AllocationSpec) -> None:
+        if spec.namespace in RESERVED_NAMESPACES:
+            raise AllocationError(
+                "invalid_agent_namespace",
+                "agent allocation cannot use a Run-reserved namespace",
+                retryable=False,
+                status_code=422,
+            )
+        if spec.lease_expires_at <= self._now():
+            raise AllocationError(
+                "allocation_lease_expired",
+                "allocation lease has already expired",
+                retryable=True,
+                status_code=409,
+            )
+        try:
+            verify_template_digests(spec.agent_template)
+        except TemplateDigestMismatch:
+            raise AllocationError(
+                "template_digest_mismatch",
+                "resolved AgentTemplate integrity verification failed",
+                retryable=False,
+                status_code=422,
+            ) from None
+
+    def _runtime_factory(self, spec: AllocationSpec) -> WorkerRuntimeFactory:
+        ref = f"{spec.agent_template.runtime.runtime_id}@{spec.agent_template.runtime.version}"
+        factory = self._factories.worker_runtimes.get(ref)
+        if factory is None:
+            raise AllocationError(
+                "unsupported_worker_runtime",
+                "AgentTemplate selects an unsupported WorkerRuntime",
+                retryable=False,
+                status_code=422,
+            )
+        return factory
+
+    def _sandbox_factory(self, spec: AllocationSpec) -> SandboxFactory:
+        selected = spec.agent_template.sandbox_profile
+        ref = f"{selected.sandbox_profile_id}@{selected.version}"
+        factory = self._factories.sandbox_profiles.get(ref)
+        if factory is None:
+            raise AllocationError(
+                "unsupported_sandbox_profile",
+                "AgentTemplate selects an unsupported SandboxProfile",
+                retryable=False,
+                status_code=422,
+            )
+        return factory
+
+    async def _create_tools(
+        self, spec: AllocationSpec, workspace: AllocationWorkspace
+    ) -> dict[str, ToolInstance]:
+        result: dict[str, ToolInstance] = {}
+        for selection in spec.agent_template.toolsets:
+            ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
+            factory = self._factories.toolsets.get(ref)
+            if factory is None:
+                raise AllocationError(
+                    "unsupported_toolset",
+                    "AgentTemplate selects an unsupported Toolset",
+                    retryable=False,
+                    status_code=422,
+                )
+            if not set(selection.tools) <= factory.exported_tools:
+                raise AllocationError(
+                    "unsupported_tool",
+                    "AgentTemplate selects a tool not exported by its Toolset",
+                    retryable=False,
+                    status_code=422,
+                )
+            created = await factory.create_selected(
+                selected=selection.tools,
+                allocation_id=spec.allocation_id,
+                run_id=spec.run_id,
+                namespace=spec.namespace,
+                runtime_settings=spec.runtime_settings,
+                workspace=workspace,
+            )
+            if set(created) != set(selection.tools):
+                raise AllocationError(
+                    "invalid_toolset_factory",
+                    "Toolset factory returned a different visible tool set",
+                    retryable=False,
+                    status_code=500,
+                )
+            if any(tool.name != name for name, tool in created.items()):
+                raise AllocationError(
+                    "invalid_toolset_factory",
+                    "Toolset factory returned a tool with a mismatched visible name",
+                    retryable=False,
+                    status_code=500,
+                )
+            collision = set(result) & set(created)
+            if collision:
+                raise AllocationError(
+                    "duplicate_visible_tool",
+                    "Toolset factories produced a duplicate model-visible tool",
+                    retryable=False,
+                    status_code=422,
+                )
+            result.update(created)
+        return result
+
+    async def _terminate(
+        self,
+        *,
+        allocation_id: str,
+        kind: str,
+        operation_id: str,
+        deadline: datetime,
+        reason: TerminationError | None,
+    ) -> AllocationFinalResponse:
+        async with self._lock:
+            context = self._require_context(allocation_id)
+            if context.termination_kind is not None:
+                if context.termination_kind == kind and context.termination_id == operation_id:
+                    if context.terminal_response is None:
+                        raise _conflict("allocation termination is still incomplete")
+                    return context.terminal_response
+                raise _conflict("allocation already has a different terminal operation")
+
+            context.termination_kind = kind
+            context.termination_id = operation_id
+            await self._state.begin_draining(allocation_id)
+            worker = context.worker
+            if worker is None:
+                raise _conflict("allocation Worker is already absent")
+            remaining = (deadline - self._now()).total_seconds()
+            stop_task: asyncio.Task[None] | None = None
+            try:
+                if remaining <= 0:
+                    raise TimeoutError
+                operation = (
+                    worker.finalize(deadline) if kind == "finalize" else worker.abort(deadline)
+                )
+                stop_task = asyncio.create_task(operation, name=f"worker-{kind}-{allocation_id}")
+                done, _ = await asyncio.wait({stop_task}, timeout=remaining)
+                if not done:
+                    stop_task.cancel()
+                    stop_task.add_done_callback(_consume_background_task)
+                    raise TimeoutError
+                await stop_task
+            except asyncio.CancelledError:
+                if stop_task is not None and not stop_task.done():
+                    stop_task.cancel()
+                    stop_task.add_done_callback(_consume_background_task)
+                await self._state.fence_allocation(allocation_id)
+                self._force_exit(70)
+                raise
+            except Exception as error:
+                await self._state.fence_allocation(allocation_id)
+                self._force_exit(70)
+                raise AllocationError(
+                    "worker_stop_unconfirmed",
+                    f"in-process Worker stop could not be guaranteed ({type(error).__name__})",
+                    retryable=False,
+                    status_code=503,
+                ) from None
+
+            context.worker = None
+            response = AllocationFinalResponse(
+                apiVersion=API_VERSION,
+                report=_build_report(context, self._now(), reason),
+            )
+            context.terminal_response = response
+            return response
+
+    async def _rollback_prepare(
+        self,
+        spec: AllocationSpec,
+        sandbox: SandboxFactory,
+        workspace: AllocationWorkspace | None,
+        tools: Mapping[str, ToolInstance],
+        worker: WorkerRuntime | None,
+    ) -> None:
+        failed = False
+        if worker is not None:
+            try:
+                deadline = self._now() + timedelta(seconds=1)
+                stop_task = asyncio.create_task(worker.abort(deadline))
+                done, _ = await asyncio.wait({stop_task}, timeout=1)
+                if not done:
+                    stop_task.cancel()
+                    stop_task.add_done_callback(_consume_background_task)
+                    raise TimeoutError
+                await stop_task
+            except Exception:
+                failed = True
+        try:
+            await _close_tools(tools)
+        except Exception:
+            failed = True
+        if workspace is not None:
+            try:
+                await sandbox.cleanup(workspace)
+            except Exception:
+                failed = True
+        if failed:
+            await self._state.fence_allocation(spec.allocation_id)
+            self._force_exit(70)
+
+    def _require_context(self, allocation_id: str) -> _AllocationContext:
+        if self._context is None or self._context.allocation_id != allocation_id:
+            raise _not_found()
+        return self._context
+
+    @staticmethod
+    def _assert_safe_handle(
+        handle: WorkerHandle,
+        settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+    ) -> None:
+        encoded = json.dumps(handle.model_dump(mode="json", by_alias=True), ensure_ascii=False)
+        token = settings.llm_gateway_token.get_secret_value()
+        if token in encoded or str(workspace.path) in encoded:
+            raise AllocationError(
+                "unsafe_worker_handle",
+                "Worker runtime exposed private allocation data in its Agent Card",
+                retryable=False,
+                status_code=500,
+            )
+
+
+def _build_report(
+    context: _AllocationContext,
+    finished_at: datetime,
+    reason: TerminationError | None,
+) -> ExecutionReport:
+    metrics = context.worker_state.metrics if context.worker_state is not None else MetricsState()
+    counter_items = sorted(metrics.counters.items())
+    errors = list(metrics.errors)
+    truncated = metrics.truncated
+    if reason is not None:
+        errors.append(reason)
+    if len(counter_items) > MAX_REPORT_COUNTERS:
+        counter_items = counter_items[:MAX_REPORT_COUNTERS]
+        truncated = True
+    if len(errors) > MAX_REPORT_ERRORS:
+        errors = errors[:MAX_REPORT_ERRORS]
+        truncated = True
+    return ExecutionReport(
+        allocationId=context.allocation_id,
+        startedAt=context.started_at,
+        finishedAt=finished_at,
+        complete=True,
+        counters=dict(counter_items),
+        errors=errors,
+        truncated=truncated,
+    )
+
+
+async def _close_tools(tools: Mapping[str, ToolInstance]) -> None:
+    for name in reversed(tuple(tools)):
+        await tools[name].close()
+        if isinstance(tools, MutableMapping):
+            del tools[name]
+
+
+def _consume_background_task(task: asyncio.Task[Any]) -> None:
+    if task.cancelled():
+        return
+    task.exception()
+
+
+def _spec_fingerprint(spec: AllocationSpec) -> str:
+    encoded = spec.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _conflict(message: str) -> AllocationError:
+    return AllocationError("allocation_conflict", message, retryable=False, status_code=409)
+
+
+def _not_found() -> AllocationError:
+    return AllocationError(
+        "allocation_not_found",
+        "allocation is not active on this Runtime Agent",
+        retryable=False,
+        status_code=404,
+    )

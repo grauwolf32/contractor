@@ -3,7 +3,7 @@ id: MVP-010
 title: Implement idempotent allocation lifecycle and Python Worker factory boundary
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-002, MVP-003, MVP-008, MVP-009]
 languages: [go, python]
 

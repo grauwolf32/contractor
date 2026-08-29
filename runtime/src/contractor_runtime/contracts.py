@@ -313,6 +313,7 @@ class AllocationSpec(VersionedWireModel):
     stage_execution_id: str
     logical_agent_name: str
     namespace: str
+    lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
     runtime_settings: RuntimeSettings
 
@@ -328,6 +329,7 @@ class AllocationSpec(VersionedWireModel):
             _require_text(field, value)
         if "/" in self.namespace:
             raise ValueError("namespace must not contain slash")
+        _require_aware_datetime("leaseExpiresAt", self.lease_expires_at)
         return self
 
 

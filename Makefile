@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -31,6 +31,9 @@ test-postgres:
 test-mtls:
 	go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...
 	cd runtime && uv run pytest tests/test_mtls.py
+
+test-control-integration:
+	go test -tags=integration -count=1 ./internal/controlplane -run TestCrossLanguageMTLSAllocationLifecycle
 
 test: test-go test-runtime
 

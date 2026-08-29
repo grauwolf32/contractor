@@ -93,6 +93,19 @@ func TestReserveAllIsAtomicWithInsufficientCapacity(t *testing.T) {
 	}
 }
 
+func TestReserveAllRejectsRunReservedAgentNamespace(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	_, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-1", StageExecutionID: "stage-1",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "inputs", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("reserved namespace error = %v", err)
+	}
+}
+
 func TestConcurrentReserveAllNeverAssignsSlotTwice(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)

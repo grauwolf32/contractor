@@ -8,7 +8,9 @@ import logging
 import signal
 from collections.abc import Callable, Sequence
 
+from contractor_runtime.allocation import AllocationService
 from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
+from contractor_runtime.factories import built_in_factories
 from contractor_runtime.log import configure_logging
 from contractor_runtime.mtls import runtime_agent_client_context, runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
@@ -45,7 +47,12 @@ async def serve(
         settings.control_plane_url, outgoing_tls, settings.request_timeout_seconds
     )
     control = ControlClient(settings, runtime_state, control_transport)
-    application = create_app(runtime_state)
+    allocation_service = AllocationService(
+        runtime_state,
+        built_in_factories(settings.work_root),
+        a2a_base_url=settings.advertised_a2a_url,
+    )
+    application = create_app(runtime_state, allocation_service=allocation_service)
     server = server_factory(create_server_config(settings, application, incoming_tls))
 
     loop = asyncio.get_running_loop()

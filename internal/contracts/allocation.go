@@ -77,6 +77,7 @@ type AllocationSpec struct {
 	StageExecutionID string                `json:"stageExecutionId"`
 	LogicalAgentName string                `json:"logicalAgentName"`
 	Namespace        string                `json:"namespace"`
+	LeaseExpiresAt   time.Time             `json:"leaseExpiresAt"`
 	AgentTemplate    ResolvedAgentTemplate `json:"agentTemplate"`
 	RuntimeSettings  RuntimeSettings       `json:"runtimeSettings"`
 }
@@ -96,6 +97,9 @@ func (s AllocationSpec) Validate() error {
 	}
 	if strings.Contains(s.Namespace, "/") {
 		return invalidf("namespace must not contain slash")
+	}
+	if s.LeaseExpiresAt.IsZero() {
+		return invalidf("leaseExpiresAt must not be zero")
 	}
 	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
 		return err

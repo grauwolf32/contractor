@@ -28,14 +28,14 @@ def test_routes_require_verified_peer_by_default() -> None:
         assert response.json()["code"] == "mtls_required"
 
 
-def test_lifecycle_shell_is_typed_and_records_dispatch() -> None:
+def test_unconfigured_lifecycle_service_is_typed_and_records_dispatch() -> None:
     state = RuntimeState(instance_id="runtime-test")
     with TestClient(create_app(state, require_verified_peer=False)) as client:
         response = client.post("/private/v1/allocations/allocation-1/prepare", json={})
-        assert response.status_code == 501
+        assert response.status_code == 503
         assert response.json() == {
-            "code": "not_implemented",
-            "message": "allocation lifecycle is added by MVP-010",
-            "retryable": False,
+            "code": "allocation_service_unavailable",
+            "message": "allocation lifecycle service is not configured",
+            "retryable": True,
         }
     assert asyncio.run(state.snapshot()).route_dispatches == 1

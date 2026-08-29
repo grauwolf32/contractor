@@ -297,6 +297,10 @@ the prepared Worker:
 - external Agent Card;
 - lease/deadline information.
 
+The ready handle echoes the exact `lease_expires_at` supplied in
+`AllocationSpec`; it does not renew or reinterpret that authoritative Control
+Plane lease.
+
 It contains no host path, tool-sandbox handle or in-process Worker object.
 It also contains no LLM Gateway token or other RuntimeSettings secret.
 

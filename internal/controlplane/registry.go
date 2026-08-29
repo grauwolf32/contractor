@@ -437,6 +437,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if strings.TrimSpace(binding.LogicalAgentName) == "" || strings.TrimSpace(binding.Namespace) == "" || strings.Contains(binding.Namespace, "/") {
 			return "", nil, fmt.Errorf("%w: binding name and slash-free namespace are required", ErrInvalidRequest)
 		}
+		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
+			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)
+		}
 		if err := binding.AgentTemplate.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid AgentTemplate for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
