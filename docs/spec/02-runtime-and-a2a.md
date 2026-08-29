@@ -387,10 +387,10 @@ class ControlPlane(Protocol):
     ) -> Mapping[AgentName, AllocationReleaseAck]: ...
 ```
 
-Exact transport DTO encoding remains open, but preparation, finalization, abort
-and acknowledged release are always a private control protocol rather than A2A
-skills. The StageExecution lifecycle and report contracts are defined by
-[04](04-execution-lifecycle-and-metrics.md).
+Transport DTOs are defined by the versioned schemas under `api/v1alpha1`.
+Preparation, finalization, abort and acknowledged release are always a private
+control protocol rather than A2A skills. The StageExecution lifecycle and
+report contracts are defined by [04](04-execution-lifecycle-and-metrics.md).
 
 ## Capacity and execution scope
 
@@ -429,15 +429,19 @@ an authentication credential.
 
 ```text
 external Agent Card
-  skills = actual Worker skills
-  supportedInterfaces[0].url = https://runtime-agent-7.internal/a2a
-  supportedInterfaces[0].protocolBinding = HTTP+JSON
+  skills = [contractor_stage_content]
+  supportedInterfaces[0].url = https://runtime-agent-7.internal/private/v1/allocations/allocation-123/a2a
+  supportedInterfaces[0].protocolBinding = JSONRPC
   supportedInterfaces[0].protocolVersion = 1.0
   supportedInterfaces[0].tenant = allocation-123
 
 Runtime Agent active slot
   allocation-123 -> in-process Worker runtime created from AgentTemplate
 ```
+
+The MVP card exposes one strict Contractor stage-content skill. The
+AgentTemplate's selected tools remain internal model capabilities and are not
+advertised as independent A2A skills.
 
 The external card declares the endpoint's mutual-TLS security requirement. The
 Planner client is configured with the Server's Control Plane certificate; the

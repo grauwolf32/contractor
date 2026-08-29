@@ -19,6 +19,7 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.protocols.http.h11_impl import H11Protocol
 
+from contractor_runtime.a2a_server import AllocationA2AGateway
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.contracts import (
     AbortAllocationRequest,
@@ -212,6 +213,8 @@ def create_app(
             ),
         ]
     )
+    if allocation_service is not None:
+        application = AllocationA2AGateway(application, allocation_service)
     if require_verified_peer:
         application = VerifiedPeerMiddleware(application)
     return application

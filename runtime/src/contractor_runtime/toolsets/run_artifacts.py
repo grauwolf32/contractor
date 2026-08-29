@@ -76,6 +76,13 @@ class _BaseTool:
         self._client = client
         self._metrics = metrics
         self._secrets = secrets
+        self.__name__ = self.name
+        self.__doc__ = self.description
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        value = getattr(self._client, "known_exact_refs", ())
+        return tuple(value)
 
     async def close(self) -> None:
         self._secrets = ()

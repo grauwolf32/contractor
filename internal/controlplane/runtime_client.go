@@ -288,23 +288,90 @@ func validateWorkerHandle(
 	if secret != "" && bytes.Contains(encoded, []byte(secret)) {
 		return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
 	}
-	protocol, ok := handle.AgentCard["protocolVersion"].(string)
-	if !ok || protocol != "1.0" {
-		return errors.New("Runtime Agent returned an incompatible A2A Agent Card")
-	}
-	cardURL, ok := handle.AgentCard["url"].(string)
-	if !ok || !sameEndpointOrigin(cardURL, reservation.A2AURL) {
-		return errors.New("Runtime Agent returned an A2A Agent Card for another endpoint")
+	if err := validateA2AAgentCard(
+		handle.AgentCard, reservation.Grant.AllocationID, reservation.A2AURL,
+	); err != nil {
+		return err
 	}
 	return nil
 }
 
-func sameEndpointOrigin(cardURL, registeredURL string) bool {
+const stageContentMediaType = "application/vnd.contractor.stage-content+json"
+
+func validateA2AAgentCard(card map[string]any, allocationID, registeredURL string) error {
+	interfaces, ok := card["supportedInterfaces"].([]any)
+	if !ok || len(interfaces) != 1 {
+		return errors.New("Runtime Agent returned an incompatible A2A Agent Card")
+	}
+	current, ok := interfaces[0].(map[string]any)
+	if !ok || current["protocolBinding"] != "JSONRPC" || current["protocolVersion"] != "1.0" ||
+		current["tenant"] != allocationID {
+		return errors.New("Runtime Agent returned an incompatible A2A Agent Card")
+	}
+	cardURL, ok := current["url"].(string)
+	if !ok || !isExpectedA2AEndpoint(cardURL, registeredURL, allocationID) {
+		return errors.New("Runtime Agent returned an A2A Agent Card for another endpoint")
+	}
+	if !oneStringValue(card["defaultInputModes"], stageContentMediaType) ||
+		!oneStringValue(card["defaultOutputModes"], stageContentMediaType) {
+		return errors.New("Runtime Agent returned incompatible A2A content modes")
+	}
+	skills, ok := card["skills"].([]any)
+	if !ok || len(skills) != 1 {
+		return errors.New("Runtime Agent returned an incompatible A2A skill set")
+	}
+	skill, ok := skills[0].(map[string]any)
+	if !ok || skill["id"] != "contractor_stage_content" ||
+		!oneStringValue(skill["inputModes"], stageContentMediaType) ||
+		!oneStringValue(skill["outputModes"], stageContentMediaType) {
+		return errors.New("Runtime Agent returned an incompatible A2A skill set")
+	}
+	securitySchemes, ok := card["securitySchemes"].(map[string]any)
+	if !ok {
+		return errors.New("Runtime Agent A2A Agent Card does not declare mutual TLS")
+	}
+	mutualTLS, ok := securitySchemes["mutualTLS"].(map[string]any)
+	if !ok {
+		return errors.New("Runtime Agent A2A Agent Card does not declare mutual TLS")
+	}
+	if _, ok := mutualTLS["mtlsSecurityScheme"].(map[string]any); !ok {
+		return errors.New("Runtime Agent A2A Agent Card does not declare mutual TLS")
+	}
+	securityRequirements, ok := card["securityRequirements"].([]any)
+	if !ok || len(securityRequirements) != 1 {
+		return errors.New("Runtime Agent A2A Agent Card does not require mutual TLS")
+	}
+	requirement, ok := securityRequirements[0].(map[string]any)
+	if !ok {
+		return errors.New("Runtime Agent A2A Agent Card does not require mutual TLS")
+	}
+	requiredSchemes, ok := requirement["schemes"].(map[string]any)
+	if !ok || len(requiredSchemes) != 1 {
+		return errors.New("Runtime Agent A2A Agent Card does not require mutual TLS")
+	}
+	if _, ok := requiredSchemes["mutualTLS"].(map[string]any); !ok {
+		return errors.New("Runtime Agent A2A Agent Card does not require mutual TLS")
+	}
+	return nil
+}
+
+func oneStringValue(value any, expected string) bool {
+	values, ok := value.([]any)
+	return ok && len(values) == 1 && values[0] == expected
+}
+
+func isExpectedA2AEndpoint(cardURL, registeredURL, allocationID string) bool {
 	card, cardErr := url.Parse(cardURL)
 	registered, registeredErr := url.Parse(registeredURL)
-	return cardErr == nil && registeredErr == nil && card.IsAbs() && registered.IsAbs() &&
-		card.Scheme == registered.Scheme && card.Host == registered.Host &&
-		strings.HasPrefix(card.Path, strings.TrimRight(registered.Path, "/")+"/")
+	if cardErr != nil || registeredErr != nil || !card.IsAbs() || !registered.IsAbs() ||
+		card.User != nil || card.RawQuery != "" || card.Fragment != "" ||
+		registered.User != nil || registered.RawQuery != "" || registered.Fragment != "" ||
+		!runtimePathIDPattern.MatchString(allocationID) {
+		return false
+	}
+	expected := strings.TrimRight(registeredURL, "/") +
+		"/private/v1/allocations/" + allocationID + "/a2a"
+	return cardURL == expected
 }
 
 func decodeRuntimeError(response *http.Response) error {

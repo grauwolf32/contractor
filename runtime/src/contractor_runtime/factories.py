@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ResolvedAgentTemplate, RuntimeSettings
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
@@ -91,8 +92,9 @@ class FactoryRegistry:
 def built_in_factories(
     work_root: Path,
     artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = None,
+    model_factory: ModelFactory | None = None,
 ) -> FactoryRegistry:
-    runtime = StubADKWorkerRuntimeFactory()
+    runtime = AdkWorkerRuntimeFactory(model_factory)
     toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
     return FactoryRegistry(

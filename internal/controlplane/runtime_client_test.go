@@ -35,10 +35,10 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
 				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
-				AgentCard: map[string]any{
-					"name": "builder", "protocolVersion": "1.0",
-					"url": serverURL(request) + "/private/v1/allocations/allocation_1/a2a",
-				},
+				AgentCard: testAgentCard(
+					"builder", "allocation_1",
+					serverURL(request)+"/private/v1/allocations/allocation_1/a2a",
+				),
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -74,10 +74,9 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
 				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
-				AgentCard: map[string]any{
-					"name": settings.LLMGatewayToken.Reveal(), "protocolVersion": "1.0",
-					"url": serverURL(request) + "/a2a",
-				},
+				AgentCard: testAgentCard(
+					settings.LLMGatewayToken.Reveal(), "allocation_1", serverURL(request)+"/a2a",
+				),
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -90,6 +89,30 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	_, err := client.Prepare(context.Background(), reservation, settings)
 	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
 		t.Fatalf("secret-bearing WorkerHandle error = %v", err)
+	}
+}
+
+func TestValidateA2AAgentCardRequiresMutualTLS(t *testing.T) {
+	registeredURL := "https://runtime.example"
+	endpoint := "https://runtime.example/private/v1/allocations/allocation_1/a2a"
+	card := testAgentCard("builder", "allocation_1", endpoint)
+	delete(card, "securityRequirements")
+
+	err := validateA2AAgentCard(card, "allocation_1", registeredURL)
+	if err == nil || err.Error() != "Runtime Agent A2A Agent Card does not require mutual TLS" {
+		t.Fatalf("validateA2AAgentCard error = %v", err)
+	}
+}
+
+func TestValidateA2AAgentCardRejectsAnotherPathOnRegisteredOrigin(t *testing.T) {
+	registeredURL := "https://runtime.example"
+	card := testAgentCard(
+		"builder", "allocation_1", "https://runtime.example/unrelated/allocation_1/a2a",
+	)
+
+	err := validateA2AAgentCard(card, "allocation_1", registeredURL)
+	if err == nil || err.Error() != "Runtime Agent returned an A2A Agent Card for another endpoint" {
+		t.Fatalf("validateA2AAgentCard error = %v", err)
 	}
 }
 
@@ -288,6 +311,28 @@ func testExecutionReport(allocationID string) contracts.ExecutionReport {
 
 func serverURL(request *http.Request) string {
 	return "http://" + request.Host
+}
+
+func testAgentCard(name, allocationID, endpoint string) map[string]any {
+	return map[string]any{
+		"name": name,
+		"supportedInterfaces": []any{map[string]any{
+			"url": endpoint, "protocolBinding": "JSONRPC", "protocolVersion": "1.0",
+			"tenant": allocationID,
+		}},
+		"defaultInputModes":  []any{stageContentMediaType},
+		"defaultOutputModes": []any{stageContentMediaType},
+		"skills": []any{map[string]any{
+			"id": "contractor_stage_content", "inputModes": []any{stageContentMediaType},
+			"outputModes": []any{stageContentMediaType},
+		}},
+		"securitySchemes": map[string]any{
+			"mutualTLS": map[string]any{"mtlsSecurityScheme": map[string]any{}},
+		},
+		"securityRequirements": []any{map[string]any{
+			"schemes": map[string]any{"mutualTLS": map[string]any{}},
+		}},
+	}
 }
 
 func stringsHasSuffix(value, suffix string) bool {

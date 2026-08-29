@@ -81,6 +81,11 @@ class ArtifactClient:
         self._allocation_id = allocation_id
         self._transport = transport
         self._root = f"/allocations/{quote(allocation_id, safe='')}/artifacts"
+        self._known_exact_refs: dict[tuple[str, str, str], ArtifactRef] = {}
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return tuple(self._known_exact_refs.values())
 
     async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
         path = self._root
@@ -129,6 +134,7 @@ class ArtifactClient:
             raise ArtifactTransportError(
                 "Artifact API returned invalid artifact metadata"
             ) from error
+        self._remember(exact)
         return ArtifactValue(artifact=exact, media_type=media_type, data=response.body)
 
     async def write_artifact(
@@ -182,7 +188,13 @@ class ArtifactClient:
             or result.size != len(data)
         ):
             raise ArtifactTransportError("Artifact API write response does not match the request")
+        self._remember(result.artifact)
         return result
+
+    def _remember(self, ref: ArtifactRef) -> None:
+        revision = ref.require_exact().revision
+        assert revision is not None
+        self._known_exact_refs[(ref.namespace, ref.name, revision)] = ref
 
     def _ref_path(self, ref: ArtifactRef) -> str:
         path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}"

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import contractor_runtime.toolsets.run_artifacts as run_artifacts
-from contractor_runtime.allocation import MAX_METRIC_TOOL_CALLS, WorkerState
+from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -15,6 +15,7 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
+from contractor_runtime.metrics import MAX_METRIC_TOOL_CALLS
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 

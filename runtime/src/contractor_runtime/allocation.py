@@ -6,12 +6,10 @@ import asyncio
 import hashlib
 import json
 import os
-import re
 from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -35,17 +33,13 @@ from contractor_runtime.factories import (
     WorkerRuntime,
     WorkerRuntimeFactory,
 )
+from contractor_runtime.metrics import MetricsState
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_REPORT_COUNTERS = 128
 MAX_REPORT_ERRORS = 64
-MAX_METRIC_TOOL_CALLS = 128
-MAX_METRIC_ERRORS = 128
 RESERVED_NAMESPACES = frozenset({"inputs", "outputs"})
-SENSITIVE_METRIC_KEYS = frozenset(
-    {"body", "bytes", "content", "data", "data_base64", "password", "payload", "secret", "token"}
-)
 
 
 class AllocationError(Exception):
@@ -60,55 +54,6 @@ class AllocationError(Exception):
 
     def payload(self) -> dict[str, Any]:
         return {"code": self.code, "message": self.message, "retryable": self.retryable}
-
-
-@dataclass(slots=True)
-class MetricsState:
-    counters: dict[str, int] = field(default_factory=dict)
-    tool_calls: list[dict[str, Any]] = field(default_factory=list)
-    errors: list[TerminationError] = field(default_factory=list)
-    truncated: bool = False
-
-    def record_tool_call(
-        self,
-        name: str,
-        *,
-        arguments: Mapping[str, Any],
-        result: Mapping[str, Any] | None = None,
-        error: Exception | None = None,
-        secrets: tuple[str, ...] = (),
-    ) -> None:
-        self.counters["tool_calls"] = self.counters.get("tool_calls", 0) + 1
-        counter = f"tool_calls.{_metric_identifier(name)}"
-        self.counters[counter] = self.counters.get(counter, 0) + 1
-        entry: dict[str, Any] = {
-            "name": _bounded_text(name, secrets),
-            "arguments": _sanitize_metric_value(arguments, secrets=secrets),
-        }
-        if result is not None:
-            entry["result"] = _sanitize_metric_value(result, secrets=secrets)
-        if error is not None:
-            self.counters["tool_errors"] = self.counters.get("tool_errors", 0) + 1
-            code = getattr(error, "code", "tool_call_failed")
-            retryable = bool(getattr(error, "retryable", False))
-            entry["error"] = {
-                "type": type(error).__name__,
-                "code": _bounded_text(str(code), secrets),
-                "retryable": retryable,
-            }
-            termination = TerminationError(
-                code=f"tool_{_metric_identifier(name)}_failed",
-                message=f"Tool {name} failed ({type(error).__name__})",
-                retryable=retryable,
-            )
-            if len(self.errors) < MAX_METRIC_ERRORS:
-                self.errors.append(termination)
-            else:
-                self.truncated = True
-        if len(self.tool_calls) < MAX_METRIC_TOOL_CALLS:
-            self.tool_calls.append(entry)
-        else:
-            self.truncated = True
 
 
 @dataclass(slots=True)
@@ -184,6 +129,21 @@ class AllocationService:
                 has_runtime_settings=context.runtime_settings is not None,
                 has_worker=context.worker is not None,
             )
+
+    async def active_a2a_application(self, allocation_id: str) -> Any | None:
+        """Resolve A2A only while this exact allocation remains active."""
+
+        async with self._lock:
+            context = self._context
+            if context is None or context.allocation_id != allocation_id or context.worker is None:
+                return None
+            state = await self._state.snapshot()
+            if (
+                state.process_state is not ProcessState.ALLOCATED
+                or state.allocation_id != allocation_id
+            ):
+                return None
+            return getattr(context.worker, "a2a_application", None)
 
     async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
         async with self._lock:
@@ -601,75 +561,6 @@ def _consume_background_task(task: asyncio.Task[Any]) -> None:
 def _spec_fingerprint(spec: AllocationSpec) -> str:
     encoded = spec.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _sanitize_metric_value(
-    value: Any,
-    *,
-    secrets: tuple[str, ...],
-    key: str | None = None,
-    depth: int = 0,
-) -> Any:
-    if key is not None and key.lower() in SENSITIVE_METRIC_KEYS:
-        return {"redacted": True, "size": _value_size(value)}
-    if depth >= 4:
-        return "[TRUNCATED]"
-    if isinstance(value, bytes | bytearray | memoryview):
-        return {"bytes": len(value)}
-    if isinstance(value, str):
-        return _bounded_text(value, secrets)
-    if value is None or isinstance(value, bool | int | float):
-        return value
-    if isinstance(value, Mapping):
-        result: dict[str, Any] = {}
-        for index, (item_key, item_value) in enumerate(value.items()):
-            if index >= 32:
-                result["__truncated__"] = True
-                break
-            normalized_key = _bounded_text(str(item_key), secrets)
-            result[normalized_key] = _sanitize_metric_value(
-                item_value,
-                secrets=secrets,
-                key=str(item_key),
-                depth=depth + 1,
-            )
-        return result
-    if isinstance(value, list | tuple):
-        result = [
-            _sanitize_metric_value(item, secrets=secrets, depth=depth + 1) for item in value[:32]
-        ]
-        if len(value) > 32:
-            result.append("[TRUNCATED]")
-        return result
-    return f"<{type(value).__name__}>"
-
-
-def _bounded_text(value: str, secrets: tuple[str, ...]) -> str:
-    if any(secret and secret in value for secret in secrets):
-        return "[REDACTED]"
-    if "://" in value:
-        parsed = urlsplit(value)
-        if (
-            parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-        ):
-            return "[REDACTED_URL]"
-    if len(value) > 256:
-        return value[:256] + "…"
-    return value
-
-
-def _value_size(value: Any) -> int | None:
-    if isinstance(value, str | bytes | bytearray | memoryview | list | tuple | Mapping):
-        return len(value)
-    return None
-
-
-def _metric_identifier(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9_]+", "_", value.lower()).strip("_")
-    return normalized[:64] or "unknown"
 
 
 def _conflict(message: str) -> AllocationError:

@@ -3,7 +3,8 @@
 The Runtime Agent is the Python, single-slot execution process for Contractor
 v2. It registers a fresh process identity with the Go Control Plane, maintains
 confirmed sequenced heartbeats, and exposes one private mTLS listener. Worker,
-ADK, A2A, and artifact behavior are added incrementally behind that listener.
+Google ADK, A2A 1.0 JSON-RPC, and artifact tools run together in that process;
+each Runtime Agent has exactly one allocation slot.
 
 ```shell
 uv sync

@@ -3,7 +3,7 @@ id: MVP-012
 title: Implement the Python ADK Worker and allocation-scoped A2A 1.0 server
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-010, MVP-011]
 languages: [python]
 
