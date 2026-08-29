@@ -3,7 +3,7 @@ id: MVP-005
 title: Implement the scoped PostgreSQL ArtifactStore core
 milestone: mvp
 priority: P0
-status: planned
+status: completed
 depends_on: [MVP-004]
 languages: [go, sql]
 

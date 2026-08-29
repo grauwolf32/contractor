@@ -40,20 +40,27 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 			t.Fatalf("concurrent ApplyMigrations: %v", err)
 		}
 	}
+	available, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest := available[len(available)-1].version
 	applied := len(results[0].AppliedVersions) + len(results[1].AppliedVersions)
-	if applied != 1 || results[0].CurrentVersion != 1 || results[1].CurrentVersion != 1 {
-		t.Fatalf("concurrent migration results = %+v, want one application of version 1", results)
+	if applied != len(available) || results[0].CurrentVersion != latest || results[1].CurrentVersion != latest {
+		t.Fatalf("concurrent migration results = %+v, want one application of every version", results)
 	}
 	again, err := ApplyMigrations(ctx, first)
 	if err != nil {
 		t.Fatalf("second idempotent migration: %v", err)
 	}
-	if len(again.AppliedVersions) != 0 || again.CurrentVersion != 1 {
+	if len(again.AppliedVersions) != 0 || again.CurrentVersion != latest {
 		t.Fatalf("idempotent migration result = %+v", again)
 	}
 
 	tables := schemaTables(t, ctx, first)
 	wantTables := []string{
+		"artifact_binding_revisions", "artifact_bindings", "artifact_blobs",
+		"artifact_lineage", "artifact_pins", "artifact_scopes", "artifact_versions",
 		"contractor_schema_migrations", "planner_events", "planner_sessions",
 		"stage_allocations", "stage_executions", "workflow_runs",
 	}
