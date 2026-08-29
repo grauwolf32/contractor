@@ -32,6 +32,7 @@ The target deployment is deliberately small:
 ## Documentation
 
 - [Documentation overview](docs/README.md)
+- [Local development and end-to-end MVP](docs/development.md)
 - [Working specifications](docs/spec/README.md)
 - [LikeC4 architecture model](docs/spec/architecture.c4)
 
@@ -64,6 +65,7 @@ caller-provided test database:
 
 ```shell
 CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-postgres
+CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-e2e
 ```
 
 For a local private mTLS deployment, generate the CA and both node identities

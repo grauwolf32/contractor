@@ -36,6 +36,8 @@ type Repository interface {
 	ListPlannerEvents(context.Context, string, int64) ([]PlannerEvent, error)
 	RecordStageAllocation(context.Context, StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
+	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error
+	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
 }
 
 // PostgresStore never starts a transaction. Pass a pgx.Tx to NewPostgresStore

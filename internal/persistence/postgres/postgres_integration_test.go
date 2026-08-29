@@ -62,7 +62,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"artifact_binding_revisions", "artifact_bindings", "artifact_blobs",
 		"artifact_lineage", "artifact_pins", "artifact_scopes", "artifact_versions",
 		"contractor_schema_migrations", "planner_events", "planner_sessions",
-		"stage_allocations", "stage_executions", "workflow_runs",
+		"stage_allocations", "stage_execution_reports", "stage_executions", "workflow_runs",
 	}
 	if strings.Join(tables, ",") != strings.Join(wantTables, ",") {
 		t.Fatalf("schema tables = %v, want %v", tables, wantTables)

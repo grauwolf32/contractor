@@ -712,7 +712,7 @@ func (s *Scheduler) resumeAborting(
 	}
 	if len(reservations) > 0 && execution.AbortDeadline.After(s.options.Clock.Now()) {
 		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
-		_, err := s.workers.AbortAll(
+		reports, err := s.workers.AbortAll(
 			abortContext,
 			reservations,
 			*execution.AbortID,
@@ -724,6 +724,7 @@ func (s *Scheduler) resumeAborting(
 			*execution.AbortDeadline,
 		)
 		cancelAbort()
+		s.persistReports(execution.StageExecutionID, reservations, reports)
 		if err != nil {
 			s.options.Logger.Warn("bounded allocation abort was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
@@ -759,13 +760,14 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.options.Clock.Now()) {
 		finalizeContext, cancelFinalize := context.WithDeadline(ctx, *execution.FinalizationDeadline)
-		_, err := s.workers.FinalizeAll(
+		reports, err := s.workers.FinalizeAll(
 			finalizeContext,
 			reservations,
 			*execution.FinalizationID,
 			*execution.FinalizationDeadline,
 		)
 		cancelFinalize()
+		s.persistReports(execution.StageExecutionID, reservations, reports)
 		if err != nil {
 			s.options.Logger.Warn("bounded allocation finalization was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
@@ -789,6 +791,45 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	return nil
+}
+
+func (s *Scheduler) persistReports(
+	stageExecutionID string,
+	reservations []controlplane.Reservation,
+	reports map[string]contracts.ExecutionReport,
+) {
+	if len(reports) == 0 {
+		return
+	}
+	byName := make(map[string]controlplane.Reservation, len(reservations))
+	for _, reservation := range reservations {
+		byName[reservation.Grant.LogicalAgentName] = reservation
+	}
+	for logicalAgentName, report := range reports {
+		reservation, ok := byName[logicalAgentName]
+		if !ok || report.AllocationID != reservation.Grant.AllocationID {
+			s.options.Logger.Warn(
+				"ignored execution report with mismatched allocation identity",
+				"stage_execution_id", stageExecutionID,
+				"logical_agent_name", logicalAgentName,
+			)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+		err := s.store.RecordStageExecutionReport(ctx, runstore.RecordStageExecutionReportParams{
+			StageExecutionID: stageExecutionID, AllocationID: report.AllocationID,
+			LogicalAgentName: logicalAgentName, ReportSchemaVersion: contracts.APIVersion,
+			Report: report,
+		})
+		cancel()
+		if err != nil {
+			s.options.Logger.Warn(
+				"execution report persistence failed",
+				"stage_execution_id", stageExecutionID,
+				"logical_agent_name", logicalAgentName,
+			)
+		}
+	}
 }
 
 func (s *Scheduler) existingLiveReservations(

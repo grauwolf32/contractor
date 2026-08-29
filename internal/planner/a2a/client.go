@@ -211,6 +211,23 @@ func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCar
 			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
 		)
 	}
+	// Python's protobuf JSON encoder emits an empty StringList as `{}`. The Go
+	// SDK models the same A2A security scope list as `[]`; normalize only that
+	// cross-SDK representation after the original card passed Control Plane
+	// endpoint and mTLS declaration checks.
+	var normalized map[string]any
+	if err := json.Unmarshal(encoded, &normalized); err != nil {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
+	normalizeEmptySecurityScopes(normalized)
+	encoded, err = json.Marshal(normalized)
+	if err != nil || len(encoded) > maxAgentCardBytes {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
 	var card sdk.AgentCard
 	if err := json.Unmarshal(encoded, &card); err != nil {
 		return nil, planner.NewError(
@@ -234,6 +251,28 @@ func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCar
 		)
 	}
 	return &card, nil
+}
+
+func normalizeEmptySecurityScopes(card map[string]any) {
+	requirements, ok := card["securityRequirements"].([]any)
+	if !ok {
+		return
+	}
+	for _, rawRequirement := range requirements {
+		requirement, ok := rawRequirement.(map[string]any)
+		if !ok {
+			continue
+		}
+		schemes, ok := requirement["schemes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for name, rawScopes := range schemes {
+			if scopes, ok := rawScopes.(map[string]any); ok && len(scopes) == 0 {
+				schemes[name] = []any{}
+			}
+		}
+	}
 }
 
 func taskMessage(task *sdk.Task) (*sdk.Message, bool, error) {

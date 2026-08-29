@@ -39,6 +39,7 @@ type Store interface {
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	RecordStageAllocation(context.Context, runstore.StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
+	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
 	EnterAborting(context.Context, runstore.EnterAbortingParams) error
 }
 

@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test build verify
+.PHONY: fmt lint test-go test-runtime test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-e2e run-local test build verify
 
 fmt:
 	gofmt -w cmd internal
@@ -37,6 +37,15 @@ test-control-integration:
 
 test-artifact-integration:
 	go test -tags=integration -count=1 ./internal/httpapi/privateartifacts -run TestCrossLanguagePrivateArtifactLifecycle
+
+test-e2e:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -tags=e2e -count=1 -timeout=2m ./tests/e2e
+
+run-local:
+	go run ./cmd/contractor-server migrate
+	go run ./cmd/contractor-server serve --config-root ./configs/e2e
 
 test: test-go test-runtime
 

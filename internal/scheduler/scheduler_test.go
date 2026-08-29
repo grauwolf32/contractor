@@ -47,8 +47,12 @@ func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	}
 	assertOrderedEvents(t, harness.events.values,
 		"create_stage", "reserve", "record_allocation", "prepare", "planner",
-		"fence", "enter_finalizing", "finalize", "accept", "release",
+		"fence", "enter_finalizing", "finalize", "record_report", "accept", "release",
 	)
+	if len(harness.store.reports) != 1 ||
+		harness.store.reports[0].Report.Counters["llm_calls"] != 1 {
+		t.Fatalf("persisted execution reports = %+v", harness.store.reports)
+	}
 	if !reflect.DeepEqual(harness.persistence.stageStates, []runstore.StageExecutionState{
 		runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageSucceeded,
 	}) {
@@ -145,6 +149,22 @@ func TestSchedulerInvalidCandidateAbortsWithoutPublishingOutput(t *testing.T) {
 	}
 }
 
+func TestSchedulerTelemetryPersistenceFailureDoesNotChangeSemanticResult(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.reportError = errors.New("telemetry database unavailable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunSucceeded ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		len(harness.persistence.outputs) != 1 {
+		t.Fatalf("telemetry failure changed semantic result: run=%s stage=%s outputs=%v",
+			harness.store.run.State, harness.store.stages[0].State, harness.persistence.outputs)
+	}
+}
+
 func TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	execution := harness.persistedExecution(t, runstore.StageFinalizing)
@@ -172,7 +192,7 @@ func TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation(t *
 	if harness.store.run.State != runstore.RunSucceeded || harness.store.stages[0].State != runstore.StageSucceeded {
 		t.Fatalf("recovered terminal state = run:%s stage:%s", harness.store.run.State, harness.store.stages[0].State)
 	}
-	assertOrderedEvents(t, harness.events.values, "reserve", "finalize", "accept", "release")
+	assertOrderedEvents(t, harness.events.values, "reserve", "finalize", "record_report", "accept", "release")
 }
 
 func TestSchedulerRestartRetriesReleaseAfterTerminalTransaction(t *testing.T) {
@@ -380,6 +400,8 @@ type memorySchedulerStore struct {
 	run         runstore.WorkflowRun
 	stages      []runstore.StageExecution
 	allocations []runstore.StageAllocation
+	reports     []runstore.RecordStageExecutionReportParams
+	reportError error
 	claimID     string
 	events      *eventRecorder
 }
@@ -500,6 +522,17 @@ func (s *memorySchedulerStore) ListStageAllocations(
 		}
 	}
 	return result, nil
+}
+
+func (s *memorySchedulerStore) RecordStageExecutionReport(
+	_ context.Context, report runstore.RecordStageExecutionReportParams,
+) error {
+	if s.reportError != nil {
+		return s.reportError
+	}
+	s.reports = append(s.reports, report)
+	s.events.add("record_report")
+	return nil
 }
 
 func (s *memorySchedulerStore) EnterAborting(
@@ -759,7 +792,15 @@ func (w *memoryWorkers) FinalizeAll(
 		}
 	}
 	w.events.add("finalize")
-	return map[string]contracts.ExecutionReport{}, nil
+	reports := make(map[string]contracts.ExecutionReport, len(reservations))
+	for _, reservation := range reservations {
+		reports[reservation.Grant.LogicalAgentName] = contracts.ExecutionReport{
+			AllocationID: reservation.Grant.AllocationID,
+			StartedAt:    w.clock.now.Add(-time.Second), FinishedAt: w.clock.now,
+			Complete: true, Counters: map[string]int64{"llm_calls": 1},
+		}
+	}
+	return reports, nil
 }
 
 func (w *memoryWorkers) AbortAll(

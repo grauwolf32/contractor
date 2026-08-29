@@ -241,6 +241,26 @@ func workerHandle(endpoint string) contracts.WorkerHandle {
 	return contracts.WorkerHandle{AllocationID: "allocation-1", AgentCard: mapped}
 }
 
+func TestDecodeCardAcceptsPythonProtoJSONEmptySecurityScopes(t *testing.T) {
+	handle := workerHandle("https://runtime.test/private/v1/allocations/allocation-1/a2a")
+	handle.AgentCard["securitySchemes"] = map[string]any{
+		"mutualTLS": map[string]any{
+			"mtlsSecurityScheme": map[string]any{"description": "deployment mTLS"},
+		},
+	}
+	handle.AgentCard["securityRequirements"] = []any{
+		map[string]any{"schemes": map[string]any{"mutualTLS": map[string]any{}}},
+	}
+
+	card, err := decodeCard(handle, true)
+	if err != nil {
+		t.Fatalf("decode Python protobuf JSON card: %v", err)
+	}
+	if len(card.SecurityRequirements) != 1 || len(card.SecurityRequirements[0]) != 1 {
+		t.Fatalf("security requirements = %+v", card.SecurityRequirements)
+	}
+}
+
 func stageRequest() contracts.StageContentRequest {
 	return contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, Objective: "Build a report",
