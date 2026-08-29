@@ -57,6 +57,9 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if worker.binding != "builder" || worker.handle.AllocationID != "allocation-1" {
 		t.Fatalf("Worker address = (%q, %q)", worker.binding, worker.handle.AllocationID)
 	}
+	if !worker.deadline.Equal(invocation.Deadline) {
+		t.Fatalf("Worker deadline = %s, want Stage deadline %s", worker.deadline, invocation.Deadline)
+	}
 	if worker.request.Objective != invocation.Stage.Objective ||
 		worker.request.Instructions != invocation.Stage.Instructions.Text ||
 		worker.request.Parameters["mode"] != "strict" ||
@@ -269,7 +272,7 @@ func testInvocation() Invocation {
 			"builder": {
 				AllocationID: "allocation-1", AgentTemplateRef: templateRef,
 				WorkerRuntimeRef: runtimeRef, AgentCard: map[string]any{"name": "builder"},
-				LeaseExpiresAt: time.Now().Add(time.Minute),
+				LeaseExpiresAt: time.Now().Add(5 * time.Second),
 			},
 		},
 		Deadline: time.Now().Add(30 * time.Second),
@@ -316,6 +319,7 @@ type recordingWorker struct {
 	binding        string
 	handle         contracts.WorkerHandle
 	request        contracts.StageContentRequest
+	deadline       time.Time
 	result         contracts.StageContentResult
 	err            error
 	waitForContext bool
@@ -329,6 +333,7 @@ func (w *recordingWorker) Invoke(
 ) (contracts.StageContentResult, error) {
 	w.calls++
 	w.binding, w.handle, w.request = binding, handle, request
+	w.deadline, _ = ctx.Deadline()
 	if w.waitForContext {
 		<-ctx.Done()
 		return contracts.StageContentResult{}, ctx.Err()

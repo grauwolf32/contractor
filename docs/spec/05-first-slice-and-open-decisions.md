@@ -115,15 +115,30 @@ This slice must demonstrate:
   logical Worker names, order is ignored, and duplicate YAML keys, list and
   scalar shorthand forms are rejected;
 - Planner knows only the logical Worker name and WorkerHandle;
+- `streamline@1` pins Google ADK Go v1.6.0 behind the existing Planner
+  interface, exposes only the prepared logical Workers as sequential A2A tools,
+  and requires explicit validated `finish` or `escalate`;
+- Streamline receives Stage objective, Planner instructions, string parameters,
+  explicit optional artifact absence, exact present refs, fixed Worker mapping
+  and result contract as structured context; each Worker call explicitly
+  selects the string parameters and exact refs it needs;
+- Streamline enforces 32 model calls, 200,000 cumulative tokens, 64
+  Worker-tool-call attempts and a maximum 30-minute wall deadline; exhaustion
+  produces an interrupted,
+  retryable running-phase StageTermination through Scheduler's bounded abort;
+- Streamline uses deployment-owned Planner Gateway URL/token/model settings;
+  successful responses must include consistent token usage, while provider
+  error bodies and tokens never enter durable session events, reports, logs or
+  the public API;
 - Worker runtime code/heavy dependencies are absent from Server and live in the
   Runtime Agent deployment;
 - A2A reaches the allocated Runtime Agent's own A2A Server; there is no proxy to
   a child Worker process;
 - Planner completion produces a candidate result while Workflow Scheduler owns
   its durable acceptance;
-- Planner uses one database-backed ADK Session associated with the
-  StageExecution, while Worker ADK state remains in the allocated Runtime Agent
-  process;
+- Planner uses one database-backed Contractor Session associated with the
+  StageExecution; ADK-based Planner events are persisted only as redacted facts,
+  while Worker ADK state remains in the allocated Runtime Agent process;
 - Runtime Agent finalizes and destroys its in-process Worker instance through
   its private control endpoint and returns bounded reports before terminal
   acceptance;
@@ -193,7 +208,6 @@ implicitly:
 - exact count, name-length, value-length and total-size limits for string Run
   parameters;
 - exact maximum size for a resolved UTF-8 instruction resource;
-- ADK subagent interaction mode for each Planner strategy;
 - Planner artifact authority and whether it receives domain toolsets;
 - optional incremental Worker metric delivery for retaining detail across a
   hard process crash;
@@ -221,10 +235,11 @@ slice implementation needs it.
 - concurrent Tasks inside one Worker allocation;
 - resuming a Planner invocation from its persisted ADK Session or private plan;
 - artifact change subscriptions or semantic merge service;
-- multiple production Planner strategies before passthrough works end to end.
+- dynamic or concurrent Streamline Worker expansion.
 
 ## Exit question
 
 The slice is successful when the `adk@1` runtime executes different
-AgentTemplates without changes to Workflow Scheduler, PassthroughPlanner, A2A
-or artifact contracts.
+AgentTemplates and `streamline@1` can coordinate a fixed prepared Worker set
+without changes to Workflow Scheduler, PassthroughPlanner, A2A or artifact
+contracts.

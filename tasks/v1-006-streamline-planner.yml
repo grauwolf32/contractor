@@ -3,7 +3,7 @@ id: V1-006
 title: Add the model-backed Go ADK StreamlinePlanner
 milestone: first-slice-hardening
 priority: P1
-status: planned
+status: complete
 depends_on: [V1-003, V1-004, V1-005]
 languages: [go]
 
@@ -13,7 +13,7 @@ goal: >-
   and explicit finish/escalate termination.
 
 context:
-  framework: google.golang.org/adk/v2
+  framework: google.golang.org/adk v1.6.0
   worker_access: >-
     Workers are fixed logical subagents/adapters built from WorkerHandles before
     Planner begins. Planner cannot request capacity, choose AgentTemplates, or
@@ -92,7 +92,33 @@ acceptance_criteria:
 tests:
   - {name: streamline-unit, command: "go test ./internal/planner/streamline/...", covers: [A1, A2, A3, A5]}
   - {name: adk-session-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A4]}
-  - {name: streamline-integration, command: "make test-streamline", covers: [A1, A2, A3, A4]}
+  - {name: streamline-integration, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-streamline", covers: [A1, A2, A3, A4]}
 
 notes:
   - Official ADK Go A2A helpers may be used only behind the existing WorkerInvoker interface. If their experimental API is unsuitable, keep the proven direct A2A Go adapter and expose it to ADK as a tool/subagent adapter.
+
+completion:
+  implementation:
+    - streamline@1 constructs one Google ADK Go LlmAgent behind the existing PlannerFactory boundary and exposes each fixed prepared Worker through the existing A2A WorkerInvoker as a deterministic function tool.
+    - The root Planner receives Stage objective, resolved instructions, string parameters, exact input refs, fixed Worker descriptions, and the result contract; Worker tools require an explicit focused objective, instructions, selected parameters, and exact refs.
+    - Contractor-owned finish and escalate tools validate candidate result slots, revisions, and media types without accepting or advancing Artifact bindings; Scheduler repeats validation and owns the durable transition.
+    - Model-call, cumulative-token, Worker-tool-call, and wall-time limits produce stable safe Planner errors that Scheduler maps through bounded abort to retryable running-phase StageTermination.
+    - Worker calls retain the Stage deadline; the immutable preparation-time lease timestamp does not truncate a renewed allocation, while authoritative lease loss still cancels Scheduler context and self-fences Runtime.
+    - Deployment Planner Gateway URL, token, model, and timeout are configurable independently and fall back to the Worker Gateway URL/token where appropriate.
+  persistence:
+    - One durable Contractor Planner session owns request and completion recovery; completed restart recovery performs no repeated Gateway or A2A call.
+    - Live ADK conversation state remains in memory. PostgreSQL receives only bounded author/tool/action/token facts, never prompt text, model text, tool arguments/results, provider bodies, or unknown provider-controlled names.
+  compatibility:
+    - The official Go ADK module has no v2 module path; v1.6.0 is pinned and isolated behind Contractor interfaces.
+    - The existing direct A2A adapter remains authoritative because ADK remote-agent helpers are not needed for the fixed Worker tool boundary.
+  verified_by:
+    - make verify
+    - go test -race ./...
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-streamline
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-faults
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - make test-control-integration
+    - make test-artifact-integration
+    - likec4 validate docs/spec
+    - Opt-in LiteLLM/LM Studio smoke using qwen/qwen3.8-27b returned a real finish tool call.

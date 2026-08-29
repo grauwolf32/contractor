@@ -48,10 +48,17 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		return executableWorkflow{}, fmt.Errorf("%w: invalid Workflow graph: %v", ErrUnsupportedWorkflow, err)
 	}
 	for stageName, stage := range workflow.Stages {
-		if len(stage.Agents) != 1 ||
-			stage.Planner.PlannerID+"@"+stage.Planner.Version != planner.PassthroughRef {
+		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
+		validShape := false
+		switch plannerRef {
+		case planner.PassthroughRef:
+			validShape = len(stage.Agents) == 1
+		case planner.StreamlineRef:
+			validShape = len(stage.Agents) > 0
+		}
+		if !validShape {
 			return executableWorkflow{}, fmt.Errorf(
-				"%w: Stage %q requires one passthrough@1 Agent in the first slice",
+				"%w: Stage %q has an unsupported Planner/Agent shape",
 				ErrUnsupportedWorkflow, stageName,
 			)
 		}

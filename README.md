@@ -8,11 +8,13 @@ Contractor v2 is a specification-first rewrite focused on narrow component
 boundaries and a deployment that remains practical on one VM.
 
 The current design track models a Workflow as product-specific Stages. Workflow
-Scheduler selects and executes each ready Stage; one Planner ADK agent works
-with a fixed set of Workers prepared before Planner starts. A versioned
-`AgentTemplate` describes reusable Worker behavior without becoming a deployment
-or physical Agent. A Worker is an allocation-scoped in-process role of a
-single-slot Runtime Agent, not a child service or process.
+Scheduler selects and executes each ready Stage; one Planner works with a fixed
+set of Workers prepared before Planner starts. The deterministic
+`passthrough@1` Planner invokes one Worker, while the model-backed
+`streamline@1` Planner uses Google ADK Go to coordinate one or more Workers. A
+versioned `AgentTemplate` describes reusable Worker behavior without becoming a
+deployment or physical Agent. A Worker is an allocation-scoped in-process role
+of a single-slot Runtime Agent, not a child service or process.
 
 One `ArtifactStore` serves authenticated user artifacts and per-Run working data
 through separate `UserScope` and `RunScope` views. Run inputs are version-pinned

@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-29, implementation tasks through `V1-005` are complete. The
+As of 2026-08-30, implementation tasks through `V1-006` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -20,13 +20,19 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - bounded correlation IDs and redacted diagnostics on public and private HTTP
   boundaries;
 - an executable lifecycle crash/retry/race/security matrix under Go's race
-  detector and Python's strict warning/task-shutdown gate.
+  detector and Python's strict warning/task-shutdown gate;
+- a model-backed `streamline@1` Planner built with Google ADK Go, fixed
+  sequential A2A Worker tools, explicit `finish`/`escalate`, and bounded model,
+  token, Worker-call, and wall-time budgets;
+- a PostgreSQL-backed Planner session adapter that persists only redacted ADK
+  facts and recovers a completed decision without repeating model or Worker
+  calls.
 
-The next planned task is the model-backed `streamline@1` Planner in
-[`V1-006`](../tasks/v1-006-streamline-planner.yml). The authoritative task
-status is [`tasks/index.yml`](../tasks/index.yml); detailed V1-005 completion
-evidence is recorded in
-[`v1-005-races-security.yml`](../tasks/v1-005-races-security.yml).
+The planned first-slice milestone is complete. The next product increment has
+not yet been selected. The authoritative checkpoint is
+[`tasks/index.yml`](../tasks/index.yml); detailed Streamline completion evidence
+is recorded in
+[`v1-006-streamline-planner.yml`](../tasks/v1-006-streamline-planner.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -71,7 +77,7 @@ Run the deterministic local gates with the same PostgreSQL prerequisite:
 make verify
 go test -race ./...
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
-  make test-postgres test-faults test-e2e
+  make test-postgres test-streamline test-faults test-e2e
 make test-control-integration
 make test-artifact-integration
 ```
@@ -96,6 +102,29 @@ key for different content returns `409 Conflict`. Artifact PUT remains CAS:
 after a lost successful response, repeating the consumed `If-None-Match` or
 `If-Match` precondition returns conflict and creates no second revision; use a
 GET to reconcile the accepted exact revision.
+
+## Streamline Planner evidence
+
+`make test-streamline` exercises the real Google ADK event loop through a
+deterministic OpenAI-compatible Gateway, two fixed fake Workers, exact artifact
+selection, explicit `finish`, budget termination, secret redaction, and
+PostgreSQL completed-session recovery. The example Workflow is
+[`streamline_review_workflow.yaml`](../configs/examples/streamline_review_workflow.yaml).
+
+The live Gateway dialect check is opt-in so normal tests remain deterministic.
+It verifies that a deployed LiteLLM or LM Studio model returns a real function
+tool call through the same Go adapter:
+
+```shell
+CONTRACTOR_STREAMLINE_LIVE_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_STREAMLINE_LIVE_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_STREAMLINE_LIVE_MODEL='planner-model' \
+  go test -count=1 -run TestLiveGatewayToolCall ./tests/integration/streamline
+```
+
+The 2026-08-30 implementation gate also passed this smoke against LiteLLM and
+LM Studio `qwen/qwen3.8-27b`; that external model is evidence, not a CI
+dependency.
 
 ## Automated MVP evidence
 
@@ -158,6 +187,7 @@ export CONTRACTOR_PUBLIC_USER_ID='local-user'
 export CONTRACTOR_PUBLIC_BEARER_TOKEN='replace-with-a-local-api-token'
 export CONTRACTOR_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1'
 export CONTRACTOR_LLM_GATEWAY_TOKEN='replace-with-the-gateway-token'
+export CONTRACTOR_PLANNER_MODEL='planner-model'
 export CONTRACTOR_CA_FILE='.local/pki/ca.crt'
 export CONTRACTOR_CONTROL_PLANE_CERT_FILE='.local/pki/control-plane.crt'
 export CONTRACTOR_CONTROL_PLANE_KEY_FILE='.local/pki/control-plane.key'
@@ -227,10 +257,13 @@ The response is `202 Accepted` while bounded cleanup is in progress and `200 OK`
 when the Run was already terminal. Repeating the request never replaces
 the first cancellation reason or changes a successful terminal Run.
 
-Using a real LiteLLM/provider is deliberately opt-in: point
-`CONTRACTOR_LLM_GATEWAY_URL` and `CONTRACTOR_LLM_GATEWAY_TOKEN` at that gateway
-and run the manual stack above. CI and `make test-e2e` never use provider
-credentials or make an external model call.
+Using a real LiteLLM/provider is deliberately opt-in. Worker settings use
+`CONTRACTOR_LLM_GATEWAY_URL` and `CONTRACTOR_LLM_GATEWAY_TOKEN`; Planner URL and
+token default to those values, while `CONTRACTOR_PLANNER_MODEL` selects its
+Gateway model. Separate deployments may set
+`CONTRACTOR_PLANNER_LLM_GATEWAY_URL` and
+`CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN`. CI and `make test-e2e` never use
+provider credentials or make an external model call.
 
 ## Troubleshooting
 

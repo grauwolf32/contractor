@@ -676,44 +676,24 @@ time and volatile Planner state do not determine the winner.
 
 ## Planner
 
-Planner is an ADK agent, normally an `LlmAgent`, constructed for one prepared
-Stage. The replaceable Contractor abstraction is `PlannerFactory`; the name
-avoids collision with ADK's unrelated `google.adk.planners.BasePlanner`.
+Planner is constructed for one prepared Stage. The replaceable Contractor
+abstraction is the Go `PlannerFactory`; Workflow Scheduler sees only the
+framework-neutral `Planner.Run(context.Context) (StageContentResult, error)`
+boundary. `passthrough@1` is deterministic Go code. `streamline@1` constructs
+one Google ADK Go `LlmAgent` behind that same boundary; ADK types do not enter
+Scheduler, RunStore, A2A, or artifact contracts.
 
-```python
-class PlannerFactory(Protocol):
-    def create(
-        self,
-        stage: StageSpec,
-        workers: Mapping[str, WorkerHandle],
-        context: StageContext,
-    ) -> BaseAgent: ...
-```
+`streamline@1` pins `google.golang.org/adk` v1.6.0. It exposes every prepared
+logical Worker as a fixed function tool whose internal adapter calls the
+existing `WorkerInvoker` A2A boundary. The deterministic model-visible mapping
+from logical name to tool name is included in Planner context. Contractor does
+not depend on ADK's experimental remote-agent/A2A API, so changing that API
+cannot change the Planner or Scheduler domain interfaces. Allocation routing
+still comes only from the prepared `WorkerHandle` and its Agent Card.
 
-Exactly one root Planner ADK agent owns the Stage invocation. A factory converts
-the name-to-handle map into `RemoteA2aAgent` subagents:
-
-```python
-sub_agents = [
-    RemoteA2aAgent(
-        name=name,
-        agent_card=handle.agent_card,
-        a2a_client_factory=a2a_client_factory(handle),
-    )
-    for name, handle in workers.items()
-]
-```
-
-`RemoteA2aAgent` is the initial ADK adapter, not a Contractor domain contract.
-It is experimental in the current pinned ADK dependency and requires ADK's
-optional A2A package, so construction stays behind PlannerFactory and is covered
-by a compatibility test. Allocation routing comes from the selected Agent
-Card's A2A interface; request metadata is not used as a substitute for the A2A
-1.0 `tenant` field.
-
-The ADK tree stays inside Server memory. Invoking a remote subagent crosses the
-process boundary through A2A. Planner may decompose, iterate and route among the
-fixed names, but it cannot:
+The ADK agent and its live conversation stay inside Server memory. Invoking a
+fixed Worker tool crosses the process boundary through A2A. Planner may
+decompose, iterate and route among the fixed names, but it cannot:
 
 - add or replace an Agent binding;
 - choose a physical Runtime Agent;
@@ -738,11 +718,30 @@ than an unbounded wait. A more capable Planner may satisfy the requested
 interaction and continue within its own budget.
 
 A Streamline-style Planner completes successfully only through an explicit
-`finish`. The Planner invocation runner enforces its hard token/step/deadline
-budget and can stop the strategy and produce a stable failed candidate without
-waiting for outstanding Worker Tasks to become terminal. Scheduler independently
-validates the Stage result contract before accepting a claimed success. See
-[04](04-execution-lifecycle-and-metrics.md).
+`finish`; `escalate` produces an explicit semantic failed candidate. Both tools
+validate declared result slots, exact revisions and media types but cannot
+accept or advance Artifact bindings. An invalid completion call returns a
+bounded tool error so the model may correct it within the remaining budget.
+Scheduler independently repeats candidate validation before acceptance.
+
+The fixed `streamline@1` ceilings are 32 model calls, 200,000 cumulative
+input/output tokens, 64 Worker-tool-call attempts and 30 minutes of wall time. A
+deployment may lower the wall deadline. Exhaustion without a valid terminal
+tool produces no semantic candidate: Planner returns a stable safe error and
+Scheduler enters bounded `aborting` with an interrupted `StageTermination`,
+phase `running`, and `retryable: true`. The stable codes are
+`planner_model_call_limit`, `planner_token_limit`,
+`planner_worker_call_limit`, and `planner_deadline_exceeded`.
+Every successful Planner Gateway response must include non-negative prompt,
+completion and total token usage; missing or inconsistent usage is a retryable
+invalid-response failure rather than a way to bypass the cumulative budget.
+
+Only one tool call is executed per model turn. A parallel or unknown tool
+selection is rejected before any Worker side effect and the model may correct
+it. Each Worker call supplies a focused objective and instructions plus an
+explicitly selected mapping of string parameters and exact ArtifactRefs. The
+adapter verifies every added ref inside the same RunScope and applies the same
+Stage deadline. Authoritative live lease loss cancels that context independently.
 
 Once Planner has produced a candidate it performs no further semantic work. It
 may request cancellation of outstanding A2A Tasks, but candidate delivery does
@@ -753,9 +752,9 @@ interruption instead uses the bounded `aborting` path.
 
 ### Passthrough baseline
 
-`PassthroughPlanner` is the first concrete factory and the baseline integration
-path. It requires one prepared Worker, sends the Stage input through its
-`RemoteA2aAgent`, waits for the remote invocation to complete and maps the
+`PassthroughPlanner` is the baseline integration path. It requires one prepared
+Worker, sends the deterministic Stage input through the direct A2A
+`WorkerInvoker`, waits for the remote invocation to complete and maps the
 response and artifact refs into `StageResult`.
 
 ```text

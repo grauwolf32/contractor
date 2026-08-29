@@ -8,7 +8,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const PassthroughRef = "passthrough@1"
+const (
+	PassthroughRef = "passthrough@1"
+	StreamlineRef  = "streamline@1"
+)
 
 // StageContext is the immutable input snapshot visible to one Planner
 // invocation. A nil artifact records an explicitly absent optional binding.
@@ -71,7 +74,7 @@ type SessionStart struct {
 // Parameter values, objective text, instruction text, and artifact bytes are
 // intentionally absent.
 type RequestFacts struct {
-	Binding            string
+	Bindings           []string
 	ObjectiveDigest    string
 	InstructionsDigest string
 	ParameterNames     []string

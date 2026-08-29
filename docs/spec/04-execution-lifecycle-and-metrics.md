@@ -33,7 +33,9 @@ Each StageExecution records at least:
   accepted exact artifact versions.
 
 One StageExecution owns at most one Planner instance, one Planner invocation
-and one Planner ADK Session. They do not exist until preparation succeeds and
+and one durable Contractor Planner Session. An ADK-backed strategy also owns
+one live in-memory ADK conversation bound to that Session; deterministic
+`passthrough@1` does not. They do not exist until preparation succeeds and
 Workflow Scheduler starts Planner. A Workflow retry creates a new
 StageExecution and, if preparation succeeds, a new Planner and Session; it
 never reopens a terminal execution.
@@ -42,8 +44,8 @@ Cross-attempt state is explicit. A retry may receive Workflow context, accepted
 prior results and Run-scoped artifact refs selected by Workflow policy. The new
 StageExecution resolves and pins its own StageContext snapshot, so it may see
 bindings advanced by the previous attempt but never inherits that attempt's
-pinned context implicitly. It also does not inherit the previous Planner's ADK
-State or private subtask plan.
+pinned context implicitly. It also does not inherit the previous Planner's
+framework-private state or subtask plan.
 
 ## Terminal outcome
 
@@ -100,11 +102,13 @@ A Planner implementation owns the semantic condition that ends its invocation:
   produce an immediate A2A Message, a terminal Task, or an interrupted Task
   state that the baseline maps to a stable failed candidate;
 - a Streamline-style Planner completes successfully only through its explicit
-  `finish` operation;
-- exhausting a hard token/step/deadline budget without a valid `finish`
-  lets the Planner invocation runner stop the strategy and produce a failed
-  candidate with a stable budget-exhaustion error without awaiting outstanding
-  A2A Tasks;
+  `finish` operation and produces a semantic failed candidate only through
+  explicit `escalate`;
+- exhausting a hard model-call/token/Worker-call/deadline budget without a
+  valid terminal tool stops the strategy without a candidate; Scheduler records
+  the stable budget error as a retryable, running-phase interrupted
+  StageTermination through bounded `aborting`, without awaiting outstanding A2A
+  Tasks;
 - an expected Worker failure is mapped by the Planner strategy into a failed
   candidate with a stable error.
 
@@ -220,11 +224,21 @@ the durable transition.
 
 ### Planner
 
-Planner runs in Server with a database-backed ADK SessionService. Its Session is
-created for one StageExecution and its ID is recorded with that execution. The
-database record supports inspection, statistics and audit; it is not a recovery
-authority and Scheduler never resumes an interrupted Planner invocation from
-its event history or private State.
+Every Planner runs in Server with one database-backed Contractor session. Its
+identity is created for one StageExecution and recorded with that execution.
+`passthrough@1` writes bounded request/completion events directly.
+`streamline@1` additionally supplies Google ADK with a SessionService adapter:
+live conversation contents remain in memory, while every non-partial ADK event
+is reduced before PostgreSQL append to author, allowed function names, action
+flags and aggregate token counts. Prompt/model text, tool arguments/results,
+provider bodies and unknown provider-controlled function names are not durable.
+
+The database record supports inspection, statistics, audit and completed-result
+recovery. A completed Planner session returns its recorded candidate/failure
+without invoking ADK, Gateway or Worker again. It is not authority for resuming
+a partially completed model invocation; a still-running session after process
+loss yields a stable retryable invocation-in-progress error and Workflow policy
+decides whether a fresh StageExecution should retry.
 
 ### Worker
 

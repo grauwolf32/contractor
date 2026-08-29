@@ -20,6 +20,43 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
+func TestDecodeExecutableWorkflowAcceptsMultiWorkerStreamlineOnly(t *testing.T) {
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Planner = workflowconfig.PlannerRef{PlannerID: "streamline", Version: "1"}
+	reviewer := stage.Agents["builder"]
+	reviewer.Namespace = "reviewer"
+	stage.Agents["reviewer"] = reviewer
+	workflow.Stages[workflow.EntryStage] = stage
+
+	decode := func(value workflowconfig.ResolvedWorkflow) error {
+		encoded, marshalErr := json.Marshal(value)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		_, decodeErr := decodeExecutableWorkflow(runstore.WorkflowRun{
+			WorkflowName: value.Ref.Name, WorkflowVersion: value.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+		})
+		return decodeErr
+	}
+	if err := decode(workflow); err != nil {
+		t.Fatalf("multi-Worker streamline Workflow was rejected: %v", err)
+	}
+	stage.Planner = workflowconfig.PlannerRef{PlannerID: "passthrough", Version: "1"}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
+		t.Fatalf("multi-Worker passthrough error = %v", err)
+	}
+}
+
 func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	harness := newSchedulerHarness(t)
 
@@ -148,6 +185,33 @@ func TestSchedulerInvalidCandidateAbortsWithoutPublishingOutput(t *testing.T) {
 	if _, found := eventIndex(harness.events.values, "enter_finalizing"); found {
 		t.Fatal("invalid candidate entered finalizing")
 	}
+}
+
+func TestSchedulerPlannerBudgetFailureUsesBoundedRunningAbort(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.runErrors = []error{planner.NewError(
+		"planner_model_call_limit", "Planner exhausted its model-call limit", true, nil,
+	)}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "planner_model_call_limit" ||
+		execution.Termination.Phase != runstore.TerminationRunning ||
+		!execution.Termination.Retryable {
+		t.Fatalf("budget termination = %+v", execution)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.persistence.outputs) != 0 {
+		t.Fatalf("budget abort path = abort:%d finalize:%d outputs:%v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.persistence.outputs)
+	}
+	assertOrderedEvents(t, harness.events.values,
+		"planner", "fence", "enter_aborting", "abort", "record_report", "commit_termination", "release",
+	)
 }
 
 func TestSchedulerMetricsPersistenceFailureDoesNotChangeSemanticResult(t *testing.T) {

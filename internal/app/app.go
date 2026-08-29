@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -45,6 +46,10 @@ type Config struct {
 	PrivateKeyFile        string
 	LLMGatewayURL         string
 	LLMGatewayToken       contracts.SecretString
+	PlannerGatewayURL     string
+	PlannerGatewayToken   contracts.SecretString
+	PlannerModel          string
+	PlannerTimeout        time.Duration
 	PublicBearerToken     contracts.SecretString
 	PublicUserID          string
 }
@@ -79,6 +84,10 @@ func RunCLI(
 	}
 	if strings.TrimSpace(cfg.LLMGatewayURL) == "" || cfg.LLMGatewayToken.Reveal() == "" {
 		return errors.New("LLM Gateway URL and token are required")
+	}
+	if strings.TrimSpace(cfg.PlannerGatewayURL) == "" || cfg.PlannerGatewayToken.Reveal() == "" ||
+		strings.TrimSpace(cfg.PlannerModel) == "" || cfg.PlannerTimeout <= 0 {
+		return errors.New("Planner LLM Gateway URL, token, model, and timeout are required")
 	}
 	snapshot, err := workflowconfig.Load(cfg.ConfigRoot, workflowconfig.MVPDescriptors())
 	if err != nil {
@@ -129,7 +138,22 @@ func RunCLI(
 	if err != nil {
 		return err
 	}
-	plannerRegistry, err := planner.NewRegistry(passthrough)
+	plannerModel, err := streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
+		URL: cfg.PlannerGatewayURL, Token: cfg.PlannerGatewayToken, Model: cfg.PlannerModel,
+		RequestTimeout: cfg.PlannerTimeout,
+	})
+	if err != nil {
+		return fmt.Errorf("configure Planner LLM Gateway: %w", err)
+	}
+	streamlineLimits := streamline.DefaultLimits()
+	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
+	streamlineFactory, err := streamline.NewFactory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModel, streamlineLimits,
+	)
+	if err != nil {
+		return fmt.Errorf("configure Streamline Planner: %w", err)
+	}
+	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory)
 	if err != nil {
 		return err
 	}
@@ -155,9 +179,13 @@ func RunCLI(
 		plannerRegistry,
 		scheduler.Options{
 			OperationTimeout: cfg.RuntimeRequestTimeout,
+			PlannerTimeout:   cfg.PlannerTimeout,
 			RuntimeSettings:  runtimeSettings,
-			TelemetrySecrets: []string{cfg.DatabaseURL, cfg.PublicBearerToken.Reveal()},
-			Logger:           logger,
+			TelemetrySecrets: []string{
+				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
+				cfg.LLMGatewayToken.Reveal(), cfg.PlannerGatewayToken.Reveal(),
+			},
+			Logger: logger,
 		},
 	)
 	if err != nil {

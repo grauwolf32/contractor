@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +12,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"google.golang.org/adk/model"
+	adksession "google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
@@ -35,7 +39,7 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 	}
 	revision := "input-r1"
 	facts := planner.RequestFacts{
-		Binding: "builder", ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
+		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
 		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
 		ParameterNames:     []string{"mode"},
 		Artifacts: map[string]contracts.ArtifactRef{
@@ -78,6 +82,71 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 	}
 	if store.startCalls != 1 {
 		t.Fatalf("StartPlanner calls = %d", store.startCalls)
+	}
+}
+
+func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
+	const secret = "sk-provider-error-and-tool-argument"
+	store := &memoryStore{execution: runstore.StageExecution{
+		StageExecutionID: "stage-1", State: runstore.StagePreparing,
+	}}
+	sequence := 0
+	service, err := New(store, Options{NewID: func(prefix string) (string, error) {
+		sequence++
+		return fmt.Sprintf("%s%d", prefix, sequence), nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := service.Begin(t.Context(), "stage-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordRequest(t.Context(), started.Identity, planner.RequestFacts{
+		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
+		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
+		ParameterNames:     []string{}, Artifacts: map[string]contracts.ArtifactRef{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	adk, err := service.NewADKSession(t.Context(), started.Identity, ADKOptions{
+		AppName: "contractor_streamline", UserID: "stage-1", AllowedTools: []string{"finish"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := adk.Create(t.Context(), &adksession.CreateRequest{
+		AppName: "contractor_streamline", UserID: "stage-1", SessionID: started.Identity.SessionID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := adksession.NewEvent("adk-invocation")
+	event.Author = "streamline_planner"
+	event.LLMResponse = model.LLMResponse{
+		Content: &genai.Content{Role: genai.RoleModel, Parts: []*genai.Part{
+			genai.NewPartFromText("provider payload " + secret),
+			genai.NewPartFromFunctionCall("finish", map[string]any{"summary": secret}),
+			genai.NewPartFromFunctionCall(secret, map[string]any{"token": secret}),
+		}},
+		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount: 11, CandidatesTokenCount: 7,
+		},
+	}
+	if err := adk.AppendEvent(t.Context(), created.Session, event); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.events) != 2 {
+		t.Fatalf("events = %+v", store.events)
+	}
+	persisted := string(store.events[1].Event)
+	if strings.Contains(persisted, secret) || strings.Contains(persisted, "summary") ||
+		!strings.Contains(persisted, `"functionCalls":["finish","unknown"]`) {
+		t.Fatalf("unsafe or incomplete ADK facts: %s", persisted)
+	}
+	state, err := decodeState(store.session.State)
+	if err != nil || state.ADKEventCount != 1 || state.ADKInputTokens != 11 || state.ADKOutputTokens != 7 {
+		t.Fatalf("state = (%+v, %v)", state, err)
 	}
 }
 

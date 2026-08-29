@@ -17,6 +17,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/adk/model"
+	adksession "google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
@@ -25,7 +28,7 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 	pool := isolatedPlannerPool(t, ctx)
 	store := runstore.NewPostgresStore(pool)
 	createPlannerStage(t, ctx, store)
-	ids := []string{"session-1", "invocation-1", "event-1", "event-2"}
+	ids := []string{"session-1", "invocation-1", "event-1", "event-adk", "event-2"}
 	service, err := New(store, Options{NewID: func(string) (string, error) {
 		result := ids[0]
 		ids = ids[1:]
@@ -40,10 +43,36 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("Begin = (%+v, %v)", started, err)
 	}
 	if err := service.RecordRequest(ctx, started.Identity, planner.RequestFacts{
-		Binding: "builder", ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
+		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
 		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
 		ParameterNames:     []string{"mode"}, Artifacts: map[string]contracts.ArtifactRef{},
 	}); err != nil {
+		t.Fatal(err)
+	}
+	const providerSecret = "sk-provider-postgres-secret"
+	adk, err := service.NewADKSession(ctx, started.Identity, ADKOptions{
+		AppName: "contractor_streamline", UserID: "stage-planner", AllowedTools: []string{"finish"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := adk.Create(ctx, &adksession.CreateRequest{
+		AppName: "contractor_streamline", UserID: "stage-planner", SessionID: started.Identity.SessionID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := adksession.NewEvent("adk-invocation")
+	event.Author = "streamline_planner"
+	event.LLMResponse = model.LLMResponse{
+		Content: genai.NewContentFromFunctionCall(
+			"finish", map[string]any{"summary": providerSecret}, genai.RoleModel,
+		),
+		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount: 13, CandidatesTokenCount: 5,
+		},
+	}
+	if err := adk.AppendEvent(ctx, created.Session, event); err != nil {
 		t.Fatal(err)
 	}
 	revision := "result-r1"
@@ -63,9 +92,13 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("recovery = (%+v, %v)", recovered, err)
 	}
 	events, err := store.ListPlannerEvents(ctx, started.Identity.SessionID, 0)
-	if err != nil || len(events) != 2 || events[0].SequenceNumber != 1 ||
-		events[1].SequenceNumber != 2 {
+	if err != nil || len(events) != 3 || events[0].SequenceNumber != 1 ||
+		events[1].SequenceNumber != 2 || events[2].SequenceNumber != 3 {
 		t.Fatalf("events = (%+v, %v)", events, err)
+	}
+	if strings.Contains(string(events[1].Event), providerSecret) ||
+		!strings.Contains(string(events[1].Event), `"finish"`) {
+		t.Fatalf("unsafe ADK event = %s", events[1].Event)
 	}
 	execution, err := store.GetStageExecution(ctx, "stage-planner")
 	if err != nil || execution.State != runstore.StageRunning || execution.CandidateResult != nil {

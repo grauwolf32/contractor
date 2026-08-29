@@ -72,6 +72,18 @@ func validateCandidate(
 	return nil
 }
 
+// ValidateCandidate checks a Planner candidate against the immutable Stage
+// result contract without accepting or advancing any Artifact binding.
+func ValidateCandidate(
+	ctx context.Context,
+	runID string,
+	contract map[string]workflowconfig.ArtifactSlot,
+	result contracts.StageContentResult,
+	inspector ArtifactInspector,
+) *Error {
+	return validateCandidate(ctx, runID, contract, result, inspector)
+}
+
 func acceptsMediaType(accepted []string, actual string) bool {
 	for _, mediaType := range accepted {
 		if mediaType == "*/*" || mediaType == actual {

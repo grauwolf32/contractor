@@ -200,6 +200,42 @@ func TestParseConfig(t *testing.T) {
 		cfg.LLMGatewayToken.Reveal() != "gateway-token" {
 		t.Fatalf("private runtime settings were not parsed: %+v", cfg)
 	}
+	if cfg.PlannerGatewayURL != cfg.LLMGatewayURL ||
+		cfg.PlannerGatewayToken.Reveal() != cfg.LLMGatewayToken.Reveal() ||
+		cfg.PlannerModel != defaultPlannerModel || cfg.PlannerTimeout != defaultPlannerTimeout {
+		t.Fatalf("Planner settings or Worker-gateway fallback were not parsed: %+v", cfg)
+	}
+}
+
+func TestParseConfigUsesIndependentPlannerGatewayOverrides(t *testing.T) {
+	t.Parallel()
+	env := func(key string) string {
+		switch key {
+		case "CONTRACTOR_LLM_GATEWAY_URL":
+			return "https://worker-gateway.test/v1"
+		case "CONTRACTOR_LLM_GATEWAY_TOKEN":
+			return "worker-token"
+		case "CONTRACTOR_PLANNER_LLM_GATEWAY_URL":
+			return "https://planner-env.test/v1"
+		case "CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN":
+			return "planner-token"
+		case "CONTRACTOR_PLANNER_MODEL":
+			return "planner-env-model"
+		}
+		return ""
+	}
+	cfg, err := ParseConfig([]string{
+		"serve", "--planner-llm-gateway-url=https://planner-flag.test/v1",
+		"--planner-model=planner-flag-model", "--planner-timeout=2m",
+	}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PlannerGatewayURL != "https://planner-flag.test/v1" ||
+		cfg.PlannerGatewayToken.Reveal() != "planner-token" ||
+		cfg.PlannerModel != "planner-flag-model" || cfg.PlannerTimeout != 2*time.Minute {
+		t.Fatalf("independent Planner settings = %+v", cfg)
+	}
 }
 
 func TestProcessHandlerKeepsHealthPublicAndMountsAPI(t *testing.T) {

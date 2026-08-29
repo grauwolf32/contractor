@@ -65,7 +65,11 @@ func TestLoadRepositoryConfig(t *testing.T) {
 }
 
 func TestWorkflowExamplesLoad(t *testing.T) {
-	for _, name := range []string{"bounded_retry_workflow.yaml", "multi_stage_workflow.yaml"} {
+	for _, name := range []string{
+		"bounded_retry_workflow.yaml",
+		"multi_stage_workflow.yaml",
+		"streamline_review_workflow.yaml",
+	} {
 		t.Run(name, func(t *testing.T) {
 			root := copyConfigTree(t)
 			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))

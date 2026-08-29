@@ -325,6 +325,13 @@ The ready handle echoes the exact `lease_expires_at` supplied in
 `AllocationSpec`; it does not renew or reinterpret that authoritative Control
 Plane lease.
 
+That timestamp proves preparation happened inside the then-current confirmed
+lease; it is not a frozen lifetime deadline for later Planner calls. Successful
+sequenced heartbeat acknowledgements renew the live Control Plane and Runtime
+watchdogs without mutating the immutable WorkerHandle. Every A2A call keeps the
+Stage deadline, while authoritative lease loss independently cancels the
+Scheduler invocation and Runtime Agent self-fences its Worker.
+
 It contains no host path, tool-sandbox handle or in-process Worker object.
 It also contains no LLM Gateway token or other RuntimeSettings secret.
 
@@ -337,8 +344,8 @@ Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
   -> each Runtime Agent creates one in-process Worker instance
   -> each Runtime Agent publishes its allocation-scoped Agent Card
   -> Control Plane returns ready WorkerHandles
-  -> Workflow Scheduler constructs Planner RemoteA2aAgent subagents
-  -> Planner <-> A2A <-> allocated Runtime Agents acting as Workers
+  -> Workflow Scheduler constructs the selected Planner over fixed WorkerHandles
+  -> Planner WorkerInvoker tools <-> A2A <-> allocated Runtime Agents acting as Workers
   -> Planner returns candidate StageResult
   -> Workflow Scheduler durably enters finalizing
   -> Control Plane asks Runtime Agents to finalize their Worker instances

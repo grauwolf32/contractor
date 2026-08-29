@@ -18,6 +18,8 @@ const (
 	defaultPrivateURL            = "https://127.0.0.1:8443"
 	defaultShutdownTimeout       = 5 * time.Second
 	defaultRuntimeRequestTimeout = 30 * time.Second
+	defaultPlannerTimeout        = 30 * time.Minute
+	defaultPlannerModel          = "planner-model"
 	defaultConfigRoot            = "./configs"
 )
 
@@ -44,6 +46,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	shutdownTimeout := defaultShutdownTimeout
 	runtimeRequestTimeout := defaultRuntimeRequestTimeout
+	plannerTimeout := defaultPlannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
 	configRoot := getenv("CONTRACTOR_CONFIG_ROOT")
 	if configRoot == "" {
@@ -56,6 +59,12 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	privateKeyFile := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE")
 	llmGatewayURL := getenv("CONTRACTOR_LLM_GATEWAY_URL")
 	llmGatewayToken := contracts.NewSecretString(getenv("CONTRACTOR_LLM_GATEWAY_TOKEN"))
+	plannerGatewayURL := getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_URL")
+	plannerGatewayToken := contracts.NewSecretString(getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN"))
+	plannerModel := getenv("CONTRACTOR_PLANNER_MODEL")
+	if plannerModel == "" {
+		plannerModel = defaultPlannerModel
+	}
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -81,6 +90,14 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
 	flags.StringVar(&privateKeyFile, "private-key-file", privateKeyFile, "Control Plane private key")
 	flags.StringVar(&llmGatewayURL, "llm-gateway-url", llmGatewayURL, "LLM Gateway base URL")
+	flags.StringVar(
+		&plannerGatewayURL,
+		"planner-llm-gateway-url",
+		plannerGatewayURL,
+		"Planner LLM Gateway base URL (defaults to the Worker gateway)",
+	)
+	flags.StringVar(&plannerModel, "planner-model", plannerModel, "Planner LLM Gateway model")
+	flags.DurationVar(&plannerTimeout, "planner-timeout", plannerTimeout, "maximum Planner wall time")
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse serve flags: %w", err)
 	}
@@ -105,8 +122,20 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if runtimeRequestTimeout < time.Second || runtimeRequestTimeout%time.Second != 0 {
 		return Config{}, errors.New("runtime request timeout must be positive whole seconds")
 	}
+	if plannerTimeout <= 0 || plannerTimeout > 30*time.Minute {
+		return Config{}, errors.New("planner timeout must be positive and at most 30 minutes")
+	}
 	if strings.TrimSpace(configRoot) == "" {
 		return Config{}, errors.New("configuration root must not be empty")
+	}
+	if strings.TrimSpace(plannerGatewayURL) == "" {
+		plannerGatewayURL = llmGatewayURL
+	}
+	if plannerGatewayToken.Reveal() == "" {
+		plannerGatewayToken = llmGatewayToken
+	}
+	if strings.TrimSpace(plannerModel) == "" {
+		return Config{}, errors.New("planner model must not be empty")
 	}
 
 	return Config{
@@ -115,6 +144,8 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		DatabaseURL: databaseURL, ConfigRoot: configRoot,
 		CAFile: caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
 		LLMGatewayURL: llmGatewayURL, LLMGatewayToken: llmGatewayToken,
+		PlannerGatewayURL: plannerGatewayURL, PlannerGatewayToken: plannerGatewayToken,
+		PlannerModel: plannerModel, PlannerTimeout: plannerTimeout,
 		PublicUserID: publicUserID, PublicBearerToken: publicBearerToken,
 	}, nil
 }

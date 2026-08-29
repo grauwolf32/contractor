@@ -100,14 +100,11 @@ func (p *passthroughPlanner) Run(
 		)
 	}
 
-	facts := requestFacts(p.binding, p.request)
+	facts := RequestFactsFor([]string{p.binding}, p.request)
 	if err := p.sessions.RecordRequest(ctx, started.Identity, facts); err != nil {
 		return contracts.StageContentResult{}, sessionError("record request", err)
 	}
 	deadline := p.invocation.Deadline
-	if p.handle.LeaseExpiresAt.Before(deadline) {
-		deadline = p.handle.LeaseExpiresAt
-	}
 	if !deadline.After(time.Now()) {
 		return contracts.StageContentResult{}, p.fail(
 			ctx,
@@ -280,7 +277,9 @@ func validateCompletion(completion Completion) error {
 	return validateFailure(*completion.Failure)
 }
 
-func requestFacts(binding string, request contracts.StageContentRequest) RequestFacts {
+// RequestFactsFor reduces model-visible Stage input to a bounded durable audit
+// record. Text and parameter values are represented only by digests or names.
+func RequestFactsFor(bindings []string, request contracts.StageContentRequest) RequestFacts {
 	parameterNames := make([]string, 0, len(request.Parameters))
 	for name := range request.Parameters {
 		parameterNames = append(parameterNames, name)
@@ -291,7 +290,7 @@ func requestFacts(binding string, request contracts.StageContentRequest) Request
 		artifacts[name] = cloneArtifactRef(ref)
 	}
 	return RequestFacts{
-		Binding:            binding,
+		Bindings:           append([]string(nil), bindings...),
 		ObjectiveDigest:    textDigest(request.Objective),
 		InstructionsDigest: textDigest(request.Instructions),
 		ParameterNames:     parameterNames,
@@ -327,6 +326,12 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 		return contracts.StageContentRequest{}, fmt.Errorf("StageContentRequest exceeds its bounded contract")
 	}
 	return request, nil
+}
+
+// BuildStageRequest creates the immutable Stage-level request used as the
+// starting context by Planner implementations.
+func BuildStageRequest(invocation Invocation) (contracts.StageContentRequest, error) {
+	return stageRequest(invocation)
 }
 
 func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, error) {
@@ -386,6 +391,11 @@ func cloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
 	return result
 }
 
+// CloneArtifactRef returns a detached exact reference.
+func CloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
+	return cloneArtifactRef(ref)
+}
+
 func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	result := request
 	result.Parameters = make(map[string]string, len(request.Parameters))
@@ -397,6 +407,11 @@ func cloneStageRequest(request contracts.StageContentRequest) contracts.StageCon
 		result.Artifacts[name] = cloneArtifactRef(ref)
 	}
 	return result
+}
+
+// CloneStageRequest detaches all mutable request maps.
+func CloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
+	return cloneStageRequest(request)
 }
 
 func cloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
@@ -412,6 +427,11 @@ func cloneStageResult(result contracts.StageContentResult) contracts.StageConten
 	return cloned
 }
 
+// CloneStageResult detaches all mutable result values.
+func CloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
+	return cloneStageResult(result)
+}
+
 func pointerToResult(result contracts.StageContentResult) *contracts.StageContentResult {
 	return &result
 }
@@ -423,4 +443,10 @@ func cloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
 		_ = json.Unmarshal(encoded, &result.AgentCard)
 	}
 	return result
+}
+
+// CloneWorkerHandle detaches mutable Agent Card data before crossing a Planner
+// adapter boundary.
+func CloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
+	return cloneWorkerHandle(handle)
 }

@@ -39,7 +39,7 @@ fixed_decisions:
       passthrough@1 is deterministic Go code and makes one A2A call. It records
       a durable Contractor planner session but does not need an LLM or ADK event
       loop.
-    after_mvp: >-
+    first_slice: >-
       streamline@1 uses Google ADK Go with a PostgreSQL-backed SessionService
       and fixed A2A Workers.
   a2a:
@@ -68,13 +68,17 @@ milestones:
       model-backed Streamline Planner satisfy the v2 first-slice contracts.
 
 current_checkpoint:
-  completed_through: V1-005
-  next_task: V1-006
+  completed_through: V1-006
+  next_task: null
   summary: >-
     The runnable MVP, bounded cancellation, symmetric confirmed allocation
     leases, serial multi-Stage progression, bounded retry, bounded durable
     Planner/Worker/Runtime metrics, and the executable race/security hardening
-    matrix are implemented. The Streamline Planner remains planned.
+    matrix are implemented. The model-backed streamline@1 Planner now
+    coordinates fixed prepared Workers through Google ADK Go, persists only
+    redacted ADK facts, recovers completed decisions without semantic replay,
+    and passes deterministic plus opt-in live Gateway tests. The planned first
+    slice is complete; the next product increment has not yet been selected.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}

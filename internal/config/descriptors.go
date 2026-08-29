@@ -26,6 +26,7 @@ func MVPDescriptors() Descriptors {
 	return Descriptors{
 		PlannerFactories: map[string]struct{}{
 			"passthrough@1": {},
+			"streamline@1":  {},
 		},
 		WorkerRuntimes: map[string]struct{}{
 			"adk@1": {},

@@ -100,4 +100,4 @@ tests:
   - {name: planner-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres", covers: [A1, A5]}
 
 notes:
-  - Google ADK Go is intentionally not needed for deterministic passthrough. V1-006 introduces it for streamline@1 after the vertical slice works.
+  - Google ADK Go is intentionally not needed for deterministic passthrough. V1-006 later introduced it for streamline@1 after the vertical slice worked.

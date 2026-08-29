@@ -45,8 +45,8 @@ Workflow
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
   -> Control Plane prepares Worker allocations
-  -> PlannerFactory creates one Planner ADK agent
-  -> Planner talks through A2A to allocated Runtime Agents acting as Workers
+  -> PlannerFactory creates the selected Stage-local Planner
+  -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
   -> all participants exchange durable data through RunArtifactSpace
   -> Planner returns one candidate StageResult
   -> Workflow Scheduler persists finalizing, drains Workers and collects reports

@@ -64,7 +64,7 @@ model {
       #contractor
     }
 
-    plannerSessions = storage 'Planner ADK Sessions — diagnostic, not resumable' {
+    plannerSessions = storage 'Contractor Planner Sessions — completion recovery + redacted ADK facts' {
       #contractor
     }
 
@@ -117,19 +117,19 @@ model {
       #contractor
     }
 
-    plannerAgent = component 'Planner ADK Agent — one per StageExecution' {
-      #adk
+    stagePlanner = component 'Stage-local Planner — passthrough or Streamline ADK' {
+      #contractor
     }
 
     plannerSessionService = component 'Database-backed Planner SessionService' {
-      #adk
+      #contractor
     }
 
-    remoteWorkers = component 'RemoteA2aAgent subagents' {
-      #adk
+    workerInvokerTools = component 'Fixed WorkerInvoker Tools — direct A2A adapter' {
+      #contractor
     }
 
-    plannerArtifactAdapter = component 'ADK ArtifactService Adapter' {
+    plannerArtifactInspector = component 'Planner ArtifactInspector — exact RunScope validation' {
       #contractor
     }
 
@@ -167,20 +167,20 @@ model {
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
     workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
-    plannerFactories -> plannerAgent 'Construct one root Planner for prepared Stage'
-    plannerAgent -> remoteWorkers 'Route work to fixed named subagents'
+    plannerFactories -> stagePlanner 'Construct one Stage-local Planner over fixed WorkerHandles'
+    stagePlanner -> workerInvokerTools 'Invoke fixed logical Worker tools sequentially'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
     workflowScheduler -> artifactService 'Pin/fork inputs; transactionally bind exact accepted Run outputs'
-    plannerAgent -> plannerArtifactAdapter 'ADK artifact operations'
-    plannerAgent -> plannerSessionService 'One database-backed Session per StageExecution'
-    plannerArtifactAdapter -> artifactService 'Configured current-Run artifact access'
+    stagePlanner -> plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
+    stagePlanner -> plannerSessionService 'Durable request/completion and redacted ADK event facts'
+    plannerArtifactInspector -> artifactService 'Read exact metadata inside current RunScope'
 
     controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
     artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
     artifactService -> blobStore 'Stream immutable content'
     controlPlane -> telemetry 'Bind allocation final reports to trusted execution identity'
     workflowScheduler -> telemetry 'Assemble bounded StageMetrics while finalizing or aborting'
-    plannerAgent -> telemetry 'Planner ExecutionReport'
+    stagePlanner -> telemetry 'Planner ExecutionReport'
   }
 
   runtimeAgent = system 'Runtime Agent — N identical single-slot processes' {
@@ -257,18 +257,18 @@ model {
 
   runtimeAgent.registryClient -> server.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
   server.controlPlane -> runtimeAgent.controlEndpoint 'Control Plane mTLS: AllocationSpec + RuntimeSettings / finalize / abort / release'
-  server.remoteWorkers -> runtimeAgent.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
+  server.workerInvokerTools -> runtimeAgent.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
   runtimeAgent.artifactClient -> server.artifactService 'Agent mTLS + allocation ID: RunScope operations; no DB/S3 credentials'
 
   server.artifactRegistry -> artifactDatabase 'Transactional registry writes and reads'
   server.blobStore -> blobBackend 'Immutable blob operations'
   server.runStore -> artifactDatabase.runState 'Durable WorkflowRun and StageExecution state'
-  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist Planner ADK events and State'
+  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion and redacted ADK facts'
   server.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.executionCollector -> server.controlPlane 'Trusted allocation final report'
 
-  server.plannerAgent -> llmGateway 'Planner model calls when model-backed'
+  server.stagePlanner -> llmGateway 'Streamline model calls with deployment-owned settings'
   runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied URL/token'
   llmGateway -> llmProvider 'Provider requests'
 
@@ -301,9 +301,9 @@ views {
     include server.agentTemplateCatalog
     include server.workflowScheduler
     include server.plannerFactories
-    include server.plannerAgent
+    include server.stagePlanner
     include server.plannerSessionService
-    include server.remoteWorkers
+    include server.workerInvokerTools
     include server.controlPlane
     include server.runtimeRegistry
     include server.runStore
@@ -330,9 +330,9 @@ views {
     include server
     include server.workflowScheduler
     include server.plannerFactories
-    include server.plannerAgent
+    include server.stagePlanner
     include server.plannerSessionService
-    include server.remoteWorkers
+    include server.workerInvokerTools
 
     include runtimeAgent
     include runtimeAgent.a2aServer
@@ -381,8 +381,8 @@ views {
     include server
     include server.userArtifactApi
     include server.workflowScheduler
-    include server.plannerAgent
-    include server.plannerArtifactAdapter
+    include server.stagePlanner
+    include server.plannerArtifactInspector
     include server.artifactService
     include server.artifactRegistry
     include server.blobStore

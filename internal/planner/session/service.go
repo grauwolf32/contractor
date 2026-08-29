@@ -278,12 +278,16 @@ type persistentState struct {
 	NextSequence    int64               `json:"nextSequence"`
 	RequestRecorded bool                `json:"requestRecorded"`
 	RequestDigest   string              `json:"requestDigest,omitempty"`
+	ADKEventCount   int64               `json:"adkEventCount,omitempty"`
+	ADKInputTokens  int64               `json:"adkInputTokens,omitempty"`
+	ADKOutputTokens int64               `json:"adkOutputTokens,omitempty"`
 	Completion      *planner.Completion `json:"completion,omitempty"`
 }
 
 type requestEvent struct {
 	Kind               string                           `json:"kind"`
-	Binding            string                           `json:"binding"`
+	Binding            string                           `json:"binding,omitempty"`
+	Bindings           []string                         `json:"bindings,omitempty"`
 	ObjectiveDigest    string                           `json:"objectiveDigest"`
 	InstructionsDigest string                           `json:"instructionsDigest"`
 	ParameterNames     []string                         `json:"parameterNames"`
@@ -298,11 +302,18 @@ type completionEvent struct {
 }
 
 func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
-	if strings.TrimSpace(facts.Binding) == "" ||
-		!validDigest(facts.ObjectiveDigest) || !validDigest(facts.InstructionsDigest) {
+	bindings := append([]string(nil), facts.Bindings...)
+	sort.Strings(bindings)
+	if len(bindings) == 0 || !validDigest(facts.ObjectiveDigest) ||
+		!validDigest(facts.InstructionsDigest) {
 		return nil, fmt.Errorf("Planner request facts are invalid")
 	}
-	parameterNames := append([]string(nil), facts.ParameterNames...)
+	for index, binding := range bindings {
+		if strings.TrimSpace(binding) == "" || index > 0 && bindings[index-1] == binding {
+			return nil, fmt.Errorf("Planner request bindings must be non-empty and unique")
+		}
+	}
+	parameterNames := append([]string{}, facts.ParameterNames...)
 	if !sort.StringsAreSorted(parameterNames) {
 		return nil, fmt.Errorf("Planner parameter names must be sorted")
 	}
@@ -321,11 +332,19 @@ func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
 		}
 		artifacts[name] = ref
 	}
-	return encodeBounded(requestEvent{
-		Kind: "worker_request", Binding: facts.Binding,
+	event := requestEvent{
+		Kind: "planner_request", Bindings: bindings,
 		ObjectiveDigest: facts.ObjectiveDigest, InstructionsDigest: facts.InstructionsDigest,
 		ParameterNames: parameterNames, Artifacts: artifacts,
-	})
+	}
+	if len(bindings) == 1 {
+		// Preserve the v1alpha1 passthrough audit event shape. Streamline with
+		// multiple fixed Workers uses the plural Planner request form.
+		event.Kind = "worker_request"
+		event.Binding = bindings[0]
+		event.Bindings = nil
+	}
+	return encodeBounded(event)
 }
 
 func encodeCompletionEvent(completion planner.Completion) (json.RawMessage, error) {
@@ -346,6 +365,9 @@ func encodeCompletionEvent(completion planner.Completion) (json.RawMessage, erro
 func encodeState(state persistentState) (json.RawMessage, error) {
 	if state.Status != statusRunning && state.Status != statusCompleted || state.NextSequence <= 0 {
 		return nil, fmt.Errorf("Planner state is invalid")
+	}
+	if state.ADKEventCount < 0 || state.ADKInputTokens < 0 || state.ADKOutputTokens < 0 {
+		return nil, fmt.Errorf("Planner ADK counters must be non-negative")
 	}
 	if state.RequestRecorded != (state.RequestDigest != "") {
 		return nil, fmt.Errorf("Planner request state is inconsistent")
