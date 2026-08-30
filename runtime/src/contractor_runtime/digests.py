@@ -7,11 +7,20 @@ from typing import Any
 
 import jcs
 
-from contractor_runtime.contracts import API_VERSION, ResolvedAgentTemplate, ResolvedModelPolicy
+from contractor_runtime.contracts import (
+    API_VERSION,
+    ResolvedAgentTemplate,
+    ResolvedLLMGatewayConfig,
+    ResolvedModelPolicy,
+)
 
 
 class TemplateDigestMismatch(ValueError):
     """A trusted Control Plane sent an internally inconsistent template body."""
+
+
+class GatewayDigestMismatch(ValueError):
+    """A trusted Control Plane sent an inconsistent non-secret Gateway body."""
 
 
 def verify_template_digests(template: ResolvedAgentTemplate) -> None:
@@ -26,6 +35,11 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
     template_digest = _agent_template_digest(template)
     if template_digest != template.ref.digest:
         raise TemplateDigestMismatch("resolved AgentTemplate digest does not match its body")
+
+
+def verify_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> None:
+    if _llm_gateway_config_digest(gateway) != gateway.ref.digest:
+        raise GatewayDigestMismatch("resolved LLMGatewayConfig digest does not match its body")
 
 
 def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
@@ -45,6 +59,23 @@ def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
         "spec": spec,
     }
     return _digest_jcs(manifest)
+
+
+def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
+    spec: dict[str, Any] = {"protocol": gateway.protocol, "url": gateway.url}
+    if gateway.credential_manager is not None:
+        spec["credentialManager"] = {
+            "implementation": gateway.credential_manager.implementation,
+            "managementUrl": gateway.credential_manager.management_url,
+        }
+    return _digest_jcs(
+        {
+            "apiVersion": API_VERSION,
+            "kind": "LLMGatewayConfig",
+            "metadata": {"name": gateway.ref.gateway_id, "version": gateway.ref.version},
+            "spec": spec,
+        }
+    )
 
 
 def _agent_template_digest(template: ResolvedAgentTemplate) -> str:

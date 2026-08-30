@@ -18,6 +18,7 @@ type loader struct {
 	descriptors  Descriptors
 	instructions map[string]contracts.ResolvedInstructions
 	policies     map[string]contracts.ResolvedModelPolicy
+	gateways     map[string]contracts.ResolvedLLMGatewayConfig
 	templates    map[string]contracts.ResolvedAgentTemplate
 	workflows    map[string]ResolvedWorkflow
 }
@@ -44,8 +45,12 @@ func Load(root string, descriptors Descriptors) (*Snapshot, error) {
 		descriptors:  normalizedDescriptors,
 		instructions: make(map[string]contracts.ResolvedInstructions),
 		policies:     make(map[string]contracts.ResolvedModelPolicy),
+		gateways:     make(map[string]contracts.ResolvedLLMGatewayConfig),
 		templates:    make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:    make(map[string]ResolvedWorkflow),
+	}
+	if err := current.loadLLMGatewayConfigs(); err != nil {
+		return nil, err
 	}
 	if err := current.loadModelPolicies(); err != nil {
 		return nil, err
@@ -56,7 +61,9 @@ func Load(root string, descriptors Descriptors) (*Snapshot, error) {
 	if err := current.loadWorkflows(); err != nil {
 		return nil, err
 	}
-	return newSnapshot(current.workflows, current.templates, current.policies, current.instructions), nil
+	return newSnapshot(
+		current.workflows, current.templates, current.policies, current.gateways, current.instructions,
+	), nil
 }
 
 func resolveRoot(root string) (string, error) {
@@ -171,6 +178,34 @@ func (l *loader) loadModelPolicies() error {
 		}
 		policy.Ref.Digest = digest
 		l.policies[selector.String()] = policy
+	}
+	return nil
+}
+
+func (l *loader) loadLLMGatewayConfigs() error {
+	files, err := l.discover("llm-gateways")
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		document, decodeErr := decodeOne[llmGatewayConfigDocument](file)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		selector, resolveErr := validateEnvelope(
+			document.APIVersion, document.Kind, llmGatewayConfigKind, document.Metadata,
+		)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		if _, exists := l.gateways[selector.String()]; exists {
+			return fmt.Errorf("%s: duplicate LLMGatewayConfig identity %s", file.relative, selector)
+		}
+		gateway, resolveErr := resolveLLMGatewayConfig(selector, document.Spec)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		l.gateways[selector.String()] = gateway
 	}
 	return nil
 }

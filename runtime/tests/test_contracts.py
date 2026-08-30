@@ -21,10 +21,12 @@ from contractor_runtime.contracts import (
     FinalizeAllocationRequest,
     HeartbeatResponse,
     ReleaseAllocationRequest,
+    ResolvedLLMGatewayConfig,
     RuntimeSettings,
     StageContentRequest,
     StageContentResult,
 )
+from contractor_runtime.digests import GatewayDigestMismatch, verify_gateway_config_digest
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
 
@@ -33,6 +35,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration-response.json": AgentRegistrationResponse,
     "agent-heartbeat.json": AgentHeartbeat,
     "heartbeat-response.json": HeartbeatResponse,
+    "llm-gateway-config.json": ResolvedLLMGatewayConfig,
     "allocation-spec.json": AllocationSpec,
     "allocation-final-response.json": AllocationFinalResponse,
     "finalize-allocation.json": FinalizeAllocationRequest,
@@ -49,6 +52,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration-idle-with-allocation.json": AgentRegistration,
     "agent-heartbeat-missing-allocation.json": AgentHeartbeat,
     "heartbeat-response-unknown-action.json": HeartbeatResponse,
+    "llm-gateway-config-secret-field.json": ResolvedLLMGatewayConfig,
     "allocation-spec-bad-api-version.json": AllocationSpec,
     "stage-content-request-unknown-field.json": StageContentRequest,
     "stage-content-result-unversioned-artifact.json": StageContentResult,
@@ -61,6 +65,7 @@ FIXTURE_SCHEMAS = {
     "agent-registration-response": "agent-registration-response.schema.json",
     "agent-heartbeat": "agent-heartbeat.schema.json",
     "heartbeat-response": "agent-heartbeat.schema.json",
+    "llm-gateway-config": "llm-gateway-config.schema.json",
     "allocation-spec": "allocation.schema.json",
     "allocation-final-response": "allocation.schema.json",
     "finalize-allocation": "allocation.schema.json",
@@ -74,6 +79,7 @@ FIXTURE_SCHEMAS = {
     "agent-registration-idle-with-allocation": "agent-registration.schema.json",
     "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
     "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
+    "llm-gateway-config-secret-field": "llm-gateway-config.schema.json",
     "allocation-spec-bad-api-version": "allocation.schema.json",
     "stage-content-request-unknown-field": "stage-content.schema.json",
     "stage-content-result-unversioned-artifact": "stage-content.schema.json",
@@ -110,6 +116,16 @@ def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     assert token not in repr(settings)
     assert token not in str(settings)
     assert json.loads(settings.model_dump_json(by_alias=True))["llmGatewayToken"] == token
+
+
+def test_resolved_gateway_digest_matches_go_fixture() -> None:
+    raw = (FIXTURES / "valid" / "llm-gateway-config.json").read_text(encoding="utf-8")
+    gateway = ResolvedLLMGatewayConfig.model_validate_json(raw)
+    verify_gateway_config_digest(gateway)
+    assert "token" not in gateway.model_dump_json(by_alias=True).lower()
+    changed = gateway.model_copy(update={"url": "http://127.0.0.1:4001/v1"})
+    with pytest.raises(GatewayDigestMismatch):
+        verify_gateway_config_digest(changed)
 
 
 @pytest.mark.parametrize(

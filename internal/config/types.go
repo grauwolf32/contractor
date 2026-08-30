@@ -3,9 +3,10 @@ package config
 import "github.com/grauwolf32/contractor/internal/contracts"
 
 const (
-	modelPolicyKind   = "ModelPolicy"
-	agentTemplateKind = "AgentTemplate"
-	workflowKind      = "Workflow"
+	modelPolicyKind      = "ModelPolicy"
+	llmGatewayConfigKind = "LLMGatewayConfig"
+	agentTemplateKind    = "AgentTemplate"
+	workflowKind         = "Workflow"
 )
 
 // Selector is an exact, versioned configuration or code descriptor lookup.
@@ -117,6 +118,7 @@ type Counts struct {
 	Workflows      int
 	AgentTemplates int
 	ModelPolicies  int
+	LLMGateways    int
 	Instructions   int
 }
 
@@ -143,6 +145,24 @@ type modelPolicySpecSource struct {
 	MaxToolCalls    int      `yaml:"maxToolCalls"`
 	MaxTotalTokens  int      `yaml:"maxTotalTokens"`
 	Temperature     *float64 `yaml:"temperature,omitempty"`
+}
+
+type llmGatewayConfigDocument struct {
+	APIVersion string                      `yaml:"apiVersion"`
+	Kind       string                      `yaml:"kind"`
+	Metadata   *metadataSource             `yaml:"metadata"`
+	Spec       *llmGatewayConfigSpecSource `yaml:"spec"`
+}
+
+type llmGatewayConfigSpecSource struct {
+	Protocol          string                          `yaml:"protocol"`
+	URL               string                          `yaml:"url"`
+	CredentialManager *llmCredentialManagerSpecSource `yaml:"credentialManager,omitempty"`
+}
+
+type llmCredentialManagerSpecSource struct {
+	Implementation string `yaml:"implementation"`
+	ManagementURL  string `yaml:"managementUrl"`
 }
 
 type agentTemplateDocument struct {

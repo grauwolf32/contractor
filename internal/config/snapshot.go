@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -12,6 +13,7 @@ type Snapshot struct {
 	workflows    map[string]ResolvedWorkflow
 	templates    map[string]contracts.ResolvedAgentTemplate
 	policies     map[string]contracts.ResolvedModelPolicy
+	gateways     map[string]contracts.ResolvedLLMGatewayConfig
 	instructions map[string]contracts.ResolvedInstructions
 }
 
@@ -19,12 +21,14 @@ func newSnapshot(
 	workflows map[string]ResolvedWorkflow,
 	templates map[string]contracts.ResolvedAgentTemplate,
 	policies map[string]contracts.ResolvedModelPolicy,
+	gateways map[string]contracts.ResolvedLLMGatewayConfig,
 	instructions map[string]contracts.ResolvedInstructions,
 ) *Snapshot {
 	result := &Snapshot{
 		workflows:    make(map[string]ResolvedWorkflow, len(workflows)),
 		templates:    make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
 		policies:     make(map[string]contracts.ResolvedModelPolicy, len(policies)),
+		gateways:     make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
 		instructions: make(map[string]contracts.ResolvedInstructions, len(instructions)),
 	}
 	for key, workflow := range workflows {
@@ -36,6 +40,9 @@ func newSnapshot(
 	for key, policy := range policies {
 		result.policies[key] = cloneModelPolicy(policy)
 	}
+	for key, gateway := range gateways {
+		result.gateways[key] = cloneLLMGatewayConfig(gateway)
+	}
 	for key, instructions := range instructions {
 		result.instructions[key] = instructions
 	}
@@ -45,8 +52,36 @@ func newSnapshot(
 func (s *Snapshot) Counts() Counts {
 	return Counts{
 		Workflows: len(s.workflows), AgentTemplates: len(s.templates),
-		ModelPolicies: len(s.policies), Instructions: len(s.instructions),
+		ModelPolicies: len(s.policies), LLMGateways: len(s.gateways),
+		Instructions: len(s.instructions),
 	}
+}
+
+// LLMGateway resolves one exact id@version and returns a caller-owned non-secret copy.
+func (s *Snapshot) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+	selector, err := ParseSelector(raw)
+	if err != nil {
+		return contracts.ResolvedLLMGatewayConfig{}, err
+	}
+	gateway, ok := s.gateways[selector.String()]
+	if !ok {
+		return contracts.ResolvedLLMGatewayConfig{}, fmt.Errorf("unknown LLMGatewayConfig %q", selector)
+	}
+	return cloneLLMGatewayConfig(gateway), nil
+}
+
+// LLMGateways returns every published non-secret Gateway body sorted by exact ref.
+func (s *Snapshot) LLMGateways() []contracts.ResolvedLLMGatewayConfig {
+	keys := make([]string, 0, len(s.gateways))
+	for key := range s.gateways {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]contracts.ResolvedLLMGatewayConfig, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, cloneLLMGatewayConfig(s.gateways[key]))
+	}
+	return result
 }
 
 // Workflow resolves one exact name@version and returns a caller-owned copy.
@@ -104,6 +139,17 @@ func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, err
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
 	result := source
 	result.Temperature = cloneFloat(source.Temperature)
+	return result
+}
+
+func cloneLLMGatewayConfig(
+	source contracts.ResolvedLLMGatewayConfig,
+) contracts.ResolvedLLMGatewayConfig {
+	result := source
+	if source.CredentialManager != nil {
+		manager := *source.CredentialManager
+		result.CredentialManager = &manager
+	}
 	return result
 }
 

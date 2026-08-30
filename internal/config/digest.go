@@ -33,6 +33,29 @@ func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) 
 	return digestJCS(manifest)
 }
 
+func llmGatewayConfigDigest(
+	selector Selector, gateway contracts.ResolvedLLMGatewayConfig,
+) (string, error) {
+	spec := map[string]any{
+		"protocol": gateway.Protocol,
+		"url":      gateway.URL,
+	}
+	if gateway.CredentialManager != nil {
+		spec["credentialManager"] = map[string]any{
+			"implementation": gateway.CredentialManager.Implementation,
+			"managementUrl":  gateway.CredentialManager.ManagementURL,
+		}
+	}
+	return digestJCS(map[string]any{
+		"apiVersion": contracts.APIVersion,
+		"kind":       llmGatewayConfigKind,
+		"metadata": map[string]any{
+			"name": selector.ID, "version": selector.Version,
+		},
+		"spec": spec,
+	})
+}
+
 func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemplate) (string, error) {
 	modelPolicy := map[string]any{
 		"ref": map[string]any{

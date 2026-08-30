@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V3-004` are complete. The
+As of 2026-08-30, implementation tasks through `V3-005` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -30,6 +30,8 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   engine and exposes only
   `execute_current_subtask(subtask_id, worker_name)`, with a schema constrained
   to the immutable logical Stage bindings and no physical placement data;
+- strict immutable `LLMGatewayConfig` manifests with normalized cross-language
+  digests, non-secret resolved wire values, and a loopback LiteLLM example;
 - a PostgreSQL-backed Planner session adapter that persists only redacted ADK
   facts and recovers a completed decision without repeating model or Worker
   calls;
@@ -52,7 +54,9 @@ completion evidence are recorded in
 [`v3-002-typed-planner-plan.yml`](../tasks/v3-002-typed-planner-plan.yml), and
 [`v3-003-single-worker-streamline.yml`](../tasks/v3-003-single-worker-streamline.yml).
 Router completion evidence is recorded in
-[`v3-004-router-planner.yml`](../tasks/v3-004-router-planner.yml).
+[`v3-004-router-planner.yml`](../tasks/v3-004-router-planner.yml), and Gateway
+configuration evidence in
+[`v3-005-llm-gateway-config.yml`](../tasks/v3-005-llm-gateway-config.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,

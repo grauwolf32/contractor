@@ -14,6 +14,21 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 		t.Fatalf("ModelPolicy mutation leaked into Snapshot: %+v", policyAgain)
 	}
 
+	gateway, _ := snapshot.LLMGateway("local-litellm@1")
+	gateway.CredentialManager.ManagementURL = "https://corrupted.invalid"
+	gatewayAgain, _ := snapshot.LLMGateway("local-litellm@1")
+	if gatewayAgain.CredentialManager == nil ||
+		gatewayAgain.CredentialManager.ManagementURL != "http://127.0.0.1:4000" {
+		t.Fatalf("LLMGatewayConfig mutation leaked into Snapshot: %+v", gatewayAgain)
+	}
+	listed := snapshot.LLMGateways()
+	listed[0].CredentialManager.ManagementURL = "https://corrupted.invalid"
+	listedAgain := snapshot.LLMGateways()
+	if len(listedAgain) != 1 ||
+		listedAgain[0].CredentialManager.ManagementURL != "http://127.0.0.1:4000" {
+		t.Fatalf("LLMGatewayConfig list mutation leaked into Snapshot: %+v", listedAgain)
+	}
+
 	template, _ := snapshot.AgentTemplate("artifact_builder@1")
 	template.Toolsets[0].Tools[0] = "corrupted"
 	*template.ModelPolicy.Temperature = 99

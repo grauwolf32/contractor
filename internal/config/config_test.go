@@ -14,7 +14,9 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	if got, want := snapshot.Counts(), (Counts{Workflows: 5, AgentTemplates: 6, ModelPolicies: 2, Instructions: 13}); got != want {
+	if got, want := snapshot.Counts(), (Counts{
+		Workflows: 5, AgentTemplates: 6, ModelPolicies: 2, LLMGateways: 1, Instructions: 13,
+	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
 
@@ -200,7 +202,9 @@ func TestStoredFixtures(t *testing.T) {
 	t.Parallel()
 
 	valid := mustLoad(t, "testdata/valid", MVPDescriptors())
-	if got, want := valid.Counts(), (Counts{Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, Instructions: 2}); got != want {
+	if got, want := valid.Counts(), (Counts{
+		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1, Instructions: 2,
+	}); got != want {
 		t.Fatalf("valid fixture Counts() = %+v, want %+v", got, want)
 	}
 

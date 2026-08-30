@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/llm-gateway-config-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "contractor/v1alpha1"},
+    "kind": {"const": "LLMGatewayConfig"},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "url"],
+      "properties": {
+        "protocol": {"const": "openai-compatible@1"},
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://[^/?#@]+/[^?#]*$"
+        },
+        "credentialManager": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["implementation", "managementUrl"],
+          "properties": {
+            "implementation": {"const": "litellm-virtual-keys@1"},
+            "managementUrl": {
+              "type": "string",
+              "oneOf": [
+                {"pattern": "^https://[^/?#@]+/?$"},
+                {"pattern": "^http://(?:127(?:\\.[0-9]{1,3}){3}|\\[::1\\])(?::[0-9]+)?/?$"}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

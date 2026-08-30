@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import math
 import re
 from datetime import datetime
@@ -55,6 +56,54 @@ def _require_url(field: str, value: str) -> str:
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username is not None:
         raise ValueError(f"{field} must be an absolute HTTP(S) URL without user information")
+    return value
+
+
+def _require_inference_gateway_url(value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        value != value.strip()
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or "?" in value
+        or "#" in value
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.startswith("/")
+    ):
+        raise ValueError(
+            "llmGatewayConfig.url must be an absolute HTTP(S) URL with an explicit "
+            "path and no userinfo, query, or fragment"
+        )
+    return value
+
+
+def _require_management_gateway_origin(value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        value != value.strip()
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or "?" in value
+        or "#" in value
+        or parsed.query
+        or parsed.fragment
+        or parsed.path
+    ):
+        raise ValueError("managementUrl must be a canonical HTTP(S) origin")
+    if parsed.scheme == "http":
+        try:
+            loopback = ipaddress.ip_address(parsed.hostname).is_loopback
+        except ValueError:
+            loopback = False
+        if not loopback:
+            raise ValueError("HTTP managementUrl is allowed only for a loopback IP origin")
     return value
 
 
@@ -204,6 +253,18 @@ class ModelPolicyRef(WireModel):
         return self
 
 
+class LLMGatewayConfigRef(WireModel):
+    gateway_id: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("llmGatewayConfigRef", f"{self.gateway_id}@{self.version}")
+        _require_digest("llmGatewayConfigRef.digest", self.digest)
+        return self
+
+
 class ToolsetRef(WireModel):
     toolset_id: str
     version: str
@@ -252,6 +313,28 @@ class ResolvedModelPolicy(WireModel):
         if self.temperature is not None and not math.isfinite(self.temperature):
             raise ValueError("temperature must be finite")
         return self
+
+
+class LLMGatewayCredentialManager(WireModel):
+    implementation: Literal["litellm-virtual-keys@1"]
+    management_url: str
+
+    @field_validator("management_url")
+    @classmethod
+    def validate_management_url(cls, value: str) -> str:
+        return _require_management_gateway_origin(value)
+
+
+class ResolvedLLMGatewayConfig(WireModel):
+    ref: LLMGatewayConfigRef
+    protocol: Literal["openai-compatible@1"]
+    url: str
+    credential_manager: LLMGatewayCredentialManager | None = None
+
+    @field_validator("url")
+    @classmethod
+    def validate_inference_url(cls, value: str) -> str:
+        return _require_inference_gateway_url(value)
 
 
 class ToolsetSelection(WireModel):
