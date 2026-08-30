@@ -45,7 +45,11 @@ global {
 }
 
 model {
-  apiClient = actor 'User / API Client' {
+  browser = actor 'User Browser' {
+    #external
+  }
+
+  apiClient = actor 'Non-UI API Client' {
     #external
   }
 
@@ -284,10 +288,10 @@ model {
     workerRuntime -> modelClient 'Model calls when required'
   }
 
-  apiClient -> webUi 'Operate Contractor in a browser' #contextOnly
-  webUi -> server.publicApi 'Workflow and Run queries/mutations'
-  webUi -> server.userArtifactApi 'Artifact queries/uploads/downloads'
-  webUi -> server.operationsApi 'Runtime visibility and published configuration management'
+  browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
+  browser -> server.publicApi 'Direct authenticated Workflow and Run queries/mutations'
+  browser -> server.userArtifactApi 'Direct Artifact queries/uploads/downloads'
+  browser -> server.operationsApi 'Direct Runtime visibility and configuration management'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.publicApi 'Submit / query / cancel Run'
   apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
@@ -321,6 +325,7 @@ views {
   view index {
     title 'Contractor v2 — System Context'
 
+    include browser
     include apiClient
     include webUi
     include server

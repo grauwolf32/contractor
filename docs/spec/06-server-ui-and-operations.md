@@ -46,10 +46,17 @@ Their only product contract is the versioned authenticated public Server API.
 The UI build records its own version and supported Server API versions; it must
 show an explicit incompatible-version error rather than guessing around a
 missing or changed field. Additive API changes within a supported version do
-not require a coordinated release. Whether browser requests reach Server
-directly or through a Node BFF/reverse proxy is the next deployment decision;
-neither topology grants Node direct database, Control Plane or Runtime Agent
-access.
+not require a coordinated release.
+
+The delivered UI is a client-rendered frontend. Node serves its static assets
+and a non-secret `/runtime-config.json`; it performs no SSR, BFF, API proxying,
+session storage or domain operation. Runtime config contains exactly the UI
+version, supported API versions and one absolute `apiBaseUrl`, allowing the same
+UI build to target another Server without rebuilding. The URL has no userinfo,
+query or fragment and uses HTTPS; HTTP is accepted only for a loopback origin
+in local development. The browser calls that Go Server URL directly, including
+for Artifact upload/download and Operations mutations. Node receives no Server
+credential and has no database, Control Plane or Runtime Agent access.
 
 ## Workflow user surface
 
@@ -422,10 +429,19 @@ Run detail page shows both the selected refs and their origin (`workflow` or
 
 ## API boundary
 
-The Node UI service and browser use authenticated public Server APIs. They do
-not receive direct database, Control Plane or Runtime Agent access. UI-oriented
-query endpoints may aggregate existing durable/read-model state, but mutations
-must call the same domain application services as non-UI API clients.
+Browser code uses authenticated public Server APIs directly. UI-oriented query
+endpoints may aggregate existing durable/read-model state, but mutations must
+call the same domain application services as non-UI API clients.
+
+Because UI and API may have different origins, Server has an operator-configured
+exact browser-origin allowlist. Wildcard and reflected origins and the opaque
+`null` origin are invalid. A matching preflight exposes only implemented public
+API methods and required headers, including `Authorization`, `Content-Type`,
+`Idempotency-Key` and CAS preconditions; browser-readable response headers
+include `X-Request-ID`, `ETag` and `Content-Disposition`. CORS grants no
+authorization and non-browser clients remain subject to the same API
+authentication. Whether cross-origin credentials use an API bearer token or an
+explicit cookie/CSRF contract is decided with browser authentication.
 
 Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
@@ -460,6 +476,8 @@ not require changing Run semantics.
    the Web UI.
 10. Web UI is an independently releasable Node.js service; Go Server never
     embeds frontend assets or requires UI availability.
+11. Node serves only client assets and public runtime configuration; browser
+    code, not Node, directly invokes the configured Go Server API.
 
 ## Open decisions for the next dialogue steps
 
@@ -467,7 +485,7 @@ not require changing Run semantics.
   first-slice allowlist; LiteLLM remains their enforcement authority;
 - Contractor credential-encryption master-key rotation/re-encryption and a
   future Vault/KMS adapter;
-- Node framework/rendering model and direct-browser API versus Node BFF/proxy;
+- frontend framework, build tool and client-side state/query library;
 - browser authentication and the first user/operations permission split;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;
 - exact list/filter/pagination contracts and retention window;

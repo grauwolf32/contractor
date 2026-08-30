@@ -44,7 +44,9 @@ This slice must demonstrate:
   a duplicate identity from the other;
 - Web UI is built and deployed as a separate Node.js service with its own
   version and Server-API compatibility check; Go Server embeds no frontend
-  assets and remains healthy when UI is unavailable;
+  assets and remains healthy when UI is unavailable; Node serves only the
+  client bundle and non-secret runtime API URL, while the browser calls Go
+  Server directly through its exact CORS origin allowlist;
 - an LLMGatewayConfig may declare `litellm-virtual-keys@1` plus its non-secret
   management origin; Server Operations can manage it only when operator
   bootstrap binds that exact digest-bearing Gateway ref to a protected LiteLLM
