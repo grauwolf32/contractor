@@ -4,6 +4,7 @@ title: Add the model-backed Go ADK StreamlinePlanner
 milestone: first-slice-hardening
 priority: P1
 status: complete
+implementation_commit: "aacda4b36be505201f0f95aecc7d586107ba68a5"
 depends_on: [V1-003, V1-004, V1-005]
 languages: [go]
 

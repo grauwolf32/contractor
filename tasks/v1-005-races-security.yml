@@ -4,6 +4,7 @@ title: Harden lifecycle races, idempotency, and private-boundary security
 milestone: first-slice-hardening
 priority: P1
 status: complete
+implementation_commit: "174aaf06bd3c5e595fb34cb220c9352de3b5eb9b"
 depends_on: [V1-001, V1-002, V1-003, V1-004]
 languages: [go, python]
 

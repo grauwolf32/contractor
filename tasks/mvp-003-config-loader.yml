@@ -4,6 +4,7 @@ title: Implement the strict versioned configuration loader in Go
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "26dac56f350cf3a5c818eb2e942c3c5094cd6517"
 depends_on: [MVP-001]
 languages: [go]
 

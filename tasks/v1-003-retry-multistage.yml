@@ -4,6 +4,7 @@ title: Add validated multi-Stage transitions and bounded retry
 milestone: first-slice-hardening
 priority: P1
 status: completed
+implementation_commit: "a573f98c5d13b353ff58ffc5a4e3b0154b213907"
 completed_on: 2026-08-29
 depends_on: [MVP-015, V1-001]
 languages: [go]

@@ -4,6 +4,7 @@ title: Prove the local Go-to-Python end-to-end MVP
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "035189f51ffecbd27d3e937e710231837084935f"
 depends_on: [MVP-003, MVP-006, MVP-007, MVP-009, MVP-011, MVP-012, MVP-014]
 languages: [go, python]
 

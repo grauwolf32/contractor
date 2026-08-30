@@ -4,6 +4,7 @@ title: Add the single-user public Artifact and WorkflowRun API
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "70010625b625a0a176b7bcffb243835a85a0fade"
 depends_on: [MVP-003, MVP-004, MVP-005]
 languages: [go]
 

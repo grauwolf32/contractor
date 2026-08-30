@@ -4,6 +4,7 @@ title: Complete confirmed heartbeat leases, self-termination, fencing, and recon
 milestone: first-slice-hardening
 priority: P1
 status: completed
+implementation_commit: "d86859eecae703daef603063d45897e1baa274b2"
 depends_on: [V1-001]
 languages: [go, python]
 

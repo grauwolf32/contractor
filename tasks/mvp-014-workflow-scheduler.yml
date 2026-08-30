@@ -4,6 +4,7 @@ title: Implement the Go happy-path Workflow Scheduler
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "970ed75d6e370c07fbe9f38cf2e341eeac22cc4e"
 depends_on: [MVP-006, MVP-008, MVP-010, MVP-013]
 languages: [go]
 

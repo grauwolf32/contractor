@@ -4,6 +4,7 @@ title: Implement the scoped PostgreSQL ArtifactStore core
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "46a1c8b6ad6cbf0d13b495356afd31b5de800030"
 depends_on: [MVP-004]
 languages: [go, sql]
 

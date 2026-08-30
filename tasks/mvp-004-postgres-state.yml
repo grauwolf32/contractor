@@ -4,6 +4,7 @@ title: Add PostgreSQL migrations and durable Workflow execution stores
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "b33333a6835b6ea12f97cd2886cad55d09848cd0"
 depends_on: [MVP-001, MVP-002]
 languages: [go, sql]
 

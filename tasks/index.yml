@@ -19,6 +19,10 @@ execution_policy:
   completion_rule: >-
     A task is complete only when every acceptance criterion passes and all
     commands listed under tests succeed.
+  implementation_commit_rule: >-
+    Every completed task file records implementation_commit as the full hash of
+    the last commit whose primary purpose completed that task. Later metadata or
+    unrelated maintenance commits do not replace it.
   priorities:
     P0: Required for the first runnable MVP.
     P1: Required to harden the MVP into the specified first slice.

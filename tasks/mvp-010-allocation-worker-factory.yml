@@ -4,6 +4,7 @@ title: Implement idempotent allocation lifecycle and Python Worker factory bound
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "db441906b02b151559b88a5ae3cd3dddae37a44a"
 depends_on: [MVP-002, MVP-003, MVP-008, MVP-009]
 languages: [go, python]
 

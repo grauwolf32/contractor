@@ -4,6 +4,7 @@ title: Bootstrap the Go Server and Python Runtime Agent monorepo
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "e30a34f266f1972cb16b9165fc1b8ae71af4072c"
 depends_on: []
 languages: [go, python]
 

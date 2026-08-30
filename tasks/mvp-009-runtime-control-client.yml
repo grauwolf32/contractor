@@ -4,6 +4,7 @@ title: Implement Python Runtime Agent registration, heartbeat, and private serve
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "1ff105bb1e1ac7076ce8bec90f928767263abeda"
 depends_on: [MVP-002, MVP-007, MVP-008]
 languages: [python]
 

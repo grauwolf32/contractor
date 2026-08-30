@@ -4,6 +4,7 @@ title: Persist bounded Planner, Worker, allocation, and Stage metrics
 milestone: first-slice-hardening
 priority: P1
 status: complete
+implementation_commit: "a1db02a5b1dc7a0a906664862605e27399147910"
 depends_on: [MVP-015]
 languages: [go, python, sql]
 

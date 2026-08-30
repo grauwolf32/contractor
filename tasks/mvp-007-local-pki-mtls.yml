@@ -4,6 +4,7 @@ title: Provide local CA bootstrap and reusable mTLS verification
 milestone: mvp
 priority: P0
 status: completed
+implementation_commit: "096f9fa37669f5e4a0073874aa1141b26236cc24"
 depends_on: [MVP-001]
 languages: [go, python]
 
