@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -20,6 +21,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"go.yaml.in/yaml/v4"
@@ -73,8 +75,11 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/artifacts/{namespace}/{name}/versions",
 		"GET /v1/configurations/{kind}",
 		"GET /v1/configurations/{kind}/{name}/versions/{version}",
+		"GET /v1/operations/allocations",
 		"GET /v1/operations/credentials",
 		"GET /v1/operations/credentials/{credentialId}",
+		"GET /v1/operations/runtime-agents",
+		"GET /v1/operations/snapshot",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -228,6 +233,41 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	getConfiguration := newPublicContractRequest(http.MethodGet, "/v1/configurations/model-policies/worker/versions/1", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getConfiguration, true); response.Code != http.StatusOK {
 		t.Fatalf("get configuration = %d: %s", response.Code, response.Body.String())
+	}
+	operationsTemplate, _ := fixture.configs.Snapshot().AgentTemplate("artifact_builder@1")
+	operationsGateway, _ := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
+	operationsNow := time.Date(2026, 8, 31, 1, 0, 0, 0, time.UTC)
+	fixture.operations.set(controlplane.OperationsSnapshot{
+		Cursor: controlplane.OperationsCursor{
+			Generation: "operations-generation-contract", Revision: 1,
+		},
+		RuntimeAgents: []controlplane.RuntimeAgentObservation{{
+			InstanceID: "runtime-contract", SoftwareVersion: "0.1.0",
+			ObservedState: contracts.AgentIdle, SlotState: controlplane.SlotReserved,
+			LastAcceptedHeartbeat:     &operationsNow,
+			AuthoritativeAllocationID: stringPointer("allocation-contract"),
+		}},
+		Allocations: []controlplane.AllocationObservation{{
+			AllocationID: "allocation-contract", RunID: "run-contract",
+			StageExecutionID: "stage-contract", RuntimeAgentInstanceID: "runtime-contract",
+			LogicalWorker: "builder", AgentTemplate: operationsTemplate.Ref,
+			ExecutionConfig: controlplane.AllocationExecutionConfig{
+				ModelPolicy: operationsTemplate.ModelPolicy.Ref, LLMGateway: operationsGateway.Ref,
+			},
+			AuthoritativePhase: controlplane.AllocationPreparing,
+			ObservedPhase:      controlplane.AllocationObservedAbsent,
+			Metrics:            controlplane.MetricsSummary{ReportsComplete: false},
+		}},
+	})
+	for name, path := range map[string]string{
+		"Operations snapshot":    "/v1/operations/snapshot",
+		"Runtime Agent page":     "/v1/operations/runtime-agents?limit=1",
+		"active allocation page": "/v1/operations/allocations?limit=1",
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
 	}
 	publishConfiguration := newPublicContractRequest(
 		http.MethodPost,

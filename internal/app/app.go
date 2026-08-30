@@ -306,6 +306,7 @@ func RunCLI(
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,
+		Operations:   registry,
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,
 		RunNotifier: workflowScheduler, Logger: logger,

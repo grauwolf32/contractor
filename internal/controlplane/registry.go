@@ -25,6 +25,9 @@ type Registry interface {
 	Release(string) error
 	GetAgent(string) (AgentSnapshot, error)
 	PollAllocationLosses() []AllocationLoss
+	SnapshotOperations() OperationsSnapshot
+	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
+	RecordAllocationReport(string, contracts.AllocationFinalReport) error
 }
 
 type RegistryOptions struct {
@@ -49,18 +52,20 @@ type AgentSnapshot struct {
 }
 
 type InMemoryRegistry struct {
-	mu                sync.Mutex
-	idMu              sync.Mutex
-	agents            map[string]*agentEntry
-	allocations       map[string]storedReservation
-	stageReservations map[string]stageReservation
-	heartbeatInterval time.Duration
-	confirmedLease    time.Duration
-	now               func() time.Time
-	monotonicNow      func() time.Duration
-	newID             func(string) (string, error)
-	agentOrderKey     func(contracts.AgentRegistration) string
-	pendingLosses     []AllocationLoss
+	mu                   sync.Mutex
+	idMu                 sync.Mutex
+	agents               map[string]*agentEntry
+	allocations          map[string]storedReservation
+	stageReservations    map[string]stageReservation
+	heartbeatInterval    time.Duration
+	confirmedLease       time.Duration
+	now                  func() time.Time
+	monotonicNow         func() time.Duration
+	newID                func(string) (string, error)
+	agentOrderKey        func(contracts.AgentRegistration) string
+	pendingLosses        []AllocationLoss
+	operationsGeneration string
+	operationsRevision   uint64
 }
 
 type agentEntry struct {
@@ -68,6 +73,7 @@ type agentEntry struct {
 	identity                  string
 	orderKey                  string
 	lastSeenAt                time.Time
+	lastAcceptedHeartbeatAt   time.Time
 	lastHeartbeatSeq          uint64
 	lastIssuedAckSeq          uint64
 	lastConfirmedAckSeq       uint64
@@ -83,11 +89,6 @@ type agentEntry struct {
 	issuedAcks                map[uint64]struct{}
 	heartbeatResponses        map[uint64]contracts.HeartbeatResponse
 	heartbeatOrder            []uint64
-}
-
-type storedReservation struct {
-	reservation Reservation
-	loss        *AllocationLoss
 }
 
 type stageReservation struct {
@@ -121,12 +122,17 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 			return registration.InstanceID
 		}
 	}
+	operationsGeneration, err := randomID("operations-generation-")
+	if err != nil {
+		return nil, fmt.Errorf("generate Operations snapshot identity: %w", err)
+	}
 	return &InMemoryRegistry{
 		agents: make(map[string]*agentEntry), allocations: make(map[string]storedReservation),
 		stageReservations: make(map[string]stageReservation),
 		heartbeatInterval: options.HeartbeatInterval, confirmedLease: options.ConfirmedLease,
 		now: options.Now, monotonicNow: options.MonotonicNow,
 		newID: options.NewID, agentOrderKey: options.AgentOrderKey,
+		operationsGeneration: operationsGeneration,
 	}, nil
 }
 
@@ -164,7 +170,11 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 		}
 		r.detectObservedLoss(existing, LossRuntimeMismatch)
 		existing.reconciliationRequired = registrationNeedsReconciliation(existing)
+		r.operationsRevision++
 		return snapshotAgent(existing), nil
+	}
+	if len(r.agents) >= maximumOperationsItems {
+		return AgentSnapshot{}, fmt.Errorf("%w: Runtime Agent observation capacity is exhausted", ErrInvalidRequest)
 	}
 	entry := &agentEntry{
 		registration: normalized, identity: identity, orderKey: orderKey, lastSeenAt: now,
@@ -183,6 +193,7 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 	}
 	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
 	r.agents[normalized.InstanceID] = entry
+	r.operationsRevision++
 	return snapshotAgent(entry), nil
 }
 
@@ -203,6 +214,8 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 	if heartbeat.HeartbeatSeq <= entry.lastHeartbeatSeq {
 		if response, exists := entry.heartbeatResponses[heartbeat.HeartbeatSeq]; exists {
 			entry.lastSeenAt = now
+			entry.lastAcceptedHeartbeatAt = now
+			r.operationsRevision++
 			return cloneHeartbeatResponse(response), nil
 		}
 		return contracts.HeartbeatResponse{}, ErrHeartbeatOutOfOrder
@@ -215,6 +228,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 		}
 	}
 	entry.lastSeenAt = now
+	entry.lastAcceptedHeartbeatAt = now
 	entry.lastHeartbeatSeq = heartbeat.HeartbeatSeq
 	entry.lastIssuedAckSeq = heartbeat.HeartbeatSeq
 	entry.registration.ObservedState = heartbeat.ObservedState
@@ -223,6 +237,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 	response, reconciliation := heartbeatAction(entry, heartbeat.HeartbeatSeq)
 	entry.reconciliationRequired = reconciliation || registrationNeedsReconciliation(entry)
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
+	r.operationsRevision++
 	return cloneHeartbeatResponse(response), nil
 }
 
@@ -303,16 +318,21 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		}
 		reservation := Reservation{
 			Grant: grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
-			AgentTemplate: cloneAgentTemplate(binding.AgentTemplate), LeaseExpiresAt: entry.confirmedLeaseExpiresAt,
+			AgentTemplate:   cloneAgentTemplate(binding.AgentTemplate),
+			ExecutionConfig: cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			LeaseExpiresAt:  entry.confirmedLeaseExpiresAt,
 		}
 		entry.authoritativeAllocationID = cloneString(&allocationID)
 		entry.allocationActivated = false
-		r.allocations[allocationID] = storedReservation{reservation: reservation}
+		r.allocations[allocationID] = storedReservation{
+			reservation: reservation, phase: AllocationPreparing,
+		}
 		reservations[index] = cloneReservation(reservation)
 	}
 	r.stageReservations[request.StageExecutionID] = stageReservation{
 		fingerprint: fingerprint, allocationIDs: append([]string(nil), allocationIDs...),
 	}
+	r.operationsRevision++
 	return reservations, nil
 }
 
@@ -336,8 +356,12 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 	if !ok {
 		return ErrAllocationNotFound
 	}
+	if stored.reservation.Grant.WriteFenced {
+		return nil
+	}
 	stored.reservation.Grant.WriteFenced = true
 	r.allocations[allocationID] = stored
+	r.operationsRevision++
 	return nil
 }
 
@@ -368,6 +392,7 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 			candidate.reconciliationRequired = registrationNeedsReconciliation(candidate)
 		}
 	}
+	r.operationsRevision++
 	return nil
 }
 
@@ -539,13 +564,17 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.AgentTemplate.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid AgentTemplate for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		if err := binding.ExecutionConfig.Validate(); err != nil {
+			return "", nil, fmt.Errorf("%w: invalid execution config for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
+		}
 		if _, duplicate := seen[binding.LogicalAgentName]; duplicate {
 			return "", nil, fmt.Errorf("%w: duplicate logical Agent name", ErrInvalidRequest)
 		}
 		seen[binding.LogicalAgentName] = struct{}{}
 		bindings[index] = BindingRequirement{
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
-			AgentTemplate: cloneAgentTemplate(binding.AgentTemplate),
+			AgentTemplate:   cloneAgentTemplate(binding.AgentTemplate),
+			ExecutionConfig: cloneAllocationExecutionConfig(binding.ExecutionConfig),
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
@@ -621,6 +650,7 @@ func (r *InMemoryRegistry) markAllocationLost(entry *agentEntry, reason Allocati
 	entry.allocationLost = true
 	entry.reconciliationRequired = true
 	r.pendingLosses = append(r.pendingLosses, loss)
+	r.operationsRevision++
 }
 
 func (r *InMemoryRegistry) detectObservedLoss(entry *agentEntry, reason AllocationLossReason) {
@@ -689,6 +719,7 @@ func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.Heartb
 func cloneReservation(source Reservation) Reservation {
 	result := source
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
+	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	return result
 }
 

@@ -229,7 +229,7 @@ func registerRuntime(
 ) {
 	t.Helper()
 	_, err := registry.Register(contracts.AgentRegistration{
-		APIVersion: contracts.APIVersion, InstanceID: runtime.instanceID,
+		APIVersion: contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
 		StartedAt: clock.Now(), ControlURL: runtime.controlURL, A2AURL: runtime.a2aURL,
 		SupportedRuntimes: []string{"adk@1"},
 		SupportedToolsets: []contracts.ToolsetCapability{{
@@ -275,10 +275,17 @@ func reservationRequest(t *testing.T, runID, stageID string) controlplane.Reserv
 	if err != nil {
 		t.Fatal(err)
 	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	return controlplane.ReservationRequest{
 		RunID: runID, StageExecutionID: stageID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
+			ExecutionConfig: controlplane.AllocationExecutionConfig{
+				ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
+			},
 		}},
 	}
 }

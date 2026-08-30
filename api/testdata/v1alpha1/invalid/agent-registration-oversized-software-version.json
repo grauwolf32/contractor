@@ -1,7 +1,7 @@
 {
   "apiVersion": "contractor/v1alpha1",
   "instanceId": "019c-runtime-1",
-  "softwareVersion": "0.1.0",
+  "softwareVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "startedAt": "2026-08-29T10:00:00Z",
   "controlUrl": "https://127.0.0.1:9443/private/v1",
   "a2aUrl": "https://127.0.0.1:9443/a2a",

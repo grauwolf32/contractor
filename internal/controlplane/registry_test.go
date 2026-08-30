@@ -77,8 +77,8 @@ func TestReserveAllIsAtomicWithInsufficientCapacity(t *testing.T) {
 	_, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-1", StageExecutionID: "stage-two",
 		Bindings: []BindingRequirement{
-			{LogicalAgentName: "first", Namespace: "first", AgentTemplate: template},
-			{LogicalAgentName: "second", Namespace: "second", AgentTemplate: template},
+			testBinding(t, "first", "first", template),
+			testBinding(t, "second", "second", template),
 		},
 	})
 	if !errors.Is(err, ErrInsufficientCapacity) {
@@ -86,7 +86,7 @@ func TestReserveAllIsAtomicWithInsufficientCapacity(t *testing.T) {
 	}
 	reservation, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-1", StageExecutionID: "stage-one",
-		Bindings: []BindingRequirement{{LogicalAgentName: "only", Namespace: "only", AgentTemplate: template}},
+		Bindings: []BindingRequirement{testBinding(t, "only", "only", template)},
 	})
 	if err != nil || len(reservation) != 1 || reservation[0].Grant.RuntimeInstanceID != "agent-1" {
 		t.Fatalf("slot was mutated by failed reservation: (%+v, %v)", reservation, err)
@@ -97,9 +97,7 @@ func TestReserveAllRejectsRunReservedAgentNamespace(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	_, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-1", StageExecutionID: "stage-1",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "inputs", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "inputs", testTemplate(t))},
 	})
 	if !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("reserved namespace error = %v", err)
@@ -113,8 +111,8 @@ func TestConcurrentReserveAllNeverAssignsSlotTwice(t *testing.T) {
 	registerReady(t, registry, "agent-2")
 	template := testTemplate(t)
 	bindings := []BindingRequirement{
-		{LogicalAgentName: "first", Namespace: "first", AgentTemplate: template},
-		{LogicalAgentName: "second", Namespace: "second", AgentTemplate: template},
+		testBinding(t, "first", "first", template),
+		testBinding(t, "second", "second", template),
 	}
 	type result struct {
 		reservations []Reservation
@@ -160,7 +158,7 @@ func TestReservationRetryReturnsSameAllocationsAndGrantLifecycleIsExact(t *testi
 	registerReady(t, registry, "agent-2")
 	request := ReservationRequest{
 		RunID: "run-1", StageExecutionID: "stage-1",
-		Bindings: []BindingRequirement{{LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t)}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	}
 	first, err := registry.ReserveAll(request)
 	if err != nil {
@@ -207,7 +205,7 @@ func TestCapabilityMatchingRequiresExactRefsAndSelectedTools(t *testing.T) {
 	registerReadyWith(t, registry, registration)
 	_, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-1", StageExecutionID: "stage-1",
-		Bindings: []BindingRequirement{{LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t)}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("missing selected tool reservation error = %v", err)
@@ -236,7 +234,7 @@ func TestInjectedOrderingIsDeterministic(t *testing.T) {
 	registerReady(t, registry, "agent-2")
 	reservation, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-order", StageExecutionID: "stage-order",
-		Bindings: []BindingRequirement{{LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t)}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil || reservation[0].Grant.RuntimeInstanceID != "agent-2" {
 		t.Fatalf("ordered reservation = (%+v, %v)", reservation, err)
@@ -293,9 +291,7 @@ func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {
 	registerReady(t, registry, "agent-1")
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-lease", StageExecutionID: "stage-lease",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -351,9 +347,7 @@ func TestReservationAllowsIdleOnlyUntilAllocationIsObservedActive(t *testing.T) 
 	registerReady(t, registry, "agent-1")
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-prepare", StageExecutionID: "stage-prepare",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -410,9 +404,7 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 	registerReadyWith(t, registry, oldRegistration)
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-old", StageExecutionID: "stage-old",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -428,9 +420,7 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 	}
 	_, err = registry.ReserveAll(ReservationRequest{
 		RunID: "run-new", StageExecutionID: "stage-new",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("new instance was offered before reconciliation: %v", err)
@@ -440,9 +430,7 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 	}
 	available, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-new", StageExecutionID: "stage-new-after-release",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil || available[0].Grant.RuntimeInstanceID != "agent-new" {
 		t.Fatalf("new instance after reconciliation = (%+v, %v)", available, err)
@@ -455,9 +443,7 @@ func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T
 	registerReady(t, registry, "agent-1")
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-release", StageExecutionID: "stage-release",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -485,9 +471,7 @@ func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T
 	}
 	if _, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-too-early", StageExecutionID: "stage-too-early",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	}); !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("fenced slot was reused: %v", err)
 	}
@@ -503,9 +487,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	registerReady(t, registry, "agent-1")
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-short", StageExecutionID: "stage-short",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -525,9 +507,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	}
 	if _, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-too-early", StageExecutionID: "stage-too-early-stale-idle",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	}); !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("stale idle observation permitted immediate slot reuse: %v", err)
 	}
@@ -538,9 +518,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	}
 	if _, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-after-confirm", StageExecutionID: "stage-after-idle-confirm",
-		Bindings: []BindingRequirement{{
-			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
-		}},
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
 	}); err != nil {
 		t.Fatalf("confirmed idle slot was not reusable: %v", err)
 	}
@@ -559,9 +537,35 @@ func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	return template
 }
 
+func testBinding(
+	t *testing.T,
+	logicalAgentName string,
+	namespace string,
+	template contracts.ResolvedAgentTemplate,
+) BindingRequirement {
+	t.Helper()
+	snapshot, err := config.Load("../config/testdata/valid", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return BindingRequirement{
+		LogicalAgentName: logicalAgentName,
+		Namespace:        namespace,
+		AgentTemplate:    template,
+		ExecutionConfig: AllocationExecutionConfig{
+			ModelPolicy: template.ModelPolicy.Ref,
+			LLMGateway:  gateway.Ref,
+		},
+	}
+}
+
 func testRegistration(instanceID string) contracts.AgentRegistration {
 	return contracts.AgentRegistration{
-		APIVersion: contracts.APIVersion, InstanceID: instanceID,
+		APIVersion: contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 		ControlURL:        "https://" + instanceID + ".example:9443",
 		A2AURL:            "https://" + instanceID + ".example:9444",

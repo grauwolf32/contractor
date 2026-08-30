@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -50,6 +51,10 @@ type RunWriter interface {
 
 type MetricsReader interface {
 	GetStageMetrics(context.Context, string) (telemetry.StageMetricsRecord, error)
+}
+
+type OperationsReader interface {
+	SnapshotOperations() controlplane.OperationsSnapshot
 }
 
 // UnitOfWork supplies transaction-bound Run and Artifact stores. The callback
@@ -102,6 +107,7 @@ type Dependencies struct {
 	Runs                   RunReader
 	PlannerPlans           PlannerPlanReader
 	Metrics                MetricsReader
+	Operations             OperationsReader
 	Artifacts              *artifacts.Service
 	Transactions           UnitOfWork
 	BearerToken            contracts.SecretString
@@ -285,6 +291,29 @@ func (r *createCredentialRequest) UnmarshalJSON(data []byte) error {
 type credentialPageResponse struct {
 	Items []credentials.Record `json:"items"`
 	Page  pageInfoResponse     `json:"page"`
+}
+
+type operationsCursorResponse struct {
+	Generation string `json:"generation"`
+	Revision   string `json:"revision"`
+}
+
+type operationsSnapshotResponse struct {
+	Cursor        operationsCursorResponse               `json:"cursor"`
+	RuntimeAgents []controlplane.RuntimeAgentObservation `json:"runtimeAgents"`
+	Allocations   []controlplane.AllocationObservation   `json:"allocations"`
+}
+
+type runtimeAgentPageResponse struct {
+	Cursor operationsCursorResponse               `json:"cursor"`
+	Items  []controlplane.RuntimeAgentObservation `json:"items"`
+	Page   pageInfoResponse                       `json:"page"`
+}
+
+type allocationPageResponse struct {
+	Cursor operationsCursorResponse             `json:"cursor"`
+	Items  []controlplane.AllocationObservation `json:"items"`
+	Page   pageInfoResponse                     `json:"page"`
 }
 
 type workflowSummaryResponse struct {

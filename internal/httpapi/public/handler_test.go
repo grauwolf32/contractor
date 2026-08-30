@@ -34,6 +34,7 @@ type handlerFixture struct {
 	metrics     *fakeMetricsReader
 	plans       *fakePlannerPlanReader
 	credentials *fakeManagedCredentials
+	operations  *fakeOperationsReader
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -58,10 +59,12 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	managedCredentials := newFakeManagedCredentials()
+	operations := newFakeOperationsReader()
 	handler, err := NewHandler(Dependencies{
 		Config: manager, ConfigurationPublisher: manager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service, Transactions: unit,
+		Operations:   operations,
 		Metrics:      metrics,
 		PlannerPlans: plans,
 		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
@@ -79,6 +82,7 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 		credentials: managedCredentials,
+		operations:  operations,
 	}
 }
 

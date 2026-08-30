@@ -28,6 +28,7 @@ type ToolsetCapability struct {
 type AgentRegistration struct {
 	APIVersion               string              `json:"apiVersion"`
 	InstanceID               string              `json:"instanceId"`
+	SoftwareVersion          string              `json:"softwareVersion"`
 	StartedAt                time.Time           `json:"startedAt"`
 	ControlURL               string              `json:"controlUrl"`
 	A2AURL                   string              `json:"a2aUrl"`
@@ -63,6 +64,10 @@ func (r AgentRegistration) Validate() error {
 	}
 	if err := validateOpaqueID("instanceId", r.InstanceID); err != nil {
 		return err
+	}
+	if len(r.SoftwareVersion) == 0 || len(r.SoftwareVersion) > 128 ||
+		!versionPattern.MatchString(r.SoftwareVersion) {
+		return invalidf("softwareVersion must be a bounded version string")
 	}
 	if r.StartedAt.IsZero() {
 		return invalidf("startedAt must not be zero")

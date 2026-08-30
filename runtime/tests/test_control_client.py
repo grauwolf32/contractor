@@ -37,6 +37,7 @@ def test_registration_commits_idle_and_uses_server_timing() -> None:
         assert (await state.snapshot()).process_state is ProcessState.IDLE
         assert transport.requests[0][0] == "/private/v1/agents/register"
         assert transport.requests[0][1]["instanceId"] == "runtime-register"
+        assert transport.requests[0][1]["softwareVersion"] == "0.1.0"
 
     asyncio.run(scenario())
 

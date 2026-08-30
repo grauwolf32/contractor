@@ -156,6 +156,7 @@ class ToolsetCapability(WireModel):
 
 class AgentRegistration(VersionedWireModel):
     instance_id: str
+    software_version: str = Field(min_length=1, max_length=128, pattern=VERSION_PATTERN.pattern)
     started_at: datetime
     control_url: str
     a2a_url: str

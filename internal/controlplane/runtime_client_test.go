@@ -191,6 +191,11 @@ func TestFinalizeAllFencesBeforeRuntimeAndReleaseRetainsFailedGrant(t *testing.T
 	if !slices.Equal(registry.fenced, []string{"allocation_1", "allocation_2"}) {
 		t.Fatalf("fences = %v", registry.fenced)
 	}
+	if !slices.Equal(registry.phases, []allocationPhaseRecord{
+		{"allocation_1", AllocationFinalizing}, {"allocation_2", AllocationFinalizing},
+	}) || !slices.Equal(registry.reports, []string{"allocation_1", "allocation_2"}) {
+		t.Fatalf("observed lifecycle = phases %v, reports %v", registry.phases, registry.reports)
+	}
 	if err := controller.ReleaseAll(context.Background(), reservations); err == nil {
 		t.Fatal("ReleaseAll accepted a Runtime Agent release failure")
 	}
@@ -286,10 +291,34 @@ func (r *recordingRuntime) Release(_ context.Context, reservation Reservation) e
 type recordingAllocationRegistry struct {
 	fenced   []string
 	released []string
+	phases   []allocationPhaseRecord
+	reports  []string
+}
+
+type allocationPhaseRecord struct {
+	allocationID string
+	phase        AllocationAuthoritativePhase
 }
 
 func (r *recordingAllocationRegistry) SetWriteFence(allocationID string) error {
 	r.fenced = append(r.fenced, allocationID)
+	return nil
+}
+
+func (r *recordingAllocationRegistry) SetAllocationPhase(
+	allocationID string,
+	phase AllocationAuthoritativePhase,
+	_ *SafeReason,
+) error {
+	r.phases = append(r.phases, allocationPhaseRecord{allocationID, phase})
+	return nil
+}
+
+func (r *recordingAllocationRegistry) RecordAllocationReport(
+	allocationID string,
+	_ contracts.AllocationFinalReport,
+) error {
+	r.reports = append(r.reports, allocationID)
 	return nil
 }
 

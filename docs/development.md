@@ -390,6 +390,26 @@ creation time. LiteLLM's generated virtual key is encrypted immediately in
 PostgreSQL. Select `managed-worker` in Workflow or Run `executionConfig`; keep
 the development token environment variables unset when testing this path.
 
+The read-only Operations API exposes one coherent current Control Plane view:
+
+```shell
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  http://127.0.0.1:8080/v1/operations/snapshot | jq .
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/runtime-agents?limit=50' | jq .
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/allocations?limit=50' | jq .
+```
+
+Each response carries the process generation and revision used later by the
+Operations WebSocket. Page cursors are bound to that pair and return a safe
+`400 invalid_request` after concurrent state change; restart pagination from a
+fresh snapshot. These endpoints cannot release, fence, reassign or otherwise
+mutate an allocation.
+
 In the second terminal, start the single-slot Runtime Agent:
 
 ```shell

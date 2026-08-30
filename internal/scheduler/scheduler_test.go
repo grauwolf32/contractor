@@ -1592,7 +1592,8 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
-		AgentTemplate: binding.AgentTemplate, LeaseExpiresAt: a.clock.now.Add(time.Minute),
+		AgentTemplate: binding.AgentTemplate, ExecutionConfig: binding.ExecutionConfig,
+		LeaseExpiresAt: a.clock.now.Add(time.Minute),
 	}
 }
 
@@ -1602,6 +1603,7 @@ func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Rese
 		RunID: "run-1", StageExecutionID: stageExecutionID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
+			ExecutionConfig: bindingRequirements(a.workflow.Stages[a.workflow.EntryStage])[0].ExecutionConfig,
 		}},
 	})
 }

@@ -165,6 +165,30 @@ reassign an allocation, mark a Stage successful or bypass bounded abort/release.
 Explicit administrative recovery operations, if later required, need separate
 idempotent Server commands and audit contracts.
 
+The REST snapshot is mutex-consistent with the in-process Control Plane
+registry and carries a random process generation plus an unsigned decimal
+revision. Observable registration, heartbeat, reservation, lifecycle, report
+or release changes advance that revision. A Server restart changes the
+generation. Pagination cursors pin both values and fail closed when either is
+stale, causing the UI to fetch a new snapshot. This is a current-state view,
+not durable allocation history: an allocation disappears after authoritative
+release.
+
+`lastAcceptedHeartbeat` and `confirmedLeaseUntil` are absent between a new
+registration and the corresponding first accepted/confirmed heartbeat; the
+snapshot does not manufacture either timestamp from registration time.
+
+Observed and authoritative fields remain separate. A reserved allocation with
+an idle observation is `reserved`; an observed `allocated` Runtime proves that
+the Worker role was prepared but does not prove that an A2A call is currently
+executing. Therefore allocation `observedPhase` reports `prepared`, not a
+guessed `busy`. The derived slot may still be `busy` because the allocation
+exclusively owns that single slot. A fenced observation remains visible beside
+an unreleased authoritative allocation during reconciliation. Until a final
+Runtime report arrives, allocation metrics are an incomplete zero aggregate;
+only safe counters and the exhausted budget dimension are retained in this
+live projection.
+
 ## Published LLM configuration
 
 Run creation never accepts free-form model names, budgets, Gateway URLs or

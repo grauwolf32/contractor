@@ -946,6 +946,10 @@ func verifyReservations(
 		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
 			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
+			!sameAllocationExecutionConfig(
+				reservation.ExecutionConfig,
+				allocationExecutionConfig(workflow.stage, grant.LogicalAgentName),
+			) ||
 			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}

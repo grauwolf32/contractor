@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from contractor_runtime import __version__
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentHeartbeat,
@@ -78,6 +79,7 @@ class RuntimeState:
             return AgentRegistration(
                 apiVersion=API_VERSION,
                 instanceId=self._instance_id,
+                softwareVersion=__version__,
                 startedAt=self._started_at,
                 controlUrl=settings.advertised_control_url,
                 a2aUrl=settings.advertised_a2a_url,

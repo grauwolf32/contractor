@@ -1,0 +1,184 @@
+package controlplane
+
+import (
+	"encoding/json"
+	"errors"
+	"math"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
+
+func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-operations")
+	template := testTemplate(t)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-operations", StageExecutionID: "stage-operations",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+
+	reserved := registry.SnapshotOperations()
+	if len(reserved.RuntimeAgents) != 1 || len(reserved.Allocations) != 1 ||
+		reserved.RuntimeAgents[0].SlotState != SlotReserved ||
+		reserved.RuntimeAgents[0].ObservedState != contracts.AgentIdle ||
+		reserved.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
+		*reserved.RuntimeAgents[0].AuthoritativeAllocationID != allocationID ||
+		reserved.RuntimeAgents[0].CurrentAllocationID != nil ||
+		reserved.Allocations[0].AuthoritativePhase != AllocationPreparing ||
+		reserved.Allocations[0].ObservedPhase != AllocationObservedAbsent ||
+		reserved.Allocations[0].Metrics.ReportsComplete {
+		t.Fatalf("reserved Operations snapshot = %+v", reserved)
+	}
+	if reserved.RuntimeAgents[0].SoftwareVersion != "0.1.0" ||
+		reserved.RuntimeAgents[0].ConfirmedLeaseUntil == nil {
+		t.Fatalf("Runtime observation lacks reported version/lease: %+v", reserved.RuntimeAgents[0])
+	}
+
+	if err := registry.SetAllocationPhase(allocationID, AllocationActive, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: contracts.AgentAllocated,
+		AllocationID: &allocationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	active := registry.SnapshotOperations()
+	if active.RuntimeAgents[0].SlotState != SlotBusy ||
+		active.Allocations[0].AuthoritativePhase != AllocationActive ||
+		active.Allocations[0].ObservedPhase != AllocationObservedPrepared {
+		t.Fatalf("active Operations snapshot = %+v", active)
+	}
+
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	reason := SafeReason{Code: "planner_cancelled", Retryable: true}
+	if err := registry.SetAllocationPhase(allocationID, AllocationAborting, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
+		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: contracts.AgentFenced,
+		AllocationID: &allocationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fenced := registry.SnapshotOperations()
+	agent := fenced.RuntimeAgents[0]
+	allocation := fenced.Allocations[0]
+	if agent.ObservedState != contracts.AgentFenced || agent.SlotState != SlotFenced ||
+		agent.CurrentAllocationID == nil || *agent.CurrentAllocationID != allocationID ||
+		agent.AuthoritativeAllocationID == nil || *agent.AuthoritativeAllocationID != allocationID ||
+		agent.ReconciliationReason == nil ||
+		allocation.AuthoritativePhase != AllocationAborting ||
+		allocation.ObservedPhase != AllocationObservedFenced || allocation.Reason == nil ||
+		allocation.Reason.Code != "planner_cancelled" {
+		t.Fatalf("fenced Operations snapshot collapsed authorities: %+v", fenced)
+	}
+	if fenced.Cursor.Generation != reserved.Cursor.Generation ||
+		fenced.Cursor.Revision <= reserved.Cursor.Revision {
+		t.Fatalf("snapshot cursor did not advance monotonically: reserved=%+v fenced=%+v", reserved.Cursor, fenced.Cursor)
+	}
+}
+
+func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-report")
+	template := testTemplate(t)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-report", StageExecutionID: "stage-report",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	modelCalls, toolCalls, toolFailures := int64(2), int64(3), int64(1)
+	exhausted := "tool_calls"
+	now := time.Now().UTC()
+	report := contracts.AllocationFinalReport{
+		ReportID: "allocation-final-report", AllocationID: allocationID,
+		StartedAt: now.Add(-time.Second), FinishedAt: now,
+		Worker: contracts.ExecutionReport{
+			ReportID: "worker-report", Complete: true,
+			Metrics: contracts.ExecutionMetrics{
+				ModelCalls: &modelCalls,
+				Tools: map[string]contracts.ToolMetrics{
+					"write_artifact": {Calls: &toolCalls, Failed: &toolFailures},
+				},
+				WorkerBudget: &contracts.WorkerBudgetMetrics{
+					MaxModelCalls: 4, MaxToolCalls: 3, MaxTotalTokens: 100,
+					ObservedModelCalls: 2, ObservedToolCalls: 3, ObservedTotalTokens: 50,
+					Exhausted: &exhausted,
+				},
+			},
+			ToolCalls: []contracts.ToolCallRecord{},
+			Errors: []contracts.ExecutionError{{
+				Code: "provider_error", Message: "must-not-appear-provider-body",
+			}},
+		},
+		Runtime: contracts.RuntimeReport{Complete: true},
+	}
+	if err := registry.RecordAllocationReport(allocationID, report); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := registry.SnapshotOperations()
+	metrics := snapshot.Allocations[0].Metrics
+	if !metrics.ReportsComplete || metrics.ModelCalls != 2 || metrics.ToolCalls != 3 ||
+		metrics.ToolFailures != 1 || metrics.ErrorCount != 1 ||
+		snapshot.Allocations[0].ExhaustedDimension == nil ||
+		*snapshot.Allocations[0].ExhaustedDimension != exhausted {
+		t.Fatalf("safe allocation aggregate = %+v", snapshot.Allocations[0])
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "must-not-appear-provider-body") ||
+		strings.Contains(string(encoded), "provider_error") {
+		t.Fatalf("Operations snapshot leaked report detail: %s", encoded)
+	}
+	beforeOverflow := snapshot.Cursor
+	maximum := int64(math.MaxInt64)
+	overflow := report
+	overflow.ReportID = "allocation-final-overflow"
+	overflow.Worker.ReportID = "worker-overflow"
+	overflow.Worker.Metrics = contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{
+		"first": {Calls: &maximum}, "second": {Calls: &maximum},
+	}}
+	if err := registry.RecordAllocationReport(allocationID, overflow); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("overflowing aggregate error = %v", err)
+	}
+	afterOverflow := registry.SnapshotOperations()
+	if afterOverflow.Cursor != beforeOverflow || afterOverflow.Allocations[0].Metrics != metrics {
+		t.Fatalf("overflowing aggregate mutated snapshot: %+v", afterOverflow)
+	}
+}
+
+func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-z")
+	registerReady(t, registry, "agent-a")
+	first := registry.SnapshotOperations()
+	second := registry.SnapshotOperations()
+	if first.Cursor.Generation == "" || first.Cursor != second.Cursor ||
+		len(first.RuntimeAgents) != 2 || first.RuntimeAgents[0].InstanceID != "agent-a" ||
+		first.RuntimeAgents[1].InstanceID != "agent-z" {
+		t.Fatalf("stable ordered snapshot = first %+v second %+v", first, second)
+	}
+	first.RuntimeAgents[0].SoftwareVersion = "mutated"
+	third := registry.SnapshotOperations()
+	if third.RuntimeAgents[0].SoftwareVersion != "0.1.0" || third.Cursor != second.Cursor {
+		t.Fatalf("caller mutated authoritative snapshot: %+v", third)
+	}
+}

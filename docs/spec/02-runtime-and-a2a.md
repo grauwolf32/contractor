@@ -62,17 +62,29 @@ The minimal registration describes:
 ```text
 RuntimeAgentRegistration
   instance_id
+  software_version
+  started_at
   control endpoint
   A2A endpoint
+  supported WorkerRuntime, Toolset/tool and SandboxProfile capabilities
+  observed_state
+  allocation_id?
   private protocol version
 ```
 
+`software_version` is a bounded version string reported by the Runtime Agent
+binary itself. It is observation metadata for Operations and diagnostics; the
+Server neither substitutes its own build version nor treats this string as a
+placement capability or trust assertion.
+
 Registration with the same `instance_id` is idempotent. The `instance_id` is a
 correlation and routing identity, not an authentication credential; mTLS
-authenticates the agent. Control Plane records the last-seen request, issued and
-confirmed heartbeat sequences, plus the single-slot state for the live
-instance. The initial homogeneous fleet does not advertise per-agent capability
-allowlists.
+authenticates the agent. Control Plane records the last accepted
+registration/heartbeat request, issued and confirmed heartbeat sequences, plus
+observed and authoritative single-slot facts for the live instance. Placement
+checks the explicitly reported exact runtime, tool and sandbox capabilities;
+those capabilities do not grant a different authorization role to otherwise
+equal CA-trusted Runtime Agents.
 
 A restarted Runtime Agent registers with a new `instance_id`. It cannot adopt a
 Worker or allocation belonging to its previous process instance. The old

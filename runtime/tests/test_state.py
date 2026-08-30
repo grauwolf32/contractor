@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from contractor_runtime import __version__
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -22,6 +23,7 @@ def test_idle_is_committed_only_after_registration_ack(tmp_path: Path) -> None:
         state = RuntimeState(instance_id="runtime-fixed")
         registration = await state.registration(make_settings())
         assert registration.observed_state.value == "idle"
+        assert registration.software_version == __version__
         advertised = {
             capability.ref: set(capability.tools) for capability in registration.supported_toolsets
         }

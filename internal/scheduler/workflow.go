@@ -191,7 +191,35 @@ func bindingRequirements(stage workflowconfig.ResolvedStage) []controlplane.Bind
 			LogicalAgentName: name,
 			Namespace:        binding.Namespace,
 			AgentTemplate:    binding.Template,
+			ExecutionConfig:  allocationExecutionConfig(stage, name),
 		})
 	}
 	return result
+}
+
+func allocationExecutionConfig(
+	stage workflowconfig.ResolvedStage,
+	logicalAgentName string,
+) controlplane.AllocationExecutionConfig {
+	selection := stage.ExecutionConfig.Agents[logicalAgentName]
+	result := controlplane.AllocationExecutionConfig{
+		ModelPolicy: selection.ModelPolicy.Ref,
+		LLMGateway:  selection.LLMGateway.Ref,
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result
+}
+
+func sameAllocationExecutionConfig(
+	left controlplane.AllocationExecutionConfig,
+	right controlplane.AllocationExecutionConfig,
+) bool {
+	if left.ModelPolicy != right.ModelPolicy || left.LLMGateway != right.LLMGateway {
+		return false
+	}
+	return left.Credential == nil && right.Credential == nil ||
+		left.Credential != nil && right.Credential != nil && *left.Credential == *right.Credential
 }

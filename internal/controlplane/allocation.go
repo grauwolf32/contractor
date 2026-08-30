@@ -18,6 +18,7 @@ type BindingRequirement struct {
 	LogicalAgentName string
 	Namespace        string
 	AgentTemplate    contracts.ResolvedAgentTemplate
+	ExecutionConfig  AllocationExecutionConfig
 }
 
 type ReservationRequest struct {
@@ -59,9 +60,10 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
-	Grant          AllocationGrant
-	ControlURL     string
-	A2AURL         string
-	AgentTemplate  contracts.ResolvedAgentTemplate
-	LeaseExpiresAt time.Time
+	Grant           AllocationGrant
+	ControlURL      string
+	A2AURL          string
+	AgentTemplate   contracts.ResolvedAgentTemplate
+	ExecutionConfig AllocationExecutionConfig
+	LeaseExpiresAt  time.Time
 }

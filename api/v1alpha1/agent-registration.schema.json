@@ -3,10 +3,11 @@
   "$id": "https://contractor.local/schema/v1alpha1/agent-registration.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "instanceId", "startedAt", "controlUrl", "a2aUrl", "supportedRuntimes", "supportedToolsets", "supportedSandboxProfiles", "observedState"],
+  "required": ["apiVersion", "instanceId", "softwareVersion", "startedAt", "controlUrl", "a2aUrl", "supportedRuntimes", "supportedToolsets", "supportedSandboxProfiles", "observedState"],
   "properties": {
     "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
     "instanceId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+    "softwareVersion": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
     "startedAt": {"$ref": "common.schema.json#/$defs/timestamp"},
     "controlUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
     "a2aUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},

@@ -728,7 +728,7 @@ paths:
       operationId: getOperationsSnapshot
       tags: [Operations]
       summary: Get one coherent Runtime Agent and allocation observation snapshot
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       responses:
         '200':
           description: Process-generation-bound Operations snapshot
@@ -747,7 +747,7 @@ paths:
       operationId: listRuntimeAgents
       tags: [Operations]
       summary: List Runtime Agent observations from one coherent snapshot
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -769,7 +769,7 @@ paths:
       operationId: listAllocations
       tags: [Operations]
       summary: List authoritative and observed allocation state
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -1989,10 +1989,10 @@ components:
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
-      required: [instanceId, softwareVersion, observedState, slotState, lastAcceptedHeartbeat, confirmedLeaseUntil]
+      required: [instanceId, softwareVersion, observedState, slotState]
       properties:
         instanceId: {$ref: '#/components/schemas/ResourceId'}
-        softwareVersion: {type: string, minLength: 1, maxLength: 128}
+        softwareVersion: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'}
         observedState: {enum: [idle, allocated, draining, fenced]}
         slotState: {enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}
@@ -2003,7 +2003,7 @@ components:
     AllocationObservation:
       type: object
       additionalProperties: false
-      required: [allocationId, runId, stageExecutionId, logicalWorker, agentTemplate, executionConfig, authoritativePhase, observedPhase, metrics]
+      required: [allocationId, runId, stageExecutionId, runtimeAgentInstanceId, logicalWorker, agentTemplate, executionConfig, authoritativePhase, observedPhase, metrics]
       properties:
         allocationId: {$ref: '#/components/schemas/ResourceId'}
         runId: {$ref: '#/components/schemas/ResourceId'}
@@ -2012,8 +2012,10 @@ components:
         logicalWorker: {$ref: '#/components/schemas/ConfigId'}
         agentTemplate: {$ref: '#/components/schemas/AgentTemplateRef'}
         executionConfig: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
-        authoritativePhase: {enum: [preparing, active, finalizing, aborting, releasing, released]}
-        observedPhase: {enum: [absent, prepared, busy, draining, released, fenced]}
+        authoritativePhase: {enum: [preparing, active, finalizing, aborting, releasing]}
+        observedPhase:
+          description: Allocated proves preparation, not that an A2A call is currently executing.
+          enum: [absent, prepared, draining, fenced]
         reason: {$ref: '#/components/schemas/SafeReason'}
         metrics: {$ref: '#/components/schemas/MetricsSummary'}
         exhaustedDimension: {enum: [model_calls, tool_calls, total_tokens, worker_calls, wall_time]}

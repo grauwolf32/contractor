@@ -435,6 +435,8 @@ func ensureRuntimeJSONEOF(decoder *json.Decoder) error {
 
 type AllocationRegistry interface {
 	SetWriteFence(string) error
+	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
+	RecordAllocationReport(string, contracts.AllocationFinalReport) error
 	Release(string) error
 }
 
@@ -499,6 +501,13 @@ func (c *RuntimeBatchController) PrepareAll(
 			cleanupErr := c.cleanupFailedPrepare(reservations)
 			return nil, errors.Join(prepareErr, cleanupErr)
 		}
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationActive, nil,
+		); err != nil {
+			prepareErr := fmt.Errorf("observe prepared logical Agent %q: %w", logicalName, err)
+			cleanupErr := c.cleanupFailedPrepare(reservations)
+			return nil, errors.Join(prepareErr, cleanupErr)
+		}
 		handles[reservation.Grant.LogicalAgentName] = handle
 	}
 	if len(settings) != len(reservations) {
@@ -521,6 +530,11 @@ func (c *RuntimeBatchController) FinalizeAll(
 		if err := c.registry.SetWriteFence(reservation.Grant.AllocationID); err != nil {
 			failures = append(failures, fmt.Errorf("fence allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationFinalizing, nil,
+		); err != nil {
+			failures = append(failures, fmt.Errorf("observe finalizing allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
 	}
 	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
@@ -528,6 +542,9 @@ func (c *RuntimeBatchController) FinalizeAll(
 		if err != nil {
 			failures = append(failures, fmt.Errorf("finalize allocation %q: %w", reservation.Grant.AllocationID, err))
 			continue
+		}
+		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, report); err != nil {
+			failures = append(failures, fmt.Errorf("observe final report for allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 		reports[reservation.Grant.LogicalAgentName] = report
 	}
@@ -546,14 +563,23 @@ func (c *RuntimeBatchController) AbortAll(
 	}
 	var failures []error
 	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
+	safeReason := safeTerminationReason(reason)
 	for _, reservation := range reservations {
 		if err := c.registry.SetWriteFence(reservation.Grant.AllocationID); err != nil {
 			failures = append(failures, fmt.Errorf("fence allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationAborting, &safeReason,
+		); err != nil {
+			failures = append(failures, fmt.Errorf("observe aborting allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 		report, err := c.runtime.Abort(ctx, reservation, abortID, reason, deadline)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("abort allocation %q: %w", reservation.Grant.AllocationID, err))
 			continue
+		}
+		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, report); err != nil {
+			failures = append(failures, fmt.Errorf("observe abort report for allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 		reports[reservation.Grant.LogicalAgentName] = report
 	}
@@ -566,6 +592,11 @@ func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []
 	}
 	var failures []error
 	for _, reservation := range reservations {
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationReleasing, nil,
+		); err != nil {
+			failures = append(failures, fmt.Errorf("observe releasing allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
 		if err := c.runtime.Release(ctx, reservation); err != nil {
 			failures = append(failures, fmt.Errorf("release Runtime Agent allocation %q: %w", reservation.Grant.AllocationID, err))
 			continue
@@ -590,11 +621,20 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 		if err := c.registry.SetWriteFence(allocationID); err != nil {
 			failures = append(failures, fmt.Errorf("fence failed prepare allocation %q: %w", allocationID, err))
 		}
+		safeReason := safeTerminationReason(reason)
+		if err := c.registry.SetAllocationPhase(allocationID, AllocationAborting, &safeReason); err != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare allocation %q: %w", allocationID, err))
+		}
 		abortID, err := c.newID("abort_")
 		if err != nil {
 			failures = append(failures, fmt.Errorf("create cleanup abort ID: %w", err))
-		} else if _, err := c.runtime.Abort(ctx, reservation, abortID, reason, deadline); err != nil {
+		} else if report, err := c.runtime.Abort(ctx, reservation, abortID, reason, deadline); err != nil {
 			failures = append(failures, fmt.Errorf("abort failed prepare allocation %q: %w", allocationID, err))
+		} else if err := c.registry.RecordAllocationReport(allocationID, report); err != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare report %q: %w", allocationID, err))
+		}
+		if err := c.registry.SetAllocationPhase(allocationID, AllocationReleasing, nil); err != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare release %q: %w", allocationID, err))
 		}
 		if err := c.runtime.Release(ctx, reservation); err != nil {
 			failures = append(failures, fmt.Errorf("release failed prepare Runtime Agent allocation %q: %w", allocationID, err))
@@ -604,6 +644,14 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func safeTerminationReason(source contracts.TerminationError) SafeReason {
+	result := SafeReason{Code: source.Code, Retryable: source.Retryable}
+	if !validSafeReason(result) {
+		result.Code = "allocation_aborted"
+	}
+	return result
 }
 
 func validateReservationBatch(reservations []Reservation) error {

@@ -45,6 +45,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
+		Operations:   newFakeOperationsReader(),
 		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },

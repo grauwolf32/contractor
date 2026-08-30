@@ -9,9 +9,42 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
+
+type fakeOperationsReader struct {
+	mu       sync.Mutex
+	snapshot controlplane.OperationsSnapshot
+}
+
+func newFakeOperationsReader() *fakeOperationsReader {
+	return &fakeOperationsReader{snapshot: controlplane.OperationsSnapshot{
+		Cursor: controlplane.OperationsCursor{
+			Generation: "operations-generation-test",
+		},
+		RuntimeAgents: []controlplane.RuntimeAgentObservation{},
+		Allocations:   []controlplane.AllocationObservation{},
+	}}
+}
+
+func (f *fakeOperationsReader) SnapshotOperations() controlplane.OperationsSnapshot {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := f.snapshot
+	result.RuntimeAgents = make([]controlplane.RuntimeAgentObservation, len(f.snapshot.RuntimeAgents))
+	copy(result.RuntimeAgents, f.snapshot.RuntimeAgents)
+	result.Allocations = make([]controlplane.AllocationObservation, len(f.snapshot.Allocations))
+	copy(result.Allocations, f.snapshot.Allocations)
+	return result
+}
+
+func (f *fakeOperationsReader) set(snapshot controlplane.OperationsSnapshot) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.snapshot = snapshot
+}
 
 type artifactKey struct {
 	kind      artifacts.ScopeKind

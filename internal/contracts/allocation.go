@@ -12,6 +12,8 @@ type AgentTemplateRef struct {
 	Digest     string `json:"digest"`
 }
 
+func (r AgentTemplateRef) ValidateRef() error { return validateTemplateRef(r) }
+
 type WorkerRuntimeRef struct {
 	RuntimeID string `json:"runtimeId"`
 	Version   string `json:"version"`
@@ -21,6 +23,13 @@ type ModelPolicyRef struct {
 	PolicyID string `json:"policyId"`
 	Version  string `json:"version"`
 	Digest   string `json:"digest"`
+}
+
+func (r ModelPolicyRef) ValidateRef() error {
+	if err := validateSelector("modelPolicyRef", r.PolicyID+"@"+r.Version); err != nil {
+		return err
+	}
+	return validateDigest("modelPolicyRef.digest", r.Digest)
 }
 
 type ToolsetRef struct {

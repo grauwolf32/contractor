@@ -50,6 +50,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration-idle-with-allocation.json": AgentRegistration,
+    "agent-registration-oversized-software-version.json": AgentRegistration,
     "agent-heartbeat-missing-allocation.json": AgentHeartbeat,
     "heartbeat-response-unknown-action.json": HeartbeatResponse,
     "llm-gateway-config-secret-field.json": ResolvedLLMGatewayConfig,
@@ -77,6 +78,7 @@ FIXTURE_SCHEMAS = {
     "stage-content-result-success": "stage-content.schema.json",
     "stage-content-result-failure": "stage-content.schema.json",
     "agent-registration-idle-with-allocation": "agent-registration.schema.json",
+    "agent-registration-oversized-software-version": "agent-registration.schema.json",
     "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
     "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
     "llm-gateway-config-secret-field": "llm-gateway-config.schema.json",
