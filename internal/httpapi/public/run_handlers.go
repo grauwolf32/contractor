@@ -157,9 +157,13 @@ func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	var request cancelRunRequest
+	var request *cancelRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		h.handleError(w, err)
+		return
+	}
+	if request == nil {
+		h.handleError(w, fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest))
 		return
 	}
 	if request.Reason != nil {

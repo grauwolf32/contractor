@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -26,6 +26,9 @@ test-contracts:
 test-config:
 	go test ./internal/config/...
 	go run ./cmd/contractor-server config validate --root ./configs
+
+verify-public-api:
+	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative)$$'
 
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)

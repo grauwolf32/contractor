@@ -477,6 +477,7 @@ func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
 		{http.MethodPost, "/v1/runs/owned/cancel?force=true", `{}`, http.StatusBadRequest},
 		{http.MethodPost, "/v1/runs/owned/cancel", `{"reason":" "}`, http.StatusBadRequest},
 		{http.MethodPost, "/v1/runs/owned/cancel", `{"unexpected":true}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `null`, http.StatusBadRequest},
 		{http.MethodGet, "/v1/runs/owned/cancel", `{}`, http.StatusMethodNotAllowed},
 	}
 	for _, test := range tests {
