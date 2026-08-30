@@ -6,7 +6,7 @@ priority: P0
 status: planned
 implementation_commit: null
 depends_on: [V4-001A, V4-002, V4-004]
-languages: [go, python]
+languages: [go, python, json, yaml]
 
 goal: >-
   Provide the public API data needed by Operations and Run-override forms while
@@ -21,18 +21,29 @@ context:
     Stage result, or bypass finalize/abort/release.
   configuration_view: >-
     ModelPolicy and LLMGatewayConfig can be published create-only; Workflow,
-    AgentTemplate, ExecutionConfig, and instructions are list/detail read-only.
-    Credentials can be created/deleted but never edited, disabled, or revealed.
+    AgentTemplate, and ExecutionConfig are list/detail read-only. Instructions
+    retain path identity and expose only ref/digest through their consuming
+    resource; this task must not invent a standalone name/version instruction
+    API. Credentials can be created/deleted but never edited, disabled, or
+    revealed.
+  live_snapshot: >-
+    Runtime Agent and current allocation observations are one process-local,
+    mutex-consistent Control Plane snapshot. Its random generation changes on
+    Server restart and its unsigned revision advances on observable mutation.
+    Released allocations disappear after authoritative release; this is not a
+    durable allocation-history API.
 
 scope:
   in:
-    - Add versioned list/detail DTOs and handlers for all six configuration resource groups with exact refs/digests and safe compatibility metadata.
+    - Complete list/detail DTOs and handlers for Workflow plus the four version-indexed configuration resource groups with exact refs/digests and safe compatibility metadata.
     - Add Runtime Agent snapshot showing instance/software version, observed state, accepted heartbeat, confirmed lease horizon, slot state, and allocation ID.
     - Extend the versioned Runtime Agent registration and Python Runtime Agent with one bounded softwareVersion reported as observation data; do not infer it from the Server build.
     - Add allocation snapshot showing Run/Stage/logical binding/template/effective config refs, lifecycle phase, bounded reason, and safe aggregate metrics.
     - Add credential list/detail/create/delete endpoints backed by the lifecycle service and publication endpoints backed by config service.
     - Use existing domain services for mutations; require idempotency/CAS/audit actor according to the public contract.
     - Add bounded collection sizes, stable ordering, safe not-found/ownership behavior, and coherent snapshot revisions.
+    - Treat observed allocated as prepared unless a distinct Runtime observation exists; never infer an active A2A call from allocation ownership.
+    - Return an incomplete zero safe-metrics summary until a final Runtime report is observed, then retain only its aggregate while the allocation remains current.
   out:
     - Administrative force actions, configuration edit/delete/disable, credential update/disable, raw metrics payloads, or browser-specific state.
 
@@ -62,8 +73,15 @@ acceptance_criteria:
     given: A credential read/list response and all application logs.
     when: Secret canaries are searched.
     then: No generated token, admin key, ciphertext, nonce, or provider body is present.
+  - id: A3
+    given: A Runtime Agent registration and a sequence of allocation lifecycle mutations.
+    when: Go/Python contracts and Operations list/snapshot endpoints are exercised.
+    then: >-
+      The bounded Runtime-reported softwareVersion round-trips, every response
+      is stably ordered and carries one generation/revision cursor, stale page
+      cursors fail closed, and no response invents observed busy state.
 
 tests:
-  - {name: public-api, command: "go test -race ./internal/httpapi/public/... ./internal/controlplane/...", covers: [A1, A2]}
-  - {name: openapi, command: "make verify-public-api", covers: [A1, A2]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2]}
+  - {name: public-api, command: "go test -race ./internal/httpapi/public/... ./internal/controlplane/...", covers: [A1, A2, A3]}
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
