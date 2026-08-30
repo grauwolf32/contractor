@@ -33,10 +33,15 @@ sandbox where a tool requires it.
 This slice must demonstrate:
 
 - Server recursively loads the fixed `workflows`, `agent-templates`,
-  `model-policies` and `llm-gateways` YAML subtrees below `configs/`, plus
-  relative resources under `instructions`; document lookup uses
+  `model-policies` and `llm-gateways` YAML subtrees from the operator and
+  managed configuration roots, plus relative resources under `instructions`;
+  document lookup uses
   `kind + metadata.name + metadata.version`, not the file name, and duplicate
   identities or any invalid dependency reject the complete configuration set;
+- Operations publishes new ModelPolicy and LLMGatewayConfig identities as
+  canonical YAML in the managed root through full-set validation, durable
+  atomic rename and an atomic in-memory snapshot swap; neither root overrides
+  a duplicate identity from the other;
 - Run creation selects an exact Workflow `<id>@<version>`, resolves Workflow
   execution defaults plus reference-only Run overrides, and stores the complete
   per-consumer snapshot; later configuration-file edits cannot reinterpret that

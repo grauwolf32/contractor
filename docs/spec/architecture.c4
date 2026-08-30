@@ -61,6 +61,10 @@ model {
     #external
   }
 
+  configFilesystem = system 'Published YAML — operator + managed roots' {
+    #external
+  }
+
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
@@ -294,6 +298,7 @@ model {
   llmGateway -> llmProvider 'Provider requests'
 
   server.telemetry -> telemetryBackend 'Export when configured'
+  server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
 }
 
 views {
@@ -308,6 +313,7 @@ views {
     include blobBackend
     include llmGateway
     include llmProvider
+    include configFilesystem
     include telemetryBackend
 
     global style ownership

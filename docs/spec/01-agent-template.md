@@ -300,11 +300,11 @@ Rotating a credential creates a new revision for future Runs; changing URL or
 protocol creates a new LLMGatewayConfig version. An active allocation continues
 with the exact in-memory RuntimeSettings snapshot it received.
 
-LLMGatewayConfig manifests live under `configs/llm-gateways/`. Configuration
-loading validates their exact schema and digest before resolving
-`executionConfig`. How the Operations UI publishes manifests and which secret
-store persists credentials are owned by the UI/configuration increment rather
-than by AgentTemplate.
+LLMGatewayConfig manifests live under `configs/llm-gateways/` in either
+configured root. Configuration loading validates their exact schema and digest
+before resolving `executionConfig`. Operations publishes new immutable versions
+only into the managed YAML root according to [06](06-server-ui-and-operations.md).
+The secret-store implementation remains separate from this manifest contract.
 
 ### Toolset and tool selection
 

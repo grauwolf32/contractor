@@ -100,15 +100,30 @@ published configuration
   -> edit typed fields
   -> validate references and consumer compatibility
   -> publish new immutable name@version + digest
-  -> optionally disable it for selection by future Runs
 ```
 
-Disabling a configuration removes it from new-selection lists but does not
-invalidate a Run that already pinned it. Deletion while any retained Workflow
-or Run snapshot references the version is forbidden. Whether drafts and
-published YAML are persisted in a managed filesystem root or a PostgreSQL
-configuration registry remains an explicit open decision below; both must
-produce the same normalized document and digest.
+Published YAML is the source of truth. Server has two configured roots that
+form one logical configuration namespace:
+
+```text
+/etc/contractor/configs/       operator/bootstrap root, normally read-only
+/var/lib/contractor/configs/   Server-managed root for UI publications
+```
+
+The paths are deployment defaults, not hard-coded identities. Local development
+may point both flags at workspace-specific directories. A duplicate
+`kind + metadata.name + metadata.version` across either root invalidates the
+complete set; there is no root precedence and no implicit override. The first
+UI increment publishes only ModelPolicy and LLMGatewayConfig manifests. Existing
+Workflow, AgentTemplate and instruction resources remain operator-authored and
+read-only until their editors receive a separate contract.
+
+UI publication is create-only. It cannot edit, replace, disable or delete an
+existing published identity. Retiring configurations and safe garbage
+collection remain a later operation; an implementation must not approximate
+retirement by silently hiding a file still referenced by a Workflow or Run.
+Drafts are not executable configuration and may be stored separately without
+becoming a source of truth.
 
 Publication atomically adds a complete validated version to the Server's
 current configuration set; readers observe either the set before publication
@@ -116,6 +131,31 @@ or the set including the new version, never partial dependency resolution. It
 does not mutate an existing version and does not require re-resolving existing
 Runs. The current startup-only file loader remains a valid bootstrap/import
 path but is not by itself sufficient for writable Operations UI behavior.
+
+For one publication Server:
+
+1. acquires the single configuration-publication lock;
+2. normalizes the document and validates the complete union of operator,
+   managed and candidate manifests, including refs, consumer compatibility and
+   digests;
+3. writes canonical YAML to a new same-directory temporary file in the managed
+   kind subtree, flushes it, atomically renames it to its stable path and
+   flushes the parent directory;
+4. atomically swaps the in-memory configuration snapshot;
+5. records non-authoritative audit metadata.
+
+No successful response is returned before the file and in-memory snapshot are
+both published. A crash after rename but before snapshot swap is recovered by
+the ordinary startup load. Publication requires an Idempotency-Key: retrying an
+identical identity/body returns that published version, while the same identity
+with different normalized content conflicts. PostgreSQL audit loss cannot
+remove or reinterpret the YAML version.
+
+The client never supplies a filesystem path. Server derives a stable relative
+path from validated kind/name/version, creates parent directories inside the
+dedicated managed root, and rejects symlinks or any resolved escape. Temporary
+and final creation use exclusive/no-follow semantics; an existing destination
+is handled only by the idempotency comparison above.
 
 ## Credential handling
 
@@ -192,8 +232,8 @@ not require changing Run semantics.
 
 ## Open decisions for the next dialogue steps
 
-- managed YAML directory versus PostgreSQL Config Registry as the writable
-  source of truth for UI-authored drafts and published configuration;
+- secret-store encryption and bootstrap-key handling for write-only credential
+  revisions;
 - embedded same-origin UI versus separately deployed frontend;
 - browser authentication and the first user/operations permission split;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;

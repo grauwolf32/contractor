@@ -42,8 +42,9 @@ is the execution authority in the first slice.
 
 ### Configuration files
 
-The configuration/UI slice uses one operator-configured root with five fixed
-manifest subtrees plus instruction resources:
+The configuration/UI slice merges an operator/bootstrap root and a separate
+Server-managed publication root into one logical namespace. Both use the same
+five fixed manifest/resource subtrees:
 
 ```text
 configs/
@@ -55,29 +56,35 @@ configs/
 ```
 
 The local loader recursively discovers regular files ending in `.yaml` below
-the first four subtrees. Each file contains exactly one non-empty YAML
-document; multi-document streams are invalid. Its `kind` must match its
-subtree. The loader rejects duplicate YAML mapping keys and validates the exact
-schema selected by `apiVersion` and `kind` rather than retaining unknown
-fields.
+the first four subtrees in either root. Each file contains exactly one
+non-empty YAML document; multi-document streams are invalid. Its `kind` must
+match its subtree. The loader rejects duplicate YAML mapping keys and validates
+the exact schema selected by `apiVersion` and `kind` rather than retaining
+unknown fields.
 
 Every YAML manifest has the envelope `apiVersion`, `kind`, `metadata` and
 `spec`. `metadata` contains mandatory `name` and `version`, using respectively
 the shared selector `id` and `version` grammars below. The configuration lookup
 key is `(kind, metadata.name, metadata.version)`. File name and nesting below
-the kind subtree are organizational only; two files with the same lookup key
-make the complete configuration set invalid.
+the kind subtree are organizational only; two files with the same lookup key in
+one root or across both roots make the complete configuration set invalid.
+There is no precedence or last-writer-wins overlay.
 
-Configuration loading is all-or-nothing. Server first loads and validates
-ModelPolicies and LLMGatewayConfigs, then resolves AgentTemplates, and finally
-resolves Workflows. It publishes no partially resolved in-memory configuration
-set if any manifest, instruction ref or cross-document selector is invalid. The
-baseline performs this process only at startup.
+Configuration loading and UI publication are all-or-nothing. Server first
+loads and validates ModelPolicies and LLMGatewayConfigs, then resolves
+AgentTemplates, and finally resolves Workflows. It publishes no partially
+resolved in-memory configuration set if any manifest, instruction ref or
+cross-document selector is invalid. At startup it loads the complete union. At
+runtime Operations may create a new immutable ModelPolicy or LLMGatewayConfig
+version only in the managed root using the atomic publication contract in
+[06](06-server-ui-and-operations.md); it cannot replace an existing identity.
 
-Instruction resources retain a different identity rule: their normalized path
-relative to the configuration root, such as
+Instruction resources retain a different identity rule: their normalized
+logical path below `instructions/`, such as
 `instructions/openapi/planner.md`, is the ref embedded into the resolved parent
 document. They need not be YAML and are not indexed by `kind/name/version`.
+The two roots form one instruction namespace as well; the same normalized path
+in both roots is invalid rather than an override.
 Toolsets, SandboxProfiles, WorkerRuntime factories and Planner factories are
 registered code plus Server-visible descriptors, not additional configuration
 subtrees.
