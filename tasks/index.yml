@@ -143,6 +143,11 @@ current_planning_review:
     - >-
       Every new task is self-contained, names concrete production and test
       deliverables, and retains the full implementation-commit rule above.
+    - >-
+      Credential work is split into encrypted persistence (V4-003), generic
+      recoverable lifecycle/public API (V4-003A), and the concrete bounded
+      LiteLLM adapter (V4-004), so crypto, state transitions and HTTP behavior
+      have independent gates.
   accepted_risks:
     - >-
       The first PlannerPlan intentionally omits legacy decomposition, skip and
@@ -278,6 +283,7 @@ tasks:
   - {id: V4-001A, file: v4-001a-public-query-api.yml}
   - {id: V4-002, file: v4-002-managed-config-publication.yml}
   - {id: V4-003, file: v4-003-encrypted-credential-store.yml}
+  - {id: V4-003A, file: v4-003a-credential-lifecycle.yml}
   - {id: V4-004, file: v4-004-litellm-key-manager.yml}
   - {id: V4-005, file: v4-005-operations-api.yml}
   - {id: V4-006, file: v4-006-browser-session-security.yml}
