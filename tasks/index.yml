@@ -103,15 +103,17 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-001
-  next_task: V3-002
+  completed_through: V3-002
+  next_task: V3-003
   summary: >-
     The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
     foundation are complete. Model-backed Planner completion now uses one
     validated finish operation for succeeded or failed candidates; the model
-    has no Workflow-escalate tool and Scheduler remains the transition owner.
-    The next increment introduces the bounded typed PlannerPlan before changing
-    Streamline dispatch and adding Router.
+    has no Workflow-escalate tool and Scheduler remains the transition owner. A
+    typed in-memory PlannerPlan now owns immutable global/subtask text, ordered
+    decimal IDs, current status, dispatch fencing, and finish preconditions.
+    The next increment replaces transitional per-Worker functions with the
+    final one-Worker execute_current_subtask(subtask_id) Streamline contract.
 
 current_planning_review:
   reviewed_on: "2026-08-30"

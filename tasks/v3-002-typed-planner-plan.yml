@@ -3,8 +3,8 @@ id: V3-002
 title: Add a bounded typed PlannerPlan state machine
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "2c64cee2117dbc99829021becc1f7a8db2d42baf"
 depends_on: [V3-001]
 languages: [go]
 
@@ -87,3 +87,27 @@ notes:
     A later schema version may add decomposition and skip. The initial status
     set is deliberately small enough to make recovery and UI projection
     deterministic.
+
+completion:
+  evidence:
+    - >-
+      A concurrency-safe framework-neutral controller owns immutable Stage
+      objective, decimal subtask IDs, ordered current state, generated dispatch
+      call IDs, deep snapshots, and every status transition.
+    - >-
+      Streamline exposes bounded add_subtask/list_subtasks tools and requires an
+      exact current subtask_id before the existing Worker-specific adapter can
+      cross A2A; stale IDs produce no Worker invocation or plan revision.
+    - >-
+      Successful finish is rejected while work remains and accepted after a
+      succeeded subtask, while a failed candidate may report a genuine blocker
+      whenever no dispatch is active.
+    - >-
+      Plan snapshots expose only bounded typed fields and statuses. Durable ADK
+      facts and execution reports retain only allowlisted tool names, bounded
+      sizes, and safe identifiers rather than subtask/tool payloads or runtime
+      placement.
+  verified_by:
+    - go test -race ./internal/planner/... ./tests/integration/streamline/...
+    - likec4 validate docs/spec
+    - make verify
