@@ -457,6 +457,10 @@ func validatePlannerAgentCardinality(planner PlannerRef, agents int) error {
 		if agents != 1 {
 			return fmt.Errorf("%s requires exactly one logical Agent binding; use router@1 for multiple bindings", reference)
 		}
+	case "router@1":
+		if agents < 1 {
+			return fmt.Errorf("router@1 requires at least one logical Agent binding")
+		}
 	default:
 		if agents < 1 {
 			return fmt.Errorf("%s requires at least one logical Agent binding", reference)

@@ -20,7 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func TestDecodeExecutableWorkflowRejectsMultiWorkerSingleWorkerPlanners(t *testing.T) {
+func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
@@ -51,6 +51,11 @@ func TestDecodeExecutableWorkflowRejectsMultiWorkerSingleWorkerPlanners(t *testi
 		if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
 			t.Fatalf("multi-Worker %s error = %v", plannerID, err)
 		}
+	}
+	stage.Planner = workflowconfig.PlannerRef{PlannerID: "router", Version: "1"}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := decode(workflow); err != nil {
+		t.Fatalf("multi-Worker router Workflow was rejected: %v", err)
 	}
 }
 

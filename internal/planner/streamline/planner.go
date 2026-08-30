@@ -26,6 +26,7 @@ import (
 const completionWriteTimeout = time.Second
 
 type streamlinePlanner struct {
+	profile        plannerProfile
 	invocation     planner.Invocation
 	request        contracts.StageContentRequest
 	workers        []workerBinding
@@ -102,13 +103,13 @@ func (p *streamlinePlanner) Run(
 	}
 	sort.Strings(allowedNames)
 	adkSessions, err := p.adkSessions.NewADKSession(ctx, identity, plannersession.ADKOptions{
-		AppName: adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: allowedNames,
+		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: allowedNames,
 	})
 	if err != nil {
 		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("create ADK session", err))
 	}
 	if _, err := adkSessions.Create(ctx, &adksession.CreateRequest{
-		AppName: adkAppName, UserID: p.invocation.StageExecutionID,
+		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID,
 		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
 	}); err != nil {
 		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("initialize ADK session", err))
@@ -123,7 +124,7 @@ func (p *streamlinePlanner) Run(
 		)
 	}
 	adkRunner, err := runner.New(runner.Config{
-		AppName: adkAppName, Agent: root, SessionService: adkSessions,
+		AppName: p.profile.adkAppName, Agent: root, SessionService: adkSessions,
 	})
 	if err != nil {
 		return contracts.StageContentResult{}, p.fail(
@@ -217,8 +218,8 @@ func (p *streamlinePlanner) newRootAgent(
 ) (agent.Agent, error) {
 	temperature := float32(0)
 	return llmagent.New(llmagent.Config{
-		Name: "streamline_planner", Model: p.model,
-		Description: "Plans one immutable Contractor Stage using only its fixed prepared Workers.",
+		Name: p.profile.agentName, Model: p.model,
+		Description: p.profile.agentDescription,
 		InstructionProvider: func(agent.ReadonlyContext) (string, error) {
 			return p.systemInstruction(), nil
 		},
@@ -298,6 +299,9 @@ func clonePromptArtifacts(
 }
 
 func (p *streamlinePlanner) systemInstruction() string {
+	if p.profile.routesWorkers {
+		return p.routerSystemInstruction()
+	}
 	var mappings []string
 	for _, binding := range p.workers {
 		mappings = append(mappings, fmt.Sprintf("- %s: call %s", binding.logicalName, executeCurrentSubtaskToolName))
@@ -315,6 +319,27 @@ func (p *streamlinePlanner) systemInstruction() string {
 		strings.Join(mappings, "\n"),
 		"Stage-specific operating guidance:",
 		p.request.Instructions,
+	}, "\n\n")
+}
+
+func (p *streamlinePlanner) routerSystemInstruction() string {
+	agents := make([]string, 0, len(p.workers))
+	for _, binding := range p.workers {
+		agents = append(agents, fmt.Sprintf("- %s: %s", binding.logicalName, binding.description))
+	}
+	return strings.Join([]string{
+		"You are the Router Planner for exactly one immutable Contractor Stage.",
+		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed logical Workers, and result contract.",
+		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
+		"Execute Workers sequentially with execute_current_subtask(subtask_id, worker_name). Select worker_name only from Available agents. Server supplies the stored subtask plus every immutable Stage string parameter and exact artifact revision.",
+		"Logical routing is your only selection responsibility. You cannot create Workers, allocate capacity, change the Workflow, observe physical Runtime Agent identities, or rewrite Worker context.",
+		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
+		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
+		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
+		"Stage-specific operating guidance:",
+		p.request.Instructions,
+		"Available agents:",
+		strings.Join(agents, "\n"),
 	}, "\n\n")
 }
 

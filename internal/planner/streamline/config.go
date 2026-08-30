@@ -1,6 +1,6 @@
-// Package streamline implements the bounded, model-backed streamline@1
-// PlannerFactory. Google ADK types do not cross the parent planner.Factory
-// boundary consumed by Workflow Scheduler.
+// Package streamline implements the bounded streamline@1 PlannerFactory and
+// the shared model-backed engine delegated to by router@1. Google ADK types do
+// not cross the parent planner.Factory boundary consumed by Workflow Scheduler.
 package streamline
 
 import (
@@ -57,7 +57,7 @@ func normalizeLimits(value Limits) (Limits, error) {
 		value.MaxTokens <= 0 || value.MaxTokens > 10_000_000 ||
 		value.MaxWorkerCalls <= 0 || value.MaxWorkerCalls > 1_000 ||
 		value.MaxWallTime <= 0 || value.MaxWallTime > 24*time.Hour {
-		return Limits{}, fmt.Errorf("Streamline Planner limits are outside bounded ranges")
+		return Limits{}, fmt.Errorf("model-backed Planner limits are outside bounded ranges")
 	}
 	return value, nil
 }

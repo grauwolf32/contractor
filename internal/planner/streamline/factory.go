@@ -14,7 +14,25 @@ import (
 	adksession "google.golang.org/adk/session"
 )
 
-const adkAppName = "contractor_streamline"
+type plannerProfile struct {
+	ref              string
+	adkAppName       string
+	agentName        string
+	agentDescription string
+	routesWorkers    bool
+}
+
+var (
+	streamlineProfile = plannerProfile{
+		ref: Ref, adkAppName: "contractor_streamline", agentName: "streamline_planner",
+		agentDescription: "Plans one immutable Contractor Stage using its sole prepared Worker.",
+	}
+	routerProfile = plannerProfile{
+		ref: planner.RouterRef, adkAppName: "contractor_router", agentName: "router_planner",
+		agentDescription: "Plans one immutable Contractor Stage and routes each subtask to one fixed logical Worker.",
+		routesWorkers:    true,
+	}
+)
 
 type ADKSessionFactory interface {
 	NewADKSession(
@@ -25,6 +43,7 @@ type ADKSessionFactory interface {
 }
 
 type Factory struct {
+	profile     plannerProfile
 	sessions    planner.SessionService
 	adkSessions ADKSessionFactory
 	invoker     planner.WorkerInvoker
@@ -41,23 +60,49 @@ func NewFactory(
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
+	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, llm, limits)
+}
+
+// NewRouterDelegate creates the shared model-backed engine configured for
+// router@1. The public Router factory wraps this delegate so Scheduler still
+// registers distinct framework-neutral PlannerFactory implementations.
+func NewRouterDelegate(
+	sessions planner.SessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	llm model.LLM,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, llm, limits)
+}
+
+func newFactory(
+	profile plannerProfile,
+	sessions planner.SessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	llm model.LLM,
+	limits Limits,
+) (*Factory, error) {
 	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || llm == nil {
-		return nil, fmt.Errorf("StreamlinePlanner dependencies are incomplete")
+		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
 	normalized, err := normalizeLimits(limits)
 	if err != nil {
 		return nil, err
 	}
 	return &Factory{
-		sessions: sessions, adkSessions: adkSessions, invoker: invoker,
+		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
 		inspector: inspector, model: llm, limits: normalized,
 	}, nil
 }
 
-func (*Factory) Ref() string { return Ref }
+func (f *Factory) Ref() string { return f.profile.ref }
 
 func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error) {
-	bindings, err := validateInvocation(invocation)
+	bindings, err := validateInvocation(f.profile, invocation)
 	if err != nil {
 		return nil, err
 	}
@@ -69,15 +114,17 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}
-	logicalName := bindings[0]
-	binding := invocation.Stage.Agents[logicalName]
-	workers := []workerBinding{{
-		logicalName: logicalName,
-		description: binding.Template.Description,
-		handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
-	}}
+	workers := make([]workerBinding, 0, len(bindings))
+	for _, logicalName := range bindings {
+		binding := invocation.Stage.Agents[logicalName]
+		workers = append(workers, workerBinding{
+			logicalName: logicalName,
+			description: binding.Template.Description,
+			handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
+		})
+	}
 	return &streamlinePlanner{
-		invocation: invocation, request: request, workers: workers, plan: plan,
+		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
 		invoker: f.invoker, inspector: f.inspector, model: f.model, limits: f.limits,
@@ -90,7 +137,7 @@ type workerBinding struct {
 	handle      contracts.WorkerHandle
 }
 
-func validateInvocation(invocation planner.Invocation) ([]string, error) {
+func validateInvocation(profile plannerProfile, invocation planner.Invocation) ([]string, error) {
 	if strings.TrimSpace(invocation.StageExecutionID) == "" || strings.TrimSpace(invocation.RunID) == "" {
 		return nil, fmt.Errorf("StageExecution and Run IDs are required")
 	}
@@ -101,10 +148,14 @@ func validateInvocation(invocation planner.Invocation) ([]string, error) {
 		strings.TrimSpace(invocation.Stage.Instructions.Text) == "" {
 		return nil, fmt.Errorf("Stage objective and instructions are required")
 	}
-	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != Ref {
-		return nil, fmt.Errorf("streamline@1 cannot execute a Stage for another PlannerFactory")
+	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != profile.ref {
+		return nil, fmt.Errorf("%s cannot execute a Stage for another PlannerFactory", profile.ref)
 	}
-	if len(invocation.Stage.Agents) != 1 || len(invocation.Workers) != 1 {
+	if profile.routesWorkers {
+		if len(invocation.Stage.Agents) == 0 || len(invocation.Workers) != len(invocation.Stage.Agents) {
+			return nil, fmt.Errorf("router@1 requires one or more matched logical Agent bindings and prepared Workers")
+		}
+	} else if len(invocation.Stage.Agents) != 1 || len(invocation.Workers) != 1 {
 		return nil, fmt.Errorf("streamline@1 requires exactly one logical Agent binding and prepared Worker")
 	}
 	bindings := make([]string, 0, len(invocation.Stage.Agents))

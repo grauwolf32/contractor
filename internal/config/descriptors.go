@@ -20,13 +20,14 @@ type Descriptors struct {
 	SandboxProfiles  map[string]struct{}
 }
 
-// MVPDescriptors returns the implementations promised by the initial
-// executable slice. Streamline is added only with its later implementation.
+// MVPDescriptors returns every code-backed implementation available to strict
+// Workflow configuration in the current executable slice.
 func MVPDescriptors() Descriptors {
 	return Descriptors{
 		PlannerFactories: map[string]struct{}{
 			"passthrough@1": {},
 			"streamline@1":  {},
+			"router@1":      {},
 		},
 		WorkerRuntimes: map[string]struct{}{
 			"adk@1": {},

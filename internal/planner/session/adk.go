@@ -174,7 +174,7 @@ func appendAllowedFunction(
 
 func safeADKAuthor(author string) string {
 	switch author {
-	case "user", "streamline_planner":
+	case "user", "streamline_planner", "router_planner":
 		return author
 	default:
 		return "other"

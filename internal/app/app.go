@@ -23,6 +23,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
+	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -153,7 +154,13 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Streamline Planner: %w", err)
 	}
-	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory)
+	routerFactory, err := plannerrouter.NewFactory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModel, streamlineLimits,
+	)
+	if err != nil {
+		return fmt.Errorf("configure Router Planner: %w", err)
+	}
+	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory)
 	if err != nil {
 		return err
 	}

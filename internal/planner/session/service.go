@@ -338,7 +338,7 @@ func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
 		ParameterNames: parameterNames, Artifacts: artifacts,
 	}
 	if len(bindings) == 1 {
-		// Preserve the v1alpha1 passthrough audit event shape. Streamline with
+		// Preserve the v1alpha1 single-Worker audit event shape. Router with
 		// multiple fixed Workers uses the plural Planner request form.
 		event.Kind = "worker_request"
 		event.Binding = bindings[0]

@@ -131,6 +131,7 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 	for _, name := range []string{
 		"bounded_retry_workflow.yaml",
 		"multi_stage_workflow.yaml",
+		"router_openapi_workflow.yaml",
 		"streamline_review_workflow.yaml",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -173,6 +174,25 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	if err == nil || loaded != nil ||
 		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
 		t.Fatalf("Load() = (%v, %v), want Streamline cardinality error", loaded, err)
+	}
+}
+
+func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "workflows", "router_openapi_workflow.yaml")
+	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "router_openapi_workflow.yaml"))
+	writeFile(t, path, example)
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	workflow, err := snapshot.Workflow("router-openapi@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Agents = map[string]ResolvedAgentBinding{}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := ValidateWorkflowGraph(workflow); err == nil ||
+		!strings.Contains(err.Error(), "router@1 requires at least one logical Agent binding") {
+		t.Fatalf("ValidateWorkflowGraph error = %v", err)
 	}
 }
 

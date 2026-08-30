@@ -51,9 +51,9 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
 		validShape := false
 		switch plannerRef {
-		case planner.PassthroughRef:
+		case planner.PassthroughRef, planner.StreamlineRef:
 			validShape = len(stage.Agents) == 1
-		case planner.StreamlineRef:
+		case planner.RouterRef:
 			validShape = len(stage.Agents) > 0
 		}
 		if !validShape {

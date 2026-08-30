@@ -1,0 +1,59 @@
+# Copy this file under configs/workflows/ to load it. It deliberately declares
+# reviewer before builder; router@1 presents available logical agents in stable
+# lexical order using their pinned AgentTemplate descriptions.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: router-openapi
+  version: "1"
+
+spec:
+  parameters:
+    review_mode:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    document:
+      required: true
+      mediaTypes: [application/yaml, application/json]
+
+  entryStage: build
+  stages:
+    build:
+      objective: Build and review an OpenAPI document from the exact source archive
+      instructions:
+        ref: instructions/openapi-build-planner.md
+      planner: router@1
+      agents:
+        reviewer:
+          template: openapi_validator@1
+          namespace: review
+        builder:
+          template: openapi_builder@1
+          namespace: openapi
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          document:
+            required: true
+            mediaTypes: [application/yaml, application/json]
+      workflowOutputs:
+        document: document
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

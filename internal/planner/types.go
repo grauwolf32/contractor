@@ -11,6 +11,7 @@ import (
 const (
 	PassthroughRef = "passthrough@1"
 	StreamlineRef  = "streamline@1"
+	RouterRef      = "router@1"
 )
 
 // StageContext is the immutable input snapshot visible to one Planner

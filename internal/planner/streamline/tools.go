@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/agent"
@@ -25,6 +26,11 @@ const (
 
 type workerCallArgs struct {
 	SubtaskID string `json:"subtask_id"`
+}
+
+type routerWorkerCallArgs struct {
+	SubtaskID  string `json:"subtask_id"`
+	WorkerName string `json:"worker_name"`
 }
 
 type workerCallOutput struct {
@@ -88,16 +94,31 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 	result = append(result, addSubtask, listSubtasks)
 	allowed[addSubtaskToolName] = struct{}{}
 	allowed[listSubtasksToolName] = struct{}{}
-	binding := p.workers[0]
-	executeCurrentSubtask, err := functiontool.New(functiontool.Config{
-		Name: executeCurrentSubtaskToolName,
-		Description: fmt.Sprintf(
-			"Execute the exact current stored subtask with the sole prepared logical Worker %q (%s). Server supplies the complete immutable StageContext; subtask_id is the only argument.",
-			binding.logicalName, binding.description,
-		),
-	}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
-		return p.callWorker(ctx, state, binding, args), nil
-	})
+	var executeCurrentSubtask tool.Tool
+	if p.profile.routesWorkers {
+		schema, schemaErr := routerExecuteSchema(p.workers)
+		if schemaErr != nil {
+			return nil, nil, fmt.Errorf("build Router execute schema: %w", schemaErr)
+		}
+		executeCurrentSubtask, err = functiontool.New(functiontool.Config{
+			Name:        executeCurrentSubtaskToolName,
+			Description: "Execute the exact current stored subtask with one selected immutable logical Worker. Server supplies the complete StageContext; subtask_id and worker_name are the only arguments.",
+			InputSchema: schema,
+		}, func(ctx agent.ToolContext, args routerWorkerCallArgs) (workerCallOutput, error) {
+			return p.routeWorker(ctx, state, args), nil
+		})
+	} else {
+		binding := p.workers[0]
+		executeCurrentSubtask, err = functiontool.New(functiontool.Config{
+			Name: executeCurrentSubtaskToolName,
+			Description: fmt.Sprintf(
+				"Execute the exact current stored subtask with the sole prepared logical Worker %q (%s). Server supplies the complete immutable StageContext; subtask_id is the only argument.",
+				binding.logicalName, binding.description,
+			),
+		}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
+			return p.callWorker(ctx, state, binding, args.SubtaskID), nil
+		})
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("build execute_current_subtask tool: %w", err)
 	}
@@ -149,13 +170,13 @@ func (p *streamlinePlanner) callWorker(
 	ctx agent.ToolContext,
 	state *executionState,
 	binding workerBinding,
-	args workerCallArgs,
+	subtaskID string,
 ) workerCallOutput {
 	started := time.Now()
 	safeArguments := map[string]any{
-		"binding": binding.logicalName, "subtaskId": safeSubtaskID(args.SubtaskID),
+		"binding": binding.logicalName, "subtaskId": safeSubtaskID(subtaskID),
 	}
-	claim, planErr := p.plan.ClaimCurrentSubtask(args.SubtaskID, binding.logicalName)
+	claim, planErr := p.plan.ClaimCurrentSubtask(subtaskID, binding.logicalName)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
@@ -209,6 +230,43 @@ func (p *streamlinePlanner) callWorker(
 	encoded, _ := json.Marshal(cloned)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
 	return workerCallOutput{OK: true, Result: &cloned}
+}
+
+func (p *streamlinePlanner) routeWorker(
+	ctx agent.ToolContext,
+	state *executionState,
+	args routerWorkerCallArgs,
+) workerCallOutput {
+	for _, binding := range p.workers {
+		if args.WorkerName == binding.logicalName {
+			return p.callWorker(ctx, state, binding, args.SubtaskID)
+		}
+	}
+	started := time.Now()
+	failure := planner.Failure{
+		Code: "planner_worker_unknown", Message: "worker_name does not identify an available logical Worker",
+		Retryable: false,
+	}
+	state.recordTool(executeCurrentSubtaskToolName, map[string]any{
+		"binding": "unknown", "subtaskId": safeSubtaskID(args.SubtaskID),
+	}, false, time.Since(started), 0, &failure)
+	return workerFailure(failure)
+}
+
+func routerExecuteSchema(workers []workerBinding) (*jsonschema.Schema, error) {
+	schema, err := jsonschema.For[routerWorkerCallArgs](nil)
+	if err != nil {
+		return nil, err
+	}
+	workerName, ok := schema.Properties["worker_name"]
+	if !ok {
+		return nil, fmt.Errorf("worker_name schema is absent")
+	}
+	workerName.Enum = make([]any, 0, len(workers))
+	for _, binding := range workers {
+		workerName.Enum = append(workerName.Enum, binding.logicalName)
+	}
+	return schema, nil
 }
 
 func (p *streamlinePlanner) workerRequest(
