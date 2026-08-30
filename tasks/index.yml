@@ -103,21 +103,20 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-003
-  next_task: V4-003A
+  completed_through: V4-003A
+  next_task: V4-004
   summary: >-
-    The execution, routing, Scheduler escalation, public query API and managed
-    immutable configuration foundation remain complete. V4-003 adds an
-    immutable encrypted LLM credential store with AES-256-GCM, identity and
-    exact-Gateway AAD, fresh nonces, never-reused IDs, tombstones and durable
-    operation primitives. Server reads the master key only from a strict
-    owner-only absolute file, verifies its safe fingerprint before traffic and
-    composes database-backed credentials with the explicit development
-    provider. Resolution rechecks the active exact Gateway binding and decrypts
-    only at Planner/allocation preparation. Race tests, PostgreSQL 17 migration
-    and invariant tests, and the full Go/Python verify gate pass. V4-003A is next
-    and owns recoverable create/delete orchestration, Run deletion protection
-    and the secret-free public credential API.
+    The encrypted credential foundation now has a recoverable lifecycle and
+    secret-free public API. V4-003A persists prepared intent before Gateway
+    side effects, recovers create/delete crash windows before traffic, and
+    serializes credential deletion against immutable WorkflowRun creation with
+    a process-local read/write barrier. Exact non-terminal Run pins prevent any
+    delete side effect and return bounded safe IDs. Active credential list,
+    detail, create, delete, pagination, idempotency and safe error responses are
+    covered by PostgreSQL race tests and the public OpenAPI validator; 25 public
+    operations are now marked implemented. All Go/Python verification gates
+    pass. V4-004 is next and supplies the bounded concrete LiteLLM virtual-key
+    manager plus its operator-owned admin-key bindings.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
