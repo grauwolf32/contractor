@@ -161,10 +161,12 @@ the enclosing AgentTemplate digest.
 
 ModelPolicy is the shared, immutable model-loop policy for both Planner and
 Worker consumers. It owns the logical LLM Gateway model alias and the portable
-generation or cumulative-budget fields used by that consumer. It does not own
-the Gateway endpoint, provider credentials or provider routing. Planner never
-inherits a Worker's policy implicitly: `executionConfig` selects its own exact
-ModelPolicy when the chosen Planner implementation uses an LLM.
+generation or cumulative execution-safety fields used by that consumer. These
+bounds stop one Planner or Worker model loop deterministically; they are not a
+Gateway-wide spend, rate or account quota. ModelPolicy does not own the Gateway
+endpoint, provider credentials or provider routing. Planner never inherits a
+Worker's policy implicitly: `executionConfig` selects its own exact ModelPolicy
+when the chosen Planner implementation uses an LLM.
 
 The complete first-slice ModelPolicy YAML is:
 
@@ -267,8 +269,8 @@ without changing the meaning of `contractor/v1alpha1`.
 
 `LLMGatewayConfig` is an immutable, published description of one
 OpenAI-compatible Gateway endpoint. It is deliberately separate from
-ModelPolicy so the same budgets/model alias can use different endpoints or
-tokens and the same endpoint can serve multiple policies.
+ModelPolicy so the same execution bounds/model alias can use different
+endpoints or tokens and the same endpoint can serve multiple policies.
 
 ```yaml
 apiVersion: contractor/v1alpha1

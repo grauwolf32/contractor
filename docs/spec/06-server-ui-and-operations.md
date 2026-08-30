@@ -69,8 +69,8 @@ read-only for execution state and shows at least:
 - allocation ID, WorkflowRun, StageExecution, logical Worker binding,
   AgentTemplate, effective ModelPolicy and LLMGatewayConfig refs;
 - allocation prepare/finalize/abort/release state and bounded failure reason;
-- safe aggregate call/tool/token/error counters and whether a budget dimension
-  was exhausted.
+- safe aggregate call/tool/token/error counters and whether a ModelPolicy
+  execution-safety dimension was exhausted.
 
 The page is an observation surface. It cannot force a Runtime Agent to idle,
 reassign an allocation, mark a Stage successful or bypass bounded abort/release.
@@ -296,9 +296,12 @@ the lowercase hex value of
 `SHA-256(UTF-8(gateway_digest) || 0x00 || UTF-8(credential_id))`. It sends the
 alias with bounded metadata containing the credential ID and exact Gateway ref.
 The request sets `key_type: llm_api`, so the generated key cannot call LiteLLM
-management routes, and otherwise relies on the Gateway's default key policy.
-Model allowlists, monetary budgets, rate limits and TTL are the next policy
-decision and do not change the credential identity model.
+management routes. The first slice sends no Contractor-defined `models`,
+`max_budget`, `budget_duration`, TPM/RPM, concurrency or TTL fields and relies
+on the policy configured by the LiteLLM operator, including any
+`default_key_generate_params`. LiteLLM is the sole enforcement authority for
+Gateway-wide model access, spend and rate limits. Contractor does not mirror
+those counters or reject Run/Stage admission from a locally calculated quota.
 
 Server validates that the response's plaintext `key` starts with `sk-` and that
 its non-secret hashed `token_id` is exactly 64 lowercase hexadecimal characters.
@@ -341,8 +344,10 @@ changing LLMGatewayConfig or executionConfig.
 Attribution records ModelPolicy, LLMGatewayConfig and credential refs together
 with WorkflowRun, StageExecution and Planner/Worker role. Provider-reported
 tokens and calls are useful operational measurements, not billing-grade proof.
-Future quotas may reject new Run/Stage work by credential or policy without
-changing the executionConfig shape.
+Gateway-reported spend/rate state may be displayed as operational information,
+but a Gateway quota rejection follows the ordinary bounded LLM error path.
+ModelPolicy call/token ceilings remain independently enforced because they
+bound one Planner or Worker execution rather than account consumption.
 
 ## ExecutionConfig
 
@@ -395,13 +400,16 @@ not require changing Run semantics.
    generated virtual keys are encrypted in the credential store.
 7. Operations reflects both observed Runtime state and authoritative Control
    Plane state without conflating them.
-8. Existing API clients can perform the same domain operations without using
+8. LiteLLM, not Contractor, is authoritative for Gateway-wide model access,
+   spend and rate limits; ModelPolicy call/token ceilings remain authoritative
+   only for bounded execution of their selected Planner or Worker.
+9. Existing API clients can perform the same domain operations without using
    the Web UI.
 
 ## Open decisions for the next dialogue steps
 
-- exact first-slice LiteLLM virtual-key model allowlist, budget, rate-limit and
-  TTL fields;
+- whether future Operations should forward LiteLLM virtual-key model, budget,
+  rate-limit or TTL settings; LiteLLM remains their enforcement authority;
 - Contractor credential-encryption master-key rotation/re-encryption and a
   future Vault/KMS adapter;
 - embedded same-origin UI versus separately deployed frontend;
