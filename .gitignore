@@ -218,6 +218,11 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Independently built browser UI
+/ui/node_modules/
+/ui/dist/
+/ui/coverage/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

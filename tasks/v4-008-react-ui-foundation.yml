@@ -21,7 +21,7 @@ context:
     or Runtime Agent access.
   frontend_stack: >-
     Pin Node 24.20, Corepack 0.36, pnpm 11.24, React 19.2, Vite 8.2,
-    React Router 8.3 Data Mode, TanStack Query 5.102, TypeScript 6.0 and exact
+    React Router 8.3 Data Mode, TanStack Query 5.102, TypeScript 5.9 and exact
     dependency versions. Router/form/presentation state stays local; there is
     no Redux/Zustand or second authoritative domain model.
   generated_client: >-

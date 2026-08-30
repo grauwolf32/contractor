@@ -1,0 +1,76 @@
+import { useState } from "react";
+import { NavLink, Outlet } from "react-router";
+
+import { UI_VERSION } from "../build";
+import { useSession } from "../auth/session";
+
+const navigation = [
+  { to: "/workflows", label: "Workflows" },
+  { to: "/artifacts", label: "Artifacts" },
+  { to: "/runs", label: "Runs" },
+  { to: "/operations", label: "Operations" },
+] as const;
+
+export function ApplicationShell() {
+  const { session, logout, isLoggingOut } = useSession();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  async function onLogout() {
+    setLogoutError(null);
+    try {
+      await logout();
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error ? error.message : "Could not end the session",
+      );
+    }
+  }
+
+  return (
+    <div className="application">
+      <aside className="sidebar">
+        <div>
+          <div className="brand-mark" aria-hidden="true">
+            C
+          </div>
+          <p className="eyebrow">Contractor</p>
+          <h1>Control workspace</h1>
+        </div>
+        <nav aria-label="Primary navigation">
+          {navigation.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) => (isActive ? "active" : undefined)}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="session-panel">
+          <span className="status-dot" aria-hidden="true" />
+          <div>
+            <strong>{session?.principal.username}</strong>
+            <small>UI {UI_VERSION}</small>
+          </div>
+          <button
+            className="text-button"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={() => void onLogout()}
+          >
+            {isLoggingOut ? "Signing out…" : "Sign out"}
+          </button>
+          {logoutError === null ? null : (
+            <p className="inline-error" role="alert">
+              {logoutError}
+            </p>
+          )}
+        </div>
+      </aside>
+      <main className="content">
+        <Outlet />
+      </main>
+    </div>
+  );
+}

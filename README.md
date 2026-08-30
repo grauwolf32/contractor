@@ -29,6 +29,7 @@ forks, not mutable aliases to user data.
 The target deployment is deliberately small:
 
 - one Contractor Server process;
+- an optional independently released Node/React UI that calls Server directly;
 - one PostgreSQL database;
 - one or more lightweight single-slot Runtime Agent processes, potentially on
   the same VM;
@@ -53,11 +54,20 @@ likec4 validate docs/spec
 ## Implementation commands
 
 The implementation is being built incrementally in the order recorded under
-`tasks/`. The current Go server and Python Runtime Agent checks run with:
+`tasks/`. The aggregate check covers the Go Server, Python Runtime Agent and
+independently built browser UI:
 
 ```shell
 make verify
 go run ./cmd/contractor-server config validate --root ./configs
+```
+
+The UI pins Node 24.20, Corepack 0.36 and pnpm 11.24. It can also be checked or
+built without rebuilding Server:
+
+```shell
+npm install --global corepack@0.36.0
+make ui-verify
 ```
 
 Server and migration commands share `CONTRACTOR_DATABASE_URL` (or the

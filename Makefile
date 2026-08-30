@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing ui-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -84,6 +84,40 @@ test-live-routing:
 	@test -n "$$CONTRACTOR_LIVE_LLM_MODEL" || (echo "CONTRACTOR_LIVE_LLM_MODEL is required" >&2; exit 1)
 	go test -v -count=1 -timeout=3m ./tests/integration/streamline -run '^TestLiveRouterWorkflow$$'
 
+ui-install:
+	cd ui && corepack pnpm install --frozen-lockfile
+
+ui-generate:
+	cd ui && corepack pnpm generate
+
+ui-generate-check:
+	cd ui && corepack pnpm generate:check
+
+ui-format:
+	cd ui && corepack pnpm format
+
+ui-lint:
+	cd ui && corepack pnpm lint
+
+ui-typecheck:
+	cd ui && corepack pnpm typecheck
+
+ui-test:
+	cd ui && corepack pnpm test --run
+	cd ui && corepack pnpm test:server
+
+ui-build:
+	cd ui && corepack pnpm build
+
+ui-verify:
+	cd ui && corepack pnpm install --frozen-lockfile
+	cd ui && corepack pnpm generate:check
+	cd ui && corepack pnpm lint
+	cd ui && corepack pnpm typecheck
+	cd ui && corepack pnpm test --run
+	cd ui && corepack pnpm test:server
+	cd ui && corepack pnpm build
+
 run-local:
 	go run ./cmd/contractor-server migrate
 	go run ./cmd/contractor-server serve --config-root ./configs/e2e
@@ -94,4 +128,4 @@ build:
 	go build ./cmd/...
 	cd runtime && uv run python -m compileall -q src
 
-verify: lint test build
+verify: lint test build ui-verify

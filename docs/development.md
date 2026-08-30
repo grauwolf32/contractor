@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V3-010` are complete. The
+As of 2026-08-31, implementation tasks through `V4-008` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -51,6 +51,12 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   complete metrics, and slot reuse;
 - an opt-in live Router contract evaluation and a local LiteLLM profile for LM
   Studio that preserve finite model/Worker/time budgets.
+- a versioned owner-scoped public OpenAPI with managed configuration,
+  encrypted credential lifecycle, Operations snapshots, exact local browser
+  sessions, and bounded resumable Run/Operations WebSocket streams;
+- an independently built React UI foundation with generated OpenAPI types,
+  direct cookie/CSRF transport, guarded routes, explicit API compatibility,
+  and a dependency-free Node static service that never acts as a BFF or proxy.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -67,6 +73,10 @@ the public-safe Planner journal in
 [`v3-009-planner-plan-events.yml`](../tasks/v3-009-planner-plan-events.yml), and
 the complete boundary proof in
 [`v3-010-routing-escalation-e2e.yml`](../tasks/v3-010-routing-escalation-e2e.yml).
+The public/browser foundation and its completion evidence are recorded in
+[`v4-001-public-openapi-contract.yml`](../tasks/v4-001-public-openapi-contract.yml),
+[`v4-007-run-event-websocket.yml`](../tasks/v4-007-run-event-websocket.yml), and
+[`v4-008-react-ui-foundation.yml`](../tasks/v4-008-react-ui-foundation.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -90,6 +100,7 @@ coverage without comparing prose byte-for-byte or invoking a judge model.
 
 - Go 1.25 or newer;
 - Python 3.13 and `uv`;
+- Node 24.20, Corepack 0.36 and pnpm 11.24 for the independent browser UI;
 - a reachable PostgreSQL database in which the test user may create and drop
   schemas.
 
@@ -100,6 +111,26 @@ cd runtime
 uv sync --locked
 cd ..
 ```
+
+Install the pinned UI package manager and dependencies once:
+
+```shell
+npm install --global corepack@0.36.0
+make ui-install
+```
+
+Build and run the static UI service independently of Server:
+
+```shell
+make ui-build
+CONTRACTOR_UI_API_BASE_URL=http://127.0.0.1:8080 \
+  corepack pnpm --dir ui start
+```
+
+The loopback Go Server must be configured with
+`http://127.0.0.1:4173` as an exact browser origin. The Node process exposes
+only static files, `/runtime-config.json`, and `/healthz`; the browser sends
+session, CSRF, Artifact and WebSocket traffic directly to Go Server.
 
 Run the complete MVP gate:
 
