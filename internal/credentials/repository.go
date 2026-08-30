@@ -226,6 +226,7 @@ WHERE credential_id = $1`, credentialID).Scan(
 	if err != nil {
 		return Tombstone{}, errors.New("read credential tombstone")
 	}
+	result.DeletedAt = result.DeletedAt.UTC()
 	return result, nil
 }
 
@@ -349,6 +350,7 @@ func scanRecord(row rowScanner) (Record, error) {
 	if err := decodeStrictJSON(policy, &result.EffectivePolicy); err != nil || validateRecord(result) != nil {
 		return Record{}, errors.New("stored encrypted credential is invalid")
 	}
+	result.CreatedAt = result.CreatedAt.UTC()
 	result.Envelope.Nonce = append([]byte(nil), result.Envelope.Nonce...)
 	result.Envelope.Ciphertext = append([]byte(nil), result.Envelope.Ciphertext...)
 	return result, nil
@@ -367,6 +369,8 @@ func scanOperation(row rowScanner) (Operation, error) {
 	if err != nil {
 		return Operation{}, errors.New("read credential operation")
 	}
+	result.CreatedAt = result.CreatedAt.UTC()
+	result.UpdatedAt = result.UpdatedAt.UTC()
 	result.Request = append(json.RawMessage(nil), result.Request...)
 	if err := validateOperation(result); err != nil {
 		return Operation{}, errors.New("stored credential operation is invalid")

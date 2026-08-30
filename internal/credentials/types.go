@@ -176,6 +176,10 @@ func (g GeneratedCredential) Validate() error {
 // GatewayCredentialManager is the secret-bearing outbound boundary. Concrete
 // LiteLLM behavior is introduced by V4-004; lifecycle orchestration is V4-003A.
 type GatewayCredentialManager interface {
+	// ValidateCreate performs all request/configuration validation without an
+	// outbound side effect. Lifecycle calls it before reserving an immutable ID
+	// and repeats it during recovery before touching the deterministic alias.
+	ValidateCreate(context.Context, ManagerCreateRequest) error
 	Create(context.Context, ManagerCreateRequest) (GeneratedCredential, error)
 	Delete(context.Context, ManagerDeleteRequest) error
 	RecoverCreate(context.Context, ManagerCreateRequest) error

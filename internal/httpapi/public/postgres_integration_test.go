@@ -39,8 +39,10 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
+	managedCredentials := newFakeManagedCredentials()
 	handler, err := NewHandler(Dependencies{
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
+		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",

@@ -110,17 +110,6 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	workflow, err := h.dependencies.Config.ResolveRunWorkflow(
-		r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
-	)
-	if err != nil {
-		h.handleError(w, fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", errInvalidRequest, err))
-		return
-	}
-	if err := validateRunInputs(workflow, request); err != nil {
-		h.handleError(w, err)
-		return
-	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -131,11 +120,6 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
 		return
 	}
-	workflowSnapshot, err := json.Marshal(workflow)
-	if err != nil {
-		h.handleError(w, fmt.Errorf("encode resolved Workflow: %w", err))
-		return
-	}
 	runID, err := h.dependencies.NewID("run_")
 	if err != nil {
 		h.handleError(w, fmt.Errorf("generate Run ID: %w", err))
@@ -144,45 +128,60 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 
 	created := false
 	var storedRun runstore.WorkflowRun
-	err = h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
-		var createErr error
-		storedRun, created, createErr = runs.CreateRunIdempotent(
-			r.Context(), runstore.CreateRunIdempotentParams{
-				CreateRunParams: runstore.CreateRunParams{
-					RunID: runID, OwnerID: h.dependencies.UserID,
-					WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
-					WorkflowSchemaVersion: contracts.APIVersion,
-					WorkflowSnapshot:      workflowSnapshot,
-					Parameters:            cloneParameters(request.Parameters),
+	err = h.dependencies.ManagedCredentials.WithRunCreation(r.Context(), func() error {
+		workflow, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
+			r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
+		)
+		if resolveErr != nil {
+			return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", errInvalidRequest, resolveErr)
+		}
+		if err := validateRunInputs(workflow, request); err != nil {
+			return err
+		}
+		workflowSnapshot, err := json.Marshal(workflow)
+		if err != nil {
+			return fmt.Errorf("encode resolved Workflow: %w", err)
+		}
+		return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
+			var createErr error
+			storedRun, created, createErr = runs.CreateRunIdempotent(
+				r.Context(), runstore.CreateRunIdempotentParams{
+					CreateRunParams: runstore.CreateRunParams{
+						RunID: runID, OwnerID: h.dependencies.UserID,
+						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+						WorkflowSchemaVersion: contracts.APIVersion,
+						WorkflowSnapshot:      workflowSnapshot,
+						Parameters:            cloneParameters(request.Parameters),
+					},
+					IdempotencyKey: idempotencyKey,
+					RequestDigest:  requestDigest,
 				},
-				IdempotencyKey: idempotencyKey,
-				RequestDigest:  requestDigest,
-			},
-		)
-		if createErr != nil {
-			return createErr
-		}
-		if !created {
-			return nil
-		}
-
-		slots := sortedArtifactSlots(request.Artifacts)
-		for _, slot := range slots {
-			forked, err := artifactService.ForkInput(
-				r.Context(), h.dependencies.UserID, request.Artifacts[slot], runID, slot,
 			)
-			if err != nil {
-				return err
+			if createErr != nil {
+				return createErr
 			}
-			if !acceptsMediaType(workflow.Inputs[slot].MediaTypes, forked.MediaType) {
-				return fmt.Errorf("%w: input %q has unsupported media type", errInvalidRequest, slot)
+			if !created {
+				return nil
 			}
-		}
-		storedRun, err = runs.TransitionRun(
-			r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
-			runstore.Reason{Code: "initialized"},
-		)
-		return err
+
+			slots := sortedArtifactSlots(request.Artifacts)
+			for _, slot := range slots {
+				forked, err := artifactService.ForkInput(
+					r.Context(), h.dependencies.UserID, request.Artifacts[slot], runID, slot,
+				)
+				if err != nil {
+					return err
+				}
+				if !acceptsMediaType(workflow.Inputs[slot].MediaTypes, forked.MediaType) {
+					return fmt.Errorf("%w: input %q has unsupported media type", errInvalidRequest, slot)
+				}
+			}
+			storedRun, err = runs.TransitionRun(
+				r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
+				runstore.Reason{Code: "initialized"},
+			)
+			return err
+		})
 	})
 	if err != nil {
 		h.handleError(w, err)

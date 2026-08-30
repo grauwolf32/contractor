@@ -638,7 +638,7 @@ paths:
       operationId: listCredentials
       tags: [Credentials]
       summary: List active secret-free credential records
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -657,7 +657,7 @@ paths:
       operationId: createCredential
       tags: [Credentials]
       summary: Create one Gateway-managed credential without accepting token bytes
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -691,7 +691,7 @@ paths:
       operationId: getCredential
       tags: [Credentials]
       summary: Get one active secret-free credential record
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       responses:
         '200':
           description: Active credential metadata
@@ -708,7 +708,7 @@ paths:
       operationId: deleteCredential
       tags: [Credentials]
       summary: Delete an unpinned active credential and its remote virtual key
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/OptionalOrigin'

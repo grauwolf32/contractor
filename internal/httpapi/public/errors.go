@@ -8,12 +8,28 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
+	var credentialInUse *credentials.CredentialInUseError
 	switch {
+	case errors.As(err, &credentialInUse):
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run",
+			Retryable: false, RequestID: requestid.FromResponse(w),
+			Details: &credentialInUseDetailsResponse{
+				Kind: "credential_in_use", RunIDs: append([]string(nil), credentialInUse.RunIDs...),
+			},
+		})
+	case errors.Is(err, credentials.ErrGatewayUnavailable), errors.Is(err, credentials.ErrManagerUnavailable):
+		h.writeError(w, http.StatusBadGateway, "gateway_unavailable", "managed Gateway operation is unavailable", true)
+	case errors.Is(err, credentials.ErrConflict):
+		h.writeError(w, http.StatusConflict, "credential_conflict", "credential identity or idempotency key conflicts", false)
+	case errors.Is(err, credentials.ErrNotFound):
+		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, config.ErrPublicationConflict):
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
@@ -29,7 +45,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, artifacts.ErrExactRevisionRequired),
 		errors.Is(err, artifacts.ErrReservedNamespace), errors.Is(err, contracts.ErrValidation),
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, config.ErrInvalidConfigurationKind),
-		errors.Is(err, config.ErrInvalidPublication):
+		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)
 	default:
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "request could not be processed", true)

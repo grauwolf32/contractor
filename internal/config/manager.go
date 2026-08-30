@@ -173,6 +173,10 @@ func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
 
 func (m *Manager) Workflows() []ResolvedWorkflow { return m.Snapshot().Workflows() }
 
+func (m *Manager) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+	return m.Snapshot().LLMGateway(raw)
+}
+
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,

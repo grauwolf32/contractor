@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
+
 // Repository is the durable boundary used by the public API and Scheduler.
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
@@ -20,6 +23,7 @@ type Repository interface {
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
+	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
 	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
@@ -49,6 +53,52 @@ type Repository interface {
 	RecordPlannerExecutionReport(context.Context, RecordPlannerExecutionReportParams) error
 	RebuildStageMetrics(context.Context, string, string) error
 	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
+}
+
+// ListNonTerminalRunIDsByCredential returns a bounded deterministic set of
+// immutable Run snapshots that pin the exact non-secret credential ID.
+func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
+	ctx context.Context,
+	credentialID string,
+	limit int,
+) ([]string, error) {
+	if err := (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
+		return nil, invalidf("credential ID is invalid")
+	}
+	if limit < 1 || limit > 128 {
+		return nil, invalidf("credential Run-reference limit must be between 1 and 128")
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT run_id
+FROM workflow_runs
+WHERE state IN ('initializing', 'running', 'cancelling')
+  AND jsonb_path_exists(
+      workflow_snapshot,
+      '$.**.credentialId ? (@ == $credential)',
+      jsonb_build_object('credential', to_jsonb($1::text)),
+      true
+  )
+ORDER BY created_at, run_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, errors.New("list non-terminal Runs by credential")
+	}
+	defer rows.Close()
+	result := make([]string, 0)
+	for rows.Next() {
+		var runID string
+		if err := rows.Scan(&runID); err != nil {
+			return nil, errors.New("read non-terminal Run credential reference")
+		}
+		if !credentialRunIDPattern.MatchString(runID) {
+			return nil, errors.New("stored credential Run reference is not publicly safe")
+		}
+		result = append(result, runID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.New("iterate non-terminal Run credential references")
+	}
+	return result, nil
 }
 
 // PostgresStore never starts a transaction. Pass a pgx.Tx to NewPostgresStore

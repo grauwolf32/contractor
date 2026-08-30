@@ -458,6 +458,16 @@ check. Thus Contractor-managed transitions expose only active credentials, not
 a user-visible provisioning, deleting or partially active state. Out-of-band
 LiteLLM mutation is unsupported drift and produces a bounded operational error.
 
+Run initialization and credential deletion share one process-local read/write
+barrier. Run initialization holds the read side from current credential
+revalidation through immutable WorkflowRun commit; deletion holds the write
+side from the non-terminal-Run query through remote deletion and local
+tombstone commit. If a delete call has an ambiguous Gateway or database result,
+the encrypted row remains active and inspectable but the write intent remains
+prepared and new Run initialization is rejected until the same request or
+startup recovery resolves it. This prevents a newly committed Run from pinning
+a remote key that may already have been deleted.
+
 Management calls have finite connect/request timeouts and bounded bodies. Their
 Authorization header, generated token and raw provider error body are always
 redacted. LiteLLM must have its own persistent database for virtual-key state;

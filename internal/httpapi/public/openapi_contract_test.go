@@ -20,6 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"go.yaml.in/yaml/v4"
 )
@@ -64,6 +65,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"DELETE /v1/operations/credentials/{credentialId}",
 		"GET /v1/artifacts",
 		"GET /v1/artifacts/{namespace}/{name}",
 		"GET /v1/artifacts/{namespace}/{name}/lineage",
@@ -71,6 +73,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/artifacts/{namespace}/{name}/versions",
 		"GET /v1/configurations/{kind}",
 		"GET /v1/configurations/{kind}/{name}/versions/{version}",
+		"GET /v1/operations/credentials",
+		"GET /v1/operations/credentials/{credentialId}",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -82,6 +86,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
 		"POST /v1/configurations/{kind}",
+		"POST /v1/operations/credentials",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
@@ -234,6 +239,98 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, publishConfiguration, true); response.Code != http.StatusCreated {
 		t.Fatalf("publish configuration = %d: %s", response.Code, response.Body.String())
 	}
+	gateway, _ := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
+	modelPolicy, _ := fixture.configs.Snapshot().ModelPolicy("worker@1")
+	credentialBody, err := json.Marshal(createCredentialRequest{
+		CredentialID: "contract-worker", LLMGateway: gateway.Ref, Label: stringPointer("Contract worker"),
+		GatewayPolicy: credentials.GatewayPolicy{
+			ModelPolicies: []contracts.ModelPolicyRef{modelPolicy.Ref},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createCredential := newPublicContractRequest(
+		http.MethodPost, "/v1/operations/credentials", credentialBody,
+	)
+	createCredential.Header.Set("Content-Type", "application/json")
+	createCredential.Header.Set("Idempotency-Key", "contract-create-credential")
+	credentialCreated := serveAndValidatePublicContract(t, router, fixture.handler, createCredential, true)
+	if credentialCreated.Code != http.StatusCreated || strings.Contains(credentialCreated.Body.String(), "token") {
+		t.Fatalf("create credential = %d: %s", credentialCreated.Code, credentialCreated.Body.String())
+	}
+	for name, path := range map[string]string{
+		"list credentials": "/v1/operations/credentials?limit=1",
+		"get credential":   "/v1/operations/credentials/contract-worker",
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	deleteCredential := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/credentials/contract-worker", nil,
+	)
+	deleteCredential.Header.Set("Idempotency-Key", "contract-delete-credential")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteCredential, true); response.Code != http.StatusNoContent {
+		t.Fatalf("delete credential = %d: %s", response.Code, response.Body.String())
+	}
+	missingCredential := newPublicContractRequest(
+		http.MethodGet, "/v1/operations/credentials/contract-worker", nil,
+	)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, missingCredential, true); response.Code != http.StatusNotFound {
+		t.Fatalf("missing credential = %d: %s", response.Code, response.Body.String())
+	}
+	conflictingCredentialBody, err := json.Marshal(createCredentialRequest{
+		CredentialID: "contract-conflict", LLMGateway: gateway.Ref,
+		GatewayPolicy: credentials.GatewayPolicy{
+			ModelPolicies: []contracts.ModelPolicyRef{modelPolicy.Ref},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflictingCredential := newPublicContractRequest(
+		http.MethodPost, "/v1/operations/credentials", conflictingCredentialBody,
+	)
+	conflictingCredential.Header.Set("Content-Type", "application/json")
+	conflictingCredential.Header.Set("Idempotency-Key", "contract-create-credential")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, conflictingCredential, true); response.Code != http.StatusConflict {
+		t.Fatalf("credential idempotency conflict = %d: %s", response.Code, response.Body.String())
+	}
+
+	inUseBody, err := json.Marshal(createCredentialRequest{
+		CredentialID: "contract-in-use", LLMGateway: gateway.Ref,
+		GatewayPolicy: credentials.GatewayPolicy{
+			ModelPolicies: []contracts.ModelPolicyRef{modelPolicy.Ref},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createInUse := newPublicContractRequest(http.MethodPost, "/v1/operations/credentials", inUseBody)
+	createInUse.Header.Set("Content-Type", "application/json")
+	createInUse.Header.Set("Idempotency-Key", "contract-create-in-use")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, createInUse, true); response.Code != http.StatusCreated {
+		t.Fatalf("create in-use credential = %d: %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = &credentials.CredentialInUseError{RunIDs: []string{"run-contract"}}
+	deleteInUse := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/credentials/contract-in-use", nil,
+	)
+	deleteInUse.Header.Set("Idempotency-Key", "contract-delete-in-use")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteInUse, true); response.Code != http.StatusConflict {
+		t.Fatalf("credential in use = %d: %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = credentials.ErrGatewayUnavailable
+	deleteUnavailable := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/credentials/contract-in-use", nil,
+	)
+	deleteUnavailable.Header.Set("Idempotency-Key", "contract-delete-unavailable")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteUnavailable, true); response.Code != http.StatusBadGateway {
+		t.Fatalf("credential Gateway failure = %d: %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = nil
 
 	download := newPublicContractRequest(http.MethodGet, "/v1/artifacts/projects/source", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, download, true); response.Code != http.StatusOK {

@@ -168,6 +168,20 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("compose LLM credential providers: %w", err)
 	}
+	credentialManagers, err := credentials.NewManagerRegistry()
+	if err != nil {
+		return fmt.Errorf("configure Gateway credential managers: %w", err)
+	}
+	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
+		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
+		Runs: runstore.NewPostgresStore(pool), Cipher: tokenCipher,
+	})
+	if err != nil {
+		return fmt.Errorf("configure LLM credential lifecycle: %w", err)
+	}
+	if err := credentialLifecycle.Recover(ctx); err != nil {
+		return fmt.Errorf("recover LLM credential operations: %w", err)
+	}
 	files := mtls.Files{
 		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,
 	}
@@ -269,7 +283,7 @@ func RunCLI(
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
-		Credentials:  credentialProvider,
+		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,
 		Transactions: postgresPublicUnitOfWork{pool: pool},

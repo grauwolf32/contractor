@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -22,15 +24,16 @@ import (
 const testBearerToken = "test-bearer-token"
 
 type handlerFixture struct {
-	handler    http.Handler
-	configs    *config.Manager
-	repository *fakeArtifactRepository
-	artifacts  *artifacts.Service
-	runs       *fakeRunStore
-	unit       *fakeUnitOfWork
-	notifier   *recordingRunNotifier
-	metrics    *fakeMetricsReader
-	plans      *fakePlannerPlanReader
+	handler     http.Handler
+	configs     *config.Manager
+	repository  *fakeArtifactRepository
+	artifacts   *artifacts.Service
+	runs        *fakeRunStore
+	unit        *fakeUnitOfWork
+	notifier    *recordingRunNotifier
+	metrics     *fakeMetricsReader
+	plans       *fakePlannerPlanReader
+	credentials *fakeManagedCredentials
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -54,8 +57,10 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	notifier := &recordingRunNotifier{}
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
+	managedCredentials := newFakeManagedCredentials()
 	handler, err := NewHandler(Dependencies{
 		Config: manager, ConfigurationPublisher: manager,
+		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service, Transactions: unit,
 		Metrics:      metrics,
 		PlannerPlans: plans,
@@ -73,6 +78,7 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
+		credentials: managedCredentials,
 	}
 }
 
@@ -98,6 +104,153 @@ func TestAuthenticationAndRequestID(t *testing.T) {
 			t.Fatalf("auth response = status %d, request ID %q", response.Code, response.Header().Get("X-Request-ID"))
 		}
 		assertErrorCode(t, response, "unauthorized")
+	}
+}
+
+func TestManagedCredentialCRUDIsStrictSecretFreeAndIdempotent(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := fixture.configs.Snapshot().ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(createCredentialRequest{
+		CredentialID: "managed-worker", LLMGateway: gateway.Ref, Label: stringPointer("Managed worker"),
+		GatewayPolicy: credentials.GatewayPolicy{ModelPolicies: []contracts.ModelPolicyRef{policy.Ref}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := func(key string, payload []byte) *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPost, "/v1/operations/credentials", bytes.NewReader(payload),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(idempotencyKeyHeader, key)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	created := create("create-managed-worker", body)
+	if created.Code != http.StatusCreated || strings.Contains(created.Body.String(), "token") ||
+		strings.Contains(created.Body.String(), "cipher") || strings.Contains(created.Body.String(), "remoteKey") {
+		t.Fatalf("create credential = %d %s", created.Code, created.Body.String())
+	}
+	replayed := create("create-managed-worker", body)
+	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("create replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+	secondBody, err := json.Marshal(createCredentialRequest{
+		CredentialID: "managed-worker-2", LLMGateway: gateway.Ref, Label: stringPointer("Managed worker 2"),
+		GatewayPolicy: credentials.GatewayPolicy{ModelPolicies: []contracts.ModelPolicyRef{policy.Ref}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second := create("create-managed-worker-2", secondBody); second.Code != http.StatusCreated {
+		t.Fatalf("create second credential = %d %s", second.Code, second.Body.String())
+	}
+	invalid := create("create-invalid", []byte(`{
+		"credentialId":"invalid-token-input",
+		"llmGateway":{"gatewayId":"local-litellm","version":"1","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		"gatewayPolicy":{"modelPolicies":[]},
+		"token":"must-not-be-accepted"
+	}`))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("secret-bearing create request = %d %s", invalid.Code, invalid.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/operations/credentials?limit=1", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var firstPage credentialPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &firstPage) != nil ||
+		len(firstPage.Items) != 1 || firstPage.Items[0].CredentialID != "managed-worker" ||
+		!firstPage.Page.HasMore || firstPage.Page.NextCursor == nil {
+		t.Fatalf("list credentials = %d %s", listed.Code, listed.Body.String())
+	}
+	nextList := authenticatedRequest(
+		http.MethodGet, "/v1/operations/credentials?limit=1&cursor="+*firstPage.Page.NextCursor,
+		bytes.NewReader(nil),
+	)
+	nextListed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(nextListed, nextList)
+	var secondPage credentialPageResponse
+	if nextListed.Code != http.StatusOK || json.Unmarshal(nextListed.Body.Bytes(), &secondPage) != nil ||
+		len(secondPage.Items) != 1 || secondPage.Items[0].CredentialID != "managed-worker-2" ||
+		secondPage.Page.HasMore || secondPage.Page.NextCursor != nil {
+		t.Fatalf("next credential page = %d %s", nextListed.Code, nextListed.Body.String())
+	}
+	get := authenticatedRequest(http.MethodGet, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil))
+	got := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || got.Body.String() != created.Body.String() {
+		t.Fatalf("get credential = %d %s", got.Code, got.Body.String())
+	}
+
+	deleteCall := func(key string) *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodDelete, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil),
+		)
+		request.Header.Set(idempotencyKeyHeader, key)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	deleted := deleteCall("delete-managed-worker")
+	if deleted.Code != http.StatusNoContent || deleted.Body.Len() != 0 {
+		t.Fatalf("delete credential = %d %s", deleted.Code, deleted.Body.String())
+	}
+	if replay := deleteCall("delete-managed-worker"); replay.Code != http.StatusNoContent {
+		t.Fatalf("delete replay = %d %s", replay.Code, replay.Body.String())
+	}
+	missing := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(missing, get)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("get deleted credential = %d %s", missing.Code, missing.Body.String())
+	}
+}
+
+func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.credentials.records["managed-worker"] = credentials.Record{
+		CredentialID: "managed-worker",
+		LLMGateway: contracts.LLMGatewayConfigRef{
+			GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("1", 64),
+		},
+		EffectivePolicy: credentials.EffectiveGatewayPolicy{
+			ModelPolicies: []contracts.ModelPolicyRef{{
+				PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("2", 64),
+			}}, Models: []string{"test-model"},
+		},
+		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
+	}
+	fixture.credentials.deleteErr = &credentials.CredentialInUseError{RunIDs: []string{"run-2", "run-1"}}
+	request := authenticatedRequest(
+		http.MethodDelete, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil),
+	)
+	request.Header.Set(idempotencyKeyHeader, "delete-in-use")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"kind":"credential_in_use"`) ||
+		!strings.Contains(response.Body.String(), `"runIds":["run-2","run-1"]`) {
+		t.Fatalf("credential-in-use response = %d %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = errors.New("provider exposed sk-secret-body")
+	response = httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), "secret") {
+		t.Fatalf("unknown Gateway failure response = %d %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = credentials.ErrGatewayUnavailable
+	response = httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway || strings.Contains(response.Body.String(), "secret") {
+		t.Fatalf("Gateway unavailable response = %d %s", response.Code, response.Body.String())
 	}
 }
 
@@ -244,6 +397,9 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 	}
 	if fixture.notifier.calls != 1 {
 		t.Fatalf("Scheduler wake calls = %d", fixture.notifier.calls)
+	}
+	if fixture.credentials.guarded != 1 {
+		t.Fatalf("Run initialization guard calls = %d", fixture.credentials.guarded)
 	}
 	run := fixture.runs.runs["run_fixed"]
 	if run.State != runstore.RunRunning || run.OwnerID != "user-1" || len(run.WorkflowSnapshot) == 0 {

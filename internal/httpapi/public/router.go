@@ -25,7 +25,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		}
 	}
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
-		dependencies.Runs == nil || dependencies.Artifacts == nil || dependencies.Transactions == nil {
+		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
+		dependencies.Artifacts == nil || dependencies.Transactions == nil {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
 	}
 	if strings.TrimSpace(dependencies.UserID) == "" || dependencies.BearerToken.Reveal() == "" {
@@ -51,6 +52,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
 	mux.HandleFunc("POST /v1/configurations/{kind}", current.publishConfiguration)
 	mux.HandleFunc("GET /v1/configurations/{kind}/{name}/versions/{version}", current.getConfiguration)
+	mux.HandleFunc("GET /v1/operations/credentials", current.listCredentials)
+	mux.HandleFunc("POST /v1/operations/credentials", current.createCredential)
+	mux.HandleFunc("GET /v1/operations/credentials/{credentialId}", current.getCredential)
+	mux.HandleFunc("DELETE /v1/operations/credentials/{credentialId}", current.deleteCredential)
 	mux.HandleFunc("GET /v1/artifacts", current.listArtifacts)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/metadata", current.getArtifactMetadata)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/versions", current.listArtifactVersions)
@@ -83,6 +88,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/runs", current.methodNotAllowed)
 	mux.HandleFunc("/v1/configurations/{kind}/{name}/versions/{version}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/configurations/{kind}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/credentials/{credentialId}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/credentials", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows/{name}/versions/{version}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
