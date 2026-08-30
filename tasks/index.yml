@@ -103,8 +103,8 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-006
-  next_task: V3-007
+  completed_through: V3-007
+  next_task: V3-008
   summary: >-
     The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
     foundation are complete. Model-backed Planner completion now uses one
@@ -114,13 +114,13 @@ current_checkpoint:
     decimal IDs, current status, dispatch fencing, and finish preconditions.
     Streamline now requires exactly one logical Worker and Router exposes exact
     model-selected logical Worker routing without physical placement data.
-    Immutable non-secret LLMGatewayConfig manifests load into the same
-    all-or-nothing snapshot with strict endpoint/manager validation and a
-    cross-language reproducible digest. Workflow defaults and Run overrides now
-    resolve into immutable per-Planner and per-Worker policies, Gateways and
-    credential refs; only final consumer construction sees token bytes. The
-    next increment adds reusable Stage-local escalation configuration profiles
-    and pins every declared escalation variant before a Run starts.
+    Workflow defaults and Run overrides resolve immutable per-consumer model
+    access, and exact ExecutionConfig manifests or inline escalation patches
+    now add a sixth layer. Every named profile digest, resolved dependency and
+    fully effective Stage variant is pinned before a Run starts; credentials
+    are validated across base and all variants without storing tokens. The next
+    increment makes Scheduler apply those already-pinned variants through a
+    durable bounded escalation decision.
 
 current_planning_review:
   reviewed_on: "2026-08-30"

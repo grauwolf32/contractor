@@ -3,8 +3,8 @@ id: V3-007
 title: Load reusable Stage escalation configuration profiles
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "2d99eab2292cc33c102070e64d4692daf07b5983"
 depends_on: [V3-006]
 languages: [go, yaml]
 
@@ -73,3 +73,46 @@ tests:
   - {name: config, command: "go test ./internal/config/...", covers: [A1, A2, A3]}
   - {name: run-snapshot, command: "go test ./internal/runstore/... ./internal/httpapi/public/...", covers: [A1, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+completion:
+  evidence:
+    - >-
+      The all-or-nothing loader now discovers strict immutable ExecutionConfig
+      manifests, computes a normalized RFC 8785 JCS digest, resolves exact
+      ModelPolicy and LLMGatewayConfig bodies, and exposes deep-copy-safe
+      profile lookup/list values without credential tokens.
+    - >-
+      Workflow failed/interrupted transitions accept a bounded escalate action
+      with an exact ref or closed inline planner/agents union. Empty leaves,
+      mixed union forms, null structural fields, unknown refs/bindings, invalid
+      then actions, passthrough Planner overrides, and incompatible policies
+      fail before catalog publication.
+    - >-
+      Workflow load and Run initialization compute each escalation variant over
+      the appropriate base configuration. The immutable snapshot pins profile
+      digest, resolved partial override, complete effective per-consumer value,
+      and safe origins; Run overrides are lower precedence and profile changes
+      cannot reinterpret an already serialized snapshot.
+    - >-
+      Credential string/null tri-state is preserved in resolved patches and
+      every base and escalation variant is checked for active credential
+      existence and exact Gateway binding before a Run starts. Public Run
+      creation tests prove the named variant is persisted in the durable
+      Workflow snapshot.
+    - >-
+      Default OpenAPI source/precomputed workflows use strong-oas-review@1 for
+      validation failure, backed by a stronger Worker policy. Exact manifest
+      and Workflow-transition JSON Schemas plus operator docs describe the new
+      authoring contract.
+  verified_by:
+    - go test -race ./internal/config/... ./internal/runstore/... ./internal/httpapi/public/...
+    - make verify
+    - go run ./cmd/contractor-server config validate --root ./configs
+    - go test -tags=e2e ./tests/e2e -run '^$'
+    - go test ./tests/eval/project_workflows -run '^$'
+    - jq empty api/v1alpha1/*.schema.json
+  not_run:
+    - >-
+      Database-backed RunStore integration tests were unavailable because
+      CONTRACTOR_TEST_DATABASE_URL was not configured; JSONB-ready snapshot
+      persistence is covered through the public API's RunStore boundary.
