@@ -177,10 +177,27 @@ def test_exact_seed_is_copied_and_later_stage_resumes(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_plain_text_seed_is_canonicalized_on_copy(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "plain", "text/plain", BASE_DOCUMENT.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        copied = await tools["load_likec4"]("inputs", "plain", seed.revision)
+        assert copied["mediaType"] == "text/vnd.likec4"
+        target = client.bindings[("architecture", "architecture")]
+        assert target.media_type == "text/vnd.likec4"
+        assert target.data == BASE_DOCUMENT.encode()
+        assert client.history[("inputs", "plain", seed.revision)].media_type == "text/plain"
+
+    asyncio.run(scenario())
+
+
 def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
-        wrong_media = client.seed("inputs", "plain", "text/plain", BASE_DOCUMENT.encode())
+        wrong_media = client.seed(
+            "inputs", "binary-media", "application/octet-stream", BASE_DOCUMENT.encode()
+        )
         invalid_utf8 = client.seed("inputs", "binary", "text/vnd.likec4", b"\xff")
         oversized = client.seed(
             "inputs",
@@ -191,7 +208,7 @@ def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: P
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
 
         with pytest.raises(ValueError, match=r"text/vnd\.likec4"):
-            await tools["load_likec4"]("inputs", "plain", wrong_media.revision)
+            await tools["load_likec4"]("inputs", "binary-media", wrong_media.revision)
         with pytest.raises(ValueError, match="valid UTF-8"):
             await tools["load_likec4"]("inputs", "binary", invalid_utf8.revision)
         with pytest.raises(ValueError, match="1 MiB"):

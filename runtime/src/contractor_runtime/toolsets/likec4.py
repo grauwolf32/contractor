@@ -111,11 +111,13 @@ class _LikeC4Session:
             value = await self._client.read_artifact(source_ref)
             if revision is not None and value.artifact.revision != revision:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
-            if value.media_type != TARGET_MEDIA_TYPE:
-                raise ValueError(f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE}")
+            if value.media_type not in {TARGET_MEDIA_TYPE, "text/plain"}:
+                raise ValueError(
+                    f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE} or text/plain"
+                )
             content = _decode_document(value.data)
             same_binding = namespace == self._namespace and name == target_name
-            if same_binding:
+            if same_binding and value.media_type == TARGET_MEDIA_TYPE:
                 self._content = content
                 self._target_name = target_name
                 self._revision = value.artifact.require_exact().revision
@@ -129,7 +131,7 @@ class _LikeC4Session:
             written = await self._write_content(
                 content,
                 target_name=target_name,
-                expected_revision=expected_revision,
+                expected_revision=(value.artifact.revision if same_binding else expected_revision),
             )
             self._content = content
             self._target_name = target_name
