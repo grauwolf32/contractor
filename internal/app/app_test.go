@@ -211,7 +211,7 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
-func TestParseConfigUsesIndependentDevelopmentPlannerCredential(t *testing.T) {
+func TestParseConfigUsesIndependentDevelopmentPlannerCredentialAndMasterKeyPath(t *testing.T) {
 	t.Parallel()
 	env := func(key string) string {
 		switch key {
@@ -222,13 +222,18 @@ func TestParseConfigUsesIndependentDevelopmentPlannerCredential(t *testing.T) {
 		}
 		return ""
 	}
-	cfg, err := ParseConfig([]string{"serve", "--planner-timeout=2m"}, env)
+	cfg, err := ParseConfig([]string{
+		"serve", "--planner-timeout=2m", "--credential-master-key-file=/run/secrets/credential-key",
+	}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.DevelopmentWorkerToken.Reveal() != "worker-token" ||
 		cfg.DevelopmentPlannerToken.Reveal() != "planner-token" || cfg.PlannerTimeout != 2*time.Minute {
 		t.Fatalf("independent development credentials = %+v", cfg)
+	}
+	if cfg.CredentialMasterKeyFile != "/run/secrets/credential-key" {
+		t.Fatalf("credential master-key file = %q", cfg.CredentialMasterKeyFile)
 	}
 }
 

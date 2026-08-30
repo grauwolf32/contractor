@@ -49,6 +49,7 @@ type Config struct {
 	ConfigRoot              string
 	OperatorConfigRoot      string
 	ManagedConfigRoot       string
+	CredentialMasterKeyFile string
 	CAFile                  string
 	CertificateFile         string
 	PrivateKeyFile          string
@@ -139,9 +140,33 @@ func RunCLI(
 		return fmt.Errorf("load configuration: %w", err)
 	}
 	snapshot := configurationManager.Snapshot()
-	credentialProvider, err := developmentCredentials(snapshot, cfg)
+	credentialRepository := credentials.NewRepository(pool)
+	activeCredentialCount, err := credentialRepository.CountCredentials(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect encrypted LLM credentials: %w", err)
+	}
+	tokenCipher, err := credentials.RequireTokenCipher(cfg.CredentialMasterKeyFile, activeCredentialCount)
+	if err != nil {
+		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
+	}
+	if tokenCipher != nil {
+		if err := credentialRepository.VerifyActiveKey(ctx, tokenCipher.KeyID()); err != nil {
+			return fmt.Errorf("verify encrypted LLM credential key: %w", err)
+		}
+	}
+	encryptedCredentialProvider, err := credentials.NewEncryptedProvider(credentialRepository, tokenCipher)
+	if err != nil {
+		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
+	}
+	developmentCredentialProvider, err := developmentCredentials(snapshot, cfg)
 	if err != nil {
 		return fmt.Errorf("configure development LLM credentials: %w", err)
+	}
+	credentialProvider, err := credentials.NewCompositeProvider(
+		developmentCredentialProvider, encryptedCredentialProvider,
+	)
+	if err != nil {
+		return fmt.Errorf("compose LLM credential providers: %w", err)
 	}
 	files := mtls.Files{
 		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,

@@ -32,7 +32,7 @@ verify-public-api:
 
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
-	go test -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
+	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
 
 test-mtls:
 	go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...

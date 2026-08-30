@@ -310,6 +310,25 @@ environment variables and cannot override an immutable Run snapshot. Omit the
 credential selector for a Gateway that intentionally accepts unauthenticated
 requests.
 
+Managed Gateway credentials use a separate database-encryption key. Generate
+it once as an owner-only file and pass only its absolute path to Server:
+
+```shell
+umask 077
+mkdir -p .local/secrets
+openssl rand -base64 32 > .local/secrets/credential-master-key
+go run ./cmd/contractor-server serve \
+  --config-root ./configs/e2e \
+  --credential-master-key-file="$(pwd)/.local/secrets/credential-master-key"
+```
+
+There is deliberately no environment variable or command-line literal for the
+key bytes. The file must contain RFC 4648 base64 for exactly 32 bytes, with at
+most one trailing newline, and must not be a symlink or readable by group or
+world. The flag is optional while no encrypted credential rows exist; once one
+exists, a missing file or a key whose fingerprint differs from the stored rows
+makes Server startup fail before accepting traffic.
+
 In the second terminal, start the single-slot Runtime Agent:
 
 ```shell

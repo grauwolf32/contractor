@@ -85,6 +85,13 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.StringVar(&operatorConfigRoot, "operator-config-root", operatorConfigRoot, "operator/bootstrap configuration root")
 	flags.StringVar(&operatorConfigRoot, "config-root", operatorConfigRoot, "deprecated alias for --operator-config-root")
 	flags.StringVar(&managedConfigRoot, "managed-config-root", managedConfigRoot, "Server-managed configuration publication root")
+	credentialMasterKeyFile := ""
+	flags.StringVar(
+		&credentialMasterKeyFile,
+		"credential-master-key-file",
+		credentialMasterKeyFile,
+		"absolute owner-only file containing the credential encryption key",
+	)
 	flags.StringVar(&publicUserID, "public-user-id", publicUserID, "single-user public API identity")
 	flags.StringVar(&caFile, "ca-file", caFile, "deployment CA certificate")
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
@@ -132,8 +139,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,
 		DatabaseURL: databaseURL,
 		ConfigRoot:  operatorConfigRoot, OperatorConfigRoot: operatorConfigRoot,
-		ManagedConfigRoot: managedConfigRoot,
-		CAFile:            caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
+		ManagedConfigRoot:       managedConfigRoot,
+		CredentialMasterKeyFile: credentialMasterKeyFile,
+		CAFile:                  caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
 		DevelopmentWorkerToken: developmentWorkerToken, DevelopmentPlannerToken: developmentPlannerToken,
 		PlannerTimeout: plannerTimeout,
 		PublicUserID:   publicUserID, PublicBearerToken: publicBearerToken,
