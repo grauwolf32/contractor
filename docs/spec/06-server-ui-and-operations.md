@@ -8,9 +8,10 @@ Depends on: [00](00-workflow-and-planner.md),
 
 ## Purpose
 
-Contractor Server exposes one Web UI for ordinary Workflow use and for
-single-VM operational visibility. The UI is an API client; it does not become a
-second Scheduler, configuration resolver or source of lifecycle truth.
+Contractor deployment includes one separately deployable Node.js Web UI for
+ordinary Workflow use and single-VM operational visibility. The UI uses the
+Server's public API; it does not become a second Scheduler, configuration
+resolver or source of lifecycle truth.
 
 The initial navigation contains:
 
@@ -32,6 +33,23 @@ Operations
 
 The UI remains domain-neutral. OpenAPI, LikeC4, code analysis and security are
 Workflow/configuration examples rather than hard-coded application modes.
+
+## Deployment boundary
+
+Web UI is its own Node.js build artifact and runtime service. Go Server embeds
+and serves no HTML, JavaScript, CSS or other frontend asset. Rebuilding,
+releasing, restarting or rolling back Web UI therefore does not rebuild or
+restart Server, and Server startup/health never depends on UI availability.
+Both services may still run on the same VM.
+
+Their only product contract is the versioned authenticated public Server API.
+The UI build records its own version and supported Server API versions; it must
+show an explicit incompatible-version error rather than guessing around a
+missing or changed field. Additive API changes within a supported version do
+not require a coordinated release. Whether browser requests reach Server
+directly or through a Node BFF/reverse proxy is the next deployment decision;
+neither topology grants Node direct database, Control Plane or Runtime Agent
+access.
 
 ## Workflow user surface
 
@@ -404,10 +422,10 @@ Run detail page shows both the selected refs and their origin (`workflow` or
 
 ## API boundary
 
-The UI uses authenticated public Server APIs. HTML routes do not receive direct
-database, Control Plane or Runtime Agent access. UI-oriented query endpoints
-may aggregate existing durable/read-model state, but mutations must call the
-same domain application services as non-UI API clients.
+The Node UI service and browser use authenticated public Server APIs. They do
+not receive direct database, Control Plane or Runtime Agent access. UI-oriented
+query endpoints may aggregate existing durable/read-model state, but mutations
+must call the same domain application services as non-UI API clients.
 
 Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
@@ -440,6 +458,8 @@ not require changing Run semantics.
    only for bounded execution of their selected Planner or Worker.
 9. Existing API clients can perform the same domain operations without using
    the Web UI.
+10. Web UI is an independently releasable Node.js service; Go Server never
+    embeds frontend assets or requires UI availability.
 
 ## Open decisions for the next dialogue steps
 
@@ -447,7 +467,7 @@ not require changing Run semantics.
   first-slice allowlist; LiteLLM remains their enforcement authority;
 - Contractor credential-encryption master-key rotation/re-encryption and a
   future Vault/KMS adapter;
-- embedded same-origin UI versus separately deployed frontend;
+- Node framework/rendering model and direct-browser API versus Node BFF/proxy;
 - browser authentication and the first user/operations permission split;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;
 - exact list/filter/pagination contracts and retention window;

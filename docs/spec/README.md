@@ -33,7 +33,7 @@ YAML document identity comes from
 | [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
 | [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
-| [06](06-server-ui-and-operations.md) | Server Web UI, Operations visibility and published execution configuration selection |
+| [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

@@ -42,6 +42,9 @@ This slice must demonstrate:
   canonical YAML in the managed root through full-set validation, durable
   atomic rename and an atomic in-memory snapshot swap; neither root overrides
   a duplicate identity from the other;
+- Web UI is built and deployed as a separate Node.js service with its own
+  version and Server-API compatibility check; Go Server embeds no frontend
+  assets and remains healthy when UI is unavailable;
 - an LLMGatewayConfig may declare `litellm-virtual-keys@1` plus its non-secret
   management origin; Server Operations can manage it only when operator
   bootstrap binds that exact digest-bearing Gateway ref to a protected LiteLLM
