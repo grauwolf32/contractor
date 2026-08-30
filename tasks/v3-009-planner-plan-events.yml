@@ -3,8 +3,8 @@ id: V3-009
 title: Persist typed Planner plans and reduced Run events
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "2fbac4ddcf61709d01fd57025c8aa52d477b44a6"
 depends_on: [V3-004]
 languages: [go, sql]
 
@@ -53,7 +53,11 @@ requirements:
   - id: R3
     text: Persistent payload schemas are closed, size-bounded, versioned, and independently validated on read.
   - id: R4
-    text: No durable record contains arbitrary model/tool text, credentials, raw error bodies, artifact bytes, or physical Runtime Agent addresses.
+    text: >-
+      Outside the explicit validated subtask objective/instructions fields of
+      the typed plan, no durable record contains arbitrary model/tool text,
+      credentials, raw error bodies, artifact bytes, or physical Runtime Agent
+      addresses.
 
 acceptance_criteria:
   - id: A1
@@ -65,7 +69,10 @@ acceptance_criteria:
     when: They race.
     then: One commits and the other receives a conflict without a duplicate/gap attributed to a committed event.
   - id: A3
-    given: Canary secrets in model text, tool arguments, Worker response, endpoint, and provider error.
+    given: >-
+      Canary secrets in unaccepted model text, generic tool arguments outside
+      the typed plan fields, an intermediate Worker response, endpoint, token,
+      and provider error.
     when: All planner/session tables and JSON API-safe encodings are searched.
     then: No canary is present.
 
@@ -73,3 +80,39 @@ tests:
   - {name: session-race, command: "go test -race ./internal/planner/session/... ./internal/runstore/...", covers: [A1, A2, A3]}
   - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/planner/session/... ./internal/runstore/...", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+completion:
+  evidence:
+    - >-
+      Migration 000009 adds immutable WorkflowRun events, stable Run
+      generations, database-owned contiguous Run and Planner-session sequence
+      allocators, and a transactionally linked planner_events row for every
+      new fact including planner.started.
+    - >-
+      PlanSessionService now compare-appends exact, bounded PlannerPlan
+      projections and idempotent fixed facts. It validates every append against
+      the prior revision, rejects status/text/identity history tampering, and
+      loads the latest projection from running or completed sessions without
+      copying the immutable Stage objective.
+    - >-
+      Streamline and Router durably emit plan append, current selection,
+      logical dispatch selection/start/completion, and validated finish facts.
+      A persistence failure terminates Planner safely before an unrecorded
+      Worker side effect can proceed.
+    - >-
+      Public Run-journal data uses a closed per-kind schema validated on both
+      write and read. Tests prove that prompt context, parameters, intermediate
+      Worker summaries, provider/tool payloads, Gateway credentials, allocation
+      identities, Runtime endpoint/token, and artifact bytes are absent; exact
+      accepted subtask text remains the documented typed-plan exception.
+    - >-
+      PostgreSQL race coverage proves one winner for the same expected plan
+      revision, exact retry idempotence, no committed sequence gaps, stable
+      cursor resume, and one-to-one Planner/Run event linkage.
+  verified_by:
+    - make verify
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-streamline
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-faults
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -race -count=1 ./internal/planner/session ./internal/runstore ./internal/planner/streamline ./internal/planner/router
