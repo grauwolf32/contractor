@@ -3,8 +3,8 @@ id: V4-008
 title: Scaffold the independently deployed React frontend
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: daadb02606dd4d236bd22042bd7c7da0c4f8ef5c
 depends_on: [V4-001, V4-006, V4-007, V4-007A]
 languages: [typescript, javascript, css, yaml]
 

@@ -106,15 +106,17 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-007A
-  next_task: V4-008
+  completed_through: V4-008
+  next_task: V4-009
   summary: >-
-    The Go Server now advertises contractor.public.v1 on every public response,
-    including authentication errors, CORS preflight and successful WebSocket
-    upgrades, and the OpenAPI document declares the same compatibility family.
-    V4-008 can now scaffold the independently deployed React frontend, generate
-    its typed client from the committed contract, and fail explicitly when a
-    Server reports an unsupported public API version.
+    The repository now has an independently built React/Vite UI with committed
+    generated OpenAPI types, direct cookie/CSRF transport, guarded owner routes,
+    explicit public-API compatibility checks and a WebSocket adapter skeleton.
+    A dependency-free Node service exposes only static files, health and closed
+    non-secret runtime config with explicit fallback/cache/security behavior;
+    its exact Node 24.20 container builds without rebuilding Go Server. V4-009
+    next replaces the Workflow, Artifact and Run placeholders with the first
+    useful execution surface and resumable live progress.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
