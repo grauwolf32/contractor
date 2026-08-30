@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V3-005` are complete. The
+As of 2026-08-30, implementation tasks through `V3-010` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -44,7 +44,13 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - an opt-in production-stack live-model quality gate and explicit two-Stage
   variants for caller-supplied reviewed analysis reports;
 - exact ModelPolicy-bound cumulative model-call, tool-call, and token budgets
-  with safe failure reports and deterministic release coverage.
+  with safe failure reports and deterministic release coverage;
+- a deterministic production-boundary gate with two real single-slot Runtime
+  Agents that proves Streamline, Router selection, Scheduler-owned escalation,
+  exact stronger execution settings, durable safe plan events, frozen outputs,
+  complete metrics, and slot reuse;
+- an opt-in live Router contract evaluation and a local LiteLLM profile for LM
+  Studio that preserve finite model/Worker/time budgets.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -54,9 +60,13 @@ completion evidence are recorded in
 [`v3-002-typed-planner-plan.yml`](../tasks/v3-002-typed-planner-plan.yml), and
 [`v3-003-single-worker-streamline.yml`](../tasks/v3-003-single-worker-streamline.yml).
 Router completion evidence is recorded in
-[`v3-004-router-planner.yml`](../tasks/v3-004-router-planner.yml), and Gateway
-configuration evidence in
-[`v3-005-llm-gateway-config.yml`](../tasks/v3-005-llm-gateway-config.yml).
+[`v3-004-router-planner.yml`](../tasks/v3-004-router-planner.yml), immutable
+escalation in
+[`v3-008-scheduler-escalation.yml`](../tasks/v3-008-scheduler-escalation.yml),
+the public-safe Planner journal in
+[`v3-009-planner-plan-events.yml`](../tasks/v3-009-planner-plan-events.yml), and
+the complete boundary proof in
+[`v3-010-routing-escalation-e2e.yml`](../tasks/v3-010-routing-escalation-e2e.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -160,6 +170,16 @@ but no allocation IDs, Runtime URLs, or credentials. The strict loadable
 example is
 [`router_openapi_workflow.yaml`](../configs/examples/router_openapi_workflow.yaml).
 
+`make test-e2e` additionally starts two identical single-slot Runtime Agent
+processes and runs three workflows in sequence. `streamline-copy@1` selects its
+sole builder, `router-review@1` prepares builder and reviewer but invokes only
+reviewer, and `escalating-copy@1` first records a non-retryable failed candidate
+before Scheduler creates one linked `failed_escalation` execution with the
+exact `strong_planner@1` and `strong_worker@1` settings. The harness checks the
+PostgreSQL event journal and reports as well as the public result. Physical
+allocation IDs, instance IDs, Runtime URLs, model content, and credentials are
+not accepted in the UI-safe plan events.
+
 The live Gateway dialect check is opt-in so normal tests remain deterministic.
 It verifies that a deployed LiteLLM or LM Studio model returns a real function
 tool call through the same Go adapter:
@@ -174,6 +194,45 @@ CONTRACTOR_STREAMLINE_LIVE_MODEL='planner-model' \
 The 2026-08-30 implementation gate also passed this smoke against LiteLLM and
 LM Studio `qwen/qwen3.8-27b`; that external model is evidence, not a CI
 dependency.
+
+## Live Router evaluation through LiteLLM
+
+The repository includes a small local proxy profile in
+[`deploy/litellm/litellm_config.yaml`](../deploy/litellm/litellm_config.yaml).
+It exposes the same `qwen/qwen3.8-27b` name and forwards to LM Studio. The run
+script defaults to the supplied LAN endpoint and a digest-pinned LiteLLM image;
+all values can be overridden by environment variables. It stays in the
+foreground so `Ctrl-C` removes the disposable container:
+
+```shell
+CONTRACTOR_LM_STUDIO_URL='http://192.168.1.217:1234/v1' \
+  deploy/litellm/run.sh
+```
+
+In another terminal, run the bounded real-model Router scenario:
+
+```shell
+CONTRACTOR_LIVE_LLM_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_MODEL='qwen/qwen3.8-27b' \
+  make test-live-routing
+```
+
+With the documented loopback Gateway and model defaults, the equivalent short
+command is `scripts/test-live-routing.sh`.
+
+Set `CONTRACTOR_LIVE_LLM_TOKEN` only when the local Gateway requires one. The
+evaluation uses the production Go ADK Router and exact four-tool contract,
+offers builder and reviewer descriptions, and requires exactly one dispatch to
+reviewer. The Worker and artifact lookup are deterministic because the normal
+E2E gate already covers A2A and mTLS. Success prints only a model-name SHA-256,
+bounded call count, selected logical Worker, and outcome. Failure reports a
+stable Contractor error code; inspect local LiteLLM/LM Studio logs separately
+when provider diagnostics are needed. Provider bodies and tokens are never
+printed by the test command.
+
+The live check found and now guards an important dialect detail: no-argument
+tools still carry an explicit closed JSON object schema with `properties: {}`.
+LM Studio rejects the otherwise equivalent schema when that field is omitted.
 
 ## Automated MVP evidence
 

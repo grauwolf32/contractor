@@ -265,9 +265,21 @@ func createWorkflowRun(
 	baseURL, workflow, idempotencyKey string,
 	input artifactRef,
 ) string {
+	return createWorkflowRunWithParameters(
+		t, client, baseURL, workflow, idempotencyKey, input, map[string]string{},
+	)
+}
+
+func createWorkflowRunWithParameters(
+	t *testing.T,
+	client *http.Client,
+	baseURL, workflow, idempotencyKey string,
+	input artifactRef,
+	parameters map[string]string,
+) string {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"workflow": workflow, "parameters": map[string]string{},
+		"workflow": workflow, "parameters": parameters,
 		"artifacts": map[string]artifactRef{"source": input},
 	})
 	if err != nil {
@@ -297,7 +309,7 @@ func waitForRun(
 	t *testing.T,
 	ctx context.Context,
 	server, runtimeProcess *childProcess,
-	gateway *fakeGateway,
+	gateway interface{ Failures() []string },
 	client *http.Client,
 	baseURL, runID string,
 ) runStatus {
@@ -310,7 +322,7 @@ func waitForRunState(
 	t *testing.T,
 	ctx context.Context,
 	server, runtimeProcess *childProcess,
-	gateway *fakeGateway,
+	gateway interface{ Failures() []string },
 	client *http.Client,
 	baseURL, runID, expectedState string,
 ) runStatus {

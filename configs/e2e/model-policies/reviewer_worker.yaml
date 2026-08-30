@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: reviewer_worker
+  version: "1"
+
+spec:
+  model: reviewer-worker-model
+  maxOutputTokens: 2048
+  maxModelCalls: 8
+  maxToolCalls: 16
+  maxTotalTokens: 32768
+  temperature: 0

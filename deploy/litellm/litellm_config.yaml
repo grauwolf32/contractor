@@ -1,0 +1,12 @@
+model_list:
+  - model_name: qwen/qwen3.8-27b
+    litellm_params:
+      model: openai/qwen/qwen3.8-27b
+      api_base: os.environ/CONTRACTOR_LM_STUDIO_URL
+      api_key: os.environ/CONTRACTOR_LM_STUDIO_TOKEN
+      timeout: 120
+
+litellm_settings:
+  num_retries: 0
+  request_timeout: 120
+  set_verbose: false

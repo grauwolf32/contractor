@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: artifact_reviewer
+  version: "1"
+
+spec:
+  description: Reviews the exact input and writes the selected byte-for-byte copy
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-reviewer.md
+  modelPolicy: reviewer_worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools:
+        - read_artifact
+        - write_artifact
+  sandboxProfile: local-workdir@1

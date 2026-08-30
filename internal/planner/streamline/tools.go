@@ -88,6 +88,10 @@ func (p *streamlinePlanner) buildTools(
 	listSubtasks, err := functiontool.New(functiontool.Config{
 		Name:        listSubtasksToolName,
 		Description: "Return the current bounded ordered subtask plan, including adapter-controlled status and the exact current subtask_id.",
+		InputSchema: &jsonschema.Schema{
+			Type: "object", Properties: map[string]*jsonschema.Schema{},
+			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+		},
 	}, func(ctx agent.ToolContext, _ listSubtasksArgs) (plannerPlanOutput, error) {
 		return p.listSubtasks(ctx, state), nil
 	})

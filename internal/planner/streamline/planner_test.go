@@ -233,16 +233,21 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 	}
 	names := make([]string, 0, len(tools))
 	var executeDeclaration *genai.FunctionDeclaration
+	var listDeclaration *genai.FunctionDeclaration
 	for _, current := range tools {
 		names = append(names, current.Name())
-		if current.Name() == executeCurrentSubtaskToolName {
+		if current.Name() == executeCurrentSubtaskToolName || current.Name() == listSubtasksToolName {
 			provider, ok := current.(interface {
 				Declaration() *genai.FunctionDeclaration
 			})
 			if !ok {
-				t.Fatalf("execute tool %T does not expose a declaration", current)
+				t.Fatalf("tool %s (%T) does not expose a declaration", current.Name(), current)
 			}
-			executeDeclaration = provider.Declaration()
+			if current.Name() == listSubtasksToolName {
+				listDeclaration = provider.Declaration()
+			} else {
+				executeDeclaration = provider.Declaration()
+			}
 		}
 	}
 	wantNames := []string{
@@ -258,6 +263,16 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 	}
 	if executeDeclaration == nil {
 		t.Fatal("execute_current_subtask declaration is absent")
+	}
+	if listDeclaration == nil {
+		t.Fatal("list_subtasks declaration is absent")
+	}
+	listSchema, err := json.Marshal(listDeclaration.ParametersJsonSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(listSchema) != `{"type":"object","properties":{},"additionalProperties":false}` {
+		t.Fatalf("list_subtasks schema = %s", listSchema)
 	}
 	encoded, err := json.Marshal(executeDeclaration.ParametersJsonSchema)
 	if err != nil {

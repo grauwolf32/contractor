@@ -224,7 +224,8 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 			return invalidf("WorkflowRun Planner dispatch-completed details differ from its plan")
 		}
 	case RunEventPlannerFinishRequested:
-		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 || data.SubtaskID != "" ||
+		if !noPlanOrActivity() || data.PlanRevision == nil ||
+			(*data.PlanRevision == 0 && data.Outcome != string(contracts.StageFailed)) || data.SubtaskID != "" ||
 			data.CallID != "" || data.WorkerName != "" || data.Code != "" ||
 			(data.Outcome != string(contracts.StageSucceeded) && data.Outcome != string(contracts.StageFailed)) {
 			return invalidf("WorkflowRun Planner finish-requested event has invalid fields")

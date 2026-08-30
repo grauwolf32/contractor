@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: ExecutionConfig
+
+metadata:
+  name: strong-routing
+  version: "1"
+
+spec:
+  planner:
+    modelPolicy: strong_planner@1
+  agents:
+    builder:
+      modelPolicy: strong_worker@1

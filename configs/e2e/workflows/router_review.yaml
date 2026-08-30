@@ -1,0 +1,62 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: router-review
+  version: "1"
+
+spec:
+  parameters:
+    mode:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+    workers:
+      llmGateway: local-litellm@1
+
+  entryStage: review
+  stages:
+    review:
+      objective: ROUTER_E2E_GLOBAL choose the reviewer for the exact source
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: router@1
+      agents:
+        builder:
+          template: artifact_builder@1
+        reviewer:
+          template: artifact_reviewer@1
+          namespace: review
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          reviewed:
+            required: true
+            mediaTypes: [text/plain]
+      workflowOutputs:
+        result: reviewed
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

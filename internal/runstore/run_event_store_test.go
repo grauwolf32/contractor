@@ -90,6 +90,27 @@ func TestPlannerRunEventIdentityMustMatchDurableSession(t *testing.T) {
 	}
 }
 
+func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
+	event := validPlannerRunEvent(t, RunEventPlannerFinishRequested)
+	var data plannerRunEventData
+	if err := json.Unmarshal(event.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	zero := uint64(0)
+	data.PlanRevision = &zero
+	data.Outcome = string(contracts.StageFailed)
+	event.Data = mustRunEventJSON(t, data)
+	if err := validateRunEventAppend(event); err != nil {
+		t.Fatalf("failed finish before the first subtask: %v", err)
+	}
+
+	data.Outcome = string(contracts.StageSucceeded)
+	event.Data = mustRunEventJSON(t, data)
+	if err := validateRunEventAppend(event); err == nil {
+		t.Fatal("succeeded finish before the first subtask was accepted")
+	}
+}
+
 func validPlannerRunEvent(t *testing.T, kind RunEventKind) RunEventAppend {
 	t.Helper()
 	data := plannerRunEventData{

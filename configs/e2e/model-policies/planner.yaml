@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: planner
+  version: "1"
+
+spec:
+  model: planner-model
+  maxOutputTokens: 2048
+  maxModelCalls: 8
+  maxWorkerCalls: 4
+  maxTotalTokens: 16384
+  temperature: 0
