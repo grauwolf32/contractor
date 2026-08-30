@@ -3,7 +3,8 @@ id: V2-004
 title: Define the four-Stage OpenAPI project workflow
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "698b45b790a2caeb52859e05042d4ad69d27dd8f"
 depends_on: [V2-001, V2-002, V2-003]
 languages: [go, python, yaml]
 

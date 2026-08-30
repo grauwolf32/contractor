@@ -3,7 +3,8 @@ id: V2-003
 title: Port the artifact-backed OpenAPI builder and validator Toolset
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "38e173d9fcb76a0f6ce26c8d796cc4c56867f46a"
 depends_on: [V2-002]
 languages: [go, python]
 

@@ -3,7 +3,8 @@ id: V2-008
 title: Add an opt-in live-model quality evaluation for project workflows
 milestone: project-workflows-quality
 priority: P1
-status: planned
+status: completed
+implementation_commit: "4cb721e0ed9a2b4d34da6672b6f9345df20872df"
 depends_on: [V2-007]
 languages: [go, python]
 
@@ -77,3 +78,24 @@ tests:
 
 notes:
   - Record the tested model and date in task completion evidence, not in executable assertions.
+
+completion:
+  evaluated_on: "2026-08-30"
+  model: qwen/qwen3.8-27b
+  gateway: Direct LM Studio OpenAI-compatible endpoint.
+  evidence:
+    - >-
+      LikeC4 completed successfully in 783.680 seconds and passed the structural,
+      semantic, and direct CLI checks.
+    - >-
+      OpenAPI produced a meaningful draft but ended with the accepted bounded
+      diagnostic after approximately 26.4 minutes. The diagnostic identified
+      openapi.validator, run.terminal_state, and runtime.release and exposed a
+      22-model-call, 508271-token runaway pattern that directly motivated V2-010.
+    - >-
+      The bounded local evidence bundle is stored under the ignored path
+      .local/eval-results/20260830T051038Z-401ffb2c754c.
+  verified_by:
+    - make verify
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-project-workflows
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-project-workflows-live

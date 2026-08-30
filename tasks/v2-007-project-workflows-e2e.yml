@@ -3,7 +3,8 @@ id: V2-007
 title: Prove OpenAPI and LikeC4 workflows end to end
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "bb233cbadb906d45ad706445c13bcde106621ce6"
 depends_on: [V2-004, V2-006]
 languages: [go, python]
 

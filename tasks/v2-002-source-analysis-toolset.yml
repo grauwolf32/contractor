@@ -3,7 +3,8 @@ id: V2-002
 title: Add a safe ZIP-backed source analysis Toolset
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "33732236e98deeb131fdbe55ceee764a601dfa7a"
 depends_on: [V2-001]
 languages: [go, python]
 

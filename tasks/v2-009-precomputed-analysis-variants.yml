@@ -3,7 +3,8 @@ id: V2-009
 title: Add explicit precomputed-analysis workflow variants
 milestone: project-workflows-quality
 priority: P1
-status: planned
+status: completed
+implementation_commit: "8d4b5175ec81446da0af623101e9da666c0740f1"
 depends_on: [V2-007]
 languages: [go, yaml]
 

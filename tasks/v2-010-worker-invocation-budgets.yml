@@ -3,7 +3,8 @@ id: V2-010
 title: Enforce cumulative Worker invocation budgets
 milestone: project-workflows-operations
 priority: P1
-status: planned
+status: completed
+implementation_commit: "9426486745fbc3fda74208d11c286585f431f17f"
 depends_on: [V2-008]
 languages: [go, python, yaml]
 
@@ -87,3 +88,20 @@ tests:
 notes:
   - maxOutputTokens remains a per-response generation cap and is not a substitute for maxTotalTokens.
   - Initial shipped values should be explicit configuration, not Runtime constants; changing them creates a new ModelPolicy digest.
+
+completion:
+  shipped_policies:
+    worker@1: {max_model_calls: 8, max_tool_calls: 16, max_total_tokens: 32768}
+    domain_worker@1: {max_model_calls: 24, max_tool_calls: 96, max_total_tokens: 250000}
+  evidence:
+    - >-
+      The deterministic endless-tool-loop scenario stops after two real domain
+      tool calls, persists worker_budget_exhausted metrics, finalizes, releases,
+      and reuses the single Runtime slot.
+    - >-
+      Cross-language config digest parity is exercised by the real Go-to-Python
+      allocation preparation path.
+  verified_by:
+    - make verify
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-project-workflows

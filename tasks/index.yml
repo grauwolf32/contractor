@@ -89,18 +89,16 @@ milestones:
       budgets and terminates with complete safe metrics before Stage retry.
 
 current_checkpoint:
-  completed_through: V1-006
-  next_task: V2-001
+  completed_through: V2-010
+  next_task: null
   summary: >-
-    The runnable MVP, bounded cancellation, symmetric confirmed allocation
-    leases, serial multi-Stage progression, bounded retry, bounded durable
-    Planner/Worker/Runtime metrics, and the executable race/security hardening
-    matrix are implemented. The model-backed streamline@1 Planner now
-    coordinates fixed prepared Workers through Google ADK Go, persists only
-    redacted ADK facts, recovers completed decisions without semantic replay,
-    and passes deterministic plus opt-in live Gateway tests. The next increment
-    ports the contractor-old OpenAPI and LikeC4 project workflows, beginning
-    with allocation-bound UTF-8 Artifact tools.
+    The contractor-old OpenAPI and LikeC4 project workflows are ported as
+    artifact-scoped four-Stage workflows, with explicit two-Stage variants for
+    caller-supplied discovery reports. Source ZIP inspection, text artifacts,
+    document mutation/validation, production-boundary deterministic tests, and
+    an opt-in live-model quality harness are implemented. Every Worker
+    invocation now has cumulative model-call, tool-call, and token budgets with
+    safe terminal metrics and verified single-slot Runtime release.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -133,7 +131,7 @@ project_workflow_port:
 
 planning_review:
   reviewed_on: "2026-08-30"
-  verdict: ready_for_incremental_implementation
+  verdict: project_workflow_increment_complete
   checks:
     - >-
       Dependency graph is acyclic and reaches a deterministic P0 exit through
@@ -148,6 +146,17 @@ planning_review:
     - >-
       The deterministic end-to-end task crosses all production boundaries and
       substitutes only the external model and fixed validator executables.
+    - >-
+      V2-008 exercises the same production stack against a real
+      OpenAI-compatible model and records either semantic success or a bounded,
+      actionable diagnostic without making ordinary CI network-dependent.
+    - >-
+      V2-009 expresses discovery reuse as explicit versioned Workflow inputs;
+      it adds no hidden cache lookup or conditional Scheduler behavior.
+    - >-
+      V2-010 closes the live-evaluation runaway-loop finding at the Worker
+      boundary and proves bounded failure, complete metrics, release, and slot
+      reuse end to end.
   accepted_risks:
     - >-
       application/zip remains subject to the existing 16 MiB Artifact limit;
@@ -157,11 +166,16 @@ planning_review:
       fail explicitly at tool use and never masquerade as successful validation.
     - >-
       Initial source search is bounded text search rather than the legacy
-      tree-sitter/graph index. Quality is measured by V2-008 before deciding
-      whether a richer source-analysis@2 is justified.
+      tree-sitter/graph index. Live evidence shows that it is adequate for the
+      compact fixture; larger or polyglot repositories may justify a future
+      source-analysis@2.
     - >-
-      The old implicit discovery cache is intentionally postponed to explicit
-      caller-selected inputs in V2-009.
+      Explicit caller-selected discovery reuse is implemented. Automatic cache
+      keys, provenance compatibility checks, and invalidation remain deferred.
+    - >-
+      Model quality and result-envelope reliability remain provider-dependent.
+      Finite Worker budgets now bound time and spend, but policy tuning across
+      larger repositories needs a broader future evaluation matrix.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}

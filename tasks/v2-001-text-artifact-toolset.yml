@@ -3,7 +3,8 @@ id: V2-001
 title: Add allocation-bound UTF-8 Artifact tools
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "3da02f5f7583107b3870e4ff7a938fecf2605194"
 depends_on: [V1-006]
 languages: [go, python]
 

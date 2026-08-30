@@ -3,7 +3,8 @@ id: V2-006
 title: Define the four-Stage LikeC4 project workflow
 milestone: project-workflows-mvp
 priority: P0
-status: planned
+status: completed
+implementation_commit: "82809583cf5cae32ab3bd6d4aa7074c1259d90f6"
 depends_on: [V2-002, V2-004, V2-005]
 languages: [go, python, yaml]
 
