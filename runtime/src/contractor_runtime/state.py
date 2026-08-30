@@ -88,6 +88,15 @@ class RuntimeState:
                         tools=["list_artifacts", "read_artifact", "write_artifact"],
                     ),
                     ToolsetCapability(
+                        ref="source-analysis@1",
+                        tools=[
+                            "list_source_files",
+                            "open_source_archive",
+                            "read_source",
+                            "search_source",
+                        ],
+                    ),
+                    ToolsetCapability(
                         ref="text-artifacts@1",
                         tools=["read_text_artifact", "write_text_artifact"],
                     ),

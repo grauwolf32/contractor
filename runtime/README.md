@@ -20,3 +20,21 @@ uv run contractor-runtime --listen 127.0.0.1:9443
 The listener requires both a deployment-CA client certificate and the reserved
 Control Plane URI SAN before HTTP dispatch. Readiness remains false until the
 listener is accepting and registration has succeeded.
+
+## Source archives
+
+`source-analysis@1` opens an exact `application/zip` Run artifact inside the
+current allocation's `local-workdir@1`. ZIP members remain POSIX-relative and
+the Runtime rejects traversal, links, special/encrypted files, duplicate
+normalized names, and bounded-archive violations before replacing an already
+opened tree. The initial limits are 10,000 entries, 64 MiB declared
+uncompressed total, and 4 MiB per file; the outer Artifact API still limits the
+compressed payload to 16 MiB.
+
+The model-visible interface is read-only: `open_source_archive`,
+`list_source_files`, `search_source`, and `read_source`. Dependency/VCS/build
+trees and known binary formats are omitted. Search scans at most 32 MiB of
+validated UTF-8 files and returns bounded source-relative file/line evidence.
+Allocation release removes the materialized tree with the rest of the
+workspace. Create archives with project contents at the ZIP root when possible;
+a containing directory is safe but remains part of every reported path.

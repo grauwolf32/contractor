@@ -25,6 +25,12 @@ def test_idle_is_committed_only_after_registration_ack() -> None:
             capability.ref: set(capability.tools) for capability in registration.supported_toolsets
         } == {
             "run-artifacts@1": {"list_artifacts", "read_artifact", "write_artifact"},
+            "source-analysis@1": {
+                "list_source_files",
+                "open_source_archive",
+                "read_source",
+                "search_source",
+            },
             "text-artifacts@1": {"read_text_artifact", "write_text_artifact"},
         }
         assert (await state.snapshot()).process_state is ProcessState.STARTING

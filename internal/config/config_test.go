@@ -76,6 +76,19 @@ func TestTextArtifactToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestSourceAnalysisToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["source-analysis@1"]
+	if !ok {
+		t.Fatal("source-analysis@1 descriptor is missing")
+	}
+	want := []string{"list_source_files", "open_source_archive", "read_source", "search_source"}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("source-analysis@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+}
+
 func TestWorkflowExamplesLoad(t *testing.T) {
 	for _, name := range []string{
 		"bounded_retry_workflow.yaml",
