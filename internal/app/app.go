@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -46,18 +47,19 @@ type Config struct {
 	DatabaseURL           string
 	// ConfigRoot is the deprecated alias retained for callers that inspect
 	// parsed settings. Runtime composition uses the two explicit roots below.
-	ConfigRoot              string
-	OperatorConfigRoot      string
-	ManagedConfigRoot       string
-	CredentialMasterKeyFile string
-	CAFile                  string
-	CertificateFile         string
-	PrivateKeyFile          string
-	DevelopmentWorkerToken  contracts.SecretString
-	DevelopmentPlannerToken contracts.SecretString
-	PlannerTimeout          time.Duration
-	PublicBearerToken       contracts.SecretString
-	PublicUserID            string
+	ConfigRoot                  string
+	OperatorConfigRoot          string
+	ManagedConfigRoot           string
+	CredentialMasterKeyFile     string
+	LLMGatewayAdminBindingsFile string
+	CAFile                      string
+	CertificateFile             string
+	PrivateKeyFile              string
+	DevelopmentWorkerToken      contracts.SecretString
+	DevelopmentPlannerToken     contracts.SecretString
+	PlannerTimeout              time.Duration
+	PublicBearerToken           contracts.SecretString
+	PublicUserID                string
 }
 
 const (
@@ -168,7 +170,25 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("compose LLM credential providers: %w", err)
 	}
-	credentialManagers, err := credentials.NewManagerRegistry()
+	adminBindings, err := litellmcredentials.LoadAdminBindings(
+		cfg.LLMGatewayAdminBindingsFile, configurationManager,
+	)
+	if err != nil {
+		return fmt.Errorf("load LLM Gateway admin bindings: %w", err)
+	}
+	if adminBindings.Len() != 0 && tokenCipher == nil {
+		return errors.New("managed LLM Gateway credentials require --credential-master-key-file")
+	}
+	liteLLMManager, err := litellmcredentials.NewManager(
+		adminBindings, configurationManager, litellmcredentials.Options{},
+	)
+	if err != nil {
+		return fmt.Errorf("configure LiteLLM credential manager: %w", err)
+	}
+	credentialManagers, err := credentials.NewManagerRegistry(credentials.ManagerRegistration{
+		Implementation: contracts.LiteLLMVirtualKeysManager,
+		Manager:        liteLLMManager,
+	})
 	if err != nil {
 		return fmt.Errorf("configure Gateway credential managers: %w", err)
 	}

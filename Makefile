@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -33,6 +33,9 @@ verify-public-api:
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
+
+test-litellm-contract:
+	deploy/litellm/test-contract.sh
 
 test-mtls:
 	go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...

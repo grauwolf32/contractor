@@ -92,6 +92,13 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		credentialMasterKeyFile,
 		"absolute owner-only file containing the credential encryption key",
 	)
+	llmGatewayAdminBindingsFile := ""
+	flags.StringVar(
+		&llmGatewayAdminBindingsFile,
+		"llm-gateway-admin-bindings-file",
+		llmGatewayAdminBindingsFile,
+		"absolute strict YAML file binding exact LLM Gateways to owner-only admin-key files",
+	)
 	flags.StringVar(&publicUserID, "public-user-id", publicUserID, "single-user public API identity")
 	flags.StringVar(&caFile, "ca-file", caFile, "deployment CA certificate")
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
@@ -139,9 +146,10 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,
 		DatabaseURL: databaseURL,
 		ConfigRoot:  operatorConfigRoot, OperatorConfigRoot: operatorConfigRoot,
-		ManagedConfigRoot:       managedConfigRoot,
-		CredentialMasterKeyFile: credentialMasterKeyFile,
-		CAFile:                  caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
+		ManagedConfigRoot:           managedConfigRoot,
+		CredentialMasterKeyFile:     credentialMasterKeyFile,
+		LLMGatewayAdminBindingsFile: llmGatewayAdminBindingsFile,
+		CAFile:                      caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
 		DevelopmentWorkerToken: developmentWorkerToken, DevelopmentPlannerToken: developmentPlannerToken,
 		PlannerTimeout: plannerTimeout,
 		PublicUserID:   publicUserID, PublicBearerToken: publicBearerToken,

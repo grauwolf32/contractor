@@ -199,15 +199,27 @@ dependency.
 
 The repository includes a small local proxy profile in
 [`deploy/litellm/litellm_config.yaml`](../deploy/litellm/litellm_config.yaml).
-It exposes the same `qwen/qwen3.8-27b` name and forwards to LM Studio. The run
-script defaults to the supplied LAN endpoint and a digest-pinned LiteLLM image;
-all values can be overridden by environment variables. It stays in the
-foreground so `Ctrl-C` removes the disposable container:
+It exposes `qwen/qwen3.8-27b` plus the shipped Planner/Worker aliases and
+forwards all of them to LM Studio. The run script uses digest-pinned LiteLLM
+and PostgreSQL images, retains LiteLLM's virtual-key database in a named Podman
+volume, and keeps the proxy itself in the foreground. Create two owner-only
+local bootstrap keys before the first start:
 
 ```shell
+umask 077
+mkdir -p .local/secrets
+printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-master-key
+printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-salt-key
+CONTRACTOR_LITELLM_MASTER_KEY_FILE="$(pwd)/.local/secrets/litellm-master-key" \
+CONTRACTOR_LITELLM_SALT_KEY_FILE="$(pwd)/.local/secrets/litellm-salt-key" \
 CONTRACTOR_LM_STUDIO_URL='http://192.168.1.217:1234/v1' \
   deploy/litellm/run.sh
 ```
+
+`Ctrl-C` removes the proxy container but deliberately leaves
+`contractor-litellm-postgres` and its named volume intact. The master key file
+is also the `adminKeyFile` used by Contractor's exact Gateway binding; the salt
+key remains LiteLLM-only. Neither file belongs in repository YAML.
 
 In another terminal, run the bounded real-model Router scenario:
 
@@ -317,9 +329,18 @@ it once as an owner-only file and pass only its absolute path to Server:
 umask 077
 mkdir -p .local/secrets
 openssl rand -base64 32 > .local/secrets/credential-master-key
+cat > .local/secrets/llm-gateway-admin-bindings.yaml <<EOF
+bindings:
+  - llmGateway:
+      gatewayId: local-litellm
+      version: "1"
+      digest: sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376
+    adminKeyFile: $(pwd)/.local/secrets/litellm-master-key
+EOF
 go run ./cmd/contractor-server serve \
   --config-root ./configs/e2e \
-  --credential-master-key-file="$(pwd)/.local/secrets/credential-master-key"
+  --credential-master-key-file="$(pwd)/.local/secrets/credential-master-key" \
+  --llm-gateway-admin-bindings-file="$(pwd)/.local/secrets/llm-gateway-admin-bindings.yaml"
 ```
 
 There is deliberately no environment variable or command-line literal for the
@@ -328,6 +349,46 @@ most one trailing newline, and must not be a symlink or readable by group or
 world. The flag is optional while no encrypted credential rows exist; once one
 exists, a missing file or a key whose fingerprint differs from the stored rows
 makes Server startup fail before accepting traffic.
+
+The admin-binding document is strict YAML and contains no key bytes. Each
+entry names the complete digest-bearing Gateway ref and an absolute owner-only
+`sk-` key file. Server resolves the ref at startup and remembers its exact
+management origin; a missing/wrong digest, insecure file, redirect, malformed
+provider response, or unbound Gateway fails closed. Changing an immutable
+LLMGatewayConfig therefore requires a new binding entry and Server restart.
+The LiteLLM manager uses finite timeouts and bounded bodies and accepts only
+the response shape verified by `make test-litellm-contract` against the pinned
+image.
+
+Once Server is running, create an active virtual key without ever sending its
+token through the public API. This example derives both exact refs from the
+safe configuration API:
+
+```shell
+export CONTRACTOR_API_TOKEN='replace-with-a-local-api-token'
+GATEWAY_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  http://127.0.0.1:8080/v1/configurations/llm-gateways/local-litellm/versions/1 | \
+  jq -c '.ref | {gatewayId:.name,version,digest}')"
+WORKER_POLICY_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  http://127.0.0.1:8080/v1/configurations/model-policies/worker/versions/1 | \
+  jq -c '.ref | {policyId:.name,version,digest}')"
+jq -n --argjson gateway "$GATEWAY_REF" --argjson policy "$WORKER_POLICY_REF" \
+  '{credentialId:"managed-worker",llmGateway:$gateway,
+    label:"Local Worker",gatewayPolicy:{modelPolicies:[$policy],
+    maxBudget:10,budgetDuration:"1d",rpmLimit:30,maxParallelRequests:2}}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H 'Idempotency-Key: create-managed-worker-1' \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://127.0.0.1:8080/v1/operations/credentials | jq .
+```
+
+The response contains only ID, exact Gateway ref, label, effective policy and
+creation time. LiteLLM's generated virtual key is encrypted immediately in
+PostgreSQL. Select `managed-worker` in Workflow or Run `executionConfig`; keep
+the development token environment variables unset when testing this path.
 
 In the second terminal, start the single-slot Runtime Agent:
 

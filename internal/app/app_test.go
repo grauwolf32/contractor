@@ -224,6 +224,7 @@ func TestParseConfigUsesIndependentDevelopmentPlannerCredentialAndMasterKeyPath(
 	}
 	cfg, err := ParseConfig([]string{
 		"serve", "--planner-timeout=2m", "--credential-master-key-file=/run/secrets/credential-key",
+		"--llm-gateway-admin-bindings-file=/run/secrets/gateway-bindings.yaml",
 	}, env)
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +235,9 @@ func TestParseConfigUsesIndependentDevelopmentPlannerCredentialAndMasterKeyPath(
 	}
 	if cfg.CredentialMasterKeyFile != "/run/secrets/credential-key" {
 		t.Fatalf("credential master-key file = %q", cfg.CredentialMasterKeyFile)
+	}
+	if cfg.LLMGatewayAdminBindingsFile != "/run/secrets/gateway-bindings.yaml" {
+		t.Fatalf("Gateway admin bindings file = %q", cfg.LLMGatewayAdminBindingsFile)
 	}
 }
 

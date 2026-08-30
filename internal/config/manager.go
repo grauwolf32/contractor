@@ -177,6 +177,10 @@ func (m *Manager) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, er
 	return m.Snapshot().LLMGateway(raw)
 }
 
+func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error) {
+	return m.Snapshot().ModelPolicy(raw)
+}
+
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,

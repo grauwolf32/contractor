@@ -178,7 +178,7 @@ func (g GeneratedCredential) Validate() error {
 type GatewayCredentialManager interface {
 	// ValidateCreate performs all request/configuration validation without an
 	// outbound side effect. Lifecycle calls it before reserving an immutable ID
-	// and repeats it during recovery before touching the deterministic alias.
+	// and repeats it during recovery after deterministic remote cleanup.
 	ValidateCreate(context.Context, ManagerCreateRequest) error
 	Create(context.Context, ManagerCreateRequest) (GeneratedCredential, error)
 	Delete(context.Context, ManagerDeleteRequest) error

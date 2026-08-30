@@ -18,6 +18,12 @@ shipped `local-litellm@1` config uses the OpenAI-compatible `/v1` inference
 path and a loopback-only HTTP LiteLLM management origin. Tokens and LiteLLM
 admin keys are never valid fields in these manifests.
 
+Managed credentials bind that exact digest-bearing Gateway ref to an
+owner-only admin-key file through the separate process bootstrap document
+passed with `--llm-gateway-admin-bindings-file`. The binding document is not a
+configuration resource, is never served by the public API, and must be updated
+explicitly when the immutable Gateway digest changes.
+
 Workflow `spec.executionConfig` contains reference-only defaults. A modeled
 consumer resolves an exact `modelPolicy`, `llmGateway`, and optional non-secret
 credential ID; per-Stage and per-Agent leaves override Workflow-wide defaults.

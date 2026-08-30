@@ -425,11 +425,11 @@ func (s *Service) executeCreate(
 		LLMGateway: gateway, Label: request.Label, Policy: request.GatewayPolicy,
 	}
 	if recoverFirst {
-		if err := manager.ValidateCreate(ctx, managerRequest); err != nil {
-			return Record{}, safeManagerValidationError(ctx, err)
-		}
 		if err := manager.RecoverCreate(ctx, managerRequest); err != nil {
 			return Record{}, ErrGatewayUnavailable
+		}
+		if err := manager.ValidateCreate(ctx, managerRequest); err != nil {
+			return Record{}, safeManagerValidationError(ctx, err)
 		}
 	}
 	generated, err := manager.Create(ctx, managerRequest)
