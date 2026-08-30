@@ -103,8 +103,8 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-007
-  next_task: V3-008
+  completed_through: V3-008
+  next_task: V3-009
   summary: >-
     The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
     foundation are complete. Model-backed Planner completion now uses one
@@ -118,9 +118,12 @@ current_checkpoint:
     access, and exact ExecutionConfig manifests or inline escalation patches
     now add a sixth layer. Every named profile digest, resolved dependency and
     fully effective Stage variant is pinned before a Run starts; credentials
-    are validated across base and all variants without storing tokens. The next
-    increment makes Scheduler apply those already-pinned variants through a
-    durable bounded escalation decision.
+    are validated across base and all variants without storing tokens.
+    Scheduler now applies failed/interrupted escalation independently of
+    retryable through an atomic immutable decision and fresh linked execution,
+    with branch-local bounded ordinals, deterministic exhaustion, cancellation
+    serialization, and safe public lineage/effective-ref fields. The next
+    increment persists typed Planner plan projections and reduced Run events.
 
 current_planning_review:
   reviewed_on: "2026-08-30"

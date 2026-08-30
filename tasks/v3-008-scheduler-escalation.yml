@@ -3,8 +3,8 @@ id: V3-008
 title: Implement Scheduler-owned bounded Stage escalation
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "5cc0246b542fc5be61908cebfc95ee458095430a"
 depends_on: [V3-006, V3-007]
 languages: [go, sql]
 
@@ -79,3 +79,37 @@ tests:
   - {name: scheduler-race, command: "go test -race ./internal/scheduler/...", covers: [A1, A2, A3, A4]}
   - {name: runstore-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/runstore/... ./internal/persistence/...", covers: [A2, A3, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+completion:
+  evidence:
+    - >-
+      Scheduler now selects failed and interrupted escalation independently of
+      retryable, creates one fresh linked StageExecution, and reconstructs its
+      effective configuration only from the immutable Run snapshot. The
+      persisted variant and positive branch-local ordinal are immutable.
+    - >-
+      Escalation counting is independent for failed and interrupted branches,
+      rejects duplicate or non-contiguous durable ordinals, and applies the
+      declared then action exactly once after maxAttempts without creating an
+      extra escalated execution.
+    - >-
+      The source terminal transition, immutable decision, successor creation,
+      exact StageContext pins, and optional terminal Run transition share one
+      PostgreSQL transaction serialized on the Run row. Restart and
+      cancellation tests prove stable lineage and no post-cancel successor.
+    - >-
+      Public Run status exposes ordered transition decisions, attempt lineage,
+      escalation ordinal/exhaustion, and only digest-bearing effective model,
+      Gateway, credential, and optional ExecutionConfig refs; URLs, tokens,
+      artifact content, and raw Planner data remain absent.
+    - >-
+      PostgreSQL 17 integration coverage applies migration 000008, exercises
+      atomic escalation and replay conflict, protects immutable configuration
+      identity, and enforces unique branch ordinals.
+  verified_by:
+    - make verify
+    - go test -race ./internal/scheduler/... ./internal/runstore/... ./internal/httpapi/public/... ./internal/persistence/postgres/...
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-postgres
+    - go run ./cmd/contractor-server config validate --root ./configs
+    - go test -tags=e2e ./tests/e2e -run '^$'
+    - go test -tags=integration ./internal/controlplane ./internal/httpapi/privateartifacts -run '^$'
