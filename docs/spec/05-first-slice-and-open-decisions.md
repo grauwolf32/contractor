@@ -227,9 +227,9 @@ implicitly:
   loss;
 - shared Runtime Agent Registry and coordination for multiple active Control
   Plane replicas;
-- master-key rotation/re-encryption, external Vault/KMS adapters and credential
-  expiry/refresh beyond encrypted PostgreSQL revisions and the write-only UI
-  boundary;
+- master-key rotation/re-encryption, external Vault/KMS adapters and managed
+  Gateway-key TTL/quota policy beyond encrypted immutable credentials and the
+  write-only UI boundary;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;
 - multi-tenant authorization and quota policy.

@@ -108,25 +108,39 @@ spec:
     planner:
       modelPolicy: planner-balanced@1
       llmGateway: local-lm-studio@1
+      credential: planner-local
     workers:
       llmGateway: local-lm-studio@1
+      credential: worker-local
     stages:
       build:
         planner:
           modelPolicy: planner-strong@1
           llmGateway: paid-gateway@1
+          credential: paid-planner
         agents:
           builder:
             modelPolicy: domain-worker-strong@1
             llmGateway: paid-gateway@1
+            credential: paid-openapi-builder
 ```
 
 `planner` and `workers` are optional Workflow-wide defaults. `stages` is an
 optional mapping keyed by an existing Stage name; each `agents` entry is keyed
 by an existing logical binding in that Stage. Every leaf contains only optional
-exact `<id>@<version>` selectors `modelPolicy` and `llmGateway` and must contain
-at least one of them. Unknown fields, Stages, bindings or configurations are
-invalid.
+exact `<id>@<version>` selectors `modelPolicy` and `llmGateway` plus the
+optional exact credential ID `credential`, and must contain at least one of
+them. Unknown fields, Stages, bindings or configurations are invalid. A
+credential is valid only with the exact Gateway to which it is bound. Credential
+existence is checked again during Run initialization because an immutable YAML
+default may outlive a deleted operational credential; a missing credential
+makes that selection unrunnable but does not rewrite or hide the Workflow.
+
+Workflow defaults either omit `credential` or name an ID. In a Run override,
+an omitted field inherits the lower-precedence selection, a string replaces it,
+and explicit `credential: null` clears it for an unauthenticated Gateway. No
+other selector accepts null. This tri-state exists only in the override patch;
+ResolvedExecutionConfig always contains either one credential ref or none.
 
 `POST /v1/runs` accepts an optional top-level `executionConfig` object whose
 content has the same `planner`/`workers`/`stages` shape. It is an override
@@ -141,19 +155,20 @@ winning:
 5. Run-request Stage/binding overrides.
 
 Every `adk@1` Worker must resolve one compatible ModelPolicy and one
-LLMGatewayConfig. Every `streamline@1` Planner must independently resolve one
-compatible ModelPolicy and one LLMGatewayConfig. `passthrough@1` has no model
-client, so a Planner model/Gateway selection for that Stage is invalid. The
-consumer-specific ModelPolicy requirements are defined in
+LLMGatewayConfig and zero or one matching credential. Every `streamline@1`
+Planner must independently resolve one compatible ModelPolicy, one
+LLMGatewayConfig and zero or one matching credential. `passthrough@1` has no
+model client, so a Planner model/Gateway/credential selection for that Stage is
+invalid. The consumer-specific ModelPolicy requirements are defined in
 [01](01-agent-template.md).
 
 Run initialization resolves complete ModelPolicy and LLMGatewayConfig bodies,
-their exact digest-bearing refs, and the non-secret exact credential revision.
+their exact digest-bearing refs, and the non-secret credential ref.
 It stores the fully expanded per-Stage/per-binding `ResolvedExecutionConfig`
 with the immutable WorkflowRun snapshot. That snapshot, rather than later
 configuration edits or UI state, is authoritative for every attempt. Secret
 bytes are never stored in the Run snapshot; Control Plane resolves the pinned
-credential revision only when constructing RuntimeSettings or the Planner
+credential only when constructing RuntimeSettings or the Planner
 model client.
 
 The canonical idempotency digest for `POST /v1/runs` includes the supplied
@@ -831,7 +846,7 @@ invalid-response failure rather than a way to bypass the cumulative budget.
 The Planner model alias comes from that ModelPolicy. Gateway URL/protocol and
 the non-secret credential reference come from the Planner's independently
 resolved LLMGatewayConfig selection. Planner resolves the pinned credential
-revision through the Server secret boundary and never inherits a Worker's
+through the Server secret boundary and never inherits a Worker's
 token, Gateway or policy merely because both participate in the same Stage.
 
 Only one tool call is executed per model turn. A parallel or unknown tool

@@ -84,7 +84,7 @@ model {
       #contractor
     }
 
-    credentialRevisions = storage 'AES-256-GCM encrypted LLM credential revisions' {
+    credentials = storage 'AES-256-GCM encrypted immutable LLM credentials' {
       #contractor
     }
 
@@ -188,14 +188,14 @@ model {
     publicApi -> workflowScheduler 'Start / query / cancel Workflow Run'
     userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
     operationsApi -> runtimeRegistry 'Read authoritative/observed slot state'
-    operationsApi -> executionConfigService 'List, validate and publish configs; rotate write-only credentials'
+    operationsApi -> executionConfigService 'List/publish configs; create/delete write-only credentials'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
     workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
     workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
     plannerFactories -> stagePlanner 'Construct one Stage-local Planner over fixed WorkerHandles'
-    plannerFactories -> executionConfigService 'Resolve pinned Planner credential revision'
+    plannerFactories -> executionConfigService 'Resolve pinned Planner credential'
     stagePlanner -> workerInvokerTools 'Invoke fixed logical Worker tools sequentially'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
     workflowScheduler -> artifactService 'Pin/fork inputs; transactionally bind exact accepted Run outputs'
@@ -204,7 +204,7 @@ model {
     plannerArtifactInspector -> artifactService 'Read exact metadata inside current RunScope'
 
     controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
-    controlPlane -> executionConfigService 'Resolve pinned Worker credential revisions for RuntimeSettings'
+    controlPlane -> executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
     artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
     artifactService -> blobStore 'Stream immutable content'
     controlPlane -> telemetry 'Bind allocation final reports to trusted execution identity'
@@ -307,7 +307,7 @@ model {
 
   server.telemetry -> telemetryBackend 'Export when configured'
   server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
-  server.executionConfigService -> artifactDatabase.credentialRevisions 'Store/resolve encrypted pinned revisions'
+  server.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
   server.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
 }
 

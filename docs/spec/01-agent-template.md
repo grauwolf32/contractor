@@ -57,7 +57,6 @@ class LLMGatewayConfigRef(BaseModel):
 
 class LLMCredentialRef(BaseModel):
     credential_id: str
-    revision: int
 
 
 class ToolsetRef(BaseModel):
@@ -282,30 +281,29 @@ metadata:
 spec:
   protocol: openai-compatible@1
   url: http://192.168.1.217:1234/v1
-  credentialRef: lm-studio-default
 ```
 
 `protocol` and `url` are mandatory. The first slice accepts exactly
 `openai-compatible@1`. URL userinfo, query and fragment components are invalid;
-credentials never travel inside the URL. `credentialRef` is optional for a
-trusted unauthenticated local Gateway. When present it is a stable logical name
-resolved through the Server's secret store, not another YAML document
-containing secret bytes.
+credentials never travel inside the URL or Gateway manifest. A modeled
+consumer selects an optional credential independently beside `llmGateway` in
+executionConfig. Omitting it means an unauthenticated local Gateway request.
 
-Resolving a Gateway for a Run produces an exact `LLMGatewayConfigRef` and, when
-configured, an `LLMCredentialRef(credential_id, revision)`. The immutable Run
-snapshot stores those non-secret refs but never the token. The secret store
-must retain a referenced revision for the lifetime of a non-terminal Run.
-Rotating a credential creates a new revision for future Runs; changing URL or
-protocol creates a new LLMGatewayConfig version. An active allocation continues
-with the exact in-memory RuntimeSettings snapshot it received.
+Resolving model access for a Run produces an exact `LLMGatewayConfigRef` and,
+when selected, an `LLMCredentialRef(credential_id)` bound to that Gateway. A
+credential is immutable: its token is never replaced in place. The immutable
+Run snapshot stores those non-secret refs but never the token. Replacing a key
+means creating another credential ID and selecting it in executionConfig;
+changing URL or protocol creates a new LLMGatewayConfig version. An active
+allocation continues with the exact in-memory RuntimeSettings snapshot it
+received.
 
 LLMGatewayConfig manifests live under `configs/llm-gateways/` in either
 configured root. Configuration loading validates their exact schema and digest
 before resolving `executionConfig`. Operations publishes new immutable versions
 only into the managed YAML root according to [06](06-server-ui-and-operations.md).
-Encrypted PostgreSQL credential revisions and the external bootstrap master-key
-file are also specified there and remain separate from this manifest contract.
+Encrypted PostgreSQL credentials and the external bootstrap master-key file are
+also specified there and remain separate from this manifest contract.
 
 ### Toolset and tool selection
 
@@ -610,13 +608,13 @@ AgentTemplate selects its default exact ModelPolicy, but neither object carries
 the LLM Gateway URL, token, provider routing or credential. Run initialization
 resolves the Workflow defaults plus the request's reference-only
 `executionConfig` overrides. Control Plane obtains the selected URL from the
-exact LLMGatewayConfig and the pinned credential revision from the trusted
+exact LLMGatewayConfig and the pinned credential from the trusted
 Server secret store, then delivers their values over the private mTLS control
 channel. `LLM Gateway` is the Contractor role: LiteLLM is the initial backend,
 but another backend may replace it when it satisfies the configured
 model-client protocol. An active allocation uses one resolved settings
-snapshot; configuration or credential changes apply only to Runs that resolve
-the newer version or revision.
+snapshot; configuration changes apply only to Runs that resolve a newer
+published Gateway version and credential ID.
 
 Durable provenance records the exact AgentTemplate, effective ModelPolicy,
 LLMGatewayConfig and non-secret credential refs, WorkerRuntimeRef, allocation ID

@@ -284,7 +284,7 @@ AllocationSpec. It may contain the selected LLM Gateway URL and optional token,
 the Server Artifact API endpoint, timeouts, limits and other adapter settings.
 The Gateway values come from the WorkflowRun's immutable
 `ResolvedExecutionConfig`: URL/protocol from its exact LLMGatewayConfig and
-secret bytes from its pinned credential revision. Runtime Agent does not resolve
+secret bytes from its pinned credential. Runtime Agent does not resolve
 these values from AgentTemplate, local Worker configuration, environment
 defaults or a mutable configuration alias.
 
@@ -297,9 +297,8 @@ in memory for the active allocation and redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state. They are erased during
 release. Durable execution and metrics may retain the non-secret
 LLMGatewayConfig and credential refs, never their resolved token. A token that
-must expire during a long allocation requires an explicit private refresh
-operation preserving its credential identity; silently replacing the active
-settings snapshot is not allowed.
+expires during a long allocation fails through the ordinary bounded Gateway
+error path; silently replacing the active settings snapshot is not allowed.
 
 ### Correlation and redacted boundary failures
 

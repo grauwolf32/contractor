@@ -351,7 +351,7 @@ idempotent.
 
 The same trusted envelope derives model attribution from the Run's immutable
 ResolvedExecutionConfig: effective ModelPolicyRef, LLMGatewayConfigRef and the
-non-secret LLMCredentialRef revision for the Planner or logical Worker. These
+non-secret LLMCredentialRef for the Planner or logical Worker. These
 refs are never accepted from a Runtime report. They let Operations aggregate
 calls/tokens by policy, route and credential without persisting or exposing the
 secret value.

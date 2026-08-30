@@ -86,8 +86,8 @@ configurations:
 - one shared `ModelPolicy` kind is usable by Planner and Worker consumers;
 - role-specific fields are omitted when not used, while each consumer rejects
   a policy missing one of its required finite limits;
-- `LLMGatewayConfig` versions carry protocol, URL and an optional logical
-  credential reference;
+- `LLMGatewayConfig` versions carry protocol and URL; executionConfig selects
+  an optional credential independently for that exact Gateway;
 - secret values live behind `LLMCredentialRef`, never in Workflow,
   AgentTemplate, ModelPolicy, LLMGatewayConfig or Run JSON;
 - an immutable published version is never edited in place.
@@ -159,52 +159,58 @@ is handled only by the idempotency comparison above.
 
 ## Credential handling
 
-The UI may create a credential and rotate its secret value, but it receives the
-value only in the write request. Read responses contain only:
+If a credential row exists, its key is active. The model has no `disabled`,
+`revoked`, `superseded` or mutable-current state. The token is immutable;
+replacing it means creating another credential ID and selecting that ID in a
+new Workflow default or Run executionConfig. The UI may create and delete
+credentials but cannot update or rotate one in place.
+
+The secret value appears only in the create request. Read responses contain:
 
 - stable credential ID;
-- non-secret revision ID;
-- created/rotated timestamps;
-- enabled/revoked state;
+- exact bound LLMGatewayConfig ref;
+- created timestamp;
 - optional safe label and consumption aggregates.
 
 The Server never returns a stored secret, even to the principal that created
-it. UI forms do not preserve it in browser storage or logs. Rotation creates a
-new revision; Run initialization pins the non-secret revision selected through
-its exact LLMGatewayConfig. Active allocation RuntimeSettings remain unchanged.
+it. UI forms do not preserve it in browser storage or logs. Run initialization
+pins the non-secret credential ID selected beside the exact LLMGatewayConfig.
+Active allocation RuntimeSettings remain unchanged.
 
-Credential metadata and encrypted revisions live in PostgreSQL. Published YAML
-contains only the stable `credentialRef`; PostgreSQL is authoritative for the
-secret value and its revision lifecycle, never for ModelPolicy or
+Credential metadata and encrypted tokens live in PostgreSQL.
+LLMGatewayConfig contains no credential selector; PostgreSQL is authoritative
+only for the immutable credential record, never for ModelPolicy or
 LLMGatewayConfig bodies. The logical schema is:
 
 ```text
 llm_credentials
   credential_id
+  llm_gateway_id
+  llm_gateway_version
+  llm_gateway_digest
+  remote_key_id
   label
-  current_revision
-  created_at
-
-llm_credential_revisions
-  credential_id
-  revision
   key_id
   nonce
   ciphertext
   created_at
-  lifecycle_state
 ```
 
-`credential_id` uses the shared configuration-ID grammar. Revisions are
-positive monotonically increasing integers scoped to that ID. One revision
+`credential_id` uses the shared configuration-ID grammar. One credential
 accepts a token of 1 through 16,384 UTF-8 bytes through a write-only request;
 Server performs no trimming. It encrypts the exact bytes with AES-256-GCM using
 a fresh 96-bit cryptographically random nonce. Canonical schema version,
-credential ID and revision are authenticated additional data, so ciphertext
-cannot be moved to another identity or revision. Credential creation/rotation
-and advancing `current_revision` are one PostgreSQL transaction. Plaintext is
-retained only for the bounded encryption/decryption operation and the
-model-client settings that actively need it.
+credential ID and exact Gateway ref are authenticated additional data, so
+ciphertext cannot be moved to another identity or route. Credential creation is
+one PostgreSQL transaction after the Gateway credential-management boundary has
+returned the bounded non-secret `remote_key_id` and token. Plaintext is retained
+only for the bounded encryption/decryption operation and the model-client
+settings that actively need it.
+
+Credential IDs are never reused. Successful deletion removes the remote key and
+encrypted credential row but retains a non-secret audit tombstone containing
+only the ID, actor and deletion time; that tombstone is not a credential and
+cannot be selected for execution.
 
 The 256-bit master key is a bootstrap secret outside PostgreSQL. Server receives
 only an absolute `--credential-master-key-file` path. The file contains RFC
@@ -218,19 +224,28 @@ schema change. The fingerprint is not secret because the key has 256 bits of
 random entropy. The first slice accepts one active key and does not implement
 master-key rotation.
 
-When any published Gateway or retained non-terminal Run references a credential,
-Server startup requires the credential store and key to be available. A
+When any credential row exists, Server startup requires the master key. A
 decryption/authentication failure is a bounded internal configuration error and
-never falls back to plaintext, another revision or an unauthenticated request.
-Run initialization pins the then-current revision, while Planner construction
-and Control Plane allocation preparation decrypt exactly that pinned revision
-just in time. The token is never copied into WorkflowRun, StageExecution,
-Planner Session, audit rows or metrics.
+never falls back to plaintext, another credential or an unauthenticated
+request. Planner construction and Control Plane allocation preparation decrypt
+exactly the credential ID pinned by the Run, just in time. The token is never
+copied into WorkflowRun, StageExecution, Planner Session, audit rows or metrics.
+A YAML default naming a deleted or missing credential remains inspectable but
+is not runnable until the request supplies another valid credential override.
+
+There is no disable operation. Credential deletion is idempotent and allowed
+only when no non-terminal WorkflowRun pins that credential; otherwise it
+returns `credential_in_use` with safe referencing Run IDs and performs no side
+effect. Under a credential lock, Server first asks the bound Gateway credential
+manager to delete `remote_key_id` (`already absent` counts as success), then
+deletes the encrypted PostgreSQL row. A Gateway error retains the database
+record. Contractor never automatically aborts a Run or silently substitutes a
+different key to make deletion succeed.
 
 Encrypting the database protects a PostgreSQL dump without the master-key file;
 it does not protect against compromise of the running Server process or host.
 Database and master-key backups must be protected and stored separately. A
-future Vault/KMS adapter may implement the same revision interface without
+future Vault/KMS adapter may implement the same credential interface without
 changing LLMGatewayConfig or executionConfig.
 
 Attribution records ModelPolicy, LLMGatewayConfig and credential refs together
@@ -265,8 +280,9 @@ may aggregate existing durable/read-model state, but mutations must call the
 same domain application services as non-UI API clients.
 
 Run and Artifact mutations retain their existing idempotency, ownership and CAS
-requirements. Configuration publication, credential rotation and future
-administrative commands require their own idempotency keys and audit actor.
+requirements. Configuration publication, credential creation/deletion and
+future administrative commands require their own idempotency keys and audit
+actor.
 
 The exact browser authentication mechanism, authorization roles, pagination,
 filter grammar and live-update transport are not selected yet. The current
@@ -280,8 +296,8 @@ not require changing Run semantics.
 2. Run overrides contain exact published refs only; no inline model, budget,
    URL, token or provider parameter is accepted.
 3. The immutable ResolvedExecutionConfig is authoritative after Run creation.
-4. Planner and every logical Worker resolve their model policy and Gateway
-   independently.
+4. Planner and every logical Worker resolve their model policy, Gateway and
+   optional matching credential independently.
 5. Published configuration versions and their digests never change in place.
 6. Tokens are write-only secrets and never appear in durable execution state,
    API reads, metrics, logs or browser persistence.
@@ -292,8 +308,8 @@ not require changing Run semantics.
 
 ## Open decisions for the next dialogue steps
 
-- credential disable/revoke behavior for new Runs, pinned non-terminal Runs and
-  already active allocations;
+- Gateway credential provisioning/deletion adapter contract; LiteLLM virtual
+  keys are the expected first managed implementation;
 - master-key rotation/re-encryption and a future Vault/KMS adapter;
 - embedded same-origin UI versus separately deployed frontend;
 - browser authentication and the first user/operations permission split;
