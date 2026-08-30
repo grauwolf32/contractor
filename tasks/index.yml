@@ -103,21 +103,21 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-002
-  next_task: V4-003
+  completed_through: V4-003
+  next_task: V4-003A
   summary: >-
-    The execution, routing and Scheduler-escalation foundation remains complete.
-    The public Go API now implements 21 OpenAPI operations. V4-002 adds one
-    immutable union of operator and managed configuration roots, create-only
-    ModelPolicy/LLMGatewayConfig publication with canonical YAML, exclusive
-    no-follow writes, file and directory fsync, atomic snapshot swap, durable
-    response-loss replay and restart recovery. Configuration list/detail
-    projections are secret-free and instruction resources retain path identity
-    rather than a synthetic name@version. PostgreSQL records best-effort
-    immutable publication audit metadata but never becomes configuration
-    authority. Race, crash-window, symlink/path, OpenAPI, PostgreSQL 17 and full
-    Go/Python verify gates pass. V4-003 is next and owns encrypted credential
-    persistence.
+    The execution, routing, Scheduler escalation, public query API and managed
+    immutable configuration foundation remain complete. V4-003 adds an
+    immutable encrypted LLM credential store with AES-256-GCM, identity and
+    exact-Gateway AAD, fresh nonces, never-reused IDs, tombstones and durable
+    operation primitives. Server reads the master key only from a strict
+    owner-only absolute file, verifies its safe fingerprint before traffic and
+    composes database-backed credentials with the explicit development
+    provider. Resolution rechecks the active exact Gateway binding and decrypts
+    only at Planner/allocation preparation. Race tests, PostgreSQL 17 migration
+    and invariant tests, and the full Go/Python verify gate pass. V4-003A is next
+    and owns recoverable create/delete orchestration, Run deletion protection
+    and the secret-free public credential API.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
