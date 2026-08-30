@@ -145,6 +145,37 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 	}
 }
 
+func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "workflows", "streamline_review_workflow.yaml")
+	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "streamline_review_workflow.yaml"))
+	writeFile(t, path, example)
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	workflow, err := snapshot.Workflow("streamline-review@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Agents["second"] = stage.Agents["reviewer"]
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := ValidateWorkflowGraph(workflow); err == nil ||
+		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
+		t.Fatalf("ValidateWorkflowGraph error = %v", err)
+	}
+
+	secondBinding := `        second:
+          template: artifact_builder@1
+          namespace: second
+`
+	invalid := strings.Replace(string(example), "      context:\n", secondBinding+"      context:\n", 1)
+	writeFile(t, path, []byte(invalid))
+	loaded, err := Load(root, MVPDescriptors())
+	if err == nil || loaded != nil ||
+		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
+		t.Fatalf("Load() = (%v, %v), want Streamline cardinality error", loaded, err)
+	}
+}
+
 func TestStoredFixtures(t *testing.T) {
 	t.Parallel()
 

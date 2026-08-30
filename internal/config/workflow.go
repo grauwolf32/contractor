@@ -123,6 +123,10 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, err
 	}
+	plannerRef := PlannerRef{PlannerID: planner.ID, Version: planner.Version}
+	if err := validatePlannerAgentCardinality(plannerRef, len(agents)); err != nil {
+		return ResolvedStage{}, err
+	}
 	context, err := resolveStageContext(source.Context)
 	if err != nil {
 		return ResolvedStage{}, err
@@ -143,7 +147,7 @@ func (l *loader) resolveStage(
 	return ResolvedStage{
 		Objective:       source.Objective,
 		Instructions:    instructions,
-		Planner:         PlannerRef{PlannerID: planner.ID, Version: planner.Version},
+		Planner:         plannerRef,
 		Agents:          agents,
 		Context:         context,
 		Result:          result,
@@ -360,6 +364,9 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	sort.Strings(names)
 	for _, name := range names {
 		stage := workflow.Stages[name]
+		if err := validatePlannerAgentCardinality(stage.Planner, len(stage.Agents)); err != nil {
+			return fmt.Errorf("Stage %q: %w", name, err)
+		}
 		if err := validateResolvedStageMappings(name, stage, workflow.Outputs); err != nil {
 			return err
 		}
@@ -438,6 +445,21 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 			); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func validatePlannerAgentCardinality(planner PlannerRef, agents int) error {
+	reference := planner.PlannerID + "@" + planner.Version
+	switch reference {
+	case "passthrough@1", "streamline@1":
+		if agents != 1 {
+			return fmt.Errorf("%s requires exactly one logical Agent binding; use router@1 for multiple bindings", reference)
+		}
+	default:
+		if agents < 1 {
+			return fmt.Errorf("%s requires at least one logical Agent binding", reference)
 		}
 	}
 	return nil

@@ -2,10 +2,7 @@ package streamline
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -72,22 +69,13 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}
-	workers := make([]workerBinding, 0, len(bindings))
-	usedToolNames := make(map[string]struct{}, len(bindings)+3)
-	usedToolNames[finishToolName] = struct{}{}
-	usedToolNames[addSubtaskToolName] = struct{}{}
-	usedToolNames[listSubtasksToolName] = struct{}{}
-	for _, logicalName := range bindings {
-		binding := invocation.Stage.Agents[logicalName]
-		toolName := workerToolName(logicalName, usedToolNames)
-		usedToolNames[toolName] = struct{}{}
-		workers = append(workers, workerBinding{
-			logicalName: logicalName,
-			toolName:    toolName,
-			description: binding.Template.Description,
-			handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
-		})
-	}
+	logicalName := bindings[0]
+	binding := invocation.Stage.Agents[logicalName]
+	workers := []workerBinding{{
+		logicalName: logicalName,
+		description: binding.Template.Description,
+		handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
+	}}
 	return &streamlinePlanner{
 		invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
@@ -98,7 +86,6 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 
 type workerBinding struct {
 	logicalName string
-	toolName    string
 	description string
 	handle      contracts.WorkerHandle
 }
@@ -117,8 +104,8 @@ func validateInvocation(invocation planner.Invocation) ([]string, error) {
 	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != Ref {
 		return nil, fmt.Errorf("streamline@1 cannot execute a Stage for another PlannerFactory")
 	}
-	if len(invocation.Stage.Agents) == 0 || len(invocation.Workers) != len(invocation.Stage.Agents) {
-		return nil, fmt.Errorf("streamline@1 requires one prepared Worker per Agent binding")
+	if len(invocation.Stage.Agents) != 1 || len(invocation.Workers) != 1 {
+		return nil, fmt.Errorf("streamline@1 requires exactly one logical Agent binding and prepared Worker")
 	}
 	bindings := make([]string, 0, len(invocation.Stage.Agents))
 	for logicalName, resolved := range invocation.Stage.Agents {
@@ -152,32 +139,6 @@ func validateInvocation(invocation planner.Invocation) ([]string, error) {
 	}
 	sort.Strings(bindings)
 	return bindings, nil
-}
-
-var invalidToolCharacter = regexp.MustCompile(`[^a-z0-9_]`)
-
-func workerToolName(binding string, used map[string]struct{}) string {
-	base := strings.ToLower(binding)
-	base = invalidToolCharacter.ReplaceAllString(base, "_")
-	base = strings.Trim(base, "_")
-	if base == "" || base[0] < 'a' || base[0] > 'z' {
-		base = "agent_" + base
-	}
-	if len(base) > 48 {
-		base = base[:48]
-	}
-	candidate := "worker_" + base
-	if len(candidate) <= 64 {
-		if _, exists := used[candidate]; !exists {
-			return candidate
-		}
-	}
-	digest := sha256.Sum256([]byte(binding))
-	suffix := hex.EncodeToString(digest[:4])
-	if len(base) > 47 {
-		base = base[:47]
-	}
-	return "worker_" + base + "_" + suffix
 }
 
 func cloneResultContract(

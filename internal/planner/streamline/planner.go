@@ -266,7 +266,7 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 	workers := make([]promptWorker, 0, len(p.workers))
 	for _, binding := range p.workers {
 		workers = append(workers, promptWorker{
-			Name: binding.logicalName, Tool: binding.toolName, Description: binding.description,
+			Name: binding.logicalName, Tool: executeCurrentSubtaskToolName, Description: binding.description,
 		})
 	}
 	payload, err := json.Marshal(promptContext{
@@ -300,14 +300,14 @@ func clonePromptArtifacts(
 func (p *streamlinePlanner) systemInstruction() string {
 	var mappings []string
 	for _, binding := range p.workers {
-		mappings = append(mappings, fmt.Sprintf("- %s: call %s", binding.logicalName, binding.toolName))
+		mappings = append(mappings, fmt.Sprintf("- %s: call %s", binding.logicalName, executeCurrentSubtaskToolName))
 	}
 	return strings.Join([]string{
 		"You are the root Planner for exactly one immutable Contractor Stage.",
 		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract.",
 		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
 		"Use Workers sequentially. You cannot create Workers, allocate capacity, change the Workflow, or address Runtime Agent identities.",
-		"A Worker call must identify the exact current subtask_id. Select the needed string parameters and exact artifact revisions explicitly; preserve revisions returned by Workers.",
+		"execute_current_subtask accepts only the exact current subtask_id. Server supplies its stored objective and instructions plus every immutable Stage string parameter and exact artifact revision; you cannot select or rewrite that context.",
 		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
 		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
 		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",

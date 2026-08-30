@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,18 +14,17 @@ import (
 )
 
 const (
-	addSubtaskToolName   = "add_subtask"
-	listSubtasksToolName = "list_subtasks"
-	finishToolName       = "finish"
-	maxStagePayloadBytes = 256 * 1024
-	maxStageSummaryBytes = 64 * 1024
-	maxStageArtifacts    = 128
+	addSubtaskToolName            = "add_subtask"
+	listSubtasksToolName          = "list_subtasks"
+	executeCurrentSubtaskToolName = "execute_current_subtask"
+	finishToolName                = "finish"
+	maxStagePayloadBytes          = 256 * 1024
+	maxStageSummaryBytes          = 64 * 1024
+	maxStageArtifacts             = 128
 )
 
 type workerCallArgs struct {
-	SubtaskID  string                           `json:"subtask_id"`
-	Parameters map[string]string                `json:"parameters,omitempty"`
-	Artifacts  map[string]contracts.ArtifactRef `json:"artifacts,omitempty"`
+	SubtaskID string `json:"subtask_id"`
 }
 
 type workerCallOutput struct {
@@ -67,8 +65,8 @@ type toolFailure struct {
 }
 
 func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[string]struct{}, error) {
-	result := make([]tool.Tool, 0, len(p.workers)+3)
-	allowed := make(map[string]struct{}, len(p.workers)+3)
+	result := make([]tool.Tool, 0, 4)
+	allowed := make(map[string]struct{}, 4)
 	addSubtask, err := functiontool.New(functiontool.Config{
 		Name:        addSubtaskToolName,
 		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
@@ -90,23 +88,21 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 	result = append(result, addSubtask, listSubtasks)
 	allowed[addSubtaskToolName] = struct{}{}
 	allowed[listSubtasksToolName] = struct{}{}
-	for _, current := range p.workers {
-		binding := current
-		adapter, err := functiontool.New(functiontool.Config{
-			Name: binding.toolName,
-			Description: fmt.Sprintf(
-				"Invoke the fixed prepared Worker %q. Capability: %s. Calls are sequential; pass only exact artifact revisions.",
-				binding.logicalName, binding.description,
-			),
-		}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
-			return p.callWorker(ctx, state, binding, args), nil
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("build Worker tool %q: %w", binding.logicalName, err)
-		}
-		result = append(result, adapter)
-		allowed[binding.toolName] = struct{}{}
+	binding := p.workers[0]
+	executeCurrentSubtask, err := functiontool.New(functiontool.Config{
+		Name: executeCurrentSubtaskToolName,
+		Description: fmt.Sprintf(
+			"Execute the exact current stored subtask with the sole prepared logical Worker %q (%s). Server supplies the complete immutable StageContext; subtask_id is the only argument.",
+			binding.logicalName, binding.description,
+		),
+	}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
+		return p.callWorker(ctx, state, binding, args), nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build execute_current_subtask tool: %w", err)
 	}
+	result = append(result, executeCurrentSubtask)
+	allowed[executeCurrentSubtaskToolName] = struct{}{}
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
 		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
@@ -159,37 +155,32 @@ func (p *streamlinePlanner) callWorker(
 	safeArguments := map[string]any{
 		"binding": binding.logicalName, "subtaskId": safeSubtaskID(args.SubtaskID),
 	}
-	subtask, planErr := p.plan.CurrentSubtask(args.SubtaskID)
+	claim, planErr := p.plan.ClaimCurrentSubtask(args.SubtaskID, binding.logicalName)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
-	request, failure := p.workerRequest(ctx, subtask, args)
+	request, failure := p.workerRequest(ctx, claim.Subtask)
 	if failure != nil {
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, failure)
+		p.failDispatch(claim.CallID)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
 		return workerFailure(*failure)
 	}
-	safeArguments["artifactNames"] = sortedArtifactNames(args.Artifacts)
 	deadline := p.deadline
 	if !deadline.After(time.Now()) {
 		failure := planner.Failure{
 			Code: "worker_deadline_exceeded", Message: "Worker invocation deadline expired", Retryable: true,
 		}
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
-	}
-	claim, planErr := p.plan.ClaimCurrentSubtask(args.SubtaskID, binding.logicalName)
-	if planErr != nil {
-		failure := failureFromPlanError(planErr)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		p.failDispatch(claim.CallID)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	if limit := state.reserveWorkerCall(); limit != nil {
 		ctx.Actions().SkipSummarization = true
 		failure := limit.Failure
 		p.failDispatch(claim.CallID)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	workerContext, cancel := context.WithDeadline(ctx, deadline)
@@ -200,38 +191,33 @@ func (p *streamlinePlanner) callWorker(
 	if err != nil {
 		failure := planner.FailureFrom(err)
 		p.failDispatch(claim.CallID)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
 		p.failDispatch(claim.CallID)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	if _, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome); planErr != nil {
 		failure := failureFromPlanError(planErr)
-		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	cloned := planner.CloneStageResult(result)
 	encoded, _ := json.Marshal(cloned)
-	state.recordTool(binding.toolName, safeArguments, true, time.Since(started), len(encoded), nil)
+	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
 	return workerCallOutput{OK: true, Result: &cloned}
 }
 
 func (p *streamlinePlanner) workerRequest(
-	ctx context.Context, subtask planner.PlannerSubtask, args workerCallArgs,
+	ctx context.Context, subtask planner.PlannerSubtask,
 ) (contracts.StageContentRequest, *planner.Failure) {
 	request := planner.CloneStageRequest(p.request)
 	request.Objective = subtask.Objective
 	request.Instructions = subtask.Instructions
-	request.Parameters = make(map[string]string, len(args.Parameters))
-	for name, value := range args.Parameters {
-		request.Parameters[name] = value
-	}
-	request.Artifacts = make(map[string]contracts.ArtifactRef, len(args.Artifacts))
-	for name, ref := range args.Artifacts {
+	for _, ref := range request.Artifacts {
 		if err := ref.ValidateExact(); err != nil {
 			return contracts.StageContentRequest{}, safeToolFailure(
 				"worker_request_invalid", "Worker request contains an invalid exact artifact reference", false,
@@ -242,7 +228,6 @@ func (p *streamlinePlanner) workerRequest(
 				"worker_artifact_unavailable", "Worker request artifact could not be verified", true,
 			)
 		}
-		request.Artifacts[name] = planner.CloneArtifactRef(ref)
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, safeToolFailure(
@@ -370,14 +355,5 @@ func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contrac
 	for name, ref := range input {
 		result[name] = planner.CloneArtifactRef(ref)
 	}
-	return result
-}
-
-func sortedArtifactNames(input map[string]contracts.ArtifactRef) []string {
-	result := make([]string, 0, len(input))
-	for name := range input {
-		result = append(result, name)
-	}
-	sort.Strings(result)
 	return result
 }

@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V2-010` are complete. The
+As of 2026-08-30, implementation tasks through `V3-003` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -21,10 +21,10 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   boundaries;
 - an executable lifecycle crash/retry/race/security matrix under Go's race
   detector and Python's strict warning/task-shutdown gate;
-- a model-backed `streamline@1` Planner built with Google ADK Go, fixed
-  sequential A2A Worker tools, a bounded typed subtask plan with immutable
-  dispatch IDs, one `finish` operation for successful or failed candidates,
-  and bounded model,
+- a model-backed, single-Worker `streamline@1` Planner built with Google ADK
+  Go, one `execute_current_subtask(subtask_id)` adapter that supplies immutable
+  Stage context, a bounded typed subtask plan with immutable dispatch IDs, one
+  `finish` operation for successful or failed candidates, and bounded model,
   token, Worker-call, and wall-time budgets;
 - a PostgreSQL-backed Planner session adapter that persists only redacted ADK
   facts and recovers a completed decision without repeating model or Worker
@@ -42,9 +42,11 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
-[`tasks/index.yml`](../tasks/index.yml); detailed Streamline completion evidence
-is recorded in
-[`v1-006-streamline-planner.yml`](../tasks/v1-006-streamline-planner.yml).
+[`tasks/index.yml`](../tasks/index.yml); the current Streamline contract and
+completion evidence are recorded in
+[`v3-001-planner-finish-contract.yml`](../tasks/v3-001-planner-finish-contract.yml),
+[`v3-002-typed-planner-plan.yml`](../tasks/v3-002-typed-planner-plan.yml), and
+[`v3-003-single-worker-streamline.yml`](../tasks/v3-003-single-worker-streamline.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -133,10 +135,10 @@ GET to reconcile the accepted exact revision.
 ## Streamline Planner evidence
 
 `make test-streamline` exercises the real Google ADK event loop through a
-deterministic OpenAI-compatible Gateway, two fixed fake Workers, exact artifact
-selection, succeeded/failed `finish` candidates, Scheduler-owned transition
-selection, ordered subtask IDs with stale-dispatch rejection, budget
-termination, secret redaction, and
+deterministic OpenAI-compatible Gateway, one fixed fake Worker, deterministic
+full Stage-context propagation, succeeded/failed `finish` candidates,
+Scheduler-owned transition selection, ordered subtask IDs with stale-dispatch
+rejection, budget termination, secret redaction, and
 PostgreSQL completed-session recovery. The example Workflow is
 [`streamline_review_workflow.yaml`](../configs/examples/streamline_review_workflow.yaml).
 

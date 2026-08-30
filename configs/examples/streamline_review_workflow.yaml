@@ -1,5 +1,5 @@
 # Copy this file under configs/workflows/ to load it. It demonstrates one
-# streamline@1 Planner coordinating two fixed prepared Agent bindings.
+# streamline@1 Planner coordinating one fixed prepared Agent binding.
 apiVersion: contractor/v1alpha1
 kind: Workflow
 
@@ -30,9 +30,6 @@ spec:
         ref: instructions/copy-planner.md
       planner: streamline@1
       agents:
-        analyzer:
-          template: artifact_builder@1
-          namespace: analysis
         reviewer:
           template: artifact_builder@1
           namespace: review

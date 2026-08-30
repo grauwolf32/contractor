@@ -20,7 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func TestDecodeExecutableWorkflowAcceptsMultiWorkerStreamlineOnly(t *testing.T) {
+func TestDecodeExecutableWorkflowRejectsMultiWorkerSingleWorkerPlanners(t *testing.T) {
 	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
@@ -30,11 +30,9 @@ func TestDecodeExecutableWorkflowAcceptsMultiWorkerStreamlineOnly(t *testing.T) 
 		t.Fatal(err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	stage.Planner = workflowconfig.PlannerRef{PlannerID: "streamline", Version: "1"}
 	reviewer := stage.Agents["builder"]
 	reviewer.Namespace = "reviewer"
 	stage.Agents["reviewer"] = reviewer
-	workflow.Stages[workflow.EntryStage] = stage
 
 	decode := func(value workflowconfig.ResolvedWorkflow) error {
 		encoded, marshalErr := json.Marshal(value)
@@ -47,13 +45,12 @@ func TestDecodeExecutableWorkflowAcceptsMultiWorkerStreamlineOnly(t *testing.T) 
 		})
 		return decodeErr
 	}
-	if err := decode(workflow); err != nil {
-		t.Fatalf("multi-Worker streamline Workflow was rejected: %v", err)
-	}
-	stage.Planner = workflowconfig.PlannerRef{PlannerID: "passthrough", Version: "1"}
-	workflow.Stages[workflow.EntryStage] = stage
-	if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
-		t.Fatalf("multi-Worker passthrough error = %v", err)
+	for _, plannerID := range []string{"streamline", "passthrough"} {
+		stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
+		workflow.Stages[workflow.EntryStage] = stage
+		if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
+			t.Fatalf("multi-Worker %s error = %v", plannerID, err)
+		}
 	}
 }
 

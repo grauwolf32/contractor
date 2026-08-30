@@ -132,7 +132,7 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Tools []any `json:"tools"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 5 {
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 4 {
 		g.t.Errorf("gateway tool request = (%+v, %v)", request, err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -147,14 +147,14 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		name = "add_subtask"
 		arguments = `{"objective":"subtask-sensitive-analysis","instructions":"write an exact draft"}`
 	case 1:
-		name = "worker_analyzer"
-		arguments = `{"subtask_id":"0","parameters":{"mode":"strict-secret-value"},"artifacts":{}}`
+		name = "execute_current_subtask"
+		arguments = `{"subtask_id":"0"}`
 	case 2:
 		name = "add_subtask"
 		arguments = `{"objective":"review draft","instructions":"write the final report"}`
 	case 3:
-		name = "worker_reviewer"
-		arguments = `{"subtask_id":"1","parameters":{},"artifacts":{"draft":{"namespace":"analysis","name":"draft","revision":"draft-r1"}}}`
+		name = "execute_current_subtask"
+		arguments = `{"subtask_id":"1"}`
 	case 4:
 		name = "finish"
 		arguments = `{"outcome":"succeeded","summary":"final report accepted","artifacts":{"report":{"namespace":"review","name":"report","revision":"report-r1"}}}`
@@ -193,19 +193,25 @@ func (w *workerInvoker) Invoke(
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.count++
-	switch binding {
-	case "analyzer":
-		if request.Parameters["mode"] != "strict-secret-value" {
-			return contracts.StageContentResult{}, errors.New("structured parameters missing")
+	if binding != "builder" {
+		return contracts.StageContentResult{}, errors.New("unknown Worker")
+	}
+	if request.Parameters["mode"] != "strict-secret-value" {
+		return contracts.StageContentResult{}, errors.New("complete Stage parameters missing")
+	}
+	switch w.count {
+	case 1:
+		if request.Objective != "subtask-sensitive-analysis" || request.Instructions != "write an exact draft" {
+			return contracts.StageContentResult{}, errors.New("stored first subtask missing")
 		}
 		return successfulResult("draft ready", "draft", exactRef("analysis", "draft", "draft-r1")), nil
-	case "reviewer":
-		if ref, ok := request.Artifacts["draft"]; !ok || ref.Revision == nil || *ref.Revision != "draft-r1" {
-			return contracts.StageContentResult{}, errors.New("exact draft ref missing")
+	case 2:
+		if request.Objective != "review draft" || request.Instructions != "write the final report" {
+			return contracts.StageContentResult{}, errors.New("stored second subtask missing")
 		}
 		return successfulResult("report ready", "report", exactRef("review", "report", "report-r1")), nil
 	default:
-		return contracts.StageContentResult{}, errors.New("unknown Worker")
+		return contracts.StageContentResult{}, errors.New("unexpected Worker call")
 	}
 }
 
@@ -232,25 +238,22 @@ func (artifactInspector) Inspect(
 }
 
 func testInvocation() planner.Invocation {
-	agents := map[string]workflowconfig.ResolvedAgentBinding{}
-	workers := map[string]contracts.WorkerHandle{}
-	for _, name := range []string{"analyzer", "reviewer"} {
-		template := contracts.AgentTemplateRef{
-			TemplateID: name, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
-		}
-		runtime := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
-		agents[name] = workflowconfig.ResolvedAgentBinding{
-			Namespace: name,
-			Template: contracts.ResolvedAgentTemplate{
-				Ref: template, Runtime: runtime, Description: name + " Worker",
-			},
-		}
-		workers[name] = contracts.WorkerHandle{
-			AllocationID: "allocation-" + name, AgentTemplateRef: template,
-			WorkerRuntimeRef: runtime, AgentCard: map[string]any{"name": name},
-			LeaseExpiresAt: time.Now().Add(5 * time.Minute),
-		}
+	const name = "builder"
+	template := contracts.AgentTemplateRef{
+		TemplateID: name, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 	}
+	runtime := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
+	agents := map[string]workflowconfig.ResolvedAgentBinding{name: {
+		Namespace: name,
+		Template: contracts.ResolvedAgentTemplate{
+			Ref: template, Runtime: runtime, Description: name + " Worker",
+		},
+	}}
+	workers := map[string]contracts.WorkerHandle{name: {
+		AllocationID: "allocation-" + name, AgentTemplateRef: template,
+		WorkerRuntimeRef: runtime, AgentCard: map[string]any{"name": name},
+		LeaseExpiresAt: time.Now().Add(5 * time.Minute),
+	}}
 	return planner.Invocation{
 		StageExecutionID: "stage-streamline", RunID: "run-streamline",
 		Deadline: time.Now().Add(time.Minute),
