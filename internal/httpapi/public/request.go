@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,11 @@ import (
 )
 
 const maxJSONRequestSize = 1 << 20
+
+var (
+	publicArtifactNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+	publicRevisionPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
+)
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	if r.ContentLength > maxJSONRequestSize {
@@ -119,4 +125,18 @@ func quotedETag(revision *string) string {
 		return ""
 	}
 	return strconv.Quote(*revision)
+}
+
+func validatePublicArtifactName(value string) error {
+	if !publicArtifactNamePattern.MatchString(value) {
+		return fmt.Errorf("%w: invalid Artifact namespace or name", errInvalidRequest)
+	}
+	return nil
+}
+
+func validatePublicRevision(value string) error {
+	if !publicRevisionPattern.MatchString(value) {
+		return fmt.Errorf("%w: invalid Artifact revision", errInvalidRequest)
+	}
+	return nil
 }

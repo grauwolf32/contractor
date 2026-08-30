@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -27,6 +28,7 @@ type handlerFixture struct {
 	unit       *fakeUnitOfWork
 	notifier   *recordingRunNotifier
 	metrics    *fakeMetricsReader
+	plans      *fakePlannerPlanReader
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -45,10 +47,12 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
 	notifier := &recordingRunNotifier{}
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
+	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	handler, err := NewHandler(Dependencies{
 		Config: snapshot, Runs: runs, Artifacts: service, Transactions: unit,
-		Metrics:     metrics,
-		BearerToken: contracts.NewSecretString(testBearerToken), UserID: "user-1",
+		Metrics:      metrics,
+		PlannerPlans: plans,
+		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
 		RunNotifier:  notifier,
@@ -61,7 +65,7 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	}
 	return handlerFixture{
 		handler: handler, repository: repository, artifacts: service,
-		runs: runs, unit: unit, notifier: notifier, metrics: metrics,
+		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 	}
 }
 

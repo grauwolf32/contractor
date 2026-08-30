@@ -81,6 +81,144 @@ func (s ScopedStore) List(ctx context.Context, namespace *string) ([]ArtifactRef
 	return s.service.repository.List(ctx, s.scope, namespace)
 }
 
+func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
+	if err := validateScope(s.scope); err != nil {
+		return Metadata{}, err
+	}
+	if err := validateRef(ref); err != nil {
+		return Metadata{}, err
+	}
+	repository, ok := s.service.repository.(QueryRepository)
+	if !ok {
+		return Metadata{}, ErrQueryUnsupported
+	}
+	return repository.Metadata(ctx, s.scope, ref)
+}
+
+func (s ScopedStore) ListMetadata(
+	ctx context.Context, query BindingPageQuery,
+) ([]Metadata, error) {
+	if err := validateScope(s.scope); err != nil {
+		return nil, err
+	}
+	if err := validateBindingPageQuery(query); err != nil {
+		return nil, err
+	}
+	repository, ok := s.service.repository.(QueryRepository)
+	if !ok {
+		return nil, ErrQueryUnsupported
+	}
+	return repository.ListMetadata(ctx, s.scope, query)
+}
+
+func (s ScopedStore) ListVersions(
+	ctx context.Context, ref ArtifactRef, query VersionPageQuery,
+) ([]Metadata, error) {
+	if err := validateScope(s.scope); err != nil {
+		return nil, err
+	}
+	if err := validateRef(ref); err != nil {
+		return nil, err
+	}
+	if ref.Revision != nil {
+		return nil, ErrVersionedWriteTarget
+	}
+	if err := validateVersionPageQuery(query); err != nil {
+		return nil, err
+	}
+	repository, ok := s.service.repository.(QueryRepository)
+	if !ok {
+		return nil, ErrQueryUnsupported
+	}
+	// Distinguish an unknown binding from an impossible empty history.
+	if _, err := repository.Metadata(ctx, s.scope, ref); err != nil {
+		return nil, err
+	}
+	return repository.ListVersions(ctx, s.scope, ref, query)
+}
+
+func (s ScopedStore) ListLineage(
+	ctx context.Context, ref ArtifactRef, query LineagePageQuery,
+) ([]LineageEdge, error) {
+	if err := validateScope(s.scope); err != nil {
+		return nil, err
+	}
+	if err := validateRef(ref); err != nil {
+		return nil, err
+	}
+	if err := validateLineagePageQuery(query); err != nil {
+		return nil, err
+	}
+	repository, ok := s.service.repository.(QueryRepository)
+	if !ok {
+		return nil, ErrQueryUnsupported
+	}
+	metadata, err := repository.Metadata(ctx, s.scope, ref)
+	if err != nil {
+		return nil, err
+	}
+	return repository.ListLineage(ctx, s.scope, metadata.Ref, query)
+}
+
+func validateBindingPageQuery(query BindingPageQuery) error {
+	if query.Limit < 1 || query.Limit > 201 {
+		return ErrInvalidName
+	}
+	if query.Namespace != nil {
+		if err := validateComponent(*query.Namespace); err != nil {
+			return err
+		}
+	}
+	if (query.AfterNamespace == "") != (query.AfterName == "") {
+		return ErrInvalidName
+	}
+	if query.AfterNamespace != "" {
+		if err := validateComponent(query.AfterNamespace); err != nil {
+			return err
+		}
+		if err := validateComponent(query.AfterName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateVersionPageQuery(query VersionPageQuery) error {
+	if query.Limit < 1 || query.Limit > 201 {
+		return ErrInvalidName
+	}
+	if (query.BeforeCreatedAt == nil) != (query.BeforeRevision == "") {
+		return ErrInvalidName
+	}
+	if query.BeforeCreatedAt != nil {
+		if query.BeforeCreatedAt.IsZero() {
+			return ErrInvalidName
+		}
+		return validateRevision(query.BeforeRevision)
+	}
+	return nil
+}
+
+func validateLineagePageQuery(query LineagePageQuery) error {
+	if query.Limit < 1 || query.Limit > 201 {
+		return ErrInvalidName
+	}
+	present := query.BeforeCreatedAt != nil
+	if present != (query.BeforeTargetRevision != "") ||
+		present != (query.BeforeSourceRevision != "") || present != (query.BeforeKind != "") {
+		return ErrInvalidName
+	}
+	if !present {
+		return nil
+	}
+	if query.BeforeCreatedAt.IsZero() || validateRevision(query.BeforeTargetRevision) != nil ||
+		validateRevision(query.BeforeSourceRevision) != nil ||
+		(query.BeforeKind != LineageInputFork && query.BeforeKind != LineageOutputBind) {
+		return ErrInvalidName
+	}
+	return nil
+}
+
 // ForkInput resolves source once in UserScope, creates inputs/<slot> in the
 // target RunScope, and records exact lineage without copying payload bytes.
 func (s *Service) ForkInput(

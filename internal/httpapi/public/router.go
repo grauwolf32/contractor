@@ -41,17 +41,40 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/workflows", current.listWorkflows)
+	mux.HandleFunc("GET /v1/workflows/{name}/versions/{version}", current.getWorkflow)
+	mux.HandleFunc("GET /v1/artifacts", current.listArtifacts)
+	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/metadata", current.getArtifactMetadata)
+	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/versions", current.listArtifactVersions)
+	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/lineage", current.listArtifactLineage)
 	mux.HandleFunc("PUT /v1/artifacts/{namespace}/{name}", current.putArtifact)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}", current.getArtifact)
 	mux.HandleFunc("POST /v1/runs", current.createRun)
+	mux.HandleFunc("GET /v1/runs", current.listRuns)
 	mux.HandleFunc("POST /v1/runs/{runID}/cancel", current.cancelRun)
 	mux.HandleFunc("GET /v1/runs/{runID}", current.getRun)
 	mux.HandleFunc("GET /v1/runs/{runID}/outputs/{slot}", current.getRunOutput)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts", current.listRunArtifacts)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}", current.getRunArtifact)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/metadata", current.getRunArtifactMetadata)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/versions", current.listRunArtifactVersions)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/lineage", current.listRunArtifactLineage)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/metadata", current.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/versions", current.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/lineage", current.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts", current.methodNotAllowed)
+	mux.HandleFunc("/v1/artifacts/{namespace}/{name}/metadata", current.methodNotAllowed)
+	mux.HandleFunc("/v1/artifacts/{namespace}/{name}/versions", current.methodNotAllowed)
+	mux.HandleFunc("/v1/artifacts/{namespace}/{name}/lineage", current.methodNotAllowed)
 	mux.HandleFunc("/v1/artifacts/{namespace}/{name}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/artifacts", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs/{runID}/outputs/{slot}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs/{runID}/cancel", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs/{runID}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/runs", current.methodNotAllowed)
+	mux.HandleFunc("/v1/workflows/{name}/versions/{version}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
 	return current.withRequestID(current.authenticate(mux)), nil
@@ -93,6 +116,14 @@ func randomID(prefix string) (string, error) {
 
 func (h *handler) methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
 	h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed", false)
+}
+
+func (h *handler) rejectHead(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodHead {
+		return false
+	}
+	h.methodNotAllowed(w, r)
+	return true
 }
 
 func (h *handler) notFound(w http.ResponseWriter, _ *http.Request) {

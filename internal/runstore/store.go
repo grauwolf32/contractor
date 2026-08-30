@@ -19,6 +19,7 @@ type Repository interface {
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
+	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
 	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
@@ -175,6 +176,66 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	}
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q: %w", runID, err)
+	}
+	return result, nil
+}
+
+// ListRuns returns at most Limit Runs in deterministic newest-first order.
+// Callers request one extra row when they need to construct a continuation
+// cursor; the repository does not attach transport pagination semantics.
+func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]WorkflowRunSummary, error) {
+	if err := validateOpaque("ownerID", params.OwnerID); err != nil {
+		return nil, err
+	}
+	if params.Limit < 1 || params.Limit > 201 {
+		return nil, invalidf("Run page limit must be between 1 and 201")
+	}
+	if (params.BeforeCreatedAt == nil) != (params.BeforeRunID == "") {
+		return nil, invalidf("Run page keyset is incomplete")
+	}
+	if params.BeforeCreatedAt != nil {
+		if params.BeforeCreatedAt.IsZero() {
+			return nil, invalidf("Run page timestamp is invalid")
+		}
+		if err := validateOpaque("beforeRunID", params.BeforeRunID); err != nil {
+			return nil, err
+		}
+	}
+	var state *string
+	if params.State != nil {
+		if !validWorkflowRunState(*params.State) {
+			return nil, invalidf("unknown WorkflowRun state %q", *params.State)
+		}
+		value := string(*params.State)
+		state = &value
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT run_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
+FROM workflow_runs
+WHERE owner_id = $1
+  AND ($2::text IS NULL OR state = $2)
+  AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
+ORDER BY created_at DESC, run_id DESC
+LIMIT $5`, params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("list WorkflowRuns for owner: %w", err)
+	}
+	defer rows.Close()
+	result := make([]WorkflowRunSummary, 0, params.Limit)
+	for rows.Next() {
+		var run WorkflowRunSummary
+		var state string
+		if scanErr := rows.Scan(
+			&run.RunID, &run.WorkflowName, &run.WorkflowVersion, &state,
+			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
+		}
+		run.State = WorkflowRunState(state)
+		result = append(result, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate WorkflowRun page: %w", err)
 	}
 	return result, nil
 }
@@ -401,4 +462,13 @@ func validateRunTransition(expected, next WorkflowRunState) error {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
 	}
 	return nil
+}
+
+func validWorkflowRunState(state WorkflowRunState) bool {
+	switch state {
+	case RunInitializing, RunRunning, RunCancelling, RunSucceeded, RunFailed, RunCancelled:
+		return true
+	default:
+		return false
+	}
 }

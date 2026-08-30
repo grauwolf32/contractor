@@ -5,9 +5,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -150,6 +152,106 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		downloadResponse.Header().Get("ETag") != quotedETag(outputRef.Revision) ||
 		downloadResponse.Header().Get("Content-Type") != "text/plain" {
 		t.Fatalf("download = status %d, headers %v, body %q", downloadResponse.Code, downloadResponse.Header(), downloadResponse.Body.String())
+	}
+	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+		RunID: "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ForkInput(
+		ctx, "user-1", current.Ref, "run-lineage-two", "source",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	queryTargets := map[string]string{
+		"Workflow list":          "/v1/workflows",
+		"Workflow detail":        "/v1/workflows/artifact-copy/versions/1",
+		"Run list":               "/v1/runs?state=succeeded",
+		"User Artifact list":     "/v1/artifacts",
+		"User Artifact metadata": "/v1/artifacts/projects/source/metadata",
+		"User Artifact lineage":  "/v1/artifacts/projects/source/lineage?revision=" + url.QueryEscape(*current.Ref.Revision),
+		"Run Artifact list":      "/v1/runs/run-public/artifacts",
+		"Run Artifact metadata":  "/v1/runs/run-public/artifacts/inputs/source/metadata",
+		"Run Artifact lineage":   "/v1/runs/run-public/artifacts/inputs/source/lineage",
+		"Run Artifact download":  "/v1/runs/run-public/artifacts/inputs/source",
+	}
+	for name, target := range queryTargets {
+		request := authenticatedRequest(http.MethodGet, target, bytes.NewReader(nil))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	lineageRequest := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/lineage?revision="+url.QueryEscape(*current.Ref.Revision)+"&limit=1",
+		bytes.NewReader(nil),
+	)
+	lineageResponse := httptest.NewRecorder()
+	handler.ServeHTTP(lineageResponse, lineageRequest)
+	var lineage artifactLineagePageResponse
+	if lineageResponse.Code != http.StatusOK || json.Unmarshal(lineageResponse.Body.Bytes(), &lineage) != nil ||
+		len(lineage.Items) != 1 || !lineage.Page.HasMore || lineage.Page.NextCursor == nil {
+		t.Fatalf("first PostgreSQL lineage page = %d: %s", lineageResponse.Code, lineageResponse.Body.String())
+	}
+	nextLineageRequest := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/lineage?revision="+url.QueryEscape(*current.Ref.Revision)+
+			"&limit=1&cursor="+url.QueryEscape(*lineage.Page.NextCursor),
+		bytes.NewReader(nil),
+	)
+	nextLineageResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nextLineageResponse, nextLineageRequest)
+	var remainingLineage artifactLineagePageResponse
+	if nextLineageResponse.Code != http.StatusOK ||
+		json.Unmarshal(nextLineageResponse.Body.Bytes(), &remainingLineage) != nil ||
+		len(remainingLineage.Items) != 1 || remainingLineage.Page.HasMore {
+		t.Fatalf("second PostgreSQL lineage page = %d: %s", nextLineageResponse.Code, nextLineageResponse.Body.String())
+	}
+
+	versionsRequest := authenticatedRequest(
+		http.MethodGet, "/v1/artifacts/projects/source/versions?limit=1", bytes.NewReader(nil),
+	)
+	versionsResponse := httptest.NewRecorder()
+	handler.ServeHTTP(versionsResponse, versionsRequest)
+	var versions artifactPageResponse
+	if versionsResponse.Code != http.StatusOK || json.Unmarshal(versionsResponse.Body.Bytes(), &versions) != nil ||
+		len(versions.Items) != 1 || !versions.Items[0].Current || !versions.Page.HasMore ||
+		versions.Page.NextCursor == nil {
+		t.Fatalf("first PostgreSQL Artifact history page = %d: %s", versionsResponse.Code, versionsResponse.Body.String())
+	}
+	nextVersions := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/versions?limit=1&cursor="+url.QueryEscape(*versions.Page.NextCursor),
+		bytes.NewReader(nil),
+	)
+	nextVersionsResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nextVersionsResponse, nextVersions)
+	var previousVersions artifactPageResponse
+	if nextVersionsResponse.Code != http.StatusOK ||
+		json.Unmarshal(nextVersionsResponse.Body.Bytes(), &previousVersions) != nil ||
+		len(previousVersions.Items) != 1 || previousVersions.Items[0].Current {
+		t.Fatalf("second PostgreSQL Artifact history page = %d: %s", nextVersionsResponse.Code, nextVersionsResponse.Body.String())
+	}
+
+	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+		RunID: "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	foreign := authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-foreign/artifacts/inputs/source/metadata", bytes.NewReader(nil),
+	)
+	foreignResponse := httptest.NewRecorder()
+	handler.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusNotFound {
+		t.Fatalf("foreign PostgreSQL RunScope query = %d: %s", foreignResponse.Code, foreignResponse.Body.String())
 	}
 }
 

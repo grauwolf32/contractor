@@ -63,6 +63,18 @@ type WorkflowRun struct {
 	FinishedAt                *time.Time
 }
 
+// WorkflowRunSummary is the bounded owner-list projection. In particular it
+// excludes the immutable Workflow snapshot and user parameter values.
+type WorkflowRunSummary struct {
+	RunID           string
+	WorkflowName    string
+	WorkflowVersion string
+	State           WorkflowRunState
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	FinishedAt      *time.Time
+}
+
 const CancellationUserRequested = "user_cancelled"
 
 type WorkflowRunCancellation struct {
@@ -104,6 +116,16 @@ type CreateRunIdempotentParams struct {
 	CreateRunParams
 	IdempotencyKey string
 	RequestDigest  string
+}
+
+// ListRunsParams is a stable newest-first owner query. BeforeCreatedAt and
+// BeforeRunID are either both set or both absent and form the keyset cursor.
+type ListRunsParams struct {
+	OwnerID         string
+	State           *WorkflowRunState
+	BeforeCreatedAt *time.Time
+	BeforeRunID     string
+	Limit           int
 }
 
 type PinnedContextArtifact struct {

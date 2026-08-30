@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -64,6 +65,52 @@ type ForkResult struct {
 	Size      int64
 }
 
+// Metadata describes one exact immutable Artifact revision and its relation to
+// the current logical binding. It never contains bytes or a physical blob key.
+type Metadata struct {
+	Ref       ArtifactRef `json:"artifact"`
+	MediaType string      `json:"mediaType"`
+	Size      int64       `json:"size"`
+	Current   bool        `json:"current"`
+	Frozen    bool        `json:"frozen"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
+type BindingPageQuery struct {
+	Namespace      *string
+	AfterNamespace string
+	AfterName      string
+	Limit          int
+}
+
+type VersionPageQuery struct {
+	BeforeCreatedAt *time.Time
+	BeforeRevision  string
+	Limit           int
+}
+
+type LineagePageQuery struct {
+	BeforeCreatedAt      *time.Time
+	BeforeTargetRevision string
+	BeforeSourceRevision string
+	BeforeKind           string
+	Limit                int
+}
+
+type LineageEdge struct {
+	Kind        string      `json:"kind"`
+	SourceScope ScopeKind   `json:"sourceScope"`
+	Source      ArtifactRef `json:"source"`
+	TargetScope ScopeKind   `json:"targetScope"`
+	Target      ArtifactRef `json:"target"`
+	CreatedAt   time.Time   `json:"createdAt"`
+}
+
+const (
+	LineageInputFork  = "input_fork"
+	LineageOutputBind = "output_bind"
+)
+
 type PinKind string
 
 const (
@@ -83,6 +130,16 @@ type Repository interface {
 	BindOutputExact(context.Context, Scope, string, ArtifactRef, *string) (ForkResult, error)
 	PinExact(context.Context, Scope, ArtifactRef, PinKind, string) error
 	FreezeOutputs(context.Context, Scope) error
+}
+
+// QueryRepository is a read-only extension so simple write-path fakes do not
+// need to implement UI query semantics. Production PostgreSQL implements both
+// interfaces over the same transaction or pool.
+type QueryRepository interface {
+	Metadata(context.Context, Scope, ArtifactRef) (Metadata, error)
+	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
+	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)
+	ListLineage(context.Context, Scope, ArtifactRef, LineagePageQuery) ([]LineageEdge, error)
 }
 
 var mediaTypePattern = regexp.MustCompile("^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$")

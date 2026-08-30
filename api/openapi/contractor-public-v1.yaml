@@ -94,7 +94,7 @@ paths:
       operationId: listWorkflows
       tags: [Workflows]
       summary: List published Workflow versions
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -118,7 +118,7 @@ paths:
       operationId: getWorkflow
       tags: [Workflows]
       summary: Get one exact Workflow contract
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact Workflow contract
@@ -173,7 +173,7 @@ paths:
       operationId: listRuns
       tags: [Runs]
       summary: List Runs owned by the authenticated principal
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -277,7 +277,7 @@ paths:
       operationId: listRunArtifacts
       tags: [Runs, Artifacts]
       summary: List exact input, intermediate, and output bindings in one owned RunScope
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: namespace
           in: query
@@ -307,7 +307,7 @@ paths:
       operationId: downloadRunArtifact
       tags: [Runs, Artifacts]
       summary: Download the current or one exact Artifact revision from an owned RunScope
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -329,7 +329,7 @@ paths:
       operationId: getRunArtifactMetadata
       tags: [Runs, Artifacts]
       summary: Get metadata for the current or one exact Artifact revision in an owned RunScope
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -357,7 +357,7 @@ paths:
       operationId: listRunArtifactVersions
       tags: [Runs, Artifacts]
       summary: List immutable versions of one Artifact binding in an owned RunScope
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -383,7 +383,7 @@ paths:
       operationId: getRunArtifactLineage
       tags: [Runs, Artifacts]
       summary: List bounded provenance edges for one Artifact binding in an owned RunScope
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -409,7 +409,7 @@ paths:
       operationId: listArtifacts
       tags: [Artifacts]
       summary: List UserScope artifact bindings
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -485,7 +485,7 @@ paths:
       operationId: getArtifactMetadata
       tags: [Artifacts]
       summary: Get metadata for the current or one exact artifact revision
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -511,7 +511,7 @@ paths:
       operationId: listArtifactVersions
       tags: [Artifacts]
       summary: List immutable versions of one UserScope Artifact binding
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -536,7 +536,7 @@ paths:
       operationId: getArtifactLineage
       tags: [Artifacts]
       summary: List bounded provenance edges for one artifact binding
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -1101,6 +1101,11 @@ components:
       minLength: 3
       maxLength: 193
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'
+    InstructionPath:
+      type: string
+      minLength: 14
+      maxLength: 512
+      pattern: '^instructions/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+$'
     Digest:
       type: string
       pattern: '^sha256:[0-9a-f]{64}$'
@@ -1570,7 +1575,7 @@ components:
       additionalProperties: false
       required: [ref, digest]
       properties:
-        ref: {$ref: '#/components/schemas/Selector'}
+        ref: {$ref: '#/components/schemas/InstructionPath'}
         digest: {$ref: '#/components/schemas/Digest'}
     PlannerRef:
       type: object
@@ -1706,7 +1711,7 @@ components:
           copy:
             objective: Copy the input artifact to the declared output.
             instructions:
-              ref: artifact-copy@1
+              ref: instructions/copy-planner.md
               digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
             planner: {plannerId: passthrough, version: '1'}
             agents:

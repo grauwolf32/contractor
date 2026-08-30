@@ -132,6 +132,22 @@ func (s *Snapshot) Workflow(raw string) (ResolvedWorkflow, error) {
 	return cloneWorkflow(workflow), nil
 }
 
+// Workflows returns every published Workflow sorted by exact ref. Every value
+// is a caller-owned deep copy; mutating the result cannot change the published
+// configuration snapshot.
+func (s *Snapshot) Workflows() []ResolvedWorkflow {
+	keys := make([]string, 0, len(s.workflows))
+	for key := range s.workflows {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]ResolvedWorkflow, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, cloneWorkflow(s.workflows[key]))
+	}
+	return result
+}
+
 // AgentTemplate resolves one exact id@version and returns a caller-owned copy.
 func (s *Snapshot) AgentTemplate(raw string) (contracts.ResolvedAgentTemplate, error) {
 	selector, err := ParseSelector(raw)

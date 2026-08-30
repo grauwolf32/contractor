@@ -21,6 +21,7 @@ func NewPostgresRepository(db persistencepostgres.DBTX) *PostgresRepository {
 }
 
 var _ Repository = (*PostgresRepository)(nil)
+var _ QueryRepository = (*PostgresRepository)(nil)
 
 func randomOpaqueID(prefix string) (string, error) {
 	bytes := make([]byte, 16)

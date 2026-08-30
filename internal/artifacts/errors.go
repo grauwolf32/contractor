@@ -17,6 +17,7 @@ var (
 	ErrReservedNamespace     = errors.New("artifact namespace is reserved")
 	ErrArtifactFrozen        = errors.New("artifact binding is frozen")
 	ErrArtifactIntegrity     = errors.New("artifact payload integrity failure")
+	ErrQueryUnsupported      = errors.New("artifact query repository is unavailable")
 )
 
 type ConflictError struct {

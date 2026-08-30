@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -19,6 +22,83 @@ import (
 const maxCancellationReasonBytes = 4096
 
 const idempotencyKeyHeader = "Idempotency-Key"
+
+func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
+	if h.rejectHead(w, r) {
+		return
+	}
+	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state")
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var state *runstore.WorkflowRunState
+	if values, present := query["state"]; present {
+		candidate := runstore.WorkflowRunState(values[0])
+		if !publicRunState(candidate) {
+			h.handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
+			return
+		}
+		state = &candidate
+	}
+	cursorKind := "runs"
+	if state != nil {
+		cursorKind += ":" + string(*state)
+	}
+	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	params := runstore.ListRunsParams{OwnerID: h.dependencies.UserID, State: state, Limit: limit + 1}
+	if len(cursor) != 0 {
+		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
+		if parseErr != nil {
+			h.handleError(w, fmt.Errorf("%w: invalid Run cursor", errInvalidRequest))
+			return
+		}
+		params.BeforeCreatedAt = &before
+		params.BeforeRunID = cursor[1]
+	}
+	runs, err := h.dependencies.Runs.ListRuns(r.Context(), params)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	page := pageInfoResponse{}
+	if len(runs) > limit {
+		runs = runs[:limit]
+		last := runs[len(runs)-1]
+		next, cursorErr := h.encodePageCursor(
+			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID,
+		)
+		if cursorErr != nil {
+			h.handleError(w, cursorErr)
+			return
+		}
+		page.HasMore = true
+		page.NextCursor = &next
+	}
+	items := make([]runSummaryResponse, 0, len(runs))
+	for _, run := range runs {
+		items = append(items, runSummaryResponse{
+			RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+			State: run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			FinishedAt: run.FinishedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, runPageResponse{Items: items, Page: page})
+}
+
+func publicRunState(state runstore.WorkflowRunState) bool {
+	switch state {
+	case runstore.RunInitializing, runstore.RunRunning, runstore.RunCancelling,
+		runstore.RunSucceeded, runstore.RunFailed, runstore.RunCancelled:
+		return true
+	default:
+		return false
+	}
+}
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -286,8 +366,24 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	inputs, err := h.runArtifactsByNamespace(r, run.RunID, "inputs")
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	eventCursor, err := h.dependencies.Runs.GetRunEventCursor(r.Context(), run.RunID)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
+	var activeExecutionID *string
 	for _, execution := range executions {
+		var stage config.ResolvedStage
+		if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
+			h.handleError(w, fmt.Errorf("decode StageExecution read model: %w", err))
+			return
+		}
 		executionConfig, configErr := stageExecutionConfigReadModel(execution)
 		if configErr != nil {
 			h.handleError(w, configErr)
@@ -302,9 +398,33 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 				metrics = &value
 			}
 		}
+		var plan *planner.PlannerPlanProjection
+		if h.dependencies.PlannerPlans != nil && execution.PlannerSessionID != nil &&
+			execution.PlannerInvocationID != nil {
+			loaded, present, planErr := h.dependencies.PlannerPlans.LoadPlan(
+				r.Context(), planner.SessionIdentity{
+					SessionID:        *execution.PlannerSessionID,
+					StageExecutionID: execution.StageExecutionID,
+					InvocationID:     *execution.PlannerInvocationID,
+				},
+			)
+			if planErr != nil {
+				h.handleError(w, planErr)
+				return
+			}
+			if present {
+				value := loaded
+				plan = &value
+			}
+		}
+		if !terminalStageState(execution.State) {
+			value := execution.StageExecutionID
+			activeExecutionID = &value
+		}
 		attempts = append(attempts, stageAttemptResponse{
 			StageExecutionID:    execution.StageExecutionID,
 			Stage:               execution.StageName,
+			Objective:           stage.Objective,
 			Attempt:             execution.Attempt,
 			PreviousExecutionID: execution.PreviousExecutionID,
 			ExecutionConfig:     executionConfig,
@@ -312,6 +432,11 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			Result:              execution.AcceptedResult,
 			Termination:         execution.Termination,
 			Metrics:             metrics,
+			Plan:                plan,
+			CreatedAt:           execution.CreatedAt,
+			UpdatedAt:           execution.UpdatedAt,
+			PlannerStartedAt:    execution.PlannerStartedAt,
+			TerminalAt:          execution.TerminalAt,
 		})
 	}
 	transitions := make([]stageTransitionResponse, 0, len(decisions))
@@ -327,9 +452,24 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, Cancellation: run.Cancellation, Attempts: attempts,
-		Transitions: transitions, Outputs: outputs,
+		State: run.State, Cancellation: run.Cancellation, Parameters: run.Parameters,
+		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,
+		EventCursor: &eventCursorResponse{
+			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
+		},
+		ActiveStageExecutionID: activeExecutionID,
+		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
+		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 	})
+}
+
+func terminalStageState(state runstore.StageExecutionState) bool {
+	switch state {
+	case runstore.StageSucceeded, runstore.StageFailed, runstore.StageInterrupted, runstore.StageCancelled:
+		return true
+	default:
+		return false
+	}
 }
 
 func stageExecutionConfigReadModel(
@@ -386,6 +526,7 @@ func consumerExecutionConfigRefs(
 	result := consumerExecutionConfigRefsResponse{
 		ModelPolicy: selection.ModelPolicy.Ref,
 		LLMGateway:  selection.LLMGateway.Ref,
+		Origins:     selection.Origins,
 	}
 	if selection.Credential != nil {
 		credential := *selection.Credential
@@ -406,11 +547,16 @@ func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
 }
 
 func (h *handler) runOutputs(r *http.Request, runID string) (map[string]contracts.ArtifactRef, error) {
+	return h.runArtifactsByNamespace(r, runID, "outputs")
+}
+
+func (h *handler) runArtifactsByNamespace(
+	r *http.Request, runID string, namespace string,
+) (map[string]contracts.ArtifactRef, error) {
 	store, err := h.dependencies.Artifacts.Run(runID)
 	if err != nil {
 		return nil, err
 	}
-	namespace := "outputs"
 	refs, err := store.List(r.Context(), &namespace)
 	if err != nil {
 		return nil, err

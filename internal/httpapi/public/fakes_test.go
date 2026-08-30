@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -26,11 +27,16 @@ type fakeArtifactRepository struct {
 	next       int
 	writes     int
 	reads      int
+	created    map[artifactKey]map[string]time.Time
+	frozen     map[artifactKey]bool
+	lineage    []artifacts.LineageEdge
+	queryReads int
 }
 
 func newFakeArtifactRepository() *fakeArtifactRepository {
 	return &fakeArtifactRepository{
 		current: make(map[artifactKey]artifacts.ReadResult), historical: make(map[artifactKey]map[string]artifacts.ReadResult),
+		created: make(map[artifactKey]map[string]time.Time), frozen: make(map[artifactKey]bool),
 	}
 }
 
@@ -58,6 +64,10 @@ func (f *fakeArtifactRepository) Write(
 		f.historical[key] = make(map[string]artifacts.ReadResult)
 	}
 	f.historical[key][revision] = read
+	if f.created[key] == nil {
+		f.created[key] = make(map[string]time.Time)
+	}
+	f.created[key][revision] = time.Unix(int64(f.next), 0).UTC()
 	return artifacts.WriteResult{Ref: exact, MediaType: payload.MediaType, Size: int64(len(payload.Data))}, nil
 }
 
@@ -125,6 +135,13 @@ func (f *fakeArtifactRepository) ForkInput(
 	targetRead := artifacts.ReadResult{Ref: target, Payload: read.Payload}
 	f.current[targetKey] = targetRead
 	f.historical[targetKey] = map[string]artifacts.ReadResult{revision: targetRead}
+	f.created[targetKey] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
+	f.lineage = append(f.lineage, artifacts.LineageEdge{
+		Kind:        artifacts.LineageInputFork,
+		SourceScope: sourceScope.Kind(), Source: read.Ref,
+		TargetScope: targetScope.Kind(), Target: target,
+		CreatedAt: time.Unix(int64(f.next), 0).UTC(),
+	})
 	return artifacts.ForkResult{
 		SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data)),
 	}, nil
@@ -150,6 +167,13 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	stored := artifacts.ReadResult{Ref: target, Payload: read.Payload}
 	f.current[key] = stored
 	f.historical[key] = map[string]artifacts.ReadResult{revision: stored}
+	f.created[key] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
+	f.lineage = append(f.lineage, artifacts.LineageEdge{
+		Kind:        artifacts.LineageOutputBind,
+		SourceScope: scope.Kind(), Source: read.Ref,
+		TargetScope: scope.Kind(), Target: target,
+		CreatedAt: time.Unix(int64(f.next), 0).UTC(),
+	})
 	return artifacts.ForkResult{SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}, nil
 }
 
@@ -157,13 +181,192 @@ func (*fakeArtifactRepository) PinExact(context.Context, artifacts.Scope, artifa
 	return nil
 }
 
-func (*fakeArtifactRepository) FreezeOutputs(context.Context, artifacts.Scope) error { return nil }
+func (f *fakeArtifactRepository) FreezeOutputs(_ context.Context, scope artifacts.Scope) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for key := range f.current {
+		if key.kind == scope.Kind() && key.id == scope.ID() && key.namespace == "outputs" {
+			f.frozen[key] = true
+		}
+	}
+	return nil
+}
+
+func (f *fakeArtifactRepository) Metadata(
+	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
+) (artifacts.Metadata, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	return f.metadataLocked(scope, ref)
+}
+
+func (f *fakeArtifactRepository) ListMetadata(
+	_ context.Context, scope artifacts.Scope, query artifacts.BindingPageQuery,
+) ([]artifacts.Metadata, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	result := make([]artifacts.Metadata, 0)
+	for key, read := range f.current {
+		if key.kind != scope.Kind() || key.id != scope.ID() ||
+			query.Namespace != nil && key.namespace != *query.Namespace ||
+			query.AfterNamespace != "" && (key.namespace < query.AfterNamespace ||
+				key.namespace == query.AfterNamespace && key.name <= query.AfterName) {
+			continue
+		}
+		metadata, _ := f.metadataLocked(scope, read.Ref)
+		result = append(result, metadata)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Ref.Namespace == result[j].Ref.Namespace {
+			return result[i].Ref.Name < result[j].Ref.Name
+		}
+		return result[i].Ref.Namespace < result[j].Ref.Namespace
+	})
+	if len(result) > query.Limit {
+		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeArtifactRepository) ListVersions(
+	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
+	query artifacts.VersionPageQuery,
+) ([]artifacts.Metadata, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	if _, ok := f.current[key]; !ok {
+		return nil, artifacts.ErrArtifactNotFound
+	}
+	result := make([]artifacts.Metadata, 0, len(f.historical[key]))
+	for revision := range f.historical[key] {
+		exact := revision
+		metadata, _ := f.metadataLocked(scope, artifacts.ArtifactRef{
+			Namespace: ref.Namespace, Name: ref.Name, Revision: &exact,
+		})
+		if query.BeforeCreatedAt != nil && (metadata.CreatedAt.After(*query.BeforeCreatedAt) ||
+			metadata.CreatedAt.Equal(*query.BeforeCreatedAt) && revision >= query.BeforeRevision) {
+			continue
+		}
+		result = append(result, metadata)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return *result[i].Ref.Revision > *result[j].Ref.Revision
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	if len(result) > query.Limit {
+		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeArtifactRepository) ListLineage(
+	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
+	query artifacts.LineagePageQuery,
+) ([]artifacts.LineageEdge, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	result := make([]artifacts.LineageEdge, 0)
+	for _, edge := range f.lineage {
+		matchesSource := edge.SourceScope == scope.Kind() && sameExactArtifact(edge.Source, ref)
+		matchesTarget := edge.TargetScope == scope.Kind() && sameExactArtifact(edge.Target, ref)
+		if !matchesSource && !matchesTarget || !fakeLineageBefore(edge, query) {
+			continue
+		}
+		result = append(result, edge)
+	}
+	sort.Slice(result, func(i, j int) bool { return fakeLineageLess(result[i], result[j]) })
+	if len(result) > query.Limit {
+		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeArtifactRepository) metadataLocked(
+	scope artifacts.Scope, ref artifacts.ArtifactRef,
+) (artifacts.Metadata, error) {
+	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	read, ok := f.current[key]
+	if ref.Revision != nil {
+		read, ok = f.historical[key][*ref.Revision]
+	}
+	if !ok || read.Ref.Revision == nil {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	current := f.current[key]
+	return artifacts.Metadata{
+		Ref: read.Ref, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data)),
+		Current: current.Ref.Revision != nil && *current.Ref.Revision == *read.Ref.Revision,
+		Frozen:  f.frozen[key], CreatedAt: f.created[key][*read.Ref.Revision],
+	}, nil
+}
+
+func sameExactArtifact(left, right artifacts.ArtifactRef) bool {
+	return left.Namespace == right.Namespace && left.Name == right.Name &&
+		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
+}
+
+func fakeLineageBefore(edge artifacts.LineageEdge, query artifacts.LineagePageQuery) bool {
+	if query.BeforeCreatedAt == nil {
+		return true
+	}
+	if edge.CreatedAt.Before(*query.BeforeCreatedAt) {
+		return true
+	}
+	if edge.CreatedAt.After(*query.BeforeCreatedAt) {
+		return false
+	}
+	values := []string{*edge.Target.Revision, *edge.Source.Revision, edge.Kind}
+	before := []string{query.BeforeTargetRevision, query.BeforeSourceRevision, query.BeforeKind}
+	for index := range values {
+		if values[index] != before[index] {
+			return values[index] < before[index]
+		}
+	}
+	return false
+}
+
+func fakeLineageLess(left, right artifacts.LineageEdge) bool {
+	if !left.CreatedAt.Equal(right.CreatedAt) {
+		return left.CreatedAt.After(right.CreatedAt)
+	}
+	leftValues := []string{*left.Target.Revision, *left.Source.Revision, left.Kind}
+	rightValues := []string{*right.Target.Revision, *right.Source.Revision, right.Kind}
+	for index := range leftValues {
+		if leftValues[index] != rightValues[index] {
+			return leftValues[index] > rightValues[index]
+		}
+	}
+	return false
+}
 
 type fakeRunStore struct {
 	runs              map[string]runstore.WorkflowRun
 	executions        map[string][]runstore.StageExecution
 	decisions         map[string][]runstore.StageTransitionDecision
 	idempotencyClaims map[string]fakeIdempotencyClaim
+	eventCursors      map[string]runstore.WorkflowRunEventCursor
+}
+
+type fakePlannerPlanReader struct {
+	plans map[string]planner.PlannerPlanProjection
+	err   error
+}
+
+func (f *fakePlannerPlanReader) LoadPlan(
+	_ context.Context, identity planner.SessionIdentity,
+) (planner.PlannerPlanProjection, bool, error) {
+	if f.err != nil {
+		return planner.PlannerPlanProjection{}, false, f.err
+	}
+	plan, ok := f.plans[identity.StageExecutionID]
+	return plan, ok, nil
 }
 
 type fakeIdempotencyClaim struct {
@@ -176,7 +379,38 @@ func newFakeRunStore() *fakeRunStore {
 		runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution),
 		decisions:         make(map[string][]runstore.StageTransitionDecision),
 		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
+		eventCursors:      make(map[string]runstore.WorkflowRunEventCursor),
 	}
+}
+
+func (f *fakeRunStore) ListRuns(
+	_ context.Context, params runstore.ListRunsParams,
+) ([]runstore.WorkflowRunSummary, error) {
+	result := make([]runstore.WorkflowRunSummary, 0)
+	for _, run := range f.runs {
+		if run.OwnerID != params.OwnerID || params.State != nil && run.State != *params.State {
+			continue
+		}
+		if params.BeforeCreatedAt != nil && (run.CreatedAt.After(*params.BeforeCreatedAt) ||
+			run.CreatedAt.Equal(*params.BeforeCreatedAt) && run.RunID >= params.BeforeRunID) {
+			continue
+		}
+		result = append(result, runstore.WorkflowRunSummary{
+			RunID: run.RunID, WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
+			State: run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			FinishedAt: run.FinishedAt,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].RunID > result[j].RunID
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	if len(result) > params.Limit {
+		result = result[:params.Limit]
+	}
+	return result, nil
 }
 
 func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunParams) (runstore.WorkflowRun, error) {
@@ -271,6 +505,18 @@ func (f *fakeRunStore) ListStageTransitionDecisions(
 	return append([]runstore.StageTransitionDecision(nil), f.decisions[runID]...), nil
 }
 
+func (f *fakeRunStore) GetRunEventCursor(
+	_ context.Context, runID string,
+) (runstore.WorkflowRunEventCursor, error) {
+	if _, ok := f.runs[runID]; !ok {
+		return runstore.WorkflowRunEventCursor{}, runstore.ErrNotFound
+	}
+	if cursor, ok := f.eventCursors[runID]; ok {
+		return cursor, nil
+	}
+	return runstore.WorkflowRunEventCursor{Generation: "events-test", Sequence: 0}, nil
+}
+
 type fakeUnitOfWork struct {
 	runs      *fakeRunStore
 	artifacts *artifacts.Service
@@ -283,6 +529,7 @@ func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.S
 }
 
 var _ artifacts.Repository = (*fakeArtifactRepository)(nil)
+var _ artifacts.QueryRepository = (*fakeArtifactRepository)(nil)
 var _ RunReader = (*fakeRunStore)(nil)
 var _ RunWriter = (*fakeRunStore)(nil)
 var _ UnitOfWork = (*fakeUnitOfWork)(nil)

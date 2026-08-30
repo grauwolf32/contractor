@@ -233,6 +233,7 @@ func RunCLI(
 		Config: snapshot, Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
 		Credentials:  credentialProvider,
 		Metrics:      telemetry.NewRepository(pool),
+		PlannerPlans: plannerSessions,
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,
 		RunNotifier: workflowScheduler, Logger: logger,

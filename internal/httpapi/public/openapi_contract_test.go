@@ -64,9 +64,21 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"GET /v1/artifacts",
 		"GET /v1/artifacts/{namespace}/{name}",
+		"GET /v1/artifacts/{namespace}/{name}/lineage",
+		"GET /v1/artifacts/{namespace}/{name}/metadata",
+		"GET /v1/artifacts/{namespace}/{name}/versions",
+		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
+		"GET /v1/runs/{runId}/artifacts",
+		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}",
+		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage",
+		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata",
+		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions",
 		"GET /v1/runs/{runId}/outputs/{slot}",
+		"GET /v1/workflows",
+		"GET /v1/workflows/{name}/versions/{version}",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
@@ -193,6 +205,15 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 		t.Fatalf("update Artifact = %d: %s", updated.Code, updated.Body.String())
 	}
 
+	listWorkflows := newPublicContractRequest(http.MethodGet, "/v1/workflows?limit=1", nil)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, listWorkflows, true); response.Code != http.StatusOK {
+		t.Fatalf("list Workflows = %d: %s", response.Code, response.Body.String())
+	}
+	getWorkflow := newPublicContractRequest(http.MethodGet, "/v1/workflows/artifact-copy/versions/1", nil)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, getWorkflow, true); response.Code != http.StatusOK {
+		t.Fatalf("get Workflow = %d: %s", response.Code, response.Body.String())
+	}
+
 	download := newPublicContractRequest(http.MethodGet, "/v1/artifacts/projects/source", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, download, true); response.Code != http.StatusOK {
 		t.Fatalf("download Artifact = %d: %s", response.Code, response.Body.String())
@@ -205,6 +226,24 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	createdRun := serveAndValidatePublicContract(t, router, fixture.handler, createRun, true)
 	if createdRun.Code != http.StatusAccepted {
 		t.Fatalf("create Run = %d: %s", createdRun.Code, createdRun.Body.String())
+	}
+
+	for name, path := range map[string]string{
+		"list UserScope Artifacts": "/v1/artifacts",
+		"UserScope metadata":       "/v1/artifacts/projects/source/metadata",
+		"UserScope versions":       "/v1/artifacts/projects/source/versions",
+		"UserScope lineage":        "/v1/artifacts/projects/source/lineage",
+		"list Runs":                "/v1/runs",
+		"list RunScope Artifacts":  "/v1/runs/run_fixed/artifacts",
+		"download RunScope input":  "/v1/runs/run_fixed/artifacts/inputs/source",
+		"RunScope metadata":        "/v1/runs/run_fixed/artifacts/inputs/source/metadata",
+		"RunScope versions":        "/v1/runs/run_fixed/artifacts/inputs/source/versions",
+		"RunScope lineage":         "/v1/runs/run_fixed/artifacts/inputs/source/lineage",
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
 	}
 
 	getRun := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed", nil)

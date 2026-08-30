@@ -12,15 +12,22 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
+	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type PlannerPlanReader interface {
+	LoadPlan(context.Context, planner.SessionIdentity) (planner.PlannerPlanProjection, bool, error)
 }
 
 type RunWriter interface {
@@ -60,6 +67,7 @@ type Dependencies struct {
 	Config       *config.Snapshot
 	Credentials  config.CredentialLookup
 	Runs         RunReader
+	PlannerPlans PlannerPlanReader
 	Metrics      MetricsReader
 	Artifacts    *artifacts.Service
 	Transactions UnitOfWork
@@ -102,26 +110,69 @@ type artifactWriteResponse struct {
 	Size      int64                 `json:"size"`
 }
 
+type artifactPageResponse struct {
+	Items []artifacts.Metadata `json:"items"`
+	Page  pageInfoResponse     `json:"page"`
+}
+
+type artifactLineagePageResponse struct {
+	Items []artifacts.LineageEdge `json:"items"`
+	Page  pageInfoResponse        `json:"page"`
+}
+
 type runStatusResponse struct {
-	RunID        string                            `json:"runId"`
-	Workflow     string                            `json:"workflow"`
-	State        runstore.WorkflowRunState         `json:"state"`
-	Cancellation *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
-	Attempts     []stageAttemptResponse            `json:"attempts"`
-	Transitions  []stageTransitionResponse         `json:"transitions"`
-	Outputs      map[string]contracts.ArtifactRef  `json:"outputs"`
+	RunID                  string                            `json:"runId"`
+	Workflow               string                            `json:"workflow"`
+	State                  runstore.WorkflowRunState         `json:"state"`
+	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
+	Parameters             map[string]string                 `json:"parameters,omitempty"`
+	Inputs                 map[string]contracts.ArtifactRef  `json:"inputs,omitempty"`
+	Attempts               []stageAttemptResponse            `json:"attempts"`
+	Transitions            []stageTransitionResponse         `json:"transitions"`
+	Outputs                map[string]contracts.ArtifactRef  `json:"outputs"`
+	EventCursor            *eventCursorResponse              `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID *string                           `json:"activeStageExecutionId,omitempty"`
+	CreatedAt              time.Time                         `json:"createdAt,omitempty"`
+	UpdatedAt              time.Time                         `json:"updatedAt,omitempty"`
+	StartedAt              *time.Time                        `json:"startedAt,omitempty"`
+	FinishedAt             *time.Time                        `json:"finishedAt,omitempty"`
 }
 
 type stageAttemptResponse struct {
-	StageExecutionID    string                        `json:"stageExecutionId"`
-	Stage               string                        `json:"stage"`
-	Attempt             int                           `json:"attempt"`
-	PreviousExecutionID *string                       `json:"previousExecutionId,omitempty"`
-	ExecutionConfig     stageExecutionConfigResponse  `json:"executionConfig"`
-	State               runstore.StageExecutionState  `json:"state"`
-	Result              *contracts.StageContentResult `json:"result,omitempty"`
-	Termination         *runstore.StageTermination    `json:"termination,omitempty"`
-	Metrics             *telemetry.Summary            `json:"metrics,omitempty"`
+	StageExecutionID    string                         `json:"stageExecutionId"`
+	Stage               string                         `json:"stage"`
+	Objective           string                         `json:"objective,omitempty"`
+	Attempt             int                            `json:"attempt"`
+	PreviousExecutionID *string                        `json:"previousExecutionId,omitempty"`
+	ExecutionConfig     stageExecutionConfigResponse   `json:"executionConfig"`
+	State               runstore.StageExecutionState   `json:"state"`
+	Result              *contracts.StageContentResult  `json:"result,omitempty"`
+	Termination         *runstore.StageTermination     `json:"termination,omitempty"`
+	Metrics             *telemetry.Summary             `json:"metrics,omitempty"`
+	Plan                *planner.PlannerPlanProjection `json:"plan,omitempty"`
+	CreatedAt           time.Time                      `json:"createdAt,omitempty"`
+	UpdatedAt           time.Time                      `json:"updatedAt,omitempty"`
+	PlannerStartedAt    *time.Time                     `json:"plannerStartedAt,omitempty"`
+	TerminalAt          *time.Time                     `json:"terminalAt,omitempty"`
+}
+
+type eventCursorResponse struct {
+	Generation string `json:"generation"`
+	Sequence   string `json:"sequence"`
+}
+
+type runSummaryResponse struct {
+	RunID      string                    `json:"runId"`
+	Workflow   string                    `json:"workflow"`
+	State      runstore.WorkflowRunState `json:"state"`
+	CreatedAt  time.Time                 `json:"createdAt"`
+	UpdatedAt  time.Time                 `json:"updatedAt"`
+	FinishedAt *time.Time                `json:"finishedAt,omitempty"`
+}
+
+type runPageResponse struct {
+	Items []runSummaryResponse `json:"items"`
+	Page  pageInfoResponse     `json:"page"`
 }
 
 type stageExecutionConfigResponse struct {
@@ -136,6 +187,71 @@ type consumerExecutionConfigRefsResponse struct {
 	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy"`
 	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway"`
 	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
+	Origins     config.ExecutionConfigOrigins `json:"origins"`
+}
+
+type workflowPageResponse struct {
+	Items []workflowSummaryResponse `json:"items"`
+	Page  pageInfoResponse          `json:"page"`
+}
+
+type workflowSummaryResponse struct {
+	Ref        config.WorkflowRef              `json:"ref"`
+	EntryStage string                          `json:"entryStage"`
+	Parameters map[string]config.ParameterSlot `json:"parameters"`
+	Inputs     map[string]config.ArtifactSlot  `json:"inputs"`
+	Outputs    map[string]config.ArtifactSlot  `json:"outputs"`
+}
+
+type workflowResourceResponse struct {
+	workflowSummaryResponse
+	Stages map[string]workflowStageResponse `json:"stages"`
+}
+
+type instructionsRefResponse struct {
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+}
+
+type workflowAgentBindingResponse struct {
+	Template  contracts.AgentTemplateRef `json:"template"`
+	Namespace string                     `json:"namespace"`
+}
+
+type workflowStageResponse struct {
+	Objective        string                                  `json:"objective"`
+	Instructions     instructionsRefResponse                 `json:"instructions"`
+	Planner          config.PlannerRef                       `json:"planner"`
+	Agents           map[string]workflowAgentBindingResponse `json:"agents"`
+	ExecutionConfig  resolvedStageExecutionConfigResponse    `json:"executionConfig"`
+	ContextArtifacts map[string]config.ContextArtifact       `json:"contextArtifacts"`
+	ResultArtifacts  map[string]config.ArtifactSlot          `json:"resultArtifacts"`
+	WorkflowOutputs  map[string]string                       `json:"workflowOutputs"`
+	On               workflowTransitionsResponse             `json:"on"`
+}
+
+type resolvedStageExecutionConfigResponse struct {
+	Planner *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
+	Agents  map[string]consumerExecutionConfigRefsResponse `json:"agents"`
+}
+
+type workflowTransitionsResponse struct {
+	Succeeded   workflowTransitionResponse `json:"succeeded"`
+	Failed      workflowTransitionResponse `json:"failed"`
+	Interrupted workflowTransitionResponse `json:"interrupted"`
+}
+
+type workflowTransitionResponse struct {
+	Kind            config.TransitionKind             `json:"kind"`
+	NextStage       string                            `json:"nextStage,omitempty"`
+	MaxAttempts     int                               `json:"maxAttempts,omitempty"`
+	ExecutionConfig *workflowEscalationConfigResponse `json:"executionConfig,omitempty"`
+	Then            *workflowTransitionResponse       `json:"then,omitempty"`
+}
+
+type workflowEscalationConfigResponse struct {
+	Ref       *config.ExecutionConfigRef           `json:"ref,omitempty"`
+	Effective resolvedStageExecutionConfigResponse `json:"effective"`
 }
 
 type stageTransitionResponse struct {
