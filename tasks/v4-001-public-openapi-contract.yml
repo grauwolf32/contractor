@@ -3,8 +3,8 @@ id: V4-001
 title: Commit the complete public API v1 contract
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: f85c63125c68da4e3265fb62f6b98dfc4dd5c5bd
 depends_on: [V3-010]
 languages: [go, yaml]
 

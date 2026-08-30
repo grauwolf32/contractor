@@ -103,38 +103,23 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-010
-  next_task: V4-001
+  completed_through: V4-001
+  next_task: V4-001A
   summary: >-
-    The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
-    foundation are complete. Model-backed Planner completion now uses one
-    validated finish operation for succeeded or failed candidates; the model
-    has no Workflow-escalate tool and Scheduler remains the transition owner. A
-    typed in-memory PlannerPlan now owns immutable global/subtask text, ordered
-    decimal IDs, current status, dispatch fencing, and finish preconditions.
-    Streamline now requires exactly one logical Worker and Router exposes exact
-    model-selected logical Worker routing without physical placement data.
-    Workflow defaults and Run overrides resolve immutable per-consumer model
-    access, and exact ExecutionConfig manifests or inline escalation patches
-    now add a sixth layer. Every named profile digest, resolved dependency and
-    fully effective Stage variant is pinned before a Run starts; credentials
-    are validated across base and all variants without storing tokens.
-    Scheduler now applies failed/interrupted escalation independently of
-    retryable through an atomic immutable decision and fresh linked execution,
-    with branch-local bounded ordinals, deterministic exhaustion, cancellation
-    serialization, and safe public lineage/effective-ref fields. Streamline and
-    Router now compare-append their bounded typed plan and fixed logical
-    dispatch/finish facts into a closed-schema WorkflowRun journal. PostgreSQL
-    owns contiguous session and Run sequences in the same transaction, while
-    recovery exposes the latest plan and redaction excludes generic model/tool
-    payloads, credentials, intermediate Worker responses, and physical Runtime
-    placement. A deterministic two-Runtime production-boundary gate now proves
-    Streamline, reviewer-only Router selection, one non-retryable failed
-    candidate followed by exact stronger Scheduler escalation, complete
-    reports, frozen outputs, and reusable slots. An opt-in LiteLLM/LM Studio
-    evaluation also drives the production Router contract with finite budgets.
-    The planner-routing-and-escalation milestone is complete; the next task
-    commits the public OpenAPI contract needed by the separate Operations UI.
+    The execution, routing and Scheduler-escalation foundation remains complete.
+    Public API v1 is now a committed self-contained OpenAPI 3.1 contract with
+    implemented/planned markers across Workflow, Run, UserScope/RunScope
+    Artifact, configuration, credential, Operations, auth and WebSocket
+    surfaces. Its current six Go operations are request/response fixture-tested,
+    all public objects and errors have bounded closed shapes, and policy tests
+    reject private transport fields, raw model/tool data and secret-bearing
+    examples. The separate contractor.events.v1 Draft 2020-12 schema now
+    distinguishes exact reduced Planner facts, lifecycle invalidations and
+    Operations resync frames without exposing prompts or physical placement.
+    A pinned Go validator, make verify-public-api and the aggregate verify gate
+    enforce both contracts. Planning review found that ordinary Workflow/Run
+    and Artifact query endpoints had no dedicated implementation task, so
+    V4-001A now owns their bounded read models before UI work; it is next.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
