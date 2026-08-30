@@ -16,8 +16,9 @@ security are initial Workflow examples, not a closed product-capability enum or
 a restriction on future Workflows. Domain semantics live in YAML Workflow,
 Planner and AgentTemplate definitions rather than in Scheduler branching.
 
-The first slice loads those definitions from `configs/` with four fixed
-subtrees: `workflows`, `agent-templates`, `model-policies` and `instructions`.
+The configuration/UI target loads those definitions from `configs/` with five
+fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
+`llm-gateways` and `instructions`.
 YAML document identity comes from
 `kind + metadata.name + metadata.version`, not its file name;
 [00](00-workflow-and-planner.md) owns the complete loading contract.
@@ -32,6 +33,7 @@ YAML document identity comes from
 | [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
 | [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
+| [06](06-server-ui-and-operations.md) | Server Web UI, Operations visibility and published execution configuration selection |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

@@ -34,25 +34,28 @@ Workflow definitions are YAML files. At Server startup `WorkflowCatalog` loads,
 parses and validates them into internal DTOs; the baseline has no hot reload.
 Creating a Run stores the complete validated Workflow snapshot used by that Run,
 including its resolved Planner factory refs and exact digest-bearing
-AgentTemplate dependencies, so later file edits cannot change its graph or
-contracts. Every Workflow has an exact configuration key `(name, version)`,
+AgentTemplate, ModelPolicy and LLMGatewayConfig dependencies plus the resolved
+`executionConfig`, so later file edits cannot change its graph or execution
+contract. Every Workflow has an exact configuration key `(name, version)`,
 while the durable snapshot rather than a separately computed Workflow digest
 is the execution authority in the first slice.
 
 ### Configuration files
 
-The first slice uses one operator-configured root with four fixed subtrees:
+The configuration/UI slice uses one operator-configured root with five fixed
+manifest subtrees plus instruction resources:
 
 ```text
 configs/
   workflows/          # Workflow YAML manifests
   agent-templates/    # AgentTemplate YAML manifests
   model-policies/     # ModelPolicy YAML manifests
+  llm-gateways/       # LLMGatewayConfig YAML manifests; never secret values
   instructions/       # UTF-8 instruction resources
 ```
 
 The local loader recursively discovers regular files ending in `.yaml` below
-the first three subtrees. Each file contains exactly one non-empty YAML
+the first four subtrees. Each file contains exactly one non-empty YAML
 document; multi-document streams are invalid. Its `kind` must match its
 subtree. The loader rejects duplicate YAML mapping keys and validates the exact
 schema selected by `apiVersion` and `kind` rather than retaining unknown
@@ -66,10 +69,10 @@ the kind subtree are organizational only; two files with the same lookup key
 make the complete configuration set invalid.
 
 Configuration loading is all-or-nothing. Server first loads and validates
-ModelPolicies, then resolves AgentTemplates, and finally resolves Workflows. It
-publishes no partially resolved in-memory catalogs if any manifest,
-instruction ref or cross-document selector is invalid. The baseline performs
-this process only at startup.
+ModelPolicies and LLMGatewayConfigs, then resolves AgentTemplates, and finally
+resolves Workflows. It publishes no partially resolved in-memory configuration
+set if any manifest, instruction ref or cross-document selector is invalid. The
+baseline performs this process only at startup.
 
 Instruction resources retain a different identity rule: their normalized path
 relative to the configuration root, such as
@@ -79,10 +82,80 @@ Toolsets, SandboxProfiles, WorkerRuntime factories and Planner factories are
 registered code plus Server-visible descriptors, not additional configuration
 subtrees.
 
-A future S3-backed loader maps the same four logical subtrees to prefixes and
+A future S3-backed loader maps the same five logical manifest/resource
+subtrees to prefixes and
 preserves the same document keys and relative instruction refs. No YAML
 manifest may depend on a local absolute path, inode or file name for its
 identity.
+
+### ExecutionConfig defaults and Run overrides
+
+Workflow supplies reference-only execution defaults, while a Run request may
+override those defaults with other already published configurations. Neither
+surface accepts an inline URL, token, model name, budget or provider-specific
+parameter. The common authoring shape is:
+
+```yaml
+spec:
+  executionConfig:
+    planner:
+      modelPolicy: planner-balanced@1
+      llmGateway: local-lm-studio@1
+    workers:
+      llmGateway: local-lm-studio@1
+    stages:
+      build:
+        planner:
+          modelPolicy: planner-strong@1
+          llmGateway: paid-gateway@1
+        agents:
+          builder:
+            modelPolicy: domain-worker-strong@1
+            llmGateway: paid-gateway@1
+```
+
+`planner` and `workers` are optional Workflow-wide defaults. `stages` is an
+optional mapping keyed by an existing Stage name; each `agents` entry is keyed
+by an existing logical binding in that Stage. Every leaf contains only optional
+exact `<id>@<version>` selectors `modelPolicy` and `llmGateway` and must contain
+at least one of them. Unknown fields, Stages, bindings or configurations are
+invalid.
+
+`POST /v1/runs` accepts an optional top-level `executionConfig` object whose
+content has the same `planner`/`workers`/`stages` shape. It is an override
+document, not a way to author configuration. Server resolves one effective
+configuration for every modeled consumer in this order, with later values
+winning:
+
+1. the AgentTemplate's ModelPolicy for a Worker;
+2. Workflow-wide execution defaults;
+3. Workflow Stage/binding defaults;
+4. Run-request-wide overrides;
+5. Run-request Stage/binding overrides.
+
+Every `adk@1` Worker must resolve one compatible ModelPolicy and one
+LLMGatewayConfig. Every `streamline@1` Planner must independently resolve one
+compatible ModelPolicy and one LLMGatewayConfig. `passthrough@1` has no model
+client, so a Planner model/Gateway selection for that Stage is invalid. The
+consumer-specific ModelPolicy requirements are defined in
+[01](01-agent-template.md).
+
+Run initialization resolves complete ModelPolicy and LLMGatewayConfig bodies,
+their exact digest-bearing refs, and the non-secret exact credential revision.
+It stores the fully expanded per-Stage/per-binding `ResolvedExecutionConfig`
+with the immutable WorkflowRun snapshot. That snapshot, rather than later
+configuration edits or UI state, is authoritative for every attempt. Secret
+bytes are never stored in the Run snapshot; Control Plane resolves the pinned
+credential revision only when constructing RuntimeSettings or the Planner
+model client.
+
+The canonical idempotency digest for `POST /v1/runs` includes the supplied
+executionConfig selectors. Metrics and audit records identify the effective
+ModelPolicy, LLMGatewayConfig and credential refs, allowing consumption to be
+grouped without exposing a token. A caller may select only published
+configurations it is authorized to use; the single-owner first UI slice exposes
+all active published configurations, while multi-tenant policy remains
+deferred.
 
 The first schema is an explicit state-machine graph with a versioned document
 envelope, one entry Stage, a mapping of stable Stage names and Stage-local typed
@@ -610,8 +683,9 @@ class WorkflowRunCancellation(BaseModel):
 `failed` requires WorkflowRunError. `cancelling` and `cancelled` require the
 same immutable WorkflowRunCancellation recorded by the winning cancel request.
 
-- `initializing`: the validated Workflow snapshot, immutable Run parameters and
-  exact input forks are being committed; no Stage may start;
+- `initializing`: the validated Workflow snapshot, immutable Run parameters,
+  fully resolved executionConfig and exact input forks are being committed; no
+  Stage may start;
 - `running`: Workflow Scheduler may select and create StageExecutions;
 - `cancelling`: cancellation intent is durable, no new StageExecution or
   Workflow-output mapping is allowed, and active executions are stopped through
@@ -624,8 +698,10 @@ compare-and-set. Repeating cancellation is idempotent; cancellation of any
 terminal Run returns that existing terminal state without mutation.
 
 Public `POST /v1/runs` requires exactly one bounded `Idempotency-Key`. The
-Server binds it to the authenticated owner and a canonical digest of the
-validated request in the same transaction as Run creation and exact input
+validated request includes Workflow selector, parameters, input refs and the
+optional reference-only executionConfig override. Server binds the key to the
+authenticated owner and a canonical digest of that request in the same
+transaction as Run creation, execution-config resolution and exact input
 forks. A retry with the same owner, key and digest returns the existing Run and
 does not repeat input forks or Scheduler notification. Reusing the key with a
 different digest is a conflict. Thus losing the successful HTTP response cannot
@@ -731,17 +807,25 @@ budget. Exhaustion stops before the next side effect and returns retryable
 failed code `worker_budget_exhausted`; it is a Worker candidate, not a Planner
 budget termination and not a direct StageExecution write.
 
-The fixed `streamline@1` ceilings are 32 model calls, 200,000 cumulative
-input/output tokens, 64 Worker-tool-call attempts and 30 minutes of wall time. A
-deployment may lower the wall deadline. Exhaustion without a valid terminal
-tool produces no semantic candidate: Planner returns a stable safe error and
-Scheduler enters bounded `aborting` with an interrupted `StageTermination`,
-phase `running`, and `retryable: true`. The stable codes are
+`streamline@1` receives `maxOutputTokens`, `maxModelCalls`, `maxWorkerCalls`,
+and `maxTotalTokens` from its exact resolved ModelPolicy. The Stage/Planner
+deadline remains an execution limit outside ModelPolicy and is always finite.
+An incompatible or incomplete policy fails Run initialization before capacity
+is prepared. Exhaustion without a valid terminal tool produces no semantic
+candidate: Planner returns a stable safe error and Scheduler enters bounded
+`aborting` with an interrupted `StageTermination`, phase `running`, and
+`retryable: true`. The stable codes are
 `planner_model_call_limit`, `planner_token_limit`,
 `planner_worker_call_limit`, and `planner_deadline_exceeded`.
 Every successful Planner Gateway response must include non-negative prompt,
 completion and total token usage; missing or inconsistent usage is a retryable
 invalid-response failure rather than a way to bypass the cumulative budget.
+
+The Planner model alias comes from that ModelPolicy. Gateway URL/protocol and
+the non-secret credential reference come from the Planner's independently
+resolved LLMGatewayConfig selection. Planner resolves the pinned credential
+revision through the Server secret boundary and never inherits a Worker's
+token, Gateway or policy merely because both participate in the same Stage.
 
 Only one tool call is executed per model turn. A parallel or unknown tool
 selection is rejected before any Worker side effect and the model may correct

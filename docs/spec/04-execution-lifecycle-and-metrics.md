@@ -284,7 +284,7 @@ class ToolMetrics(BaseModel):
 
 class WorkerBudgetMetrics(BaseModel):
     max_model_calls: int
-    max_tool_calls: int
+    max_tool_calls: int | None = None
     max_total_tokens: int
     observed_model_calls: int
     observed_tool_calls: int
@@ -349,6 +349,13 @@ globally unique allocation ID and logical Agent name. A Worker-supplied payload
 cannot select or override those identities. `report_id` makes repeated delivery
 idempotent.
 
+The same trusted envelope derives model attribution from the Run's immutable
+ResolvedExecutionConfig: effective ModelPolicyRef, LLMGatewayConfigRef and the
+non-secret LLMCredentialRef revision for the Planner or logical Worker. These
+refs are never accepted from a Runtime report. They let Operations aggregate
+calls/tokens by policy, route and credential without persisting or exposing the
+secret value.
+
 ### Meaning and capture rules
 
 - `complete` describes report completeness, not execution success.
@@ -358,7 +365,8 @@ idempotent.
 - `worker_budget` is present for an ADK Worker invocation. It records the exact
   configured ceilings, operations actually started, the sum of available
   provider token usage, missing-usage response count, and at most one exhausted
-  dimension; it contains no prompt, response, or tool payload.
+  dimension; `max_tool_calls` is absent only for a compatible tool-free policy.
+  It contains no prompt, response, or tool payload.
 - Tool arguments are recursively redacted before leaving Worker and again at
   the Server persistence boundary. They are bounded and carry an explicit
   truncation marker.

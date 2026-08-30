@@ -49,6 +49,10 @@ model {
     #external
   }
 
+  webUi = system 'Contractor Web UI — deployment placement TBD' {
+    #contractor
+  }
+
   llmGateway = system 'LLM Gateway — LiteLLM or compatible backend' {
     #external
   }
@@ -98,6 +102,14 @@ model {
     }
 
     userArtifactApi = component 'User Artifact API' {
+      #contractor
+    }
+
+    operationsApi = component 'Operations / Configuration API' {
+      #contractor
+    }
+
+    executionConfigService = component 'Published Model/Gateway Config + Credential Boundary' {
       #contractor
     }
 
@@ -163,11 +175,15 @@ model {
 
     publicApi -> workflowScheduler 'Start / query / cancel Workflow Run'
     userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
+    operationsApi -> runtimeRegistry 'Read authoritative/observed slot state'
+    operationsApi -> executionConfigService 'List, validate and publish configs; rotate write-only credentials'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
+    workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
     workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
     workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
     plannerFactories -> stagePlanner 'Construct one Stage-local Planner over fixed WorkerHandles'
+    plannerFactories -> executionConfigService 'Resolve pinned Planner credential revision'
     stagePlanner -> workerInvokerTools 'Invoke fixed logical Worker tools sequentially'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
     workflowScheduler -> artifactService 'Pin/fork inputs; transactionally bind exact accepted Run outputs'
@@ -176,6 +192,7 @@ model {
     plannerArtifactInspector -> artifactService 'Read exact metadata inside current RunScope'
 
     controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
+    controlPlane -> executionConfigService 'Resolve pinned Worker credential revisions for RuntimeSettings'
     artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
     artifactService -> blobStore 'Stream immutable content'
     controlPlane -> telemetry 'Bind allocation final reports to trusted execution identity'
@@ -251,7 +268,11 @@ model {
     workerRuntime -> modelClient 'Model calls when required'
   }
 
-  apiClient -> server 'Operate Workflow Runs' #contextOnly
+  apiClient -> webUi 'Operate Contractor in a browser' #contextOnly
+  webUi -> server.publicApi 'Workflow and Run queries/mutations'
+  webUi -> server.userArtifactApi 'Artifact queries/uploads/downloads'
+  webUi -> server.operationsApi 'Runtime visibility and published configuration management'
+  apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.publicApi 'Submit / query / cancel Run'
   apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
 
@@ -268,8 +289,8 @@ model {
 
   runtimeAgent.executionCollector -> server.controlPlane 'Trusted allocation final report'
 
-  server.stagePlanner -> llmGateway 'Streamline model calls with deployment-owned settings'
-  runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied URL/token'
+  server.stagePlanner -> llmGateway 'Streamline calls with resolved Planner policy/Gateway/credential'
+  runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied resolved URL/token'
   llmGateway -> llmProvider 'Provider requests'
 
   server.telemetry -> telemetryBackend 'Export when configured'
@@ -280,6 +301,7 @@ views {
     title 'Contractor v2 — System Context'
 
     include apiClient
+    include webUi
     include server
     include runtimeAgent
     include artifactDatabase

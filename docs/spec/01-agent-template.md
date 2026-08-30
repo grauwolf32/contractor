@@ -41,11 +41,23 @@ class ModelPolicyRef(BaseModel):
 class ModelPolicy(BaseModel):
     ref: ModelPolicyRef
     model: str
-    max_output_tokens: int
-    max_model_calls: int
-    max_tool_calls: int
-    max_total_tokens: int
+    max_output_tokens: int | None = None
+    max_model_calls: int | None = None
+    max_tool_calls: int | None = None
+    max_worker_calls: int | None = None
+    max_total_tokens: int | None = None
     temperature: float | None = None
+
+
+class LLMGatewayConfigRef(BaseModel):
+    gateway_id: str
+    version: str
+    digest: str
+
+
+class LLMCredentialRef(BaseModel):
+    credential_id: str
+    revision: str
 
 
 class ToolsetRef(BaseModel):
@@ -132,7 +144,7 @@ SandboxProfile are framework-neutral Contractor data; an ADK Worker adapter
 translates them into runtime configuration only when an allocation is
 prepared.
 
-### Worker ModelPolicy
+### ModelPolicy
 
 For `runtime: adk@1`, `spec.modelPolicy` is a mandatory exact selector using the
 shared `<id>@<version>` grammar:
@@ -148,11 +160,12 @@ policy body are embedded in the resolved AgentTemplate and AllocationSpec;
 Runtime Agent performs no policy-catalog lookup. Its exact ref contributes to
 the enclosing AgentTemplate digest.
 
-ModelPolicy owns the logical LLM Gateway model alias and bounded generation
-settings, not the Gateway endpoint, provider credentials or provider routing.
-Changing the deployment route behind the same model alias does not change the
-policy or AgentTemplate digest. Planner model selection is separate and is
-never inherited from a Worker AgentTemplate.
+ModelPolicy is the shared, immutable model-loop policy for both Planner and
+Worker consumers. It owns the logical LLM Gateway model alias and the portable
+generation or cumulative-budget fields used by that consumer. It does not own
+the Gateway endpoint, provider credentials or provider routing. Planner never
+inherits a Worker's policy implicitly: `executionConfig` selects its own exact
+ModelPolicy when the chosen Planner implementation uses an LLM.
 
 The complete first-slice ModelPolicy YAML is:
 
@@ -173,18 +186,56 @@ spec:
   temperature: 0.1
 ```
 
-`model` is a mandatory non-empty opaque Gateway alias; Contractor does not
-parse it as a provider/model pair. `maxOutputTokens` is a mandatory positive
-integer and caps the generated output of each individual Worker LLM call.
-`maxModelCalls`, `maxToolCalls`, and `maxTotalTokens` are mandatory positive
-integer ceilings for one Worker A2A invocation. They are cumulative across the
-complete ADK tool loop, including the optional tool-free result-finalization
-call. The first two fields are bounded by 1,000 and 10,000 respectively;
-`maxTotalTokens` is bounded by 100,000,000. These maxima reject configuration
-mistakes and are not recommended operating values.
+The same kind can describe a Streamline Planner without inventing a Worker tool
+limit:
 
-Runtime checks call and tool capacity before starting the next operation. It
-adds provider-reported `total_token_count` after each completed model response;
+```yaml
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: planner-strong
+  version: "1"
+
+spec:
+  model: planning-strong
+  maxOutputTokens: 16000
+  maxModelCalls: 32
+  maxWorkerCalls: 64
+  maxTotalTokens: 500000
+  temperature: 0.1
+```
+
+`model` is a mandatory non-empty opaque Gateway alias; Contractor does not
+parse it as a provider/model pair. Every other field is structurally optional:
+a policy omits a limit or parameter that its intended consumer does not use.
+Every present numeric limit is a positive integer. `maxOutputTokens` caps one
+model response; `maxModelCalls`, `maxToolCalls`, `maxWorkerCalls`, and
+`maxTotalTokens` are cumulative across one complete Planner or Worker
+invocation. `maxModelCalls` is bounded by 1,000, `maxToolCalls` and
+`maxWorkerCalls` by 10,000, and `maxTotalTokens` by 100,000,000. These maxima
+reject configuration mistakes and are not recommended operating values.
+
+Optional in the shared schema does not mean unbounded by default. Each model
+consumer declares the fields it requires and configuration resolution fails
+before Run execution if the selected policy is incompatible:
+
+- an `adk@1` Worker requires `maxOutputTokens`, `maxModelCalls` and
+  `maxTotalTokens`; it additionally requires `maxToolCalls` when the resolved
+  AgentTemplate exposes any model-visible tool and does not use
+  `maxWorkerCalls`;
+- a `streamline@1` Planner requires `maxOutputTokens`, `maxModelCalls`,
+  `maxWorkerCalls` and `maxTotalTokens`; it does not use `maxToolCalls` in the
+  first UI/configuration slice;
+- `passthrough@1` does not use an LLM and therefore has no Planner ModelPolicy
+  selection.
+
+This consumer validation lets one kind represent both roles without inventing
+zero values or silently treating an omitted safety limit as infinity.
+
+Worker Runtime checks call and tool capacity before starting the next
+operation. It adds provider-reported `total_token_count` after each completed
+model response;
 crossing the token ceiling stops the loop before a response tool call is
 executed, while reaching the ceiling permits a final text result but no later
 operation. Missing token usage is recorded explicitly and never disables the
@@ -199,11 +250,12 @@ inventing a default. When present, it is a finite JSON number greater than or
 equal to zero. Gateway remains responsible for whether that value and the
 per-response output limit are supported by the selected route.
 
-The `spec` object contains exactly these six fields in `v1alpha1`; arbitrary
-provider-specific parameters are invalid. ModelPolicy contains no URL, token,
-retry policy, request timeout, Stage deadline, organization quota, or pricing
-configuration. Those concerns remain in RuntimeSettings or the enclosing
-execution contract.
+The `spec` object contains only `model` and the six optional portable fields
+shown by the model above; arbitrary provider-specific parameters are invalid.
+ModelPolicy contains no URL, token, retry policy, request timeout, Stage
+deadline, organization quota, or pricing configuration. Those concerns remain
+in the selected LLMGatewayConfig, RuntimeSettings or the enclosing execution
+contract.
 
 ModelPolicyCatalog validates and normalizes the document, then computes
 `ModelPolicyRef.digest` as SHA-256 over its RFC 8785 JCS manifest using the same
@@ -211,6 +263,48 @@ ModelPolicyCatalog validates and normalizes the document, then computes
 verifies the resolved policy body against that digest before configuring the
 Worker model client. Future schema versions may add explicit portable fields
 without changing the meaning of `contractor/v1alpha1`.
+
+### LLMGatewayConfig and credentials
+
+`LLMGatewayConfig` is an immutable, published description of one
+OpenAI-compatible Gateway endpoint. It is deliberately separate from
+ModelPolicy so the same budgets/model alias can use different endpoints or
+tokens and the same endpoint can serve multiple policies.
+
+```yaml
+apiVersion: contractor/v1alpha1
+kind: LLMGatewayConfig
+
+metadata:
+  name: local-lm-studio
+  version: "1"
+
+spec:
+  protocol: openai-compatible@1
+  url: http://192.168.1.217:1234/v1
+  credentialRef: lm-studio-default
+```
+
+`protocol` and `url` are mandatory. The first slice accepts exactly
+`openai-compatible@1`. URL userinfo, query and fragment components are invalid;
+credentials never travel inside the URL. `credentialRef` is optional for a
+trusted unauthenticated local Gateway. When present it is a stable logical name
+resolved through the Server's secret store, not another YAML document
+containing secret bytes.
+
+Resolving a Gateway for a Run produces an exact `LLMGatewayConfigRef` and, when
+configured, an `LLMCredentialRef(credential_id, revision)`. The immutable Run
+snapshot stores those non-secret refs but never the token. The secret store
+must retain a referenced revision for the lifetime of a non-terminal Run.
+Rotating a credential creates a new revision for future Runs; changing URL or
+protocol creates a new LLMGatewayConfig version. An active allocation continues
+with the exact in-memory RuntimeSettings snapshot it received.
+
+LLMGatewayConfig manifests live under `configs/llm-gateways/`. Configuration
+loading validates their exact schema and digest before resolving
+`executionConfig`. How the Operations UI publishes manifests and which secret
+store persists credentials are owned by the UI/configuration increment rather
+than by AgentTemplate.
 
 ### Toolset and tool selection
 
@@ -356,11 +450,12 @@ instruction resource changes the digest.
 
 AgentTemplateCatalog computes and stores the digest with the resolved template.
 AllocationSpec carries the normalized manifest, resolved instruction text,
-resolved ModelPolicy body and exact refs. Before creating Worker, Runtime Agent
-verifies the instruction, ModelPolicy and enclosing AgentTemplate digests. A
-mismatch fails preparation with non-retryable `template_digest_mismatch`;
-Runtime Agent never silently recomputes a new identity or fetches replacement
-catalog content.
+resolved default ModelPolicy dependency and the separately selected effective
+ModelPolicy body with their exact refs. Before creating Worker, Runtime Agent
+verifies the instruction, both policy dependencies and enclosing AgentTemplate
+digests. A mismatch fails preparation with non-retryable
+`template_digest_mismatch`; Runtime Agent never silently recomputes a new
+identity or fetches replacement configuration content.
 
 The digest is an integrity and identity fingerprint, not an authorization
 signature. Trust still comes from the configured catalog boundary and the mTLS
@@ -488,6 +583,7 @@ AllocationSpec
   run and stage identity
   logical Agent name and resolved Namespace
   complete AgentTemplate + exact ref
+  effective ModelPolicy + exact ref
   exact WorkerRuntimeRef
   RuntimeSettings supplied by Control Plane
   exact lease_expires_at, deadline and resource limits
@@ -498,8 +594,8 @@ Runtime Agent does not derive a later value from its local heartbeat settings.
 Private wire timestamps are normalized to UTC microsecond precision, which is
 preserved exactly by Go, Python and PostgreSQL.
 
-`RuntimeSettings` contains deployment-owned connection and execution settings,
-not Worker semantics. The initial settings include at least:
+`RuntimeSettings` contains resolved connection and execution settings, not
+Worker semantics. The initial settings include at least:
 
 ```text
 RuntimeSettings
@@ -509,18 +605,22 @@ RuntimeSettings
   request timeouts and size/resource limits
 ```
 
-AgentTemplate selects an exact ModelPolicy, but neither object carries the LLM
-Gateway URL, token, provider routing or credential. Control Plane takes those
-values from trusted Server configuration (or a future secret provider) and
-delivers them over the private mTLS control channel. `LLM Gateway` is the
-Contractor role: LiteLLM is the initial deployment backend, but another backend
-may replace it when it satisfies the configured model-client protocol. An
-active allocation uses one resolved settings snapshot; ordinary configuration
-changes apply to the next allocation.
+AgentTemplate selects its default exact ModelPolicy, but neither object carries
+the LLM Gateway URL, token, provider routing or credential. Run initialization
+resolves the Workflow defaults plus the request's reference-only
+`executionConfig` overrides. Control Plane obtains the selected URL from the
+exact LLMGatewayConfig and the pinned credential revision from the trusted
+Server secret store, then delivers their values over the private mTLS control
+channel. `LLM Gateway` is the Contractor role: LiteLLM is the initial backend,
+but another backend may replace it when it satisfies the configured
+model-client protocol. An active allocation uses one resolved settings
+snapshot; configuration or credential changes apply only to Runs that resolve
+the newer version or revision.
 
-Durable provenance records the exact AgentTemplate ref, WorkerRuntimeRef,
-allocation ID and Runtime Agent process identity. It never records ephemeral
-access material or secret-bearing RuntimeSettings values.
+Durable provenance records the exact AgentTemplate, effective ModelPolicy,
+LLMGatewayConfig and non-secret credential refs, WorkerRuntimeRef, allocation ID
+and Runtime Agent process identity. It never records ephemeral access material
+or secret-bearing RuntimeSettings values.
 
 The PostgreSQL connection URL is Server bootstrap configuration. It never
 appears in AgentTemplate, AllocationSpec or Runtime Agent configuration supplied
@@ -541,13 +641,16 @@ incompatible runtime/card fails preparation before Planner starts.
    in one Runtime Agent.
 3. The complete template is resolved before capacity preparation and is passed
    in AllocationSpec rather than fetched by Worker at task time.
-4. WorkerHandle reports the exact template ref, runtime ref and allocation
+4. ExecutionConfig may select another compatible published ModelPolicy without
+   mutating AgentTemplate; AllocationSpec carries that effective exact policy
+   separately and Runtime verifies its digest.
+5. WorkerHandle reports the exact template ref, runtime ref and allocation
    identity returned by the prepared Runtime Agent.
-5. An Agent Card incompatible with the required A2A protocol fails preparation
+6. An Agent Card incompatible with the required A2A protocol fails preparation
    before Planner starts.
-6. AgentTemplate never becomes a physical deployment or long-lived Agent
+7. AgentTemplate never becomes a physical deployment or long-lived Agent
    identity.
-7. Runtime Agent and Worker functions execute in one process; one Runtime Agent
+8. Runtime Agent and Worker functions execute in one process; one Runtime Agent
    has at most one active Worker instance.
-8. Workflow/API input cannot select an executable, module, image or raw process
+9. Workflow/API input cannot select an executable, module, image or raw process
    arguments.

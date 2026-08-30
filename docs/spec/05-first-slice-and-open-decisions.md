@@ -32,14 +32,15 @@ sandbox where a tool requires it.
 
 This slice must demonstrate:
 
-- Server recursively loads the fixed `workflows`, `agent-templates` and
-  `model-policies` YAML subtrees below `configs/`, plus relative resources
-  under `instructions`; document lookup uses
+- Server recursively loads the fixed `workflows`, `agent-templates`,
+  `model-policies` and `llm-gateways` YAML subtrees below `configs/`, plus
+  relative resources under `instructions`; document lookup uses
   `kind + metadata.name + metadata.version`, not the file name, and duplicate
   identities or any invalid dependency reject the complete configuration set;
-- Run creation selects an exact Workflow `<id>@<version>` and stores its
-  complete resolved snapshot; later configuration-file edits cannot
-  reinterpret that Run;
+- Run creation selects an exact Workflow `<id>@<version>`, resolves Workflow
+  execution defaults plus reference-only Run overrides, and stores the complete
+  per-consumer snapshot; later configuration-file edits cannot reinterpret that
+  Run;
 - public Run creation requires an owner-scoped `Idempotency-Key`; response-loss
   retry returns the same Run without repeating input forks or Scheduler wake,
   while reuse with different validated content conflicts;
@@ -66,15 +67,15 @@ This slice must demonstrate:
   `local-workdir@1`; it creates a fresh allocation directory, exposes no host
   path through declarative contracts, cleans it before the slot returns to
   `idle`, and explicitly promises no OS, process or network isolation;
-- every `adk@1` AgentTemplate selects an exact digest-bearing ModelPolicy through
-  `modelPolicy`; its resolved body reaches Runtime Agent in AllocationSpec,
-  while Gateway URL, token, provider routing and credentials remain absent from
-  both contracts;
-- ModelPolicy `v1alpha1` contains mandatory `model`, positive per-call
-  `maxOutputTokens`, positive cumulative `maxModelCalls`, `maxToolCalls`, and
-  `maxTotalTokens`, plus optional non-negative finite `temperature`; Runtime
-  enforces the cumulative fields per Worker A2A invocation and unsupported
-  extra fields or provider-specific parameter mappings are rejected;
+- every `adk@1` AgentTemplate selects an exact digest-bearing default
+  ModelPolicy through `modelPolicy`; reference-only Run executionConfig may
+  select another compatible published policy, and AllocationSpec carries the
+  effective resolved body separately while Gateway URL and token remain absent
+  from AgentTemplate and ModelPolicy;
+- one shared ModelPolicy kind serves Planner and Worker; `model` is mandatory,
+  portable generation/budget fields are optional in the shared schema, and
+  each consumer rejects a policy missing its required finite bounds rather than
+  interpreting absence as unbounded execution;
 - AgentTemplate `toolsets` explicitly selects versioned groups and a non-empty
   allowlist of exported tool names within each group; wildcard/all defaults,
   duplicate refs/names, unknown tools and cross-group name collisions are
@@ -91,9 +92,11 @@ This slice must demonstrate:
   Worker creation and fails preparation on a mismatch;
 - every Runtime Agent runs the same code and can instantiate the
   AgentTemplate's `runtime: adk@1` in-process;
-- Control Plane supplies the allocation's LLM Gateway URL/token and other
-  RuntimeSettings over mTLS; the Agent keeps secrets only in memory and clears
-  them on release;
+- Workflow defaults plus reference-only Run overrides resolve exact
+  ModelPolicy, LLMGatewayConfig and non-secret credential refs for every modeled
+  Planner/Worker consumer; Control Plane supplies the resulting allocation URL
+  and optional token in RuntimeSettings over mTLS, and Agent clears secrets on
+  release;
 - Workflow Scheduler records `preparing -> running -> finalizing -> terminal`;
 - WorkflowRun records `initializing -> running -> succeeded`, with the final
   Stage acceptance, required output bindings and Run success in one transaction;
@@ -123,11 +126,12 @@ This slice must demonstrate:
   explicit optional artifact absence, exact present refs, fixed Worker mapping
   and result contract as structured context; each Worker call explicitly
   selects the string parameters and exact refs it needs;
-- Streamline enforces 32 model calls, 200,000 cumulative tokens, 64
-  Worker-tool-call attempts and a maximum 30-minute wall deadline; exhaustion
-  produces an interrupted,
+- Streamline enforces the selected ModelPolicy's model-call, cumulative-token,
+  per-response and Worker-call limits plus a finite Stage/Planner wall deadline;
+  exhaustion produces an interrupted,
   retryable running-phase StageTermination through Scheduler's bounded abort;
-- Streamline uses deployment-owned Planner Gateway URL/token/model settings;
+- Streamline uses its own exact ModelPolicy and LLMGatewayConfig selections from
+  ResolvedExecutionConfig and never inherits a Worker token/model implicitly;
   successful responses must include consistent token usage, while provider
   error bodies and tokens never enter durable session events, reports, logs or
   the public API;
@@ -218,7 +222,8 @@ implicitly:
   loss;
 - shared Runtime Agent Registry and coordination for multiple active Control
   Plane replicas;
-- RuntimeSettings token issuance, expiry/refresh and concrete redaction rules;
+- concrete secret-store backend, credential issuance and expiry/refresh
+  protocol beyond the pinned revision and write-only UI boundary;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;
 - multi-tenant authorization and quota policy.

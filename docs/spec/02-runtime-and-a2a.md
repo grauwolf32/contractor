@@ -235,10 +235,11 @@ instance, not another service, daemon, subprocess or container.
 For one allocation the Runtime Agent:
 
 1. reserves its only slot and validates `AllocationSpec`, including the exact
-   registered SandboxProfile ref;
+   registered SandboxProfile ref and effective digest-bearing ModelPolicy;
 2. asks that profile to prepare the allocation-local workspace;
 3. prepares allocation-local State and selected tools, then creates one
-   in-process Worker runtime from the complete AgentTemplate;
+   in-process Worker runtime from the complete AgentTemplate plus the effective
+   ModelPolicy selected by the Run's ResolvedExecutionConfig;
 4. configures its own A2A Server and Agent Card for that allocation;
 5. binds its Artifact client and model access to the allocation context;
 6. reports ready and handles the Worker's A2A Tasks itself;
@@ -279,10 +280,13 @@ container, filesystem-permission or network security boundary.
 ### RuntimeSettings from Control Plane
 
 Control Plane includes a resolved `RuntimeSettings` snapshot in every
-AllocationSpec. It may contain the LLM Gateway URL and token, the Server Artifact
-API endpoint, timeouts, limits and other deployment-owned adapter settings.
-Runtime Agent does not resolve these values from AgentTemplate or local Worker
-configuration.
+AllocationSpec. It may contain the selected LLM Gateway URL and optional token,
+the Server Artifact API endpoint, timeouts, limits and other adapter settings.
+The Gateway values come from the WorkflowRun's immutable
+`ResolvedExecutionConfig`: URL/protocol from its exact LLMGatewayConfig and
+secret bytes from its pinned credential revision. Runtime Agent does not resolve
+these values from AgentTemplate, local Worker configuration, environment
+defaults or a mutable configuration alias.
 
 `LLM Gateway` is a backend-neutral role in this contract. LiteLLM is the initial
 backend, not a required Contractor component; a compatible backend can replace
@@ -291,9 +295,11 @@ it without changing Workflow, AgentTemplate or allocation semantics.
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state. They are erased during
-release. A token that must expire during a long allocation requires an explicit
-private refresh operation; silently replacing the active settings snapshot is
-not allowed.
+release. Durable execution and metrics may retain the non-secret
+LLMGatewayConfig and credential refs, never their resolved token. A token that
+must expire during a long allocation requires an explicit private refresh
+operation preserving its credential identity; silently replacing the active
+settings snapshot is not allowed.
 
 ### Correlation and redacted boundary failures
 
@@ -372,9 +378,10 @@ cancellation is requested.
 
 After reserving the full set, Control Plane creates one globally unique
 `allocation_id` and one complete AllocationSpec per logical Stage Agent binding,
-then may initialize those Runtime Agents concurrently. Planner starts only after
-every Runtime Agent reports ready and Control Plane can return the complete
-`WorkerHandle` map.
+including that binding's effective ModelPolicy and Gateway-derived
+RuntimeSettings, then may initialize those Runtime Agents concurrently. Planner
+starts only after every Runtime Agent reports ready and Control Plane can return
+the complete `WorkerHandle` map.
 
 If any initialization fails, times out or returns an incompatible Agent Card,
 Control Plane drains/releases every allocation from that batch, including
