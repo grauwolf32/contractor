@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V4-007A
+title: Advertise the stable public API compatibility version
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-001, V4-006]
+languages: [go, yaml]
+
+goal: >-
+  Give independently released browser builds one authenticated or
+  unauthenticated response-level compatibility signal without adding a proxy,
+  discovery service, or negotiation state machine.
+
+context:
+  contract: >-
+    Every public API response, including errors, CORS preflight and WebSocket
+    upgrade, carries X-Contractor-API-Version: contractor.public.v1. This value
+    identifies the stable compatibility family and does not change for additive
+    OpenAPI info.version updates within public /v1.
+  browser: >-
+    The frontend compares this header with its build-pinned supported API
+    versions while bootstrapping GET /v1/auth/session. A missing or unsupported
+    value is an explicit incompatible-API result, not an authentication result.
+
+scope:
+  in:
+    - Add one exported Go constant and outer public middleware that sets the exact header before CORS/auth/routing.
+    - Describe the header and compatibility-family extension in the public OpenAPI contract.
+    - Expose the header to exact allowed browser origins and include it on the WebSocket 101 contract.
+    - Test success, 401, CORS preflight and WebSocket handshake responses plus OpenAPI/constant parity.
+  out:
+    - Content negotiation, multiple simultaneous API implementations, a new discovery endpoint, or private API versioning.
+
+deliverables:
+  - {path: internal/httpapi/public, description: Compatibility constant, response middleware, and tests.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Exact public version header contract.}
+
+requirements:
+  - id: R1
+    text: The header is non-secret, immutable for the public v1 compatibility family, and present before any handler can return.
+  - id: R2
+    text: Browser code can read it cross-origin, while it grants no authentication or authorization.
+
+acceptance_criteria:
+  - id: A1
+    given: Any public success, authentication failure, preflight, or accepted WebSocket upgrade.
+    when: The response begins.
+    then: It carries exactly contractor.public.v1 and the OpenAPI contract declares the same value.
+  - id: A2
+    given: A future additive OpenAPI patch within /v1.
+    when: info.version changes.
+    then: The compatibility-family value need not change.
+
+tests:
+  - {name: public-contract, command: "make verify-public-api", covers: [A1, A2]}
+  - {name: public-race, command: "go test -race ./internal/httpapi/public/...", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2]}

@@ -5,7 +5,7 @@ milestone: server-ui-and-operations
 priority: P0
 status: planned
 implementation_commit: null
-depends_on: [V4-001, V4-006]
+depends_on: [V4-001, V4-006, V4-007, V4-007A]
 languages: [typescript, javascript, css, yaml]
 
 goal: >-
@@ -20,19 +20,38 @@ context:
     BFF, API proxy, session storage, Server credential, database, Control Plane,
     or Runtime Agent access.
   frontend_stack: >-
-    TypeScript strict, React, Vite, React Router Data Mode, and TanStack Query.
-    Router/form/presentation state stays local; there is no Redux/Zustand or
-    second authoritative domain model. Generated OpenAPI DTO/client code is not
-    hand-edited.
+    Pin Node 24.20, Corepack 0.36, pnpm 11.24, React 19.2, Vite 8.2,
+    React Router 8.3 Data Mode, TanStack Query 5.102, TypeScript 6.0 and exact
+    dependency versions. Router/form/presentation state stays local; there is
+    no Redux/Zustand or second authoritative domain model.
+  generated_client: >-
+    openapi-typescript 7.13 deterministically generates paths/components from
+    ../api/openapi/contractor-public-v1.yaml and openapi-fetch 0.17 consumes
+    those types. Generated files are committed, never hand-edited, and
+    generate:check regenerates then requires a clean generated diff.
+  runtime_config: >-
+    GET /runtime-config.json has the exact closed shape uiVersion,
+    supportedApiVersions and apiBaseUrl. The build supports only
+    contractor.public.v1 and verifies both its own UI version and the Server's
+    X-Contractor-API-Version response header. apiBaseUrl is an origin-only
+    absolute URL without userinfo/query/fragment; it is HTTPS except for an
+    IP-literal loopback HTTP development origin.
+  static_server: >-
+    Use only Node's standard HTTP/filesystem APIs. Fallback to index.html for
+    the explicit client routes /, /login, /workflows, /artifacts, /runs and
+    /operations. Missing assets, extension-bearing paths, /v1, /api and
+    /private paths remain bounded 404 responses. Runtime config and index are
+    no-store; hashed assets are immutable; CSP connect-src is derived only from
+    the validated API origin.
 
 scope:
   in:
-    - Add ui workspace with pinned Node major/package manager/dependencies and reproducible lockfile.
+    - Add ui workspace with the exact toolchain above, reproducible pnpm lockfile, and committed generated OpenAPI types.
     - Configure strict tsc, ESLint/format checks, Vitest, React Testing Library, Vite build, and deterministic OpenAPI TypeScript client generation.
     - Add handwritten transport adapter for runtime apiBaseUrl, credentials include, current CSRF, caller-provided idempotency/CAS headers, and bounded errors.
     - Add session bootstrap/login/logout routes and guarded application shell with Workflows, Artifacts, Runs, and Operations navigation.
     - Add TanStack Query provider/key policy and WebSocket adapter skeleton; no optimistic authoritative domain updates.
-    - Implement Node static server/runtime config validation, exact client-route fallback, cache/security headers, health/version endpoint, and graceful shutdown.
+    - Implement dependency-free Node static server/runtime config validation, explicit client-route fallback, cache/security headers, /healthz version response, and graceful shutdown.
     - Keep assets/API-looking paths/runtime-config errors distinct from SPA fallback and reject unsafe production apiBaseUrl.
     - Add independent container/build targets; Go Server embeds no frontend files.
   out:
@@ -73,6 +92,6 @@ acceptance_criteria:
     then: No Go Server rebuild or embedded asset change is required.
 
 tests:
-  - {name: ui-check, command: "cd ui && corepack pnpm generate:check && corepack pnpm typecheck && corepack pnpm test --run && corepack pnpm build", covers: [A1, A2, A3, A4]}
+  - {name: ui-check, command: "cd ui && corepack pnpm generate:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test --run && corepack pnpm build", covers: [A1, A2, A3, A4]}
   - {name: node, command: "cd ui && corepack pnpm test:server", covers: [A2, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

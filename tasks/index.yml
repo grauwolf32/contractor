@@ -107,7 +107,7 @@ milestones:
 
 current_checkpoint:
   completed_through: V4-007
-  next_task: V4-008
+  next_task: V4-007A
   summary: >-
     The Go Server now exposes one exact-origin, cookie-authenticated read-only
     WebSocket with bounded multiplexing, replay, resync, heartbeat and
@@ -116,8 +116,8 @@ current_checkpoint:
     hints; process-local Operations changes use a bounded generation/revision
     ring. Logout, expiry and session revocation close affected sockets without
     extending idle authority. Full Go/Python, public-contract, race and
-    PostgreSQL gates pass. V4-008 is next and scaffolds the independent React
-    frontend against these committed HTTP and event contracts.
+    PostgreSQL gates pass. V4-007A next adds the small stable public API version
+    signal required before V4-008 can scaffold the independent React frontend.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
@@ -288,6 +288,7 @@ tasks:
   - {id: V4-005, file: v4-005-operations-api.yml}
   - {id: V4-006, file: v4-006-browser-session-security.yml}
   - {id: V4-007, file: v4-007-run-event-websocket.yml}
+  - {id: V4-007A, file: v4-007a-public-api-version.yml}
   - {id: V4-008, file: v4-008-react-ui-foundation.yml}
   - {id: V4-009, file: v4-009-workflow-run-ui.yml}
   - {id: V4-010, file: v4-010-operations-ui.yml}
