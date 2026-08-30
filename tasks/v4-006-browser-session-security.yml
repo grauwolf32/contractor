@@ -18,11 +18,22 @@ context:
     Server reads one secure absolute local-auth YAML containing userId,
     case-sensitive username, and an exact Argon2id PHC hash. Browser sessions
     and CSRF tokens are in memory only and are invalidated by Server restart.
+  principal_source: >-
+    The local-auth userId is the one principal for both browser-cookie and
+    retained bearer authentication. CONTRACTOR_PUBLIC_USER_ID is a deprecated
+    compatibility assertion when present and startup rejects a mismatch; it is
+    never a second owner identity.
   cookie_contract: >-
     Production uses a fresh 32-byte random value only in
     __Host-contractor_session with HttpOnly, Secure, SameSite=Lax, Path=/ and no
     Domain; only its SHA-256 digest is stored. Explicit loopback development
     mode uses a separately named insecure cookie and is rejected elsewhere.
+  bootstrap_flags: >-
+    Serve requires --local-auth-file and at least one repeatable
+    --browser-origin. --insecure-loopback-cookie is the only HTTP-cookie escape
+    hatch and is valid only for an IP-literal loopback public listener and
+    loopback HTTP origins. HTTPS origins remain exact strings without path,
+    query, fragment, userinfo, wildcard, or null values.
 
 scope:
   in:
@@ -32,7 +43,9 @@ scope:
     - Generate/recover a session-bound CSRF token through GET session; require exact token and allowed Origin on every cookie-authenticated unsafe request.
     - Add exact browser-origin allowlist and strict credentialed CORS/preflight response headers; reject wildcard, reflection, null, and unexpected origins.
     - Put immutable userId/capabilities into request context; never accept owner/audit actor from request bodies.
-    - Retain a documented non-browser authentication path without treating CORS as authorization.
+    - Retain the existing bearer-token non-browser authentication path, map it
+      to the local-auth principal, and never require browser Origin or CSRF for
+      that path or treat CORS as authorization.
     - Add constant-shape auth errors and secret/cookie/password log-redaction tests.
   out:
     - OIDC, multiple users, durable sessions, RBAC roles, trusted proxy IP parsing, password reset, or account lockout.
