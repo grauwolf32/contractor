@@ -15,6 +15,8 @@ import (
 )
 
 const (
+	addSubtaskToolName   = "add_subtask"
+	listSubtasksToolName = "list_subtasks"
 	finishToolName       = "finish"
 	maxStagePayloadBytes = 256 * 1024
 	maxStageSummaryBytes = 64 * 1024
@@ -22,10 +24,9 @@ const (
 )
 
 type workerCallArgs struct {
-	Objective    string                           `json:"objective"`
-	Instructions string                           `json:"instructions"`
-	Parameters   map[string]string                `json:"parameters,omitempty"`
-	Artifacts    map[string]contracts.ArtifactRef `json:"artifacts,omitempty"`
+	SubtaskID  string                           `json:"subtask_id"`
+	Parameters map[string]string                `json:"parameters,omitempty"`
+	Artifacts  map[string]contracts.ArtifactRef `json:"artifacts,omitempty"`
 }
 
 type workerCallOutput struct {
@@ -41,6 +42,19 @@ type finishArgs struct {
 	Error     *contracts.TerminationError      `json:"error,omitempty"`
 }
 
+type addSubtaskArgs struct {
+	Objective    string `json:"objective"`
+	Instructions string `json:"instructions"`
+}
+
+type listSubtasksArgs struct{}
+
+type plannerPlanOutput struct {
+	OK    bool                 `json:"ok"`
+	Plan  *planner.PlannerPlan `json:"plan,omitempty"`
+	Error *toolFailure         `json:"error,omitempty"`
+}
+
 type completionToolOutput struct {
 	Accepted bool         `json:"accepted"`
 	Error    *toolFailure `json:"error,omitempty"`
@@ -53,8 +67,29 @@ type toolFailure struct {
 }
 
 func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[string]struct{}, error) {
-	result := make([]tool.Tool, 0, len(p.workers)+1)
-	allowed := make(map[string]struct{}, len(p.workers)+1)
+	result := make([]tool.Tool, 0, len(p.workers)+3)
+	allowed := make(map[string]struct{}, len(p.workers)+3)
+	addSubtask, err := functiontool.New(functiontool.Config{
+		Name:        addSubtaskToolName,
+		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
+	}, func(ctx agent.ToolContext, args addSubtaskArgs) (plannerPlanOutput, error) {
+		return p.addSubtask(ctx, state, args), nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build add_subtask tool: %w", err)
+	}
+	listSubtasks, err := functiontool.New(functiontool.Config{
+		Name:        listSubtasksToolName,
+		Description: "Return the current bounded ordered subtask plan, including adapter-controlled status and the exact current subtask_id.",
+	}, func(ctx agent.ToolContext, _ listSubtasksArgs) (plannerPlanOutput, error) {
+		return p.listSubtasks(ctx, state), nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build list_subtasks tool: %w", err)
+	}
+	result = append(result, addSubtask, listSubtasks)
+	allowed[addSubtaskToolName] = struct{}{}
+	allowed[listSubtasksToolName] = struct{}{}
 	for _, current := range p.workers {
 		binding := current
 		adapter, err := functiontool.New(functiontool.Config{
@@ -86,6 +121,34 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 	return result, allowed, nil
 }
 
+func (p *streamlinePlanner) addSubtask(
+	_ agent.ToolContext, state *executionState, args addSubtaskArgs,
+) plannerPlanOutput {
+	started := time.Now()
+	safeArguments := map[string]any{
+		"objectiveBytes": len(args.Objective), "instructionsBytes": len(args.Instructions),
+	}
+	plan, planErr := p.plan.AddSubtask(args.Objective, args.Instructions)
+	if planErr != nil {
+		failure := failureFromPlanError(planErr)
+		state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
+		return plannerPlanOutput{Error: toolFailureFrom(failure)}
+	}
+	encoded, _ := json.Marshal(plan)
+	state.recordTool(addSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
+	return plannerPlanOutput{OK: true, Plan: &plan}
+}
+
+func (p *streamlinePlanner) listSubtasks(
+	_ agent.ToolContext, state *executionState,
+) plannerPlanOutput {
+	started := time.Now()
+	plan := p.plan.Snapshot()
+	encoded, _ := json.Marshal(plan)
+	state.recordTool(listSubtasksToolName, map[string]any{}, true, time.Since(started), len(encoded), nil)
+	return plannerPlanOutput{OK: true, Plan: &plan}
+}
+
 func (p *streamlinePlanner) callWorker(
 	ctx agent.ToolContext,
 	state *executionState,
@@ -94,24 +157,38 @@ func (p *streamlinePlanner) callWorker(
 ) workerCallOutput {
 	started := time.Now()
 	safeArguments := map[string]any{
-		"binding": binding.logicalName, "artifactNames": sortedArtifactNames(args.Artifacts),
+		"binding": binding.logicalName, "subtaskId": safeSubtaskID(args.SubtaskID),
 	}
-	if limit := state.reserveWorkerCall(); limit != nil {
-		ctx.Actions().SkipSummarization = true
-		failure := limit.Failure
+	subtask, planErr := p.plan.CurrentSubtask(args.SubtaskID)
+	if planErr != nil {
+		failure := failureFromPlanError(planErr)
 		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
-	request, failure := p.workerRequest(ctx, args)
+	request, failure := p.workerRequest(ctx, subtask, args)
 	if failure != nil {
 		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, failure)
 		return workerFailure(*failure)
 	}
+	safeArguments["artifactNames"] = sortedArtifactNames(args.Artifacts)
 	deadline := p.deadline
 	if !deadline.After(time.Now()) {
 		failure := planner.Failure{
 			Code: "worker_deadline_exceeded", Message: "Worker invocation deadline expired", Retryable: true,
 		}
+		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
+	claim, planErr := p.plan.ClaimCurrentSubtask(args.SubtaskID, binding.logicalName)
+	if planErr != nil {
+		failure := failureFromPlanError(planErr)
+		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
+	if limit := state.reserveWorkerCall(); limit != nil {
+		ctx.Actions().SkipSummarization = true
+		failure := limit.Failure
+		p.failDispatch(claim.CallID)
 		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
@@ -122,11 +199,18 @@ func (p *streamlinePlanner) callWorker(
 	)
 	if err != nil {
 		failure := planner.FailureFrom(err)
+		p.failDispatch(claim.CallID)
 		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
+		p.failDispatch(claim.CallID)
+		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
+	if _, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome); planErr != nil {
+		failure := failureFromPlanError(planErr)
 		state.recordTool(binding.toolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
@@ -137,11 +221,11 @@ func (p *streamlinePlanner) callWorker(
 }
 
 func (p *streamlinePlanner) workerRequest(
-	ctx context.Context, args workerCallArgs,
+	ctx context.Context, subtask planner.PlannerSubtask, args workerCallArgs,
 ) (contracts.StageContentRequest, *planner.Failure) {
 	request := planner.CloneStageRequest(p.request)
-	request.Objective = args.Objective
-	request.Instructions = args.Instructions
+	request.Objective = subtask.Objective
+	request.Instructions = subtask.Instructions
 	request.Parameters = make(map[string]string, len(args.Parameters))
 	for name, value := range args.Parameters {
 		request.Parameters[name] = value
@@ -221,6 +305,13 @@ func (p *streamlinePlanner) finish(
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
+	if planErr := p.plan.CanFinish(args.Outcome); planErr != nil {
+		failure := planner.Failure{
+			Code: "finish_rejected", Message: planErr.Message, Retryable: false,
+		}
+		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
+		return completionToolOutput{Error: toolFailureFrom(failure)}
+	}
 	if !state.setCompletion(result) {
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: "Planner already has a terminal decision", Retryable: false,
@@ -252,6 +343,26 @@ func toolFailureFrom(failure planner.Failure) *toolFailure {
 
 func safeToolFailure(code, message string, retryable bool) *planner.Failure {
 	return &planner.Failure{Code: code, Message: message, Retryable: retryable}
+}
+
+func failureFromPlanError(value *planner.PlanError) planner.Failure {
+	return planner.Failure{Code: value.Code, Message: value.Message, Retryable: false}
+}
+
+func (p *streamlinePlanner) failDispatch(callID string) {
+	_, _ = p.plan.FailDispatch(callID)
+}
+
+func safeSubtaskID(value string) string {
+	if len(value) == 0 || len(value) > 2 {
+		return "invalid"
+	}
+	for _, current := range value {
+		if current < '0' || current > '9' {
+			return "invalid"
+		}
+	}
+	return value
 }
 
 func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {

@@ -68,9 +68,15 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, err
 	}
+	plan, err := planner.NewPlannerPlanController(invocation.Stage.Objective)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Planner plan: %w", err)
+	}
 	workers := make([]workerBinding, 0, len(bindings))
-	usedToolNames := make(map[string]struct{}, len(bindings)+1)
+	usedToolNames := make(map[string]struct{}, len(bindings)+3)
 	usedToolNames[finishToolName] = struct{}{}
+	usedToolNames[addSubtaskToolName] = struct{}{}
+	usedToolNames[listSubtasksToolName] = struct{}{}
 	for _, logicalName := range bindings {
 		binding := invocation.Stage.Agents[logicalName]
 		toolName := workerToolName(logicalName, usedToolNames)
@@ -83,7 +89,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		})
 	}
 	return &streamlinePlanner{
-		invocation: invocation, request: request, workers: workers,
+		invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
 		invoker: f.invoker, inspector: f.inspector, model: f.model, limits: f.limits,

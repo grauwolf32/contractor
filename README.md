@@ -11,7 +11,8 @@ The current design track models a Workflow as product-specific Stages. Workflow
 Scheduler selects and executes each ready Stage; one Planner works with a fixed
 set of Workers prepared before Planner starts. The deterministic
 `passthrough@1` Planner invokes one Worker, while the model-backed
-`streamline@1` Planner uses Google ADK Go to coordinate one or more Workers. A
+`streamline@1` Planner uses Google ADK Go and a bounded typed subtask plan to
+coordinate one or more Workers. A
 model-backed Planner reports either success or semantic failure through one
 validated `finish` candidate; Workflow Scheduler alone chooses retry,
 escalation, or another Workflow transition. A

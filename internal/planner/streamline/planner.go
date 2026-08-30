@@ -29,6 +29,7 @@ type streamlinePlanner struct {
 	invocation     planner.Invocation
 	request        contracts.StageContentRequest
 	workers        []workerBinding
+	plan           *planner.PlannerPlanController
 	resultContract map[string]workflowconfig.ArtifactSlot
 	sessions       planner.SessionService
 	adkSessions    ADKSessionFactory
@@ -199,7 +200,7 @@ func (p *streamlinePlanner) Run(
 			return contracts.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
 		}
 		message = genai.NewContentFromText(
-			"Continue planning. You must call exactly one declared Worker or finish; a text-only answer does not complete the Stage.",
+			"Continue planning. Call exactly one declared planning, Worker, or finish tool; a text-only answer does not complete the Stage.",
 			genai.RoleUser,
 		)
 	}
@@ -304,9 +305,11 @@ func (p *streamlinePlanner) systemInstruction() string {
 	return strings.Join([]string{
 		"You are the root Planner for exactly one immutable Contractor Stage.",
 		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract.",
+		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
 		"Use Workers sequentially. You cannot create Workers, allocate capacity, change the Workflow, or address Runtime Agent identities.",
-		"A Worker call must have a focused non-empty objective and instructions. Select the needed string parameters and exact artifact revisions explicitly; preserve revisions returned by Workers.",
+		"A Worker call must identify the exact current subtask_id. Select the needed string parameters and exact artifact revisions explicitly; preserve revisions returned by Workers.",
 		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
+		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
 		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
 		"Fixed Worker mapping:",
 		strings.Join(mappings, "\n"),

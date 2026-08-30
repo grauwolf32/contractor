@@ -65,7 +65,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	if err != nil || result.Outcome != contracts.StageSucceeded || result.Summary != "final report accepted" {
 		t.Fatalf("first run = (%+v, %v)", result, err)
 	}
-	if gateway.calls() != 3 || workers.calls() != 2 {
+	if gateway.calls() != 5 || workers.calls() != 2 {
 		t.Fatalf("semantic calls gateway=%d Workers=%d", gateway.calls(), workers.calls())
 	}
 
@@ -86,7 +86,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	recovered, err := restarted.Run(ctx)
-	if err != nil || recovered.Summary != result.Summary || gateway.calls() != 3 || workers.calls() != 2 {
+	if err != nil || recovered.Summary != result.Summary || gateway.calls() != 5 || workers.calls() != 2 {
 		t.Fatalf("recovery=(%+v,%v) gateway=%d Workers=%d", recovered, err, gateway.calls(), workers.calls())
 	}
 
@@ -101,7 +101,8 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	for _, event := range events {
 		payload := string(event.Event)
 		if strings.Contains(payload, gatewayToken) || strings.Contains(payload, "sensitive objective") ||
-			strings.Contains(payload, "sensitive planner guidance") || strings.Contains(payload, "strict-secret-value") {
+			strings.Contains(payload, "sensitive planner guidance") || strings.Contains(payload, "strict-secret-value") ||
+			strings.Contains(payload, "subtask-sensitive-analysis") {
 			t.Fatalf("durable Planner event leaked model/provider content: %s", payload)
 		}
 	}
@@ -131,7 +132,7 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Tools []any `json:"tools"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 4 {
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 5 {
 		g.t.Errorf("gateway tool request = (%+v, %v)", request, err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -143,12 +144,18 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var name, arguments string
 	switch step {
 	case 0:
-		name = "worker_analyzer"
-		arguments = `{"objective":"analyze source","instructions":"write an exact draft","parameters":{"mode":"strict-secret-value"},"artifacts":{}}`
+		name = "add_subtask"
+		arguments = `{"objective":"subtask-sensitive-analysis","instructions":"write an exact draft"}`
 	case 1:
-		name = "worker_reviewer"
-		arguments = `{"objective":"review draft","instructions":"write the final report","parameters":{},"artifacts":{"draft":{"namespace":"analysis","name":"draft","revision":"draft-r1"}}}`
+		name = "worker_analyzer"
+		arguments = `{"subtask_id":"0","parameters":{"mode":"strict-secret-value"},"artifacts":{}}`
 	case 2:
+		name = "add_subtask"
+		arguments = `{"objective":"review draft","instructions":"write the final report"}`
+	case 3:
+		name = "worker_reviewer"
+		arguments = `{"subtask_id":"1","parameters":{},"artifacts":{"draft":{"namespace":"analysis","name":"draft","revision":"draft-r1"}}}`
+	case 4:
 		name = "finish"
 		arguments = `{"outcome":"succeeded","summary":"final report accepted","artifacts":{"report":{"namespace":"review","name":"report","revision":"report-r1"}}}`
 	default:

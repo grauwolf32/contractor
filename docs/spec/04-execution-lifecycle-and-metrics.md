@@ -246,7 +246,8 @@ provider-controlled function names are not durable.
 The narrow exception is the validated typed Planner-plan projection required
 for recovery and the Run UI. It contains only a monotonically increasing plan
 revision, ordered bounded subtask records with stable IDs and adapter-controlled
-status, the current subtask ID, and an optional active dispatch with its call ID
+status (`pending`, `running`, `succeeded` or `failed`), the current subtask ID,
+and an optional active dispatch with its call ID
 and selected logical `worker_name`. For Streamline that name is the sole Stage
 binding; for Router it is the value validated against the immutable Stage
 mapping. The global task is always read from the immutable Stage objective and

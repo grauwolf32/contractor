@@ -905,6 +905,35 @@ contract is deliberately different:
 - the Router function schema constrains `worker_name` to the exact Stage
   binding keys from the immutable Run snapshot.
 
+The shared first-version plan exposes exactly two plan-management operations in
+addition to the Planner-specific execution function and `finish`:
+
+```text
+add_subtask(objective, instructions)
+list_subtasks()
+```
+
+The immutable Stage objective is the global task and is not an argument to
+either operation. `add_subtask` appends one record containing its exact
+non-empty bounded objective and instructions; Server assigns the next decimal
+string ID (`0`, `1`, ...), so the model cannot choose, replace or reuse an ID.
+A Planner invocation contains at most 32 subtasks. The first schema has no
+edit, reorder, delete, skip, parent/child decomposition or arbitrary metadata
+operation. Those capabilities require a later version rather than hidden ADK
+State conventions.
+
+Each subtask has exactly one adapter-controlled status: `pending`, `running`,
+`succeeded` or `failed`. The only execution path is
+`pending -> running -> succeeded|failed`; the model cannot write a status.
+`currentSubtaskId` names the first unresolved record, and at most one
+`activeDispatch` contains its Server-generated call ID plus logical Worker
+name. Every committed visible plan change increments one unsigned revision.
+`list_subtasks` returns this bounded typed projection, never raw ADK State or
+model conversation. A successful `finish` requires at least one `succeeded`
+subtask, no `pending`/`running` subtask and no active dispatch. A failed
+`finish` is allowed with incomplete plan records only when no dispatch is
+active, so a genuine blocker need not be disguised as completed work.
+
 Before starting `router@1`, Server deterministically appends an
 `Available agents` section to the resolved Planner system instruction. Entries
 are sorted by logical name and contain the logical `worker_name` plus that
