@@ -1,0 +1,199 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: openapi-from-source
+  version: "1"
+
+spec:
+  parameters:
+    objective:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    existing_openapi:
+      required: false
+      mediaTypes: [application/yaml, application/json]
+
+  outputs:
+    openapi:
+      required: true
+      mediaTypes: [application/yaml]
+    validation_report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  entryStage: dependency_discovery
+  stages:
+    dependency_discovery:
+      objective: Inventory runtime dependencies that connect the project to external systems
+      instructions:
+        ref: instructions/dependency-discovery-planner.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: source_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          dependency_report:
+            required: true
+            mediaTypes: [text/markdown]
+      on:
+        succeeded:
+          next: project_discovery
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+
+    project_discovery:
+      objective: Map project structure, API surface, security controls, and runtime integrations
+      instructions:
+        ref: instructions/project-discovery-planner.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: source_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+      result:
+        artifacts:
+          project_report:
+            required: true
+            mediaTypes: [text/markdown]
+      on:
+        succeeded:
+          next: openapi_build
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+
+    openapi_build:
+      objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
+      instructions:
+        ref: instructions/openapi-build-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: openapi_builder@1
+          namespace: openapi
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          existing_openapi:
+            namespace: inputs
+            name: existing_openapi
+            required: false
+      result:
+        artifacts:
+          openapi:
+            required: true
+            mediaTypes: [application/yaml]
+      on:
+        succeeded:
+          next: openapi_validate
+        failed:
+          retry:
+            maxAttempts: 4
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 4
+            then:
+              fail: {}
+
+    openapi_validate:
+      objective: Validate and minimally repair the candidate OpenAPI document against source evidence
+      instructions:
+        ref: instructions/openapi-validate-planner.md
+      planner: passthrough@1
+      agents:
+        validator:
+          template: openapi_validator@1
+          namespace: openapi
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          openapi_candidate:
+            namespace: openapi
+            name: openapi
+            required: true
+      result:
+        artifacts:
+          openapi:
+            required: true
+            mediaTypes: [application/yaml]
+          validation_report:
+            required: true
+            mediaTypes: [text/markdown]
+      workflowOutputs:
+        openapi: openapi
+        validation_report: validation_report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}

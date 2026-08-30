@@ -1,7 +1,8 @@
 # Contractor configuration
 
-This directory contains the executable default configuration for the first
-slice. Validate the complete set from the repository root with:
+This directory contains the executable default configuration. It includes the
+small artifact-copy fixture and the four-Stage `openapi-from-source@1` project
+workflow. Validate the complete set from the repository root with:
 
 ```sh
 go run ./cmd/contractor-server config validate --root ./configs

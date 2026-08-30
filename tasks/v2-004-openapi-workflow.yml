@@ -23,6 +23,8 @@ context:
     Legacy max_attempts becomes explicit bounded retry for failed/interrupted
     Stage outcomes. Legacy iterations are not duplicated; one ADK Worker may
     perform multiple model/tool turns inside its single Planner invocation.
+    Validation allows two attempts for retryable environment failures; semantic
+    validation failures are non-retryable and take the terminal branch immediately.
 
 workflow_contract:
   ref: openapi-from-source@1

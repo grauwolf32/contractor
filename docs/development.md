@@ -2,8 +2,9 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V1-006` are complete. The
-repository contains the runnable Go Server/Python Runtime Agent MVP plus:
+As of 2026-08-30, implementation tasks through `V1-006` are complete and the
+project-workflow increment is underway. The repository contains the runnable Go
+Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
 - symmetric 10-second heartbeat / 60-second confirmed allocation leases,
@@ -26,10 +27,14 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   token, Worker-call, and wall-time budgets;
 - a PostgreSQL-backed Planner session adapter that persists only redacted ADK
   facts and recovers a completed decision without repeating model or Worker
-  calls.
+  calls;
+- bounded UTF-8 Run-artifact tools and safe ZIP source exploration;
+- namespace-bound, CAS-backed OpenAPI construction with source provenance and
+  Vacuum validation;
+- the executable four-Stage `openapi-from-source@1` Workflow configuration.
 
-The planned first-slice milestone is complete. The next product increment has
-not yet been selected. The authoritative checkpoint is
+The first-slice milestone is complete; OpenAPI and LikeC4 project workflows are
+the current product increment. The authoritative checkpoint is
 [`tasks/index.yml`](../tasks/index.yml); detailed Streamline completion evidence
 is recorded in
 [`v1-006-streamline-planner.yml`](../tasks/v1-006-streamline-planner.yml).
@@ -240,6 +245,97 @@ curl --fail --silent --show-error \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/result"
 ```
+
+## OpenAPI from a source archive
+
+`openapi-from-source@1` runs four serial Stages: dependency discovery, project
+discovery, incremental OpenAPI construction, and final validation/repair. Each
+Stage gets its own allocation and workspace. The reports and document move
+between Stages as exact RunScope artifact revisions rather than model memory.
+
+The Runtime Agent host must have `vacuum` on its `PATH`:
+
+```shell
+command -v vacuum
+vacuum version
+```
+
+Create a ZIP with normalized relative entries. For a Git project without
+tracked symbolic links, `git archive` is the simplest safe option; it includes
+only the committed tree, so commit or otherwise package intentional local
+changes first.
+
+```shell
+export PROJECT_ROOT='/absolute/path/to/project'
+export SOURCE_ZIP='/tmp/contractor-project-source.zip'
+git -C "$PROJECT_ROOT" archive --format=zip --output="$SOURCE_ZIP" HEAD
+```
+
+The source Toolset deliberately rejects path traversal, absolute/backslash
+paths, duplicate entries, symbolic/special entries, encrypted members, more
+than 10,000 members, archives above 16 MiB compressed, and archives above 64
+MiB declared uncompressed.
+
+Upload the source as a UserScope artifact. The Run creation transaction copies
+the exact revision to `inputs/source`; Workers never read the UserScope binding
+directly.
+
+```shell
+SOURCE_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: application/zip' -H 'If-None-Match: *' \
+  --data-binary "@$SOURCE_ZIP" \
+  http://127.0.0.1:8080/v1/artifacts/projects/project-source | jq -c .artifact)"
+```
+
+An existing OpenAPI 3.0/3.1 YAML or JSON document is optional. When supplied,
+the build Stage reads its exact input revision and creates an independent
+`openapi/openapi` Run binding; the uploaded UserScope value is never mutated.
+
+```shell
+OPENAPI_SEED_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: application/yaml' -H 'If-None-Match: *' \
+  --data-binary '@/absolute/path/to/openapi.yaml' \
+  http://127.0.0.1:8080/v1/artifacts/projects/existing-openapi | jq -c .artifact)"
+```
+
+Submit a Run with the optional seed:
+
+```shell
+RUN_ID="$(jq -n \
+  --argjson source "$SOURCE_REF" \
+  --argjson seed "$OPENAPI_SEED_REF" \
+  --arg objective 'Document the implemented public HTTP API' \
+  '{workflow:"openapi-from-source@1",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H "Idempotency-Key: openapi-run-$(date +%s)" \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://127.0.0.1:8080/v1/runs | jq -r .runId)"
+```
+
+For a new document, omit `existing_openapi` and build the artifact map as
+`{source:$source}`. Poll `/v1/runs/$RUN_ID`; after success, retrieve the two
+frozen Workflow outputs:
+
+```shell
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/openapi" \
+  --output /tmp/generated-openapi.yaml
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/validation_report" \
+  --output /tmp/openapi-validation-report.md
+```
+
+Intermediate Run bindings are `analysis/dependencies`, `analysis/project`,
+`openapi/openapi`, and `openapi/validation-report`. The Workflow succeeds only
+when the final `validate_openapi` call reports a structurally clean document and
+no serious Vacuum findings. Missing Vacuum is an explicit failed validation,
+never an implicit pass.
 
 Cancellation is an idempotent durable request. It interrupts an active local
 Planner immediately; another Server process observes the same `cancelling`
