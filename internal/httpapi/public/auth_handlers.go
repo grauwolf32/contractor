@@ -189,7 +189,10 @@ func (h *handler) cors(next http.Handler, routes *http.ServeMux) http.Handler {
 		origin := origins[0]
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag, Content-Disposition")
+		w.Header().Set(
+			"Access-Control-Expose-Headers",
+			"X-Request-ID, X-Contractor-API-Version, ETag, Content-Disposition",
+		)
 		if r.Method != http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return

@@ -213,7 +213,9 @@ func TestCredentialedCORSPreflightIsExactAndBounded(t *testing.T) {
 	fixture.handler.ServeHTTP(response, preflight)
 	if response.Code != http.StatusNoContent || response.Header().Get("Access-Control-Allow-Origin") != testBrowserOrigin ||
 		response.Header().Get("Access-Control-Allow-Credentials") != "true" ||
-		!strings.Contains(response.Header().Get("Access-Control-Allow-Headers"), "X-CSRF-Token") {
+		response.Header().Get(APIVersionHeader) != APIVersion ||
+		!strings.Contains(response.Header().Get("Access-Control-Allow-Headers"), "X-CSRF-Token") ||
+		!strings.Contains(response.Header().Get("Access-Control-Expose-Headers"), APIVersionHeader) {
 		t.Fatalf("preflight = %d %v %s", response.Code, response.Header(), response.Body.String())
 	}
 	for _, origin := range []string{"null", "*", "https://attacker.invalid"} {

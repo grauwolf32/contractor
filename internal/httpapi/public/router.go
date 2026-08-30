@@ -122,7 +122,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
-	return current.withRequestID(current.cors(current.authenticate(mux), mux)), nil
+	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(mux), mux))), nil
 }
 
 func (h *handler) withRequestID(next http.Handler) http.Handler {

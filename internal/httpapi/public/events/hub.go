@@ -169,7 +169,11 @@ func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, session auth.Session
 			return len(values) == 1 && h.origins.Allows(values[0])
 		},
 	}
-	connection, err := upgrader.Upgrade(w, r, nil)
+	// gorilla writes the 101 response after hijacking and therefore cannot see
+	// headers already staged by outer HTTP middleware unless they are passed
+	// explicitly. Clone them so request ID, API version and CORS policy survive
+	// the upgrade without sharing a mutable map with the connection writer.
+	connection, err := upgrader.Upgrade(w, r, w.Header().Clone())
 	if err != nil {
 		// gorilla/websocket has already written the bounded HTTP handshake
 		// failure; writing a second public error response would corrupt it.

@@ -178,6 +178,9 @@ func TestAuthenticationAndRequestID(t *testing.T) {
 		if response.Code != http.StatusUnauthorized || response.Header().Get("X-Request-ID") != "request-fixed" {
 			t.Fatalf("auth response = status %d, request ID %q", response.Code, response.Header().Get("X-Request-ID"))
 		}
+		if response.Header().Get(APIVersionHeader) != APIVersion {
+			t.Fatalf("auth response API version = %q", response.Header().Get(APIVersionHeader))
+		}
 		assertErrorCode(t, response, "unauthorized")
 	}
 }

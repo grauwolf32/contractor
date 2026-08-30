@@ -37,6 +37,14 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	if document.OpenAPI != "3.1.0" {
 		t.Fatalf("OpenAPI version = %q, want 3.1.0", document.OpenAPI)
 	}
+	if document.Info.Extensions["x-contractor-api-version"] != APIVersion {
+		t.Fatalf("public API compatibility version = %v", document.Info.Extensions["x-contractor-api-version"])
+	}
+	versionHeader := document.Components.Headers["ContractorAPIVersion"]
+	if versionHeader == nil || versionHeader.Value == nil || versionHeader.Value.Schema == nil ||
+		versionHeader.Value.Schema.Value == nil || versionHeader.Value.Schema.Value.Const != APIVersion {
+		t.Fatalf("public API version header contract = %#v", versionHeader)
+	}
 
 	implemented := make([]string, 0)
 	operationIDs := make(map[string]string)

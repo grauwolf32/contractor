@@ -38,6 +38,9 @@ func TestPublicEventWebSocketRequiresCookieAndExactOrigin(t *testing.T) {
 				t.Fatalf("unauthorized WebSocket = connection=%v response=%v error=%v", connection, response, err)
 			}
 			defer response.Body.Close()
+			if response.Header.Get(APIVersionHeader) != APIVersion {
+				t.Fatalf("rejected WebSocket API version = %q", response.Header.Get(APIVersionHeader))
+			}
 			wantStatus := http.StatusForbidden
 			if name == "bearer is not a browser session" || name == "missing Origin" {
 				wantStatus = http.StatusUnauthorized
@@ -76,6 +79,9 @@ func TestPublicEventWebSocketRequiresCookieAndExactOrigin(t *testing.T) {
 			response.Body.Close()
 		}
 		t.Fatalf("authenticated WebSocket status=%d error=%v", status, err)
+	}
+	if response == nil || response.Header.Get(APIVersionHeader) != APIVersion {
+		t.Fatalf("WebSocket upgrade API version response = %#v", response)
 	}
 	t.Cleanup(func() { _ = connection.Close() })
 	if connection.Subprotocol() != publicevents.ProtocolVersion {

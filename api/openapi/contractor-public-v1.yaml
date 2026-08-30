@@ -4,6 +4,7 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Contractor Public API
   version: 1.0.0
+  x-contractor-api-version: contractor.public.v1
   summary: Authenticated Workflow, Artifact, Run, and Operations API
   description: |
     Public single-VM Contractor API v1. This contract contains browser-safe and
@@ -816,6 +817,7 @@ paths:
         '101':
           description: Switching Protocols; subsequent data is governed by the linked JSON Schema
           headers:
+            X-Contractor-API-Version: {$ref: '#/components/headers/ContractorAPIVersion'}
             Sec-WebSocket-Protocol:
               required: true
               schema: {type: string, const: contractor.events.v1}
@@ -933,6 +935,9 @@ components:
       schema: {type: string, minLength: 1, maxLength: 512}
 
   headers:
+    ContractorAPIVersion:
+      required: true
+      schema: {type: string, const: contractor.public.v1}
     RequestId:
       required: true
       schema: {$ref: '#/components/schemas/RequestId'}
@@ -963,6 +968,7 @@ components:
     LoginSession:
       description: Safe browser session view and newly issued opaque cookie
       headers:
+        X-Contractor-API-Version: {$ref: '#/components/headers/ContractorAPIVersion'}
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
         Cache-Control:
           required: true
@@ -976,6 +982,7 @@ components:
     CurrentSession:
       description: Safe current browser session view
       headers:
+        X-Contractor-API-Version: {$ref: '#/components/headers/ContractorAPIVersion'}
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
         Cache-Control:
           required: true
@@ -1049,6 +1056,7 @@ components:
     Error401:
       description: Authentication is absent or invalid
       headers:
+        X-Contractor-API-Version: {$ref: '#/components/headers/ContractorAPIVersion'}
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
         WWW-Authenticate:
           required: false
