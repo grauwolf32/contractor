@@ -497,6 +497,55 @@ func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T
 	}
 }
 
+func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-short", StageExecutionID: "stage-short",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	// No allocated heartbeat arrived: the registry's latest observation is the
+	// idle heartbeat from before the private prepare call.
+	if err := registry.Release(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := registry.GetAgent("agent-1")
+	if err != nil || snapshot.AuthoritativeAllocationID != nil || !snapshot.ReconciliationRequired {
+		t.Fatalf("released stale-idle slot = (%+v, %v)", snapshot, err)
+	}
+	if _, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-too-early", StageExecutionID: "stage-too-early-stale-idle",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	}); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("stale idle observation permitted immediate slot reuse: %v", err)
+	}
+
+	response, err := registry.Heartbeat(heartbeat("agent-1", 3, 2))
+	if err != nil || response.Action != contracts.ActionContinue {
+		t.Fatalf("post-release idle confirmation = (%+v, %v)", response, err)
+	}
+	if _, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-after-confirm", StageExecutionID: "stage-after-idle-confirm",
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: testTemplate(t),
+		}},
+	}); err != nil {
+		t.Fatalf("confirmed idle slot was not reusable: %v", err)
+	}
+}
+
 func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	t.Helper()
 	snapshot, err := config.Load("../config/testdata/valid", config.MVPDescriptors())

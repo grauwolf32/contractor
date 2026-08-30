@@ -47,6 +47,13 @@ creates a temporary deployment CA, uses an isolated PostgreSQL schema, and
 replaces only the external OpenAI-compatible LLM Gateway with a deterministic
 loopback fake.
 
+The project-workflow end-to-end gate extends the same production boundary to
+all eight OpenAPI and LikeC4 Stage executions. It uses one reusable Runtime slot,
+a generated source ZIP and optional seeds, deterministic function-calling model
+responses, and fixed child `vacuum`/`likec4` executables. It verifies real domain
+tools, exact artifact lineage, frozen outputs, metrics, and workspace cleanup;
+it does not score model quality.
+
 ## Prerequisites
 
 - Go 1.25 or newer;
@@ -67,6 +74,9 @@ Run the complete MVP gate:
 ```shell
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-e2e
+
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-project-workflows
 ```
 
 ## Hardening gates

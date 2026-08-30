@@ -355,7 +355,12 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 	entry.authoritativeAllocationID = nil
 	entry.allocationLost = false
 	entry.allocationActivated = false
-	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
+	// The last heartbeat may still report idle when a short allocation was
+	// prepared and finalized entirely between heartbeat intervals. The private
+	// release call only prepares Runtime cleanup; it does not prove that the
+	// Runtime has applied the authoritative release response. Always require a
+	// fresh post-release heartbeat before offering this slot again.
+	entry.reconciliationRequired = true
 	delete(r.allocations, allocationID)
 	for _, candidate := range r.agents {
 		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
