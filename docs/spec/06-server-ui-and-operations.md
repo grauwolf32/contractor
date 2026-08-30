@@ -173,6 +173,66 @@ it. UI forms do not preserve it in browser storage or logs. Rotation creates a
 new revision; Run initialization pins the non-secret revision selected through
 its exact LLMGatewayConfig. Active allocation RuntimeSettings remain unchanged.
 
+Credential metadata and encrypted revisions live in PostgreSQL. Published YAML
+contains only the stable `credentialRef`; PostgreSQL is authoritative for the
+secret value and its revision lifecycle, never for ModelPolicy or
+LLMGatewayConfig bodies. The logical schema is:
+
+```text
+llm_credentials
+  credential_id
+  label
+  current_revision
+  created_at
+
+llm_credential_revisions
+  credential_id
+  revision
+  key_id
+  nonce
+  ciphertext
+  created_at
+  lifecycle_state
+```
+
+`credential_id` uses the shared configuration-ID grammar. Revisions are
+positive monotonically increasing integers scoped to that ID. One revision
+accepts a token of 1 through 16,384 UTF-8 bytes through a write-only request;
+Server performs no trimming. It encrypts the exact bytes with AES-256-GCM using
+a fresh 96-bit cryptographically random nonce. Canonical schema version,
+credential ID and revision are authenticated additional data, so ciphertext
+cannot be moved to another identity or revision. Credential creation/rotation
+and advancing `current_revision` are one PostgreSQL transaction. Plaintext is
+retained only for the bounded encryption/decryption operation and the
+model-client settings that actively need it.
+
+The 256-bit master key is a bootstrap secret outside PostgreSQL. Server receives
+only an absolute `--credential-master-key-file` path. The file contains RFC
+4648 base64 for exactly 32 bytes, with at most one trailing newline; command-line
+literal and environment-variable key values are forbidden. Server rejects a
+missing, malformed, non-regular, symlinked, group-readable or world-readable
+key file and reads it once during startup. The database stores a non-secret
+`key_id` formatted as the lowercase `sha256:<hex>` digest of the decoded key
+bytes with each ciphertext, so a future keyring migration does not require a
+schema change. The fingerprint is not secret because the key has 256 bits of
+random entropy. The first slice accepts one active key and does not implement
+master-key rotation.
+
+When any published Gateway or retained non-terminal Run references a credential,
+Server startup requires the credential store and key to be available. A
+decryption/authentication failure is a bounded internal configuration error and
+never falls back to plaintext, another revision or an unauthenticated request.
+Run initialization pins the then-current revision, while Planner construction
+and Control Plane allocation preparation decrypt exactly that pinned revision
+just in time. The token is never copied into WorkflowRun, StageExecution,
+Planner Session, audit rows or metrics.
+
+Encrypting the database protects a PostgreSQL dump without the master-key file;
+it does not protect against compromise of the running Server process or host.
+Database and master-key backups must be protected and stored separately. A
+future Vault/KMS adapter may implement the same revision interface without
+changing LLMGatewayConfig or executionConfig.
+
 Attribution records ModelPolicy, LLMGatewayConfig and credential refs together
 with WorkflowRun, StageExecution and Planner/Worker role. Provider-reported
 tokens and calls are useful operational measurements, not billing-grade proof.
@@ -232,8 +292,9 @@ not require changing Run semantics.
 
 ## Open decisions for the next dialogue steps
 
-- secret-store encryption and bootstrap-key handling for write-only credential
-  revisions;
+- credential disable/revoke behavior for new Runs, pinned non-terminal Runs and
+  already active allocations;
+- master-key rotation/re-encryption and a future Vault/KMS adapter;
 - embedded same-origin UI versus separately deployed frontend;
 - browser authentication and the first user/operations permission split;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;

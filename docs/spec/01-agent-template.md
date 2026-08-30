@@ -57,7 +57,7 @@ class LLMGatewayConfigRef(BaseModel):
 
 class LLMCredentialRef(BaseModel):
     credential_id: str
-    revision: str
+    revision: int
 
 
 class ToolsetRef(BaseModel):
@@ -304,7 +304,8 @@ LLMGatewayConfig manifests live under `configs/llm-gateways/` in either
 configured root. Configuration loading validates their exact schema and digest
 before resolving `executionConfig`. Operations publishes new immutable versions
 only into the managed YAML root according to [06](06-server-ui-and-operations.md).
-The secret-store implementation remains separate from this manifest contract.
+Encrypted PostgreSQL credential revisions and the external bootstrap master-key
+file are also specified there and remain separate from this manifest contract.
 
 ### Toolset and tool selection
 

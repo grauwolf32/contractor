@@ -65,6 +65,10 @@ model {
     #external
   }
 
+  credentialMasterKey = system 'Credential Master-Key File — host bootstrap secret' {
+    #external
+  }
+
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
@@ -77,6 +81,10 @@ model {
     }
 
     executionReports = storage 'Execution reports / accepted StageMetrics' {
+      #contractor
+    }
+
+    credentialRevisions = storage 'AES-256-GCM encrypted LLM credential revisions' {
       #contractor
     }
 
@@ -299,6 +307,8 @@ model {
 
   server.telemetry -> telemetryBackend 'Export when configured'
   server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
+  server.executionConfigService -> artifactDatabase.credentialRevisions 'Store/resolve encrypted pinned revisions'
+  server.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
 }
 
 views {
@@ -314,6 +324,7 @@ views {
     include llmGateway
     include llmProvider
     include configFilesystem
+    include credentialMasterKey
     include telemetryBackend
 
     global style ownership
