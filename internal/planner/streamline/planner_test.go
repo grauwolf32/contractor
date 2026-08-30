@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -73,6 +74,25 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 	}
 	if sessions.completion == nil || sessions.completion.Result == nil {
 		t.Fatal("Planner completion was not recorded")
+	}
+	if sessions.plan == nil || sessions.plan.Revision != 3 ||
+		sessions.plan.Subtasks[0].Status != planner.PlannerSubtaskSucceeded ||
+		len(sessions.transitions) != 3 || len(sessions.facts) != 4 ||
+		sessions.transitions[0].Kind != planner.PlannerEventPlanChanged ||
+		sessions.transitions[1].Kind != planner.PlannerEventDispatchStarted ||
+		sessions.transitions[2].Kind != planner.PlannerEventDispatchCompleted ||
+		sessions.facts[1].Kind != planner.PlannerEventDispatchSelected ||
+		sessions.facts[1].WorkerName != "builder" ||
+		sessions.facts[3].Kind != planner.PlannerEventFinishRequested {
+		t.Fatalf("durable plan transitions=%+v facts=%+v plan=%+v", sessions.transitions, sessions.facts, sessions.plan)
+	}
+	encodedPlanFacts, marshalErr := json.Marshal(struct {
+		Plan        *planner.PlannerPlanProjection
+		Transitions []planner.PlannerPlanTransition
+		Facts       []planner.PlannerFact
+	}{sessions.plan, sessions.transitions, sessions.facts})
+	if marshalErr != nil || strings.Contains(string(encodedPlanFacts), "report ready") {
+		t.Fatalf("Worker response leaked into durable plan facts: %s (%v)", encodedPlanFacts, marshalErr)
 	}
 	report, ok := instance.(planner.ReportProvider).ExecutionReport()
 	if !ok || report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != 3 ||
@@ -205,7 +225,9 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	streamline := instance.(*streamlinePlanner)
-	tools, allowed, err := streamline.buildTools(newExecutionState(streamline.limits))
+	tools, allowed, err := streamline.buildTools(
+		newExecutionState(streamline.limits), streamline.sessions.(*fakeSessions).identity,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -736,11 +758,14 @@ func textStep(value string) modelStep {
 }
 
 type fakeSessions struct {
-	identity   planner.SessionIdentity
-	recovered  *planner.Completion
-	completion *planner.Completion
-	request    planner.RequestFacts
-	adkCalls   int
+	identity    planner.SessionIdentity
+	recovered   *planner.Completion
+	completion  *planner.Completion
+	request     planner.RequestFacts
+	plan        *planner.PlannerPlanProjection
+	transitions []planner.PlannerPlanTransition
+	facts       []planner.PlannerFact
+	adkCalls    int
 }
 
 func newFakeSessions() *fakeSessions {
@@ -769,6 +794,48 @@ func (s *fakeSessions) Complete(
 	copy := completion
 	s.completion = &copy
 	return nil
+}
+
+func (s *fakeSessions) RecordPlan(
+	_ context.Context,
+	_ planner.SessionIdentity,
+	transition planner.PlannerPlanTransition,
+) error {
+	var previous *planner.PlannerPlanProjection
+	if s.plan != nil {
+		copy := cloneTestPlanProjection(*s.plan)
+		previous = &copy
+	}
+	if err := planner.ValidatePlannerPlanTransition(previous, transition.Plan, transition.Kind); err != nil {
+		return err
+	}
+	if previous == nil && transition.ExpectedRevision != 0 ||
+		previous != nil && transition.ExpectedRevision != previous.Revision {
+		return runstore.ErrConflict
+	}
+	copy := cloneTestPlanProjection(transition.Plan)
+	s.plan = &copy
+	s.transitions = append(s.transitions, transition)
+	return nil
+}
+
+func (s *fakeSessions) RecordFact(
+	_ context.Context,
+	_ planner.SessionIdentity,
+	fact planner.PlannerFact,
+) error {
+	s.facts = append(s.facts, fact)
+	return nil
+}
+
+func (s *fakeSessions) LoadPlan(
+	context.Context,
+	planner.SessionIdentity,
+) (planner.PlannerPlanProjection, bool, error) {
+	if s.plan == nil {
+		return planner.PlannerPlanProjection{}, false, nil
+	}
+	return cloneTestPlanProjection(*s.plan), true, nil
 }
 
 func (s *fakeSessions) NewADKSession(
@@ -934,6 +1001,16 @@ func assertPlannerCode(t *testing.T, err error, code string) {
 	}
 }
 
-var _ planner.SessionService = (*fakeSessions)(nil)
+func cloneTestPlanProjection(value planner.PlannerPlanProjection) planner.PlannerPlanProjection {
+	result := value
+	result.Subtasks = append([]planner.PlannerSubtask(nil), value.Subtasks...)
+	if value.ActiveDispatch != nil {
+		active := *value.ActiveDispatch
+		result.ActiveDispatch = &active
+	}
+	return result
+}
+
+var _ planner.PlanSessionService = (*fakeSessions)(nil)
 var _ ADKSessionFactory = (*fakeSessions)(nil)
 var _ model.LLM = (*scriptedModel)(nil)

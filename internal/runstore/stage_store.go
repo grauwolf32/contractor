@@ -142,6 +142,7 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	for field, value := range map[string]string{
 		"stageExecutionID": params.StageExecutionID, "sessionID": params.SessionID,
 		"invocationID": params.InvocationID, "stateSchemaVersion": params.StateSchemaVersion,
+		"eventID": params.EventID, "eventSchemaVersion": params.EventSchemaVersion,
 	} {
 		if err := validateOpaque(field, value); err != nil {
 			return err
@@ -150,8 +151,30 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	if err := validateJSONObject("initial Planner state", params.InitialState); err != nil {
 		return err
 	}
+	if err := validateJSONObject("initial Planner event", params.Event); err != nil {
+		return err
+	}
 	if err := validateReason(params.Reason); err != nil {
 		return err
+	}
+	if err := validateRunEventAppend(params.RunEvent); err != nil {
+		return err
+	}
+	if params.EventSchemaVersion != contracts.APIVersion ||
+		params.RunEvent.Kind != RunEventPlannerStarted {
+		return invalidf("initial Planner event schema or kind is invalid")
+	}
+	if len(params.Event) > maxRunEventDataBytes || len(params.InitialState) > maxRunEventDataBytes {
+		return invalidf("initial Planner event or state exceeds its bounded contract")
+	}
+	if err := validatePlannerRunEventIdentity(
+		params.RunEvent, params.StageExecutionID, params.SessionID, params.InvocationID,
+	); err != nil {
+		return err
+	}
+	if params.RunEvent.EventID != params.EventID ||
+		params.RunEvent.EventSchemaVersion != params.EventSchemaVersion {
+		return invalidf("initial Planner event and WorkflowRun event identities must match")
 	}
 	var sessionID string
 	err := s.db.QueryRow(ctx, `
@@ -165,16 +188,44 @@ WITH transitioned AS (
         planner_started_at = clock_timestamp(),
         updated_at = clock_timestamp()
     WHERE stage_execution_id = $1 AND state = 'preparing'
-    RETURNING stage_execution_id
+    RETURNING stage_execution_id, run_id
+), inserted_session AS (
+    INSERT INTO planner_sessions (
+        session_id, stage_execution_id, invocation_id, state_schema_version, state,
+        next_event_sequence
+    )
+    SELECT $2, stage_execution_id, $3, $4, $5::jsonb, 2
+    FROM transitioned
+    RETURNING session_id
+), allocated AS (
+    UPDATE workflow_runs AS run
+    SET next_run_event_sequence = next_run_event_sequence + 1
+    FROM transitioned
+    WHERE run.run_id = transitioned.run_id
+    RETURNING run.run_id, run.next_run_event_sequence - 1 AS sequence_number
+), inserted_event AS (
+    INSERT INTO workflow_run_events (
+        run_id, sequence_number, event_id, event_schema_version, kind, data
+    )
+    SELECT run_id, sequence_number, $8, $9, $11, $12::jsonb
+    FROM allocated
+    RETURNING run_id, sequence_number
+), inserted_planner_event AS (
+    INSERT INTO planner_events (
+        event_id, session_id, sequence_number, event_schema_version, event,
+        run_id, run_event_sequence
+    )
+    SELECT $8, inserted_session.session_id, 1, $9, $10::jsonb,
+           inserted_event.run_id, inserted_event.sequence_number
+    FROM inserted_session CROSS JOIN inserted_event
+    RETURNING session_id
 )
-INSERT INTO planner_sessions (
-    session_id, stage_execution_id, invocation_id, state_schema_version, state
-)
-SELECT $2, stage_execution_id, $3, $4, $5::jsonb
-FROM transitioned
-RETURNING session_id`,
+SELECT session_id
+FROM inserted_planner_event`,
 		params.StageExecutionID, params.SessionID, params.InvocationID,
 		params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
+		params.EventID, params.EventSchemaVersion, []byte(params.Event),
+		params.RunEvent.Kind, []byte(params.RunEvent.Data),
 	).Scan(&sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}

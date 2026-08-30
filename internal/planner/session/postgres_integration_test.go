@@ -5,9 +5,11 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,7 +30,9 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 	pool := isolatedPlannerPool(t, ctx)
 	store := runstore.NewPostgresStore(pool)
 	createPlannerStage(t, ctx, store)
-	ids := []string{"session-1", "invocation-1", "event-1", "event-adk", "event-2"}
+	ids := []string{
+		"session-1", "invocation-1", "event-started", "event-request", "event-adk", "event-complete",
+	}
 	service, err := New(store, Options{NewID: func(string) (string, error) {
 		result := ids[0]
 		ids = ids[1:]
@@ -92,17 +96,204 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("recovery = (%+v, %v)", recovered, err)
 	}
 	events, err := store.ListPlannerEvents(ctx, started.Identity.SessionID, 0)
-	if err != nil || len(events) != 3 || events[0].SequenceNumber != 1 ||
-		events[1].SequenceNumber != 2 || events[2].SequenceNumber != 3 {
+	if err != nil || len(events) != 4 || events[0].SequenceNumber != 1 ||
+		events[1].SequenceNumber != 2 || events[2].SequenceNumber != 3 ||
+		events[3].SequenceNumber != 4 {
 		t.Fatalf("events = (%+v, %v)", events, err)
 	}
-	if strings.Contains(string(events[1].Event), providerSecret) ||
-		!strings.Contains(string(events[1].Event), `"finish"`) {
-		t.Fatalf("unsafe ADK event = %s", events[1].Event)
+	if strings.Contains(string(events[2].Event), providerSecret) ||
+		!strings.Contains(string(events[2].Event), `"finish"`) {
+		t.Fatalf("unsafe ADK event = %s", events[2].Event)
+	}
+	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 20)
+	if err != nil || len(runEvents) != 4 {
+		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
+	}
+	wantKinds := []runstore.RunEventKind{
+		runstore.RunEventPlannerStarted, runstore.RunEventPlannerRequestRecorded,
+		runstore.RunEventPlannerActivity, runstore.RunEventPlannerCompleted,
+	}
+	for index := range events {
+		if events[index].RunID == nil || *events[index].RunID != "run-planner" ||
+			events[index].RunEventSequence == nil || *events[index].RunEventSequence != int64(index+1) ||
+			runEvents[index].SequenceNumber != int64(index+1) || runEvents[index].Kind != wantKinds[index] ||
+			strings.Contains(string(runEvents[index].Data), providerSecret) {
+			t.Fatalf("event linkage/redaction %d: planner=%+v run=%+v", index, events[index], runEvents[index])
+		}
+	}
+	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
+	if err != nil || session.NextEventSequence != 5 || strings.Contains(string(session.State), providerSecret) {
+		t.Fatalf("Planner session = (%+v, %v)", session, err)
+	}
+	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
+	if err != nil || cursor.Sequence != 4 || cursor.Generation == "" {
+		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
 	}
 	execution, err := store.GetStageExecution(ctx, "stage-planner")
 	if err != nil || execution.State != runstore.StageRunning || execution.CandidateResult != nil {
 		t.Fatalf("Planner changed result ownership: (%+v, %v)", execution, err)
+	}
+}
+
+func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlannerPool(t, ctx)
+	store := runstore.NewPostgresStore(pool)
+	createPlannerStage(t, ctx, store)
+	service, err := New(store, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := service.Begin(ctx, "stage-planner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordRequest(ctx, started.Identity, planner.RequestFacts{
+		Bindings:           []string{"builder", "reviewer"},
+		ObjectiveDigest:    "sha256:" + strings.Repeat("a", 64),
+		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
+		ParameterNames:     []string{}, Artifacts: map[string]contracts.ArtifactRef{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	controller, err := planner.NewPlannerPlanController("global-objective-never-copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := controller.Snapshot()
+	first, planErr := controller.AddSubtask("Inspect", "Read the source")
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	recordPlan(t, service, started.Identity, before, first, planner.PlannerEventPlanChanged)
+	recordFact(t, service, started.Identity, planner.PlannerFact{
+		Kind: planner.PlannerEventCurrentChanged, Key: "current:1",
+		PlanRevision: first.Revision, SubtaskID: "0",
+	})
+	before = controller.Snapshot()
+	second, planErr := controller.AddSubtask("Review", "Check completeness")
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	recordPlan(t, service, started.Identity, before, second, planner.PlannerEventPlanChanged)
+	before = controller.Snapshot()
+	claim, planErr := controller.ClaimCurrentSubtask("0", "reviewer")
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	recordFact(t, service, started.Identity, planner.PlannerFact{
+		Kind: planner.PlannerEventDispatchSelected, Key: "selected:" + claim.CallID,
+		PlanRevision: before.Revision, SubtaskID: "0", CallID: claim.CallID, WorkerName: "reviewer",
+	})
+	dispatched := controller.Snapshot()
+	recordPlan(t, service, started.Identity, before, dispatched, planner.PlannerEventDispatchStarted)
+	before = controller.Snapshot()
+	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	recordPlan(t, service, started.Identity, before, completed, planner.PlannerEventDispatchCompleted)
+	recordFact(t, service, started.Identity, planner.PlannerFact{
+		Kind: planner.PlannerEventCurrentChanged, Key: "current:4",
+		PlanRevision: completed.Revision, SubtaskID: "1",
+	})
+
+	base, ok, err := service.LoadPlan(ctx, started.Identity)
+	if err != nil || !ok || base.Revision != 4 || base.CurrentSubtaskID != "1" {
+		t.Fatalf("base plan = (%+v, %t, %v)", base, ok, err)
+	}
+	candidates := make([]planner.PlannerPlanProjection, 2)
+	for index, objective := range []string{"Race left", "Race right"} {
+		candidates[index] = clonePlanProjection(base)
+		candidates[index].Revision++
+		candidates[index].Subtasks = append(candidates[index].Subtasks, planner.PlannerSubtask{
+			ID: "2", Objective: objective, Instructions: "Only one append may commit",
+			Status: planner.PlannerSubtaskPending,
+		})
+	}
+	startRace := make(chan struct{})
+	results := make(chan error, len(candidates))
+	var group sync.WaitGroup
+	for _, candidate := range candidates {
+		candidate := candidate
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-startRace
+			results <- service.RecordPlan(ctx, started.Identity, planner.PlannerPlanTransition{
+				Kind: planner.PlannerEventPlanChanged, ExpectedRevision: base.Revision, Plan: candidate,
+			})
+		}()
+	}
+	close(startRace)
+	group.Wait()
+	close(results)
+	var succeeded, conflicted int
+	for result := range results {
+		switch {
+		case result == nil:
+			succeeded++
+		case errors.Is(result, runstore.ErrConflict):
+			conflicted++
+		default:
+			t.Fatalf("unexpected compare-append result: %v", result)
+		}
+	}
+	if succeeded != 1 || conflicted != 1 {
+		t.Fatalf("compare append succeeded=%d conflicted=%d", succeeded, conflicted)
+	}
+	latest, ok, err := service.LoadPlan(ctx, started.Identity)
+	if err != nil || !ok || latest.Revision != 5 || len(latest.Subtasks) != 3 {
+		t.Fatalf("latest plan = (%+v, %t, %v)", latest, ok, err)
+	}
+	if err := service.RecordPlan(ctx, started.Identity, planner.PlannerPlanTransition{
+		Kind: planner.PlannerEventPlanChanged, ExpectedRevision: base.Revision, Plan: latest,
+	}); err != nil {
+		t.Fatalf("exact committed retry: %v", err)
+	}
+
+	plannerEvents, err := store.ListPlannerEvents(ctx, started.Identity.SessionID, 0)
+	if err != nil || len(plannerEvents) != 10 {
+		t.Fatalf("Planner events = (%d, %v)", len(plannerEvents), err)
+	}
+	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 100)
+	if err != nil || len(runEvents) != 10 {
+		t.Fatalf("Run events = (%d, %v)", len(runEvents), err)
+	}
+	wantKinds := []runstore.RunEventKind{
+		runstore.RunEventPlannerStarted,
+		runstore.RunEventPlannerRequestRecorded,
+		runstore.RunEventPlannerPlanChanged,
+		runstore.RunEventPlannerCurrentChanged,
+		runstore.RunEventPlannerPlanChanged,
+		runstore.RunEventPlannerDispatchSelected,
+		runstore.RunEventPlannerDispatchStarted,
+		runstore.RunEventPlannerDispatchCompleted,
+		runstore.RunEventPlannerCurrentChanged,
+		runstore.RunEventPlannerPlanChanged,
+	}
+	for index := range wantKinds {
+		sequence := int64(index + 1)
+		if plannerEvents[index].SequenceNumber != sequence ||
+			plannerEvents[index].RunEventSequence == nil || *plannerEvents[index].RunEventSequence != sequence ||
+			runEvents[index].SequenceNumber != sequence || runEvents[index].Kind != wantKinds[index] {
+			t.Fatalf("event %d linkage: planner=%+v run=%+v", index, plannerEvents[index], runEvents[index])
+		}
+	}
+	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
+	if err != nil || cursor.Sequence != 10 || cursor.Generation == "" {
+		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
+	}
+	page, err := store.ListRunEvents(ctx, "run-planner", 7, 2)
+	if err != nil || len(page) != 2 || page[0].SequenceNumber != 8 || page[1].SequenceNumber != 9 {
+		t.Fatalf("resumed Run event page = (%+v, %v)", page, err)
+	}
+	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
+	if err != nil || session.NextEventSequence != 11 ||
+		strings.Contains(string(session.State), "global-objective-never-copy") {
+		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
 }
 

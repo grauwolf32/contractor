@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -90,6 +91,71 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	}
 	if !found {
 		t.Fatalf("Router did not record the selected logical Worker: %+v", report.ToolCalls)
+	}
+}
+
+func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *testing.T) {
+	const workerCanary = "worker-response-secret-canary"
+	llm := &scriptedModel{steps: []modelStep{
+		functionStep("add_subtask", map[string]any{
+			"objective": "Build the document", "instructions": "Use the source",
+		}),
+		functionStep("add_subtask", map[string]any{
+			"objective": "Review the document", "instructions": "Check completeness",
+		}),
+		functionStep("execute_current_subtask", map[string]any{
+			"subtask_id": "0", "worker_name": "reviewer",
+		}),
+		functionStep("finish", map[string]any{
+			"outcome": "failed", "summary": "more work remains", "artifacts": map[string]any{},
+			"error": map[string]any{
+				"code": "review_incomplete", "message": "Review remains", "retryable": false,
+			},
+		}),
+	}}
+	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+		"reviewer": successfulResult(workerCanary),
+	}}
+	sessions := newFakeSessions()
+	factory, err := NewFactory(sessions, sessions, workers, fakeInspector{}, llm, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageFailed {
+		t.Fatalf("Run = (%+v, %v)", result, err)
+	}
+	if sessions.plan == nil || sessions.plan.Revision != 4 ||
+		sessions.plan.CurrentSubtaskID != "1" || sessions.plan.ActiveDispatch != nil ||
+		len(sessions.plan.Subtasks) != 2 ||
+		sessions.plan.Subtasks[0].Status != planner.PlannerSubtaskSucceeded ||
+		sessions.plan.Subtasks[1].Status != planner.PlannerSubtaskPending {
+		t.Fatalf("durable Router plan = %+v", sessions.plan)
+	}
+	if len(sessions.transitions) != 4 || len(sessions.facts) != 4 ||
+		sessions.facts[1].Kind != planner.PlannerEventDispatchSelected ||
+		sessions.facts[1].WorkerName != "reviewer" || sessions.facts[1].SubtaskID != "0" ||
+		sessions.facts[1].CallID != "dispatch-0001" {
+		t.Fatalf("Router transitions=%+v facts=%+v", sessions.transitions, sessions.facts)
+	}
+	encoded, marshalErr := json.Marshal(struct {
+		Plan        *planner.PlannerPlanProjection
+		Transitions []planner.PlannerPlanTransition
+		Facts       []planner.PlannerFact
+	}{sessions.plan, sessions.transitions, sessions.facts})
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	for _, forbidden := range []string{
+		workerCanary, "runtime-placement.invalid", "runtime-secret", "allocation-reviewer",
+	} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("durable Router projection leaked %q: %s", forbidden, encoded)
+		}
 	}
 }
 
@@ -316,9 +382,12 @@ func contentText(content *genai.Content) string {
 }
 
 type fakeSessions struct {
-	identity planner.SessionIdentity
-	complete *planner.Completion
-	adkCalls int
+	identity    planner.SessionIdentity
+	complete    *planner.Completion
+	plan        *planner.PlannerPlanProjection
+	transitions []planner.PlannerPlanTransition
+	facts       []planner.PlannerFact
+	adkCalls    int
 }
 
 func newFakeSessions() *fakeSessions {
@@ -341,6 +410,48 @@ func (s *fakeSessions) Complete(
 	cloned := completion
 	s.complete = &cloned
 	return nil
+}
+
+func (s *fakeSessions) RecordPlan(
+	_ context.Context,
+	_ planner.SessionIdentity,
+	transition planner.PlannerPlanTransition,
+) error {
+	var previous *planner.PlannerPlanProjection
+	if s.plan != nil {
+		copy := cloneRouterPlanProjection(*s.plan)
+		previous = &copy
+	}
+	if err := planner.ValidatePlannerPlanTransition(previous, transition.Plan, transition.Kind); err != nil {
+		return err
+	}
+	if previous == nil && transition.ExpectedRevision != 0 ||
+		previous != nil && transition.ExpectedRevision != previous.Revision {
+		return runstore.ErrConflict
+	}
+	copy := cloneRouterPlanProjection(transition.Plan)
+	s.plan = &copy
+	s.transitions = append(s.transitions, transition)
+	return nil
+}
+
+func (s *fakeSessions) RecordFact(
+	_ context.Context,
+	_ planner.SessionIdentity,
+	fact planner.PlannerFact,
+) error {
+	s.facts = append(s.facts, fact)
+	return nil
+}
+
+func (s *fakeSessions) LoadPlan(
+	context.Context,
+	planner.SessionIdentity,
+) (planner.PlannerPlanProjection, bool, error) {
+	if s.plan == nil {
+		return planner.PlannerPlanProjection{}, false, nil
+	}
+	return cloneRouterPlanProjection(*s.plan), true, nil
 }
 
 func (s *fakeSessions) NewADKSession(
@@ -476,6 +587,16 @@ func artifactArgs(namespace, name, revision string) map[string]any {
 	return map[string]any{"namespace": namespace, "name": name, "revision": revision}
 }
 
-var _ planner.SessionService = (*fakeSessions)(nil)
+func cloneRouterPlanProjection(value planner.PlannerPlanProjection) planner.PlannerPlanProjection {
+	result := value
+	result.Subtasks = append([]planner.PlannerSubtask(nil), value.Subtasks...)
+	if value.ActiveDispatch != nil {
+		active := *value.ActiveDispatch
+		result.ActiveDispatch = &active
+	}
+	return result
+}
+
+var _ planner.PlanSessionService = (*fakeSessions)(nil)
 var _ ADKSessionFactory = (*fakeSessions)(nil)
 var _ model.LLM = (*scriptedModel)(nil)

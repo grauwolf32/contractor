@@ -99,6 +99,54 @@ type SessionService interface {
 	Complete(context.Context, SessionIdentity, Completion) error
 }
 
+// PlannerEventKind is the closed public fact vocabulary emitted by modeled
+// Planners. Generic ADK payloads and model text are not event kinds.
+type PlannerEventKind string
+
+const (
+	PlannerEventStarted           PlannerEventKind = "planner.started"
+	PlannerEventRequestRecorded   PlannerEventKind = "planner.request_recorded"
+	PlannerEventActivity          PlannerEventKind = "planner.activity"
+	PlannerEventPlanChanged       PlannerEventKind = "planner.plan_changed"
+	PlannerEventCurrentChanged    PlannerEventKind = "planner.current_changed"
+	PlannerEventDispatchSelected  PlannerEventKind = "planner.dispatch_selected"
+	PlannerEventDispatchStarted   PlannerEventKind = "planner.dispatch_started"
+	PlannerEventDispatchCompleted PlannerEventKind = "planner.dispatch_completed"
+	PlannerEventFinishRequested   PlannerEventKind = "planner.finish_requested"
+	PlannerEventCompleted         PlannerEventKind = "planner.completed"
+	PlannerEventFailed            PlannerEventKind = "planner.failed"
+)
+
+// PlannerPlanTransition compares one authoritative durable plan revision with
+// its proposed successor. ExpectedRevision is the caller's compare value.
+type PlannerPlanTransition struct {
+	Kind             PlannerEventKind
+	ExpectedRevision uint64
+	Plan             PlannerPlanProjection
+}
+
+// PlannerFact is a bounded event that does not itself change the plan. Key is
+// a stable adapter-generated idempotency identity, never model-provided text.
+type PlannerFact struct {
+	Kind         PlannerEventKind
+	Key          string
+	PlanRevision uint64
+	SubtaskID    string
+	CallID       string
+	WorkerName   string
+	Outcome      string
+	Code         string
+}
+
+// PlanSessionService is the modeled-Planner extension of SessionService.
+// Passthrough does not create a subtask plan and only needs SessionService.
+type PlanSessionService interface {
+	SessionService
+	RecordPlan(context.Context, SessionIdentity, PlannerPlanTransition) error
+	RecordFact(context.Context, SessionIdentity, PlannerFact) error
+	LoadPlan(context.Context, SessionIdentity) (PlannerPlanProjection, bool, error)
+}
+
 type Planner interface {
 	Run(context.Context) (contracts.StageContentResult, error)
 }

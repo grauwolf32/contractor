@@ -45,7 +45,7 @@ type ADKSessionFactory interface {
 
 type Factory struct {
 	profile      plannerProfile
-	sessions     planner.SessionService
+	sessions     planner.PlanSessionService
 	adkSessions  ADKSessionFactory
 	invoker      planner.WorkerInvoker
 	inspector    planner.ArtifactInspector
@@ -57,7 +57,7 @@ type Factory struct {
 type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
 
 func NewFactory(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
@@ -68,7 +68,7 @@ func NewFactory(
 }
 
 func NewConfiguredFactory(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
@@ -84,7 +84,7 @@ func NewConfiguredFactory(
 // router@1. The public Router factory wraps this delegate so Scheduler still
 // registers distinct framework-neutral PlannerFactory implementations.
 func NewRouterDelegate(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
@@ -95,7 +95,7 @@ func NewRouterDelegate(
 }
 
 func NewConfiguredRouterDelegate(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
@@ -109,7 +109,7 @@ func NewConfiguredRouterDelegate(
 
 func newFactory(
 	profile plannerProfile,
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,

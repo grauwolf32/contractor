@@ -127,10 +127,20 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		t.Fatalf("execution report rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
+	startedRunEvent := RunEventAppend{
+		EventID: "event-started", EventSchemaVersion: contracts.APIVersion,
+		Kind: RunEventPlannerStarted,
+		Data: mustRunEventJSON(t, plannerRunEventData{
+			StageExecutionID: execution.StageExecutionID,
+			SessionID:        "session-1", InvocationID: "invocation-1",
+		}),
+	}
 	err = store.StartPlanner(ctx, StartPlannerParams{
 		StageExecutionID: execution.StageExecutionID,
 		SessionID:        "session-1", InvocationID: "invocation-1",
-		StateSchemaVersion: "contractor/v1alpha1", InitialState: json.RawMessage(`{"step":0}`),
+		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{"step":0}`),
+		EventID: "event-started", EventSchemaVersion: contracts.APIVersion,
+		Event: json.RawMessage(`{"kind":"planner_started"}`), RunEvent: startedRunEvent,
 		Reason: Reason{Code: "planner_started"},
 	})
 	if err != nil {
@@ -141,21 +151,58 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		t.Fatalf("running StageExecution = (%+v, %v)", execution, err)
 	}
 
+	requestRunEvent := RunEventAppend{
+		EventID: "event-1", EventSchemaVersion: contracts.APIVersion,
+		Kind: RunEventPlannerRequestRecorded,
+		Data: mustRunEventJSON(t, plannerRunEventData{
+			StageExecutionID: execution.StageExecutionID,
+			SessionID:        "session-1", InvocationID: "invocation-1",
+		}),
+	}
 	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
-		EventID: "event-1", SessionID: "session-1", SequenceNumber: 1,
-		EventSchemaVersion: "contractor/v1alpha1", Event: json.RawMessage(`{"kind":"started"}`),
-		NewStateSchemaVersion: "contractor/v1alpha1", NewState: json.RawMessage(`{"step":1}`),
+		EventID: "event-1", SessionID: "session-1",
+		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
+		SequenceNumber:     2,
+		EventSchemaVersion: contracts.APIVersion, Event: json.RawMessage(`{"kind":"worker_request"}`),
+		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":1}`),
+		RunEvent: requestRunEvent,
 	})
 	if err != nil {
 		t.Fatalf("append Planner event: %v", err)
 	}
 	session, err := store.GetPlannerSession(ctx, "session-1")
-	if err != nil || string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
+	if err != nil || session.NextEventSequence != 3 ||
+		string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
 	events, err := store.ListPlannerEvents(ctx, "session-1", 0)
-	if err != nil || len(events) != 1 || events[0].EventID != "event-1" {
+	if err != nil || len(events) != 2 || events[0].EventID != "event-started" ||
+		events[1].EventID != "event-1" || events[0].RunEventSequence == nil ||
+		*events[0].RunEventSequence != 1 || events[1].RunEventSequence == nil ||
+		*events[1].RunEventSequence != 2 {
 		t.Fatalf("Planner events = (%+v, %v)", events, err)
+	}
+	gap := requestRunEvent
+	gap.EventID = "event-gap"
+	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
+		EventID: "event-gap", SessionID: "session-1",
+		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
+		SequenceNumber: 4, EventSchemaVersion: contracts.APIVersion,
+		Event:                 json.RawMessage(`{"kind":"worker_request"}`),
+		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":2}`),
+		RunEvent: gap,
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("Planner sequence gap error = %v, want conflict", err)
+	}
+	cursor, err := store.GetRunEventCursor(ctx, run.RunID)
+	if err != nil || cursor.Sequence != 2 || cursor.Generation == "" {
+		t.Fatalf("Run event cursor = (%+v, %v)", cursor, err)
+	}
+	runEvents, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
+	if err != nil || len(runEvents) != 2 || runEvents[0].Kind != RunEventPlannerStarted ||
+		runEvents[1].Kind != RunEventPlannerRequestRecorded {
+		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
 	}
 
 	resultRevision := "revision-result-1"

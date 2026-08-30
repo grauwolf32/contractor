@@ -39,6 +39,8 @@ type Repository interface {
 	AppendPlannerEvent(context.Context, AppendPlannerEventParams) error
 	GetPlannerSession(context.Context, string) (PlannerSession, error)
 	ListPlannerEvents(context.Context, string, int64) ([]PlannerEvent, error)
+	GetRunEventCursor(context.Context, string) (WorkflowRunEventCursor, error)
+	ListRunEvents(context.Context, string, int64, int) ([]WorkflowRunEvent, error)
 	RecordStageAllocation(context.Context, StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
 	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error

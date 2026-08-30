@@ -22,7 +22,7 @@ type Factory struct {
 }
 
 func NewFactory(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
@@ -39,7 +39,7 @@ func NewFactory(
 }
 
 func NewConfiguredFactory(
-	sessions planner.SessionService,
+	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,

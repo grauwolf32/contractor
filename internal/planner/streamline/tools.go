@@ -70,14 +70,17 @@ type toolFailure struct {
 	Retryable bool   `json:"retryable"`
 }
 
-func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[string]struct{}, error) {
+func (p *streamlinePlanner) buildTools(
+	state *executionState,
+	identity planner.SessionIdentity,
+) ([]tool.Tool, map[string]struct{}, error) {
 	result := make([]tool.Tool, 0, 4)
 	allowed := make(map[string]struct{}, 4)
 	addSubtask, err := functiontool.New(functiontool.Config{
 		Name:        addSubtaskToolName,
 		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
 	}, func(ctx agent.ToolContext, args addSubtaskArgs) (plannerPlanOutput, error) {
-		return p.addSubtask(ctx, state, args), nil
+		return p.addSubtask(ctx, state, identity, args), nil
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build add_subtask tool: %w", err)
@@ -105,7 +108,7 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 			Description: "Execute the exact current stored subtask with one selected immutable logical Worker. Server supplies the complete StageContext; subtask_id and worker_name are the only arguments.",
 			InputSchema: schema,
 		}, func(ctx agent.ToolContext, args routerWorkerCallArgs) (workerCallOutput, error) {
-			return p.routeWorker(ctx, state, args), nil
+			return p.routeWorker(ctx, state, identity, args), nil
 		})
 	} else {
 		binding := p.workers[0]
@@ -116,7 +119,7 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 				binding.logicalName, binding.description,
 			),
 		}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
-			return p.callWorker(ctx, state, binding, args.SubtaskID), nil
+			return p.callWorker(ctx, state, identity, binding, args.SubtaskID), nil
 		})
 	}
 	if err != nil {
@@ -128,7 +131,7 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 		Name:        finishToolName,
 		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
 	}, func(ctx agent.ToolContext, args finishArgs) (completionToolOutput, error) {
-		return p.finish(ctx, state, args), nil
+		return p.finish(ctx, state, identity, args), nil
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build finish tool: %w", err)
@@ -139,17 +142,33 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 }
 
 func (p *streamlinePlanner) addSubtask(
-	_ agent.ToolContext, state *executionState, args addSubtaskArgs,
+	ctx agent.ToolContext,
+	state *executionState,
+	identity planner.SessionIdentity,
+	args addSubtaskArgs,
 ) plannerPlanOutput {
 	started := time.Now()
 	safeArguments := map[string]any{
 		"objectiveBytes": len(args.Objective), "instructionsBytes": len(args.Instructions),
 	}
+	before := p.plan.Snapshot()
 	plan, planErr := p.plan.AddSubtask(args.Objective, args.Instructions)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return plannerPlanOutput{Error: toolFailureFrom(failure)}
+	}
+	if failure := p.persistPlanTransition(
+		ctx, state, identity, before, plan, planner.PlannerEventPlanChanged,
+	); failure != nil {
+		state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return plannerPlanOutput{Error: toolFailureFrom(*failure)}
+	}
+	if before.CurrentSubtaskID != plan.CurrentSubtaskID {
+		if failure := p.persistCurrentChanged(ctx, state, identity, plan); failure != nil {
+			state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+			return plannerPlanOutput{Error: toolFailureFrom(*failure)}
+		}
 	}
 	encoded, _ := json.Marshal(plan)
 	state.recordTool(addSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
@@ -169,6 +188,7 @@ func (p *streamlinePlanner) listSubtasks(
 func (p *streamlinePlanner) callWorker(
 	ctx agent.ToolContext,
 	state *executionState,
+	identity planner.SessionIdentity,
 	binding workerBinding,
 	subtaskID string,
 ) workerCallOutput {
@@ -176,33 +196,53 @@ func (p *streamlinePlanner) callWorker(
 	safeArguments := map[string]any{
 		"binding": binding.logicalName, "subtaskId": safeSubtaskID(subtaskID),
 	}
+	beforeClaim := p.plan.Snapshot()
 	claim, planErr := p.plan.ClaimCurrentSubtask(subtaskID, binding.logicalName)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
+	claimedPlan := p.plan.Snapshot()
+	if failure := p.persistDispatchSelected(
+		ctx, state, identity, beforeClaim.Revision, claim, binding.logicalName,
+	); failure != nil {
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return workerFailure(*failure)
+	}
+	if failure := p.persistPlanTransition(
+		ctx, state, identity, beforeClaim, claimedPlan, planner.PlannerEventDispatchStarted,
+	); failure != nil {
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return workerFailure(*failure)
+	}
 	request, failure := p.workerRequest(ctx, claim.Subtask)
 	if failure != nil {
-		p.failDispatch(claim.CallID)
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = persisted
+		}
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
 		return workerFailure(*failure)
 	}
 	deadline := p.deadline
 	if !deadline.After(time.Now()) {
-		failure := planner.Failure{
+		failure := &planner.Failure{
 			Code: "worker_deadline_exceeded", Message: "Worker invocation deadline expired", Retryable: true,
 		}
-		p.failDispatch(claim.CallID)
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = persisted
+		}
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return workerFailure(*failure)
 	}
 	if limit := state.reserveWorkerCall(); limit != nil {
 		ctx.Actions().SkipSummarization = true
-		failure := limit.Failure
-		p.failDispatch(claim.CallID)
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		failure := &limit.Failure
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = persisted
+		}
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return workerFailure(*failure)
 	}
 	workerContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
@@ -211,20 +251,38 @@ func (p *streamlinePlanner) callWorker(
 	)
 	if err != nil {
 		failure := planner.FailureFrom(err)
-		p.failDispatch(claim.CallID)
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = *persisted
+		}
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
-		p.failDispatch(claim.CallID)
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = *persisted
+		}
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
-	if _, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome); planErr != nil {
+	beforeCompletion := p.plan.Snapshot()
+	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome)
+	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
+	}
+	if failure := p.persistPlanTransition(
+		ctx, state, identity, beforeCompletion, completedPlan, planner.PlannerEventDispatchCompleted,
+	); failure != nil {
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+		return workerFailure(*failure)
+	}
+	if beforeCompletion.CurrentSubtaskID != completedPlan.CurrentSubtaskID {
+		if failure := p.persistCurrentChanged(ctx, state, identity, completedPlan); failure != nil {
+			state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
+			return workerFailure(*failure)
+		}
 	}
 	cloned := planner.CloneStageResult(result)
 	encoded, _ := json.Marshal(cloned)
@@ -235,11 +293,12 @@ func (p *streamlinePlanner) callWorker(
 func (p *streamlinePlanner) routeWorker(
 	ctx agent.ToolContext,
 	state *executionState,
+	identity planner.SessionIdentity,
 	args routerWorkerCallArgs,
 ) workerCallOutput {
 	for _, binding := range p.workers {
 		if args.WorkerName == binding.logicalName {
-			return p.callWorker(ctx, state, binding, args.SubtaskID)
+			return p.callWorker(ctx, state, identity, binding, args.SubtaskID)
 		}
 	}
 	started := time.Now()
@@ -327,7 +386,10 @@ func (p *streamlinePlanner) validateWorkerResult(
 }
 
 func (p *streamlinePlanner) finish(
-	ctx agent.ToolContext, state *executionState, args finishArgs,
+	ctx agent.ToolContext,
+	state *executionState,
+	identity planner.SessionIdentity,
+	args finishArgs,
 ) completionToolOutput {
 	started := time.Now()
 	safeOutcome := "invalid"
@@ -352,6 +414,16 @@ func (p *streamlinePlanner) finish(
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: planErr.Message, Retryable: false,
 		}
+		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
+		return completionToolOutput{Error: toolFailureFrom(failure)}
+	}
+	planRevision := p.plan.Snapshot().Revision
+	if err := p.sessions.RecordFact(ctx, identity, planner.PlannerFact{
+		Kind:         planner.PlannerEventFinishRequested,
+		Key:          fmt.Sprintf("finish:%d:%s", planRevision, args.Outcome),
+		PlanRevision: planRevision, Outcome: string(args.Outcome),
+	}); err != nil {
+		failure := p.planPersistenceFailure(state, err)
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
@@ -392,8 +464,92 @@ func failureFromPlanError(value *planner.PlanError) planner.Failure {
 	return planner.Failure{Code: value.Code, Message: value.Message, Retryable: false}
 }
 
-func (p *streamlinePlanner) failDispatch(callID string) {
-	_, _ = p.plan.FailDispatch(callID)
+func (p *streamlinePlanner) persistPlanTransition(
+	ctx context.Context,
+	state *executionState,
+	identity planner.SessionIdentity,
+	before planner.PlannerPlan,
+	after planner.PlannerPlan,
+	kind planner.PlannerEventKind,
+) *planner.Failure {
+	err := p.sessions.RecordPlan(ctx, identity, planner.PlannerPlanTransition{
+		Kind: kind, ExpectedRevision: before.Revision, Plan: after.Projection(),
+	})
+	if err == nil {
+		return nil
+	}
+	failure := p.planPersistenceFailure(state, err)
+	return &failure
+}
+
+func (p *streamlinePlanner) persistCurrentChanged(
+	ctx context.Context,
+	state *executionState,
+	identity planner.SessionIdentity,
+	planSnapshot planner.PlannerPlan,
+) *planner.Failure {
+	err := p.sessions.RecordFact(ctx, identity, planner.PlannerFact{
+		Kind: planner.PlannerEventCurrentChanged,
+		Key:  fmt.Sprintf("current:%d", planSnapshot.Revision), PlanRevision: planSnapshot.Revision,
+		SubtaskID: planSnapshot.CurrentSubtaskID,
+	})
+	if err == nil {
+		return nil
+	}
+	failure := p.planPersistenceFailure(state, err)
+	return &failure
+}
+
+func (p *streamlinePlanner) persistDispatchSelected(
+	ctx context.Context,
+	state *executionState,
+	identity planner.SessionIdentity,
+	planRevision uint64,
+	claim planner.PlannerDispatchClaim,
+	workerName string,
+) *planner.Failure {
+	err := p.sessions.RecordFact(ctx, identity, planner.PlannerFact{
+		Kind: planner.PlannerEventDispatchSelected,
+		Key:  "selected:" + claim.CallID, PlanRevision: planRevision,
+		SubtaskID: claim.Subtask.ID, CallID: claim.CallID, WorkerName: workerName,
+	})
+	if err == nil {
+		return nil
+	}
+	failure := p.planPersistenceFailure(state, err)
+	return &failure
+}
+
+func (p *streamlinePlanner) failDispatch(
+	ctx context.Context,
+	state *executionState,
+	identity planner.SessionIdentity,
+	callID string,
+) *planner.Failure {
+	before := p.plan.Snapshot()
+	after, planErr := p.plan.FailDispatch(callID)
+	if planErr != nil {
+		failure := failureFromPlanError(planErr)
+		state.setExternalFailure(planner.NewErrorFromFailure(failure, nil))
+		return &failure
+	}
+	return p.persistPlanTransition(
+		ctx, state, identity, before, after, planner.PlannerEventDispatchCompleted,
+	)
+}
+
+func (p *streamlinePlanner) planPersistenceFailure(
+	state *executionState,
+	cause error,
+) planner.Failure {
+	value := planner.NewError(
+		"planner_plan_persistence_failed",
+		"Planner plan progress could not be persisted",
+		true,
+		cause,
+	)
+	state.setExternalFailure(value)
+	return value.Failure
 }
 
 func safeSubtaskID(value string) string {

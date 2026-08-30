@@ -253,7 +253,11 @@ type StartPlannerParams struct {
 	InvocationID       string
 	StateSchemaVersion string
 	InitialState       json.RawMessage
+	EventID            string
+	EventSchemaVersion string
+	Event              json.RawMessage
 	Reason             Reason
+	RunEvent           RunEventAppend
 }
 
 type EnterFinalizingParams struct {
@@ -281,6 +285,7 @@ type PlannerSession struct {
 	InvocationID       string
 	StateSchemaVersion string
 	State              json.RawMessage
+	NextEventSequence  int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -291,17 +296,62 @@ type PlannerEvent struct {
 	SequenceNumber     int64
 	EventSchemaVersion string
 	Event              json.RawMessage
+	RunID              *string
+	RunEventSequence   *int64
 	CreatedAt          time.Time
 }
 
 type AppendPlannerEventParams struct {
 	EventID               string
 	SessionID             string
+	StageExecutionID      string
+	InvocationID          string
 	SequenceNumber        int64
 	EventSchemaVersion    string
 	Event                 json.RawMessage
 	NewStateSchemaVersion string
 	NewState              json.RawMessage
+	RunEvent              RunEventAppend
+}
+
+type RunEventKind string
+
+const (
+	RunEventPlannerStarted           RunEventKind = "planner.started"
+	RunEventPlannerRequestRecorded   RunEventKind = "planner.request_recorded"
+	RunEventPlannerActivity          RunEventKind = "planner.activity"
+	RunEventPlannerPlanChanged       RunEventKind = "planner.plan_changed"
+	RunEventPlannerCurrentChanged    RunEventKind = "planner.current_changed"
+	RunEventPlannerDispatchSelected  RunEventKind = "planner.dispatch_selected"
+	RunEventPlannerDispatchStarted   RunEventKind = "planner.dispatch_started"
+	RunEventPlannerDispatchCompleted RunEventKind = "planner.dispatch_completed"
+	RunEventPlannerFinishRequested   RunEventKind = "planner.finish_requested"
+	RunEventPlannerCompleted         RunEventKind = "planner.completed"
+	RunEventPlannerFailed            RunEventKind = "planner.failed"
+)
+
+// RunEventAppend is the validated event half of a Planner/session mutation.
+// The store allocates its per-Run sequence in the same SQL statement.
+type RunEventAppend struct {
+	EventID            string
+	EventSchemaVersion string
+	Kind               RunEventKind
+	Data               json.RawMessage
+}
+
+type WorkflowRunEvent struct {
+	RunID              string
+	SequenceNumber     int64
+	EventID            string
+	EventSchemaVersion string
+	Kind               RunEventKind
+	Data               json.RawMessage
+	OccurredAt         time.Time
+}
+
+type WorkflowRunEventCursor struct {
+	Generation string
+	Sequence   int64
 }
 
 type StageAllocation struct {

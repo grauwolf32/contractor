@@ -250,12 +250,27 @@ func createTelemetryStage(
 	}); err != nil {
 		t.Fatal(err)
 	}
+	invocationID := "invocation-" + stageExecutionID
+	startedData, err := json.Marshal(map[string]string{
+		"stageExecutionId": stageExecutionID,
+		"sessionId":        sessionID, "invocationId": invocationID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventID := "planner-started-" + stageExecutionID
 	if err := store.StartPlanner(ctx, runstore.StartPlannerParams{
 		StageExecutionID: stageExecutionID, SessionID: sessionID,
-		InvocationID:       "invocation-" + stageExecutionID,
+		InvocationID:       invocationID,
 		StateSchemaVersion: contracts.APIVersion,
 		InitialState:       json.RawMessage(`{"step":0}`),
-		Reason:             runstore.Reason{Code: "planner_started"},
+		EventID:            eventID, EventSchemaVersion: contracts.APIVersion,
+		Event: json.RawMessage(`{"kind":"planner_started"}`),
+		RunEvent: runstore.RunEventAppend{
+			EventID: eventID, EventSchemaVersion: contracts.APIVersion,
+			Kind: runstore.RunEventPlannerStarted, Data: startedData,
+		},
+		Reason: runstore.Reason{Code: "planner_started"},
 	}); err != nil {
 		t.Fatal(err)
 	}

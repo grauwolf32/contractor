@@ -2,6 +2,7 @@ package planner
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +52,16 @@ type PlannerPlan struct {
 	ActiveDispatch   *PlannerActiveDispatch `json:"activeDispatch,omitempty"`
 }
 
+// PlannerPlanProjection is the durable/UI-safe modeled-Planner state. The
+// immutable Stage objective is intentionally absent and must be joined by the
+// caller from the StageExecution snapshot.
+type PlannerPlanProjection struct {
+	Revision         uint64                 `json:"revision"`
+	Subtasks         []PlannerSubtask       `json:"subtasks"`
+	CurrentSubtaskID string                 `json:"currentSubtaskId,omitempty"`
+	ActiveDispatch   *PlannerActiveDispatch `json:"activeDispatch,omitempty"`
+}
+
 type PlanError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -63,9 +74,9 @@ type PlannerDispatchClaim struct {
 	Subtask PlannerSubtask
 }
 
-// PlannerPlanController owns the in-memory first-slice plan state. Persistence
-// is deliberately a later adapter concern; callers can only receive deep
-// snapshots and cannot mutate the authoritative plan directly.
+// PlannerPlanController owns the live first-slice plan state. Its adapter
+// persists validated projections through PlanSessionService; callers can only
+// receive deep snapshots and cannot mutate the authoritative plan directly.
 type PlannerPlanController struct {
 	mu sync.Mutex
 
@@ -300,6 +311,17 @@ func (p PlannerPlan) Validate() error {
 	); err != nil {
 		return err
 	}
+	return p.Projection().Validate()
+}
+
+func (p PlannerPlan) Projection() PlannerPlanProjection {
+	return clonePlannerPlanProjection(PlannerPlanProjection{
+		Revision: p.Revision, Subtasks: p.Subtasks,
+		CurrentSubtaskID: p.CurrentSubtaskID, ActiveDispatch: p.ActiveDispatch,
+	})
+}
+
+func (p PlannerPlanProjection) Validate() error {
 	if len(p.Subtasks) > MaxPlannerSubtasks {
 		return fmt.Errorf("Planner plan exceeds its subtask limit")
 	}
@@ -362,6 +384,131 @@ func (p PlannerPlan) Validate() error {
 	return nil
 }
 
+// ValidatePlannerPlanTransition rejects a stored projection history that
+// could not have been produced by PlannerPlanController. Text and IDs are
+// immutable after append; only adapter-owned status/current/dispatch fields
+// may change through their matching event kind.
+func ValidatePlannerPlanTransition(
+	previous *PlannerPlanProjection,
+	next PlannerPlanProjection,
+	kind PlannerEventKind,
+) error {
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	baseline := PlannerPlanProjection{Subtasks: []PlannerSubtask{}}
+	if previous != nil {
+		baseline = clonePlannerPlanProjection(*previous)
+		if err := baseline.Validate(); err != nil {
+			return fmt.Errorf("previous Planner plan projection is invalid: %w", err)
+		}
+	}
+	if next.Revision != baseline.Revision+1 {
+		return fmt.Errorf("Planner plan revision must advance by exactly one")
+	}
+	switch kind {
+	case PlannerEventPlanChanged:
+		return validatePlanAppendTransition(baseline, next)
+	case PlannerEventDispatchStarted:
+		return validateDispatchStartTransition(baseline, next)
+	case PlannerEventDispatchCompleted:
+		return validateDispatchCompletionTransition(baseline, next)
+	default:
+		return fmt.Errorf("event kind %q cannot change a Planner plan", kind)
+	}
+}
+
+func validatePlanAppendTransition(previous, next PlannerPlanProjection) error {
+	if previous.ActiveDispatch != nil || next.ActiveDispatch != nil ||
+		len(next.Subtasks) != len(previous.Subtasks)+1 {
+		return fmt.Errorf("plan.changed must append exactly one idle subtask")
+	}
+	for index := range previous.Subtasks {
+		if !reflect.DeepEqual(previous.Subtasks[index], next.Subtasks[index]) {
+			return fmt.Errorf("plan.changed modified an existing subtask")
+		}
+	}
+	appended := next.Subtasks[len(next.Subtasks)-1]
+	if appended.Status != PlannerSubtaskPending || appended.ID != strconv.Itoa(len(previous.Subtasks)) {
+		return fmt.Errorf("plan.changed appended subtask identity or status is invalid")
+	}
+	wantCurrent := previous.CurrentSubtaskID
+	if wantCurrent == "" {
+		wantCurrent = appended.ID
+	}
+	if next.CurrentSubtaskID != wantCurrent {
+		return fmt.Errorf("plan.changed selected an invalid current subtask")
+	}
+	return nil
+}
+
+func validateDispatchStartTransition(previous, next PlannerPlanProjection) error {
+	if previous.ActiveDispatch != nil || next.ActiveDispatch == nil ||
+		previous.CurrentSubtaskID == "" || next.CurrentSubtaskID != previous.CurrentSubtaskID ||
+		len(previous.Subtasks) != len(next.Subtasks) {
+		return fmt.Errorf("dispatch.started has an invalid plan shape")
+	}
+	changed := 0
+	for index := range previous.Subtasks {
+		before, after := previous.Subtasks[index], next.Subtasks[index]
+		if before.ID != after.ID || before.Objective != after.Objective ||
+			before.Instructions != after.Instructions {
+			return fmt.Errorf("dispatch.started modified immutable subtask data")
+		}
+		if before.Status != after.Status {
+			if before.ID != previous.CurrentSubtaskID || before.Status != PlannerSubtaskPending ||
+				after.Status != PlannerSubtaskRunning {
+				return fmt.Errorf("dispatch.started has an invalid status transition")
+			}
+			changed++
+		}
+	}
+	if changed != 1 || next.ActiveDispatch.SubtaskID != next.CurrentSubtaskID {
+		return fmt.Errorf("dispatch.started did not claim exactly the current subtask")
+	}
+	return nil
+}
+
+func validateDispatchCompletionTransition(previous, next PlannerPlanProjection) error {
+	if previous.ActiveDispatch == nil || next.ActiveDispatch != nil ||
+		len(previous.Subtasks) != len(next.Subtasks) {
+		return fmt.Errorf("dispatch.completed has an invalid plan shape")
+	}
+	completedIndex := -1
+	for index := range previous.Subtasks {
+		before, after := previous.Subtasks[index], next.Subtasks[index]
+		if before.ID != after.ID || before.Objective != after.Objective ||
+			before.Instructions != after.Instructions {
+			return fmt.Errorf("dispatch.completed modified immutable subtask data")
+		}
+		if before.Status == after.Status {
+			continue
+		}
+		if before.ID != previous.ActiveDispatch.SubtaskID || before.Status != PlannerSubtaskRunning ||
+			(after.Status != PlannerSubtaskSucceeded && after.Status != PlannerSubtaskFailed) {
+			return fmt.Errorf("dispatch.completed has an invalid status transition")
+		}
+		if completedIndex >= 0 {
+			return fmt.Errorf("dispatch.completed changed more than one subtask")
+		}
+		completedIndex = index
+	}
+	if completedIndex < 0 || previous.CurrentSubtaskID != previous.ActiveDispatch.SubtaskID {
+		return fmt.Errorf("dispatch.completed did not resolve its active subtask")
+	}
+	wantCurrent := ""
+	for index := completedIndex + 1; index < len(next.Subtasks); index++ {
+		if next.Subtasks[index].Status == PlannerSubtaskPending {
+			wantCurrent = next.Subtasks[index].ID
+			break
+		}
+	}
+	if next.CurrentSubtaskID != wantCurrent {
+		return fmt.Errorf("dispatch.completed selected an invalid next current subtask")
+	}
+	return nil
+}
+
 func validatePlanText(name string, value string, limit int) error {
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must not be empty", name)
@@ -373,6 +520,16 @@ func validatePlanText(name string, value string, limit int) error {
 }
 
 func clonePlannerPlan(input PlannerPlan) PlannerPlan {
+	result := input
+	result.Subtasks = append([]PlannerSubtask(nil), input.Subtasks...)
+	if input.ActiveDispatch != nil {
+		active := *input.ActiveDispatch
+		result.ActiveDispatch = &active
+	}
+	return result
+}
+
+func clonePlannerPlanProjection(input PlannerPlanProjection) PlannerPlanProjection {
 	result := input
 	result.Subtasks = append([]PlannerSubtask(nil), input.Subtasks...)
 	if input.ActiveDispatch != nil {

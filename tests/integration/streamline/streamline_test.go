@@ -26,6 +26,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	runtimeEndpointCanary = "https://runtime-placement-secret.invalid"
+	runtimeTokenCanary    = "runtime-handle-token-secret"
+)
+
 func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -102,9 +107,52 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		payload := string(event.Event)
 		if strings.Contains(payload, gatewayToken) || strings.Contains(payload, "sensitive objective") ||
 			strings.Contains(payload, "sensitive planner guidance") || strings.Contains(payload, "strict-secret-value") ||
-			strings.Contains(payload, "subtask-sensitive-analysis") {
+			strings.Contains(payload, "draft ready") || strings.Contains(payload, "report ready") ||
+			strings.Contains(payload, runtimeEndpointCanary) || strings.Contains(payload, runtimeTokenCanary) {
 			t.Fatalf("durable Planner event leaked model/provider content: %s", payload)
 		}
+	}
+	identity := planner.SessionIdentity{
+		SessionID: *execution.PlannerSessionID, StageExecutionID: execution.StageExecutionID,
+		InvocationID: *execution.PlannerInvocationID,
+	}
+	plan, ok, err := sessions.LoadPlan(ctx, identity)
+	if err != nil || !ok || plan.Revision != 6 || len(plan.Subtasks) != 2 ||
+		plan.Subtasks[0].Objective != "subtask-sensitive-analysis" ||
+		plan.Subtasks[0].Instructions != "write an exact draft" ||
+		plan.Subtasks[0].Status != planner.PlannerSubtaskSucceeded ||
+		plan.Subtasks[1].Status != planner.PlannerSubtaskSucceeded {
+		t.Fatalf("typed durable plan = (%+v, %t, %v)", plan, ok, err)
+	}
+	runEvents, err := store.ListRunEvents(ctx, "run-streamline", 0, 1000)
+	if err != nil || len(runEvents) != len(events) {
+		t.Fatalf("Run events = (%d, %v), Planner events = %d", len(runEvents), err, len(events))
+	}
+	for index, event := range runEvents {
+		payload := string(event.Data)
+		for _, forbidden := range []string{
+			gatewayToken, "sensitive objective", "sensitive planner guidance",
+			"strict-secret-value", "draft ready", "report ready",
+			runtimeEndpointCanary, runtimeTokenCanary,
+		} {
+			if strings.Contains(payload, forbidden) {
+				t.Fatalf("Run event %d leaked %q: %s", index, forbidden, payload)
+			}
+		}
+		if events[index].RunEventSequence == nil ||
+			*events[index].RunEventSequence != event.SequenceNumber {
+			t.Fatalf("Planner/Run event linkage %d: %+v / %+v", index, events[index], event)
+		}
+	}
+	storedSession, err := store.GetPlannerSession(ctx, *execution.PlannerSessionID)
+	if err != nil || !strings.Contains(string(storedSession.State), "subtask-sensitive-analysis") ||
+		strings.Contains(string(storedSession.State), "sensitive objective") ||
+		strings.Contains(string(storedSession.State), "strict-secret-value") ||
+		strings.Contains(string(storedSession.State), "draft ready") ||
+		strings.Contains(string(storedSession.State), "report ready") ||
+		strings.Contains(string(storedSession.State), runtimeEndpointCanary) ||
+		strings.Contains(string(storedSession.State), runtimeTokenCanary) {
+		t.Fatalf("durable Planner state redaction = (%s, %v)", storedSession.State, err)
 	}
 }
 
@@ -251,7 +299,9 @@ func testInvocation() planner.Invocation {
 	}}
 	workers := map[string]contracts.WorkerHandle{name: {
 		AllocationID: "allocation-" + name, AgentTemplateRef: template,
-		WorkerRuntimeRef: runtime, AgentCard: map[string]any{"name": name},
+		WorkerRuntimeRef: runtime, AgentCard: map[string]any{
+			"name": name, "url": runtimeEndpointCanary, "token": runtimeTokenCanary,
+		},
 		LeaseExpiresAt: time.Now().Add(5 * time.Minute),
 	}}
 	return planner.Invocation{

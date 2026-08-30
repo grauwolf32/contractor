@@ -591,9 +591,23 @@ func createFinalizingFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
+	startedData, err := json.Marshal(map[string]string{
+		"stageExecutionId": executionID,
+		"sessionId":        "session-finalizing",
+		"invocationId":     "invocation-finalizing",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := store.StartPlanner(ctx, runstore.StartPlannerParams{
 		StageExecutionID: executionID, SessionID: "session-finalizing", InvocationID: "invocation-finalizing",
 		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{"status":"test"}`),
+		EventID: "planner-started-finalizing", EventSchemaVersion: contracts.APIVersion,
+		Event: json.RawMessage(`{"kind":"planner_started"}`),
+		RunEvent: runstore.RunEventAppend{
+			EventID: "planner-started-finalizing", EventSchemaVersion: contracts.APIVersion,
+			Kind: runstore.RunEventPlannerStarted, Data: startedData,
+		},
 		Reason: runstore.Reason{Code: "planner_started"},
 	}); err != nil {
 		t.Fatal(err)

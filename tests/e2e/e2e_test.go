@@ -44,21 +44,24 @@ type artifactRef struct {
 }
 
 type runStatus struct {
-	RunID    string                 `json:"runId"`
-	Workflow string                 `json:"workflow"`
-	State    string                 `json:"state"`
-	Attempts []runAttempt           `json:"attempts"`
-	Outputs  map[string]artifactRef `json:"outputs"`
+	RunID       string                 `json:"runId"`
+	Workflow    string                 `json:"workflow"`
+	State       string                 `json:"state"`
+	Attempts    []runAttempt           `json:"attempts"`
+	Transitions []json.RawMessage      `json:"transitions"`
+	Outputs     map[string]artifactRef `json:"outputs"`
 }
 
 type runAttempt struct {
-	StageExecutionID string             `json:"stageExecutionId"`
-	Stage            string             `json:"stage"`
-	Attempt          int                `json:"attempt"`
-	State            string             `json:"state"`
-	Result           json.RawMessage    `json:"result,omitempty"`
-	Termination      json.RawMessage    `json:"termination,omitempty"`
-	Metrics          *telemetry.Summary `json:"metrics,omitempty"`
+	StageExecutionID    string             `json:"stageExecutionId"`
+	Stage               string             `json:"stage"`
+	Attempt             int                `json:"attempt"`
+	PreviousExecutionID *string            `json:"previousExecutionId,omitempty"`
+	ExecutionConfig     json.RawMessage    `json:"executionConfig"`
+	State               string             `json:"state"`
+	Result              json.RawMessage    `json:"result,omitempty"`
+	Termination         json.RawMessage    `json:"termination,omitempty"`
+	Metrics             *telemetry.Summary `json:"metrics,omitempty"`
 }
 
 func TestLocalGoToPythonArtifactCopy(t *testing.T) {
@@ -153,11 +156,7 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	assertPrivateTLSRejectsUnauthenticated(t, caPaths.Certificate, runtimeBaseURL+"/healthz")
-	if !strings.Contains(
-		runtimeProcess.logs.redacted(publicToken, llmGatewayToken), "runtime agent registered",
-	) {
-		t.Fatalf("Runtime Agent never confirmed registration")
-	}
+	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
 
 	uploaded := uploadInput(t, publicClient, publicBaseURL)
 	runID := createRun(t, publicClient, publicBaseURL, uploaded)
@@ -383,8 +382,8 @@ func assertDurableExecution(
 		t.Fatalf("accepted result/output mismatch: %+v / %+v", execution.AcceptedResult, output)
 	}
 	events, err := store.ListPlannerEvents(ctx, *execution.PlannerSessionID, 0)
-	if err != nil || len(events) != 2 {
-		t.Fatalf("Planner events = (%+v, %v), want request and completion", events, err)
+	if err != nil || len(events) != 3 {
+		t.Fatalf("Planner events = (%+v, %v), want start, request, and completion", events, err)
 	}
 	var requestEvent struct {
 		Kind string `json:"kind"`
@@ -392,9 +391,9 @@ func assertDurableExecution(
 	var completionEvent struct {
 		Kind string `json:"kind"`
 	}
-	if json.Unmarshal(events[0].Event, &requestEvent) != nil || requestEvent.Kind != "worker_request" ||
-		json.Unmarshal(events[1].Event, &completionEvent) != nil || completionEvent.Kind != "planner_completed" {
-		t.Fatalf("unexpected Planner event sequence: %s / %s", events[0].Event, events[1].Event)
+	if json.Unmarshal(events[1].Event, &requestEvent) != nil || requestEvent.Kind != "worker_request" ||
+		json.Unmarshal(events[2].Event, &completionEvent) != nil || completionEvent.Kind != "planner_completed" {
+		t.Fatalf("unexpected Planner event sequence: %s / %s / %s", events[0].Event, events[1].Event, events[2].Event)
 	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentInstanceID == "" {
@@ -640,6 +639,24 @@ func waitForHTTP(
 		case <-ctx.Done():
 			t.Fatalf("wait for %s readiness: %v\n%s", process.name, ctx.Err(),
 				process.logs.redacted(publicToken, llmGatewayToken))
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+func waitForProcessLog(t *testing.T, ctx context.Context, process *childProcess, expected string) {
+	t.Helper()
+	for {
+		logs := process.logs.redacted(publicToken, llmGatewayToken)
+		if strings.Contains(logs, expected) {
+			return
+		}
+		if exited, processErr := process.exited(); exited {
+			t.Fatalf("%s exited while waiting for log %q: %v\n%s", process.name, expected, processErr, logs)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("wait for %s log %q: %v\n%s", process.name, expected, ctx.Err(), logs)
 		case <-time.After(50 * time.Millisecond):
 		}
 	}

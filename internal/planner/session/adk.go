@@ -205,7 +205,11 @@ func (s *Service) recordADKEvent(
 		if err != nil {
 			return err
 		}
-		err = s.append(ctx, stored, state.NextSequence, payload, encodedState)
+		err = s.append(
+			ctx, stored, state.NextSequence, payload, encodedState,
+			identity, planner.PlannerEventActivity,
+			&plannerRunEventData{Activity: &facts},
+		)
 		if err == nil {
 			return nil
 		}

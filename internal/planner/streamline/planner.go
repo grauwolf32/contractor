@@ -32,7 +32,7 @@ type streamlinePlanner struct {
 	workers        []workerBinding
 	plan           *planner.PlannerPlanController
 	resultContract map[string]workflowconfig.ArtifactSlot
-	sessions       planner.SessionService
+	sessions       planner.PlanSessionService
 	adkSessions    ADKSessionFactory
 	invoker        planner.WorkerInvoker
 	inspector      planner.ArtifactInspector
@@ -89,7 +89,7 @@ func (p *streamlinePlanner) Run(
 		return contracts.StageContentResult{}, sessionFailure("record request", err)
 	}
 
-	tools, allowed, err := p.buildTools(state)
+	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {
 		return contracts.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(

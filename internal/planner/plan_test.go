@@ -188,3 +188,84 @@ func TestPlannerPlanRejectsBoundsWithoutRevisionChange(t *testing.T) {
 		t.Fatalf("rejected add mutated plan: before=%+v after=%+v", before, after)
 	}
 }
+
+func TestPlannerPlanTransitionValidationRejectsHistoryTampering(t *testing.T) {
+	controller, err := NewPlannerPlanController("Review the project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, planErr := controller.AddSubtask("Inspect", "Read every declared input")
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	if err := ValidatePlannerPlanTransition(nil, added.Projection(), PlannerEventPlanChanged); err != nil {
+		t.Fatalf("valid append transition: %v", err)
+	}
+	beforeDispatch := added.Projection()
+	claim, planErr := controller.ClaimCurrentSubtask("0", "reviewer")
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	dispatched := controller.Snapshot().Projection()
+	if err := ValidatePlannerPlanTransition(
+		&beforeDispatch, dispatched, PlannerEventDispatchStarted,
+	); err != nil {
+		t.Fatalf("valid dispatch transition: %v", err)
+	}
+	beforeCompletion := clonePlannerPlanProjection(dispatched)
+	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
+	if err := ValidatePlannerPlanTransition(
+		&beforeCompletion, completed.Projection(), PlannerEventDispatchCompleted,
+	); err != nil {
+		t.Fatalf("valid completion transition: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		previous *PlannerPlanProjection
+		next     PlannerPlanProjection
+		kind     PlannerEventKind
+	}{
+		{
+			name: "revision gap", previous: &beforeDispatch,
+			next: func() PlannerPlanProjection {
+				value := clonePlannerPlanProjection(dispatched)
+				value.Revision++
+				return value
+			}(),
+			kind: PlannerEventDispatchStarted,
+		},
+		{
+			name: "model rewrites objective", previous: &beforeDispatch,
+			next: func() PlannerPlanProjection {
+				value := clonePlannerPlanProjection(dispatched)
+				value.Subtasks[0].Objective = "rewritten"
+				return value
+			}(),
+			kind: PlannerEventDispatchStarted,
+		},
+		{
+			name: "wrong event kind", previous: &beforeDispatch,
+			next: dispatched, kind: PlannerEventPlanChanged,
+		},
+		{
+			name: "forged call identity", previous: &beforeDispatch,
+			next: func() PlannerPlanProjection {
+				value := clonePlannerPlanProjection(dispatched)
+				value.ActiveDispatch.CallID = ""
+				return value
+			}(),
+			kind: PlannerEventDispatchStarted,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := ValidatePlannerPlanTransition(test.previous, test.next, test.kind); err == nil {
+				t.Fatal("tampered transition was accepted")
+			}
+		})
+	}
+}
