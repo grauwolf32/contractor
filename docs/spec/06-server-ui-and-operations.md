@@ -499,6 +499,92 @@ API methods and required headers, including `Content-Type`, `Idempotency-Key`,
 only for an exact allowed origin. CORS grants no authorization and non-browser
 clients remain subject to the public API's authentication contract.
 
+### Live event WebSocket
+
+Live UI updates use one read-only WebSocket endpoint on Go Server:
+`GET /v1/events/ws`, negotiated with subprotocol `contractor.events.v1`. The
+browser connects directly to the configured API origin; Node does not proxy the
+upgrade. Production uses `wss`, with `ws` accepted only for the same loopback
+development exception as HTTP runtime config.
+
+The upgrade authenticates the ordinary Server session cookie and rejects every
+`Origin` other than the exact configured UI origin before accepting the socket.
+Authorization is rechecked for each subscription, so a principal may observe
+only its own Runs and its permitted Operations surface. Session expiry, logout
+or revocation closes its sockets. No credential, CSRF token or cursor is placed
+in the URL. Because this channel is strictly observational, subscription and
+unsubscribe frames require no CSRF token and cannot cancel a Run, publish a
+configuration, manage a credential or perform any other domain mutation. Those
+operations remain authenticated HTTP requests with their existing CSRF,
+idempotency and CAS contracts.
+
+One connection multiplexes explicit `run` and `operations` subscriptions. All
+client and Server frames are bounded JSON and carry the protocol version. A
+Server event envelope contains:
+
+```json
+{
+  "type": "event",
+  "stream": {"kind": "run", "id": "run_..."},
+  "cursor": {"generation": "run-generation-...", "sequence": "42"},
+  "kind": "planner.event",
+  "occurredAt": "2026-08-30T12:00:00Z",
+  "data": {}
+}
+```
+
+The cursor combines an opaque generation with an unsigned decimal string
+sequence, so a Server restart or browser number precision cannot silently alter
+its meaning. Unknown protocol versions, stream kinds, event kinds and fields
+are rejected rather than guessed. The message contract is committed at
+`api/events/contractor-events-v1.schema.json`; the OpenAPI document describes
+the HTTP upgrade and links that schema. Normal generated HTTP methods and the
+browser WebSocket adapter remain separate code paths.
+
+For a `run` stream, every durable Run/StageExecution lifecycle change and every
+public Planner fact receives one monotonically increasing per-Run sequence in
+the same transaction as its source record. Its generation is stable for that
+Run. A Run detail response includes the corresponding event cursor. Subscribing
+with `after` replays committed events after that cursor in order and then
+follows new commits; reconnect uses the last fully processed cursor. Run events
+remain replayable for as long as the Run itself is retained. `planner.event`
+carries exactly the reduced durable fact defined by
+[04](04-execution-lifecycle-and-metrics.md), never a live raw ADK or model
+stream. Lifecycle events are invalidation hints: the UI refetches the affected
+TanStack Query and does not treat their payload as a replacement authoritative
+aggregate.
+
+The `operations` stream reports Runtime Agent, allocation, configuration and
+credential changes, but its cursor is process-local and its notifications are
+not a new audit log. The Operations snapshot response includes its current
+generation and revision. A new subscription is established from that cursor;
+Server restart creates another generation, while a missed revision or an
+unavailable cursor produces `resync_required`. The UI then obtains another
+authenticated REST snapshot before continuing.
+
+Delivery may be duplicated across disconnects. The client deduplicates by
+stream and cursor, processes events in order and treats any gap as a resync,
+not as permission to infer missing state. Each connection has a bounded output
+queue; a slow consumer is closed with retryable overload semantics instead of
+blocking Scheduler or Planner persistence. Client reconnect uses bounded
+exponential backoff with jitter and always supports explicit manual refresh.
+Server ping/control frames detect dead connections.
+
+The first-slice limits are 16 KiB per client frame, 64 KiB per Server frame,
+eight sockets per authenticated session, 32 subscriptions per socket and an
+output queue of at most 256 frames or 1 MiB, whichever is reached first. Server
+sends a ping after 20 seconds without outbound traffic and closes a connection
+that has not answered within 60 seconds. UI reconnect starts at 500 ms, doubles
+up to 30 seconds and applies full jitter. Exceeding an input or subscription
+limit closes or rejects only that socket; filling the output queue closes it
+with WebSocket status `1013`, after which the client resynchronizes.
+
+Contract tests cover invalid Origin/session, unauthorized Run subscription,
+ordered replay after reconnect, duplicate delivery, Operations resync after
+Server restart and slow-consumer closure. They also assert that prompts, model
+responses, reasoning, tool payloads, provider bodies and credentials cannot
+appear in a Planner event frame.
+
 ### Local browser session
 
 The first slice has exactly one local principal. Server reads it once at startup
@@ -616,7 +702,6 @@ Artifact use so later RBAC does not require changing domain semantics.
 - component library/design system and the production Node static-server
   implementation;
 - future OIDC authentication, multiple users and user/Operations RBAC;
-- polling, Server-Sent Events or WebSocket updates for Run and Agent state;
 - exact list/filter/pagination contracts and retention window;
 - whether the initial editor covers Workflow and AgentTemplate or only
   ModelPolicy, LLMGatewayConfig and credentials;

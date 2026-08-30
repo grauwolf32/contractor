@@ -84,7 +84,7 @@ model {
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
-    runState = storage 'Workflow snapshots / Runs / StageExecutions / semantic results' {
+    runState = storage 'Workflow snapshots / Runs / StageExecutions / semantic results / Run event journal' {
       #contractor
     }
 
@@ -134,6 +134,10 @@ model {
     }
 
     authApi = component 'Local Login / Session / CSRF API' {
+      #contractor
+    }
+
+    eventApi = component 'Read-only WebSocket Event API' {
       #contractor
     }
 
@@ -213,6 +217,10 @@ model {
     publicApi -> authService 'Authenticate session and bind user principal'
     userArtifactApi -> authService 'Authenticate session and bind UserScope owner'
     operationsApi -> authService 'Authenticate session and bind audit actor'
+    eventApi -> authService 'Authenticate socket/session/origin and authorize subscriptions'
+    eventApi -> runStore 'Replay ordered committed Run lifecycle events'
+    eventApi -> plannerSessionService 'Stream only committed redacted Planner facts'
+    eventApi -> runtimeRegistry 'Observe process-local Operations revisions; require resync on gaps'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
@@ -309,6 +317,7 @@ model {
   browser -> server.publicApi 'Direct authenticated Workflow and Run queries/mutations'
   browser -> server.userArtifactApi 'Direct Artifact queries/uploads/downloads'
   browser -> server.operationsApi 'Direct Runtime visibility and configuration management'
+  browser -> server.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.authApi 'Authenticate through the same local session contract when needed'
   apiClient -> server.publicApi 'Submit / query / cancel Run'

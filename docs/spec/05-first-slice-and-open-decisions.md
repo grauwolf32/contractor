@@ -56,6 +56,11 @@ This slice must demonstrate:
   adapter; strict type checking, regeneration-drift tests, Vitest/Testing
   Library coverage and Playwright against the real Node UI plus Go Server are
   required first-slice gates;
+- one direct, cookie-authenticated, exact-Origin WebSocket multiplexes Run and
+  Operations observation while every command remains HTTP; reconnect replays
+  the owning Run's committed ordered lifecycle and redacted Planner facts from
+  a cursor, whereas a lost process-local Operations revision requires a REST
+  resync, and backpressure can never block Scheduler or Planner persistence;
 - one Argon2id bootstrap user logs in directly to Go Server and receives an
   in-memory, idle/absolute-expiring HttpOnly session plus a session-bound CSRF
   token; browser mutation requires exact Origin and CSRF checks, Server restart
@@ -181,7 +186,9 @@ This slice must demonstrate:
   its durable acceptance;
 - Planner uses one database-backed Contractor Session associated with the
   StageExecution; ADK-based Planner events are persisted only as redacted facts,
-  while Worker ADK state remains in the allocated Runtime Agent process;
+  receive ordered per-session and per-Run sequences before becoming visible on
+  the public WebSocket, and never expose raw model or tool payloads, while
+  Worker ADK state remains in the allocated Runtime Agent process;
 - Runtime Agent finalizes and destroys its in-process Worker instance through
   its private control endpoint and returns bounded reports before terminal
   acceptance;

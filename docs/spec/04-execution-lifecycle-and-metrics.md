@@ -235,6 +235,17 @@ is reduced before PostgreSQL append to author, allowed function names, action
 flags and aggregate token counts. Prompt/model text, tool arguments/results,
 provider bodies and unknown provider-controlled function names are not durable.
 
+Each committed reduced fact has a monotonically increasing sequence within its
+Planner session and also participates in the owning WorkflowRun's durable event
+sequence. The public Planner timeline uses only fixed fact kinds such as
+Planner started/completed/failed, model call completed, logical Worker call
+started/completed and validated finish/escalate requested. Its bounded payload
+may contain the configured logical Worker name, an allowlisted action name,
+success or stable error code and cumulative token/call counts. It contains no
+raw ADK event, partial model token, prompt, response, hidden reasoning, tool
+argument/result or provider error body. An event becomes stream-visible only
+after this reduced database record commits.
+
 The database record supports inspection, statistics, audit and completed-result
 recovery. A completed Planner session returns its recorded candidate/failure
 without invoking ADK, Gateway or Worker again. It is not authority for resuming
