@@ -31,7 +31,9 @@ Server/Python Runtime Agent MVP plus:
 - bounded UTF-8 Run-artifact tools and safe ZIP source exploration;
 - namespace-bound, CAS-backed OpenAPI construction with source provenance and
   Vacuum validation;
-- the executable four-Stage `openapi-from-source@1` Workflow configuration.
+- namespace-bound, CAS-backed LikeC4 editing with direct CLI validation;
+- executable four-Stage `openapi-from-source@1` and `likec4-from-source@1`
+  Workflow configurations.
 
 The first-slice milestone is complete; OpenAPI and LikeC4 project workflows are
 the current product increment. The authoritative checkpoint is
@@ -336,6 +338,75 @@ Intermediate Run bindings are `analysis/dependencies`, `analysis/project`,
 when the final `validate_openapi` call reports a structurally clean document and
 no serious Vacuum findings. Missing Vacuum is an explicit failed validation,
 never an implicit pass.
+
+## LikeC4 from a source archive
+
+`likec4-from-source@1` reuses the same dependency- and project-discovery
+contracts as the OpenAPI workflow, then builds and repair-validates one
+single-file architecture model. Reports and the model cross Stage boundaries as
+exact artifact revisions; no Worker relies on another allocation's memory or
+workspace.
+
+Install the LikeC4 CLI directly on every Runtime Agent host and make it visible
+on `PATH`. The Runtime never invokes `npx` or downloads a validator while a Run
+is executing.
+
+```shell
+command -v likec4
+likec4 version
+```
+
+Create and upload `SOURCE_REF` with the safe ZIP procedure in the OpenAPI
+section above. A pre-existing single-file model is optional. When supplied, the
+build Stage copies its exact revision into `likec4/architecture`; it never
+modifies the UserScope artifact. Both the canonical LikeC4 media type and plain
+UTF-8 text are accepted as seeds and normalized to `text/vnd.likec4`.
+
+```shell
+LIKEC4_SEED_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: text/vnd.likec4' -H 'If-None-Match: *' \
+  --data-binary '@/absolute/path/to/architecture.c4' \
+  http://127.0.0.1:8080/v1/artifacts/projects/existing-likec4 | jq -c .artifact)"
+```
+
+Submit a Run with the optional seed:
+
+```shell
+RUN_ID="$(jq -n \
+  --argjson source "$SOURCE_REF" \
+  --argjson seed "$LIKEC4_SEED_REF" \
+  --arg objective 'Model the implemented architecture and trust boundaries' \
+  '{workflow:"likec4-from-source@1",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H "Idempotency-Key: likec4-run-$(date +%s)" \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://127.0.0.1:8080/v1/runs | jq -r .runId)"
+```
+
+For a new model, omit `existing_likec4` and use
+`artifacts:{source:$source}`. Poll `/v1/runs/$RUN_ID`; after success, retrieve
+the immutable Workflow outputs:
+
+```shell
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/architecture" \
+  --output /tmp/generated-architecture.c4
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/validation_report" \
+  --output /tmp/likec4-validation-report.md
+```
+
+Intermediate bindings are `analysis/dependencies`, `analysis/project`,
+`likec4/architecture`, and `likec4/validation-report`. The supported MVP is one
+self-contained file: includes, multi-file projects, rendering, and layout
+artifacts are outside this workflow. It succeeds only after direct
+`likec4 validate` reports a clean model. A missing or failed CLI is an explicit
+retryable validation failure, never an implicit pass.
 
 Cancellation is an idempotent durable request. It interrupts an active local
 Planner immediately; another Server process observes the same `cancelling`

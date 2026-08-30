@@ -1,8 +1,9 @@
 # Contractor configuration
 
 This directory contains the executable default configuration. It includes the
-small artifact-copy fixture and the four-Stage `openapi-from-source@1` project
-workflow. Validate the complete set from the repository root with:
+small artifact-copy fixture and the four-Stage `openapi-from-source@1` and
+`likec4-from-source@1` project workflows. Validate the complete set from the
+repository root with:
 
 ```sh
 go run ./cmd/contractor-server config validate --root ./configs
