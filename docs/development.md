@@ -423,6 +423,48 @@ artifacts are outside this workflow. It succeeds only after direct
 `likec4 validate` reports a clean model. A missing or failed CLI is an explicit
 retryable validation failure, never an implicit pass.
 
+## Reusing explicit analysis reports
+
+`openapi-from-analysis@1` and `likec4-from-analysis@1` are two-Stage variants
+for callers that already have reviewed dependency and project reports. They do
+not search prior Runs or choose a current artifact implicitly. The caller must
+upload exact `text/markdown` reports to UserScope and select their revisions
+together with the exact source revision. Run creation copies them to
+`inputs/dependency_report` and `inputs/project_report`; Workers may mutate only
+RunScope artifacts and the uploaded values remain unchanged.
+
+```shell
+DEPENDENCY_REPORT_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: text/markdown' -H 'If-None-Match: *' \
+  --data-binary '@/absolute/path/to/dependency-report.md' \
+  http://127.0.0.1:8080/v1/artifacts/projects/dependency-report | jq -c .artifact)"
+
+PROJECT_REPORT_REF="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: text/markdown' -H 'If-None-Match: *' \
+  --data-binary '@/absolute/path/to/project-report.md' \
+  http://127.0.0.1:8080/v1/artifacts/projects/project-report | jq -c .artifact)"
+
+RUN_ID="$(jq -n \
+  --argjson source "$SOURCE_REF" \
+  --argjson dependencies "$DEPENDENCY_REPORT_REF" \
+  --argjson project "$PROJECT_REPORT_REF" \
+  '{workflow:"openapi-from-analysis@1",parameters:{},artifacts:{source:$source,dependency_report:$dependencies,project_report:$project}}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H "Idempotency-Key: openapi-analysis-run-$(date +%s)" \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://127.0.0.1:8080/v1/runs | jq -r .runId)"
+```
+
+Use `likec4-from-analysis@1` in the same request to produce LikeC4. Optional
+`existing_openapi` and `existing_likec4` inputs retain the contracts described
+above. Contractor v1alpha1 does not prove that a report revision was derived
+from the selected source revision; the caller owns that compatibility decision.
+A future provenance/cache policy can automate it without changing these
+explicit workflow contracts.
+
 ## Live project-workflow quality evaluation
 
 This gate is deliberately excluded from `make verify` and ordinary CI. It

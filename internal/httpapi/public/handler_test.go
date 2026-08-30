@@ -30,8 +30,12 @@ type handlerFixture struct {
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
+	return newHandlerFixtureWithConfig(t, "../../config/testdata/valid")
+}
+
+func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
 	t.Helper()
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := config.Load(configRoot, config.MVPDescriptors())
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
 	}
