@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: bounded_reader
+  version: "1"
+
+spec:
+  description: Reads source under a deliberately small deterministic tool budget
+  runtime: adk@1
+  instructions:
+    ref: instructions/budget-loop-worker.md
+  modelPolicy: bounded_worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools:
+        - read_artifact
+  sandboxProfile: local-workdir@1

@@ -2,9 +2,8 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-30, implementation tasks through `V1-006` are complete and the
-project-workflow increment is underway. The repository contains the runnable Go
-Server/Python Runtime Agent MVP plus:
+As of 2026-08-30, implementation tasks through `V2-010` are complete. The
+repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
 - symmetric 10-second heartbeat / 60-second confirmed allocation leases,
@@ -33,10 +32,14 @@ Server/Python Runtime Agent MVP plus:
   Vacuum validation;
 - namespace-bound, CAS-backed LikeC4 editing with direct CLI validation;
 - executable four-Stage `openapi-from-source@1` and `likec4-from-source@1`
-  Workflow configurations.
+  Workflow configurations;
+- an opt-in production-stack live-model quality gate and explicit two-Stage
+  variants for caller-supplied reviewed analysis reports;
+- exact ModelPolicy-bound cumulative model-call, tool-call, and token budgets
+  with safe failure reports and deterministic release coverage.
 
-The first-slice milestone is complete; OpenAPI and LikeC4 project workflows are
-the current product increment. The authoritative checkpoint is
+The first-slice and initial project-workflow milestones are complete. The
+authoritative checkpoint is
 [`tasks/index.yml`](../tasks/index.yml); detailed Streamline completion evidence
 is recorded in
 [`v1-006-streamline-planner.yml`](../tasks/v1-006-streamline-planner.yml).
@@ -497,8 +500,10 @@ CONTRACTOR_WORKFLOWS_LIVE_MODEL='project-workflow-model' \
 ```
 
 Allow up to 30 minutes for each four-Stage workflow, plus setup and cleanup.
-`domain_worker@1` permits up to 16,384 output tokens per model response; actual
-model/tool/token counters are reported by Stage in the Run status. On failure,
+`domain_worker@1` permits up to 16,384 output tokens per model response and one
+Worker invocation permits at most 24 model calls, 96 tool calls, and 250,000
+provider-reported cumulative tokens. Actual model/tool/token counters are
+reported by Stage in the Run status. On failure,
 the harness writes bounded generated documents, analysis reports, predicate
 codes, and counters below ignored `.local/eval-results/`. It deliberately does
 not persist the source archive, Gateway URL/token, prompts, or provider response
@@ -507,6 +512,25 @@ and Runtime workspaces without retaining evaluation artifacts.
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
 `openapi-from-source@1` or `likec4-from-source@1`; the default and documented
 quality gate always execute both.
+
+## Worker invocation budgets
+
+Every shipped ModelPolicy declares `maxModelCalls`, `maxToolCalls`, and
+`maxTotalTokens` in addition to per-response `maxOutputTokens`. The Runtime
+applies the cumulative limits to one Worker A2A invocation, including its
+optional tool-free result-finalization call. Model and tool capacity is checked
+before starting the next operation. Provider `total_tokens` is accumulated
+after each response; a response that crosses the limit cannot execute its tool
+call. Missing usage is reported as unavailable and model/tool limits remain
+active.
+
+Budget exhaustion returns a retryable failed Worker result with stable code
+`worker_budget_exhausted`. The Worker report includes configured and observed
+limits plus `model_calls`, `tool_calls`, or `total_tokens` as the exhausted
+dimension, without retaining prompts or payloads. Workflow `maxAttempts` still
+owns whole-Stage retry and the Server Planner deadline remains the outer wall
+limit. Tune the YAML policy and create a new policy digest; do not patch Runtime
+constants or treat `maxOutputTokens` as a cumulative ceiling.
 
 Cancellation is an idempotent durable request. It interrupts an active local
 Planner immediately; another Server process observes the same `cancelling`

@@ -724,6 +724,13 @@ accept or advance Artifact bindings. An invalid completion call returns a
 bounded tool error so the model may correct it within the remaining budget.
 Scheduler independently repeats candidate validation before acceptance.
 
+Each prepared ADK Worker independently enforces the cumulative model-call,
+tool-call, and provider-reported token ceilings embedded in its exact
+ModelPolicy. The optional tool-free result-finalization call consumes the same
+budget. Exhaustion stops before the next side effect and returns retryable
+failed code `worker_budget_exhausted`; it is a Worker candidate, not a Planner
+budget termination and not a direct StageExecution write.
+
 The fixed `streamline@1` ceilings are 32 model calls, 200,000 cumulative
 input/output tokens, 64 Worker-tool-call attempts and 30 minutes of wall time. A
 deployment may lower the wall deadline. Exhaustion without a valid terminal

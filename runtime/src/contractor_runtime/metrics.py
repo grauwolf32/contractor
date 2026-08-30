@@ -17,6 +17,7 @@ from contractor_runtime.contracts import (
     ToolCallOutcome,
     ToolCallRecord,
     ToolMetrics,
+    WorkerBudgetMetrics,
 )
 
 MAX_METRIC_TOOL_CALLS = 1000
@@ -61,6 +62,53 @@ class MetricsState:
     truncated: bool = False
     _tool_metrics: dict[str, dict[str, int]] = field(default_factory=dict)
     _next_call_number: int = 1
+    _worker_budget: WorkerBudgetMetrics | None = None
+
+    def start_worker_budget(
+        self, *, max_model_calls: int, max_tool_calls: int, max_total_tokens: int
+    ) -> None:
+        self._worker_budget = WorkerBudgetMetrics(
+            maxModelCalls=max_model_calls,
+            maxToolCalls=max_tool_calls,
+            maxTotalTokens=max_total_tokens,
+            observedModelCalls=0,
+            observedToolCalls=0,
+            observedTotalTokens=0,
+            tokenUsageUnavailable=0,
+        )
+
+    def observe_worker_budget(
+        self,
+        *,
+        model_calls: int,
+        tool_calls: int,
+        total_tokens: int,
+        token_usage_unavailable: int,
+    ) -> None:
+        budget = self._worker_budget
+        if budget is None:
+            return
+        self._worker_budget = budget.model_copy(
+            update={
+                "observed_model_calls": model_calls,
+                "observed_tool_calls": tool_calls,
+                "observed_total_tokens": total_tokens,
+                "token_usage_unavailable": token_usage_unavailable,
+            }
+        )
+
+    def record_worker_budget_exhausted(self, dimension: str) -> None:
+        normalized = _metric_identifier(dimension)
+        budget = self._worker_budget
+        if budget is not None:
+            self._worker_budget = budget.model_copy(update={"exhausted": normalized})
+        self._append_error(
+            ExecutionError(
+                code="worker_budget_exhausted",
+                message=f"Worker invocation budget exhausted ({normalized})",
+                retryable=True,
+            )
+        )
 
     def record_tool_call(
         self,
@@ -172,7 +220,7 @@ class MetricsState:
     def snapshot(self) -> dict[str, Any]:
         """Return the ADK State projection; it intentionally contains no raw results."""
 
-        return {
+        result = {
             "counters": dict(sorted(self.counters.items())),
             "toolCalls": [
                 call.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -185,6 +233,11 @@ class MetricsState:
             "finalOutcome": self.final_outcome,
             "truncated": self.truncated,
         }
+        if self._worker_budget is not None:
+            result["workerBudget"] = self._worker_budget.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+        return result
 
     def build_report(
         self,
@@ -223,6 +276,7 @@ class MetricsState:
             outputTokens=self.counters.get("output_tokens"),
             totalTokens=self.counters.get("total_tokens"),
             tools=tools,
+            workerBudget=self._worker_budget,
         )
         tool_calls = list(self.tool_calls)
         report = ExecutionReport(

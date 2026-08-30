@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 var (
@@ -136,6 +138,15 @@ func validateModelPolicySpec(spec *modelPolicySpecSource) error {
 	}
 	if spec.MaxOutputTokens > maxJSONSafeInteger {
 		return fmt.Errorf("spec.maxOutputTokens exceeds the I-JSON safe integer range")
+	}
+	if spec.MaxModelCalls <= 0 || spec.MaxModelCalls > contracts.MaxWorkerModelCalls {
+		return fmt.Errorf("spec.maxModelCalls must be between 1 and %d", contracts.MaxWorkerModelCalls)
+	}
+	if spec.MaxToolCalls <= 0 || spec.MaxToolCalls > contracts.MaxWorkerToolCalls {
+		return fmt.Errorf("spec.maxToolCalls must be between 1 and %d", contracts.MaxWorkerToolCalls)
+	}
+	if spec.MaxTotalTokens <= 0 || spec.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
+		return fmt.Errorf("spec.maxTotalTokens must be between 1 and %d", contracts.MaxWorkerTotalTokens)
 	}
 	if spec.Temperature != nil && (math.IsNaN(*spec.Temperature) || math.IsInf(*spec.Temperature, 0) || *spec.Temperature < 0) {
 		return fmt.Errorf("spec.temperature must be finite and non-negative")

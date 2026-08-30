@@ -32,6 +32,9 @@ def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
     spec: dict[str, Any] = {
         "model": policy.model,
         "maxOutputTokens": policy.max_output_tokens,
+        "maxModelCalls": policy.max_model_calls,
+        "maxToolCalls": policy.max_tool_calls,
+        "maxTotalTokens": policy.max_total_tokens,
     }
     if policy.temperature is not None:
         spec["temperature"] = policy.temperature
@@ -53,6 +56,9 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         },
         "model": template.model_policy.model,
         "maxOutputTokens": template.model_policy.max_output_tokens,
+        "maxModelCalls": template.model_policy.max_model_calls,
+        "maxToolCalls": template.model_policy.max_tool_calls,
+        "maxTotalTokens": template.model_policy.max_total_tokens,
     }
     if template.model_policy.temperature is not None:
         policy["temperature"] = template.model_policy.temperature

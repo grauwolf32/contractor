@@ -27,6 +27,9 @@
       },
       "model": "worker-model",
       "maxOutputTokens": 4096,
+      "maxModelCalls": 8,
+      "maxToolCalls": 16,
+      "maxTotalTokens": 32768,
       "temperature": 0.1
     },
     "toolsets": [

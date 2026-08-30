@@ -65,6 +65,31 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	}
 }
 
+func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
+	t.Parallel()
+
+	baseline := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	baselinePolicy, _ := baseline.ModelPolicy("worker@1")
+	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
+	for _, test := range []struct{ field, from, to string }{
+		{"maxModelCalls", "maxModelCalls: 8", "maxModelCalls: 9"},
+		{"maxToolCalls", "maxToolCalls: 16", "maxToolCalls: 17"},
+		{"maxTotalTokens", "maxTotalTokens: 32768", "maxTotalTokens: 32769"},
+	} {
+		t.Run(test.field, func(t *testing.T) {
+			root := copyConfigTree(t)
+			replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), test.from, test.to)
+			variant := mustLoad(t, root, MVPDescriptors())
+			policy, _ := variant.ModelPolicy("worker@1")
+			template, _ := variant.AgentTemplate("artifact_builder@1")
+			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||
+				template.Ref.Digest == baselineTemplate.Ref.Digest {
+				t.Fatalf("changing %s did not alter both digests", test.field)
+			}
+		})
+	}
+}
+
 func TestInstructionDigestUsesExactBytes(t *testing.T) {
 	t.Parallel()
 
@@ -83,6 +108,9 @@ apiVersion: contractor/v1alpha1
 spec:
   temperature: 0.10
   maxOutputTokens: 4096
+  maxModelCalls: 8
+  maxToolCalls: 16
+  maxTotalTokens: 32768
   model: worker-model
 metadata: {version: "1", name: worker}
 `))

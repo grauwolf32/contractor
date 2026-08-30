@@ -19,6 +19,17 @@ type ToolMetrics struct {
 	Failed    *int64 `json:"failed,omitempty"`
 }
 
+type WorkerBudgetMetrics struct {
+	MaxModelCalls         int64   `json:"maxModelCalls"`
+	MaxToolCalls          int64   `json:"maxToolCalls"`
+	MaxTotalTokens        int64   `json:"maxTotalTokens"`
+	ObservedModelCalls    int64   `json:"observedModelCalls"`
+	ObservedToolCalls     int64   `json:"observedToolCalls"`
+	ObservedTotalTokens   int64   `json:"observedTotalTokens"`
+	TokenUsageUnavailable int64   `json:"tokenUsageUnavailable"`
+	Exhausted             *string `json:"exhausted,omitempty"`
+}
+
 type ExecutionMetrics struct {
 	DurationMS   *int64                 `json:"durationMs,omitempty"`
 	ModelCalls   *int64                 `json:"modelCalls,omitempty"`
@@ -26,6 +37,7 @@ type ExecutionMetrics struct {
 	OutputTokens *int64                 `json:"outputTokens,omitempty"`
 	TotalTokens  *int64                 `json:"totalTokens,omitempty"`
 	Tools        map[string]ToolMetrics `json:"tools"`
+	WorkerBudget *WorkerBudgetMetrics   `json:"workerBudget,omitempty"`
 }
 
 type ToolCallOutcome string
@@ -99,6 +111,36 @@ func (r ExecutionReport) Validate() error {
 	} {
 		if value != nil && *value < 0 {
 			return invalidf("execution metrics must be non-negative")
+		}
+	}
+	if budget := r.Metrics.WorkerBudget; budget != nil {
+		if budget.MaxModelCalls <= 0 || budget.MaxModelCalls > MaxWorkerModelCalls ||
+			budget.MaxToolCalls <= 0 || budget.MaxToolCalls > MaxWorkerToolCalls ||
+			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > MaxWorkerTotalTokens {
+			return invalidf("worker budget limits are invalid")
+		}
+		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
+			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
+			budget.ObservedTotalTokens < 0 || budget.TokenUsageUnavailable < 0 {
+			return invalidf("worker budget observations are invalid")
+		}
+		if budget.Exhausted != nil {
+			switch *budget.Exhausted {
+			case "model_calls":
+				if budget.ObservedModelCalls != budget.MaxModelCalls {
+					return invalidf("worker model-call exhaustion is inconsistent")
+				}
+			case "tool_calls":
+				if budget.ObservedToolCalls != budget.MaxToolCalls {
+					return invalidf("worker tool-call exhaustion is inconsistent")
+				}
+			case "total_tokens":
+				if budget.ObservedTotalTokens < budget.MaxTotalTokens {
+					return invalidf("worker token exhaustion is inconsistent")
+				}
+			default:
+				return invalidf("worker budget exhausted dimension is invalid")
+			}
 		}
 	}
 	for index, call := range r.ToolCalls {

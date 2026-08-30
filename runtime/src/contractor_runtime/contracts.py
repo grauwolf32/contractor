@@ -241,6 +241,9 @@ class ResolvedModelPolicy(WireModel):
     ref: ModelPolicyRef
     model: str
     max_output_tokens: int = Field(gt=0)
+    max_model_calls: int = Field(gt=0, le=1000)
+    max_tool_calls: int = Field(gt=0, le=10_000)
+    max_total_tokens: int = Field(gt=0, le=100_000_000)
     temperature: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
@@ -421,6 +424,31 @@ class ToolMetrics(WireModel):
     failed: int | None = Field(default=None, ge=0)
 
 
+class WorkerBudgetMetrics(WireModel):
+    max_model_calls: int = Field(gt=0, le=1000)
+    max_tool_calls: int = Field(gt=0, le=10_000)
+    max_total_tokens: int = Field(gt=0, le=100_000_000)
+    observed_model_calls: int = Field(ge=0)
+    observed_tool_calls: int = Field(ge=0)
+    observed_total_tokens: int = Field(ge=0)
+    token_usage_unavailable: int = Field(ge=0)
+    exhausted: Literal["model_calls", "tool_calls", "total_tokens"] | None = None
+
+    @model_validator(mode="after")
+    def validate_observations(self) -> Self:
+        if self.observed_model_calls > self.max_model_calls:
+            raise ValueError("observedModelCalls exceeds maxModelCalls")
+        if self.observed_tool_calls > self.max_tool_calls:
+            raise ValueError("observedToolCalls exceeds maxToolCalls")
+        if self.exhausted == "model_calls" and self.observed_model_calls != self.max_model_calls:
+            raise ValueError("model-call exhaustion is inconsistent")
+        if self.exhausted == "tool_calls" and self.observed_tool_calls != self.max_tool_calls:
+            raise ValueError("tool-call exhaustion is inconsistent")
+        if self.exhausted == "total_tokens" and self.observed_total_tokens < self.max_total_tokens:
+            raise ValueError("token exhaustion is inconsistent")
+        return self
+
+
 class ExecutionMetrics(WireModel):
     duration_ms: int | None = Field(default=None, ge=0)
     model_calls: int | None = Field(default=None, ge=0)
@@ -428,6 +456,7 @@ class ExecutionMetrics(WireModel):
     output_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
     tools: dict[str, ToolMetrics] = Field(default_factory=dict)
+    worker_budget: WorkerBudgetMetrics | None = None
 
     @field_validator("tools")
     @classmethod

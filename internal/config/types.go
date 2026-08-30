@@ -139,6 +139,9 @@ type modelPolicyDocument struct {
 type modelPolicySpecSource struct {
 	Model           string   `yaml:"model"`
 	MaxOutputTokens int      `yaml:"maxOutputTokens"`
+	MaxModelCalls   int      `yaml:"maxModelCalls"`
+	MaxToolCalls    int      `yaml:"maxToolCalls"`
+	MaxTotalTokens  int      `yaml:"maxTotalTokens"`
 	Temperature     *float64 `yaml:"temperature,omitempty"`
 }
 

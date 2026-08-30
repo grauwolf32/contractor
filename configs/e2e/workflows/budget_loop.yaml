@@ -1,0 +1,42 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: budget-loop
+  version: "1"
+
+spec:
+  parameters: {}
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs: {}
+
+  entryStage: analyze
+  stages:
+    analyze:
+      objective: Exercise deterministic Worker tool-budget termination
+      instructions:
+        ref: instructions/budget-loop-planner.md
+      planner: passthrough@1
+      agents:
+        reader:
+          template: bounded_reader@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

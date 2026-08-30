@@ -1,0 +1,89 @@
+schema_version: "1.0"
+id: V2-010
+title: Enforce cumulative Worker invocation budgets
+milestone: project-workflows-operations
+priority: P1
+status: planned
+depends_on: [V2-008]
+languages: [go, python, yaml]
+
+goal: >-
+  Bound long ADK function-tool loops by model calls, tool calls, and cumulative
+  provider-reported tokens so a valid lease and a long Planner deadline cannot
+  permit unbounded model spend before Stage retry or failure policy runs.
+
+context:
+  observed_gap: >-
+    The 2026-08-30 qwen/qwen3.8-27b live evaluation completed useful tool work
+    but one OpenAPI build attempt reached 22 model calls and 508271 cumulative
+    tokens before returning no final text. The old contractor workflows used
+    max_steps 20 and cumulative agent budgets of 100000 to 120000 tokens. V2
+    intentionally did not retain the old TaskRunner, but still needs equivalent
+    resource bounds at the allocation-local Worker boundary.
+  ownership: >-
+    Limits belong to the exact ModelPolicy selected by AgentTemplate. Runtime
+    Agent enforces them for one A2A invocation; Workflow maxAttempts continues
+    to bound whole-Stage retries and Scheduler PlannerTimeout remains the outer
+    wall deadline.
+
+scope:
+  in:
+    - Add required positive maxModelCalls, maxToolCalls, and maxTotalTokens fields to ModelPolicy v1 YAML and resolved wire contracts.
+    - Include all new fields in canonical digest calculation and Go/Python strict decoding tests.
+    - Update the normative ModelPolicy and execution-metrics specification plus JSON Schemas.
+    - Enforce model-call and tool-call limits before starting the next operation and the token limit after each usage-bearing model response.
+    - Stop further model/tool work at the first crossed limit and return a safe failed StageContentResult with code worker_budget_exhausted and retryable true.
+    - Persist complete bounded metrics containing configured limit, observed counter, and exhausted dimension without prompts, tool payloads, or provider bodies.
+    - Choose explicit per-role values for source analysis, OpenAPI, and LikeC4 policies based on deterministic tests and recorded live evidence.
+  out:
+    - Cost accounting, per-provider pricing, organization quotas, dynamic policy mutation, context summarization, or a replacement for Workflow retry.
+
+deliverables:
+  - {path: internal/config, description: Strict ModelPolicy schema, resolved values, digest coverage, and fixture tests.}
+  - {path: runtime/src/contractor_runtime, description: Allocation-local call/tool/token budget enforcement and safe metrics.}
+  - {path: configs/model-policies, description: Explicit finite budgets for every shipped Worker policy.}
+  - {path: tests/e2e, description: Endless-tool-loop fixture proving bounded termination and clean release.}
+  - {path: docs/spec, description: Normative per-invocation budget and WorkerBudgetMetrics contracts.}
+  - {path: docs/development.md, description: Budget semantics, tuning guidance, and live-eval evidence interpretation.}
+
+requirements:
+  - id: R1
+    text: Every resolved ModelPolicy carries the three limits; omitted, zero, negative, non-integral, unknown, or unreasonably large values fail config loading before a Run can start.
+  - id: R2
+    text: Limits are cumulative across the complete ADK tool loop for one Worker A2A invocation, including the one optional tool-free result-finalization call.
+  - id: R3
+    text: A call or tool operation that would exceed its limit is never started. A token limit observed after a completed response permits no subsequent model or tool operation.
+  - id: R4
+    text: Budget exhaustion yields exactly one failed StageContentResult with worker_budget_exhausted, a stable exhausted dimension, retryable true, and no raw model/tool content.
+  - id: R5
+    text: Finalize/abort still returns a complete allocation report and release restores a clean idle slot after budget exhaustion.
+  - id: R6
+    text: Missing provider token usage cannot disable model/tool call limits; token accounting records unavailable usage without inventing a count.
+
+acceptance_criteria:
+  - id: A1
+    given: A deterministic model that requests tools forever.
+    when: It reaches maxModelCalls or maxToolCalls.
+    then: Runtime starts no extra operation, returns worker_budget_exhausted, reports complete metrics, and releases the allocation.
+  - id: A2
+    given: Provider usage crosses maxTotalTokens after a model response.
+    when: ADK would otherwise continue its loop.
+    then: No later tool/model call occurs and the same bounded failure contract is returned.
+  - id: A3
+    given: A normal Worker finishing just below every limit.
+    when: It returns a verified StageContentResult.
+    then: Behavior and ArtifactRef validation are unchanged and no exhaustion error is recorded.
+  - id: A4
+    given: ModelPolicy content differs only in one budget.
+    when: Config snapshots and digests are compared.
+    then: Digests differ and both Go and Python receive the exact configured value.
+
+tests:
+  - {name: runtime-unit, command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_metrics.py", covers: [A1, A2, A3]}
+  - {name: config-contract, command: "go test ./internal/config/... ./internal/contracts/... && cd runtime && uv run pytest tests/test_contracts.py", covers: [A4]}
+  - {name: bounded-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - maxOutputTokens remains a per-response generation cap and is not a substitute for maxTotalTokens.
+  - Initial shipped values should be explicit configuration, not Runtime constants; changing them creates a new ModelPolicy digest.

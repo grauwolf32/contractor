@@ -43,8 +43,17 @@ type ResolvedModelPolicy struct {
 	Ref             ModelPolicyRef `json:"ref"`
 	Model           string         `json:"model"`
 	MaxOutputTokens int            `json:"maxOutputTokens"`
+	MaxModelCalls   int            `json:"maxModelCalls"`
+	MaxToolCalls    int            `json:"maxToolCalls"`
+	MaxTotalTokens  int            `json:"maxTotalTokens"`
 	Temperature     *float64       `json:"temperature,omitempty"`
 }
+
+const (
+	MaxWorkerModelCalls  = 1_000
+	MaxWorkerToolCalls   = 10_000
+	MaxWorkerTotalTokens = 100_000_000
+)
 
 type ToolsetSelection struct {
 	Ref   ToolsetRef `json:"ref"`
@@ -276,6 +285,15 @@ func validateModelPolicy(policy ResolvedModelPolicy) error {
 	}
 	if strings.TrimSpace(policy.Model) == "" || policy.MaxOutputTokens <= 0 {
 		return invalidf("modelPolicy model and positive maxOutputTokens are required")
+	}
+	if policy.MaxModelCalls <= 0 || policy.MaxModelCalls > MaxWorkerModelCalls {
+		return invalidf("modelPolicy maxModelCalls must be between 1 and %d", MaxWorkerModelCalls)
+	}
+	if policy.MaxToolCalls <= 0 || policy.MaxToolCalls > MaxWorkerToolCalls {
+		return invalidf("modelPolicy maxToolCalls must be between 1 and %d", MaxWorkerToolCalls)
+	}
+	if policy.MaxTotalTokens <= 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
+		return invalidf("modelPolicy maxTotalTokens must be between 1 and %d", MaxWorkerTotalTokens)
 	}
 	if policy.Temperature != nil {
 		temperature := *policy.Temperature

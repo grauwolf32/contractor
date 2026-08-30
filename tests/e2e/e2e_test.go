@@ -150,6 +150,11 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	assertPrivateTLSRejectsUnauthenticated(t, caPaths.Certificate, runtimeBaseURL+"/healthz")
+	if !strings.Contains(
+		runtimeProcess.logs.redacted(publicToken, llmGatewayToken), "runtime agent registered",
+	) {
+		t.Fatalf("Runtime Agent never confirmed registration")
+	}
 
 	uploaded := uploadInput(t, publicClient, publicBaseURL)
 	runID := createRun(t, publicClient, publicBaseURL, uploaded)
@@ -185,15 +190,38 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 	allocationID := assertDurableExecution(t, ctx, pool, runID, output)
-	if gateway.Calls() != 3 || len(gateway.Failures()) != 0 {
-		t.Fatalf("fake gateway calls/failures = %d/%v, want 3/none", gateway.Calls(), gateway.Failures())
+	waitForRuntimeReleased(t, ctx, runtimeProcess, controlClient, runtimeBaseURL, allocationID, workRoot)
+
+	budgetRunID := createWorkflowRun(
+		t, publicClient, publicBaseURL, "budget-loop@1", "e2e-budget-loop", uploaded,
+	)
+	budgetStatus := waitForRunState(
+		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, budgetRunID, "failed",
+	)
+	if len(budgetStatus.Attempts) != 1 || budgetStatus.Attempts[0].Stage != "analyze" ||
+		budgetStatus.Attempts[0].State != "failed" || budgetStatus.Attempts[0].Metrics == nil ||
+		budgetStatus.Attempts[0].Metrics.ModelCalls != 3 ||
+		budgetStatus.Attempts[0].Metrics.ToolCalls != 3 ||
+		!budgetStatus.Attempts[0].Metrics.ReportsComplete {
+		t.Fatalf(
+			"unexpected bounded Stage attempt: %+v metrics=%+v",
+			budgetStatus.Attempts, budgetStatus.Attempts[0].Metrics,
+		)
+	}
+	var budgetResult contracts.StageContentResult
+	if err := json.Unmarshal(budgetStatus.Attempts[0].Result, &budgetResult); err != nil ||
+		budgetResult.Error == nil || budgetResult.Error.Code != "worker_budget_exhausted" ||
+		!budgetResult.Error.Retryable {
+		t.Fatalf("bounded Worker result = (%+v, %v)", budgetResult, err)
+	}
+	budgetAllocationID := assertBudgetExecution(t, ctx, pool, budgetRunID)
+	waitForRuntimeReleased(
+		t, ctx, runtimeProcess, controlClient, runtimeBaseURL, budgetAllocationID, workRoot,
+	)
+	if gateway.Calls() != 6 || len(gateway.Failures()) != 0 {
+		t.Fatalf("fake gateway calls/failures = %d/%v, want 6/none", gateway.Calls(), gateway.Failures())
 	}
 
-	waitForRuntimeReleased(t, ctx, runtimeProcess, controlClient, runtimeBaseURL, allocationID, workRoot)
-	runtimeLogs := runtimeProcess.logs.redacted(publicToken, llmGatewayToken)
-	if !strings.Contains(runtimeLogs, "runtime agent registered") {
-		t.Fatalf("Runtime Agent never confirmed registration\n%s", runtimeLogs)
-	}
 	for _, secret := range []string{publicToken, llmGatewayToken} {
 		if strings.Contains(server.logs.redacted(), secret) || strings.Contains(runtimeProcess.logs.redacted(), secret) {
 			t.Fatalf("process logs contain a configured secret")
@@ -226,9 +254,18 @@ func uploadInput(t *testing.T, client *http.Client, baseURL string) artifactRef 
 }
 
 func createRun(t *testing.T, client *http.Client, baseURL string, input artifactRef) string {
+	return createWorkflowRun(t, client, baseURL, "artifact-copy@1", "e2e-create-run", input)
+}
+
+func createWorkflowRun(
+	t *testing.T,
+	client *http.Client,
+	baseURL, workflow, idempotencyKey string,
+	input artifactRef,
+) string {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"workflow": "artifact-copy@1", "parameters": map[string]string{},
+		"workflow": workflow, "parameters": map[string]string{},
 		"artifacts": map[string]artifactRef{"source": input},
 	})
 	if err != nil {
@@ -240,7 +277,7 @@ func createRun(t *testing.T, client *http.Client, baseURL string, input artifact
 	}
 	request.Header.Set("Authorization", "Bearer "+publicToken)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Idempotency-Key", "e2e-create-run")
+	request.Header.Set("Idempotency-Key", idempotencyKey)
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
 	var payload struct {
@@ -262,6 +299,19 @@ func waitForRun(
 	client *http.Client,
 	baseURL, runID string,
 ) runStatus {
+	return waitForRunState(
+		t, ctx, server, runtimeProcess, gateway, client, baseURL, runID, "succeeded",
+	)
+}
+
+func waitForRunState(
+	t *testing.T,
+	ctx context.Context,
+	server, runtimeProcess *childProcess,
+	gateway *fakeGateway,
+	client *http.Client,
+	baseURL, runID, expectedState string,
+) runStatus {
 	t.Helper()
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -279,9 +329,9 @@ func waitForRun(
 			}
 			response.Body.Close()
 			switch status.State {
-			case "succeeded":
+			case expectedState:
 				return status
-			case "failed", "cancelled":
+			case "succeeded", "failed", "cancelled":
 				t.Fatalf("Run reached %s: %+v\nserver:\n%s\nruntime:\n%s\ngateway: %v",
 					status.State, status,
 					server.logs.redacted(publicToken, llmGatewayToken),
@@ -373,6 +423,13 @@ func assertDurableExecution(
 			t.Fatalf("report counter %s = %v, want %d; all=%+v", key, counter.got, counter.want, workerMetrics)
 		}
 	}
+	budget := workerMetrics.WorkerBudget
+	if budget == nil || budget.MaxModelCalls != 8 || budget.MaxToolCalls != 16 ||
+		budget.MaxTotalTokens != 32768 || budget.ObservedModelCalls != 3 ||
+		budget.ObservedToolCalls != 2 || budget.ObservedTotalTokens != 30 ||
+		budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {
+		t.Fatalf("successful Worker budget = %+v", budget)
+	}
 
 	var frozen bool
 	var currentRevision string
@@ -417,6 +474,56 @@ WHERE target_scope_kind = 'run' AND target_scope_id = $1
 		sourceRevision != *acceptedCopied.Revision {
 		t.Fatalf("output lineage source = %s/%s@%s (err=%v), want accepted %v",
 			sourceNamespace, sourceName, sourceRevision, err, acceptedCopied)
+	}
+	return allocations[0].AllocationID
+}
+
+func assertBudgetExecution(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runID string,
+) string {
+	t.Helper()
+	store := runstore.NewPostgresStore(pool)
+	executions, err := store.ListStageExecutions(ctx, runID)
+	if err != nil || len(executions) != 1 {
+		t.Fatalf("bounded StageExecutions = (%+v, %v), want one", executions, err)
+	}
+	execution := executions[0]
+	if execution.State != runstore.StageFailed || execution.AcceptedResult == nil ||
+		execution.AcceptedResult.Outcome != contracts.StageFailed ||
+		execution.AcceptedResult.Error == nil ||
+		execution.AcceptedResult.Error.Code != "worker_budget_exhausted" ||
+		!execution.AcceptedResult.Error.Retryable || execution.Termination != nil {
+		t.Fatalf("bounded Stage terminal contract = %+v", execution)
+	}
+	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(allocations) != 1 {
+		t.Fatalf("bounded Stage allocations = (%+v, %v), want one", allocations, err)
+	}
+	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+	if err != nil || len(reports) != 1 {
+		t.Fatalf("bounded execution reports = (%+v, %v), want one", reports, err)
+	}
+	report := reports[0].Report.Worker
+	budget := report.Metrics.WorkerBudget
+	if !report.Complete || !reports[0].Report.Runtime.Complete || budget == nil ||
+		budget.MaxModelCalls != 8 || budget.MaxToolCalls != 2 || budget.MaxTotalTokens != 32768 ||
+		budget.ObservedModelCalls != 3 || budget.ObservedToolCalls != 2 ||
+		budget.ObservedTotalTokens != 30 || budget.TokenUsageUnavailable != 0 ||
+		budget.Exhausted == nil || *budget.Exhausted != "tool_calls" {
+		t.Fatalf("bounded Worker report = %+v", report)
+	}
+	found := false
+	for _, executionError := range report.Errors {
+		if executionError.Code == "worker_budget_exhausted" && executionError.Retryable != nil &&
+			*executionError.Retryable {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("bounded Worker report has no retryable exhaustion error: %+v", report.Errors)
 	}
 	return allocations[0].AllocationID
 }

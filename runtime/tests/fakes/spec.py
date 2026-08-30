@@ -36,6 +36,9 @@ def allocation_spec(
         ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "0" * 64),
         model="worker-model",
         maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=16,
+        maxTotalTokens=32768,
         temperature=0.1,
     )
     policy.ref.digest = _model_policy_digest(policy)

@@ -14,6 +14,9 @@ func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) 
 	spec := map[string]any{
 		"model":           policy.Model,
 		"maxOutputTokens": policy.MaxOutputTokens,
+		"maxModelCalls":   policy.MaxModelCalls,
+		"maxToolCalls":    policy.MaxToolCalls,
+		"maxTotalTokens":  policy.MaxTotalTokens,
 	}
 	if policy.Temperature != nil {
 		spec["temperature"] = *policy.Temperature
@@ -39,6 +42,9 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		},
 		"model":           template.ModelPolicy.Model,
 		"maxOutputTokens": template.ModelPolicy.MaxOutputTokens,
+		"maxModelCalls":   template.ModelPolicy.MaxModelCalls,
+		"maxToolCalls":    template.ModelPolicy.MaxToolCalls,
+		"maxTotalTokens":  template.ModelPolicy.MaxTotalTokens,
 	}
 	if template.ModelPolicy.Temperature != nil {
 		modelPolicy["temperature"] = *template.ModelPolicy.Temperature

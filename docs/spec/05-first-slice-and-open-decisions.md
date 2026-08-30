@@ -70,10 +70,11 @@ This slice must demonstrate:
   `modelPolicy`; its resolved body reaches Runtime Agent in AllocationSpec,
   while Gateway URL, token, provider routing and credentials remain absent from
   both contracts;
-- ModelPolicy `v1alpha1` contains only mandatory `model`, mandatory positive
-  per-call `maxOutputTokens` and optional non-negative finite `temperature`;
-  unsupported extra fields and provider-specific parameter mappings are
-  rejected;
+- ModelPolicy `v1alpha1` contains mandatory `model`, positive per-call
+  `maxOutputTokens`, positive cumulative `maxModelCalls`, `maxToolCalls`, and
+  `maxTotalTokens`, plus optional non-negative finite `temperature`; Runtime
+  enforces the cumulative fields per Worker A2A invocation and unsupported
+  extra fields or provider-specific parameter mappings are rejected;
 - AgentTemplate `toolsets` explicitly selects versioned groups and a non-empty
   allowlist of exported tool names within each group; wildcard/all defaults,
   duplicate refs/names, unknown tools and cross-group name collisions are

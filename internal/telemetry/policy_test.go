@@ -99,6 +99,34 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 	}
 }
 
+func TestMetricsPolicyPreservesAndClonesWorkerBudget(t *testing.T) {
+	exhausted := "tool_calls"
+	report := contracts.ExecutionReport{
+		ReportID: "worker-budget", Complete: true,
+		Metrics: contracts.ExecutionMetrics{
+			Tools: map[string]contracts.ToolMetrics{},
+			WorkerBudget: &contracts.WorkerBudgetMetrics{
+				MaxModelCalls: 8, MaxToolCalls: 2, MaxTotalTokens: 32768,
+				ObservedModelCalls: 3, ObservedToolCalls: 2, ObservedTotalTokens: 30,
+				Exhausted: &exhausted,
+			},
+		},
+		ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+	}
+	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report.Metrics.WorkerBudget.MaxToolCalls = 99
+	*report.Metrics.WorkerBudget.Exhausted = "model_calls"
+	if normalized.Metrics.WorkerBudget == nil ||
+		normalized.Metrics.WorkerBudget.MaxToolCalls != 2 ||
+		normalized.Metrics.WorkerBudget.Exhausted == nil ||
+		*normalized.Metrics.WorkerBudget.Exhausted != "tool_calls" {
+		t.Fatalf("normalized Worker budget was aliased: %+v", normalized.Metrics.WorkerBudget)
+	}
+}
+
 func TestAllocationPolicyRedactsRuntimeAndSummaryExposesOnlyAggregates(t *testing.T) {
 	modelCalls, toolCalls, toolFailures := int64(3), int64(4), int64(1)
 	stopReason := "gateway returned " + recognizableSecret

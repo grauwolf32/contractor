@@ -23,7 +23,9 @@ func TestLoadRepositoryConfig(t *testing.T) {
 		t.Fatalf("resolve ModelPolicy: %v", err)
 	}
 	assertDigest(t, policy.Ref.Digest)
-	if policy.Model != "worker-model" || policy.MaxOutputTokens != 4096 || policy.Temperature == nil || *policy.Temperature != 0.1 {
+	if policy.Model != "worker-model" || policy.MaxOutputTokens != 4096 ||
+		policy.MaxModelCalls != 8 || policy.MaxToolCalls != 16 || policy.MaxTotalTokens != 32768 ||
+		policy.Temperature == nil || *policy.Temperature != 0.1 {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
 
@@ -165,6 +167,34 @@ func TestStoredFixtures(t *testing.T) {
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
+			}
+		})
+	}
+}
+
+func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, old, replacement, want string
+	}{
+		{"missing model calls", "  maxModelCalls: 8\n", "", "spec.maxModelCalls"},
+		{"zero model calls", "maxModelCalls: 8", "maxModelCalls: 0", "spec.maxModelCalls"},
+		{"negative tool calls", "maxToolCalls: 16", "maxToolCalls: -1", "spec.maxToolCalls"},
+		{"fractional tool calls", "maxToolCalls: 16", "maxToolCalls: 1.5", "decode strict YAML"},
+		{"too many model calls", "maxModelCalls: 8", "maxModelCalls: 1001", "spec.maxModelCalls"},
+		{"too many tool calls", "maxToolCalls: 16", "maxToolCalls: 10001", "spec.maxToolCalls"},
+		{"missing total tokens", "  maxTotalTokens: 32768\n", "", "spec.maxTotalTokens"},
+		{"too many total tokens", "maxTotalTokens: 32768", "maxTotalTokens: 100000001", "spec.maxTotalTokens"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := copyConfigTree(t)
+			replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), test.old, test.replacement)
+			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+				!strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
 		})
 	}

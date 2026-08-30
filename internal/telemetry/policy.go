@@ -89,6 +89,7 @@ func (p Policy) NormalizeExecutionReport(
 	}
 	result := source
 	result.Metrics.Tools = cloneToolMetrics(source.Metrics.Tools)
+	result.Metrics.WorkerBudget = cloneWorkerBudget(source.Metrics.WorkerBudget)
 	if result.Metrics.Tools == nil {
 		result.Metrics.Tools = map[string]contracts.ToolMetrics{}
 	}
@@ -268,6 +269,18 @@ func cloneToolMetrics(source map[string]contracts.ToolMetrics) map[string]contra
 		result[name] = metrics
 	}
 	return result
+}
+
+func cloneWorkerBudget(source *contracts.WorkerBudgetMetrics) *contracts.WorkerBudgetMetrics {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	if source.Exhausted != nil {
+		exhausted := *source.Exhausted
+		result.Exhausted = &exhausted
+	}
+	return &result
 }
 
 func encodedSize(value any) int {

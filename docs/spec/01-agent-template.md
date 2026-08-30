@@ -42,6 +42,9 @@ class ModelPolicy(BaseModel):
     ref: ModelPolicyRef
     model: str
     max_output_tokens: int
+    max_model_calls: int
+    max_tool_calls: int
+    max_total_tokens: int
     temperature: float | None = None
 
 
@@ -164,21 +167,43 @@ metadata:
 spec:
   model: code-analysis
   maxOutputTokens: 16000
+  maxModelCalls: 24
+  maxToolCalls: 96
+  maxTotalTokens: 250000
   temperature: 0.1
 ```
 
 `model` is a mandatory non-empty opaque Gateway alias; Contractor does not
 parse it as a provider/model pair. `maxOutputTokens` is a mandatory positive
-integer and caps the generated output of each Worker LLM call, not cumulative
-tokens across the allocation. `temperature` is optional; when absent, Worker
-omits the parameter instead of inventing a default. When present, it is a
-finite JSON number greater than or equal to zero. Gateway remains responsible
-for whether that value and output limit are supported by the selected route.
+integer and caps the generated output of each individual Worker LLM call.
+`maxModelCalls`, `maxToolCalls`, and `maxTotalTokens` are mandatory positive
+integer ceilings for one Worker A2A invocation. They are cumulative across the
+complete ADK tool loop, including the optional tool-free result-finalization
+call. The first two fields are bounded by 1,000 and 10,000 respectively;
+`maxTotalTokens` is bounded by 100,000,000. These maxima reject configuration
+mistakes and are not recommended operating values.
 
-The `spec` object contains exactly those three fields in `v1alpha1`; arbitrary
+Runtime checks call and tool capacity before starting the next operation. It
+adds provider-reported `total_token_count` after each completed model response;
+crossing the token ceiling stops the loop before a response tool call is
+executed, while reaching the ceiling permits a final text result but no later
+operation. Missing token usage is recorded explicitly and never disables the
+independent model/tool-call ceilings. Exhaustion returns one safe failed
+`StageContentResult` with code `worker_budget_exhausted`, the exhausted
+dimension in bounded metrics, and `retryable: true`. Passthrough therefore
+supplies a normal failed candidate to Scheduler, whose Workflow transition owns
+whole-Stage retry.
+
+`temperature` is optional; when absent, Worker omits the parameter instead of
+inventing a default. When present, it is a finite JSON number greater than or
+equal to zero. Gateway remains responsible for whether that value and the
+per-response output limit are supported by the selected route.
+
+The `spec` object contains exactly these six fields in `v1alpha1`; arbitrary
 provider-specific parameters are invalid. ModelPolicy contains no URL, token,
-retry, request-timeout or total execution-budget setting. Those concerns remain
-in RuntimeSettings or the enclosing execution contract.
+retry policy, request timeout, Stage deadline, organization quota, or pricing
+configuration. Those concerns remain in RuntimeSettings or the enclosing
+execution contract.
 
 ModelPolicyCatalog validates and normalizes the document, then computes
 `ModelPolicyRef.digest` as SHA-256 over its RFC 8785 JCS manifest using the same

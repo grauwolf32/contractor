@@ -6,7 +6,8 @@ import asyncio
 import json
 import re
 import uuid
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, Callable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -61,10 +62,86 @@ class GatewayModelError(RuntimeError):
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
+class WorkerBudgetExceeded(RuntimeError):
+    """Safe internal control signal for one exhausted invocation dimension."""
+
+    def __init__(self, dimension: str, limit: int, observed: int) -> None:
+        self.dimension = dimension
+        self.limit = limit
+        self.observed = observed
+        super().__init__(f"Worker invocation budget exhausted ({dimension})")
+
+
+@dataclass(slots=True)
+class _InvocationBudget:
+    max_model_calls: int
+    max_tool_calls: int
+    max_total_tokens: int
+    metrics: Any
+    model_calls: int = 0
+    tool_calls: int = 0
+    total_tokens: int = 0
+    token_usage_unavailable: int = 0
+
+    def start(self) -> None:
+        self.metrics.start_worker_budget(
+            max_model_calls=self.max_model_calls,
+            max_tool_calls=self.max_tool_calls,
+            max_total_tokens=self.max_total_tokens,
+        )
+        self._sync()
+
+    def before_model_call(self) -> None:
+        self._require_token_capacity()
+        if self.model_calls >= self.max_model_calls:
+            raise WorkerBudgetExceeded("model_calls", self.max_model_calls, self.model_calls)
+        self.model_calls += 1
+        self._sync()
+
+    def before_tool_call(self) -> None:
+        self._require_token_capacity()
+        if self.tool_calls >= self.max_tool_calls:
+            raise WorkerBudgetExceeded("tool_calls", self.max_tool_calls, self.tool_calls)
+        self.tool_calls += 1
+        self._sync()
+
+    def after_model_response(self, usage: Any | None) -> None:
+        total = getattr(usage, "total_token_count", None) if usage is not None else None
+        if not isinstance(total, int) or total < 0:
+            self.token_usage_unavailable += 1
+            self._sync()
+            return
+        self.total_tokens += total
+        self._sync()
+        if self.total_tokens > self.max_total_tokens:
+            raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)
+
+    def _require_token_capacity(self) -> None:
+        if self.total_tokens >= self.max_total_tokens:
+            raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)
+
+    def _sync(self) -> None:
+        self.metrics.observe_worker_budget(
+            model_calls=self.model_calls,
+            tool_calls=self.tool_calls,
+            total_tokens=self.total_tokens,
+            token_usage_unavailable=self.token_usage_unavailable,
+        )
+
+
 class WorkerFunctionTool(FunctionTool):
     """Return bounded tool failures to the model so it can correct or terminate."""
 
+    def __init__(
+        self, function: Callable[..., Any], budget: Callable[[], _InvocationBudget | None]
+    ):
+        super().__init__(function)
+        self._budget = budget
+
     async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
+        budget = self._budget()
+        if budget is not None:
+            budget.before_tool_call()
         try:
             return await super().run_async(args=args, tool_context=tool_context)
         except asyncio.CancelledError:
@@ -145,12 +222,15 @@ class AdkWorkerRuntime:
         self._finalizer_runner: Runner | None = None
         self._agent: LlmAgent | None = None
         self._finalizer_agent: LlmAgent | None = None
+        self._active_budget: _InvocationBudget | None = None
 
         policy = context.agent_template.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
-        adk_tools = [WorkerFunctionTool(tool) for tool in context.tools.values()]
+        adk_tools = [
+            WorkerFunctionTool(tool, lambda: self._active_budget) for tool in context.tools.values()
+        ]
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.agent_template.description,
@@ -229,8 +309,17 @@ class AdkWorkerRuntime:
             return _failure("worker_busy", "Worker already has an active A2A invocation", True)
         await self._invoke_lock.acquire()
         self._active_task = asyncio.current_task()
+        policy = self._context.agent_template.model_policy
+        budget = _InvocationBudget(
+            max_model_calls=policy.max_model_calls,
+            max_tool_calls=policy.max_tool_calls,
+            max_total_tokens=policy.max_total_tokens,
+            metrics=self._metrics,
+        )
+        self._active_budget = budget
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
         try:
+            budget.start()
             if not self._accepting:
                 return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
             encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode(
@@ -257,6 +346,7 @@ class AdkWorkerRuntime:
             try:
                 await asyncio.shield(self._sync_metrics())
             finally:
+                self._active_budget = None
                 self._active_task = None
                 self._invoke_lock.release()
 
@@ -287,18 +377,30 @@ class AdkWorkerRuntime:
             '"retryable":true}}. Return exactly one StageContentResult JSON object.'
         )
         candidate: str | None = None
-        async for event in runner.run_async(
-            user_id=self._user_id,
-            session_id=self._session_id,
-            invocation_id=f"worker-{uuid.uuid4().hex}",
-            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-        ):
-            text = _candidate_text(event)
-            if text is not None:
-                candidate = text
-        if candidate is None:
-            candidate = await self._recover_missing_candidate(request_json)
-            self._metrics.record_worker_result_recovery(succeeded=candidate is not None)
+        try:
+            async for event in runner.run_async(
+                user_id=self._user_id,
+                session_id=self._session_id,
+                invocation_id=f"worker-{uuid.uuid4().hex}",
+                new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+            ):
+                text = _candidate_text(event)
+                if text is not None:
+                    candidate = text
+            if candidate is None:
+                try:
+                    candidate = await self._recover_missing_candidate(request_json)
+                except WorkerBudgetExceeded:
+                    self._metrics.record_worker_result_recovery(succeeded=False)
+                    raise
+                self._metrics.record_worker_result_recovery(succeeded=candidate is not None)
+        except WorkerBudgetExceeded as error:
+            self._metrics.record_worker_budget_exhausted(error.dimension)
+            return _failure(
+                "worker_budget_exhausted",
+                f"Worker invocation budget exhausted ({error.dimension})",
+                True,
+            )
         if candidate is None:
             self._metrics.record_worker_result_error("missing")
             return _failure("invalid_worker_result", "Worker returned no bounded JSON result", True)
@@ -417,6 +519,9 @@ class AdkWorkerRuntime:
         self, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> None:
         del callback_context, llm_request
+        budget = self._active_budget
+        if budget is not None:
+            budget.before_model_call()
         self._metrics.record_model_call()
 
     async def _after_model(
@@ -425,6 +530,9 @@ class AdkWorkerRuntime:
         del callback_context
         if llm_response.usage_metadata is not None:
             self._metrics.record_model_usage(llm_response.usage_metadata)
+        budget = self._active_budget
+        if budget is not None:
+            budget.after_model_response(llm_response.usage_metadata)
 
     async def _on_model_error(
         self,
@@ -433,6 +541,8 @@ class AdkWorkerRuntime:
         error: Exception,
     ) -> None:
         del callback_context, llm_request
+        if isinstance(error, WorkerBudgetExceeded):
+            return
         self._metrics.record_model_error(error)
 
     async def _sync_metrics(self) -> None:

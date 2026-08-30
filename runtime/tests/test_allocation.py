@@ -284,6 +284,9 @@ def make_spec(
         ),
         model="worker-model",
         maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=16,
+        maxTotalTokens=32768,
         temperature=0.1,
     )
     policy.ref.digest = _model_policy_digest(policy)
@@ -330,6 +333,26 @@ def make_spec(
 
 def resign_template(template: ResolvedAgentTemplate) -> None:
     template.ref.digest = _agent_template_digest(template)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("max_model_calls", 9),
+        ("max_tool_calls", 17),
+        ("max_total_tokens", 32769),
+    ],
+)
+def test_each_worker_budget_changes_policy_and_template_digest(field: str, value: int) -> None:
+    baseline = make_spec().agent_template
+    variant = baseline.model_copy(deep=True)
+    original_policy_digest = baseline.model_policy.ref.digest
+    original_template_digest = baseline.ref.digest
+    setattr(variant.model_policy, field, value)
+    variant.model_policy.ref.digest = _model_policy_digest(variant.model_policy)
+    resign_template(variant)
+    assert variant.model_policy.ref.digest != original_policy_digest
+    assert variant.ref.digest != original_template_digest
 
 
 class FailingToolsetFactory(RunArtifactsToolsetFactory):

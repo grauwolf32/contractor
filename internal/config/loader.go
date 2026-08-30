@@ -161,7 +161,9 @@ func (l *loader) loadModelPolicies() error {
 		policy := contracts.ResolvedModelPolicy{
 			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
 			Model: document.Spec.Model, MaxOutputTokens: document.Spec.MaxOutputTokens,
-			Temperature: cloneFloat(document.Spec.Temperature),
+			MaxModelCalls: document.Spec.MaxModelCalls, MaxToolCalls: document.Spec.MaxToolCalls,
+			MaxTotalTokens: document.Spec.MaxTotalTokens,
+			Temperature:    cloneFloat(document.Spec.Temperature),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {

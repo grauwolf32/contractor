@@ -110,7 +110,9 @@ A Planner implementation owns the semantic condition that ends its invocation:
   StageTermination through bounded `aborting`, without awaiting outstanding A2A
   Tasks;
 - an expected Worker failure is mapped by the Planner strategy into a failed
-  candidate with a stable error.
+  candidate with a stable error; this includes Runtime-enforced
+  `worker_budget_exhausted`, which is retryable and carries complete bounded
+  Worker budget metrics.
 
 Planner does not update StageExecution storage. Its `finish` operation ends the
 Planner invocation and produces a candidate result. Workflow Scheduler validates
@@ -280,6 +282,17 @@ class ToolMetrics(BaseModel):
     failed: int | None = None
 
 
+class WorkerBudgetMetrics(BaseModel):
+    max_model_calls: int
+    max_tool_calls: int
+    max_total_tokens: int
+    observed_model_calls: int
+    observed_tool_calls: int
+    observed_total_tokens: int
+    token_usage_unavailable: int
+    exhausted: Literal["model_calls", "tool_calls", "total_tokens"] | None = None
+
+
 class ExecutionMetrics(BaseModel):
     duration_ms: int | None = None
     model_calls: int | None = None
@@ -287,6 +300,7 @@ class ExecutionMetrics(BaseModel):
     output_tokens: int | None = None
     total_tokens: int | None = None
     tools: dict[str, ToolMetrics] = Field(default_factory=dict)
+    worker_budget: WorkerBudgetMetrics | None = None
 
 
 class ToolCallRecord(BaseModel):
@@ -341,6 +355,10 @@ idempotent.
 - A known zero is `0`; an unobserved or unsupported value is `null`/absent.
 - `metrics` contains only aggregate values. Tool arguments and errors are
   diagnostic records rather than counters.
+- `worker_budget` is present for an ADK Worker invocation. It records the exact
+  configured ceilings, operations actually started, the sum of available
+  provider token usage, missing-usage response count, and at most one exhausted
+  dimension; it contains no prompt, response, or tool payload.
 - Tool arguments are recursively redacted before leaving Worker and again at
   the Server persistence boundary. They are bounded and carry an explicit
   truncation marker.

@@ -21,6 +21,21 @@
         "failed": {"type": "integer", "minimum": 0}
       }
     },
+    "workerBudgetMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxModelCalls", "maxToolCalls", "maxTotalTokens", "observedModelCalls", "observedToolCalls", "observedTotalTokens", "tokenUsageUnavailable"],
+      "properties": {
+        "maxModelCalls": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "maxToolCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "maxTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "observedModelCalls": {"type": "integer", "minimum": 0},
+        "observedToolCalls": {"type": "integer", "minimum": 0},
+        "observedTotalTokens": {"type": "integer", "minimum": 0},
+        "tokenUsageUnavailable": {"type": "integer", "minimum": 0},
+        "exhausted": {"enum": ["model_calls", "tool_calls", "total_tokens"]}
+      }
+    },
     "executionMetrics": {
       "type": "object",
       "additionalProperties": false,
@@ -31,6 +46,7 @@
         "inputTokens": {"type": "integer", "minimum": 0},
         "outputTokens": {"type": "integer", "minimum": 0},
         "totalTokens": {"type": "integer", "minimum": 0},
+        "workerBudget": {"$ref": "#/$defs/workerBudgetMetrics"},
         "tools": {
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/toolMetrics"}

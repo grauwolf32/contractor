@@ -569,6 +569,14 @@ func assertProjectRunDurable(
 			t.Fatalf("Worker tool calls for %s = %d, want %d; metrics=%+v",
 				execution.StageName, workerToolCalls, modelCalls[index]-1, metrics.Tools)
 		}
+		budget := metrics.WorkerBudget
+		if budget == nil || budget.MaxModelCalls != 24 || budget.MaxToolCalls != 96 ||
+			budget.MaxTotalTokens != 250000 || budget.ObservedModelCalls != modelCalls[index] ||
+			budget.ObservedToolCalls != workerToolCalls ||
+			budget.ObservedTotalTokens != modelCalls[index]*16 ||
+			budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {
+			t.Fatalf("Worker budget for %s = %+v", execution.StageName, budget)
+		}
 	}
 	decisions, err := store.ListStageTransitionDecisions(ctx, runID)
 	if err != nil || len(decisions) != len(stages) {

@@ -112,6 +112,29 @@ def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     assert json.loads(settings.model_dump_json(by_alias=True))["llmGatewayToken"] == token
 
 
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("maxModelCalls", 0),
+        ("maxModelCalls", 1001),
+        ("maxToolCalls", -1),
+        ("maxToolCalls", 10001),
+        ("maxTotalTokens", 0),
+        ("maxTotalTokens", 100000001),
+    ],
+)
+def test_worker_budget_wire_fields_are_required_and_bounded(field: str, invalid: int) -> None:
+    raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    policy = raw["agentTemplate"]["modelPolicy"]
+    missing = json.loads(json.dumps(raw))
+    del missing["agentTemplate"]["modelPolicy"][field]
+    with pytest.raises(ValidationError):
+        AllocationSpec.model_validate(missing)
+    policy[field] = invalid
+    with pytest.raises(ValidationError):
+        AllocationSpec.model_validate(raw)
+
+
 def test_all_golden_files_have_an_assigned_model() -> None:
     valid_files = {path.name for path in (FIXTURES / "valid").glob("*.json")}
     invalid_files = {path.name for path in (FIXTURES / "invalid").glob("*.json")}

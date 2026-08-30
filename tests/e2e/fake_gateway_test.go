@@ -60,7 +60,14 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.fail(w, http.StatusBadRequest, "invalid OpenAI request")
 		return
 	}
-	if !selectedTools(request, "read_artifact", "write_artifact") {
+	g.mu.Lock()
+	nextCall := g.calls + 1
+	g.mu.Unlock()
+	expectedTools := []string{"read_artifact", "write_artifact"}
+	if nextCall > 3 {
+		expectedTools = []string{"read_artifact"}
+	}
+	if !selectedTools(request, expectedTools...) {
 		g.fail(w, http.StatusBadRequest, "unexpected model-visible tool set")
 		return
 	}
@@ -100,8 +107,9 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 		message = map[string]any{"role": "assistant", "content": string(result)}
 	default:
-		g.fail(w, http.StatusConflict, "unexpected additional LLM invocation")
-		return
+		message = toolCallMessage(fmt.Sprintf("bounded-read-%d", call), "read_artifact", map[string]any{
+			"namespace": "inputs", "name": "source", "revision": nil,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -112,7 +120,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		"model":   "worker-model",
 		"choices": []any{map[string]any{
 			"index": 0, "message": message,
-			"finish_reason": map[bool]string{true: "tool_calls", false: "stop"}[call < 3],
+			"finish_reason": map[bool]string{true: "stop", false: "tool_calls"}[call == 3],
 		}},
 		"usage": map[string]any{
 			"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10,

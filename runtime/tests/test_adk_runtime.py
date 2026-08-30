@@ -100,6 +100,18 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             "tool_calls.write_artifact": 1,
             "total_tokens": 30,
         }
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.max_model_calls == 8
+        assert budget.max_tool_calls == 16
+        assert budget.max_total_tokens == 32768
+        assert budget.observed_model_calls == 3
+        assert budget.observed_tool_calls == 2
+        assert budget.observed_total_tokens == 30
+        assert budget.token_usage_unavailable == 0
+        assert budget.exhausted is None
         assert all(request["maxOutputTokens"] == 4096 for request in model.requests)
         assert all(request["temperature"] == 0.1 for request in model.requests)
         assert all(
@@ -324,6 +336,163 @@ def test_adk_worker_bounds_missing_result_recovery_to_one_turn(tmp_path: Path) -
     asyncio.run(scenario())
 
 
+def test_adk_worker_model_budget_includes_tool_free_result_recovery(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([thought_result("Task complete")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_model_calls=1)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.error is not None
+        assert result.error.code == "worker_budget_exhausted"
+        assert result.error.retryable
+        assert "model_calls" in result.error.message
+        assert len(model.requests) == 1
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.complete
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_model_calls == 1
+        assert report.metrics.worker_budget.exhausted == "model_calls"
+        assert [error.code for error in report.errors].count("worker_budget_exhausted") == 1
+        assert state.metrics.counters["worker_result_recovery.failed"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_tool_budget_stops_before_extra_side_effect(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-1",
+                ),
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-2",
+                ),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model, max_tool_calls=1)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.error is not None
+        assert result.error.code == "worker_budget_exhausted"
+        assert client.calls == ["read_artifact"]
+        assert len(model.requests) == 2
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_tool_calls == 1
+        assert report.metrics.worker_budget.exhausted == "tool_calls"
+        assert report.metrics.tools["read_artifact"].calls == 1
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("max_total_tokens", [15, 20])
+def test_adk_worker_token_budget_stops_before_response_tool_side_effect(
+    tmp_path: Path, max_total_tokens: int
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            call_id="read-over-token-budget",
+        )
+        assert response.usage_metadata is not None
+        response.usage_metadata.total_token_count = 20
+        model = scripted_model([response])
+        runtime = await create_runtime(
+            tmp_path, state, tools, model, max_total_tokens=max_total_tokens
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.error is not None
+        assert result.error.code == "worker_budget_exhausted"
+        assert client.calls == []
+        assert len(model.requests) == 1
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_total_tokens == 20
+        assert report.metrics.worker_budget.exhausted == "total_tokens"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_missing_token_usage_keeps_call_limits_effective(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        response = json_result(
+            {
+                "apiVersion": API_VERSION,
+                "outcome": "succeeded",
+                "summary": "Done without provider token usage",
+                "artifacts": {},
+            }
+        )
+        response.usage_metadata = None
+        state = WorkerState()
+        model = scripted_model([response])
+        runtime = await create_runtime(
+            tmp_path, state, {}, model, max_model_calls=1, max_total_tokens=1
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_model_calls == 1
+        assert report.metrics.worker_budget.observed_total_tokens == 0
+        assert report.metrics.worker_budget.token_usage_unavailable == 1
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_accepts_final_text_exactly_at_token_limit(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model(
+            [
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Finished at the exact token ceiling",
+                        "artifacts": {},
+                    }
+                )
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, {}, model, max_total_tokens=10)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_total_tokens == 10
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
     async def scenario() -> None:
         model = scripted_model(
@@ -388,9 +557,20 @@ async def create_runtime(
     state: WorkerState,
     tools: dict[str, object],
     model: object,
+    *,
+    max_model_calls: int = 8,
+    max_tool_calls: int = 16,
+    max_total_tokens: int = 32768,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
+    context.agent_template.model_policy = context.agent_template.model_policy.model_copy(
+        update={
+            "max_model_calls": max_model_calls,
+            "max_tool_calls": max_tool_calls,
+            "max_total_tokens": max_total_tokens,
+        }
+    )
     factory = AdkWorkerRuntimeFactory(lambda _: model)  # type: ignore[arg-type,return-value]
     runtime = await factory.create(context)
     assert isinstance(runtime, AdkWorkerRuntime)
@@ -446,6 +626,9 @@ def agent_template() -> ResolvedAgentTemplate:
             ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
             model="worker-model",
             maxOutputTokens=4096,
+            maxModelCalls=8,
+            maxToolCalls=16,
+            maxTotalTokens=32768,
             temperature=0.1,
         ),
         toolsets=[

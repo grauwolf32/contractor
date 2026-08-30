@@ -82,6 +82,11 @@ milestones:
       The port has an opt-in live-model quality gate and explicit workflow
       variants that reuse caller-supplied discovery reports without adding
       implicit cross-Run cache semantics to Scheduler.
+  - id: project-workflows-operations
+    exit_task: V2-010
+    outcome: >-
+      Every Worker tool loop has explicit cumulative model, tool, and token
+      budgets and terminates with complete safe metrics before Stage retry.
 
 current_checkpoint:
   completed_through: V1-006
@@ -189,3 +194,4 @@ tasks:
   - {id: V2-007, file: v2-007-project-workflows-e2e.yml}
   - {id: V2-008, file: v2-008-project-workflows-live-eval.yml}
   - {id: V2-009, file: v2-009-precomputed-analysis-variants.yml}
+  - {id: V2-010, file: v2-010-worker-invocation-budgets.yml}

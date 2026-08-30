@@ -101,6 +101,44 @@ func TestDecodeStrictRejectsTrailingJSON(t *testing.T) {
 	}
 }
 
+func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
+	t.Parallel()
+
+	var baseline map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec.json"), &baseline); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, field string
+		value       any
+		remove      bool
+	}{
+		{"missing model calls", "maxModelCalls", nil, true},
+		{"zero model calls", "maxModelCalls", float64(0), false},
+		{"too many model calls", "maxModelCalls", float64(MaxWorkerModelCalls + 1), false},
+		{"negative tool calls", "maxToolCalls", float64(-1), false},
+		{"too many tool calls", "maxToolCalls", float64(MaxWorkerToolCalls + 1), false},
+		{"missing total tokens", "maxTotalTokens", nil, true},
+		{"too many total tokens", "maxTotalTokens", float64(MaxWorkerTotalTokens + 1), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			encoded, _ := json.Marshal(baseline)
+			var candidate map[string]any
+			_ = json.Unmarshal(encoded, &candidate)
+			policy := candidate["agentTemplate"].(map[string]any)["modelPolicy"].(map[string]any)
+			if test.remove {
+				delete(policy, test.field)
+			} else {
+				policy[test.field] = test.value
+			}
+			encoded, _ = json.Marshal(candidate)
+			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+				t.Fatal("invalid Worker budget was accepted")
+			}
+		})
+	}
+}
+
 func TestSchemaFilesContainJSONObjects(t *testing.T) {
 	t.Parallel()
 
