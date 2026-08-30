@@ -3,8 +3,8 @@ id: V3-003
 title: Refactor Streamline to one deterministic Worker adapter
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "bdf563c3154919c444d4443130ac756295dd9834"
 depends_on: [V3-002]
 languages: [go, yaml]
 
@@ -78,3 +78,33 @@ tests:
   - {name: streamline-unit-race, command: "go test -race ./internal/planner/streamline/...", covers: [A1, A2, A4]}
   - {name: config, command: "go test ./internal/config/...", covers: [A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+completion:
+  evidence:
+    - >-
+      Streamline now exposes exactly add_subtask, list_subtasks,
+      execute_current_subtask(subtask_id), and finish. ADK's generated schema
+      forbids additional execute properties, and an event-loop test proves
+      model-selected context is rejected before a Worker call.
+    - >-
+      Factory, YAML resolution, and resolved-graph validation require exactly
+      one logical Streamline binding and reject zero or multiple bindings before
+      Planner sessions, model calls, artifact inspection, or A2A side effects.
+    - >-
+      The Server claims the exact current subtask before context inspection,
+      derives objective/instructions from the stored plan, and clones every
+      immutable string parameter and exact StageContext ArtifactRef into the
+      sole prepared Worker request.
+    - >-
+      Deadline, context, budget, validation, and Worker failures all resolve the
+      generated dispatch fence. Race tests prove stale IDs cause no A2A call and
+      a later subtask can execute after a Worker error without retaining an
+      active claim.
+    - >-
+      The PostgreSQL/Gateway integration script and shipped YAML example now
+      exercise one logical Worker through the generic execute function; README
+      and development documentation distinguish Streamline from Router.
+  verified_by:
+    - go test -race ./internal/planner/streamline/... ./internal/config/... ./tests/integration/streamline/...
+    - make verify
+    - likec4 validate docs/spec
