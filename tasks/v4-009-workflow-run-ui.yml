@@ -1,74 +1,79 @@
 schema_version: "1.0"
 id: V4-009
-title: Implement Workflow, Artifact, and live Run UI
+title: Implement UserScope Artifact management UI
 milestone: server-ui-and-operations
 priority: P0
 status: planned
 implementation_commit: null
-depends_on: [V4-001A, V4-007, V4-008]
+depends_on: [V4-001A, V4-008]
 languages: [typescript, css]
 
 goal: >-
-  Deliver the ordinary user surface for selecting a Workflow, binding string
-  parameters/artifacts and published execution overrides, starting/cancelling a
-  Run, and inspecting live Stage/Planner/artifact/metrics progress.
+  Replace the Artifact placeholder with the exact-version UserScope input
+  library needed by Workflow forms, while preserving Server ownership, CAS,
+  media-type and byte-limit authority.
 
 context:
-  authority: >-
-    TanStack Query responses are authoritative. WebSocket lifecycle events are
-    invalidation hints; plan events may update a typed timeline but gaps require
-    REST refetch. Mutations never optimistically invent Run, StageExecution,
-    artifact binding, or transition state.
+  api_contract: >-
+    The committed public API lists UserScope bindings, creates with
+    If-None-Match: *, advances with one strong quoted If-Match revision, and
+    exposes current/exact metadata, versions, lineage and original bytes. A
+    payload is at most 16 MiB. The UI must not synthesize a revision after
+    response loss or treat a mutable current binding as an exact Run input.
+  preview_contract: >-
+    Preview is opt-in and allowed only when authoritative metadata reports at
+    most 262144 bytes and an explicit text, JSON, YAML, Markdown or LikeC4
+    media type. It is rendered as escaped plain text; HTML, SVG, archives,
+    images and unknown/binary types are never interpreted inline. Original
+    bytes remain available through an explicit authenticated download.
 
 scope:
   in:
-    - Add Workflow list/detail and schema-driven Run form for string parameters and required/optional artifact slots.
-    - Add UserScope artifact upload, exact-version selection, list/detail/download, and bounded text/YAML/JSON/Markdown/LikeC4 preview.
-    - Add exact published Planner/Worker ModelPolicy/Gateway/credential override selectors and read-only escalation-profile display.
-    - Generate stable idempotency keys per submitted draft and preserve them only for exact retry of the same request.
-    - Add Run list/detail/cancel with ordered Stages/attempts, retry/escalation decisions, effective refs/origins, terminations, and frozen outputs/lineage.
-    - Render immutable Stage objective as global task plus ordered Planner subtasks, current subtask, and active logical Worker dispatch.
-    - Render safe Planner/Worker/Runtime metrics and artifact metadata without prompts/tool payloads/provider bodies/secrets.
-    - Integrate WebSocket reconnect/dedup/gap resync with bounded backoff and manual refresh.
-    - Add accessible loading/empty/error/terminal states and routed component tests.
+    - Add generated-client query adapters and query keys for UserScope list, metadata, versions and lineage.
+    - Add one same-origin-fenced raw transport method for binary upload/download that reuses API version, cookie, CSRF and bounded-error policy.
+    - Add paginated Artifact list with namespace filter, current revision, media type, size, timestamp and exact-version navigation.
+    - Add create and explicit CAS-update forms for safe namespace/name, one local file, media type and current strong ETag/revision.
+    - Refetch authoritative list/detail after write; show conflict/response-loss guidance without optimistic bindings or automatic unsafe retry.
+    - Add version history and bounded lineage display with exact revision selection.
+    - Add safe bounded plain-text preview and explicit filename-sanitized download for current or selected exact revision.
+    - Add accessible loading, empty, validation, conflict, unsupported-preview and error states with routed tests.
   out:
-    - Specialized OpenAPI/LikeC4 diagram rendering, Workflow editor, arbitrary JSON parameters, optimistic lifecycle changes, or administrative execution controls.
+    - RunScope artifacts, Workflow forms, Run creation, drag-and-drop directories, archive browsing, inline HTML/SVG/image rendering, editing bytes in the browser, or deletion.
 
 deliverables:
-  - {path: ui/src/routes/workflows, description: Workflow selection and validated Run creation flow.}
-  - {path: ui/src/routes/artifacts, description: UserScope artifact management, preview, and download.}
-  - {path: ui/src/routes/runs, description: Run list/detail/cancel, Stage attempts, Planner plan, artifacts, and metrics.}
-  - {path: ui/src/events, description: Resumable Run subscription integrated with query invalidation/resync.}
+  - {path: ui/src/api/artifacts.ts, description: Typed UserScope queries plus fenced binary upload/download adapter.}
+  - {path: ui/src/routes/artifacts, description: List, create/CAS update, exact detail/version/lineage, preview and download routes.}
+  - {path: ui/src/api/query-keys.ts, description: Stable exact Artifact query-key policy.}
 
 requirements:
   - id: R1
-    text: Complex inputs travel as artifacts; the form accepts only strings for Workflow parameters with no coercion.
+    text: A Run-facing selection always retains namespace, name and exact revision; UI never represents a current alias as an immutable selection.
   - id: R2
-    text: UI cannot enter free-form model, URL, budget, token, or provider parameter; only published exact refs are selectable.
+    text: Artifact bytes, filenames and media types are untrusted; preview is size/media allowlisted and React-escaped, and no object URL survives its owning action/component.
   - id: R3
-    text: Planner subtasks are visually nested inside one Stage attempt and never presented as additional Workflow Stages.
+    text: Create/update preconditions are mutually exclusive and a conflict or lost response causes reconciliation by GET rather than a blind second PUT.
   - id: R4
-    text: Artifact preview is bounded and safely rendered; original bytes remain available through explicit authenticated download.
+    text: Binary requests use the configured Go Server directly and cannot send cookie or CSRF state to another origin.
 
 acceptance_criteria:
   - id: A1
-    given: OpenAPI Workflow requires source ZIP and one string objective.
-    when: User uploads/selects source and submits.
-    then: One idempotent Run is created with exact artifact version and only published config refs.
+    given: A ZIP source file under 16 MiB and a new projects/source binding.
+    when: User submits create.
+    then: UI sends one PUT with application/zip and If-None-Match *, refetches, and shows the exact Server revision.
   - id: A2
-    given: A live Router Stage.
-    when: Plan/dispatch events arrive.
-    then: Global task, ordered subtasks, current marker, and logical Worker update without exposing Runtime placement or model text.
+    given: An existing text or LikeC4 Artifact no larger than 262144 bytes.
+    when: User selects one exact historical revision and requests preview.
+    then: UI fetches that revision, renders escaped bounded text and retains an explicit original-byte download.
   - id: A3
-    given: WebSocket disconnect, duplicate, sequence gap, or Server restart.
-    when: Client reconnects.
-    then: It deduplicates or refetches authoritative detail and does not infer missing lifecycle state.
+    given: Binary/oversized/unknown content or a stale update revision.
+    when: Preview or update is attempted.
+    then: UI refuses inline interpretation or shows authoritative CAS conflict guidance without inventing state or retrying PUT.
   - id: A4
-    given: A terminal Run.
-    when: Detail is viewed.
-    then: Frozen outputs, lineage, exact attempts/decisions/config refs, terminations, and safe metrics are inspectable/downloadable.
+    given: Multiple pages and lineage edges.
+    when: User navigates the Artifact route.
+    then: Stable cursors, exact refs, provenance scope/Run IDs and loading/error/empty states remain inspectable and accessible.
 
 tests:
   - {name: ui-unit, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3, A4]}
-  - {name: ui-build, command: "cd ui && corepack pnpm build", covers: [A1, A4]}
+  - {name: ui-build, command: "cd ui && corepack pnpm build", covers: [A1, A2, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

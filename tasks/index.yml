@@ -115,11 +115,12 @@ current_checkpoint:
     A dependency-free Node service exposes only static files, health and closed
     non-secret runtime config with explicit fallback/cache/security behavior;
     its exact Node 24.20 container builds without rebuilding Go Server. V4-009
-    next replaces the Workflow, Artifact and Run placeholders with the first
-    useful execution surface and resumable live progress.
+    next replaces the Artifact placeholder with the exact-version UserScope
+    library required by the separately planned Workflow/Run-create and live
+    Run-inspection slices V4-009A and V4-009B.
 
 current_planning_review:
-  reviewed_on: "2026-08-30"
+  reviewed_on: "2026-08-31"
   verdict: ready_to_implement
   checks:
     - >-
@@ -147,6 +148,11 @@ current_planning_review:
       recoverable lifecycle/public API (V4-003A), and the concrete bounded
       LiteLLM adapter (V4-004), so crypto, state transitions and HTTP behavior
       have independent gates.
+    - >-
+      The former all-in-one Workflow/Artifact/Run UI task is split into
+      UserScope Artifact management (V4-009), Workflow selection/idempotent Run
+      creation (V4-009A), and authoritative live Run inspection (V4-009B), so
+      each mutation and resynchronization boundary has an independent commit.
   accepted_risks:
     - >-
       The first PlannerPlan intentionally omits legacy decomposition, skip and
@@ -290,5 +296,7 @@ tasks:
   - {id: V4-007A, file: v4-007a-public-api-version.yml}
   - {id: V4-008, file: v4-008-react-ui-foundation.yml}
   - {id: V4-009, file: v4-009-workflow-run-ui.yml}
+  - {id: V4-009A, file: v4-009a-workflow-run-creation-ui.yml}
+  - {id: V4-009B, file: v4-009b-live-run-ui.yml}
   - {id: V4-010, file: v4-010-operations-ui.yml}
   - {id: V4-011, file: v4-011-browser-e2e.yml}

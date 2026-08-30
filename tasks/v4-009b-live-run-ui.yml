@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V4-009B
+title: Implement authoritative live Run inspection UI
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-007, V4-009A]
+languages: [typescript, css]
+
+goal: >-
+  Replace the Run placeholder with owner-scoped history, cancellation and live
+  Stage/Planner/artifact/metrics inspection that resynchronizes through REST
+  whenever WebSocket continuity is uncertain.
+
+context:
+  authority: >-
+    TanStack Query Run responses are authoritative. Lifecycle WebSocket events
+    are invalidation hints. Typed Planner events may advance a bounded visual
+    timeline only in exact cursor order; reconnect generation change, sequence
+    gap, resync_required or unknown frame causes an authoritative REST refetch.
+    Planner subtasks are nested work inside one StageExecution, not Workflow
+    Stages, and logical worker_name is not physical Runtime Agent placement.
+
+scope:
+  in:
+    - Add paginated Run list with state filter and exact detail route.
+    - Render ordered Stages/attempts, retries/escalation decisions, resolved configuration origins/refs, terminations, metrics and frozen outputs/lineage.
+    - Render immutable Stage objective as global task plus ordered Planner subtasks, current marker and active logical Worker dispatch.
+    - Add cancellation with CSRF, explicit reason, no optimistic terminal state and authoritative refetch.
+    - Add RunScope Artifact metadata/version/lineage views and explicit safe downloads/previews by reusing Artifact components.
+    - Implement one multiplexed WebSocket manager with exact subprotocol, subscribe/unsubscribe acknowledgements, cursor persistence in memory, dedup, bounded reconnect backoff and teardown.
+    - Invalidate/refetch on lifecycle events and resync on gap/generation/restart; never replace the Run aggregate from an event payload.
+    - Render only public safe Planner/Worker/Runtime metrics and typed Planner facts, never prompts, tool arguments/results, provider bodies or secrets.
+    - Add accessible loading/empty/error/cancelling/terminal/reconnect/manual-refresh states and routed tests.
+  out:
+    - Force finish/retry/escalate/reassign controls, physical Runtime placement, raw ADK/model stream, optimistic lifecycle, or specialized OpenAPI/LikeC4 diagram rendering.
+
+deliverables:
+  - {path: ui/src/api/runs.ts, description: Typed Run query/cancel and RunScope Artifact adapters.}
+  - {path: ui/src/routes/runs, description: Run history/detail, attempts, Planner plan, artifacts, metrics and cancellation.}
+  - {path: ui/src/events/run-events.ts, description: Resumable bounded Run subscription integrated with query invalidation/resync.}
+
+requirements:
+  - id: R1
+    text: UI never predicts an authoritative Run, StageExecution, decision, artifact binding or terminal transition.
+  - id: R2
+    text: Planner subtasks remain visually and semantically nested in their Stage attempt and Router shows only the logical selected Worker name.
+  - id: R3
+    text: Cursor sequence remains a decimal string; duplicate events are ignored and every gap/generation mismatch causes resync instead of inference.
+  - id: R4
+    text: Raw prompt, model text, tool arguments/results, provider bodies, allocation capabilities and secrets have no DTO/render/log/storage path.
+
+acceptance_criteria:
+  - id: A1
+    given: A live Router Stage.
+    when: Ordered plan/dispatch events arrive.
+    then: Global objective, subtasks, current marker and logical Worker update while lifecycle state changes only after REST invalidation/refetch.
+  - id: A2
+    given: Disconnect, duplicate, sequence gap, resync_required or Server restart.
+    when: Client reconnects.
+    then: It reuses the last fully processed cursor when valid or discards the projection and refetches, without inventing missing facts.
+  - id: A3
+    given: User cancels a non-terminal Run.
+    when: Server accepts or reports a race with terminal completion.
+    then: UI refetches and displays only the authoritative resulting state and cleanup attempts.
+  - id: A4
+    given: A terminal Run.
+    when: Detail is viewed.
+    then: Frozen outputs, exact attempts/decisions/config refs, terminations, lineage and safe metrics are inspectable/downloadable.
+
+tests:
+  - {name: ui-unit, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3, A4]}
+  - {name: ui-build, command: "cd ui && corepack pnpm build", covers: [A1, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

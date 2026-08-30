@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V4-009A
+title: Implement Workflow selection and idempotent Run creation UI
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-009]
+languages: [typescript, css]
+
+goal: >-
+  Let the owner select one exact published Workflow, bind only declared string
+  parameters and exact UserScope Artifact revisions, apply published execution
+  overrides, and create one idempotent Run.
+
+context:
+  authority: >-
+    Workflow summary/detail and published configuration/credential responses
+    are authoritative. The browser does not infer schema or effective
+    execution settings. Complex values travel as Artifacts; Workflow
+    parameters are strings only. A submitted draft owns one stable safe
+    idempotency key, reused only for an exact retry of unchanged content.
+
+scope:
+  in:
+    - Add paginated Workflow list and exact detail routes with declared inputs, outputs, stages and escalation profile display.
+    - Build a schema-driven form for required/optional string parameters and required/optional input Artifact slots.
+    - Reuse the UserScope library to bind only exact namespace/name/revision values compatible with each declared media-type slot.
+    - Add selectors for published exact ModelPolicy, LLMGatewayConfig and credential overrides without free-form model, URL, budget, token or provider fields.
+    - Keep one idempotency key per canonical draft; preserve it for explicit exact retry and replace it whenever submitted content changes.
+    - Submit through generated types/direct transport, perform no optimistic Run insertion, and navigate only after the authoritative 202 response.
+    - Add accessible validation, missing-publication, response-loss reconciliation and routed component tests.
+  out:
+    - Workflow YAML editing, arbitrary JSON parameters, inline secrets, custom execution transitions, Run detail rendering, cancellation, or live events.
+
+deliverables:
+  - {path: ui/src/api/workflows.ts, description: Typed Workflow/configuration/credential query and Run-create adapter.}
+  - {path: ui/src/routes/workflows, description: Workflow library, exact contract detail and validated Run draft.}
+  - {path: ui/src/run-drafts, description: Canonical draft identity and stable exact-retry idempotency policy.}
+
+requirements:
+  - id: R1
+    text: Form shape comes only from the selected exact Workflow response, accepts strings only, and never silently coerces a missing or complex value.
+  - id: R2
+    text: Every Artifact binding submitted to Run creation includes an exact Server revision and declared media compatibility is checked for usability before Server validation.
+  - id: R3
+    text: Execution overrides select only published exact refs; escalation stays Scheduler-owned and read-only in the UI.
+  - id: R4
+    text: An idempotency key is stable for byte-equivalent canonical request content and is never reused after that content changes.
+
+acceptance_criteria:
+  - id: A1
+    given: openapi-from-source@1 requires source ZIP and objective.
+    when: User selects an exact ZIP revision, supplies objective and submits.
+    then: One request contains the exact Workflow selector, string parameter, exact Artifact ref and stable idempotency key, then navigates to the returned Run ID.
+  - id: A2
+    given: Required input/parameter is missing or selected Artifact media type is incompatible.
+    when: User attempts submit.
+    then: Client shows accessible field errors and performs no Run mutation.
+  - id: A3
+    given: The same request may have succeeded but its response was lost.
+    when: User explicitly retries unchanged content.
+    then: The identical idempotency key is reused; editing any submitted field first creates a different key.
+  - id: A4
+    given: Workflow-pinned escalation and optional published overrides.
+    when: Form is viewed.
+    then: Escalation is read-only and selectors contain only exact published safe refs, never arbitrary model/Gateway/token values.
+
+tests:
+  - {name: ui-unit, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3, A4]}
+  - {name: ui-build, command: "cd ui && corepack pnpm build", covers: [A1, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
