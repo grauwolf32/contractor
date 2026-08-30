@@ -103,23 +103,21 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-001A
-  next_task: V4-002
+  completed_through: V4-002
+  next_task: V4-003
   summary: >-
     The execution, routing and Scheduler-escalation foundation remains complete.
-    The public Go API now implements 18 OpenAPI operations. Immutable Workflow
-    list/detail projections omit instruction text and physical/model settings;
-    owner-scoped Run pages and expanded detail join exact inputs, immutable
-    Stage objectives, validated PlannerPlan state, safe effective refs/origins,
-    metrics, outputs, timestamps and the durable event cursor. UserScope and
-    owner-bound RunScope Artifact queries expose exact metadata, immutable
-    history, input_fork/output_bind lineage and byte downloads. Every page is
-    keyset ordered and bounded by a bearer-bound HMAC cursor; current lineage
-    pagination pins the selected revision. Foreign RunScope reads are rejected
-    before ArtifactStore access. OpenAPI fixtures, negative query tests, race
-    tests, disposable-PostgreSQL continuation tests and the aggregate verify
-    gate pass. V4-002 is next and owns atomic immutable managed configuration
-    publication.
+    The public Go API now implements 21 OpenAPI operations. V4-002 adds one
+    immutable union of operator and managed configuration roots, create-only
+    ModelPolicy/LLMGatewayConfig publication with canonical YAML, exclusive
+    no-follow writes, file and directory fsync, atomic snapshot swap, durable
+    response-loss replay and restart recovery. Configuration list/detail
+    projections are secret-free and instruction resources retain path identity
+    rather than a synthetic name@version. PostgreSQL records best-effort
+    immutable publication audit metadata but never becomes configuration
+    authority. Race, crash-window, symlink/path, OpenAPI, PostgreSQL 17 and full
+    Go/Python verify gates pass. V4-003 is next and owns encrypted credential
+    persistence.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
@@ -151,8 +149,8 @@ current_planning_review:
       summarizer machinery; those operations can be versioned later if simple
       ordered subtasks prove insufficient.
     - >-
-      Configuration hot reload remains absent until managed atomic publication
-      is implemented in V4-002.
+      Managed publication uses the specified single-Server process lock;
+      distributed publication and remote configuration roots remain deferred.
     - >-
       UI visual design is deliberately functional and domain-neutral; design
       system expansion is outside the first Operations slice.
