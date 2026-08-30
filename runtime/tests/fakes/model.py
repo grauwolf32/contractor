@@ -88,6 +88,17 @@ def json_result(value: dict[str, Any]) -> LlmResponse:
     )
 
 
+def thought_result(text: str = "Task complete") -> LlmResponse:
+    return _with_usage(
+        LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text=text, thought=True)],
+            )
+        )
+    )
+
+
 def scripted_model(responses: Sequence[LlmResponse], *, block: bool = False) -> ScriptedLlm:
     return ScriptedLlm(
         model="deterministic-fake", responses=list(responses), block_first_call=block

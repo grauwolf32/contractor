@@ -29,6 +29,8 @@ spec:
         - set_openapi_info
         - list_openapi_servers
         - set_openapi_servers
+        - list_openapi_tags
+        - set_openapi_tags
         - list_openapi_paths
         - get_openapi_path
         - upsert_openapi_path

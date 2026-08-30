@@ -7,6 +7,10 @@ serious or structural findings with targeted reads, apply the smallest supported
 changes, and run validation once more. Do not loop and do not make speculative edits
 for style findings.
 
+Use the dedicated tag tools to keep operation tags and top-level declarations
+consistent. When no deployment URL is evidenced, `.` is the neutral relative
+current-origin server; never invent a host or use the trailing-slash `/`.
+
 Always write `openapi/validation-report` as Markdown. On clean second validation,
 return a successful StageContentResult with exact result slots:
 

@@ -134,14 +134,35 @@ class MetricsState:
                 self._increment(counter, value)
 
     def record_model_error(self, error: Exception) -> None:
+        error_type = getattr(error, "provider_error_type", type(error).__name__)
+        if (
+            not isinstance(error_type, str)
+            or re.fullmatch(r"[A-Za-z][A-Za-z0-9_.]{0,127}", error_type) is None
+        ):
+            error_type = type(error).__name__
         self._increment("llm_errors")
         self._append_error(
             ExecutionError(
                 code="model_call_failed",
-                message=_bounded_error(f"Model call failed ({type(error).__name__})", ()),
+                message=_bounded_error(f"Model call failed ({error_type})", ()),
                 retryable=True,
             )
         )
+
+    def record_worker_result_error(self, classification: str) -> None:
+        normalized = _metric_identifier(classification)
+        self._append_error(
+            ExecutionError(
+                code=f"worker_result_{normalized}",
+                message=f"Worker result rejected ({normalized})",
+                retryable=False,
+            )
+        )
+
+    def record_worker_result_recovery(self, *, succeeded: bool) -> None:
+        self._increment("worker_result_recovery_attempts")
+        outcome = "succeeded" if succeeded else "failed"
+        self._increment(f"worker_result_recovery.{outcome}")
 
     def record_outcome(self, outcome: str) -> None:
         normalized = _metric_identifier(outcome)

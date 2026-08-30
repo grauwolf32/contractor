@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config test-postgres test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -65,6 +65,13 @@ test-project-workflows:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
 	go test -tags=e2e -count=1 -timeout=4m ./tests/e2e -run '^TestProjectWorkflowsFromSource$$'
+
+test-project-workflows-live:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL" || (echo "CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_WORKFLOWS_LIVE_MODEL" || (echo "CONTRACTOR_WORKFLOWS_LIVE_MODEL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -count=1 -timeout=65m ./tests/eval/project_workflows -run '^TestLiveProjectWorkflows$$'
 
 run-local:
 	go run ./cmd/contractor-server migrate

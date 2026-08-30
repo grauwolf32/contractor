@@ -54,6 +54,11 @@ responses, and fixed child `vacuum`/`likec4` executables. It verifies real domai
 tools, exact artifact lineage, frozen outputs, metrics, and workspace cleanup;
 it does not score model quality.
 
+An additional opt-in live quality gate runs the same production Server and
+Runtime against a real OpenAI-compatible Gateway and the real validators. It
+scores route, security, architecture, relationship, and source-evidence
+coverage without comparing prose byte-for-byte or invoking a judge model.
+
 ## Prerequisites
 
 - Go 1.25 or newer;
@@ -417,6 +422,49 @@ self-contained file: includes, multi-file projects, rendering, and layout
 artifacts are outside this workflow. It succeeds only after direct
 `likec4 validate` reports a clean model. A missing or failed CLI is an explicit
 retryable validation failure, never an implicit pass.
+
+## Live project-workflow quality evaluation
+
+This gate is deliberately excluded from `make verify` and ordinary CI. It
+requires PostgreSQL, `vacuum`, `likec4`, the locked Python environment, and a
+model with reliable OpenAI-compatible function calling. The fixture is a small
+FastAPI service with authenticated GET/POST routes, PostgreSQL persistence, and
+an outbound Inventory HTTP client. Both workflows start from source only, with
+no prebuilt OpenAPI or LikeC4 seed.
+
+Run directly against LM Studio:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL='http://192.168.1.217:1234/v1' \
+CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_TOKEN='unused' \
+CONTRACTOR_WORKFLOWS_LIVE_MODEL='qwen/qwen3.8-27b' \
+  make test-project-workflows-live
+```
+
+For LiteLLM, map an alias such as `project-workflow-model` to the LM Studio
+upstream in its configuration, start the proxy, and use the alias at the proxy
+API base:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_TOKEN='replace-with-litellm-master-key' \
+CONTRACTOR_WORKFLOWS_LIVE_MODEL='project-workflow-model' \
+  make test-project-workflows-live
+```
+
+Allow up to 30 minutes for each four-Stage workflow, plus setup and cleanup.
+`domain_worker@1` permits up to 16,384 output tokens per model response; actual
+model/tool/token counters are reported by Stage in the Run status. On failure,
+the harness writes bounded generated documents, analysis reports, predicate
+codes, and counters below ignored `.local/eval-results/`. It deliberately does
+not persist the source archive, Gateway URL/token, prompts, or provider response
+bodies. A successful run removes its isolated schema, certificates, processes,
+and Runtime workspaces without retaining evaluation artifacts.
+During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
+`openapi-from-source@1` or `likec4-from-source@1`; the default and documented
+quality gate always execute both.
 
 Cancellation is an idempotent durable request. It interrupts an active local
 Planner immediately; another Server process observes the same `cancelling`

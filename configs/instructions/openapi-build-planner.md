@@ -6,12 +6,15 @@ resume `openapi/openapi` if this is a retry. Otherwise copy the optional seed ex
 or initialize a new document when no seed was supplied.
 
 Discover the implemented inbound HTTP API and incrementally model supported info,
-servers, reusable components, paths, operations, parameters, request bodies,
-responses, status codes, and security. Resolve conflicts in favor of source code and
-record uncertainty in the concise summary. Every path/component mutation must cite
-existing implementation files. Use only OpenAPI domain mutations; never write the
-whole document through generic or text artifact tools.
+servers, top-level tags, reusable components, paths, operations, parameters,
+request bodies, responses, status codes, and security. Every operation tag must
+have a matching top-level declaration. If no deployment URL is evidenced, `.` is
+the neutral relative current-origin server; do not invent a host or use `/`.
+Resolve conflicts in favor of source code and record uncertainty in the concise
+summary. Every path/component mutation must cite existing implementation files.
+Use only OpenAPI domain mutations; never write the whole document through generic
+or text artifact tools.
 
-Before success, enumerate the resulting paths/components, ensure local references
-resolve, and run one validation pass. Return result slot `openapi` with the latest
+Before success, enumerate the resulting paths/components, tags, and servers, ensure
+local references resolve, and run one validation pass. Return result slot `openapi` with the latest
 exact `openapi/openapi` ArtifactRef and media type `application/yaml`.

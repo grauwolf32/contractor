@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 import uuid
 from collections.abc import AsyncGenerator, Mapping
 from datetime import UTC, datetime
@@ -44,6 +46,7 @@ MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = 256 * 1024
 MAX_RESULT_ARTIFACTS = 128
 MAX_RESULT_SUMMARY_CHARS = 64 * 1024
+SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 class ModelFactory(Protocol):
@@ -52,6 +55,32 @@ class ModelFactory(Protocol):
 
 class GatewayModelError(RuntimeError):
     """Secret-free boundary error for failures below the LLM Gateway adapter."""
+
+    def __init__(self, provider_error_type: str) -> None:
+        self.provider_error_type = provider_error_type
+        super().__init__(f"LLM gateway call failed ({provider_error_type})")
+
+
+class WorkerFunctionTool(FunctionTool):
+    """Return bounded tool failures to the model so it can correct or terminate."""
+
+    async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
+        try:
+            return await super().run_async(args=args, tool_context=tool_context)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            code = getattr(error, "code", "tool_call_failed")
+            if not isinstance(code, str) or SAFE_TOOL_ERROR_CODE.fullmatch(code) is None:
+                code = "tool_call_failed"
+            return {
+                "ok": False,
+                "error": {
+                    "code": code,
+                    "message": f"{self.name} failed ({type(error).__name__})",
+                    "retryable": bool(getattr(error, "retryable", False)),
+                },
+            }
 
 
 class GatewayLiteLlm(LiteLlm):
@@ -70,9 +99,7 @@ class GatewayLiteLlm(LiteLlm):
         except Exception as error:
             # Do not retain the provider exception: it may contain request headers or the token.
             provider_error_type = type(error).__name__
-        raise GatewayModelError(
-            f"LLM gateway call failed ({provider_error_type or 'unknown provider error'})"
-        ) from None
+        raise GatewayModelError(provider_error_type or "UnknownProviderError") from None
 
     def clear_credentials(self) -> None:
         self._additional_args.clear()
@@ -115,20 +142,26 @@ class AdkWorkerRuntime:
         self._invoke_lock = asyncio.Lock()
         self._active_task: asyncio.Task[Any] | None = None
         self._runner: Runner | None = None
+        self._finalizer_runner: Runner | None = None
         self._agent: LlmAgent | None = None
+        self._finalizer_agent: LlmAgent | None = None
 
         policy = context.agent_template.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
-        adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
+        adk_tools = [WorkerFunctionTool(tool) for tool in context.tools.values()]
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.agent_template.description,
             model=model,
             instruction=context.agent_template.instructions.text,
             tools=adk_tools,
-            output_schema=StageContentResult,
+            # Do not combine ADK output_schema with function tools. OpenAI-compatible
+            # local backends turn that schema into a grammar on every turn, including
+            # tool-selection turns, and some reject the resulting grammar. The final
+            # free-text candidate is validated strictly below before it crosses the
+            # Worker boundary.
             generate_content_config=generation,
             before_model_callback=self._before_model,
             after_model_callback=self._after_model,
@@ -137,6 +170,27 @@ class AdkWorkerRuntime:
         self._runner = Runner(
             app_name=self._app_name,
             agent=self._agent,
+            session_service=self._session_service,
+        )
+        self._finalizer_agent = LlmAgent(
+            name="contractor_worker_result_finalizer",
+            description="Serialize one already completed Contractor Worker result",
+            model=model,
+            instruction=(
+                "You are a result serializer, not a task executor. Tools are unavailable. "
+                "Return exactly one raw StageContentResult JSON object using only an exact "
+                "ArtifactRef explicitly supplied in the finalization request. Never invent, "
+                "shorten, or alter a revision."
+            ),
+            tools=[],
+            generate_content_config=generation.model_copy(deep=True),
+            before_model_callback=self._before_model,
+            after_model_callback=self._after_model,
+            on_model_error_callback=self._on_model_error,
+        )
+        self._finalizer_runner = Runner(
+            app_name=self._app_name,
+            agent=self._finalizer_agent,
             session_service=self._session_service,
         )
         endpoint = (
@@ -222,9 +276,15 @@ class AdkWorkerRuntime:
         if runner is None:
             return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
         prompt = (
-            "Execute this Contractor StageContentRequest. Durable data is represented only by "
-            "ArtifactRef values. Return exactly one StageContentResult JSON object.\n"
+            "Execute the following Contractor StageContentRequest. Durable data is represented "
+            "only by ArtifactRef values.\n"
             + request_json
+            + "\nReturn raw JSON without Markdown fences. A successful final "
+            'response has shape {"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
+            '"summary":"...","artifacts":{"result_slot":{"namespace":"...","name":"...",'
+            '"revision":"..."}}}. A failed response uses outcome "failed", may use an empty '
+            'artifacts object, and must add {"error":{"code":"...","message":"...",'
+            '"retryable":true}}. Return exactly one StageContentResult JSON object.'
         )
         candidate: str | None = None
         async for event in runner.run_async(
@@ -236,9 +296,16 @@ class AdkWorkerRuntime:
             text = _candidate_text(event)
             if text is not None:
                 candidate = text
-        if candidate is None or len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
+        if candidate is None:
+            candidate = await self._recover_missing_candidate(request_json)
+            self._metrics.record_worker_result_recovery(succeeded=candidate is not None)
+        if candidate is None:
+            self._metrics.record_worker_result_error("missing")
+            return _failure("invalid_worker_result", "Worker returned no bounded JSON result", True)
+        if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
+            self._metrics.record_worker_result_error("oversized")
             return _failure(
-                "invalid_worker_result", "Worker returned no bounded JSON result", False
+                "invalid_worker_result", "Worker returned an oversized StageContentResult", True
             )
         gateway_token = self._context.runtime_settings.llm_gateway_token.get_secret_value()
         if gateway_token and gateway_token in candidate:
@@ -246,10 +313,22 @@ class AdkWorkerRuntime:
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             )
         try:
-            result = StageContentResult.model_validate_json(candidate)
-        except ValidationError:
+            result = StageContentResult.model_validate_json(_unwrap_json_fence(candidate))
+        except ValidationError as error:
+            error_types = sorted(
+                {
+                    item_type
+                    for item in error.errors(
+                        include_url=False, include_context=False, include_input=False
+                    )
+                    if isinstance((item_type := item.get("type")), str)
+                    and SAFE_TOOL_ERROR_CODE.fullmatch(item_type) is not None
+                }
+            )
+            classification = "schema_" + "_".join(error_types[:8])
+            self._metrics.record_worker_result_error(classification)
             return _failure(
-                "invalid_worker_result", "Worker returned an invalid StageContentResult", False
+                "invalid_worker_result", "Worker returned an invalid StageContentResult", True
             )
         if (
             len(result.summary) > MAX_RESULT_SUMMARY_CHARS
@@ -263,9 +342,45 @@ class AdkWorkerRuntime:
             return _failure(
                 "unverified_artifact_ref",
                 "Worker result contains an artifact revision not observed through ArtifactClient",
-                False,
+                True,
             )
         return result
+
+    async def _recover_missing_candidate(self, request_json: str) -> str | None:
+        """Request one tool-free envelope after a tool loop ends without text."""
+
+        runner = self._finalizer_runner
+        if runner is None:
+            return None
+        exact_refs = [
+            ref.model_dump(mode="json", by_alias=True)
+            for ref in _latest_known_exact_refs(self._context.tools)
+        ]
+        prompt = (
+            "The Worker tool phase ended without a model-visible final response. Do not perform "
+            "more analysis. Serialize its result now.\nStageContentRequest:\n"
+            + request_json
+            + "\nLatest exact ArtifactRefs observed through trusted tools:\n"
+            + json.dumps(exact_refs, ensure_ascii=False, separators=(",", ":"))
+            + "\nReturn raw JSON without Markdown fences. For success use "
+            '{"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
+            '"summary":"...","artifacts":{"result_slot":{"namespace":"...",'
+            '"name":"...","revision":"..."}}}. For failure use outcome "failed", an '
+            'empty artifacts object if appropriate, and add {"error":{"code":"...",'
+            '"message":"...","retryable":true}}. Use only supplied exact refs and return '
+            "exactly one object."
+        )
+        candidate: str | None = None
+        async for event in runner.run_async(
+            user_id=self._user_id,
+            session_id=self._session_id,
+            invocation_id=f"worker-finalizer-{uuid.uuid4().hex}",
+            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+        ):
+            text = _candidate_text(event)
+            if text is not None:
+                candidate = text
+        return candidate
 
     async def _stop(self, deadline: datetime) -> None:
         self._accepting = False
@@ -280,9 +395,13 @@ class AdkWorkerRuntime:
                 raise TimeoutError("active ADK invocation did not stop")
         runner = self._runner
         self._runner = None
+        finalizer_runner = self._finalizer_runner
+        self._finalizer_runner = None
         try:
             if runner is not None:
                 await runner.close()
+            if finalizer_runner is not None:
+                await finalizer_runner.close()
             await self._session_service.delete_session(
                 app_name=self._app_name, user_id=self._user_id, session_id=self._session_id
             )
@@ -292,6 +411,7 @@ class AdkWorkerRuntime:
             if isinstance(model, GatewayLiteLlm):
                 model.clear_credentials()
             self._agent = None
+            self._finalizer_agent = None
 
     async def _before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest
@@ -345,12 +465,29 @@ def _candidate_text(event: Event) -> str | None:
     return "".join(text) if text else None
 
 
+def _unwrap_json_fence(candidate: str) -> str:
+    stripped = candidate.strip()
+    for prefix in ("```json\n", "```JSON\n", "```\n"):
+        if stripped.startswith(prefix) and stripped.endswith("\n```"):
+            return stripped[len(prefix) : -4].strip()
+    return stripped
+
+
 def _known_exact_refs(tools: Mapping[str, Any]) -> set[tuple[str, str, str]]:
     result: set[tuple[str, str, str]] = set()
     for tool in tools.values():
         for ref in getattr(tool, "known_exact_refs", ()):
             result.add(_ref_key(ref))
     return result
+
+
+def _latest_known_exact_refs(tools: Mapping[str, Any]) -> list[ArtifactRef]:
+    latest: dict[tuple[str, str], ArtifactRef] = {}
+    for tool in tools.values():
+        for ref in getattr(tool, "known_exact_refs", ()):
+            exact = ref.require_exact()
+            latest[(exact.namespace, exact.name)] = exact
+    return [latest[key] for key in sorted(latest)]
 
 
 def _ref_key(ref: ArtifactRef) -> tuple[str, str, str]:

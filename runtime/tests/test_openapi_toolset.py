@@ -57,6 +57,9 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
         servers = await tools["set_openapi_servers"](
             [{"url": "https://api.example.test", "description": "Production"}]
         )
+        tags = await tools["set_openapi_tags"](
+            [{"name": "health", "description": "Health operations"}]
+        )
         component = await tools["upsert_openapi_component"](
             "schemas",
             "HealthResponse",
@@ -91,13 +94,17 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
             first_revision,
             info["artifact"]["revision"],
             servers["artifact"]["revision"],
+            tags["artifact"]["revision"],
             component["artifact"]["revision"],
             path["artifact"]["revision"],
         ]
-        assert len(set(revisions)) == 5
-        assert client.write_count == 5
+        assert len(set(revisions)) == 6
+        assert client.write_count == 6
         assert (await tools["get_openapi_info"]())["info"]["x-framework"] == "FastAPI"
         assert (await tools["list_openapi_servers"]())["servers"][0]["url"].startswith("https://")
+        assert (await tools["list_openapi_tags"]())["tags"] == [
+            {"name": "health", "description": "Health operations"}
+        ]
         assert (await tools["list_openapi_paths"]())["paths"] == ["/health"]
         assert (await tools["get_openapi_path"]("/health"))["pathItem"]["x-path-files"] == [
             "src/app.py"
@@ -114,6 +121,7 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
         assert validation["issues"] == []
         rendered = await tools["read_openapi_document"]()
         document = yaml.safe_load(rendered["document"])
+        assert "pathItems" not in document["components"]
         assert document["paths"]["/health"]["x-path-files"] == ["src/app.py"]
         assert document["components"]["schemas"]["HealthResponse"]["x-component-files"] == [
             "src/app.py"
@@ -131,6 +139,42 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
         assert SECRET not in serialized_metrics
         assert "operationId" not in serialized_metrics
         assert state.metrics.counters["tool_calls.validate_openapi"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_minimal_openapi_30_shape_is_clean_with_real_vacuum(tmp_path: Path) -> None:
+    if openapi_module.shutil.which("vacuum") is None:
+        pytest.skip("Vacuum executable is unavailable")
+
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
+        tools = await make_tools(
+            tmp_path, MemoryArtifactClient(), WorkerState(), namespace="openapi"
+        )
+        await tools["initialize_openapi"]("Health Service", description="HTTP health endpoint")
+        await tools["set_openapi_servers"]([{"url": ".", "description": "Current origin"}])
+        await tools["set_openapi_tags"]([{"name": "health", "description": "Health operations"}])
+        await tools["upsert_openapi_path"](
+            "/health",
+            {
+                "get": {
+                    "summary": "Read service health",
+                    "description": "Returns the current service health.",
+                    "operationId": "getHealth",
+                    "tags": ["health"],
+                    "responses": {"200": {"description": "Service is healthy."}},
+                }
+            },
+            ["src/app.py"],
+        )
+
+        validation = await tools["validate_openapi"]()
+
+        assert validation["valid"], validation
+        assert validation["issues"] == []
 
     asyncio.run(scenario())
 
@@ -179,6 +223,10 @@ def test_exact_seed_is_copied_and_later_stage_resumes_same_binding(
         b"openapi: 3.0.3\ninfo: &info\n  title: Demo\n  version: '1'\ncopy: *info\npaths: {}\n",
         b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: .nan\npaths: {}\n",
         b"openapi: 2.0\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n",
+        (
+            b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n"
+            b"components:\n  pathItems: {}\n"
+        ),
         b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n1: invalid-key\n",
         b"[]\n",
     ],
@@ -328,6 +376,80 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
     asyncio.run(scenario())
 
 
+def test_schema_mutations_replace_refs_atomically_and_reject_vacuum_shape_errors(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("value = 'example'\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Schema Service")
+        await tools["upsert_openapi_component"](
+            "schemas", "StringValue", {"type": "string"}, ["src/app.py"]
+        )
+        await tools["upsert_openapi_component"](
+            "schemas",
+            "Envelope",
+            {
+                "type": "object",
+                "properties": {"value": {"type": "string", "description": "Inline value"}},
+            },
+            ["src/app.py"],
+        )
+        replaced = await tools["upsert_openapi_component"](
+            "schemas",
+            "Envelope",
+            {"properties": {"value": {"$ref": "#/components/schemas/StringValue"}}},
+            ["src/app.py"],
+        )
+        envelope = (await tools["get_openapi_component"]("schemas", "Envelope"))["component"]
+        assert envelope["properties"]["value"] == {"$ref": "#/components/schemas/StringValue"}
+
+        revision = replaced["artifact"]["revision"]
+        writes = client.write_count
+        with pytest.raises(ValueError, match="type must not be null"):
+            await tools["upsert_openapi_component"](
+                "schemas",
+                "Envelope",
+                {
+                    "properties": {
+                        "value": {
+                            "$ref": "#/components/schemas/StringValue",
+                            "type": None,
+                        }
+                    }
+                },
+                ["src/app.py"],
+            )
+        with pytest.raises(ValueError, match=r"\$ref objects cannot contain sibling"):
+            await tools["upsert_openapi_component"](
+                "schemas",
+                "Envelope",
+                {
+                    "properties": {
+                        "value": {
+                            "$ref": "#/components/schemas/StringValue",
+                            "description": "Ignored sibling",
+                        }
+                    }
+                },
+                ["src/app.py"],
+            )
+        with pytest.raises(ValueError, match="at least two schemas"):
+            await tools["upsert_openapi_component"](
+                "schemas",
+                "Envelope",
+                {"properties": {"value": {"anyOf": [{"type": "string"}]}}},
+                ["src/app.py"],
+            )
+        assert client.write_count == writes
+        assert client.bindings[("openapi", "openapi")].revision == revision
+
+    asyncio.run(scenario())
+
+
 def test_vacuum_adapter_bounds_and_orders_serious_issues(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -424,6 +546,8 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
         "set_openapi_info",
         "list_openapi_servers",
         "set_openapi_servers",
+        "list_openapi_tags",
+        "set_openapi_tags",
         "list_openapi_paths",
         "get_openapi_path",
         "upsert_openapi_path",

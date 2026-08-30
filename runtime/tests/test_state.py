@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from contractor_runtime.factories import built_in_factories
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import cleanup_orphan_workdirs
@@ -16,49 +17,60 @@ def test_each_process_state_has_a_fresh_identity() -> None:
     assert first.instance_id != second.instance_id
 
 
-def test_idle_is_committed_only_after_registration_ack() -> None:
+def test_idle_is_committed_only_after_registration_ack(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = RuntimeState(instance_id="runtime-fixed")
         registration = await state.registration(make_settings())
         assert registration.observed_state.value == "idle"
-        assert {
+        advertised = {
             capability.ref: set(capability.tools) for capability in registration.supported_toolsets
-        } == {
-            "likec4@1": {
-                "append_likec4",
-                "load_likec4",
-                "read_likec4",
-                "replace_likec4",
-                "validate_likec4",
-                "write_likec4",
-            },
-            "openapi@1": {
-                "get_openapi_component",
-                "get_openapi_info",
-                "get_openapi_path",
-                "initialize_openapi",
-                "list_openapi_components",
-                "list_openapi_paths",
-                "list_openapi_servers",
-                "load_openapi",
-                "read_openapi_document",
-                "remove_openapi_component",
-                "remove_openapi_path",
-                "set_openapi_info",
-                "set_openapi_servers",
-                "upsert_openapi_component",
-                "upsert_openapi_path",
-                "validate_openapi",
-            },
-            "run-artifacts@1": {"list_artifacts", "read_artifact", "write_artifact"},
-            "source-analysis@1": {
-                "list_source_files",
-                "open_source_archive",
-                "read_source",
-                "search_source",
-            },
-            "text-artifacts@1": {"read_text_artifact", "write_text_artifact"},
         }
+        implemented = {
+            ref: set(factory.exported_tools)
+            for ref, factory in built_in_factories(tmp_path).toolsets.items()
+        }
+        assert (
+            advertised
+            == implemented
+            == {
+                "likec4@1": {
+                    "append_likec4",
+                    "load_likec4",
+                    "read_likec4",
+                    "replace_likec4",
+                    "validate_likec4",
+                    "write_likec4",
+                },
+                "openapi@1": {
+                    "get_openapi_component",
+                    "get_openapi_info",
+                    "get_openapi_path",
+                    "initialize_openapi",
+                    "list_openapi_components",
+                    "list_openapi_paths",
+                    "list_openapi_servers",
+                    "list_openapi_tags",
+                    "load_openapi",
+                    "read_openapi_document",
+                    "remove_openapi_component",
+                    "remove_openapi_path",
+                    "set_openapi_info",
+                    "set_openapi_servers",
+                    "set_openapi_tags",
+                    "upsert_openapi_component",
+                    "upsert_openapi_path",
+                    "validate_openapi",
+                },
+                "run-artifacts@1": {"list_artifacts", "read_artifact", "write_artifact"},
+                "source-analysis@1": {
+                    "list_source_files",
+                    "open_source_archive",
+                    "read_source",
+                    "search_source",
+                },
+                "text-artifacts@1": {"read_text_artifact", "write_text_artifact"},
+            }
+        )
         assert (await state.snapshot()).process_state is ProcessState.STARTING
 
         await state.mark_registered()

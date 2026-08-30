@@ -38,7 +38,7 @@ VACUUM_TIMEOUT_SECONDS = 30
 DEFAULT_TARGET_NAME = "openapi"
 TARGET_MEDIA_TYPE = "application/yaml"
 SOURCE_EVIDENCE_DENIED_SUFFIXES = frozenset({".json", ".yaml", ".yml", ".md", ".c4"})
-ALLOWED_COMPONENT_SECTIONS = frozenset(
+OPENAPI_30_COMPONENT_SECTIONS = frozenset(
     {
         "schemas",
         "responses",
@@ -49,9 +49,9 @@ ALLOWED_COMPONENT_SECTIONS = frozenset(
         "securitySchemes",
         "links",
         "callbacks",
-        "pathItems",
     }
 )
+ALLOWED_COMPONENT_SECTIONS = OPENAPI_30_COMPONENT_SECTIONS | {"pathItems"}
 
 HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
@@ -59,7 +59,7 @@ BASE_DOCUMENT: dict[str, Any] = {
     "openapi": "3.0.3",
     "info": {"title": "", "description": "", "version": "1.0.0"},
     "paths": {},
-    "components": {section: {} for section in sorted(ALLOWED_COMPONENT_SECTIONS)},
+    "components": {section: {} for section in sorted(OPENAPI_30_COMPONENT_SECTIONS)},
 }
 
 
@@ -73,6 +73,8 @@ class OpenAPIToolsetFactory:
             "set_openapi_info",
             "list_openapi_servers",
             "set_openapi_servers",
+            "list_openapi_tags",
+            "set_openapi_tags",
             "list_openapi_paths",
             "get_openapi_path",
             "upsert_openapi_path",
@@ -119,6 +121,8 @@ class OpenAPIToolsetFactory:
                 session, client, metrics, secrets
             ),
             "set_openapi_servers": lambda: SetOpenAPIServersTool(session, client, metrics, secrets),
+            "list_openapi_tags": lambda: ListOpenAPITagsTool(session, client, metrics, secrets),
+            "set_openapi_tags": lambda: SetOpenAPITagsTool(session, client, metrics, secrets),
             "list_openapi_paths": lambda: ListOpenAPIPathsTool(session, client, metrics, secrets),
             "get_openapi_path": lambda: GetOpenAPIPathTool(session, client, metrics, secrets),
             "upsert_openapi_path": lambda: UpsertOpenAPIPathTool(session, client, metrics, secrets),
@@ -267,6 +271,20 @@ class _OpenAPISession:
         return await self._mutate(
             lambda document: document.__setitem__("servers", normalized),
             operation="set_servers",
+        )
+
+    async def list_tags(self) -> dict[str, Any]:
+        async with self._lock:
+            document, artifact = self._require_document()
+            tags = copy.deepcopy(document.get("tags", []))
+            _bound_targeted_result(tags)
+            return {"artifact": artifact.model_dump(by_alias=True), "tags": tags}
+
+    async def set_tags(self, tags: list[dict[str, Any]]) -> dict[str, Any]:
+        normalized = _validate_tags(tags)
+        return await self._mutate(
+            lambda document: document.__setitem__("tags", normalized),
+            operation="set_tags",
         )
 
     async def list_paths(self) -> dict[str, Any]:
@@ -720,6 +738,26 @@ class SetOpenAPIServersTool(_BaseOpenAPITool):
         )
 
 
+class ListOpenAPITagsTool(_BaseOpenAPITool):
+    name = "list_openapi_tags"
+    description = "Read the current top-level OpenAPI tag declarations."
+
+    async def __call__(self) -> dict[str, Any]:
+        return await self._call(
+            {},
+            self._session.list_tags(),
+            lambda result: {"artifact": result["artifact"], "count": len(result["tags"])},
+        )
+
+
+class SetOpenAPITagsTool(_BaseOpenAPITool):
+    name = "set_openapi_tags"
+    description = "Validate and CAS-replace top-level OpenAPI tag declarations."
+
+    async def __call__(self, tags: list[dict[str, Any]]) -> dict[str, Any]:
+        return await self._call({"content": tags}, self._session.set_tags(tags), _artifact_metric)
+
+
 class ListOpenAPIPathsTool(_BaseOpenAPITool):
     name = "list_openapi_paths"
     description = "List current OpenAPI path keys without returning whole path definitions."
@@ -1014,6 +1052,8 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
             # OpenAPI extensions can add x-* component-adjacent data, but an
             # unknown component bucket is almost certainly a model mistake.
             raise ValueError(f"unsupported OpenAPI component section: {section}")
+        if version.startswith("3.0.") and section == "pathItems":
+            raise ValueError("OpenAPI components.pathItems requires OpenAPI 3.1")
         if not isinstance(values, dict):
             raise ValueError(f"OpenAPI components.{section} must be an object")
         for name, component in values.items():
@@ -1023,6 +1063,10 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
                 _validate_provenance(component.get("x-component-files"), "component")
     if "servers" in document:
         _validate_servers(document["servers"])
+    if "tags" in document:
+        _validate_tags(document["tags"])
+    _validate_schema_shapes(document, version)
+    _validate_reference_siblings(document, version)
     _validate_local_refs(document)
 
 
@@ -1048,6 +1092,86 @@ def _validate_component(section: str, value: Any) -> None:
             model.model_validate(value)
         except ValidationError as error:
             raise ValueError(_validation_message(model.__name__, error)) from error
+
+
+def _validate_reference_siblings(value: Any, version: str) -> None:
+    """Reject Reference Object siblings which OpenAPI 3.0 ignores."""
+
+    if isinstance(value, dict):
+        if version.startswith("3.0.") and "$ref" in value and len(value) != 1:
+            raise ValueError("OpenAPI 3.0 $ref objects cannot contain sibling fields")
+        for child in value.values():
+            _validate_reference_siblings(child, version)
+    elif isinstance(value, list):
+        for child in value:
+            _validate_reference_siblings(child, version)
+
+
+def _validate_schema_shapes(document: dict[str, Any], version: str) -> None:
+    """Validate high-value Schema Object invariants without a second CLI call."""
+
+    components = document.get("components", {})
+    schemas = components.get("schemas", {}) if isinstance(components, dict) else {}
+    if isinstance(schemas, dict):
+        for schema in schemas.values():
+            _validate_schema_shape(schema, version)
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "schema" and isinstance(child, dict):
+                    _validate_schema_shape(child, version)
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(document)
+
+
+def _validate_schema_shape(value: Any, version: str) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("OpenAPI schema must be an object")
+    schema_type = value.get("type")
+    if "type" in value:
+        valid_type = isinstance(schema_type, str) and bool(schema_type)
+        if version.startswith("3.1.") and isinstance(schema_type, list):
+            valid_type = bool(schema_type) and all(
+                isinstance(item, str) and bool(item) for item in schema_type
+            )
+        if not valid_type:
+            raise ValueError("OpenAPI schema type must not be null or empty")
+    properties = value.get("properties")
+    if "properties" in value and not isinstance(properties, dict):
+        raise ValueError("OpenAPI schema properties must be an object")
+    required = value.get("required")
+    if "required" in value and (
+        not isinstance(required, list)
+        or not required
+        or any(not isinstance(item, str) or not item for item in required)
+    ):
+        raise ValueError("OpenAPI schema required must be a non-empty string list")
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        members = value.get(keyword)
+        if keyword in value and (
+            not isinstance(members, list)
+            or len(members) < 2
+            or any(not isinstance(item, dict) for item in members)
+        ):
+            raise ValueError(f"OpenAPI schema {keyword} must contain at least two schemas")
+        if isinstance(members, list):
+            for member in members:
+                _validate_schema_shape(member, version)
+    if isinstance(properties, dict):
+        for property_schema in properties.values():
+            _validate_schema_shape(property_schema, version)
+    if "items" in value:
+        _validate_schema_shape(value["items"], version)
+    additional = value.get("additionalProperties")
+    if "additionalProperties" in value and not isinstance(additional, bool | dict):
+        raise ValueError("OpenAPI schema additionalProperties must be a boolean or schema")
+    if isinstance(additional, dict):
+        _validate_schema_shape(additional, version)
 
 
 def _validation_message(kind: str, error: ValidationError) -> str:
@@ -1117,6 +1241,46 @@ def _validate_servers(value: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _validate_tags(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 100:
+        raise ValueError("OpenAPI tags must be a list of at most 100 entries")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for tag in value:
+        if not isinstance(tag, dict):
+            raise ValueError("OpenAPI tag entries must be objects")
+        unsupported = [
+            key
+            for key in tag
+            if key not in {"name", "description", "externalDocs"}
+            and not (isinstance(key, str) and key.startswith("x-"))
+        ]
+        if unsupported:
+            raise ValueError("OpenAPI tag contains unsupported fields")
+        name = tag.get("name")
+        _require_nonempty("tag.name", name)
+        assert isinstance(name, str)
+        if len(name) > 256 or name in seen:
+            raise ValueError("OpenAPI tag names must be unique and at most 256 characters")
+        seen.add(name)
+        description = tag.get("description")
+        if description is not None and not isinstance(description, str):
+            raise ValueError("OpenAPI tag description must be a string")
+        external_docs = tag.get("externalDocs")
+        if external_docs is not None:
+            if not isinstance(external_docs, dict) or set(external_docs) - {
+                "url",
+                "description",
+            }:
+                raise ValueError("OpenAPI tag externalDocs is invalid")
+            _require_nonempty("tag.externalDocs.url", external_docs.get("url"))
+            external_description = external_docs.get("description")
+            if external_description is not None and not isinstance(external_description, str):
+                raise ValueError("OpenAPI tag externalDocs description must be a string")
+        result.append(copy.deepcopy(tag))
+    return result
+
+
 def _dump_document(document: dict[str, Any]) -> bytes:
     rendered = yaml.dump(
         document,
@@ -1133,6 +1297,11 @@ def _dump_document(document: dict[str, Any]) -> bytes:
 
 def _deep_merge(base: Any, update: Any) -> Any:
     if isinstance(base, dict) and isinstance(update, dict):
+        # A Reference Object replaces the value it points from. Retaining an
+        # inline schema's old fields beside a new $ref creates an invalid 3.0
+        # document and makes later repair ambiguous.
+        if "$ref" in update or "$ref" in base:
+            return copy.deepcopy(update)
         result = copy.deepcopy(base)
         for key, value in update.items():
             result[key] = _deep_merge(result[key], value) if key in result else copy.deepcopy(value)

@@ -12,6 +12,11 @@ environment error. Otherwise:
 - inspect each serious issue with the smallest targeted OpenAPI read;
 - use source search/read only when needed to prove the correction;
 - change only a verified info field, server, path, or component;
+- reconcile operation tags with top-level declarations through
+  `list_openapi_tags`/`set_openapi_tags`;
+- when source establishes no deployment URL, use the neutral relative server URL
+  `.` (current origin) if validation requires a server; never invent a host or
+  use the invalid trailing-slash `/`;
 - attach real implementation-source evidence to every path/component mutation;
 - use removal only when code proves the entry is stale or wrong;
 - never invent a server, endpoint, response, schema, or security behavior merely to

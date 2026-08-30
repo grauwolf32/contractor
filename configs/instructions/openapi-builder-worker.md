@@ -27,14 +27,19 @@ Mutation rules:
 - never use Markdown, OpenAPI, YAML, JSON, or LikeC4 files as evidence;
 - model parameters, request bodies, responses, status codes, security, and servers
   only when code or configuration supports them;
+- give each operation at least one stable domain tag and declare every used tag
+  at top level with `set_openapi_tags`;
+- when source establishes no deployment URL, use the neutral relative server URL
+  `.` (current origin) if validation requires a server; never invent a host and
+  never use `/`, which Vacuum rejects as a trailing-slash server URL;
 - merge an existing item only after a targeted read establishes what must be kept;
 - do not retry an identical rejected mutation;
 - do not remove entries: this template intentionally has no removal tools.
 
 Create reusable schemas/security schemes/request bodies/responses before referring
 to them. The OpenAPI Toolset rejects unresolved or remote `$ref` values. At the end,
-enumerate paths and relevant component sections, inspect any ambiguous existing
-entry, and call `validate_openapi` once. Fix only high-confidence issues that can be
+enumerate paths, top-level tags, servers, and relevant component sections, inspect
+any ambiguous existing entry, and call `validate_openapi` once. Fix only high-confidence issues that can be
 resolved from the available evidence; the following validation Stage owns final
 repair and the second lint cycle.
 

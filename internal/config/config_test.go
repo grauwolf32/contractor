@@ -99,9 +99,9 @@ func TestOpenAPIToolsetDescriptor(t *testing.T) {
 	want := []string{
 		"get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"initialize_openapi", "list_openapi_components", "list_openapi_paths",
-		"list_openapi_servers", "load_openapi", "read_openapi_document",
+		"list_openapi_servers", "list_openapi_tags", "load_openapi", "read_openapi_document",
 		"remove_openapi_component", "remove_openapi_path", "set_openapi_info",
-		"set_openapi_servers", "upsert_openapi_component", "upsert_openapi_path",
+		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 		"validate_openapi",
 	}
 	if !equalStrings(descriptor.Tools, want) {

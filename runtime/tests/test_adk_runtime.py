@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import json_result, scripted_model, thought_result, tool_call
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 
@@ -82,6 +82,8 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
+        assert runtime._agent is not None
+        assert runtime._agent.output_schema is None
 
         result = await runtime.invoke(stage_request())
 
@@ -136,10 +138,13 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
                 )
             ]
         )
-        first = await create_runtime(tmp_path / "invalid", WorkerState(), {}, invalid)
+        invalid_state = WorkerState()
+        first = await create_runtime(tmp_path / "invalid", invalid_state, {}, invalid)
         invalid_result = await first.invoke(stage_request())
         assert invalid_result.error is not None
         assert invalid_result.error.code == "invalid_worker_result"
+        assert invalid_result.error.retryable is True
+        assert invalid_state.metrics.errors[-1].code == "worker_result_schema_extra_forbidden"
         await first.abort(datetime.now(UTC) + timedelta(seconds=1))
 
         invented = scripted_model(
@@ -164,6 +169,7 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
         invented_result = await second.invoke(stage_request())
         assert invented_result.error is not None
         assert invented_result.error.code == "unverified_artifact_ref"
+        assert invented_result.error.retryable is True
         await second.abort(datetime.now(UTC) + timedelta(seconds=1))
 
         secret_bearing = scripted_model(
@@ -186,6 +192,134 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
         assert SECRET not in secret_result.model_dump_json(by_alias=True)
         assert SECRET not in repr(secret_state.metrics.snapshot())
         await third.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> None:
+    class MissingArtifact(RuntimeError):
+        code = "not_found"
+        retryable = False
+
+    async def load_optional(name: str) -> dict[str, object]:
+        """Load an optional artifact."""
+
+        raise MissingArtifact(f"missing {name}: {SECRET}")
+
+    async def scenario() -> None:
+        model = scripted_model(
+            [
+                tool_call("load_optional", {"name": "candidate"}, call_id="load-1"),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Recovered from optional absence",
+                        "artifacts": {},
+                    }
+                ),
+            ]
+        )
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {"load_optional": load_optional}, model
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert len(model.requests) == 2
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=runtime._session_id,
+        )
+        assert session is not None
+        assert SECRET not in repr(session.events)
+        assert "load_optional failed (MissingArtifact)" in repr(session.events)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_uses_one_tool_free_turn_when_tool_phase_has_no_final_text(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_artifact",
+                    {
+                        "namespace": "builder",
+                        "name": "report",
+                        "media_type": "application/json",
+                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "expected_revision": None,
+                    },
+                    call_id="write-before-missing-result",
+                ),
+                thought_result("The report is complete."),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Report created",
+                        "artifacts": {
+                            "report": {
+                                "namespace": "builder",
+                                "name": "report",
+                                "revision": "write-r1",
+                            }
+                        },
+                    }
+                ),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert result.artifacts["report"].revision == "write-r1"
+        assert len(model.requests) == 3
+        assert model.requests[0]["toolNames"] == ["read_artifact", "write_artifact"]
+        assert model.requests[1]["toolNames"] == ["read_artifact", "write_artifact"]
+        assert model.requests[2]["toolNames"] == []
+        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
+        assert state.metrics.counters["worker_result_recovery.succeeded"] == 1
+        assert not any(error.code == "worker_result_missing" for error in state.metrics.errors)
+        assert SECRET not in repr(state.metrics.snapshot())
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_bounds_missing_result_recovery_to_one_turn(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model(
+            [
+                thought_result("The task is complete."),
+                thought_result("The result is ready."),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.error is not None
+        assert result.error.code == "invalid_worker_result"
+        assert result.error.retryable
+        assert len(model.requests) == 2
+        assert model.requests[0]["toolNames"] == []
+        assert model.requests[1]["toolNames"] == []
+        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
+        assert state.metrics.counters["worker_result_recovery.failed"] == 1
+        assert state.metrics.errors[-1].code == "worker_result_missing"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
@@ -243,6 +377,7 @@ def test_gateway_adapter_discards_secret_bearing_provider_exception(
                 pass
         assert SECRET not in repr(captured.value)
         assert captured.value.__context__ is None
+        assert captured.value.provider_error_type == "RuntimeError"
 
     asyncio.run(scenario())
     model.clear_credentials()
