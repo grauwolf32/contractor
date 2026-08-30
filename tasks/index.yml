@@ -153,9 +153,10 @@ current_planning_review:
       delivery; no UI task needs to scrape prompts, ADK state or generic tool
       payloads.
     - >-
-      V4 starts with the committed API and security contracts, then adds
-      operational mutations and UI routes. The Node service remains a static
-      frontend host and never becomes a BFF or lifecycle authority.
+      V4 starts with the committed API contract and a separate owner-scoped
+      Workflow/Run/Artifact query slice before configuration, Operations,
+      security and UI work. The Node service remains a static frontend host
+      and never becomes a BFF or lifecycle authority.
     - >-
       Every new task is self-contained, names concrete production and test
       deliverables, and retains the full implementation-commit rule above.
@@ -291,6 +292,7 @@ tasks:
   - {id: V3-009, file: v3-009-planner-plan-events.yml}
   - {id: V3-010, file: v3-010-routing-escalation-e2e.yml}
   - {id: V4-001, file: v4-001-public-openapi-contract.yml}
+  - {id: V4-001A, file: v4-001a-public-query-api.yml}
   - {id: V4-002, file: v4-002-managed-config-publication.yml}
   - {id: V4-003, file: v4-003-encrypted-credential-store.yml}
   - {id: V4-004, file: v4-004-litellm-key-manager.yml}

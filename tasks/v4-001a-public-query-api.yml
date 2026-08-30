@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V4-001A
+title: Implement Workflow, Run, and Artifact public read models
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-001]
+languages: [go, sql]
+
+goal: >-
+  Implement the owner-scoped query API needed by the ordinary Workflow UI:
+  published Workflow contracts, paginated Runs with complete safe attempt
+  detail, and UserScope/RunScope Artifact metadata, immutable versions,
+  provenance, and downloads.
+
+context:
+  existing_state: >-
+    Go Server already creates/cancels/reads one Run, uploads/downloads the
+    current UserScope Artifact binding, and downloads a frozen Run output.
+    PostgreSQL already stores immutable artifact versions, bindings, input-fork
+    and output-bind lineage, Run snapshots, Stage executions/transitions,
+    Planner plans, and safe aggregate metrics. The committed public OpenAPI v1
+    document marks the additional query operations as planned.
+  authority: >-
+    Workflow responses come from one immutable configuration snapshot. Run and
+    RunScope requests derive owner and scope from the authenticated principal
+    plus the stored Run; callers never submit an owner ID or scope ID. Planner
+    global objective is joined from the immutable StageExecution snapshot and
+    is not accepted from journal/model data.
+
+scope:
+  in:
+    - Implement stable paginated GET /v1/workflows and exact GET /v1/workflows/{name}/versions/{version} safe projections without instruction text, model prompts, or physical endpoints.
+    - Implement stable paginated GET /v1/runs and expand GET /v1/runs/{runId} with timestamps, string parameters, exact forked inputs, active execution, immutable Stage objective, latest typed PlannerPlan, effective config refs/origins, transitions, termination, metrics, outputs, and durable event cursor.
+    - Add bounded Artifact repository queries for binding pages, immutable-version pages, metadata/current/frozen state, and input_fork/output_bind lineage with deterministic ordering and cursor continuation.
+    - Implement UserScope Artifact list/version/metadata/lineage handlers and owner-bound RunScope list/version/metadata/lineage/download handlers exactly as declared in OpenAPI.
+    - Preserve existing byte-download behavior, ETag, Content-Length, media type, request ID, exact revision selection, and non-disclosing ownership/not-found semantics.
+    - Mark only the newly implemented OpenAPI operations as implemented and add fixture plus PostgreSQL contract tests for every success/error response.
+  out:
+    - Configuration publication, credential management, Runtime Agent/allocation Operations state, browser sessions, WebSocket delivery, Artifact deletion, RunScope mutation, or publishing Run outputs into UserScope.
+
+deliverables:
+  - {path: internal/config, description: Safe immutable Workflow list/detail projections from the current snapshot.}
+  - {path: internal/runstore, description: Stable owner-scoped Run pages and joined detail/event-cursor queries.}
+  - {path: internal/artifacts, description: Bounded scope-bound metadata, immutable-version, and lineage query services.}
+  - {path: internal/httpapi/public, description: Workflow, Run-list/detail, UserScope, and RunScope query handlers plus OpenAPI fixtures.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Implementation markers kept in sync with actual routes.}
+
+requirements:
+  - id: R1
+    text: Owner, UserScope, and RunScope identities are always derived from authenticated context and stored Run ownership, never accepted from bodies or query parameters.
+  - id: R2
+    text: Workflow and Run projections contain only refs/digests, validated plan state, safe reasons, and aggregate metrics; instruction text, prompts, tool/model payloads, Gateway tokens, and physical Worker endpoints are absent.
+  - id: R3
+    text: Every page is bounded and deterministically ordered with an opaque continuation cursor; concurrent inserts may cause documented duplicate delivery but cannot cross a scope or return a partial object.
+  - id: R4
+    text: Exact artifact revisions are immutable, current is explicit metadata, and lineage returns only persisted input_fork/output_bind edges with safe scope kinds rather than scope owner IDs.
+
+acceptance_criteria:
+  - id: A1
+    given: Published OpenAPI and LikeC4 Workflow versions.
+    when: Workflow list/detail is requested.
+    then: Inputs, outputs, string parameters, Stages, objectives, safe refs/effective escalation profiles, and graph transitions conform to OpenAPI without instruction text or secrets.
+  - id: A2
+    given: A Run with base and escalated attempts plus durable Planner events.
+    when: Run list/detail is requested.
+    then: Ordered attempts/decisions, objective, latest valid plan, exact context, effective refs/origins, safe terminations/metrics, timestamps, outputs, and event cursor are returned.
+  - id: A3
+    given: UserScope history and an owned Run containing exact input, intermediate, and frozen output bindings.
+    when: Artifact list/version/metadata/lineage/download operations run.
+    then: Stable exact metadata and bytes stay inside the authenticated scope and another owner receives a non-disclosing not-found response before any Artifact read.
+  - id: A4
+    given: A forged cursor, unknown filter, oversized page request, private scope identifier, or malformed exact revision.
+    when: A query is handled.
+    then: It fails with the bounded public error envelope and performs no cross-scope lookup.
+
+tests:
+  - {name: public-unit, command: "go test -race ./internal/httpapi/public/... ./internal/config/...", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -count=1 ./internal/artifacts/... ./internal/runstore/... ./internal/httpapi/public/...", covers: [A2, A3, A4]}
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
