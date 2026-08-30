@@ -53,7 +53,7 @@ model {
     #external
   }
 
-  webUi = system 'Contractor Web UI — separately deployed Node.js service' {
+  webUi = system 'Contractor Web UI — React/TypeScript SPA on a separate Node.js service' {
     #contractor
   }
 

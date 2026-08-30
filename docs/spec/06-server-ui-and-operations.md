@@ -58,6 +58,63 @@ in local development. The browser calls that Go Server URL directly, including
 for Artifact upload/download and Operations mutations. Node receives no Server
 credential and has no database, Control Plane or Runtime Agent access.
 
+## Frontend implementation contract
+
+The first UI implementation is a React single-page application written in
+TypeScript with strict type checking. Vite builds the browser bundle. React
+Router is used in Data Mode with browser history; Framework Mode, SSR and
+pre-rendering are out of scope. The Node static server returns `index.html` for
+known client-route fallbacks, but never uses that fallback for assets,
+`/runtime-config.json` or unknown API-looking paths.
+
+TanStack Query is the only shared cache of Server state. It owns API queries,
+mutations, invalidation, refetch and the selected live-update policy. Router,
+form and transient presentation state stay local to the narrowest route or
+component that needs them. The first slice has no Redux, Zustand or second
+client-side copy of the Workflow/Run domain model.
+
+In particular, the UI never predicts an authoritative Run, StageExecution,
+allocation, configuration-publication or credential-operation transition. A
+successful mutation causes the affected query keys to be invalidated and
+refetched; only a subsequent Server response establishes the displayed domain
+state. Optimistic updates are allowed for purely local drafts, but not for
+execution lifecycle, published configuration or credential state.
+
+The browser API has one committed OpenAPI 3.1 contract at
+`api/openapi/contractor-public-v1.yaml`. It describes the public `/v1` auth,
+Workflow, Run, Artifact and Operations resources, their error envelope and the
+mutation headers used by browser and non-UI clients. Private Control Plane,
+Runtime Agent and A2A wire contracts remain separate and are not made public by
+including them in this document. Incompatible changes require a new public API
+version; regenerating a client from an incompatible document does not make the
+change backward compatible.
+
+The UI build pins the exact public contract and a deterministic TypeScript
+client generator. Generated DTO/client files are not hand-edited, and CI fails
+when regeneration produces an uncommitted diff. A small handwritten transport
+adapter around that generated client is the only place that:
+
+- resolves `apiBaseUrl` from runtime config;
+- opts into the session cookie and attaches the current CSRF token to unsafe
+  requests;
+- supplies operation-specific `Idempotency-Key` and `If-Match` values provided
+  by the caller;
+- maps the specified success/error envelopes into one bounded client error
+  type without logging response bodies or secrets.
+
+The adapter does not implement domain transitions, retry unsafe mutations with
+a new idempotency key or persist credentials/session material. Server contract
+tests exercise request and response examples against the same OpenAPI document.
+
+Vite's transform is not the type-checking gate: CI separately runs strict
+TypeScript checking. Vitest and React Testing Library cover units and routed
+components; Playwright covers browser behavior against the real Node static
+service and Go Server, including login/session recovery, CORS and CSRF failure,
+one Run lifecycle, Artifact transfer and an authorized Operations mutation.
+The Node major version, package-manager version, generator and all frontend
+dependencies are lockfile-pinned. Their upgrades and the UI release remain
+independent of the Go Server release while the supported API version overlaps.
+
 ## Workflow user surface
 
 The first useful user surface supports:
@@ -556,7 +613,8 @@ Artifact use so later RBAC does not require changing domain semantics.
   first-slice allowlist; LiteLLM remains their enforcement authority;
 - Contractor credential-encryption master-key rotation/re-encryption and a
   future Vault/KMS adapter;
-- frontend framework, build tool and client-side state/query library;
+- component library/design system and the production Node static-server
+  implementation;
 - future OIDC authentication, multiple users and user/Operations RBAC;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;
 - exact list/filter/pagination contracts and retention window;

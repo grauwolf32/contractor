@@ -47,6 +47,15 @@ This slice must demonstrate:
   assets and remains healthy when UI is unavailable; Node serves only the
   client bundle and non-secret runtime API URL, while the browser calls Go
   Server directly through its exact CORS origin allowlist;
+- Web UI is a strict-TypeScript React SPA built by Vite, routed with React
+  Router Data Mode and backed by TanStack Query as its only shared Server-state
+  cache; it has no SSR/BFF or duplicate global lifecycle store and never
+  optimistically invents authoritative execution or publication transitions;
+- one committed OpenAPI 3.1 public `/v1` contract generates the pinned
+  TypeScript client through a thin cookie/CSRF/idempotency/CAS transport
+  adapter; strict type checking, regeneration-drift tests, Vitest/Testing
+  Library coverage and Playwright against the real Node UI plus Go Server are
+  required first-slice gates;
 - one Argon2id bootstrap user logs in directly to Go Server and receives an
   in-memory, idle/absolute-expiring HttpOnly session plus a session-bound CSRF
   token; browser mutation requires exact Origin and CSRF checks, Server restart
