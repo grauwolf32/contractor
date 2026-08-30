@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -47,10 +48,14 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	runtimeRequestTimeout := defaultRuntimeRequestTimeout
 	plannerTimeout := defaultPlannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
-	configRoot := getenv("CONTRACTOR_CONFIG_ROOT")
-	if configRoot == "" {
-		configRoot = defaultConfigRoot
+	operatorConfigRoot := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT")
+	if operatorConfigRoot == "" {
+		operatorConfigRoot = getenv("CONTRACTOR_CONFIG_ROOT")
 	}
+	if operatorConfigRoot == "" {
+		operatorConfigRoot = defaultConfigRoot
+	}
+	managedConfigRoot := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT")
 	publicUserID := getenv("CONTRACTOR_PUBLIC_USER_ID")
 	publicBearerToken := contracts.NewSecretString(getenv("CONTRACTOR_PUBLIC_BEARER_TOKEN"))
 	caFile := getenv("CONTRACTOR_CA_FILE")
@@ -77,7 +82,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		"private Runtime Agent request timeout",
 	)
 	flags.StringVar(&databaseURL, "database-url", databaseURL, "PostgreSQL connection URL")
-	flags.StringVar(&configRoot, "config-root", configRoot, "configuration root")
+	flags.StringVar(&operatorConfigRoot, "operator-config-root", operatorConfigRoot, "operator/bootstrap configuration root")
+	flags.StringVar(&operatorConfigRoot, "config-root", operatorConfigRoot, "deprecated alias for --operator-config-root")
+	flags.StringVar(&managedConfigRoot, "managed-config-root", managedConfigRoot, "Server-managed configuration publication root")
 	flags.StringVar(&publicUserID, "public-user-id", publicUserID, "single-user public API identity")
 	flags.StringVar(&caFile, "ca-file", caFile, "deployment CA certificate")
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
@@ -88,6 +95,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	if flags.NArg() != 0 {
 		return Config{}, fmt.Errorf("unexpected positional arguments: %v", flags.Args())
+	}
+	if managedConfigRoot == "" {
+		managedConfigRoot = filepath.Join(filepath.Dir(operatorConfigRoot), "managed-configs")
 	}
 	if listenAddress == "" {
 		return Config{}, errors.New("listen address must not be empty")
@@ -110,8 +120,8 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if plannerTimeout <= 0 || plannerTimeout > 30*time.Minute {
 		return Config{}, errors.New("planner timeout must be positive and at most 30 minutes")
 	}
-	if strings.TrimSpace(configRoot) == "" {
-		return Config{}, errors.New("configuration root must not be empty")
+	if strings.TrimSpace(operatorConfigRoot) == "" || strings.TrimSpace(managedConfigRoot) == "" {
+		return Config{}, errors.New("operator and managed configuration roots must not be empty")
 	}
 	if developmentPlannerToken.Reveal() == "" {
 		developmentPlannerToken = developmentWorkerToken
@@ -120,8 +130,10 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	return Config{
 		ListenAddress: listenAddress, PrivateListenAddress: privateListenAddress, PrivateURL: privateURL,
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,
-		DatabaseURL: databaseURL, ConfigRoot: configRoot,
-		CAFile: caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
+		DatabaseURL: databaseURL,
+		ConfigRoot:  operatorConfigRoot, OperatorConfigRoot: operatorConfigRoot,
+		ManagedConfigRoot: managedConfigRoot,
+		CAFile:            caFile, CertificateFile: certificateFile, PrivateKeyFile: privateKeyFile,
 		DevelopmentWorkerToken: developmentWorkerToken, DevelopmentPlannerToken: developmentPlannerToken,
 		PlannerTimeout: plannerTimeout,
 		PublicUserID:   publicUserID, PublicBearerToken: publicBearerToken,

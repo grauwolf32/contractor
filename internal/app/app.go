@@ -21,6 +21,7 @@ import (
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
@@ -37,13 +38,17 @@ import (
 
 // Config contains process-level settings needed by the bootstrap server.
 type Config struct {
-	ListenAddress           string
-	PrivateListenAddress    string
-	PrivateURL              string
-	ShutdownTimeout         time.Duration
-	RuntimeRequestTimeout   time.Duration
-	DatabaseURL             string
+	ListenAddress         string
+	PrivateListenAddress  string
+	PrivateURL            string
+	ShutdownTimeout       time.Duration
+	RuntimeRequestTimeout time.Duration
+	DatabaseURL           string
+	// ConfigRoot is the deprecated alias retained for callers that inspect
+	// parsed settings. Runtime composition uses the two explicit roots below.
 	ConfigRoot              string
+	OperatorConfigRoot      string
+	ManagedConfigRoot       string
 	CAFile                  string
 	CertificateFile         string
 	PrivateKeyFile          string
@@ -118,19 +123,26 @@ func RunCLI(
 	if cfg.PlannerTimeout <= 0 {
 		return errors.New("Planner timeout is required")
 	}
-	snapshot, err := workflowconfig.Load(cfg.ConfigRoot, workflowconfig.MVPDescriptors())
-	if err != nil {
-		return fmt.Errorf("load configuration: %w", err)
-	}
-	credentialProvider, err := developmentCredentials(snapshot, cfg)
-	if err != nil {
-		return fmt.Errorf("configure development LLM credentials: %w", err)
-	}
 	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, persistencepostgres.PoolOptions{})
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
+	configurationManager, err := workflowconfig.NewManager(workflowconfig.ManagerOptions{
+		OperatorRoot: cfg.OperatorConfigRoot,
+		ManagedRoot:  cfg.ManagedConfigRoot,
+		Descriptors:  workflowconfig.MVPDescriptors(),
+		Audit:        configaudit.New(pool),
+		Logger:       logger,
+	})
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
+	snapshot := configurationManager.Snapshot()
+	credentialProvider, err := developmentCredentials(snapshot, cfg)
+	if err != nil {
+		return fmt.Errorf("configure development LLM credentials: %w", err)
+	}
 	files := mtls.Files{
 		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,
 	}
@@ -230,7 +242,8 @@ func RunCLI(
 		return fmt.Errorf("configure Workflow Scheduler: %w", err)
 	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
-		Config: snapshot, Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
+		Config: configurationManager, ConfigurationPublisher: configurationManager,
+		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
 		Credentials:  credentialProvider,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,

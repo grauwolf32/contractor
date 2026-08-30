@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -27,7 +28,11 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	configurationManager, err := config.NewManager(config.ManagerOptions{
+		OperatorRoot: "../../config/testdata/valid",
+		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
+		Descriptors:  config.MVPDescriptors(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +40,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
 	handler, err := NewHandler(Dependencies{
-		Config: snapshot, Runs: runs, Artifacts: service,
+		Config: configurationManager, ConfigurationPublisher: configurationManager,
+		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
 		NewID:        func(string) (string, error) { return nextRunID, nil },

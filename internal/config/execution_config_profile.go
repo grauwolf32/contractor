@@ -77,6 +77,7 @@ func (l *loader) loadExecutionConfigs() error {
 			},
 			Override: override,
 		}
+		l.sources[configurationSourceKey(ConfigurationExecutionConfigs, selector.String())] = file.source
 	}
 	return nil
 }

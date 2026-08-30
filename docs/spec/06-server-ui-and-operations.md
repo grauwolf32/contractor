@@ -202,11 +202,23 @@ form one logical configuration namespace:
 The paths are deployment defaults, not hard-coded identities. Local development
 may point both flags at workspace-specific directories. A duplicate
 `kind + metadata.name + metadata.version` across either root invalidates the
-complete set; there is no root precedence and no implicit override. The first
-UI increment publishes only ModelPolicy and LLMGatewayConfig manifests. Existing
+complete set; there is no root precedence and no implicit override.
+
+The executable settings are `--operator-config-root` /
+`CONTRACTOR_OPERATOR_CONFIG_ROOT` and `--managed-config-root` /
+`CONTRACTOR_MANAGED_CONFIG_ROOT`. `CONTRACTOR_CONFIG_ROOT` and
+`--config-root` remain temporary aliases for the operator root. When the
+managed root is omitted, local configuration derives a sibling
+`managed-configs/` directory from the final operator-root path.
+
+The first UI increment publishes only ModelPolicy and LLMGatewayConfig
+manifests. Existing
 Workflow, AgentTemplate, ExecutionConfig and instruction resources remain
 operator-authored and read-only until their editors receive a separate
-contract; Operations may still list their exact identities and digests.
+contract. Operations lists the version-indexed configuration kinds here;
+instruction refs and digests remain visible through their consuming resources,
+while a standalone path-indexed instruction API is deferred rather than
+inventing a `name@version` identity for them.
 
 UI publication is create-only. It cannot edit, replace, disable or delete an
 existing published identity. Retiring configurations and safe garbage

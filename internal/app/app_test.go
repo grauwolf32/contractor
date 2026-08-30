@@ -195,6 +195,10 @@ func TestParseConfig(t *testing.T) {
 		cfg.PublicBearerToken.Reveal() != "private-token" {
 		t.Fatalf("public API settings were not parsed: %+v", cfg)
 	}
+	if cfg.OperatorConfigRoot != "/srv/contractor/configs" ||
+		cfg.ManagedConfigRoot != "/srv/contractor/managed-configs" {
+		t.Fatalf("configuration roots were not parsed: %+v", cfg)
+	}
 	if cfg.PrivateListenAddress != "127.0.0.1:9443" || cfg.PrivateURL != "https://control.internal:9443" ||
 		cfg.CAFile != "/srv/contractor/pki/ca.pem" || cfg.CertificateFile != "/srv/contractor/pki/control.pem" ||
 		cfg.PrivateKeyFile != "/srv/contractor/pki/control-key.pem" ||
@@ -225,6 +229,40 @@ func TestParseConfigUsesIndependentDevelopmentPlannerCredential(t *testing.T) {
 	if cfg.DevelopmentWorkerToken.Reveal() != "worker-token" ||
 		cfg.DevelopmentPlannerToken.Reveal() != "planner-token" || cfg.PlannerTimeout != 2*time.Minute {
 		t.Fatalf("independent development credentials = %+v", cfg)
+	}
+}
+
+func TestParseConfigPrefersExplicitConfigurationRootsAndDerivesManagedFlagDefault(t *testing.T) {
+	t.Parallel()
+	explicit, err := ParseConfig(nil, func(key string) string {
+		switch key {
+		case "CONTRACTOR_OPERATOR_CONFIG_ROOT":
+			return "/srv/operator/configs"
+		case "CONTRACTOR_CONFIG_ROOT":
+			return "/ignored/legacy"
+		case "CONTRACTOR_MANAGED_CONFIG_ROOT":
+			return "/srv/managed/configs"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicit.OperatorConfigRoot != "/srv/operator/configs" ||
+		explicit.ManagedConfigRoot != "/srv/managed/configs" {
+		t.Fatalf("explicit configuration roots = %+v", explicit)
+	}
+
+	derived, err := ParseConfig(
+		[]string{"--operator-config-root=/srv/custom/configs"},
+		func(string) string { return "" },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived.ManagedConfigRoot != "/srv/custom/managed-configs" {
+		t.Fatalf("derived managed root = %q", derived.ManagedConfigRoot)
 	}
 }
 

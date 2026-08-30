@@ -62,6 +62,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"allocation_execution_reports",
 		"artifact_binding_revisions", "artifact_bindings", "artifact_blobs",
 		"artifact_lineage", "artifact_pins", "artifact_scopes", "artifact_versions",
+		"configuration_publications",
 		"contractor_schema_migrations", "planner_events",
 		"planner_execution_reports", "planner_sessions", "stage_allocations",
 		"stage_execution_reports", "stage_executions", "stage_metrics",
@@ -75,6 +76,25 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 			t.Fatalf("durable Runtime Agent liveness table exists: %q", name)
 		}
 	}
+
+	_, err = first.Exec(ctx, `
+INSERT INTO configuration_publications (
+    kind, name, version, digest, request_digest,
+    idempotency_key_digest, actor_id, published_at
+) VALUES (
+    'model-policies', 'worker', '2',
+    'sha256:1111111111111111111111111111111111111111111111111111111111111111',
+    'sha256:2222222222222222222222222222222222222222222222222222222222222222',
+    'sha256:3333333333333333333333333333333333333333333333333333333333333333',
+    'user-1', clock_timestamp()
+)`)
+	if err != nil {
+		t.Fatalf("insert configuration publication audit: %v", err)
+	}
+	_, err = first.Exec(ctx, `
+UPDATE configuration_publications SET actor_id = 'another-user'
+WHERE kind = 'model-policies' AND name = 'worker' AND version = '2'`)
+	assertSQLState(t, err, "23514")
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (

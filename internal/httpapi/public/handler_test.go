@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ const testBearerToken = "test-bearer-token"
 
 type handlerFixture struct {
 	handler    http.Handler
+	configs    *config.Manager
 	repository *fakeArtifactRepository
 	artifacts  *artifacts.Service
 	runs       *fakeRunStore
@@ -37,7 +39,11 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 
 func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
 	t.Helper()
-	snapshot, err := config.Load(configRoot, config.MVPDescriptors())
+	manager, err := config.NewManager(config.ManagerOptions{
+		OperatorRoot: configRoot,
+		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
+		Descriptors:  config.MVPDescriptors(),
+	})
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
 	}
@@ -49,7 +55,8 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	handler, err := NewHandler(Dependencies{
-		Config: snapshot, Runs: runs, Artifacts: service, Transactions: unit,
+		Config: manager, ConfigurationPublisher: manager,
+		Runs: runs, Artifacts: service, Transactions: unit,
 		Metrics:      metrics,
 		PlannerPlans: plans,
 		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
@@ -64,7 +71,7 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 		t.Fatalf("NewHandler: %v", err)
 	}
 	return handlerFixture{
-		handler: handler, repository: repository, artifacts: service,
+		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 	}
 }

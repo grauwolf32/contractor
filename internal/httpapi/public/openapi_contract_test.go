@@ -69,6 +69,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/artifacts/{namespace}/{name}/lineage",
 		"GET /v1/artifacts/{namespace}/{name}/metadata",
 		"GET /v1/artifacts/{namespace}/{name}/versions",
+		"GET /v1/configurations/{kind}",
+		"GET /v1/configurations/{kind}/{name}/versions/{version}",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -79,6 +81,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/runs/{runId}/outputs/{slot}",
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
+		"POST /v1/configurations/{kind}",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
@@ -212,6 +215,24 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	getWorkflow := newPublicContractRequest(http.MethodGet, "/v1/workflows/artifact-copy/versions/1", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getWorkflow, true); response.Code != http.StatusOK {
 		t.Fatalf("get Workflow = %d: %s", response.Code, response.Body.String())
+	}
+	listConfigurations := newPublicContractRequest(http.MethodGet, "/v1/configurations/model-policies?limit=1", nil)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, listConfigurations, true); response.Code != http.StatusOK {
+		t.Fatalf("list configurations = %d: %s", response.Code, response.Body.String())
+	}
+	getConfiguration := newPublicContractRequest(http.MethodGet, "/v1/configurations/model-policies/worker/versions/1", nil)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, getConfiguration, true); response.Code != http.StatusOK {
+		t.Fatalf("get configuration = %d: %s", response.Code, response.Body.String())
+	}
+	publishConfiguration := newPublicContractRequest(
+		http.MethodPost,
+		"/v1/configurations/model-policies",
+		[]byte(`{"name":"contract-policy","version":"1","modelPolicy":{"model":"contract-model"}}`),
+	)
+	publishConfiguration.Header.Set("Content-Type", "application/json")
+	publishConfiguration.Header.Set("Idempotency-Key", "contract-publish-configuration")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, publishConfiguration, true); response.Code != http.StatusCreated {
+		t.Fatalf("publish configuration = %d: %s", response.Code, response.Body.String())
 	}
 
 	download := newPublicContractRequest(http.MethodGet, "/v1/artifacts/projects/source", nil)

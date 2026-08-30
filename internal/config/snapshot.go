@@ -16,6 +16,7 @@ type Snapshot struct {
 	gateways         map[string]contracts.ResolvedLLMGatewayConfig
 	executionConfigs map[string]ResolvedExecutionConfigProfile
 	instructions     map[string]contracts.ResolvedInstructions
+	sources          map[string]ConfigurationSource
 }
 
 func newSnapshot(
@@ -25,6 +26,7 @@ func newSnapshot(
 	gateways map[string]contracts.ResolvedLLMGatewayConfig,
 	executionConfigs map[string]ResolvedExecutionConfigProfile,
 	instructions map[string]contracts.ResolvedInstructions,
+	sources map[string]ConfigurationSource,
 ) *Snapshot {
 	result := &Snapshot{
 		workflows:        make(map[string]ResolvedWorkflow, len(workflows)),
@@ -33,6 +35,7 @@ func newSnapshot(
 		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
 		executionConfigs: make(map[string]ResolvedExecutionConfigProfile, len(executionConfigs)),
 		instructions:     make(map[string]contracts.ResolvedInstructions, len(instructions)),
+		sources:          make(map[string]ConfigurationSource, len(sources)),
 	}
 	for key, workflow := range workflows {
 		result.workflows[key] = cloneWorkflow(workflow)
@@ -51,6 +54,9 @@ func newSnapshot(
 	}
 	for key, instructions := range instructions {
 		result.instructions[key] = instructions
+	}
+	for key, source := range sources {
+		result.sources[key] = source
 	}
 	return result
 }

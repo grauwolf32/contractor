@@ -563,7 +563,7 @@ paths:
       operationId: listConfigurations
       tags: [Configuration]
       summary: List one safe published configuration resource kind
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -582,7 +582,7 @@ paths:
       operationId: publishConfiguration
       tags: [Configuration]
       summary: Publish a create-only ModelPolicy or LLMGatewayConfig version
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -618,7 +618,7 @@ paths:
       operationId: getConfiguration
       tags: [Configuration]
       summary: Get one exact safe published configuration resource
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact immutable resource
@@ -1750,7 +1750,11 @@ components:
         page: {$ref: '#/components/schemas/PageInfo'}
 
     ConfigurationKind:
-      enum: [agent-templates, execution-configs, instructions, model-policies, llm-gateways]
+      type: string
+      description: >-
+        Version-indexed configuration kinds. Instruction resources retain
+        normalized path identity and are therefore not exposed as name@version.
+      enum: [agent-templates, execution-configs, model-policies, llm-gateways]
     ConfigurationRef:
       type: object
       additionalProperties: false
@@ -1766,12 +1770,12 @@ components:
       required: [model]
       properties:
         model: {type: string, minLength: 1, maxLength: 256}
-        maxOutputTokens: {type: integer, minimum: 1, maximum: 100000000}
+        maxOutputTokens: {type: integer, minimum: 1, maximum: 9007199254740991}
         maxModelCalls: {type: integer, minimum: 1, maximum: 1000}
         maxToolCalls: {type: integer, minimum: 1, maximum: 10000}
         maxWorkerCalls: {type: integer, minimum: 1, maximum: 10000}
         maxTotalTokens: {type: integer, minimum: 1, maximum: 100000000}
-        temperature: {type: number, minimum: 0, maximum: 2}
+        temperature: {type: number, minimum: 0}
     CredentialManagerDescriptor:
       type: object
       additionalProperties: false

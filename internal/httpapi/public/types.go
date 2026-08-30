@@ -63,21 +63,42 @@ type RunCancellationNotifier interface {
 	Cancel(string)
 }
 
+// ConfigurationCatalog is the atomically swappable read view consumed by the
+// public API. Both a bootstrap Snapshot and the managed configuration Manager
+// implement it.
+type ConfigurationCatalog interface {
+	Workflow(string) (config.ResolvedWorkflow, error)
+	Workflows() []config.ResolvedWorkflow
+	ResolveRunWorkflow(
+		context.Context,
+		string,
+		config.ExecutionConfigPatch,
+		config.CredentialLookup,
+	) (config.ResolvedWorkflow, error)
+	Configurations(config.ConfigurationKind) ([]config.ConfigurationResource, error)
+	Configuration(config.ConfigurationKind, string) (config.ConfigurationResource, error)
+}
+
+type ConfigurationPublisher interface {
+	Publish(context.Context, config.PublicationRequest) (config.PublicationResult, error)
+}
+
 type Dependencies struct {
-	Config       *config.Snapshot
-	Credentials  config.CredentialLookup
-	Runs         RunReader
-	PlannerPlans PlannerPlanReader
-	Metrics      MetricsReader
-	Artifacts    *artifacts.Service
-	Transactions UnitOfWork
-	BearerToken  contracts.SecretString
-	UserID       string
-	NewID        func(string) (string, error)
-	NewRequestID func() (string, error)
-	RunNotifier  RunNotifier
-	Now          func() time.Time
-	Logger       *slog.Logger
+	Config                 ConfigurationCatalog
+	ConfigurationPublisher ConfigurationPublisher
+	Credentials            config.CredentialLookup
+	Runs                   RunReader
+	PlannerPlans           PlannerPlanReader
+	Metrics                MetricsReader
+	Artifacts              *artifacts.Service
+	Transactions           UnitOfWork
+	BearerToken            contracts.SecretString
+	UserID                 string
+	NewID                  func(string) (string, error)
+	NewRequestID           func() (string, error)
+	RunNotifier            RunNotifier
+	Now                    func() time.Time
+	Logger                 *slog.Logger
 }
 
 var errInvalidRequest = errors.New("invalid public API request")
@@ -193,6 +214,18 @@ type consumerExecutionConfigRefsResponse struct {
 type workflowPageResponse struct {
 	Items []workflowSummaryResponse `json:"items"`
 	Page  pageInfoResponse          `json:"page"`
+}
+
+type configurationPageResponse struct {
+	Items []config.ConfigurationResource `json:"items"`
+	Page  pageInfoResponse               `json:"page"`
+}
+
+type publishConfigurationRequest struct {
+	Name        string                         `json:"name"`
+	Version     string                         `json:"version"`
+	ModelPolicy *config.ModelPolicyPublication `json:"modelPolicy,omitempty"`
+	LLMGateway  *config.LLMGatewayPublication  `json:"llmGateway,omitempty"`
 }
 
 type workflowSummaryResponse struct {
