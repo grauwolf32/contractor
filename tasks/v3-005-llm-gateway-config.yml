@@ -3,8 +3,8 @@ id: V3-005
 title: Load immutable LLMGatewayConfig manifests
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "457d58206932827c26e0e76bfba3306e00356eff"
 depends_on: [V2-010]
 languages: [go, python, yaml]
 
@@ -73,3 +73,33 @@ tests:
   - {name: config, command: "go test ./internal/config/... ./internal/contracts/...", covers: [A1, A2, A3]}
   - {name: runtime-contract, command: "cd runtime && uv run pytest tests/test_contracts.py", covers: [A1]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+completion:
+  evidence:
+    - >-
+      The all-or-nothing config loader now recursively discovers strict
+      LLMGatewayConfig YAML manifests, resolves exact case-sensitive
+      name/version identities, normalizes the manager root URL, and publishes
+      immutable deep-copied lookup/list values only after the complete root is
+      valid.
+    - >-
+      Go and Python share a strict non-secret resolved contract and reproduce
+      the same RFC 8785 JCS digest for the shipped local-litellm@1 manifest.
+      Tests prove presentation-only YAML changes preserve the digest while a
+      semantic inference-URL change invalidates it.
+    - >-
+      URL validation rejects userinfo, query, fragment, missing inference path,
+      non-root management paths, and non-loopback HTTP management origins.
+      Unknown protocols, managers, fields, duplicate keys/documents/identities,
+      and wrong subtree kinds prevent snapshot publication.
+    - >-
+      Versioned manifest/resolved JSON Schemas, shared valid/invalid golden
+      fixtures, default/e2e/test manifests, safe config counts, startup
+      diagnostics, and operator documentation were added without embedding an
+      inference token or LiteLLM admin key.
+  verified_by:
+    - go test ./internal/config/... ./internal/contracts/... ./internal/app/... ./internal/httpapi/public/... ./internal/controlplane/... ./internal/scheduler/... ./tests/integration/lease/...
+    - cd runtime && uv run ruff check . && uv run ruff format --check . && uv run pytest tests/test_contracts.py
+    - make verify
+    - go run ./cmd/contractor-server config validate --root ./configs
+    - likec4 validate docs/spec

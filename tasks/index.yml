@@ -103,8 +103,8 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-004
-  next_task: V3-005
+  completed_through: V3-005
+  next_task: V3-006
   summary: >-
     The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
     foundation are complete. Model-backed Planner completion now uses one
@@ -112,13 +112,13 @@ current_checkpoint:
     has no Workflow-escalate tool and Scheduler remains the transition owner. A
     typed in-memory PlannerPlan now owns immutable global/subtask text, ordered
     decimal IDs, current status, dispatch fencing, and finish preconditions.
-    Streamline now requires exactly one logical Worker and exposes only the
-    deterministic execute_current_subtask(subtask_id) adapter; Server supplies
-    the stored subtask and complete immutable StageContext. Router now reuses
-    that bounded engine while exposing exact model-selected logical Worker
-    routing through execute_current_subtask(subtask_id, worker_name), with a
-    snapshot-derived enum and no physical placement data. The next increment
-    introduces reusable LLM Gateway configuration and credential references.
+    Streamline now requires exactly one logical Worker and Router exposes exact
+    model-selected logical Worker routing without physical placement data.
+    Immutable non-secret LLMGatewayConfig manifests now load into the same
+    all-or-nothing snapshot with strict endpoint/manager validation and a
+    cross-language reproducible digest. The next increment resolves Workflow
+    defaults and Run overrides into pinned per-Planner and per-Worker model,
+    Gateway, and credential selections.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
