@@ -50,7 +50,7 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	params := runstore.ListRunsParams{OwnerID: h.dependencies.UserID, State: state, Limit: limit + 1}
+	params := runstore.ListRunsParams{OwnerID: principalUserID(r.Context()), State: state, Limit: limit + 1}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
@@ -142,12 +142,13 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return fmt.Errorf("encode resolved Workflow: %w", err)
 		}
+		ownerID := principalUserID(r.Context())
 		return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
 			var createErr error
 			storedRun, created, createErr = runs.CreateRunIdempotent(
 				r.Context(), runstore.CreateRunIdempotentParams{
 					CreateRunParams: runstore.CreateRunParams{
-						RunID: runID, OwnerID: h.dependencies.UserID,
+						RunID: runID, OwnerID: ownerID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion,
 						WorkflowSnapshot:      workflowSnapshot,
@@ -167,7 +168,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 			slots := sortedArtifactSlots(request.Artifacts)
 			for _, slot := range slots {
 				forked, err := artifactService.ForkInput(
-					r.Context(), h.dependencies.UserID, request.Artifacts[slot], runID, slot,
+					r.Context(), ownerID, request.Artifacts[slot], runID, slot,
 				)
 				if err != nil {
 					return err
@@ -258,7 +259,7 @@ func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	requestedBy := h.dependencies.UserID
+	requestedBy := principalUserID(r.Context())
 	run, err = h.dependencies.Runs.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
 		Code:        runstore.CancellationUserRequested,
 		RequestedAt: h.dependencies.Now().UTC().Round(0),
@@ -539,7 +540,7 @@ func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
 	if err != nil {
 		return runstore.WorkflowRun{}, err
 	}
-	if run.OwnerID != h.dependencies.UserID {
+	if run.OwnerID != principalUserID(r.Context()) {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
 	return run, nil

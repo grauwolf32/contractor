@@ -5,14 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -21,7 +24,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
-const testBearerToken = "test-bearer-token"
+const (
+	testBearerToken   = "test-bearer-token"
+	testAuthPassword  = "correct horse battery staple"
+	testBrowserOrigin = "https://ui.contractor.test"
+)
+
+var (
+	testAuthenticationOnce sync.Once
+	testAuthenticationHash string
+	testAuthenticationErr  error
+)
 
 type handlerFixture struct {
 	handler     http.Handler
@@ -42,6 +55,24 @@ func newHandlerFixture(t *testing.T) handlerFixture {
 }
 
 func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
+	return newHandlerFixtureWithAuth(
+		t,
+		configRoot,
+		newTestAuthentication(t),
+		mustTestOrigins(t),
+		false,
+		nil,
+	)
+}
+
+func newHandlerFixtureWithAuth(
+	t *testing.T,
+	configRoot string,
+	authentication *auth.Service,
+	origins auth.OriginPolicy,
+	insecureLoopbackCookie bool,
+	logger *slog.Logger,
+) handlerFixture {
 	t.Helper()
 	manager, err := config.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
@@ -61,16 +92,19 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 	managedCredentials := newFakeManagedCredentials()
 	operations := newFakeOperationsReader()
 	handler, err := NewHandler(Dependencies{
-		Config: manager, ConfigurationPublisher: manager,
+		Authentication: authentication, BrowserOrigins: origins,
+		InsecureLoopbackCookie: insecureLoopbackCookie,
+		Config:                 manager, ConfigurationPublisher: manager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service, Transactions: unit,
 		Operations:   operations,
 		Metrics:      metrics,
 		PlannerPlans: plans,
-		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
+		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
 		RunNotifier:  notifier,
+		Logger:       logger,
 		Now: func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 		},
@@ -84,6 +118,34 @@ func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture
 		credentials: managedCredentials,
 		operations:  operations,
 	}
+}
+
+func newTestAuthentication(t *testing.T) *auth.Service {
+	t.Helper()
+	testAuthenticationOnce.Do(func() {
+		testAuthenticationHash, testAuthenticationErr = auth.HashPassword([]byte(testAuthPassword))
+	})
+	if testAuthenticationErr != nil {
+		t.Fatal(testAuthenticationErr)
+	}
+	bootstrap, err := auth.NewBootstrap("user-1", "admin", testAuthenticationHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := auth.NewService(bootstrap, auth.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service
+}
+
+func mustTestOrigins(t *testing.T) auth.OriginPolicy {
+	t.Helper()
+	origins, err := auth.NewOriginPolicy([]string{testBrowserOrigin}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return origins
 }
 
 func authenticatedRequest(method, target string, body *bytes.Reader) *http.Request {

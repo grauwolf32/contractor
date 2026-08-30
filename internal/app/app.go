@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -60,6 +61,9 @@ type Config struct {
 	PlannerTimeout              time.Duration
 	PublicBearerToken           contracts.SecretString
 	PublicUserID                string
+	LocalAuthFile               string
+	BrowserOrigins              []string
+	InsecureLoopbackCookie      bool
 }
 
 const (
@@ -108,6 +112,9 @@ func RunCLI(
 	if len(args) > 0 && args[0] == "migrate" {
 		return runMigrateCLI(ctx, args[1:], getenv, logger)
 	}
+	if len(args) > 0 && args[0] == "auth" {
+		return runAuthCLI(args[1:])
+	}
 
 	cfg, err := ParseConfig(args, getenv)
 	if err != nil {
@@ -116,8 +123,23 @@ func RunCLI(
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return errors.New("database URL is required")
 	}
-	if strings.TrimSpace(cfg.PublicUserID) == "" || cfg.PublicBearerToken.Reveal() == "" {
-		return errors.New("CONTRACTOR_PUBLIC_USER_ID and CONTRACTOR_PUBLIC_BEARER_TOKEN are required")
+	if cfg.PublicBearerToken.Reveal() == "" {
+		return errors.New("CONTRACTOR_PUBLIC_BEARER_TOKEN is required")
+	}
+	bootstrap, err := auth.LoadBootstrap(cfg.LocalAuthFile)
+	if err != nil {
+		return fmt.Errorf("load local authentication: %w", err)
+	}
+	if strings.TrimSpace(cfg.PublicUserID) != "" && cfg.PublicUserID != bootstrap.Principal.UserID {
+		return errors.New("CONTRACTOR_PUBLIC_USER_ID does not match local-auth userId")
+	}
+	authentication, err := auth.NewService(bootstrap, auth.Options{})
+	if err != nil {
+		return fmt.Errorf("configure local authentication: %w", err)
+	}
+	browserOrigins, err := auth.NewOriginPolicy(cfg.BrowserOrigins, cfg.InsecureLoopbackCookie)
+	if err != nil {
+		return fmt.Errorf("configure browser origins: %w", err)
 	}
 	if strings.TrimSpace(cfg.CAFile) == "" || strings.TrimSpace(cfg.CertificateFile) == "" ||
 		strings.TrimSpace(cfg.PrivateKeyFile) == "" {
@@ -301,15 +323,17 @@ func RunCLI(
 		return fmt.Errorf("configure Workflow Scheduler: %w", err)
 	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
-		Config: configurationManager, ConfigurationPublisher: configurationManager,
+		Authentication: authentication, BrowserOrigins: browserOrigins,
+		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
+		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
 		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,
 		Operations:   registry,
 		Transactions: postgresPublicUnitOfWork{pool: pool},
-		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,
-		RunNotifier: workflowScheduler, Logger: logger,
+		BearerToken:  cfg.PublicBearerToken,
+		RunNotifier:  workflowScheduler, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure public API: %w", err)

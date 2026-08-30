@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -257,6 +258,8 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 	privateBaseURL := "https://" + privateAddress
 	runtimeBaseURL := "https://" + runtimeAddress
 	publicToken := "live-public-" + liveRandomHex(t, 16)
+	userID := "project-live-user-" + liveRandomHex(t, 8)
+	localAuthFile := writeLiveLocalAuth(t, temporaryRoot, userID)
 	server := startLiveProcess(t, "Go Server", repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL":            databaseURL,
 		"CONTRACTOR_CONFIG_ROOT":             configRoot,
@@ -267,8 +270,10 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       settings.gatewayToken,
-		"CONTRACTOR_PUBLIC_USER_ID":          "project-live-user-" + liveRandomHex(t, 8),
+		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
+		"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
+		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
 	}, serverBinary, "serve",
 		"--runtime-request-timeout="+liveRuntimeRequestTime.String(),
 		"--planner-timeout="+liveRunDeadline.String(),
@@ -713,6 +718,23 @@ func boundedLiveArtifact(data []byte) []byte {
 		return append([]byte(nil), data[:liveMaxHTTPBody]...)
 	}
 	return append([]byte(nil), data...)
+}
+
+func writeLiveLocalAuth(t *testing.T, root, userID string) string {
+	t.Helper()
+	hash, err := auth.HashPassword([]byte("contractor live evaluation password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := auth.BootstrapYAML(userID, "admin", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "local-auth.yaml")
+	if err := os.WriteFile(path, document, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func persistLiveEvidence(repositoryRoot string, evidence liveEvaluationEvidence) (string, error) {

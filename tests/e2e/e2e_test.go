@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -115,6 +116,7 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	privateBaseURL := "https://" + privateAddress
 	runtimeBaseURL := "https://" + runtimeAddress
 	userID := "e2e-user-" + randomHex(t, 8)
+	localAuthFile := writeE2ELocalAuth(t, temporaryRoot, userID)
 	server := startProcess(t, "Go Server", repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
 		"CONTRACTOR_CONFIG_ROOT":             configRoot,
@@ -127,6 +129,8 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       llmGatewayToken,
 		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
+		"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
+		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
 	}, serverBinary, "serve")
 
 	publicClient := &http.Client{Timeout: 5 * time.Second}
@@ -774,6 +778,23 @@ func randomHex(t *testing.T, size int) string {
 		t.Fatal(err)
 	}
 	return hex.EncodeToString(data)
+}
+
+func writeE2ELocalAuth(t *testing.T, root, userID string) string {
+	t.Helper()
+	hash, err := auth.HashPassword([]byte("contractor e2e local password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := auth.BootstrapYAML(userID, "admin", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "local-auth-"+userID+".yaml")
+	if err := os.WriteFile(path, document, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func repoRoot(t *testing.T) string {

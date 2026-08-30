@@ -13,7 +13,7 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -25,7 +25,7 @@ func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -37,7 +37,7 @@ func (h *handler) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -49,7 +49,7 @@ func (h *handler) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -392,7 +392,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -428,7 +428,7 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(h.dependencies.UserID)
+	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return

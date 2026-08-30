@@ -41,12 +41,13 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
 	handler, err := NewHandler(Dependencies{
+		Authentication: newTestAuthentication(t), BrowserOrigins: mustTestOrigins(t),
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		Operations:   newFakeOperationsReader(),
-		BearerToken:  contracts.NewSecretString(testBearerToken), UserID: "user-1",
+		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },
 	})

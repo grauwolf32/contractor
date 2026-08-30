@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -100,6 +101,9 @@ type ManagedCredentialLifecycle interface {
 }
 
 type Dependencies struct {
+	Authentication         *auth.Service
+	BrowserOrigins         auth.OriginPolicy
+	InsecureLoopbackCookie bool
 	Config                 ConfigurationCatalog
 	ConfigurationPublisher ConfigurationPublisher
 	Credentials            config.CredentialLookup
@@ -111,7 +115,6 @@ type Dependencies struct {
 	Artifacts              *artifacts.Service
 	Transactions           UnitOfWork
 	BearerToken            contracts.SecretString
-	UserID                 string
 	NewID                  func(string) (string, error)
 	NewRequestID           func() (string, error)
 	RunNotifier            RunNotifier
@@ -296,6 +299,18 @@ type credentialPageResponse struct {
 type operationsCursorResponse struct {
 	Generation string `json:"generation"`
 	Revision   string `json:"revision"`
+}
+
+type loginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type authSessionResponse struct {
+	Principal         auth.Principal `json:"principal"`
+	CSRFToken         string         `json:"csrfToken"`
+	IdleExpiresAt     time.Time      `json:"idleExpiresAt"`
+	AbsoluteExpiresAt time.Time      `json:"absoluteExpiresAt"`
 }
 
 type operationsSnapshotResponse struct {

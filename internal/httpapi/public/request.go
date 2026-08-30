@@ -23,10 +23,14 @@ var (
 )
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
-	if r.ContentLength > maxJSONRequestSize {
+	return decodeJSONBounded(w, r, target, maxJSONRequestSize)
+}
+
+func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
+	if maximum <= 0 || r.ContentLength > maximum {
 		return fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
 	}
-	body := http.MaxBytesReader(w, r.Body, maxJSONRequestSize)
+	body := http.MaxBytesReader(w, r.Body, maximum)
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {

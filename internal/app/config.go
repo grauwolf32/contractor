@@ -5,13 +5,27 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+type repeatedStringFlag struct{ values []string }
+
+func (f *repeatedStringFlag) String() string { return strings.Join(f.values, ",") }
+func (f *repeatedStringFlag) Set(value string) error {
+	if value == "" {
+		return errors.New("value must not be empty")
+	}
+	f.values = append(f.values, value)
+	return nil
+}
 
 const (
 	defaultListenAddress         = "127.0.0.1:8080"
@@ -58,6 +72,22 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	managedConfigRoot := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT")
 	publicUserID := getenv("CONTRACTOR_PUBLIC_USER_ID")
 	publicBearerToken := contracts.NewSecretString(getenv("CONTRACTOR_PUBLIC_BEARER_TOKEN"))
+	localAuthFile := getenv("CONTRACTOR_LOCAL_AUTH_FILE")
+	browserOrigins := repeatedStringFlag{}
+	if encoded := getenv("CONTRACTOR_BROWSER_ORIGINS"); encoded != "" {
+		browserOrigins.values = strings.Split(encoded, ",")
+	}
+	insecureLoopbackCookie := false
+	if encoded := getenv("CONTRACTOR_INSECURE_LOOPBACK_COOKIE"); encoded != "" {
+		if encoded != "true" && encoded != "false" {
+			return Config{}, errors.New("CONTRACTOR_INSECURE_LOOPBACK_COOKIE must be true or false")
+		}
+		parsed, err := strconv.ParseBool(encoded)
+		if err != nil {
+			return Config{}, errors.New("CONTRACTOR_INSECURE_LOOPBACK_COOKIE must be true or false")
+		}
+		insecureLoopbackCookie = parsed
+	}
 	caFile := getenv("CONTRACTOR_CA_FILE")
 	certificateFile := getenv("CONTRACTOR_CONTROL_PLANE_CERT_FILE")
 	privateKeyFile := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE")
@@ -99,7 +129,15 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		llmGatewayAdminBindingsFile,
 		"absolute strict YAML file binding exact LLM Gateways to owner-only admin-key files",
 	)
-	flags.StringVar(&publicUserID, "public-user-id", publicUserID, "single-user public API identity")
+	flags.StringVar(&publicUserID, "public-user-id", publicUserID, "deprecated assertion matching local-auth userId")
+	flags.StringVar(&localAuthFile, "local-auth-file", localAuthFile, "absolute owner-only local authentication YAML")
+	flags.Var(&browserOrigins, "browser-origin", "exact allowed browser UI origin; repeat for multiple origins")
+	flags.BoolVar(
+		&insecureLoopbackCookie,
+		"insecure-loopback-cookie",
+		insecureLoopbackCookie,
+		"use the separately named insecure cookie on an IP-literal loopback listener",
+	)
 	flags.StringVar(&caFile, "ca-file", caFile, "deployment CA certificate")
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
 	flags.StringVar(&privateKeyFile, "private-key-file", privateKeyFile, "Control Plane private key")
@@ -137,6 +175,14 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if strings.TrimSpace(operatorConfigRoot) == "" || strings.TrimSpace(managedConfigRoot) == "" {
 		return Config{}, errors.New("operator and managed configuration roots must not be empty")
 	}
+	if insecureLoopbackCookie && !isLoopbackListenAddress(listenAddress) {
+		return Config{}, errors.New("insecure loopback cookie requires an IP-literal loopback public listener")
+	}
+	if len(browserOrigins.values) != 0 {
+		if _, err := auth.NewOriginPolicy(browserOrigins.values, insecureLoopbackCookie); err != nil {
+			return Config{}, fmt.Errorf("invalid browser origins: %w", err)
+		}
+	}
 	if developmentPlannerToken.Reveal() == "" {
 		developmentPlannerToken = developmentWorkerToken
 	}
@@ -153,5 +199,16 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		DevelopmentWorkerToken: developmentWorkerToken, DevelopmentPlannerToken: developmentPlannerToken,
 		PlannerTimeout: plannerTimeout,
 		PublicUserID:   publicUserID, PublicBearerToken: publicBearerToken,
+		LocalAuthFile: localAuthFile, BrowserOrigins: append([]string(nil), browserOrigins.values...),
+		InsecureLoopbackCookie: insecureLoopbackCookie,
 	}, nil
+}
+
+func isLoopbackListenAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	parsed := net.ParseIP(host)
+	return parsed != nil && parsed.IsLoopback()
 }

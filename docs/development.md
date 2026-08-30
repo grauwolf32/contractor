@@ -299,13 +299,30 @@ go run ./cmd/contractor-pki issue-control-plane
 go run ./cmd/contractor-pki issue-agent --name agent-local
 ```
 
-In the first terminal, export Server settings and start it. Keep secrets in the
-environment or a local ignored `.env`; do not place them in YAML manifests.
+Create the owner-only local principal bootstrap. The command reads the password
+twice from the terminal without echo; the file contains only its exact Argon2id
+hash, not the password:
+
+```shell
+umask 077
+mkdir -p .local/secrets
+go run ./cmd/contractor-server auth hash-password \
+  --user-id=local-user --username=admin > .local/secrets/local-auth.yaml
+```
+
+In the first terminal, export Server settings and start it. The explicit
+loopback mode uses the non-production `contractor_loopback_session` cookie and
+accepts only a loopback public listener and loopback HTTP browser origins.
+Production omits that mode, uses HTTPS origins, and issues only the Secure
+`__Host-contractor_session` cookie.
 
 ```shell
 export CONTRACTOR_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor?sslmode=disable'
 export CONTRACTOR_PUBLIC_USER_ID='local-user'
 export CONTRACTOR_PUBLIC_BEARER_TOKEN='replace-with-a-local-api-token'
+export CONTRACTOR_LOCAL_AUTH_FILE="$(pwd)/.local/secrets/local-auth.yaml"
+export CONTRACTOR_BROWSER_ORIGINS='http://127.0.0.1:5173'
+export CONTRACTOR_INSECURE_LOOPBACK_COOKIE='true'
 export CONTRACTOR_LLM_GATEWAY_TOKEN='replace-with-the-gateway-token'
 export CONTRACTOR_CA_FILE='.local/pki/ca.crt'
 export CONTRACTOR_CONTROL_PLANE_CERT_FILE='.local/pki/control-plane.crt'
@@ -313,7 +330,13 @@ export CONTRACTOR_CONTROL_PLANE_KEY_FILE='.local/pki/control-plane.key'
 make run-local
 ```
 
-The two token variables are a development bootstrap only. A non-empty
+`CONTRACTOR_PUBLIC_BEARER_TOKEN` remains the non-browser authentication path;
+CLI and automation clients send it only in `Authorization: Bearer ...` and do
+not send browser Origin, cookie, or CSRF headers. It maps to the `userId` loaded
+from local-auth. `CONTRACTOR_PUBLIC_USER_ID` is a temporary compatibility
+assertion and, when present, must equal that value.
+
+The two LLM token variables are a development bootstrap only. A non-empty
 `CONTRACTOR_LLM_GATEWAY_TOKEN` creates the in-memory credential ID
 `development-worker`; `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` creates
 `development-planner` and defaults to the Worker token. Select those IDs in a

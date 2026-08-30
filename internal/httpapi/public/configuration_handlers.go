@@ -118,7 +118,7 @@ func (h *handler) publishConfiguration(w http.ResponseWriter, r *http.Request) {
 	result, err := h.dependencies.ConfigurationPublisher.Publish(r.Context(), config.PublicationRequest{
 		Kind: kind, Name: request.Name, Version: request.Version,
 		ModelPolicy: request.ModelPolicy, LLMGateway: request.LLMGateway,
-		IdempotencyKey: idempotencyKey, ActorID: h.dependencies.UserID,
+		IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
 		h.handleError(w, err)

@@ -73,6 +73,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/artifacts/{namespace}/{name}/lineage",
 		"GET /v1/artifacts/{namespace}/{name}/metadata",
 		"GET /v1/artifacts/{namespace}/{name}/versions",
+		"GET /v1/auth/session",
 		"GET /v1/configurations/{kind}",
 		"GET /v1/configurations/{kind}/{name}/versions/{version}",
 		"GET /v1/operations/allocations",
@@ -90,6 +91,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/runs/{runId}/outputs/{slot}",
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
+		"POST /v1/auth/login",
+		"POST /v1/auth/logout",
 		"POST /v1/configurations/{kind}",
 		"POST /v1/operations/credentials",
 		"POST /v1/runs",
@@ -195,6 +198,41 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 		t.Fatalf("build contract router: %v", err)
 	}
 	fixture := newHandlerFixture(t)
+	loginRequest := newPublicContractRequest(
+		http.MethodPost,
+		"/v1/auth/login",
+		[]byte(`{"username":"admin","password":"correct horse battery staple"}`),
+	)
+	loginRequest.Header.Del("Authorization")
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRequest.Header.Set("Origin", testBrowserOrigin)
+	loginResponse := serveAndValidatePublicContract(t, router, fixture.handler, loginRequest, true)
+	if loginResponse.Code != http.StatusOK {
+		t.Fatalf("browser login = %d: %s", loginResponse.Code, loginResponse.Body.String())
+	}
+	var browserSession authSessionResponse
+	if err := json.Unmarshal(loginResponse.Body.Bytes(), &browserSession); err != nil {
+		t.Fatal(err)
+	}
+	loginCookies := loginResponse.Result().Cookies()
+	if len(loginCookies) != 1 {
+		t.Fatalf("browser login cookies = %v", loginCookies)
+	}
+	getSession := newPublicContractRequest(http.MethodGet, "/v1/auth/session", nil)
+	getSession.Header.Del("Authorization")
+	getSession.AddCookie(loginCookies[0])
+	getSession.Header.Set("Origin", testBrowserOrigin)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, getSession, true); response.Code != http.StatusOK {
+		t.Fatalf("browser session = %d: %s", response.Code, response.Body.String())
+	}
+	logout := newPublicContractRequest(http.MethodPost, "/v1/auth/logout", nil)
+	logout.Header.Del("Authorization")
+	logout.AddCookie(loginCookies[0])
+	logout.Header.Set("Origin", testBrowserOrigin)
+	logout.Header.Set("X-CSRF-Token", browserSession.CSRFToken)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, logout, true); response.Code != http.StatusNoContent {
+		t.Fatalf("browser logout = %d: %s", response.Code, response.Body.String())
+	}
 
 	unauthorized := newPublicContractRequest(http.MethodGet, "/v1/runs/missing", nil)
 	unauthorized.Header.Del("Authorization")

@@ -3,19 +3,21 @@ package public
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 type handler struct {
 	dependencies Dependencies
 	tokenDigest  [sha256.Size]byte
+	cookieName   string
+	secureCookie bool
 }
 
 func NewHandler(dependencies Dependencies) (http.Handler, error) {
@@ -26,11 +28,13 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
-		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil {
+		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
+		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
 	}
-	if strings.TrimSpace(dependencies.UserID) == "" || dependencies.BearerToken.Reveal() == "" {
-		return nil, fmt.Errorf("public API user ID and bearer token are required")
+	bearerToken := dependencies.BearerToken.Reveal()
+	if bearerToken == "" || len(bearerToken) > 4096 {
+		return nil, fmt.Errorf("public API bearer token must contain 1 through 4096 bytes")
 	}
 	if dependencies.NewID == nil {
 		dependencies.NewID = randomID
@@ -41,12 +45,24 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.Now == nil {
 		dependencies.Now = time.Now
 	}
+	tokenDigest := sha256.Sum256([]byte(bearerToken))
+	bearerToken = ""
+	dependencies.BearerToken = contracts.NewSecretString("")
 	current := &handler{
 		dependencies: dependencies,
-		tokenDigest:  sha256.Sum256([]byte(dependencies.BearerToken.Reveal())),
+		tokenDigest:  tokenDigest,
+		cookieName:   auth.SecureCookieName,
+		secureCookie: true,
+	}
+	if dependencies.InsecureLoopbackCookie {
+		current.cookieName = auth.LoopbackCookieName
+		current.secureCookie = false
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/auth/login", current.login)
+	mux.HandleFunc("GET /v1/auth/session", current.getSession)
+	mux.HandleFunc("POST /v1/auth/logout", current.logout)
 	mux.HandleFunc("GET /v1/workflows", current.listWorkflows)
 	mux.HandleFunc("GET /v1/workflows/{name}/versions/{version}", current.getWorkflow)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
@@ -96,30 +112,14 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/operations/snapshot", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/runtime-agents", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/allocations", current.methodNotAllowed)
+	mux.HandleFunc("/v1/auth/login", current.methodNotAllowed)
+	mux.HandleFunc("/v1/auth/session", current.methodNotAllowed)
+	mux.HandleFunc("/v1/auth/logout", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows/{name}/versions/{version}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
-	return current.withRequestID(current.authenticate(mux)), nil
-}
-
-func (h *handler) authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		values := r.Header.Values("Authorization")
-		if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			h.writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer authentication is required", false)
-			return
-		}
-		candidate := strings.TrimPrefix(values[0], "Bearer ")
-		candidateDigest := sha256.Sum256([]byte(candidate))
-		if candidate == "" || subtle.ConstantTimeCompare(candidateDigest[:], h.tokenDigest[:]) != 1 {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			h.writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer authentication is required", false)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return current.withRequestID(current.cors(current.authenticate(mux), mux)), nil
 }
 
 func (h *handler) withRequestID(next http.Handler) http.Handler {

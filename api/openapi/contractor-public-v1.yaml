@@ -41,7 +41,7 @@ paths:
       operationId: login
       tags: [Auth]
       summary: Create a local browser session
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       x-max-request-body-bytes: 2048
       security: []
       parameters:
@@ -64,7 +64,7 @@ paths:
       operationId: getSession
       tags: [Auth]
       summary: Recover the safe principal and session-bound CSRF token
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       security: [{sessionCookie: []}]
       responses:
         '200': {$ref: '#/components/responses/CurrentSession'}
@@ -77,7 +77,7 @@ paths:
       operationId: logout
       tags: [Auth]
       summary: Destroy the current browser session
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       security: [{sessionCookie: []}]
       parameters:
         - $ref: '#/components/parameters/Origin'

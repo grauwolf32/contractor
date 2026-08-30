@@ -97,7 +97,7 @@ func (h *handler) createCredential(w http.ResponseWriter, r *http.Request) {
 	result, err := h.dependencies.ManagedCredentials.Create(r.Context(), credentials.CreateRequest{
 		CredentialID: request.CredentialID, LLMGateway: request.LLMGateway,
 		Label: label, GatewayPolicy: request.GatewayPolicy,
-		IdempotencyKey: idempotencyKey, ActorID: h.dependencies.UserID,
+		IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
 		h.handleError(w, err)
@@ -125,7 +125,7 @@ func (h *handler) deleteCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.dependencies.ManagedCredentials.Delete(r.Context(), credentials.DeleteRequest{
-		CredentialID: credentialID, IdempotencyKey: idempotencyKey, ActorID: h.dependencies.UserID,
+		CredentialID: credentialID, IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	}); err != nil {
 		h.handleError(w, err)
 		return

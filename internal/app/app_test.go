@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,9 +9,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -175,6 +180,10 @@ func TestParseConfig(t *testing.T) {
 			return "local-user"
 		case "CONTRACTOR_PUBLIC_BEARER_TOKEN":
 			return "private-token"
+		case "CONTRACTOR_LOCAL_AUTH_FILE":
+			return "/run/secrets/local-auth.yaml"
+		case "CONTRACTOR_BROWSER_ORIGINS":
+			return "https://ui.example.test,https://ui.example.test:8443"
 		}
 		return ""
 	}
@@ -192,7 +201,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("database URL was not read from the shared environment setting")
 	}
 	if cfg.ConfigRoot != "/srv/contractor/configs" || cfg.PublicUserID != "local-user" ||
-		cfg.PublicBearerToken.Reveal() != "private-token" {
+		cfg.PublicBearerToken.Reveal() != "private-token" || cfg.LocalAuthFile != "/run/secrets/local-auth.yaml" ||
+		len(cfg.BrowserOrigins) != 2 || cfg.BrowserOrigins[0] != "https://ui.example.test" {
 		t.Fatalf("public API settings were not parsed: %+v", cfg)
 	}
 	if cfg.OperatorConfigRoot != "/srv/contractor/configs" ||
@@ -208,6 +218,62 @@ func TestParseConfig(t *testing.T) {
 	if cfg.DevelopmentPlannerToken.Reveal() != cfg.DevelopmentWorkerToken.Reveal() ||
 		cfg.PlannerTimeout != defaultPlannerTimeout {
 		t.Fatalf("development credential fallback or Planner timeout was not parsed: %+v", cfg)
+	}
+}
+
+func TestParseConfigRestrictsInsecureBrowserCookieToLoopback(t *testing.T) {
+	t.Parallel()
+	if _, err := ParseConfig([]string{
+		"--listen=0.0.0.0:8080", "--insecure-loopback-cookie", "--browser-origin=http://127.0.0.1:5173",
+	}, func(string) string { return "" }); err == nil {
+		t.Fatal("insecure cookie on non-loopback listener was accepted")
+	}
+	cfg, err := ParseConfig([]string{
+		"--listen=127.0.0.1:8080", "--insecure-loopback-cookie",
+		"--browser-origin=http://127.0.0.1:5173", "--local-auth-file=/run/secrets/local-auth.yaml",
+	}, func(string) string { return "" })
+	if err != nil || !cfg.InsecureLoopbackCookie || len(cfg.BrowserOrigins) != 1 {
+		t.Fatalf("loopback browser settings = (%+v, %v)", cfg, err)
+	}
+	if _, err := ParseConfig([]string{
+		"--browser-origin=https://ui.example.test/path",
+	}, func(string) string { return "" }); err == nil {
+		t.Fatal("origin containing a path was accepted")
+	}
+}
+
+func TestAuthHashPasswordCommandReadsTwiceAndEmitsStrictBootstrap(t *testing.T) {
+	t.Parallel()
+	responses := [][]byte{[]byte("command password value"), []byte("command password value")}
+	prompts := make([]string, 0, 2)
+	read := func(prompt string) ([]byte, error) {
+		prompts = append(prompts, prompt)
+		value := append([]byte(nil), responses[0]...)
+		responses = responses[1:]
+		return value, nil
+	}
+	var output bytes.Buffer
+	if err := runAuthHashPassword(
+		[]string{"--user-id=operator", "--username=Admin"}, read, &output,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(prompts) != 2 || strings.Contains(output.String(), "command password value") ||
+		!strings.Contains(output.String(), "$argon2id$v=19$m=65536,t=3,p=1$") {
+		t.Fatalf("auth hash-password output or prompts are invalid")
+	}
+	path := filepath.Join(t.TempDir(), "local-auth.yaml")
+	if err := os.WriteFile(path, output.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bootstrap, err := auth.LoadBootstrap(path)
+	if err != nil || bootstrap.Principal.UserID != "operator" || bootstrap.Principal.Username != "Admin" {
+		t.Fatalf("generated bootstrap = (%+v, %v)", bootstrap.Principal, err)
+	}
+	if err := runAuthHashPassword(
+		[]string{"--password=forbidden"}, read, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("password command-line flag was accepted")
 	}
 }
 
@@ -334,6 +400,44 @@ func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("RunCLI config validate: %v", err)
+	}
+}
+
+func TestRunCLIRejectsBearerPrincipalMismatchBeforeStartup(t *testing.T) {
+	hash, err := auth.HashPassword([]byte("server bootstrap password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := auth.BootstrapYAML("local-user", "admin", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "local-auth.yaml")
+	if err := os.WriteFile(path, document, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := func(key string) string {
+		switch key {
+		case "CONTRACTOR_DATABASE_URL":
+			return "postgres://must-not-be-opened"
+		case "CONTRACTOR_PUBLIC_BEARER_TOKEN":
+			return "bearer-token"
+		case "CONTRACTOR_PUBLIC_USER_ID":
+			return "different-user"
+		case "CONTRACTOR_LOCAL_AUTH_FILE":
+			return path
+		case "CONTRACTOR_BROWSER_ORIGINS":
+			return "https://ui.example.test"
+		default:
+			return ""
+		}
+	}
+	err = RunCLI(
+		context.Background(), []string{"serve"}, env,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("principal mismatch error = %v", err)
 	}
 }
 
