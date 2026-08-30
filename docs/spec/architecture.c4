@@ -69,6 +69,10 @@ model {
     #external
   }
 
+  gatewayAdminBindings = system 'Gateway Admin Bindings + LiteLLM Master-Key Files — host bootstrap secrets' {
+    #external
+  }
+
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
@@ -188,7 +192,7 @@ model {
     publicApi -> workflowScheduler 'Start / query / cancel Workflow Run'
     userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
     operationsApi -> runtimeRegistry 'Read authoritative/observed slot state'
-    operationsApi -> executionConfigService 'List/publish configs; create/delete write-only credentials'
+    operationsApi -> executionConfigService 'List/publish configs; create/delete managed credentials without raw tokens'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
@@ -303,12 +307,14 @@ model {
 
   server.stagePlanner -> llmGateway 'Streamline calls with resolved Planner policy/Gateway/credential'
   runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied resolved URL/token'
+  server.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys through bounded management API'
   llmGateway -> llmProvider 'Provider requests'
 
   server.telemetry -> telemetryBackend 'Export when configured'
   server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
   server.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
   server.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
+  server.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
 }
 
 views {
@@ -325,6 +331,7 @@ views {
     include llmProvider
     include configFilesystem
     include credentialMasterKey
+    include gatewayAdminBindings
     include telemetryBackend
 
     global style ownership

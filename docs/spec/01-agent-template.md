@@ -275,12 +275,15 @@ apiVersion: contractor/v1alpha1
 kind: LLMGatewayConfig
 
 metadata:
-  name: local-lm-studio
+  name: local-litellm
   version: "1"
 
 spec:
   protocol: openai-compatible@1
-  url: http://192.168.1.217:1234/v1
+  url: http://127.0.0.1:4000/v1
+  credentialManager:
+    implementation: litellm-virtual-keys@1
+    managementUrl: http://127.0.0.1:4000
 ```
 
 `protocol` and `url` are mandatory. The first slice accepts exactly
@@ -288,6 +291,17 @@ spec:
 credentials never travel inside the URL or Gateway manifest. A modeled
 consumer selects an optional credential independently beside `llmGateway` in
 executionConfig. Omitting it means an unauthenticated local Gateway request.
+
+`credentialManager` is optional. When present, it contains exactly
+`implementation` and `managementUrl`; the first slice accepts only
+`litellm-virtual-keys@1`. Its management URL is an absolute HTTPS origin with
+no userinfo, query, fragment or non-root path; HTTP is accepted only for a
+loopback IP origin in the single-VM first slice. It is used only by Server
+Operations, never by Planner or Runtime Agent. Absence means that the Gateway
+can still be selected for unauthenticated execution, but Contractor cannot
+create a credential for it. The declaration contains no LiteLLM master key:
+Server deployment separately binds the exact digest-bearing Gateway ref to an
+operator-owned admin-key file as specified by [06](06-server-ui-and-operations.md).
 
 Resolving model access for a Run produces an exact `LLMGatewayConfigRef` and,
 when selected, an `LLMCredentialRef(credential_id)` bound to that Gateway. A

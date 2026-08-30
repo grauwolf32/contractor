@@ -42,6 +42,16 @@ This slice must demonstrate:
   canonical YAML in the managed root through full-set validation, durable
   atomic rename and an atomic in-memory snapshot swap; neither root overrides
   a duplicate identity from the other;
+- an LLMGatewayConfig may declare `litellm-virtual-keys@1` plus its non-secret
+  management origin; Server Operations can manage it only when operator
+  bootstrap binds that exact digest-bearing Gateway ref to a protected LiteLLM
+  admin-key file;
+- idempotent credential creation obtains a LiteLLM virtual key through
+  `/key/generate`, encrypts it in Contractor PostgreSQL and exposes neither it
+  nor the LiteLLM master key; deletion removes the exact remote `token_id`
+  through `/key/delete` and then the local row, while the deterministic alias
+  lets restart recovery clean an interrupted creation without exposing a
+  partial credential state;
 - Run creation selects an exact Workflow `<id>@<version>`, resolves Workflow
   execution defaults plus reference-only Run overrides, and stores the complete
   per-consumer snapshot; later configuration-file edits cannot reinterpret that
@@ -227,9 +237,9 @@ implicitly:
   loss;
 - shared Runtime Agent Registry and coordination for multiple active Control
   Plane replicas;
-- master-key rotation/re-encryption, external Vault/KMS adapters and managed
-  Gateway-key TTL/quota policy beyond encrypted immutable credentials and the
-  write-only UI boundary;
+- master-key rotation/re-encryption, external Vault/KMS adapters and exact
+  LiteLLM virtual-key model allowlist, TTL, budget and rate-limit policy beyond
+  encrypted immutable credentials and the secret-free create UI boundary;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;
 - multi-tenant authorization and quota policy.
