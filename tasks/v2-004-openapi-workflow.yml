@@ -1,0 +1,125 @@
+schema_version: "1.0"
+id: V2-004
+title: Define the four-Stage OpenAPI project workflow
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V2-001, V2-002, V2-003]
+languages: [go, python, yaml]
+
+goal: >-
+  Port contractor-old/oas_building into strict Workflow, AgentTemplate,
+  ModelPolicy, and instruction files that execute on the existing v2 Scheduler.
+
+context:
+  legacy_shape: >-
+    dependency_information -> project_information -> oas_update -> oas_validate.
+    Each legacy task gets one serial v2 Stage and one passthrough@1 Worker.
+  communication: >-
+    Stage summaries are not durable data. Discovery Workers write Markdown
+    artifacts in namespace analysis; document Workers share namespace openapi.
+    Every downstream StageContext pins exact refs.
+  retry_mapping: >-
+    Legacy max_attempts becomes explicit bounded retry for failed/interrupted
+    Stage outcomes. Legacy iterations are not duplicated; one ADK Worker may
+    perform multiple model/tool turns inside its single Planner invocation.
+
+workflow_contract:
+  ref: openapi-from-source@1
+  parameters:
+    objective: {required: false}
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+    existing_openapi: {required: false, mediaTypes: [application/yaml, application/json]}
+  outputs:
+    openapi: {required: true, mediaTypes: [application/yaml]}
+    validation_report: {required: true, mediaTypes: [text/markdown]}
+  stages:
+    - dependency_discovery
+    - project_discovery
+    - openapi_build
+    - openapi_validate
+
+agent_templates:
+  source_analyst@1:
+    namespace: analysis
+    tools:
+      source-analysis@1: [open_source_archive, list_source_files, search_source, read_source]
+      text-artifacts@1: [read_text_artifact, write_text_artifact]
+  openapi_builder@1:
+    namespace: openapi
+    tools:
+      source-analysis@1: [open_source_archive, list_source_files, search_source, read_source]
+      text-artifacts@1: [read_text_artifact]
+      openapi@1: [load_openapi, initialize_openapi, get_openapi_info, set_openapi_info, list_openapi_servers, set_openapi_servers, list_openapi_paths, get_openapi_path, upsert_openapi_path, list_openapi_components, get_openapi_component, upsert_openapi_component, validate_openapi]
+  openapi_validator@1:
+    namespace: openapi
+    tools:
+      source-analysis@1: [open_source_archive, search_source, read_source]
+      text-artifacts@1: [read_text_artifact, write_text_artifact]
+      openapi@1: [load_openapi, get_openapi_info, set_openapi_info, list_openapi_servers, set_openapi_servers, list_openapi_paths, get_openapi_path, upsert_openapi_path, remove_openapi_path, list_openapi_components, get_openapi_component, upsert_openapi_component, remove_openapi_component, validate_openapi]
+
+scope:
+  in:
+    - Add one shared domain-worker@1 ModelPolicy and the three exact AgentTemplates above.
+    - Adapt legacy SWE, OAS builder, and repair-only validator guidance to v2 instructions.
+    - Add the strict Workflow manifest, complete Stage contexts/results/transitions, and output mappings.
+    - Add config graph tests that assert exact topology, namespaces, tool allowlists, optional seed, and output contracts.
+    - Document curl ZIP upload, Run request, result lookup, Vacuum prerequisite, and artifact names.
+  out:
+    - Conditional Stage skipping, cross-Run cache lookup, parallel discovery, enrichment, trace, vulnerability analysis, or publication to UserScope.
+
+artifact_bindings:
+  dependency_report: analysis/dependencies
+  project_report: analysis/project
+  openapi_document: openapi/openapi
+  validation_report: openapi/validation-report
+
+deliverables:
+  - {path: configs/model-policies/domain_worker.yaml, description: Shared Worker model alias and per-call output policy for project workflows.}
+  - {path: configs/agent-templates, description: Source analyst plus OpenAPI builder and validator manifests with exact least-privilege selections.}
+  - {path: configs/instructions, description: Worker and Stage instruction resources adapted to explicit v2 artifacts/tools.}
+  - {path: configs/workflows/openapi_from_source.yaml, description: Strict four-Stage openapi-from-source@1 Workflow.}
+  - {path: internal/config, description: Resolved topology and allowlist regression tests.}
+  - {path: docs/development.md, description: ZIP upload, optional seed, Run, validation prerequisite, and output instructions.}
+
+requirements:
+  - id: R1
+    text: Every Stage includes inputs/source; project discovery additionally pins dependency_report; build pins both reports and optional existing_openapi; validate pins both reports and the exact build candidate.
+  - id: R2
+    text: Discovery instructions require evidence with source-relative path and line and require write_text_artifact before successful StageContentResult.
+  - id: R3
+    text: Builder instructions require incremental domain-tool mutation and prohibit generic whole-document/base64 writes; validator uses lint-once, verify, minimal fix, relint-once.
+  - id: R4
+    text: The final Stage returns exact openapi and validation_report refs and maps both to Workflow outputs; earlier stages map no Workflow output.
+  - id: R5
+    text: Missing optional existing_openapi initializes a new document; a supplied seed is loaded exactly and copied without mutating inputs/existing_openapi.
+  - id: R6
+    text: Config validation remains independent of Runtime imports, external binaries, PostgreSQL, or a model.
+
+acceptance_criteria:
+  - id: A1
+    given: The repository configs root.
+    when: Contractor config validate runs.
+    then: openapi-from-source@1 resolves every instruction, template, model policy, Toolset, transition, context, and output mapping.
+  - id: A2
+    given: The resolved Workflow snapshot.
+    when: A topology test inspects it.
+    then: It contains exactly four serial Stages with the declared exact artifact dependencies and bounded retries.
+  - id: A3
+    given: Builder/validator AgentTemplates.
+    when: Their normalized manifests are inspected.
+    then: Namespace and selected tools follow least privilege and no unselected generic write_artifact is visible.
+  - id: A4
+    given: A reader with no contractor-old context.
+    when: They follow the domain workflow documentation.
+    then: They can create a safe ZIP, upload optional seed, submit the Run, and identify both outputs and required local validator dependency.
+
+tests:
+  - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs", covers: [A1]}
+  - {name: workflow-topology, command: "go test ./internal/config/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+notes:
+  - Keep prompts focused enough for a 16k per-call output policy; reports and documents belong in artifacts, not Stage summary.
+  - Use passthrough@1 because every Stage has one Worker. Streamline remains available for future multi-reviewer workflows but is not needed to preserve the legacy pipeline.

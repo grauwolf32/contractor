@@ -70,10 +70,22 @@ milestones:
     outcome: >-
       Cancellation, lease fencing, retry, metrics, race safety, and the first
       model-backed Streamline Planner satisfy the v2 first-slice contracts.
+  - id: project-workflows-mvp
+    exit_task: V2-007
+    outcome: >-
+      A user can upload a bounded ZIP source tree and run the four-Stage
+      OpenAPI or LikeC4 workflow through the real Go Server and Python Runtime
+      Agent, receiving validated frozen documents and validation reports.
+  - id: project-workflows-quality
+    exit_task: V2-009
+    outcome: >-
+      The port has an opt-in live-model quality gate and explicit workflow
+      variants that reuse caller-supplied discovery reports without adding
+      implicit cross-Run cache semantics to Scheduler.
 
 current_checkpoint:
   completed_through: V1-006
-  next_task: null
+  next_task: V2-001
   summary: >-
     The runnable MVP, bounded cancellation, symmetric confirmed allocation
     leases, serial multi-Stage progression, bounded retry, bounded durable
@@ -81,8 +93,70 @@ current_checkpoint:
     matrix are implemented. The model-backed streamline@1 Planner now
     coordinates fixed prepared Workers through Google ADK Go, persists only
     redacted ADK facts, recovers completed decisions without semantic replay,
-    and passes deterministic plus opt-in live Gateway tests. The planned first
-    slice is complete; the next product increment has not yet been selected.
+    and passes deterministic plus opt-in live Gateway tests. The next increment
+    ports the contractor-old OpenAPI and LikeC4 project workflows, beginning
+    with allocation-bound UTF-8 Artifact tools.
+
+project_workflow_port:
+  source_repository: /home/ruslan/src/contractor-old
+  reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  source_workflows:
+    - contractor/workflows/oas_building
+    - contractor/workflows/likec4_building
+  retained_shape: >-
+    dependency discovery, project discovery, document build, and repair-only
+    validation remain four serial Stage executions using passthrough@1.
+  intentional_differences:
+    - >-
+      Source code is a required application/zip Workflow input forked to
+      inputs/source; Runtime never receives an arbitrary host project path.
+    - >-
+      Discovery reports and generated documents are explicit RunScope
+      artifacts. A later Stage never reads an earlier Worker's sandbox.
+    - >-
+      Existing OpenAPI and LikeC4 documents are optional Workflow inputs and
+      are copied into the document Agent's Namespace before mutation.
+    - >-
+      The default workflows rerun discovery. The old implicit cross-Run
+      artifact-exists skip is represented later by explicit precomputed-input
+      workflow variants, not hidden Scheduler state.
+    - >-
+      Old TaskRunner iterations/max_steps are not copied literally. One v2
+      Stage is one bounded Planner/Worker invocation; whole-Stage retry remains
+      explicit in Workflow transitions and the deployment Planner deadline is
+      the hard wall bound.
+
+planning_review:
+  reviewed_on: "2026-08-30"
+  verdict: ready_for_incremental_implementation
+  checks:
+    - >-
+      Dependency graph is acyclic and reaches a deterministic P0 exit through
+      V2-001 -> V2-002 -> V2-003/V2-005 -> V2-004/V2-006 -> V2-007.
+    - >-
+      Every P0 task is independently testable, keeps one primary responsibility,
+      and names its exact code/config/test deliverables and model-visible tools.
+    - >-
+      Server and Runtime descriptor parity is covered before a Workflow can
+      select a Toolset; domain state remains RunScope artifacts rather than
+      allocation-local hidden persistence.
+    - >-
+      The deterministic end-to-end task crosses all production boundaries and
+      substitutes only the external model and fixed validator executables.
+  accepted_risks:
+    - >-
+      application/zip remains subject to the existing 16 MiB Artifact limit;
+      larger repositories require the deferred streaming/S3 increment.
+    - >-
+      Vacuum and LikeC4 are direct Runtime host prerequisites. Missing binaries
+      fail explicitly at tool use and never masquerade as successful validation.
+    - >-
+      Initial source search is bounded text search rather than the legacy
+      tree-sitter/graph index. Quality is measured by V2-008 before deciding
+      whether a richer source-analysis@2 is justified.
+    - >-
+      The old implicit discovery cache is intentionally postponed to explicit
+      caller-selected inputs in V2-009.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
@@ -106,3 +180,12 @@ tasks:
   - {id: V1-004, file: v1-004-metrics.yml}
   - {id: V1-005, file: v1-005-races-security.yml}
   - {id: V1-006, file: v1-006-streamline-planner.yml}
+  - {id: V2-001, file: v2-001-text-artifact-toolset.yml}
+  - {id: V2-002, file: v2-002-source-analysis-toolset.yml}
+  - {id: V2-003, file: v2-003-openapi-toolset.yml}
+  - {id: V2-004, file: v2-004-openapi-workflow.yml}
+  - {id: V2-005, file: v2-005-likec4-toolset.yml}
+  - {id: V2-006, file: v2-006-likec4-workflow.yml}
+  - {id: V2-007, file: v2-007-project-workflows-e2e.yml}
+  - {id: V2-008, file: v2-008-project-workflows-live-eval.yml}
+  - {id: V2-009, file: v2-009-precomputed-analysis-variants.yml}

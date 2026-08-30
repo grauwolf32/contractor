@@ -1,0 +1,116 @@
+schema_version: "1.0"
+id: V2-003
+title: Port the artifact-backed OpenAPI builder and validator Toolset
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V2-002]
+languages: [go, python]
+
+goal: >-
+  Provide incremental, evidence-linked OpenAPI editing and serious-issue
+  validation over one namespace-bound Run artifact without exposing raw
+  filesystem writes or whole-document base64 operations to the model.
+
+context:
+  legacy_source:
+    - /home/ruslan/src/contractor-old/contractor/tools/openapi/openapi.py
+    - /home/ruslan/src/contractor-old/contractor/tools/openapi/models.py
+    - /home/ruslan/src/contractor-old/contractor/tools/openapi/vacuum.py
+  storage: >-
+    openapi@1 is fixed to the allocation Agent Namespace. Loading an optional
+    seed copies it to namespace/target_name; every successful mutation performs
+    a CAS write of canonical YAML and returns its exact revision. Later Stages
+    may reuse the same namespace and continue from an exact prior revision.
+  provenance: >-
+    Path and component mutations require source file evidence that exists under
+    workspace/source, which source-analysis@1 materializes in the same allocation.
+
+scope:
+  in:
+    - Register openapi@1 and explicit read/mutation/validation tools.
+    - Parse OpenAPI 3.0/3.1 YAML or JSON seeds with safe YAML loading.
+    - Initialize a minimal 3.0.3 document and persist canonical application/yaml.
+    - Targeted info/server/path/component reads and CAS-backed mutations.
+    - Local-reference, required-shape, operation, response, and provenance validation.
+    - Vacuum serious-issue linting through a fixed subprocess command when installed.
+  out:
+    - OpenAPI 2 conversion, remote $ref fetching, arbitrary plugins/rulesets, code generation, or shell commands.
+    - Silent last-writer-wins conflict handling or mutation of UserScope artifacts.
+
+exported_tools:
+  - load_openapi
+  - initialize_openapi
+  - get_openapi_info
+  - set_openapi_info
+  - list_openapi_servers
+  - set_openapi_servers
+  - list_openapi_paths
+  - get_openapi_path
+  - upsert_openapi_path
+  - remove_openapi_path
+  - list_openapi_components
+  - get_openapi_component
+  - upsert_openapi_component
+  - remove_openapi_component
+  - read_openapi_document
+  - validate_openapi
+
+document_rules:
+  target_media_type: application/yaml
+  target_name_default: openapi
+  max_parsed_depth: 128
+  max_collection_items: 100000
+  evidence_extensions_denied: [.json, .yaml, .yml, .md, .c4]
+  allowed_component_sections: [schemas, responses, parameters, examples, requestBodies, headers, securitySchemes, links, callbacks]
+  vacuum_command: [vacuum, spectral-report, -i, -o]
+  vacuum_timeout_seconds: 30
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/toolsets/openapi.py, description: Namespace-bound document session, tools, YAML persistence, CAS, and linter adapter.}
+  - {path: runtime/src/contractor_runtime/toolsets/openapi_models.py, description: Reviewed Pydantic models for mutation boundaries.}
+  - {path: runtime/tests/test_openapi_toolset.py, description: Seed/init, targeted mutation, provenance, refs, CAS, lint, metrics, and exact-ref tests.}
+  - {path: internal/config/descriptors.go, description: Exact openapi@1 descriptor.}
+
+requirements:
+  - id: R1
+    text: Safe parsing rejects aliases/cycles, non-string keys, unsupported versions, duplicate YAML keys, non-finite numbers, and documents beyond explicit depth/item/byte limits.
+  - id: R2
+    text: A mutation validates its smallest affected OpenAPI object and evidence paths before any CAS write; failure leaves both in-memory and durable current state unchanged.
+  - id: R3
+    text: Every path stores x-path-files and every component stores x-component-files in the same committed revision as its semantic value.
+  - id: R4
+    text: Local $refs are checked against the current document; network/file refs are rejected and validation never performs I/O outside fixed Vacuum execution.
+  - id: R5
+    text: A stale expected revision is surfaced as a conflict; the tool never reloads and reapplies a model mutation automatically.
+  - id: R6
+    text: Vacuum is resolved lazily. Missing Vacuum is an explicit validator-unavailable result and cannot be reported as a clean validation.
+  - id: R7
+    text: All successful reads/writes contribute exact refs visible to StageContentResult verification; document content is redacted from metrics.
+
+acceptance_criteria:
+  - id: A1
+    given: A source tree and no existing OpenAPI input.
+    when: A Worker initializes info, adds a component and an evidenced path, and validates.
+    then: Each mutation advances one exact application/yaml revision and final validation is clean.
+  - id: A2
+    given: An exact YAML or JSON seed input.
+    when: load_openapi copies it to the Worker namespace and a later Stage reloads that exact result.
+    then: The input remains unchanged and both Stages use explicit CAS revisions of one independent Run binding.
+  - id: A3
+    given: Missing/banned evidence, invalid operation/response, unresolved/local-external ref, stale CAS, malformed seed, or missing Vacuum.
+    when: The relevant tool runs.
+    then: It returns a bounded actionable failure and creates no false successful revision or clean lint result.
+  - id: A4
+    given: Vacuum JSON output with errors/warnings/info/hints.
+    when: validate_openapi runs.
+    then: Serious findings are bounded, severity ordered, contain snippets instead of raw ranges, and no provider/source document is logged.
+
+tests:
+  - {name: runtime-openapi, command: "cd runtime && uv run pytest tests/test_openapi_toolset.py", covers: [A1, A2, A3, A4]}
+  - {name: descriptor-parity, command: "go test ./internal/config/...", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - Port behavior and focused Pydantic models, not the old ADK ToolContext or fsspec storage abstractions.
+  - Full-document reads are bounded and available for rare global review; prompts must prefer targeted calls.

@@ -1,0 +1,106 @@
+schema_version: "1.0"
+id: V2-002
+title: Add a safe ZIP-backed source analysis Toolset
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V2-001]
+languages: [go, python]
+
+goal: >-
+  Give a Worker bounded read-only access to a source tree supplied as an exact
+  application/zip Run artifact, replacing contractor-old's direct host project
+  filesystem mount.
+
+context:
+  artifact_model: >-
+    The Workflow input is forked to inputs/source. Contractor core treats it as
+    an ordinary artifact; source-analysis@1 owns safe interpretation inside one
+    allocation-local local-workdir@1 workspace.
+  lifecycle: >-
+    A Worker first calls open_source_archive with the exact ArtifactRef present
+    in StageContentRequest. The Toolset materializes a validated read-only tree
+    under allocation workspace/source. Other tools in the allocation may use
+    that tree only through registered code; no host path is exposed to the model.
+
+scope:
+  in:
+    - Register source-analysis@1 in Go and Python with four explicit tools.
+    - Safely validate and extract application/zip using Python standard library only.
+    - List paths, fixed-string or regex search text files, and bounded line-range reads.
+    - Default ignores for VCS, dependency, build, cache, binary, and generated directories.
+    - Allocation metrics without source bytes, matches, or secrets.
+  out:
+    - Git clone/fetch, tar formats, symlinks, executable tools, source mutation, tree-sitter, or graph indexing.
+    - Reading arbitrary Runtime host paths or following links outside workspace/source.
+
+tool_contracts:
+  open_source_archive:
+    arguments: [namespace, name, revision]
+    returns: [artifact, fileCount, totalUncompressedBytes, ignoredCount]
+  list_source_files:
+    arguments: [pattern, offset, limit]
+    defaults: {pattern: "**/*", offset: 0, limit: 200}
+  search_source:
+    arguments: [query, path_pattern, regex, case_sensitive, max_results]
+    defaults: {path_pattern: "**/*", regex: false, case_sensitive: false, max_results: 100}
+  read_source:
+    arguments: [path, start_line, max_lines]
+    defaults: {start_line: 1, max_lines: 200}
+
+archive_limits:
+  compressed_bytes: 16777216
+  entries: 10000
+  total_uncompressed_bytes: 67108864
+  per_file_uncompressed_bytes: 4194304
+  path_utf8_bytes: 512
+  read_visible_utf8_bytes: 131072
+  search_scanned_text_bytes: 33554432
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/toolsets/source_analysis.py, description: Shared archive session, safe extraction, and four model tools.}
+  - {path: runtime/tests/test_source_analysis_toolset.py, description: Functional tools plus malicious ZIP and resource-limit cases.}
+  - {path: internal/config/descriptors.go, description: Exact source-analysis@1 tool descriptor.}
+  - {path: runtime/README.md, description: Source ZIP format, limits, exclusions, and lifecycle.}
+
+requirements:
+  - id: R1
+    text: Reject absolute paths, dot/dot-dot segments, backslashes, NUL, duplicate normalized names, encrypted members, devices, FIFOs, and symlinks before writing any member.
+  - id: R2
+    text: Validate entry count and declared uncompressed sizes before extraction, enforce actual streamed byte counts while extracting, and roll back the source directory on any failure.
+  - id: R3
+    text: All path resolution remains beneath workspace/source with no symlink traversal; extracted files are not writable by model-visible tools.
+  - id: R4
+    text: open_source_archive requires an exact ref and application/zip media type and cannot silently switch to a newer current binding.
+  - id: R5
+    text: Searches skip binary/oversized/ignored files, bound scan and result size, report truncation, and reject invalid regular expressions.
+  - id: R6
+    text: Reopening the same exact ref is idempotent; opening a different ref atomically replaces the prior tree only after the new archive validates.
+
+acceptance_criteria:
+  - id: A1
+    given: A small ZIP with nested UTF-8 source and manifest files.
+    when: The four tools are used in sequence.
+    then: The exact ref is observed, paths are stable POSIX-relative names, search has file/line evidence, and reads return correct bounded ranges.
+  - id: A2
+    given: ZIP-slip, absolute, backslash, symlink, duplicate, encrypted, bomb-size, or over-count input.
+    when: open_source_archive runs.
+    then: It fails before exposing a partial tree and no path outside the allocation workspace changes.
+  - id: A3
+    given: Ignored dependency/build directories and binary files.
+    when: Listing and search run.
+    then: They are omitted deterministically and truncation/ignored counts are truthful.
+  - id: A4
+    given: A prepared allocation selecting a subset of source-analysis@1.
+    when: Runtime builds and later releases the Worker.
+    then: Only selected tools exist and workspace cleanup removes all extracted bytes.
+
+tests:
+  - {name: runtime-source-tools, command: "cd runtime && uv run pytest tests/test_source_analysis_toolset.py", covers: [A1, A2, A3]}
+  - {name: allocation-lifecycle, command: "cd runtime && uv run pytest tests/test_allocation.py", covers: [A4]}
+  - {name: descriptor-parity, command: "go test ./internal/config/...", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - ZIP entries are materialized because OpenAPI provenance validation and LikeC4 analysis need a common allocation-local source tree; the tree remains read-only from the model's perspective.
+  - Regex search uses Python re with a pattern-length limit and total scan deadline/byte cap; it is an analysis convenience, not a general code execution facility.

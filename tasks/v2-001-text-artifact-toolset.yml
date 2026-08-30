@@ -1,0 +1,97 @@
+schema_version: "1.0"
+id: V2-001
+title: Add allocation-bound UTF-8 Artifact tools
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V1-006]
+languages: [go, python]
+
+goal: >-
+  Let model Workers exchange Markdown, YAML, JSON, and DSL documents as normal
+  RunScope artifacts without asking an LLM to encode or decode base64.
+
+context:
+  existing_boundary: >-
+    ArtifactClient already enforces the allocation's RunScope, exact revisions,
+    CAS writes, the 16 MiB transport limit, mTLS, and the finalizing/aborting
+    write fence. run-artifacts@1 must remain byte-oriented and unchanged.
+  namespace_rule: >-
+    Reads identify an explicit current-Run ArtifactRef. Writes are fixed to the
+    allocation's resolved Agent Namespace; namespace is not a model argument.
+  consumers: >-
+    Discovery Workers write Markdown reports; OpenAPI and LikeC4 validators
+    write Markdown validation reports. Domain document toolsets may continue to
+    use ArtifactClient directly.
+
+scope:
+  in:
+    - Register text-artifacts@1 in the Go descriptor catalog and Python factory registry.
+    - Export read_text_artifact and write_text_artifact only.
+    - Strict UTF-8 decoding, line-window reads, bounded model-visible output, and CAS writes.
+    - Exact ArtifactRef propagation so StageContentResult verification accepts refs observed by these tools.
+    - Bounded metrics that record metadata but never report document contents.
+  out:
+    - Character-set transcoding, patches, streaming, binary formats, publication, or cross-Run access.
+    - Changes to run-artifacts@1 or the public Artifact API.
+
+tool_contracts:
+  read_text_artifact:
+    arguments: [namespace, name, revision, start_line, max_lines]
+    behavior: >-
+      Read the current or exact artifact, require valid UTF-8, and return exact
+      ref, media type, byte/line counts, selected text, and truncation metadata.
+    limits:
+      max_lines_per_call: 400
+      max_visible_utf8_bytes: 131072
+  write_text_artifact:
+    arguments: [name, text, media_type, expected_revision]
+    behavior: >-
+      Create or CAS-update allocation-namespace/name with exact UTF-8 bytes and
+      return the exact write result. expected_revision null means create-only.
+    limits:
+      max_utf8_bytes: 1048576
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/toolsets/text_artifacts.py, description: Toolset factory and two allocation-bound tools.}
+  - {path: runtime/tests/test_text_artifacts_toolset.py, description: Paging, UTF-8, CAS, namespace, metrics, and ref-observation tests.}
+  - {path: internal/config/descriptors.go, description: Exact text-artifacts@1 Server descriptor.}
+
+requirements:
+  - id: R1
+    text: Write namespace comes only from Worker allocation context and cannot be overridden by tool arguments.
+  - id: R2
+    text: Reads preserve an explicitly supplied revision and return the exact revision resolved by ArtifactClient.
+  - id: R3
+    text: Invalid UTF-8, invalid windows, oversized text, and ArtifactClient failures are deterministic tool failures with no partial write.
+  - id: R4
+    text: Metrics arguments contain content length and metadata only; raw text and RuntimeSettings secrets are absent from reports and repr output.
+  - id: R5
+    text: Every constructed tool closes cleanly and clears its secret tuple during allocation release.
+
+acceptance_criteria:
+  - id: A1
+    given: A multi-line UTF-8 Run artifact and an exact revision.
+    when: read_text_artifact requests a bounded line window.
+    then: It returns the correct text, exact ref, total lines, and truthful truncation fields within the output cap.
+  - id: A2
+    given: A Worker allocated to namespace analysis.
+    when: write_text_artifact creates and then CAS-updates report.
+    then: Both writes target analysis/report and return distinct exact revisions; a stale CAS fails without mutation.
+  - id: A3
+    given: Text containing a recognizable secret.
+    when: Success and failure metrics are built.
+    then: The secret and raw text are absent while call counts, sizes, duration, and outcome remain available.
+  - id: A4
+    given: An AgentTemplate selecting the two new tools.
+    when: Go config validation and Runtime allocation preparation run.
+    then: Both recognize the same exact descriptor and only selected tools are model-visible.
+
+tests:
+  - {name: runtime-toolset, command: "cd runtime && uv run pytest tests/test_text_artifacts_toolset.py", covers: [A1, A2, A3]}
+  - {name: config-descriptor, command: "go test ./internal/config/...", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - Keep the public artifact size limit at 16 MiB. The lower write/read limits here protect model context and are part of text-artifacts@1 semantics.
+  - Use content or payload as the metrics argument key so MetricsState redacts the value structurally.

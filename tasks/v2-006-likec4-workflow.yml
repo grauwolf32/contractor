@@ -1,0 +1,116 @@
+schema_version: "1.0"
+id: V2-006
+title: Define the four-Stage LikeC4 project workflow
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V2-002, V2-004, V2-005]
+languages: [go, python, yaml]
+
+goal: >-
+  Port contractor-old/likec4_building into a strict v2 Workflow that reuses
+  source discovery, then builds and repair-validates one architecture artifact.
+
+context:
+  legacy_shape: >-
+    dependency_information -> project_information -> likec4_build ->
+    likec4_validate. Source discovery and report contracts are shared with
+    openapi-from-source@1 rather than duplicated as new implementations.
+  durable_state: >-
+    The optional existing document is an input fork. Builder and validator use
+    namespace likec4 and the binding likec4/architecture; no overlay survives
+    allocation release and no Worker reads another Worker's sandbox.
+
+workflow_contract:
+  ref: likec4-from-source@1
+  parameters:
+    objective: {required: false}
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+    existing_likec4: {required: false, mediaTypes: [text/vnd.likec4, text/plain]}
+  outputs:
+    architecture: {required: true, mediaTypes: [text/vnd.likec4]}
+    validation_report: {required: true, mediaTypes: [text/markdown]}
+  stages:
+    - dependency_discovery
+    - project_discovery
+    - likec4_build
+    - likec4_validate
+
+agent_templates:
+  reuse: [source_analyst@1]
+  likec4_builder@1:
+    namespace: likec4
+    tools:
+      source-analysis@1: [open_source_archive, list_source_files, search_source, read_source]
+      text-artifacts@1: [read_text_artifact]
+      likec4@1: [load_likec4, write_likec4, read_likec4, append_likec4, replace_likec4, validate_likec4]
+  likec4_validator@1:
+    namespace: likec4
+    tools:
+      source-analysis@1: [open_source_archive, search_source, read_source]
+      text-artifacts@1: [read_text_artifact, write_text_artifact]
+      likec4@1: [load_likec4, read_likec4, write_likec4, append_likec4, replace_likec4, validate_likec4]
+
+scope:
+  in:
+    - Add builder and repair-only validator AgentTemplates and adapted instruction resources.
+    - Add strict LikeC4 Workflow manifest with complete contexts, result contracts, retries, and output mappings.
+    - Add compact bundled LikeC4 syntax guidance to Worker instructions sufficient for the supported single-file subset.
+    - Add config topology tests and local execution documentation.
+  out:
+    - A general Skill registry, dynamic reference loading, visual editor, layout/render output, or multi-file LikeC4 projects.
+    - Security-only architecture semantics; prompts emphasize security evidence but permit general project architecture.
+
+artifact_bindings:
+  dependency_report: analysis/dependencies
+  project_report: analysis/project
+  architecture: likec4/architecture
+  validation_report: likec4/validation-report
+
+deliverables:
+  - {path: configs/agent-templates, description: LikeC4 builder and repair-validator manifests with exact Toolset selections.}
+  - {path: configs/instructions, description: LikeC4 Worker and Stage resources with compact single-file syntax guidance.}
+  - {path: configs/workflows/likec4_from_source.yaml, description: Strict four-Stage likec4-from-source@1 Workflow.}
+  - {path: internal/config, description: Resolved LikeC4 topology and allowlist regression tests.}
+  - {path: docs/development.md, description: CLI prerequisite, ZIP/seed upload, Run, and frozen-output instructions.}
+
+requirements:
+  - id: R1
+    text: Discovery stages match the OpenAPI workflow contract; build consumes source and both exact reports plus optional seed; validate consumes source, both reports, and exact build candidate.
+  - id: R2
+    text: Builder instructions require specification, model, then views; each phase persists and validates before proceeding and all claims cite source evidence.
+  - id: R3
+    text: Validator instructions are repair-only, run validation before and after bounded fixes, and forbid returning success while errors or validator-unavailable remain.
+  - id: R4
+    text: The final Stage returns exact architecture and Markdown report refs and maps both to Workflow outputs.
+  - id: R5
+    text: Agent instructions include the minimum syntax/identifier/relationship/view rules needed without depending on contractor-old memory/Skill services.
+  - id: R6
+    text: A supplied seed is copied into likec4/architecture; missing seed creates a new artifact; inputs/existing_likec4 is never mutated.
+
+acceptance_criteria:
+  - id: A1
+    given: The configs root and matching code descriptors.
+    when: Config validation runs.
+    then: likec4-from-source@1 and every resolved dependency are accepted.
+  - id: A2
+    given: The resolved Workflow snapshot.
+    when: A topology test inspects contexts and transitions.
+    then: It has exactly four serial Stages, exact report/document dependencies, and bounded retries with no hidden cache edge.
+  - id: A3
+    given: The builder/validator manifests and prompts.
+    when: They are reviewed without contractor-old.
+    then: The full artifact names, required tool calls, finish conditions, CLI failure behavior, and evidence expectations are explicit.
+  - id: A4
+    given: Local deployment documentation.
+    when: An operator follows it.
+    then: They can verify the direct LikeC4 CLI, upload ZIP/optional seed, run the workflow, and locate both frozen outputs.
+
+tests:
+  - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs", covers: [A1]}
+  - {name: workflow-topology, command: "go test ./internal/config/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+notes:
+  - The old likec4 Skill files are intentionally not copied as a new platform feature. A future Skill resource system may replace the compact embedded guidance without changing Workflow shape.

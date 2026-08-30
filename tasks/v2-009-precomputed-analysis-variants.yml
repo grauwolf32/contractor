@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V2-009
+title: Add explicit precomputed-analysis workflow variants
+milestone: project-workflows-quality
+priority: P1
+status: planned
+depends_on: [V2-007]
+languages: [go, yaml]
+
+goal: >-
+  Recover contractor-old's useful ability to avoid expensive repeated discovery
+  without adding implicit cross-Run artifact lookup or conditional graph
+  semantics to the v1alpha1 Scheduler.
+
+context:
+  chosen_model: >-
+    Add separate exact Workflow versions whose required inputs include source,
+    dependency_report, and project_report and whose entry Stage is document
+    build. Callers explicitly choose and version the reports from UserScope.
+  rejected_model: >-
+    The default four-Stage workflows must not inspect unrelated prior Runs,
+    silently pick current user artifacts, or conditionally skip graph nodes.
+
+scope:
+  in:
+    - Add openapi-from-analysis@1 and likec4-from-analysis@1 manifests using existing templates/instructions.
+    - Require application/zip source plus two text/markdown reports and retain optional document seeds.
+    - Preserve build/validate result contracts, retries, and output mappings from the default workflows.
+    - Add topology tests and documentation showing explicit publication/reuse of discovery reports.
+  out:
+    - Scheduler condition expressions, cache keys, automatic invalidation, report freshness inference, or publication API implementation.
+
+deliverables:
+  - {path: configs/workflows/openapi_from_analysis.yaml, description: Two-Stage workflow with explicit source and discovery-report inputs.}
+  - {path: configs/workflows/likec4_from_analysis.yaml, description: Two-Stage workflow with explicit source and discovery-report inputs.}
+  - {path: internal/config, description: Variant topology and input-contract regression tests.}
+  - {path: docs/development.md, description: Explicit report publication/selection and compatibility warning.}
+
+requirements:
+  - id: R1
+    text: Both variants contain exactly build and validate Stages and pin all three required inputs as exact StageContext refs.
+  - id: R2
+    text: Report inputs are forked to inputs/dependency_report and inputs/project_report; Workers never read a prior RunScope directly.
+  - id: R3
+    text: Workflow names make reuse explicit and cannot be confused with the default from-source variants.
+  - id: R4
+    text: Documentation warns that Contractor does not prove reports match source; callers own compatible revision selection until a future provenance policy is specified.
+
+acceptance_criteria:
+  - id: A1
+    given: Published discovery reports and source revisions in UserScope.
+    when: Either from-analysis Run is created.
+    then: Scheduler forks exact versions, begins at build, validates, and freezes the same output types as its four-Stage sibling.
+  - id: A2
+    given: A missing report or incompatible media type.
+    when: Run creation is attempted.
+    then: It is rejected before a StageExecution or allocation is created.
+  - id: A3
+    given: Config topology tests.
+    when: Both default and reuse variants are loaded.
+    then: They share AgentTemplates but have independent immutable Workflow snapshots and no hidden cache behavior.
+
+tests:
+  - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs", covers: [A1, A2, A3]}
+  - {name: topology, command: "go test ./internal/config/...", covers: [A1, A3]}
+  - {name: run-input-validation, command: "go test ./internal/httpapi/public/... ./internal/scheduler/...", covers: [A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+notes:
+  - This is deliberately a Workflow authoring solution. If later products need conditional branches, that requires a separate Workflow schema discussion rather than special-casing analysis artifacts.

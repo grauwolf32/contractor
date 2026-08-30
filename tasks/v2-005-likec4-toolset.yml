@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V2-005
+title: Port the artifact-backed LikeC4 document Toolset
+milestone: project-workflows-mvp
+priority: P0
+status: planned
+depends_on: [V2-001]
+languages: [go, python]
+
+goal: >-
+  Let a Worker create, incrementally edit, persist, and validate one LikeC4 DSL
+  document in its Agent Namespace using a fixed local LikeC4 CLI adapter.
+
+context:
+  legacy_source:
+    - /home/ruslan/src/contractor-old/contractor/tools/likec4.py
+    - /home/ruslan/src/contractor-old/contractor/agents/likec4_builder_agent
+  storage: >-
+    likec4@1 copies an optional exact seed to namespace/target_name and uses CAS
+    for every whole-write, append, or exact replacement. The allocation
+    workspace contains only a temporary validator project; durable state is the
+    Run artifact.
+  command_policy: >-
+    Runtime resolves a direct likec4 executable from PATH lazily and invokes a
+    fixed validate --json --no-layout command without shell=True. Package-runner
+    downloads and model-supplied commands are forbidden.
+
+scope:
+  in:
+    - Register likec4@1 with load, create/write, read, append, exact-replace, and validate tools.
+    - Persist UTF-8 as text/vnd.likec4 with exact CAS revisions.
+    - Parse current and legacy LikeC4 JSON validation output with bounded diagnostics.
+    - Fixed subprocess timeout, stdin isolation, temporary-directory cleanup, and metrics redaction.
+  out:
+    - LikeC4 layout/render/dev server, multi-file includes, arbitrary CLI flags, npm installation, or shell execution.
+    - Direct writes into the uploaded source tree.
+
+exported_tools:
+  - load_likec4
+  - write_likec4
+  - read_likec4
+  - append_likec4
+  - replace_likec4
+  - validate_likec4
+
+document_rules:
+  target_media_type: text/vnd.likec4
+  target_name_default: architecture
+  max_document_utf8_bytes: 1048576
+  max_visible_utf8_bytes: 131072
+  max_replace_occurrences: 100
+  validate_timeout_seconds: 30
+  validate_command: [likec4, validate, --json, --no-layout]
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/toolsets/likec4.py, description: Namespace-bound DSL session, CAS editing tools, and fixed validator adapter.}
+  - {path: runtime/tests/test_likec4_toolset.py, description: Editing, CAS, command, timeout, JSON, cleanup, redaction, and exact-ref tests.}
+  - {path: internal/config/descriptors.go, description: Exact likec4@1 descriptor.}
+  - {path: runtime/README.md, description: Direct LikeC4 CLI prerequisite and supported single-document contract.}
+
+requirements:
+  - id: R1
+    text: Tool arguments never select an executable, host path, namespace, validation flags, or temporary directory.
+  - id: R2
+    text: Every mutation checks the document byte bound and expected revision, writes atomically through ArtifactClient, and retains prior in-memory state on failure.
+  - id: R3
+    text: replace_likec4 requires a non-empty exact old fragment, rejects absent/ambiguous matches unless count is explicit, and reports actual replacement count.
+  - id: R4
+    text: validate_likec4 validates the current exact in-memory document, accepts dict-with-errors and legacy list JSON, and treats non-diagnostic execution failures separately from DSL errors.
+  - id: R5
+    text: Missing executable, timeout, empty/invalid/oversized output, and unexpected JSON shape are bounded explicit failures; none is equivalent to zero validation issues.
+  - id: R6
+    text: Document content, CLI banners/stderr, artifact bytes, and Runtime secrets are absent from metrics and ordinary exception repr.
+
+acceptance_criteria:
+  - id: A1
+    given: No seed document.
+    when: write, append, replace, read, and validate run against a fake direct LikeC4 executable.
+    then: CAS revisions advance, text is exact, validator receives the current revision, and clean diagnostics are returned.
+  - id: A2
+    given: An exact existing LikeC4 input.
+    when: load_likec4 copies it into the allocated namespace.
+    then: The seed remains unchanged, its exact revision is observed, and the new namespace-bound artifact is an independent copy with an exact revision.
+  - id: A3
+    given: A stale CAS, ambiguous replacement, missing executable, timeout, malformed JSON, or CLI execution error.
+    when: The relevant tool runs.
+    then: It fails deterministically, preserves the last committed document, and never reports valid=true.
+  - id: A4
+    given: Allocation release after validation.
+    when: Tools close and local-workdir cleanup runs.
+    then: In-memory document/secret state and validator temporary files are gone.
+
+tests:
+  - {name: runtime-likec4, command: "cd runtime && uv run pytest tests/test_likec4_toolset.py", covers: [A1, A2, A3, A4]}
+  - {name: descriptor-parity, command: "go test ./internal/config/...", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - A direct executable makes single-VM deployment deterministic. Documentation may show an administrator-managed npm global install, but the Worker never downloads packages.
+  - Whole-document write remains necessary for initial construction; append/replace keep later model turns smaller and safer.

@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V2-008
+title: Add an opt-in live-model quality evaluation for project workflows
+milestone: project-workflows-quality
+priority: P1
+status: planned
+depends_on: [V2-007]
+languages: [go, python]
+
+goal: >-
+  Detect prompt/tool dialect and semantic quality regressions against a real
+  OpenAI-compatible Gateway without making ordinary CI depend on a model.
+
+context:
+  initial_target: >-
+    LM Studio at http://192.168.1.217:1234/v1 with model
+    qwen/qwen3.8-27b, optionally routed through LiteLLM. Environment variables
+    must override URL, token, and model; no LAN address is hard-coded in tests.
+  source_baseline: >-
+    Reuse one compact fixture adapted from contractor-old eval cases and score
+    observable outputs, not exact prose or exact tool-call order.
+
+scope:
+  in:
+    - Opt-in live workflow test using the production Server/Runtime stack and real domain validators.
+    - Structural and semantic scorers for OpenAPI and LikeC4 outputs plus discovery evidence.
+    - Persist bounded test artifacts/metrics under an ignored local results directory on failure.
+    - Document LiteLLM and direct LM Studio invocation examples and time/token expectations.
+  out:
+    - Mandatory CI, model leaderboard, broad fixture matrix, judge-model grading, or automatic prompt mutation.
+
+quality_floor:
+  openapi:
+    - Parses and validates with no serious issue.
+    - Represents every fixture HTTP route and method.
+    - Contains non-empty responses and source provenance for every operation.
+    - Includes observed authentication/security scheme when fixture code enforces it.
+  likec4:
+    - Direct LikeC4 CLI reports no errors.
+    - Contains the application, external actor, datastore, and external service.
+    - Contains inbound, persistence, and outbound relationships plus at least one view.
+    - Descriptions include source-relative evidence.
+
+deliverables:
+  - {path: tests/eval/project_workflows, description: Opt-in harness, source fixture, and deterministic semantic scorers.}
+  - {path: Makefile, description: test-project-workflows-live target guarded by required environment.}
+  - {path: docs/development.md, description: Direct LM Studio and LiteLLM live evaluation commands.}
+
+requirements:
+  - id: R1
+    text: The live test is skipped unless all required environment variables and PostgreSQL are supplied; make verify and deterministic e2e never call the network.
+  - id: R2
+    text: Scoring parses artifacts and cites failed predicates; it does not compare free-form reports byte-for-byte or use another model as judge.
+  - id: R3
+    text: Test timeout is at most 30 minutes per Workflow and cancellation cleans allocations/workspaces on failure.
+  - id: R4
+    text: Gateway tokens, prompts containing secrets, source bytes, and provider response bodies are absent from terminal/log output.
+
+acceptance_criteria:
+  - id: A1
+    given: A configured live Gateway and PostgreSQL.
+    when: The live target runs both workflows.
+    then: Each reaches terminal success or produces a bounded diagnostic identifying Stage, tool/model counters, and failed semantic predicate.
+  - id: A2
+    given: No live environment variables.
+    when: Normal verify and deterministic test targets run.
+    then: No LAN/internet request occurs and the live suite reports a clean skip when invoked directly.
+  - id: A3
+    given: The documented qwen/qwen3.8-27b setup.
+    when: A maintainer follows either direct or LiteLLM instructions.
+    then: The same scorer and Workflow manifests execute without code edits.
+
+tests:
+  - {name: live-domain-workflows, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL=http://... CONTRACTOR_WORKFLOWS_LIVE_MODEL=model make test-project-workflows-live", covers: [A1, A3]}
+  - {name: offline-skip, command: "go test ./tests/eval/project_workflows/...", covers: [A2]}
+  - {name: aggregate-offline, command: "make verify", covers: [A2]}
+
+notes:
+  - Record the tested model and date in task completion evidence, not in executable assertions.
