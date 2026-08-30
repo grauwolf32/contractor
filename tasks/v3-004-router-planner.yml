@@ -3,8 +3,8 @@ id: V3-004
 title: Implement router@1 over the shared Planner plan
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "a7d9e9a593b09b5b23c892a21a8a65bd4ac68865"
 depends_on: [V3-003]
 languages: [go, yaml]
 
@@ -77,3 +77,35 @@ tests:
   - {name: router-unit-race, command: "go test -race ./internal/planner/router/...", covers: [A1, A2, A3, A4]}
   - {name: registry-config, command: "go test ./internal/planner/... ./internal/config/... ./internal/app/...", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+completion:
+  evidence:
+    - >-
+      router@1 is a distinct registered PlannerFactory in strict descriptors,
+      Scheduler decoding, and the Server composition root. It delegates to the
+      same bounded ADK execution engine, PlannerPlan, finish contract, session
+      service, budgets, artifact checks, and deterministic request adapter as
+      Streamline without changing framework-neutral Scheduler interfaces.
+    - >-
+      Router exposes exactly one execute_current_subtask function whose only
+      properties are subtask_id and worker_name. The generated Gateway schema
+      constrains worker_name to the sorted immutable Stage binding keys and
+      rejects additional context or routing fields.
+    - >-
+      The resolved system instruction ends with a lexical Available agents
+      section containing only logical names and pinned AgentTemplate
+      descriptions. Tests seed allocation IDs, Runtime URLs, and a token and
+      prove none reaches the model request.
+    - >-
+      Real ADK-loop race tests prove an exact valid selection invokes and
+      records only that logical Worker with complete immutable StageContext;
+      unknown, stale, and parallel selections cause no unintended A2A call or
+      plan advancement, and Server does not correct a valid semantic choice.
+    - >-
+      The strict router-openapi example declares reverse-lexical bindings with
+      distinct template descriptions and loads through the production config
+      resolver; zero bindings fail resolved-graph and factory validation.
+  verified_by:
+    - go test -race ./internal/planner/router/... ./internal/planner/streamline/... ./internal/config/... ./internal/app/... ./internal/scheduler/...
+    - make verify
+    - likec4 validate docs/spec
