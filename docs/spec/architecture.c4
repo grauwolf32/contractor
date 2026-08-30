@@ -77,6 +77,10 @@ model {
     #external
   }
 
+  localAuthBootstrap = system 'Local Auth File — one user + Argon2id password hash' {
+    #external
+  }
+
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
@@ -126,6 +130,14 @@ model {
     }
 
     operationsApi = component 'Operations / Configuration API' {
+      #contractor
+    }
+
+    authApi = component 'Local Login / Session / CSRF API' {
+      #contractor
+    }
+
+    authService = component 'In-memory Local Session + Principal Boundary' {
       #contractor
     }
 
@@ -197,6 +209,10 @@ model {
     userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
     operationsApi -> runtimeRegistry 'Read authoritative/observed slot state'
     operationsApi -> executionConfigService 'List/publish configs; create/delete managed credentials without raw tokens'
+    authApi -> authService 'Verify Argon2id login; issue/revoke session + CSRF'
+    publicApi -> authService 'Authenticate session and bind user principal'
+    userArtifactApi -> authService 'Authenticate session and bind UserScope owner'
+    operationsApi -> authService 'Authenticate session and bind audit actor'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
@@ -289,10 +305,12 @@ model {
   }
 
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
+  browser -> server.authApi 'Direct login / session / logout with credentialed CORS'
   browser -> server.publicApi 'Direct authenticated Workflow and Run queries/mutations'
   browser -> server.userArtifactApi 'Direct Artifact queries/uploads/downloads'
   browser -> server.operationsApi 'Direct Runtime visibility and configuration management'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
+  apiClient -> server.authApi 'Authenticate through the same local session contract when needed'
   apiClient -> server.publicApi 'Submit / query / cancel Run'
   apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
 
@@ -319,6 +337,7 @@ model {
   server.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
   server.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
   server.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
+  server.authService -> localAuthBootstrap 'Read one user ID, username and Argon2id hash at startup'
 }
 
 views {
@@ -337,6 +356,7 @@ views {
     include configFilesystem
     include credentialMasterKey
     include gatewayAdminBindings
+    include localAuthBootstrap
     include telemetryBackend
 
     global style ownership

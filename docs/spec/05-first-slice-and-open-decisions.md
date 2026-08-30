@@ -47,6 +47,10 @@ This slice must demonstrate:
   assets and remains healthy when UI is unavailable; Node serves only the
   client bundle and non-secret runtime API URL, while the browser calls Go
   Server directly through its exact CORS origin allowlist;
+- one Argon2id bootstrap user logs in directly to Go Server and receives an
+  in-memory, idle/absolute-expiring HttpOnly session plus a session-bound CSRF
+  token; browser mutation requires exact Origin and CSRF checks, Server restart
+  invalidates sessions, and the principal owns both user and Operations APIs;
 - an LLMGatewayConfig may declare `litellm-virtual-keys@1` plus its non-secret
   management origin; Server Operations can manage it only when operator
   bootstrap binds that exact digest-bearing Gateway ref to a protected LiteLLM

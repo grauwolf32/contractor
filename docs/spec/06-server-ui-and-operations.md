@@ -436,23 +436,91 @@ call the same domain application services as non-UI API clients.
 Because UI and API may have different origins, Server has an operator-configured
 exact browser-origin allowlist. Wildcard and reflected origins and the opaque
 `null` origin are invalid. A matching preflight exposes only implemented public
-API methods and required headers, including `Authorization`, `Content-Type`,
-`Idempotency-Key` and CAS preconditions; browser-readable response headers
-include `X-Request-ID`, `ETag` and `Content-Disposition`. CORS grants no
-authorization and non-browser clients remain subject to the same API
-authentication. Whether cross-origin credentials use an API bearer token or an
-explicit cookie/CSRF contract is decided with browser authentication.
+API methods and required headers, including `Content-Type`, `Idempotency-Key`,
+`If-Match` and `X-CSRF-Token`; browser-readable response headers include
+`X-Request-ID`, `ETag` and `Content-Disposition`. Credentialed CORS is enabled
+only for an exact allowed origin. CORS grants no authorization and non-browser
+clients remain subject to the public API's authentication contract.
+
+### Local browser session
+
+The first slice has exactly one local principal. Server reads it once at startup
+from the absolute `--local-auth-file` bootstrap path:
+
+```yaml
+user:
+  userId: local-admin
+  username: admin
+  passwordHash: $argon2id$v=19$m=65536,t=3,p=1$...
+```
+
+`userId` uses the shared ID grammar and is the immutable UserScope owner and
+audit actor. `username` is case-sensitive, 1 through 64 ASCII characters and
+matches `[A-Za-z0-9][A-Za-z0-9_.-]*`. The file must be absolute, regular,
+non-symlinked and unreadable by group or world. It contains one Argon2id PHC
+string with version 19, 64 MiB memory, three iterations, parallelism one, a
+16-byte random salt and 32-byte output. Server rejects another algorithm or
+parameter set rather than silently weakening or unexpectedly amplifying login
+cost.
+
+`contractor-server auth hash-password` reads the password twice from an
+interactive terminal without echo and emits the bootstrap YAML; it accepts no
+password command-line argument or environment variable. Passwords are 12
+through 1,024 UTF-8 bytes, are never trimmed and are never logged. Login uses a
+2 KiB maximum JSON body, `Cache-Control: no-store` and one generic failure
+response for unknown username and bad password. Before Argon2 verification, an
+in-memory limiter permits at most five failed attempts per rolling minute for
+one socket-peer IP and 30 process-wide; it does not trust forwarded-IP headers
+in the first slice. Excess returns `429` plus bounded `Retry-After` without
+creating an account lockout.
+
+The browser auth API is:
+
+```text
+POST /v1/auth/login       username + password; create session
+GET  /v1/auth/session     return safe principal + session-bound CSRF token
+POST /v1/auth/logout      require CSRF; destroy session
+```
+
+Successful login always creates a fresh cryptographically random 32-byte value,
+puts its unpadded base64url representation only in a
+`__Host-contractor_session` cookie and stores only its SHA-256 digest in Server
+memory. The cookie is `HttpOnly`, `Secure`,
+`SameSite=Lax`, `Path=/`, has no `Domain`, and is sent by frontend requests with
+`credentials: include`. Production UI and API must therefore be HTTPS and
+same-site even when they have different origins. A separately named insecure
+cookie is permitted only behind an explicit loopback-development mode and is
+never accepted on a non-loopback listener.
+
+Sessions have an eight-hour idle limit, a 24-hour absolute limit and a maximum
+of eight live sessions; a ninth successful login revokes the oldest. An
+accepted authenticated request advances only the idle deadline. Restarting
+Server invalidates every session; no browser session, password hash or CSRF
+token is written to PostgreSQL. `GET /v1/auth/session` uses
+`Cache-Control: no-store` and lets a reloaded SPA recover a session-bound
+32-byte random CSRF token without exposing the session cookie. Every
+cookie-authenticated non-safe request requires both an exact allowed `Origin`
+and `X-CSRF-Token`; missing or mismatched values have no side effect. Login
+itself requires JSON plus an exact allowed browser Origin when an Origin header
+is present. Non-browser authentication does not gain authority from CORS or
+bypass the domain's owner/audit rules.
+
+The local principal owns both ordinary user and Operations capabilities in the
+first slice. API components receive `userId` from the authenticated request
+context rather than a request field or UI state. Authentication failure is
+`401`, authenticated lack of a future permission is `403`, and ownership checks
+retain their non-disclosing `404` behavior. A future OIDC/session adapter and
+RBAC reuse the same principal boundary rather than changing Workflow, Artifact
+or credential semantics.
 
 Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
 future administrative commands require their own idempotency keys and audit
 actor.
 
-The exact browser authentication mechanism, authorization roles, pagination,
-filter grammar and live-update transport are not selected yet. The current
-single configured user may initially own both user and Operations surfaces, but
-the API keeps configuration/credential mutations distinct so later RBAC does
-not require changing Run semantics.
+Pagination, filter grammar and live-update transport are not selected yet. The
+API keeps configuration/credential mutations distinct from ordinary Run and
+Artifact use so later RBAC does not require changing domain semantics.
 
 ## Invariants
 
@@ -478,6 +546,9 @@ not require changing Run semantics.
     embeds frontend assets or requires UI availability.
 11. Node serves only client assets and public runtime configuration; browser
     code, not Node, directly invokes the configured Go Server API.
+12. Browser passwords, session cookies and CSRF tokens never reach Node or
+    durable execution/storage; Go Server derives the sole local principal from
+    its authenticated in-memory session.
 
 ## Open decisions for the next dialogue steps
 
@@ -486,7 +557,7 @@ not require changing Run semantics.
 - Contractor credential-encryption master-key rotation/re-encryption and a
   future Vault/KMS adapter;
 - frontend framework, build tool and client-side state/query library;
-- browser authentication and the first user/operations permission split;
+- future OIDC authentication, multiple users and user/Operations RBAC;
 - polling, Server-Sent Events or WebSocket updates for Run and Agent state;
 - exact list/filter/pagination contracts and retention window;
 - whether the initial editor covers Workflow and AgentTemplate or only
