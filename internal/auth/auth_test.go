@@ -211,6 +211,37 @@ func TestFailureLimiterBoundsInflightAndRollingAttempts(t *testing.T) {
 	}
 }
 
+func TestSessionRevocationFeedAndCheckDoNotExtendAuthority(t *testing.T) {
+	now := time.Date(2026, 8, 31, 10, 0, 0, 0, time.UTC)
+	service, err := NewService(testBootstrap(t), Options{Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	revocations, cancel := service.SubscribeRevocations()
+	defer cancel()
+	login, err := service.Login("admin", []byte(testPassword), "192.0.2.10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Hour)
+	checked, err := service.Check(login.Session.Handle)
+	if err != nil || !checked.IdleExpiresAt.Equal(login.Session.IdleExpiresAt) {
+		t.Fatalf("non-touching session check = (%+v, %v)", checked, err)
+	}
+	service.Destroy(login.Session.Handle)
+	select {
+	case revoked := <-revocations:
+		if revoked != login.Session.Handle {
+			t.Fatal("revocation feed returned another session")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("session destruction did not publish revocation")
+	}
+	if _, err := service.Check(login.Session.Handle); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("destroyed handle check error = %v", err)
+	}
+}
+
 func TestOriginPolicyIsExactAndAllowsHTTPOnlyForLoopbackDevelopment(t *testing.T) {
 	policy, err := NewOriginPolicy([]string{"https://ui.example.test", "https://ui.example.test:8443"}, false)
 	if err != nil {

@@ -178,8 +178,8 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 	events, err := store.ListPlannerEvents(ctx, "session-1", 0)
 	if err != nil || len(events) != 2 || events[0].EventID != "event-started" ||
 		events[1].EventID != "event-1" || events[0].RunEventSequence == nil ||
-		*events[0].RunEventSequence != 1 || events[1].RunEventSequence == nil ||
-		*events[1].RunEventSequence != 2 {
+		*events[0].RunEventSequence != 5 || events[1].RunEventSequence == nil ||
+		*events[1].RunEventSequence != 6 {
 		t.Fatalf("Planner events = (%+v, %v)", events, err)
 	}
 	gap := requestRunEvent
@@ -196,13 +196,27 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		t.Fatalf("Planner sequence gap error = %v, want conflict", err)
 	}
 	cursor, err := store.GetRunEventCursor(ctx, run.RunID)
-	if err != nil || cursor.Sequence != 2 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != 6 || cursor.Generation == "" {
 		t.Fatalf("Run event cursor = (%+v, %v)", cursor, err)
 	}
 	runEvents, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
-	if err != nil || len(runEvents) != 2 || runEvents[0].Kind != RunEventPlannerStarted ||
-		runEvents[1].Kind != RunEventPlannerRequestRecorded {
+	if err != nil || len(runEvents) != 6 || runEvents[0].Kind != RunEventLifecycleChanged ||
+		runEvents[1].Kind != RunEventLifecycleChanged || runEvents[2].Kind != RunEventLifecycleChanged ||
+		runEvents[3].Kind != RunEventLifecycleChanged || runEvents[4].Kind != RunEventPlannerStarted ||
+		runEvents[5].Kind != RunEventPlannerRequestRecorded {
 		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
+	}
+	wantLifecycle := []lifecycleRunEventData{
+		{RunID: run.RunID, Resource: "run", State: string(RunInitializing)},
+		{RunID: run.RunID, Resource: "run", State: string(RunRunning)},
+		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StagePreparing)},
+		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StageRunning)},
+	}
+	for index, want := range wantLifecycle {
+		got, decodeErr := decodeLifecycleRunEventData(runEvents[index].Data)
+		if decodeErr != nil || got != want || runEvents[index].SequenceNumber != int64(index+1) {
+			t.Fatalf("lifecycle event %d = (%+v, %v), want %+v", index, got, decodeErr, want)
+		}
 	}
 
 	resultRevision := "revision-result-1"
@@ -384,6 +398,78 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 	if _, err := store.GetRun(ctx, "run-committed"); err != nil {
 		t.Fatalf("get committed Run: %v", err)
+	}
+}
+
+func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	listener, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Release()
+	if _, err := listener.Exec(ctx, "LISTEN "+runEventNotificationChannel); err != nil {
+		t.Fatal(err)
+	}
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		t.Fatal(err)
+	}
+	runID := "run-notify-" + hex.EncodeToString(random)
+	notified := make(chan struct{})
+	waitErr := make(chan error, 1)
+	go func() {
+		for {
+			notification, err := listener.Conn().WaitForNotification(ctx)
+			if err != nil {
+				waitErr <- err
+				return
+			}
+			if notification.Channel == runEventNotificationChannel && notification.Payload == runID {
+				close(notified)
+				return
+			}
+		}
+	}()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = NewPostgresStore(tx).CreateRun(ctx, CreateRunParams{
+		RunID: runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
+		Parameters:            map[string]string{},
+	})
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	select {
+	case <-notified:
+		_ = tx.Rollback(ctx)
+		t.Fatal("WorkflowRun event notification escaped an uncommitted transaction")
+	case err := <-waitErr:
+		_ = tx.Rollback(ctx)
+		t.Fatalf("wait before commit: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-notified:
+	case err := <-waitErr:
+		t.Fatalf("wait after commit: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("committed WorkflowRun event did not publish a wake-up notification")
+	}
+	events, err := NewPostgresStore(pool).ListRunEvents(ctx, runID, 0, 10)
+	if err != nil || len(events) != 1 || events[0].Kind != RunEventLifecycleChanged ||
+		events[0].SequenceNumber != 1 || !strings.Contains(string(events[0].Data), `"state": "initializing"`) {
+		t.Fatalf("committed lifecycle events = (%+v, %v)", events, err)
 	}
 }
 

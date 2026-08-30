@@ -52,20 +52,23 @@ type AgentSnapshot struct {
 }
 
 type InMemoryRegistry struct {
-	mu                   sync.Mutex
-	idMu                 sync.Mutex
-	agents               map[string]*agentEntry
-	allocations          map[string]storedReservation
-	stageReservations    map[string]stageReservation
-	heartbeatInterval    time.Duration
-	confirmedLease       time.Duration
-	now                  func() time.Time
-	monotonicNow         func() time.Duration
-	newID                func(string) (string, error)
-	agentOrderKey        func(contracts.AgentRegistration) string
-	pendingLosses        []AllocationLoss
-	operationsGeneration string
-	operationsRevision   uint64
+	mu                    sync.Mutex
+	idMu                  sync.Mutex
+	agents                map[string]*agentEntry
+	allocations           map[string]storedReservation
+	stageReservations     map[string]stageReservation
+	heartbeatInterval     time.Duration
+	confirmedLease        time.Duration
+	now                   func() time.Time
+	monotonicNow          func() time.Duration
+	newID                 func(string) (string, error)
+	agentOrderKey         func(contracts.AgentRegistration) string
+	pendingLosses         []AllocationLoss
+	operationsGeneration  string
+	operationsRevision    uint64
+	operationsHistory     []OperationsChange
+	operationsWatchers    map[uint64]chan struct{}
+	nextOperationsWatcher uint64
 }
 
 type agentEntry struct {
@@ -133,6 +136,7 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		now: options.Now, monotonicNow: options.MonotonicNow,
 		newID: options.NewID, agentOrderKey: options.AgentOrderKey,
 		operationsGeneration: operationsGeneration,
+		operationsWatchers:   make(map[uint64]chan struct{}),
 	}, nil
 }
 
@@ -170,7 +174,7 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 		}
 		r.detectObservedLoss(existing, LossRuntimeMismatch)
 		existing.reconciliationRequired = registrationNeedsReconciliation(existing)
-		r.operationsRevision++
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 		return snapshotAgent(existing), nil
 	}
 	if len(r.agents) >= maximumOperationsItems {
@@ -193,7 +197,7 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 	}
 	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
 	r.agents[normalized.InstanceID] = entry
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 	return snapshotAgent(entry), nil
 }
 
@@ -215,7 +219,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 		if response, exists := entry.heartbeatResponses[heartbeat.HeartbeatSeq]; exists {
 			entry.lastSeenAt = now
 			entry.lastAcceptedHeartbeatAt = now
-			r.operationsRevision++
+			r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 			return cloneHeartbeatResponse(response), nil
 		}
 		return contracts.HeartbeatResponse{}, ErrHeartbeatOutOfOrder
@@ -237,7 +241,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 	response, reconciliation := heartbeatAction(entry, heartbeat.HeartbeatSeq)
 	entry.reconciliationRequired = reconciliation || registrationNeedsReconciliation(entry)
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 	return cloneHeartbeatResponse(response), nil
 }
 
@@ -332,7 +336,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 	r.stageReservations[request.StageExecutionID] = stageReservation{
 		fingerprint: fingerprint, allocationIDs: append([]string(nil), allocationIDs...),
 	}
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, "")
 	return reservations, nil
 }
 
@@ -361,7 +365,7 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 	}
 	stored.reservation.Grant.WriteFenced = true
 	r.allocations[allocationID] = stored
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	return nil
 }
 
@@ -392,7 +396,7 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 			candidate.reconciliationRequired = registrationNeedsReconciliation(candidate)
 		}
 	}
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	return nil
 }
 
@@ -650,7 +654,7 @@ func (r *InMemoryRegistry) markAllocationLost(entry *agentEntry, reason Allocati
 	entry.allocationLost = true
 	entry.reconciliationRequired = true
 	r.pendingLosses = append(r.pendingLosses, loss)
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 }
 
 func (r *InMemoryRegistry) detectObservedLoss(entry *agentEntry, reason AllocationLossReason) {

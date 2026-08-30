@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -28,6 +29,7 @@ type RunReader interface {
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
+	ListRunEvents(context.Context, string, int64, int) ([]runstore.WorkflowRunEvent, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }
 
@@ -56,6 +58,10 @@ type MetricsReader interface {
 
 type OperationsReader interface {
 	SnapshotOperations() controlplane.OperationsSnapshot
+}
+
+type OperationsInvalidator interface {
+	InvalidateOperations(controlplane.OperationsResource, string) error
 }
 
 // UnitOfWork supplies transaction-bound Run and Artifact stores. The callback
@@ -112,6 +118,8 @@ type Dependencies struct {
 	PlannerPlans           PlannerPlanReader
 	Metrics                MetricsReader
 	Operations             OperationsReader
+	OperationsInvalidator  OperationsInvalidator
+	Events                 *publicevents.Hub
 	Artifacts              *artifacts.Service
 	Transactions           UnitOfWork
 	BearerToken            contracts.SecretString

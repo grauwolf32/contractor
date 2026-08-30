@@ -15,8 +15,11 @@ import (
 )
 
 type fakeOperationsReader struct {
-	mu       sync.Mutex
-	snapshot controlplane.OperationsSnapshot
+	mu          sync.Mutex
+	snapshot    controlplane.OperationsSnapshot
+	changes     []controlplane.OperationsChange
+	watchers    map[uint64]chan struct{}
+	nextWatcher uint64
 }
 
 func newFakeOperationsReader() *fakeOperationsReader {
@@ -26,7 +29,7 @@ func newFakeOperationsReader() *fakeOperationsReader {
 		},
 		RuntimeAgents: []controlplane.RuntimeAgentObservation{},
 		Allocations:   []controlplane.AllocationObservation{},
-	}}
+	}, watchers: make(map[uint64]chan struct{})}
 }
 
 func (f *fakeOperationsReader) SnapshotOperations() controlplane.OperationsSnapshot {
@@ -44,6 +47,75 @@ func (f *fakeOperationsReader) set(snapshot controlplane.OperationsSnapshot) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.snapshot = snapshot
+	f.changes = nil
+}
+
+func (f *fakeOperationsReader) InvalidateOperations(
+	resource controlplane.OperationsResource,
+	resourceID string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.snapshot.Cursor.Revision++
+	change := controlplane.OperationsChange{
+		Cursor: f.snapshot.Cursor, Resource: resource, ResourceID: resourceID,
+		OccurredAt: time.Now().UTC(),
+	}
+	f.changes = append(f.changes, change)
+	for _, watcher := range f.watchers {
+		select {
+		case watcher <- struct{}{}:
+		default:
+		}
+	}
+	return nil
+}
+
+func (f *fakeOperationsReader) ReplayOperations(
+	after controlplane.OperationsCursor,
+) ([]controlplane.OperationsChange, controlplane.OperationsCursor, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if after.Generation != f.snapshot.Cursor.Generation {
+		return nil, f.snapshot.Cursor, controlplane.ErrOperationsGeneration
+	}
+	if after.Revision > f.snapshot.Cursor.Revision {
+		return nil, f.snapshot.Cursor, controlplane.ErrOperationsCursor
+	}
+	result := make([]controlplane.OperationsChange, 0)
+	want := after.Revision + 1
+	for _, change := range f.changes {
+		if change.Cursor.Revision < want {
+			continue
+		}
+		if change.Cursor.Revision != want {
+			return nil, f.snapshot.Cursor, controlplane.ErrOperationsGap
+		}
+		result = append(result, change)
+		want++
+	}
+	if want != f.snapshot.Cursor.Revision+1 {
+		return nil, f.snapshot.Cursor, controlplane.ErrOperationsCursor
+	}
+	return result, f.snapshot.Cursor, nil
+}
+
+func (f *fakeOperationsReader) SubscribeOperations() (<-chan struct{}, func()) {
+	f.mu.Lock()
+	f.nextWatcher++
+	id := f.nextWatcher
+	updates := make(chan struct{}, 1)
+	f.watchers[id] = updates
+	f.mu.Unlock()
+	var once sync.Once
+	return updates, func() {
+		once.Do(func() {
+			f.mu.Lock()
+			delete(f.watchers, id)
+			close(updates)
+			f.mu.Unlock()
+		})
+	}
 }
 
 type artifactKey struct {
@@ -385,6 +457,7 @@ type fakeRunStore struct {
 	decisions         map[string][]runstore.StageTransitionDecision
 	idempotencyClaims map[string]fakeIdempotencyClaim
 	eventCursors      map[string]runstore.WorkflowRunEventCursor
+	runEvents         map[string][]runstore.WorkflowRunEvent
 }
 
 type fakePlannerPlanReader struct {
@@ -413,6 +486,7 @@ func newFakeRunStore() *fakeRunStore {
 		decisions:         make(map[string][]runstore.StageTransitionDecision),
 		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
 		eventCursors:      make(map[string]runstore.WorkflowRunEventCursor),
+		runEvents:         make(map[string][]runstore.WorkflowRunEvent),
 	}
 }
 
@@ -548,6 +622,25 @@ func (f *fakeRunStore) GetRunEventCursor(
 		return cursor, nil
 	}
 	return runstore.WorkflowRunEventCursor{Generation: "events-test", Sequence: 0}, nil
+}
+
+func (f *fakeRunStore) ListRunEvents(
+	_ context.Context,
+	runID string,
+	afterSequence int64,
+	limit int,
+) ([]runstore.WorkflowRunEvent, error) {
+	result := make([]runstore.WorkflowRunEvent, 0, limit)
+	for _, event := range f.runEvents[runID] {
+		if event.SequenceNumber <= afterSequence {
+			continue
+		}
+		result = append(result, event)
+		if len(result) == limit {
+			break
+		}
+	}
+	return result, nil
 }
 
 type fakeUnitOfWork struct {

@@ -182,3 +182,68 @@ func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
 		t.Fatalf("caller mutated authoritative snapshot: %+v", third)
 	}
 }
+
+func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	initial := registry.SnapshotOperations().Cursor
+	updates, cancel := registry.SubscribeOperations()
+	defer cancel()
+	if err := registry.InvalidateOperations(OperationsConfiguration, "config-v1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-updates:
+	case <-time.After(time.Second):
+		t.Fatal("Operations watcher was not notified")
+	}
+	changes, current, err := registry.ReplayOperations(initial)
+	if err != nil || len(changes) != 1 || changes[0].Cursor.Revision != initial.Revision+1 ||
+		changes[0].Resource != OperationsConfiguration || changes[0].ResourceID != "config-v1" ||
+		changes[0].OccurredAt.IsZero() || current != changes[0].Cursor {
+		t.Fatalf("Operations replay = (%+v, %+v, %v)", changes, current, err)
+	}
+	if changes, _, err := registry.ReplayOperations(current); err != nil || len(changes) != 0 {
+		t.Fatalf("current Operations replay = (%+v, %v)", changes, err)
+	}
+	wrongGeneration := current
+	wrongGeneration.Generation = "operations-another-process"
+	if _, _, err := registry.ReplayOperations(wrongGeneration); !errors.Is(err, ErrOperationsGeneration) {
+		t.Fatalf("generation mismatch error = %v", err)
+	}
+	future := current
+	future.Revision++
+	if _, _, err := registry.ReplayOperations(future); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("future cursor error = %v", err)
+	}
+
+	old := current
+	for range operationsHistoryLimit + 1 {
+		if err := registry.InvalidateOperations(OperationsCredential, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := registry.ReplayOperations(old); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("expired Operations cursor error = %v", err)
+	}
+	beforeInvalid := registry.SnapshotOperations().Cursor
+	if err := registry.InvalidateOperations(OperationsResource("raw"), "secret/value"); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("invalid Operations resource error = %v", err)
+	}
+	if afterInvalid := registry.SnapshotOperations().Cursor; afterInvalid != beforeInvalid {
+		t.Fatalf("invalid Operations change advanced cursor: before=%+v after=%+v", beforeInvalid, afterInvalid)
+	}
+
+	corrupt := newTestRegistry(t, newTestClock())
+	corruptStart := corrupt.SnapshotOperations().Cursor
+	for range 3 {
+		if err := corrupt.InvalidateOperations(OperationsCredential, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	corrupt.mu.Lock()
+	corrupt.operationsHistory = append(corrupt.operationsHistory[:1], corrupt.operationsHistory[2:]...)
+	corrupt.mu.Unlock()
+	if _, _, err := corrupt.ReplayOperations(corruptStart); !errors.Is(err, ErrOperationsGap) {
+		t.Fatalf("Operations sequence gap error = %v", err)
+	}
+}

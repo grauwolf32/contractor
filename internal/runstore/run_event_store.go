@@ -16,7 +16,7 @@ import (
 
 const (
 	maxRunEventDataBytes               = 2 * 1024 * 1024
-	maxRunEventIdentityBytes           = 512
+	maxRunEventIdentityBytes           = 256
 	maxRunEventSubtasks                = 32
 	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
 	maxRunEventSubtaskInstructionBytes = 32 * 1024
@@ -36,6 +36,7 @@ var validRunEventKinds = map[RunEventKind]bool{
 	RunEventPlannerFinishRequested:   true,
 	RunEventPlannerCompleted:         true,
 	RunEventPlannerFailed:            true,
+	RunEventLifecycleChanged:         true,
 }
 
 func validateRunEventAppend(value RunEventAppend) error {
@@ -55,11 +56,62 @@ func validateRunEventAppend(value RunEventAppend) error {
 	if len(value.Data) > maxRunEventDataBytes {
 		return invalidf("WorkflowRun event data exceeds its bounded contract")
 	}
+	if value.Kind == RunEventLifecycleChanged {
+		data, err := decodeLifecycleRunEventData(value.Data)
+		if err != nil {
+			return err
+		}
+		return validateLifecycleRunEventData(data)
+	}
 	data, err := decodePlannerRunEventData(value.Data)
 	if err != nil {
 		return err
 	}
 	return validatePlannerRunEventData(value.Kind, data)
+}
+
+type lifecycleRunEventData struct {
+	RunID            string `json:"runId"`
+	Resource         string `json:"resource"`
+	StageExecutionID string `json:"stageExecutionId,omitempty"`
+	State            string `json:"state"`
+}
+
+func decodeLifecycleRunEventData(data json.RawMessage) (lifecycleRunEventData, error) {
+	if len(data) == 0 || len(data) > maxRunEventDataBytes {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data exceeds its bounded contract")
+	}
+	var result lifecycleRunEventData
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data has an invalid closed schema: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data contains trailing JSON")
+	}
+	return result, nil
+}
+
+func validateLifecycleRunEventData(data lifecycleRunEventData) error {
+	if !validRunStableName(data.RunID, maxRunEventIdentityBytes) ||
+		!validRunStableName(data.State, 128) {
+		return invalidf("WorkflowRun lifecycle event identity or state is invalid")
+	}
+	switch data.Resource {
+	case "run":
+		if data.StageExecutionID != "" {
+			return invalidf("WorkflowRun lifecycle event has an unexpected StageExecution identity")
+		}
+	case "stageExecution":
+		if !validRunStableName(data.StageExecutionID, maxRunEventIdentityBytes) {
+			return invalidf("StageExecution lifecycle event identity is invalid")
+		}
+	default:
+		return invalidf("WorkflowRun lifecycle event resource is invalid")
+	}
+	return nil
 }
 
 func validatePlannerRunEventIdentity(
@@ -148,7 +200,7 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 		"sessionId":        data.SessionID,
 		"invocationId":     data.InvocationID,
 	} {
-		if strings.TrimSpace(value) == "" || len(value) > maxRunEventIdentityBytes {
+		if !validRunStableName(value, maxRunEventIdentityBytes) {
 			return invalidf("WorkflowRun Planner event %s is invalid", name)
 		}
 	}
@@ -316,7 +368,7 @@ func validRunSubtaskID(value string, allowEmpty bool) bool {
 	if value == "" {
 		return allowEmpty
 	}
-	if len(value) > 2 {
+	if len(value) > 2 || len(value) > 1 && value[0] == '0' {
 		return false
 	}
 	for _, current := range value {
@@ -332,7 +384,7 @@ func validRunDispatchCallID(value string) bool {
 		return false
 	}
 	digits := strings.TrimPrefix(value, "dispatch-")
-	if digits == "" {
+	if len(digits) < 4 {
 		return false
 	}
 	for _, current := range digits {
@@ -344,7 +396,7 @@ func validRunDispatchCallID(value string) bool {
 }
 
 func validRunWorkerName(value string) bool {
-	return strings.TrimSpace(value) != "" && len(value) <= maxRunEventWorkerNameBytes
+	return validRunStableName(value, maxRunEventWorkerNameBytes)
 }
 
 func validRunStableName(value string, limit int) bool {
@@ -433,4 +485,48 @@ LIMIT $3`, runID, afterSequence, limit)
 		return nil, fmt.Errorf("iterate WorkflowRun events %q: %w", runID, err)
 	}
 	return result, nil
+}
+
+// EncodePublicRunEventData returns the exact reduced payload admitted to the
+// public event protocol. It reconstructs typed integers and required empty
+// arrays without round-tripping through map[string]any, and adds the Planner
+// event discriminator that is intentionally not duplicated in durable data.
+func EncodePublicRunEventData(event WorkflowRunEvent) (json.RawMessage, error) {
+	if validateRunEventAppend(RunEventAppend{
+		EventID: event.EventID, EventSchemaVersion: event.EventSchemaVersion,
+		Kind: event.Kind, Data: event.Data,
+	}) != nil {
+		return nil, errors.New("WorkflowRun event is not safe for public delivery")
+	}
+	if event.Kind == RunEventLifecycleChanged {
+		data, err := decodeLifecycleRunEventData(event.Data)
+		if err != nil || data.RunID != event.RunID {
+			return nil, errors.New("decode public lifecycle event")
+		}
+		encoded, err := json.Marshal(data)
+		if err != nil {
+			return nil, errors.New("encode public lifecycle event")
+		}
+		return encoded, nil
+	}
+	data, err := decodePlannerRunEventData(event.Data)
+	if err != nil {
+		return nil, errors.New("decode public Planner event")
+	}
+	if data.Activity != nil {
+		if data.Activity.FunctionCalls == nil {
+			data.Activity.FunctionCalls = []string{}
+		}
+		if data.Activity.FunctionResults == nil {
+			data.Activity.FunctionResults = []string{}
+		}
+	}
+	encoded, err := json.Marshal(struct {
+		EventKind RunEventKind `json:"eventKind"`
+		plannerRunEventData
+	}{EventKind: event.Kind, plannerRunEventData: data})
+	if err != nil {
+		return nil, errors.New("encode public Planner event")
+	}
+	return encoded, nil
 }

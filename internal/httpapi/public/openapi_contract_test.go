@@ -76,6 +76,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/auth/session",
 		"GET /v1/configurations/{kind}",
 		"GET /v1/configurations/{kind}/{name}/versions/{version}",
+		"GET /v1/events/ws",
 		"GET /v1/operations/allocations",
 		"GET /v1/operations/credentials",
 		"GET /v1/operations/credentials/{credentialId}",

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
 func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +124,14 @@ func (h *handler) publishConfiguration(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.handleError(w, err)
 		return
+	}
+	if !result.Replayed {
+		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
+			controlplane.OperationsConfiguration, "",
+		); err != nil {
+			h.handleError(w, err)
+			return
+		}
 	}
 	w.Header().Set("ETag", strconv.Quote(result.Resource.Ref.Digest))
 	if result.Replayed {

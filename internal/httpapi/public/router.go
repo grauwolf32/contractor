@@ -29,6 +29,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
+		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
 	}
@@ -63,6 +64,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /v1/auth/login", current.login)
 	mux.HandleFunc("GET /v1/auth/session", current.getSession)
 	mux.HandleFunc("POST /v1/auth/logout", current.logout)
+	mux.HandleFunc("GET /v1/events/ws", current.connectEventsWebSocket)
 	mux.HandleFunc("GET /v1/workflows", current.listWorkflows)
 	mux.HandleFunc("GET /v1/workflows/{name}/versions/{version}", current.getWorkflow)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
@@ -115,6 +117,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/auth/login", current.methodNotAllowed)
 	mux.HandleFunc("/v1/auth/session", current.methodNotAllowed)
 	mux.HandleFunc("/v1/auth/logout", current.methodNotAllowed)
+	mux.HandleFunc("/v1/events/ws", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows/{name}/versions/{version}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)

@@ -7,7 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestPlannerRunEventClosedSchemasAcceptEveryFixedKind(t *testing.T) {
+func TestRunEventClosedSchemasAcceptEveryFixedKind(t *testing.T) {
 	for kind := range validRunEventKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			if err := validateRunEventAppend(validPlannerRunEvent(t, kind)); err != nil {
@@ -66,6 +66,14 @@ func TestPlannerRunEventClosedSchemasRejectUnknownOrInconsistentData(t *testing.
 				return value
 			}(),
 		},
+		{
+			name: "lifecycle event contains unknown field",
+			event: RunEventAppend{
+				EventID: "event-lifecycle", EventSchemaVersion: contracts.APIVersion,
+				Kind: RunEventLifecycleChanged,
+				Data: json.RawMessage(`{"runId":"run-1","resource":"run","state":"running","reason":"raw"}`),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -87,6 +95,35 @@ func TestPlannerRunEventIdentityMustMatchDurableSession(t *testing.T) {
 		event, "stage-1", "session-1", "another-invocation",
 	); err == nil {
 		t.Fatal("mismatched Run event identity was accepted")
+	}
+}
+
+func TestPublicRunEventGrammarRejectsValuesOutsideTheWebSocketSchema(t *testing.T) {
+	for _, mutate := range []func(*plannerRunEventData){
+		func(data *plannerRunEventData) { data.SessionID = "unsafe session" },
+		func(data *plannerRunEventData) { data.SubtaskID = "00" },
+		func(data *plannerRunEventData) { data.CallID = "dispatch-1" },
+		func(data *plannerRunEventData) { data.WorkerName = "unsafe worker" },
+	} {
+		event := validPlannerRunEvent(t, RunEventPlannerDispatchSelected)
+		var data plannerRunEventData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			t.Fatal(err)
+		}
+		mutate(&data)
+		event.Data = mustRunEventJSON(t, data)
+		if err := validateRunEventAppend(event); err == nil {
+			t.Fatal("event outside the public WebSocket grammar was accepted")
+		}
+	}
+
+	lifecycle := WorkflowRunEvent{
+		RunID: "run-1", EventID: "event-lifecycle", EventSchemaVersion: contracts.APIVersion,
+		Kind: RunEventLifecycleChanged,
+		Data: json.RawMessage(`{"runId":"another-run","resource":"run","state":"running"}`),
+	}
+	if _, err := EncodePublicRunEventData(lifecycle); err == nil {
+		t.Fatal("lifecycle data for another Run was accepted for public delivery")
 	}
 }
 
@@ -113,6 +150,15 @@ func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
 
 func validPlannerRunEvent(t *testing.T, kind RunEventKind) RunEventAppend {
 	t.Helper()
+	if kind == RunEventLifecycleChanged {
+		return RunEventAppend{
+			EventID: "event-lifecycle", EventSchemaVersion: contracts.APIVersion,
+			Kind: kind, Data: mustRunEventJSON(t, lifecycleRunEventData{
+				RunID: "run-1", Resource: "stageExecution",
+				StageExecutionID: "stage-1", State: "running",
+			}),
+		}
+	}
 	data := plannerRunEventData{
 		StageExecutionID: "stage-1", SessionID: "session-1", InvocationID: "invocation-1",
 	}

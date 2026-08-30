@@ -41,6 +41,9 @@ func TestConfigurationPublicationListDetailAndReplay(t *testing.T) {
 		created.Header().Get("Idempotency-Replayed") != "" {
 		t.Fatalf("publish = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
 	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("configuration publication Operations revision = %d", revision)
+	}
 	var resource config.ConfigurationResource
 	if err := json.Unmarshal(created.Body.Bytes(), &resource); err != nil {
 		t.Fatal(err)
@@ -54,6 +57,9 @@ func TestConfigurationPublicationListDetailAndReplay(t *testing.T) {
 	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
 		replayed.Header().Get("ETag") != created.Header().Get("ETag") {
 		t.Fatalf("replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("configuration replay advanced Operations revision to %d", revision)
 	}
 
 	detailRequest := authenticatedRequest(

@@ -350,6 +350,7 @@ const (
 	RunEventPlannerFinishRequested   RunEventKind = "planner.finish_requested"
 	RunEventPlannerCompleted         RunEventKind = "planner.completed"
 	RunEventPlannerFailed            RunEventKind = "planner.failed"
+	RunEventLifecycleChanged         RunEventKind = "lifecycle.changed"
 )
 
 // RunEventAppend is the validated event half of a Planner/session mutation.

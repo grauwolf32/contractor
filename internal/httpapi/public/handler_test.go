@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -91,13 +92,21 @@ func newHandlerFixtureWithAuth(
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	managedCredentials := newFakeManagedCredentials()
 	operations := newFakeOperationsReader()
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: t.Context(), Authentication: authentication, Origins: origins,
+		Runs: runs, Operations: operations,
+	})
+	if err != nil {
+		t.Fatalf("create public event Hub: %v", err)
+	}
+	t.Cleanup(eventHub.Close)
 	handler, err := NewHandler(Dependencies{
 		Authentication: authentication, BrowserOrigins: origins,
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service, Transactions: unit,
-		Operations:   operations,
+		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
 		Metrics:      metrics,
 		PlannerPlans: plans,
 		BearerToken:  contracts.NewSecretString(testBearerToken),
@@ -205,10 +214,16 @@ func TestManagedCredentialCRUDIsStrictSecretFreeAndIdempotent(t *testing.T) {
 		strings.Contains(created.Body.String(), "cipher") || strings.Contains(created.Body.String(), "remoteKey") {
 		t.Fatalf("create credential = %d %s", created.Code, created.Body.String())
 	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("credential creation Operations revision = %d", revision)
+	}
 	replayed := create("create-managed-worker", body)
 	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
 		replayed.Body.String() != created.Body.String() {
 		t.Fatalf("create replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("credential replay advanced Operations revision to %d", revision)
 	}
 	secondBody, err := json.Marshal(createCredentialRequest{
 		CredentialID: "managed-worker-2", LLMGateway: gateway.Ref, Label: stringPointer("Managed worker 2"),
@@ -219,6 +234,9 @@ func TestManagedCredentialCRUDIsStrictSecretFreeAndIdempotent(t *testing.T) {
 	}
 	if second := create("create-managed-worker-2", secondBody); second.Code != http.StatusCreated {
 		t.Fatalf("create second credential = %d %s", second.Code, second.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 2 {
+		t.Fatalf("second credential Operations revision = %d", revision)
 	}
 	invalid := create("create-invalid", []byte(`{
 		"credentialId":"invalid-token-input",
@@ -271,8 +289,14 @@ func TestManagedCredentialCRUDIsStrictSecretFreeAndIdempotent(t *testing.T) {
 	if deleted.Code != http.StatusNoContent || deleted.Body.Len() != 0 {
 		t.Fatalf("delete credential = %d %s", deleted.Code, deleted.Body.String())
 	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 3 {
+		t.Fatalf("credential deletion Operations revision = %d", revision)
+	}
 	if replay := deleteCall("delete-managed-worker"); replay.Code != http.StatusNoContent {
 		t.Fatalf("delete replay = %d %s", replay.Code, replay.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 3 {
+		t.Fatalf("credential deletion replay advanced Operations revision to %d", revision)
 	}
 	missing := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(missing, get)

@@ -22,6 +22,7 @@ import (
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -322,6 +323,19 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Workflow Scheduler: %w", err)
 	}
+	eventListener, err := runstore.NewPostgresRunEventListener(pool)
+	if err != nil {
+		return fmt.Errorf("configure WorkflowRun event listener: %w", err)
+	}
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: ctx, Authentication: authentication, Origins: browserOrigins,
+		Runs: runstore.NewPostgresStore(pool), Operations: registry,
+		RunNotifications: eventListener, Logger: logger,
+	})
+	if err != nil {
+		return fmt.Errorf("configure public event WebSocket: %w", err)
+	}
+	defer eventHub.Close()
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
@@ -330,7 +344,7 @@ func RunCLI(
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,
-		Operations:   registry,
+		Operations:   registry, OperationsInvalidator: registry, Events: eventHub,
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken,
 		RunNotifier:  workflowScheduler, Logger: logger,

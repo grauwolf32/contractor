@@ -199,15 +199,36 @@ WITH transitioned AS (
     RETURNING session_id
 ), allocated AS (
     UPDATE workflow_runs AS run
-    SET next_run_event_sequence = next_run_event_sequence + 1
+    SET next_run_event_sequence = next_run_event_sequence + 2
     FROM transitioned
     WHERE run.run_id = transitioned.run_id
-    RETURNING run.run_id, run.next_run_event_sequence - 1 AS sequence_number
+    RETURNING run.run_id,
+              run.next_run_event_sequence - 2 AS lifecycle_sequence,
+              run.next_run_event_sequence - 1 AS planner_sequence
+), inserted_lifecycle_event AS (
+    INSERT INTO workflow_run_events (
+        run_id, sequence_number, event_id, event_schema_version, kind, data
+    )
+    SELECT run_id,
+           lifecycle_sequence,
+           'lifecycle-' || md5(
+               random()::text || clock_timestamp()::text || run_id || lifecycle_sequence::text
+           ),
+           'contractor/v1alpha1',
+           'lifecycle.changed',
+           jsonb_build_object(
+               'runId', run_id,
+               'resource', 'stageExecution',
+               'stageExecutionId', $1::text,
+               'state', 'running'
+           )
+    FROM allocated
+    RETURNING run_id, sequence_number
 ), inserted_event AS (
     INSERT INTO workflow_run_events (
         run_id, sequence_number, event_id, event_schema_version, kind, data
     )
-    SELECT run_id, sequence_number, $8, $9, $11, $12::jsonb
+    SELECT run_id, planner_sequence, $8, $9, $11, $12::jsonb
     FROM allocated
     RETURNING run_id, sequence_number
 ), inserted_planner_event AS (
@@ -217,7 +238,7 @@ WITH transitioned AS (
     )
     SELECT $8, inserted_session.session_id, 1, $9, $10::jsonb,
            inserted_event.run_id, inserted_event.sequence_number
-    FROM inserted_session CROSS JOIN inserted_event
+    FROM inserted_session CROSS JOIN inserted_lifecycle_event CROSS JOIN inserted_event
     RETURNING session_id
 )
 SELECT session_id

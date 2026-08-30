@@ -2,12 +2,14 @@
 package requestid
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"regexp"
 	"sync/atomic"
@@ -133,3 +135,14 @@ func (w *statusWriter) Write(data []byte) (int, error) {
 }
 
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Hijack preserves WebSocket and other explicit upgrade support through the
+// request-correlation wrapper. ResponseController follows nested Unwrap
+// implementations without assuming the concrete Server writer type.
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	connection, buffered, err := http.NewResponseController(w.ResponseWriter).Hijack()
+	if err == nil && w.status == 0 {
+		w.status = http.StatusSwitchingProtocols
+	}
+	return connection, buffered, err
+}

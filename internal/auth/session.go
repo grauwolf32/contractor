@@ -40,17 +40,19 @@ type Options struct {
 }
 
 type Service struct {
-	mu            sync.Mutex
-	principal     Principal
-	hash          passwordHash
-	now           func() time.Time
-	random        io.Reader
-	idleLimit     time.Duration
-	absoluteLimit time.Duration
-	maxSessions   int
-	nextSequence  uint64
-	sessions      map[[sha256.Size]byte]storedSession
-	limiter       *failureLimiter
+	mu                       sync.Mutex
+	principal                Principal
+	hash                     passwordHash
+	now                      func() time.Time
+	random                   io.Reader
+	idleLimit                time.Duration
+	absoluteLimit            time.Duration
+	maxSessions              int
+	nextSequence             uint64
+	sessions                 map[[sha256.Size]byte]storedSession
+	limiter                  *failureLimiter
+	nextRevocationSubscriber uint64
+	revocationSubscribers    map[uint64]chan SessionHandle
 }
 
 type storedSession struct {
@@ -145,7 +147,7 @@ func NewService(bootstrap Bootstrap, options Options) (*Service, error) {
 		now: options.Now, random: options.Random,
 		idleLimit: options.IdleLimit, absoluteLimit: options.AbsoluteLimit,
 		maxSessions: options.MaxSessions, sessions: make(map[[sha256.Size]byte]storedSession),
-		limiter: limiter,
+		limiter: limiter, revocationSubscribers: make(map[uint64]chan SessionHandle),
 	}, nil
 }
 
@@ -183,10 +185,31 @@ func (s *Service) Lookup(cookieValue string) (Session, error) {
 	defer s.mu.Unlock()
 	stored, ok := s.sessions[digest]
 	if !ok || sessionExpired(stored, now) {
-		delete(s.sessions, digest)
+		if ok {
+			delete(s.sessions, digest)
+			s.publishRevocationLocked(SessionHandle{digest: digest})
+		}
 		return Session{}, ErrInvalidSession
 	}
 	return s.session(digest, stored), nil
+}
+
+// Check validates a previously authenticated handle without extending its idle
+// deadline. Long-lived observational connections use it so their own liveness
+// does not keep a browser session alive indefinitely.
+func (s *Service) Check(handle SessionHandle) (Session, error) {
+	now := s.now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, ok := s.sessions[handle.digest]
+	if !ok || sessionExpired(stored, now) {
+		if ok {
+			delete(s.sessions, handle.digest)
+			s.publishRevocationLocked(handle)
+		}
+		return Session{}, ErrInvalidSession
+	}
+	return s.session(handle.digest, stored), nil
 }
 
 func (s *Service) Accept(handle SessionHandle) (Session, error) {
@@ -195,7 +218,10 @@ func (s *Service) Accept(handle SessionHandle) (Session, error) {
 	defer s.mu.Unlock()
 	stored, ok := s.sessions[handle.digest]
 	if !ok || sessionExpired(stored, now) {
-		delete(s.sessions, handle.digest)
+		if ok {
+			delete(s.sessions, handle.digest)
+			s.publishRevocationLocked(handle)
+		}
 		return Session{}, ErrInvalidSession
 	}
 	stored.idleExpiresAt = now.Add(s.idleLimit)
@@ -220,7 +246,33 @@ func (s *Service) ValidateCSRF(session Session, candidate string) error {
 func (s *Service) Destroy(handle SessionHandle) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.sessions[handle.digest]; !ok {
+		return
+	}
 	delete(s.sessions, handle.digest)
+	s.publishRevocationLocked(handle)
+}
+
+// SubscribeRevocations receives coalescing best-effort revocation edges.
+// Consumers must also call Check periodically because delivery is deliberately
+// non-blocking and process-local.
+func (s *Service) SubscribeRevocations() (<-chan SessionHandle, func()) {
+	s.mu.Lock()
+	s.nextRevocationSubscriber++
+	id := s.nextRevocationSubscriber
+	updates := make(chan SessionHandle, defaultMaxSessions*2)
+	s.revocationSubscribers[id] = updates
+	s.mu.Unlock()
+	var once sync.Once
+	cancel := func() {
+		once.Do(func() {
+			s.mu.Lock()
+			delete(s.revocationSubscribers, id)
+			close(updates)
+			s.mu.Unlock()
+		})
+	}
+	return updates, cancel
 }
 
 func (s *Service) createSession(now time.Time) (Login, error) {
@@ -272,6 +324,7 @@ func (s *Service) purgeExpired(now time.Time) {
 	for digest, stored := range s.sessions {
 		if sessionExpired(stored, now) {
 			delete(s.sessions, digest)
+			s.publishRevocationLocked(SessionHandle{digest: digest})
 		}
 	}
 }
@@ -288,6 +341,16 @@ func (s *Service) revokeOldest() {
 	}
 	if found {
 		delete(s.sessions, oldestDigest)
+		s.publishRevocationLocked(SessionHandle{digest: oldestDigest})
+	}
+}
+
+func (s *Service) publishRevocationLocked(handle SessionHandle) {
+	for _, subscriber := range s.revocationSubscribers {
+		select {
+		case subscriber <- handle:
+		default:
+		}
 	}
 }
 

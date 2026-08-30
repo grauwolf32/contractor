@@ -106,7 +106,7 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("unsafe ADK event = %s", events[2].Event)
 	}
 	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 20)
-	if err != nil || len(runEvents) != 4 {
+	if err != nil || len(runEvents) != 8 {
 		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
 	}
 	wantKinds := []runstore.RunEventKind{
@@ -115,10 +115,10 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 	}
 	for index := range events {
 		if events[index].RunID == nil || *events[index].RunID != "run-planner" ||
-			events[index].RunEventSequence == nil || *events[index].RunEventSequence != int64(index+1) ||
-			runEvents[index].SequenceNumber != int64(index+1) || runEvents[index].Kind != wantKinds[index] ||
-			strings.Contains(string(runEvents[index].Data), providerSecret) {
-			t.Fatalf("event linkage/redaction %d: planner=%+v run=%+v", index, events[index], runEvents[index])
+			events[index].RunEventSequence == nil || *events[index].RunEventSequence != int64(index+5) ||
+			runEvents[index+4].SequenceNumber != int64(index+5) || runEvents[index+4].Kind != wantKinds[index] ||
+			strings.Contains(string(runEvents[index+4].Data), providerSecret) {
+			t.Fatalf("event linkage/redaction %d: planner=%+v run=%+v", index, events[index], runEvents[index+4])
 		}
 	}
 	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
@@ -126,7 +126,7 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
 	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
-	if err != nil || cursor.Sequence != 4 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != 8 || cursor.Generation == "" {
 		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
 	}
 	execution, err := store.GetStageExecution(ctx, "stage-planner")
@@ -259,7 +259,7 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		t.Fatalf("Planner events = (%d, %v)", len(plannerEvents), err)
 	}
 	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 100)
-	if err != nil || len(runEvents) != 10 {
+	if err != nil || len(runEvents) != 14 {
 		t.Fatalf("Run events = (%d, %v)", len(runEvents), err)
 	}
 	wantKinds := []runstore.RunEventKind{
@@ -275,19 +275,20 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		runstore.RunEventPlannerPlanChanged,
 	}
 	for index := range wantKinds {
-		sequence := int64(index + 1)
-		if plannerEvents[index].SequenceNumber != sequence ||
-			plannerEvents[index].RunEventSequence == nil || *plannerEvents[index].RunEventSequence != sequence ||
-			runEvents[index].SequenceNumber != sequence || runEvents[index].Kind != wantKinds[index] {
-			t.Fatalf("event %d linkage: planner=%+v run=%+v", index, plannerEvents[index], runEvents[index])
+		plannerSequence := int64(index + 1)
+		runSequence := int64(index + 5)
+		if plannerEvents[index].SequenceNumber != plannerSequence ||
+			plannerEvents[index].RunEventSequence == nil || *plannerEvents[index].RunEventSequence != runSequence ||
+			runEvents[index+4].SequenceNumber != runSequence || runEvents[index+4].Kind != wantKinds[index] {
+			t.Fatalf("event %d linkage: planner=%+v run=%+v", index, plannerEvents[index], runEvents[index+4])
 		}
 	}
 	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
-	if err != nil || cursor.Sequence != 10 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != 14 || cursor.Generation == "" {
 		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
 	}
-	page, err := store.ListRunEvents(ctx, "run-planner", 7, 2)
-	if err != nil || len(page) != 2 || page[0].SequenceNumber != 8 || page[1].SequenceNumber != 9 {
+	page, err := store.ListRunEvents(ctx, "run-planner", 11, 2)
+	if err != nil || len(page) != 2 || page[0].SequenceNumber != 12 || page[1].SequenceNumber != 13 {
 		t.Fatalf("resumed Run event page = (%+v, %v)", page, err)
 	}
 	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)

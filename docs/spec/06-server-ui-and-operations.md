@@ -571,12 +571,14 @@ The upgrade authenticates the ordinary Server session cookie and rejects every
 `Origin` other than the exact configured UI origin before accepting the socket.
 Authorization is rechecked for each subscription, so a principal may observe
 only its own Runs and its permitted Operations surface. Session expiry, logout
-or revocation closes its sockets. No credential, CSRF token or cursor is placed
-in the URL. Because this channel is strictly observational, subscription and
-unsubscribe frames require no CSRF token and cannot cancel a Run, publish a
-configuration, manage a credential or perform any other domain mutation. Those
-operations remain authenticated HTTP requests with their existing CSRF,
-idempotency and CAS contracts.
+or revocation closes its sockets. Periodic socket checks validate the existing
+session handle without extending its idle deadline; revocation notifications
+are only a fast process-local edge and do not replace those checks. No
+credential, CSRF token or cursor is placed in the URL. Because this channel is
+strictly observational, subscription and unsubscribe frames require no CSRF
+token and cannot cancel a Run, publish a configuration, manage a credential or
+perform any other domain mutation. Those operations remain authenticated HTTP
+requests with their existing CSRF, idempotency and CAS contracts.
 
 One connection multiplexes explicit `run` and `operations` subscriptions. All
 client and Server frames are bounded JSON and carry the protocol version. A
@@ -614,13 +616,25 @@ ADK or model stream. Lifecycle events are invalidation hints: the UI refetches
 the affected TanStack Query and does not treat their payload as a replacement
 authoritative aggregate.
 
+`workflow_run_events` is the sole Run replay authority. Its insert trigger
+emits a PostgreSQL notification that becomes visible only if the source
+transaction commits. That notification is only a coalescible wake-up hint;
+each subscription also performs bounded periodic catch-up from its last
+delivered sequence, so a lost or duplicated notification cannot create a gap.
+A subscription without `after` tails from the cursor captured after
+authorization and does not replay older history. Server sends `subscribed`
+before replay, while `unsubscribed` is sent only after that subscription pump
+has stopped, so no later frame can reuse the acknowledged subscription ID.
+
 The `operations` stream reports Runtime Agent, allocation, configuration and
 credential changes, but its cursor is process-local and its notifications are
 not a new audit log. The Operations snapshot response includes its current
 generation and revision. A new subscription is established from that cursor;
 Server restart creates another generation, while a missed revision or an
 unavailable cursor produces `resync_required`. The UI then obtains another
-authenticated REST snapshot before continuing.
+authenticated REST snapshot before continuing. Server retains only the latest
+255 typed Operations invalidations; an older cursor also requires that snapshot
+resynchronization.
 
 Delivery may be duplicated across disconnects. The client deduplicates by
 stream and cursor, processes events in order and treats any gap as a resync,

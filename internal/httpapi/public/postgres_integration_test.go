@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -40,13 +41,24 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
+	authentication := newTestAuthentication(t)
+	origins := mustTestOrigins(t)
+	operations := newFakeOperationsReader()
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: ctx, Authentication: authentication, Origins: origins,
+		Runs: runs, Operations: operations,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eventHub.Close)
 	handler, err := NewHandler(Dependencies{
-		Authentication: newTestAuthentication(t), BrowserOrigins: mustTestOrigins(t),
+		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
-		Operations:   newFakeOperationsReader(),
+		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },

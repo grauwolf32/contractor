@@ -7,12 +7,16 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const maximumOperationsItems = 10_000
+const (
+	maximumOperationsItems = 10_000
+	operationsHistoryLimit = 255
+)
 
 var (
 	operationsResourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
@@ -96,6 +100,25 @@ func (c AllocationExecutionConfig) Validate() error {
 type OperationsCursor struct {
 	Generation string `json:"generation"`
 	Revision   uint64 `json:"-"`
+}
+
+type OperationsResource string
+
+const (
+	OperationsRuntimeAgent  OperationsResource = "runtimeAgent"
+	OperationsAllocation    OperationsResource = "allocation"
+	OperationsConfiguration OperationsResource = "configuration"
+	OperationsCredential    OperationsResource = "credential"
+)
+
+// OperationsChange is a reduced process-local invalidation. SnapshotOperations
+// remains authoritative; the change only identifies a query family to refresh
+// at one exact cursor revision.
+type OperationsChange struct {
+	Cursor     OperationsCursor
+	Resource   OperationsResource
+	ResourceID string
+	OccurredAt time.Time
 }
 
 func (c OperationsCursor) MarshalJSON() ([]byte, error) {
@@ -244,6 +267,117 @@ func (r *InMemoryRegistry) SnapshotOperations() OperationsSnapshot {
 	return result
 }
 
+// ReplayOperations returns every retained change strictly after the supplied
+// cursor. This ring is deliberately not an audit log; callers must fetch a new
+// REST snapshot for every cursor error.
+func (r *InMemoryRegistry) ReplayOperations(
+	after OperationsCursor,
+) ([]OperationsChange, OperationsCursor, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current := OperationsCursor{Generation: r.operationsGeneration, Revision: r.operationsRevision}
+	if after.Generation != r.operationsGeneration {
+		return nil, current, ErrOperationsGeneration
+	}
+	if after.Revision > r.operationsRevision {
+		return nil, current, ErrOperationsCursor
+	}
+	if after.Revision == r.operationsRevision {
+		return []OperationsChange{}, current, nil
+	}
+	want := after.Revision + 1
+	if len(r.operationsHistory) == 0 || r.operationsHistory[0].Cursor.Revision > want {
+		return nil, current, ErrOperationsCursor
+	}
+	result := make([]OperationsChange, 0, r.operationsRevision-after.Revision)
+	for _, change := range r.operationsHistory {
+		if change.Cursor.Revision < want {
+			continue
+		}
+		if change.Cursor.Revision != want {
+			return nil, current, ErrOperationsGap
+		}
+		result = append(result, change)
+		want++
+	}
+	if want != r.operationsRevision+1 {
+		return nil, current, ErrOperationsGap
+	}
+	return result, current, nil
+}
+
+// SubscribeOperations emits coalescing wake-up hints. ReplayOperations closes
+// every race and detects dropped hints, so producers never wait for readers.
+func (r *InMemoryRegistry) SubscribeOperations() (<-chan struct{}, func()) {
+	r.mu.Lock()
+	r.nextOperationsWatcher++
+	id := r.nextOperationsWatcher
+	updates := make(chan struct{}, 1)
+	r.operationsWatchers[id] = updates
+	r.mu.Unlock()
+	var once sync.Once
+	cancel := func() {
+		once.Do(func() {
+			r.mu.Lock()
+			delete(r.operationsWatchers, id)
+			close(updates)
+			r.mu.Unlock()
+		})
+	}
+	return updates, cancel
+}
+
+func (r *InMemoryRegistry) InvalidateOperations(
+	resource OperationsResource,
+	resourceID string,
+) error {
+	if !validOperationsResource(resource) ||
+		resourceID != "" && !operationsResourceIDPattern.MatchString(resourceID) {
+		return ErrInvalidRequest
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recordOperationsChangeLocked(resource, resourceID)
+	return nil
+}
+
+func (r *InMemoryRegistry) recordOperationsChangeLocked(
+	resource OperationsResource,
+	resourceID string,
+) {
+	r.operationsRevision++
+	change := OperationsChange{
+		Cursor: OperationsCursor{
+			Generation: r.operationsGeneration,
+			Revision:   r.operationsRevision,
+		},
+		Resource: resource, ResourceID: resourceID,
+		OccurredAt: r.now().UTC().Round(0),
+	}
+	r.operationsHistory = append(r.operationsHistory, change)
+	if len(r.operationsHistory) > operationsHistoryLimit {
+		r.operationsHistory = append(
+			[]OperationsChange(nil),
+			r.operationsHistory[len(r.operationsHistory)-operationsHistoryLimit:]...,
+		)
+	}
+	for _, watcher := range r.operationsWatchers {
+		select {
+		case watcher <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func validOperationsResource(resource OperationsResource) bool {
+	switch resource {
+	case OperationsRuntimeAgent, OperationsAllocation, OperationsConfiguration, OperationsCredential:
+		return true
+	default:
+		return false
+	}
+}
+
 func (r *InMemoryRegistry) SetAllocationPhase(
 	allocationID string,
 	phase AllocationAuthoritativePhase,
@@ -269,7 +403,7 @@ func (r *InMemoryRegistry) SetAllocationPhase(
 		stored.reason = cloneSafeReason(reason)
 	}
 	r.allocations[allocationID] = stored
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	return nil
 }
 
@@ -301,7 +435,7 @@ func (r *InMemoryRegistry) RecordAllocationReport(
 		return nil
 	}
 	r.allocations[allocationID] = stored
-	r.operationsRevision++
+	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	return nil
 }
 

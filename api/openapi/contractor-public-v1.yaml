@@ -800,7 +800,7 @@ paths:
       externalDocs:
         description: Exact closed client and Server frame schema
         url: ../events/contractor-events-v1.schema.json
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       x-websocket-subprotocol: contractor.events.v1
       x-websocket-message-schema: ../events/contractor-events-v1.schema.json
       x-max-client-frame-bytes: 16384

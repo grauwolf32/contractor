@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
@@ -103,6 +104,14 @@ func (h *handler) createCredential(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	if !result.Replayed {
+		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
+			controlplane.OperationsCredential, result.Credential.CredentialID,
+		); err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
@@ -124,11 +133,20 @@ func (h *handler) deleteCredential(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	if _, err := h.dependencies.ManagedCredentials.Delete(r.Context(), credentials.DeleteRequest{
+	result, err := h.dependencies.ManagedCredentials.Delete(r.Context(), credentials.DeleteRequest{
 		CredentialID: credentialID, IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
-	}); err != nil {
+	})
+	if err != nil {
 		h.handleError(w, err)
 		return
+	}
+	if !result.Replayed {
+		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
+			controlplane.OperationsCredential, credentialID,
+		); err != nil {
+			h.handleError(w, err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

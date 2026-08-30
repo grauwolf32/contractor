@@ -407,10 +407,17 @@
       "required": ["runId", "resource", "state"],
       "properties": {
         "runId": { "$ref": "#/$defs/SafeIdentifier" },
-        "resource": { "enum": ["run", "stageExecution", "artifact", "metrics"] },
+        "resource": { "enum": ["run", "stageExecution"] },
         "stageExecutionId": { "$ref": "#/$defs/SafeIdentifier" },
         "state": { "$ref": "#/$defs/SafeIdentifier" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "resource": { "const": "stageExecution" } } },
+          "then": { "required": ["stageExecutionId"] },
+          "else": { "not": { "required": ["stageExecutionId"] } }
+        }
+      ]
     },
     "OperationsEventData": {
       "type": "object",
@@ -529,6 +536,35 @@
         "subtaskId": "0",
         "callId": "dispatch-0001",
         "workerName": "reviewer"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "run-detail",
+      "stream": { "kind": "run", "id": "run_example" },
+      "cursor": { "generation": "run-generation-example", "sequence": "43" },
+      "kind": "lifecycle.changed",
+      "occurredAt": "2026-08-30T12:00:01Z",
+      "data": {
+        "runId": "run_example",
+        "resource": "stageExecution",
+        "stageExecutionId": "stage_execution_example",
+        "state": "running"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "operations",
+      "stream": { "kind": "operations" },
+      "cursor": { "generation": "operations-generation-example", "sequence": "9" },
+      "kind": "operations.changed",
+      "occurredAt": "2026-08-30T12:00:02Z",
+      "data": {
+        "resource": "runtimeAgent",
+        "resourceId": "runtime-agent-example",
+        "revision": "9"
       }
     }
   ]
