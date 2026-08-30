@@ -199,7 +199,7 @@ func (p *streamlinePlanner) Run(
 			return contracts.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
 		}
 		message = genai.NewContentFromText(
-			"Continue planning. You must call exactly one declared Worker, finish, or escalate; a text-only answer does not complete the Stage.",
+			"Continue planning. You must call exactly one declared Worker or finish; a text-only answer does not complete the Stage.",
 			genai.RoleUser,
 		)
 	}
@@ -306,8 +306,8 @@ func (p *streamlinePlanner) systemInstruction() string {
 		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract.",
 		"Use Workers sequentially. You cannot create Workers, allocate capacity, change the Workflow, or address Runtime Agent identities.",
 		"A Worker call must have a focused non-empty objective and instructions. Select the needed string parameters and exact artifact revisions explicitly; preserve revisions returned by Workers.",
-		"The Stage is not complete when you emit prose. You must call finish for success or escalate for a semantic failure.",
-		"finish and escalate only propose a candidate; Workflow Scheduler validates and accepts it.",
+		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
+		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
 		"Fixed Worker mapping:",
 		strings.Join(mappings, "\n"),
 		"Stage-specific operating guidance:",

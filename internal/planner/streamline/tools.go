@@ -16,7 +16,6 @@ import (
 
 const (
 	finishToolName       = "finish"
-	escalateToolName     = "escalate"
 	maxStagePayloadBytes = 256 * 1024
 	maxStageSummaryBytes = 64 * 1024
 	maxStageArtifacts    = 128
@@ -36,16 +35,10 @@ type workerCallOutput struct {
 }
 
 type finishArgs struct {
+	Outcome   contracts.StageOutcome           `json:"outcome"`
 	Summary   string                           `json:"summary"`
 	Artifacts map[string]contracts.ArtifactRef `json:"artifacts"`
-}
-
-type escalateArgs struct {
-	Summary   string                           `json:"summary"`
-	Code      string                           `json:"code"`
-	Message   string                           `json:"message"`
-	Retryable bool                             `json:"retryable"`
-	Artifacts map[string]contracts.ArtifactRef `json:"artifacts,omitempty"`
+	Error     *contracts.TerminationError      `json:"error,omitempty"`
 }
 
 type completionToolOutput struct {
@@ -60,8 +53,8 @@ type toolFailure struct {
 }
 
 func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[string]struct{}, error) {
-	result := make([]tool.Tool, 0, len(p.workers)+2)
-	allowed := make(map[string]struct{}, len(p.workers)+2)
+	result := make([]tool.Tool, 0, len(p.workers)+1)
+	allowed := make(map[string]struct{}, len(p.workers)+1)
 	for _, current := range p.workers {
 		binding := current
 		adapter, err := functiontool.New(functiontool.Config{
@@ -81,25 +74,15 @@ func (p *streamlinePlanner) buildTools(state *executionState) ([]tool.Tool, map[
 	}
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
-		Description: "Finish the Stage successfully. Every artifact must name a declared result slot and include an exact revision. This proposes a candidate; Workflow Scheduler remains the acceptance owner.",
+		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
 	}, func(ctx agent.ToolContext, args finishArgs) (completionToolOutput, error) {
 		return p.finish(ctx, state, args), nil
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build finish tool: %w", err)
 	}
-	escalate, err := functiontool.New(functiontool.Config{
-		Name:        escalateToolName,
-		Description: "Finish the Stage with a semantic failed result. Supply a stable error code, safe message, retryable policy, and any exact declared artifacts worth preserving.",
-	}, func(ctx agent.ToolContext, args escalateArgs) (completionToolOutput, error) {
-		return p.escalate(ctx, state, args), nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("build escalate tool: %w", err)
-	}
-	result = append(result, finish, escalate)
+	result = append(result, finish)
 	allowed[finishToolName] = struct{}{}
-	allowed[escalateToolName] = struct{}{}
 	return result, allowed, nil
 }
 
@@ -220,9 +203,13 @@ func (p *streamlinePlanner) finish(
 	ctx agent.ToolContext, state *executionState, args finishArgs,
 ) completionToolOutput {
 	started := time.Now()
+	safeOutcome := "invalid"
+	if args.Outcome == contracts.StageSucceeded || args.Outcome == contracts.StageFailed {
+		safeOutcome = string(args.Outcome)
+	}
 	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
-		Summary: args.Summary, Artifacts: cloneArtifactMap(args.Artifacts),
+		APIVersion: contracts.APIVersion, Outcome: args.Outcome,
+		Summary: args.Summary, Artifacts: cloneArtifactMap(args.Artifacts), Error: cloneTerminationError(args.Error),
 	}
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
@@ -231,54 +218,28 @@ func (p *streamlinePlanner) finish(
 			Code: "finish_rejected", Message: "finish candidate does not satisfy the Stage result contract",
 			Retryable: false,
 		}
-		state.recordTool(finishToolName, map[string]any{"outcome": "succeeded"}, false, time.Since(started), 0, &failure)
+		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
 	if !state.setCompletion(result) {
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: "Planner already has a terminal decision", Retryable: false,
 		}
-		state.recordTool(finishToolName, map[string]any{"outcome": "succeeded"}, false, time.Since(started), 0, &failure)
+		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
 	ctx.Actions().SkipSummarization = true
 	ctx.Actions().Escalate = true
-	state.recordTool(finishToolName, map[string]any{"outcome": "succeeded"}, true, time.Since(started), 0, nil)
+	state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, true, time.Since(started), 0, nil)
 	return completionToolOutput{Accepted: true}
 }
 
-func (p *streamlinePlanner) escalate(
-	ctx agent.ToolContext, state *executionState, args escalateArgs,
-) completionToolOutput {
-	started := time.Now()
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageFailed,
-		Summary: args.Summary, Artifacts: cloneArtifactMap(args.Artifacts),
-		Error: &contracts.TerminationError{
-			Code: args.Code, Message: args.Message, Retryable: args.Retryable,
-		},
+func cloneTerminationError(input *contracts.TerminationError) *contracts.TerminationError {
+	if input == nil {
+		return nil
 	}
-	if err := planner.ValidateCandidate(
-		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
-	); err != nil {
-		failure := planner.Failure{
-			Code: "escalation_rejected", Message: "escalate result does not satisfy the Stage result contract",
-			Retryable: false,
-		}
-		state.recordTool(escalateToolName, map[string]any{"outcome": "failed"}, false, time.Since(started), 0, &failure)
-		return completionToolOutput{Error: toolFailureFrom(failure)}
-	}
-	if !state.setCompletion(result) {
-		failure := planner.Failure{
-			Code: "escalation_rejected", Message: "Planner already has a terminal decision", Retryable: false,
-		}
-		state.recordTool(escalateToolName, map[string]any{"outcome": "failed"}, false, time.Since(started), 0, &failure)
-		return completionToolOutput{Error: toolFailureFrom(failure)}
-	}
-	ctx.Actions().SkipSummarization = true
-	ctx.Actions().Escalate = true
-	state.recordTool(escalateToolName, map[string]any{"outcome": "failed"}, true, time.Since(started), 0, nil)
-	return completionToolOutput{Accepted: true}
+	cloned := *input
+	return &cloned
 }
 
 func workerFailure(failure planner.Failure) workerCallOutput {

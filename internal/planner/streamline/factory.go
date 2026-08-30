@@ -69,9 +69,8 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		return nil, err
 	}
 	workers := make([]workerBinding, 0, len(bindings))
-	usedToolNames := make(map[string]struct{}, len(bindings)+2)
+	usedToolNames := make(map[string]struct{}, len(bindings)+1)
 	usedToolNames[finishToolName] = struct{}{}
-	usedToolNames[escalateToolName] = struct{}{}
 	for _, logicalName := range bindings {
 		binding := invocation.Stage.Agents[logicalName]
 		toolName := workerToolName(logicalName, usedToolNames)

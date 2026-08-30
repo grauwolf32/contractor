@@ -22,7 +22,8 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - an executable lifecycle crash/retry/race/security matrix under Go's race
   detector and Python's strict warning/task-shutdown gate;
 - a model-backed `streamline@1` Planner built with Google ADK Go, fixed
-  sequential A2A Worker tools, explicit `finish`/`escalate`, and bounded model,
+  sequential A2A Worker tools, one `finish` operation for successful or failed
+  candidates, and bounded model,
   token, Worker-call, and wall-time budgets;
 - a PostgreSQL-backed Planner session adapter that persists only redacted ADK
   facts and recovers a completed decision without repeating model or Worker
@@ -132,7 +133,8 @@ GET to reconcile the accepted exact revision.
 
 `make test-streamline` exercises the real Google ADK event loop through a
 deterministic OpenAI-compatible Gateway, two fixed fake Workers, exact artifact
-selection, explicit `finish`, budget termination, secret redaction, and
+selection, succeeded/failed `finish` candidates, Scheduler-owned transition
+selection, budget termination, secret redaction, and
 PostgreSQL completed-session recovery. The example Workflow is
 [`streamline_review_workflow.yaml`](../configs/examples/streamline_review_workflow.yaml).
 

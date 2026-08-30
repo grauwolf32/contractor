@@ -37,7 +37,7 @@ func TestOpenAICompatibleModelConvertsADKToolConversation(t *testing.T) {
 		_, _ = w.Write([]byte(`{
   "model":"planner-model",
   "choices":[{"finish_reason":"tool_calls","message":{"content":"","tool_calls":[{
-    "id":"call-finish","type":"function","function":{"name":"finish","arguments":"{\"summary\":\"done\",\"artifacts\":{}}"}
+    "id":"call-finish","type":"function","function":{"name":"finish","arguments":"{\"outcome\":\"succeeded\",\"summary\":\"done\",\"artifacts\":{}}"}
   }]}}],
   "usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}
 }`))

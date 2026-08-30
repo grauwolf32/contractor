@@ -38,7 +38,7 @@ func TestStreamlineCallsFixedWorkersSequentiallyThenFinishes(t *testing.T) {
 			},
 		}),
 		functionStep(finishToolName, map[string]any{
-			"summary": "reviewed", "artifacts": map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "reviewed", "artifacts": map[string]any{
 				"report": artifactArgs("review", "report", reportRevision),
 			},
 		}),
@@ -102,12 +102,12 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 			"objective": "should not run", "instructions": "none",
 		}),
 		functionStep(finishToolName, map[string]any{
-			"summary": "invalid", "artifacts": map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "invalid", "artifacts": map[string]any{
 				"undeclared": artifactArgs("builder", "report", revision),
 			},
 		}),
 		functionStep(finishToolName, map[string]any{
-			"summary": "valid", "artifacts": map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "valid", "artifacts": map[string]any{
 				"report": artifactArgs("builder", "report", revision),
 			},
 		}),
@@ -133,6 +133,102 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 	if report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != 3 ||
 		len(report.Errors) == 0 || report.Errors[0].Code != "planner_tool_selection_invalid" {
 		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
+	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
+		"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+		"artifacts": map[string]any{},
+		"error": map[string]any{
+			"code": "insufficient_evidence", "message": "required evidence was unavailable", "retryable": false,
+		},
+	})}}
+	sessions := newFakeSessions()
+	instance, err := mustFactory(
+		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+	).Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != contracts.StageFailed || result.Error == nil ||
+		result.Error.Code != "insufficient_evidence" || result.Error.Retryable {
+		t.Fatalf("failed result = %+v", result)
+	}
+	if sessions.completion == nil || sessions.completion.Result == nil ||
+		sessions.completion.Result.Outcome != contracts.StageFailed {
+		t.Fatalf("completion = %+v", sessions.completion)
+	}
+}
+
+func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T) {
+	model := &scriptedModel{steps: []modelStep{
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "invalid success",
+			"artifacts": map[string]any{},
+			"error":     map[string]any{"code": "unexpected", "message": "must be rejected", "retryable": false},
+		}),
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageFailed), "summary": "missing error", "artifacts": map[string]any{},
+		}),
+		functionStep(finishToolName, map[string]any{
+			"outcome": "unknown", "summary": "unknown outcome", "artifacts": map[string]any{},
+		}),
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageFailed), "summary": "valid failure", "artifacts": map[string]any{},
+			"error": map[string]any{"code": "not_completed", "message": "work remains", "retryable": true},
+		}),
+	}}
+	instance, err := mustFactory(
+		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+	).Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageFailed || result.Summary != "valid failure" {
+		t.Fatalf("Run = (%+v, %v)", result, err)
+	}
+	report, _ := instance.(planner.ReportProvider).ExecutionReport()
+	metrics := report.Metrics.Tools[finishToolName]
+	if metrics.Calls == nil || *metrics.Calls != 4 || metrics.Failed == nil || *metrics.Failed != 3 ||
+		metrics.Succeeded == nil || *metrics.Succeeded != 1 {
+		t.Fatalf("finish metrics = %+v", metrics)
+	}
+	for _, call := range report.ToolCalls {
+		outcome, _ := call.Arguments["outcome"].(string)
+		if outcome != "succeeded" && outcome != "failed" && outcome != "invalid" {
+			t.Fatalf("unsafe outcome persisted: %+v", call.Arguments)
+		}
+	}
+}
+
+func TestStreamlineHasNoModelFacingEscalateTool(t *testing.T) {
+	instance, err := mustFactory(
+		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, &scriptedModel{}, Limits{},
+	).Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamline := instance.(*streamlinePlanner)
+	tools, allowed, err := streamline.buildTools(newExecutionState(streamline.limits))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, current := range tools {
+		if current.Name() == "escalate" {
+			t.Fatal("model-facing escalate tool is present")
+		}
+	}
+	if _, exists := allowed["escalate"]; exists {
+		t.Fatal("model-facing escalate tool is allowlisted")
+	}
+	if _, exists := allowed[finishToolName]; !exists || strings.Contains(streamline.systemInstruction(), "call escalate") {
+		t.Fatalf("completion tools=%v instruction=%q", allowed, streamline.systemInstruction())
 	}
 }
 

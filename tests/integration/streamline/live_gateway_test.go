@@ -32,7 +32,7 @@ func TestLiveGatewayToolCall(t *testing.T) {
 	}
 	request := &model.LLMRequest{
 		Contents: []*genai.Content{genai.NewContentFromText(
-			`Call finish now with {"summary":"live gateway ok","artifacts":{}}. Do not answer with prose.`,
+			`Call finish now with {"outcome":"succeeded","summary":"live gateway ok","artifacts":{}}. Do not answer with prose.`,
 			genai.RoleUser,
 		)},
 		Config: &genai.GenerateContentConfig{Tools: []*genai.Tool{{
@@ -41,10 +41,11 @@ func TestLiveGatewayToolCall(t *testing.T) {
 				ParametersJsonSchema: map[string]any{
 					"type": "object", "additionalProperties": false,
 					"properties": map[string]any{
+						"outcome":   map[string]any{"type": "string", "enum": []string{"succeeded", "failed"}},
 						"summary":   map[string]any{"type": "string"},
 						"artifacts": map[string]any{"type": "object"},
 					},
-					"required": []string{"summary", "artifacts"},
+					"required": []string{"outcome", "summary", "artifacts"},
 				},
 			}},
 		}}},
