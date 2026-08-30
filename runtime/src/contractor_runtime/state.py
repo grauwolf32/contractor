@@ -86,7 +86,11 @@ class RuntimeState:
                     ToolsetCapability(
                         ref="run-artifacts@1",
                         tools=["list_artifacts", "read_artifact", "write_artifact"],
-                    )
+                    ),
+                    ToolsetCapability(
+                        ref="text-artifacts@1",
+                        tools=["read_text_artifact", "write_text_artifact"],
+                    ),
                 ],
                 supportedSandboxProfiles=["local-workdir@1"],
                 observedState=observed_state,

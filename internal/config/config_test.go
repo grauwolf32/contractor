@@ -64,6 +64,18 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 }
 
+func TestTextArtifactToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["text-artifacts@1"]
+	if !ok {
+		t.Fatal("text-artifacts@1 descriptor is missing")
+	}
+	if got, want := descriptor.Tools, []string{"read_text_artifact", "write_text_artifact"}; !equalStrings(got, want) {
+		t.Fatalf("text-artifacts@1 tools = %v, want %v", got, want)
+	}
+}
+
 func TestWorkflowExamplesLoad(t *testing.T) {
 	for _, name := range []string{
 		"bounded_retry_workflow.yaml",

@@ -35,6 +35,9 @@ func MVPDescriptors() Descriptors {
 			"run-artifacts@1": {
 				Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			},
+			"text-artifacts@1": {
+				Tools: []string{"read_text_artifact", "write_text_artifact"},
+			},
 		},
 		SandboxProfiles: map[string]struct{}{
 			"local-workdir@1": {},

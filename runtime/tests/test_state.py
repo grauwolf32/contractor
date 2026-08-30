@@ -21,6 +21,12 @@ def test_idle_is_committed_only_after_registration_ack() -> None:
         state = RuntimeState(instance_id="runtime-fixed")
         registration = await state.registration(make_settings())
         assert registration.observed_state.value == "idle"
+        assert {
+            capability.ref: set(capability.tools) for capability in registration.supported_toolsets
+        } == {
+            "run-artifacts@1": {"list_artifacts", "read_artifact", "write_artifact"},
+            "text-artifacts@1": {"read_text_artifact", "write_text_artifact"},
+        }
         assert (await state.snapshot()).process_state is ProcessState.STARTING
 
         await state.mark_registered()
