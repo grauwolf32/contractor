@@ -106,17 +106,18 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-006
-  next_task: V4-007
+  completed_through: V4-007
+  next_task: V4-008
   summary: >-
-    The Go Server now loads one strict owner-only local-auth bootstrap, issues
-    bounded process-local browser sessions, requires session-bound CSRF before
-    cookie-authenticated mutations, and applies exact allowlisted credentialed
-    CORS without treating it as authorization. The retained bearer path maps to
-    the same immutable principal for non-browser automation. Password hashing,
-    rate limiting, cookie modes, session expiry/revocation, actor propagation,
-    secret redaction, OpenAPI conformance, race safety, and PostgreSQL behavior
-    pass their gates. V4-007 is next and adds the resumable Run event WebSocket.
+    The Go Server now exposes one exact-origin, cookie-authenticated read-only
+    WebSocket with bounded multiplexing, replay, resync, heartbeat and
+    backpressure behavior. Durable Run/Stage lifecycle invalidations and typed
+    Planner facts share one PostgreSQL sequence and use commit-bound wake-up
+    hints; process-local Operations changes use a bounded generation/revision
+    ring. Logout, expiry and session revocation close affected sockets without
+    extending idle authority. Full Go/Python, public-contract, race and
+    PostgreSQL gates pass. V4-008 is next and scaffolds the independent React
+    frontend against these committed HTTP and event contracts.
 
 current_planning_review:
   reviewed_on: "2026-08-30"

@@ -3,8 +3,8 @@ id: V4-007
 title: Stream resumable Run and Operations events over WebSocket
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: fbf959cfb892edd3b2f7163ab55b3a6ee0985ef9
 depends_on: [V3-009, V4-005, V4-006]
 languages: [go, sql, json]
 
