@@ -3,8 +3,8 @@ id: V3-001
 title: Unify model-backed Planner completion under finish
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "41cf03b0087a827d5effa9718f42d40f6ca1133f"
 depends_on: [V1-006, V2-010]
 languages: [go]
 
@@ -88,3 +88,19 @@ notes:
     ctx.Actions().Escalate in Google ADK means stop/bubble the agent execution;
     retaining that internal flag does not reintroduce a model-facing Workflow
     escalation decision.
+
+completion:
+  evidence:
+    - >-
+      Streamline exposes one finish tool whose succeeded and failed candidates
+      pass the same StageContentResult and exact-artifact validation path.
+    - >-
+      Tests reject success-with-error, failure-without-error, and unknown
+      outcomes before terminal state, then accept a corrected failed candidate.
+    - >-
+      Generated tool inspection proves that no model-facing function named
+      escalate is present; persisted metrics retain only safe outcome labels.
+  verified_by:
+    - go test ./internal/planner/streamline/... ./internal/planner/session/... ./tests/integration/streamline/...
+    - go test -race ./internal/planner/streamline/... ./internal/planner/session/...
+    - make verify

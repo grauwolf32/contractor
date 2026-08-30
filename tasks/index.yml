@@ -103,18 +103,15 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V2-010
-  next_task: V3-001
+  completed_through: V3-001
+  next_task: V3-002
   summary: >-
-    The contractor-old OpenAPI and LikeC4 project workflows are ported as
-    artifact-scoped four-Stage workflows, with explicit two-Stage variants for
-    caller-supplied discovery reports. Source ZIP inspection, text artifacts,
-    document mutation/validation, production-boundary deterministic tests, and
-    an opt-in live-model quality harness are implemented. Every Worker
-    invocation now has cumulative model-call, tool-call, and token budgets with
-    safe terminal metrics and verified single-slot Runtime release. The next
-    increment replaces the obsolete multi-Worker/model-escalate Streamline
-    contract before adding typed plans, Router and Scheduler-owned escalation.
+    The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
+    foundation are complete. Model-backed Planner completion now uses one
+    validated finish operation for succeeded or failed candidates; the model
+    has no Workflow-escalate tool and Scheduler remains the transition owner.
+    The next increment introduces the bounded typed PlannerPlan before changing
+    Streamline dispatch and adding Router.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
