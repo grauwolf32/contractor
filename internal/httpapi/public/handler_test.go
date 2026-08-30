@@ -329,6 +329,34 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	}
 }
 
+func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source-archive"},
+		artifacts.Payload{MediaType: "application/zip", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"openapi-from-source@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
+	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("create = %d %s", response.Code, response.Body.String())
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	var workflow config.ResolvedWorkflow
+	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
+	if variant.Ref == nil || variant.Ref.ConfigID != "strong-oas-review" ||
+		variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "strong_domain_worker" {
+		t.Fatalf("stored escalation variant = %+v", variant)
+	}
+}
+
 func TestCreateRunRequiresValidIdempotencyKey(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)

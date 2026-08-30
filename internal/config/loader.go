@@ -14,13 +14,14 @@ import (
 )
 
 type loader struct {
-	root         string
-	descriptors  Descriptors
-	instructions map[string]contracts.ResolvedInstructions
-	policies     map[string]contracts.ResolvedModelPolicy
-	gateways     map[string]contracts.ResolvedLLMGatewayConfig
-	templates    map[string]contracts.ResolvedAgentTemplate
-	workflows    map[string]ResolvedWorkflow
+	root             string
+	descriptors      Descriptors
+	instructions     map[string]contracts.ResolvedInstructions
+	policies         map[string]contracts.ResolvedModelPolicy
+	gateways         map[string]contracts.ResolvedLLMGatewayConfig
+	executionConfigs map[string]ResolvedExecutionConfigProfile
+	templates        map[string]contracts.ResolvedAgentTemplate
+	workflows        map[string]ResolvedWorkflow
 }
 
 type manifestFile struct {
@@ -41,18 +42,22 @@ func Load(root string, descriptors Descriptors) (*Snapshot, error) {
 	}
 
 	current := &loader{
-		root:         resolvedRoot,
-		descriptors:  normalizedDescriptors,
-		instructions: make(map[string]contracts.ResolvedInstructions),
-		policies:     make(map[string]contracts.ResolvedModelPolicy),
-		gateways:     make(map[string]contracts.ResolvedLLMGatewayConfig),
-		templates:    make(map[string]contracts.ResolvedAgentTemplate),
-		workflows:    make(map[string]ResolvedWorkflow),
+		root:             resolvedRoot,
+		descriptors:      normalizedDescriptors,
+		instructions:     make(map[string]contracts.ResolvedInstructions),
+		policies:         make(map[string]contracts.ResolvedModelPolicy),
+		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig),
+		executionConfigs: make(map[string]ResolvedExecutionConfigProfile),
+		templates:        make(map[string]contracts.ResolvedAgentTemplate),
+		workflows:        make(map[string]ResolvedWorkflow),
 	}
 	if err := current.loadLLMGatewayConfigs(); err != nil {
 		return nil, err
 	}
 	if err := current.loadModelPolicies(); err != nil {
+		return nil, err
+	}
+	if err := current.loadExecutionConfigs(); err != nil {
 		return nil, err
 	}
 	if err := current.loadAgentTemplates(); err != nil {
@@ -62,7 +67,8 @@ func Load(root string, descriptors Descriptors) (*Snapshot, error) {
 		return nil, err
 	}
 	return newSnapshot(
-		current.workflows, current.templates, current.policies, current.gateways, current.instructions,
+		current.workflows, current.templates, current.policies, current.gateways,
+		current.executionConfigs, current.instructions,
 	), nil
 }
 

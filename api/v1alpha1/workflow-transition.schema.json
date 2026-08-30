@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/workflow-transition.schema.json",
+  "$defs": {
+    "empty": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 0
+    },
+    "next": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["next"],
+      "properties": {
+        "next": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"}
+      }
+    },
+    "fail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fail"],
+      "properties": {"fail": {"$ref": "#/$defs/empty"}}
+    },
+    "succeed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["succeed"],
+      "properties": {"succeed": {"$ref": "#/$defs/empty"}}
+    },
+    "selection": {
+      "$ref": "execution-config-manifest.schema.json#/$defs/selection"
+    },
+    "stageOverride": {
+      "$ref": "execution-config-manifest.schema.json#/$defs/stageOverride"
+    },
+    "escalationConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref"],
+          "properties": {
+            "ref": {"$ref": "common.schema.json#/$defs/selector"}
+          }
+        },
+        {"$ref": "#/$defs/stageOverride"}
+      ]
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retry"],
+      "properties": {
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maxAttempts", "then"],
+          "properties": {
+            "maxAttempts": {"type": "integer", "minimum": 2},
+            "then": {"oneOf": [{"$ref": "#/$defs/next"}, {"$ref": "#/$defs/fail"}]}
+          }
+        }
+      }
+    },
+    "escalate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["escalate"],
+      "properties": {
+        "escalate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maxAttempts", "executionConfig", "then"],
+          "properties": {
+            "maxAttempts": {"type": "integer", "minimum": 1},
+            "executionConfig": {"$ref": "#/$defs/escalationConfig"},
+            "then": {"oneOf": [{"$ref": "#/$defs/next"}, {"$ref": "#/$defs/fail"}]}
+          }
+        }
+      }
+    },
+    "successAction": {
+      "oneOf": [{"$ref": "#/$defs/next"}, {"$ref": "#/$defs/succeed"}]
+    },
+    "failureAction": {
+      "oneOf": [
+        {"$ref": "#/$defs/next"},
+        {"$ref": "#/$defs/retry"},
+        {"$ref": "#/$defs/escalate"},
+        {"$ref": "#/$defs/fail"}
+      ]
+    }
+  },
+  "title": "Workflow Stage on block",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["succeeded", "failed", "interrupted"],
+  "properties": {
+    "succeeded": {"$ref": "#/$defs/successAction"},
+    "failed": {"$ref": "#/$defs/failureAction"},
+    "interrupted": {"$ref": "#/$defs/failureAction"}
+  }
+}

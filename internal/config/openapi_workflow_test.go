@@ -84,7 +84,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	if validate.On.Succeeded.Kind != TransitionSucceed {
 		t.Fatalf("validation success transition = %+v", validate.On.Succeeded)
 	}
-	assertBoundedRetry(t, validate.On.Failed, 2)
+	assertEscalation(t, validate.On.Failed, 1, "strong-oas-review")
 	assertBoundedRetry(t, validate.On.Interrupted, 2)
 
 	for name, stage := range workflow.Stages {
@@ -242,5 +242,15 @@ func assertBoundedRetry(t *testing.T, action TransitionAction, maxAttempts int) 
 	t.Helper()
 	if action.Kind != TransitionRetry || action.Retry == nil || action.Retry.MaxAttempts != maxAttempts || action.Retry.Then.Kind != TransitionFail {
 		t.Fatalf("retry transition = %+v, want maxAttempts=%d then fail", action, maxAttempts)
+	}
+}
+
+func assertEscalation(t *testing.T, action TransitionAction, maxAttempts int, configID string) {
+	t.Helper()
+	if action.Kind != TransitionEscalate || action.Escalate == nil ||
+		action.Escalate.MaxAttempts != maxAttempts || action.Escalate.ExecutionConfig.Ref == nil ||
+		action.Escalate.ExecutionConfig.Ref.ConfigID != configID ||
+		action.Escalate.Then.Kind != TransitionFail {
+		t.Fatalf("unexpected escalation Transition: %+v", action)
 	}
 }

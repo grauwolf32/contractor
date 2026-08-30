@@ -13,6 +13,7 @@ import (
 var (
 	idPattern        = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+	digestPattern    = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	mediaTypePattern = regexp.MustCompile(`^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$`)
 )
 
@@ -44,6 +45,16 @@ func validateMetadata(metadata *metadataSource) (Selector, error) {
 		return Selector{}, fmt.Errorf("metadata.version %q does not match %s", metadata.Version, versionPattern)
 	}
 	return Selector{ID: metadata.Name, Version: metadata.Version}, nil
+}
+
+func validateExecutionConfigRef(ref ExecutionConfigRef) error {
+	if _, err := ParseSelector(ref.ConfigID + "@" + ref.Version); err != nil {
+		return err
+	}
+	if !digestPattern.MatchString(ref.Digest) {
+		return fmt.Errorf("digest %q must use sha256:<64 lowercase hex>", ref.Digest)
+	}
+	return nil
 }
 
 func validateEnvelope(apiVersion, kind, expectedKind string, metadata *metadataSource) (Selector, error) {

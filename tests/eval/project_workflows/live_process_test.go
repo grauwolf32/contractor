@@ -311,11 +311,16 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayU
 		if err != nil {
 			return err
 		}
-		if relative == filepath.Join("model-policies", "domain_worker.yaml") {
+		if relative == filepath.Join("model-policies", "domain_worker.yaml") ||
+			relative == filepath.Join("model-policies", "strong_domain_worker.yaml") {
 			encoded, _ := jsonString(model)
-			updated := strings.Replace(string(data), "model: worker-model", "model: "+encoded, 1)
+			marker := "model: worker-model"
+			if relative == filepath.Join("model-policies", "strong_domain_worker.yaml") {
+				marker = "model: worker-strong-model"
+			}
+			updated := strings.Replace(string(data), marker, "model: "+encoded, 1)
 			if updated == string(data) {
-				return fmt.Errorf("domain Worker model marker is absent")
+				return fmt.Errorf("Worker model marker is absent in %s", relative)
 			}
 			data = []byte(updated)
 		}

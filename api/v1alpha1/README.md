@@ -25,3 +25,6 @@ explicitly unauthenticated Gateway.
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`
 describes its normalized, digest-bearing resolved value on private wires.
+`execution-config-manifest.schema.json` describes immutable Stage-local
+escalation profiles, while `workflow-transition.schema.json` describes the
+strict `on` block including bounded retry and inline-or-ref escalation.

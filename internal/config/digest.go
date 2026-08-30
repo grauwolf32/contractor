@@ -53,6 +53,17 @@ func llmGatewayConfigDigest(
 	})
 }
 
+func executionConfigDigest(selector Selector, patch StageExecutionConfigPatch) (string, error) {
+	return digestJCS(map[string]any{
+		"apiVersion": contracts.APIVersion,
+		"kind":       executionConfigKind,
+		"metadata": map[string]any{
+			"name": selector.ID, "version": selector.Version,
+		},
+		"spec": patch.canonicalValue(),
+	})
+}
+
 func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemplate) (string, error) {
 	modelPolicy := map[string]any{
 		"ref": map[string]any{

@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: strong_domain_worker
+  version: "1"
+
+spec:
+  model: worker-strong-model
+  maxOutputTokens: 32768
+  maxModelCalls: 32
+  maxToolCalls: 128
+  maxTotalTokens: 500000
+  temperature: 0.1

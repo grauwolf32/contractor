@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/execution-config-manifest.schema.json",
+  "$defs": {
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "modelPolicy": {"$ref": "common.schema.json#/$defs/selector"},
+        "llmGateway": {"$ref": "common.schema.json#/$defs/selector"},
+        "credential": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "stageOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "planner": {"$ref": "#/$defs/selection"},
+        "agents": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_-]*$"},
+          "additionalProperties": {"$ref": "#/$defs/selection"}
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "contractor/v1alpha1"},
+    "kind": {"const": "ExecutionConfig"},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "spec": {"$ref": "#/$defs/stageOverride"}
+  }
+}

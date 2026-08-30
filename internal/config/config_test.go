@@ -15,7 +15,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 5, AgentTemplates: 6, ModelPolicies: 3, LLMGateways: 1, Instructions: 13,
+		Workflows: 5, AgentTemplates: 6, ModelPolicies: 4, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 13,
 	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
@@ -203,7 +203,7 @@ func TestStoredFixtures(t *testing.T) {
 
 	valid := mustLoad(t, "testdata/valid", MVPDescriptors())
 	if got, want := valid.Counts(), (Counts{
-		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1, Instructions: 2,
+		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 2,
 	}); got != want {
 		t.Fatalf("valid fixture Counts() = %+v, want %+v", got, want)
 	}
@@ -420,8 +420,8 @@ func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	if snapshot.Counts().ModelPolicies != 3 {
-		t.Fatalf("ModelPolicies = %d, want 3", snapshot.Counts().ModelPolicies)
+	if snapshot.Counts().ModelPolicies != 4 {
+		t.Fatalf("ModelPolicies = %d, want 4", snapshot.Counts().ModelPolicies)
 	}
 }
 

@@ -27,6 +27,13 @@ digests, origins, and credential IDs are pinned in the Run snapshot, while
 token bytes are resolved only when constructing a Planner client or Worker
 allocation.
 
+`execution-configs/` contains immutable Stage-local escalation patches. A
+Workflow `failed` or `interrupted` action may select one exact profile ref, or
+declare the same `planner`/`agents` patch inline. The loader resolves and
+validates every possible variant, and Run creation reapplies it over that
+Run's base overrides before pinning the complete effective configuration.
+Credential `null` is an explicit clear in this patch shape.
+
 For local development only, `CONTRACTOR_LLM_GATEWAY_TOKEN` and
 `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` bootstrap the fixed credential IDs
 `development-worker` and `development-planner` against `local-litellm@1`.

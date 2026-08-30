@@ -1,0 +1,11 @@
+apiVersion: contractor/v1alpha1
+kind: ExecutionConfig
+
+metadata:
+  name: strong-copy
+  version: "1"
+
+spec:
+  agents:
+    builder:
+      modelPolicy: worker@1

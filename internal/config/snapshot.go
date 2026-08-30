@@ -10,11 +10,12 @@ import (
 // Snapshot is an immutable, dependency-resolved view of one successful load.
 // Its maps are private and every accessor returns a deep copy.
 type Snapshot struct {
-	workflows    map[string]ResolvedWorkflow
-	templates    map[string]contracts.ResolvedAgentTemplate
-	policies     map[string]contracts.ResolvedModelPolicy
-	gateways     map[string]contracts.ResolvedLLMGatewayConfig
-	instructions map[string]contracts.ResolvedInstructions
+	workflows        map[string]ResolvedWorkflow
+	templates        map[string]contracts.ResolvedAgentTemplate
+	policies         map[string]contracts.ResolvedModelPolicy
+	gateways         map[string]contracts.ResolvedLLMGatewayConfig
+	executionConfigs map[string]ResolvedExecutionConfigProfile
+	instructions     map[string]contracts.ResolvedInstructions
 }
 
 func newSnapshot(
@@ -22,14 +23,16 @@ func newSnapshot(
 	templates map[string]contracts.ResolvedAgentTemplate,
 	policies map[string]contracts.ResolvedModelPolicy,
 	gateways map[string]contracts.ResolvedLLMGatewayConfig,
+	executionConfigs map[string]ResolvedExecutionConfigProfile,
 	instructions map[string]contracts.ResolvedInstructions,
 ) *Snapshot {
 	result := &Snapshot{
-		workflows:    make(map[string]ResolvedWorkflow, len(workflows)),
-		templates:    make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
-		policies:     make(map[string]contracts.ResolvedModelPolicy, len(policies)),
-		gateways:     make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
-		instructions: make(map[string]contracts.ResolvedInstructions, len(instructions)),
+		workflows:        make(map[string]ResolvedWorkflow, len(workflows)),
+		templates:        make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
+		policies:         make(map[string]contracts.ResolvedModelPolicy, len(policies)),
+		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
+		executionConfigs: make(map[string]ResolvedExecutionConfigProfile, len(executionConfigs)),
+		instructions:     make(map[string]contracts.ResolvedInstructions, len(instructions)),
 	}
 	for key, workflow := range workflows {
 		result.workflows[key] = cloneWorkflow(workflow)
@@ -43,6 +46,9 @@ func newSnapshot(
 	for key, gateway := range gateways {
 		result.gateways[key] = cloneLLMGatewayConfig(gateway)
 	}
+	for key, profile := range executionConfigs {
+		result.executionConfigs[key] = cloneExecutionConfigProfile(profile)
+	}
 	for key, instructions := range instructions {
 		result.instructions[key] = instructions
 	}
@@ -53,8 +59,37 @@ func (s *Snapshot) Counts() Counts {
 	return Counts{
 		Workflows: len(s.workflows), AgentTemplates: len(s.templates),
 		ModelPolicies: len(s.policies), LLMGateways: len(s.gateways),
-		Instructions: len(s.instructions),
+		ExecutionConfigs: len(s.executionConfigs),
+		Instructions:     len(s.instructions),
 	}
+}
+
+// ExecutionConfig resolves one exact id@version and returns a caller-owned,
+// non-secret escalation profile.
+func (s *Snapshot) ExecutionConfig(raw string) (ResolvedExecutionConfigProfile, error) {
+	selector, err := ParseSelector(raw)
+	if err != nil {
+		return ResolvedExecutionConfigProfile{}, err
+	}
+	profile, ok := s.executionConfigs[selector.String()]
+	if !ok {
+		return ResolvedExecutionConfigProfile{}, fmt.Errorf("unknown ExecutionConfig %q", selector)
+	}
+	return cloneExecutionConfigProfile(profile), nil
+}
+
+// ExecutionConfigs returns every published profile sorted by exact ref.
+func (s *Snapshot) ExecutionConfigs() []ResolvedExecutionConfigProfile {
+	keys := make([]string, 0, len(s.executionConfigs))
+	for key := range s.executionConfigs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]ResolvedExecutionConfigProfile, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, cloneExecutionConfigProfile(s.executionConfigs[key]))
+	}
+	return result
 }
 
 // LLMGateway resolves one exact id@version and returns a caller-owned non-secret copy.
@@ -238,6 +273,52 @@ func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) Resolv
 	return result
 }
 
+func cloneExecutionConfigProfile(source ResolvedExecutionConfigProfile) ResolvedExecutionConfigProfile {
+	result := source
+	result.Override = cloneStageExecutionConfigOverride(source.Override)
+	return result
+}
+
+func cloneStageExecutionConfigOverride(
+	source ResolvedStageExecutionConfigOverride,
+) ResolvedStageExecutionConfigOverride {
+	result := ResolvedStageExecutionConfigOverride{}
+	if source.Planner != nil {
+		planner := cloneExecutionSelectionOverride(*source.Planner)
+		result.Planner = &planner
+	}
+	if source.Agents != nil {
+		result.Agents = make(map[string]ResolvedExecutionSelectionOverride, len(source.Agents))
+		for name, selection := range source.Agents {
+			result.Agents[name] = cloneExecutionSelectionOverride(selection)
+		}
+	}
+	return result
+}
+
+func cloneExecutionSelectionOverride(
+	source ResolvedExecutionSelectionOverride,
+) ResolvedExecutionSelectionOverride {
+	result := source
+	if source.ModelPolicy != nil {
+		policy := cloneModelPolicy(*source.ModelPolicy)
+		result.ModelPolicy = &policy
+	}
+	if source.LLMGateway != nil {
+		gateway := cloneLLMGatewayConfig(*source.LLMGateway)
+		result.LLMGateway = &gateway
+	}
+	if source.Credential != nil {
+		credential := *source.Credential
+		if source.Credential.Ref != nil {
+			ref := *source.Credential.Ref
+			credential.Ref = &ref
+		}
+		result.Credential = &credential
+	}
+	return result
+}
+
 func cloneTransition(source TransitionAction) TransitionAction {
 	result := source
 	if source.Retry != nil {
@@ -246,5 +327,25 @@ func cloneTransition(source TransitionAction) TransitionAction {
 			Then:        cloneTransition(source.Retry.Then),
 		}
 	}
+	if source.Escalate != nil {
+		result.Escalate = &EscalateTransition{
+			MaxAttempts:     source.Escalate.MaxAttempts,
+			ExecutionConfig: cloneEscalationExecutionConfig(source.Escalate.ExecutionConfig),
+			Then:            cloneTransition(source.Escalate.Then),
+		}
+	}
+	return result
+}
+
+func cloneEscalationExecutionConfig(
+	source ResolvedEscalationExecutionConfig,
+) ResolvedEscalationExecutionConfig {
+	result := source
+	if source.Ref != nil {
+		ref := *source.Ref
+		result.Ref = &ref
+	}
+	result.Override = cloneStageExecutionConfigOverride(source.Override)
+	result.Effective = cloneStageExecutionConfig(source.Effective)
 	return result
 }

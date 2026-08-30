@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -50,7 +51,10 @@ func (l *loader) resolveWorkflowExecutionConfig(
 	if err := l.applyExecutionConfigPatch(workflow, patch, originWorkflowPrefix); err != nil {
 		return fmt.Errorf("spec.executionConfig: %w", err)
 	}
-	return validateWorkflowExecutionConfigs(*workflow)
+	if err := validateWorkflowExecutionConfigs(*workflow); err != nil {
+		return err
+	}
+	return resolveWorkflowEscalationVariants(workflow)
 }
 
 // ResolveRunWorkflow applies the two Run override layers to a caller-owned
@@ -72,10 +76,185 @@ func (s *Snapshot) ResolveRunWorkflow(
 	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
+	if err := resolveWorkflowEscalationVariants(&workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
+	if err := ValidateWorkflowGraph(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	if err := validateRunCredentials(ctx, workflow, credentials); err != nil {
 		return ResolvedWorkflow{}, err
 	}
 	return workflow, nil
+}
+
+func resolveWorkflowEscalationVariants(workflow *ResolvedWorkflow) error {
+	for _, stageName := range sortedPatchKeys(workflow.Stages) {
+		stage := workflow.Stages[stageName]
+		actions := []struct {
+			outcome string
+			action  *TransitionAction
+		}{
+			{outcome: "failed", action: &stage.On.Failed},
+			{outcome: "interrupted", action: &stage.On.Interrupted},
+		}
+		for _, item := range actions {
+			if item.action.Kind != TransitionEscalate || item.action.Escalate == nil {
+				continue
+			}
+			variantStage := stage
+			variantStage.ExecutionConfig = cloneStageExecutionConfig(stage.ExecutionConfig)
+			origin := escalationExecutionConfigOrigin(
+				stageName, item.outcome, item.action.Escalate.ExecutionConfig,
+			)
+			if err := applyResolvedStageExecutionConfigOverride(
+				&variantStage, item.action.Escalate.ExecutionConfig.Override, origin,
+			); err != nil {
+				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.outcome, err)
+			}
+			if err := validateStageExecutionConfig(stageName, variantStage); err != nil {
+				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.outcome, err)
+			}
+			item.action.Escalate.ExecutionConfig.Effective = cloneStageExecutionConfig(
+				variantStage.ExecutionConfig,
+			)
+		}
+		workflow.Stages[stageName] = stage
+	}
+	return nil
+}
+
+func validateStageEscalationVariant(
+	stageName string,
+	outcome string,
+	stage ResolvedStage,
+	action TransitionAction,
+) error {
+	if action.Kind != TransitionEscalate || action.Escalate == nil {
+		return nil
+	}
+	variant := action.Escalate.ExecutionConfig
+	if variant.Ref != nil {
+		if err := validateExecutionConfigRef(*variant.Ref); err != nil {
+			return fmt.Errorf("Stage %q on.%s.escalate.executionConfig.ref: %w", stageName, outcome, err)
+		}
+	}
+	variantStage := stage
+	variantStage.ExecutionConfig = cloneStageExecutionConfig(stage.ExecutionConfig)
+	if err := applyResolvedStageExecutionConfigOverride(
+		&variantStage,
+		variant.Override,
+		escalationExecutionConfigOrigin(stageName, outcome, variant),
+	); err != nil {
+		return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, outcome, err)
+	}
+	if err := validateStageExecutionConfig(stageName, variantStage); err != nil {
+		return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, outcome, err)
+	}
+	if !reflect.DeepEqual(variantStage.ExecutionConfig, variant.Effective) {
+		return fmt.Errorf(
+			"Stage %q on.%s.escalate.executionConfig effective value does not match its pinned override",
+			stageName, outcome,
+		)
+	}
+	return nil
+}
+
+func applyResolvedStageExecutionConfigOverride(
+	stage *ResolvedStage,
+	override ResolvedStageExecutionConfigOverride,
+	origin string,
+) error {
+	if override.Planner == nil && len(override.Agents) == 0 {
+		return fmt.Errorf("override must contain planner and/or agents")
+	}
+	if override.Planner != nil {
+		if !resolvedExecutionSelectionOverrideHasAny(*override.Planner) {
+			return fmt.Errorf("planner must select at least one field")
+		}
+		if stage.Planner.PlannerID+"@"+stage.Planner.Version == "passthrough@1" {
+			return fmt.Errorf("passthrough@1 does not accept Planner model configuration")
+		}
+		if stage.ExecutionConfig.Planner == nil {
+			return fmt.Errorf("modeled Planner has no base executionConfig")
+		}
+		if err := applyResolvedExecutionSelectionOverride(
+			stage.ExecutionConfig.Planner, *override.Planner, origin+".planner",
+		); err != nil {
+			return fmt.Errorf("planner: %w", err)
+		}
+	}
+	if override.Agents != nil && len(override.Agents) == 0 {
+		return fmt.Errorf("agents must be a non-empty mapping when present")
+	}
+	for _, logicalName := range sortedPatchKeys(override.Agents) {
+		patch := override.Agents[logicalName]
+		if !resolvedExecutionSelectionOverrideHasAny(patch) {
+			return fmt.Errorf("agents.%s must select at least one field", logicalName)
+		}
+		selection, ok := stage.ExecutionConfig.Agents[logicalName]
+		if !ok {
+			return fmt.Errorf("agents names unknown logical Agent %q", logicalName)
+		}
+		if err := applyResolvedExecutionSelectionOverride(
+			&selection, patch, origin+".agents."+logicalName,
+		); err != nil {
+			return fmt.Errorf("agents.%s: %w", logicalName, err)
+		}
+		stage.ExecutionConfig.Agents[logicalName] = selection
+	}
+	return nil
+}
+
+func applyResolvedExecutionSelectionOverride(
+	selection *ResolvedConsumerExecutionConfig,
+	override ResolvedExecutionSelectionOverride,
+	origin string,
+) error {
+	if override.ModelPolicy != nil {
+		if err := override.ModelPolicy.Validate(); err != nil {
+			return fmt.Errorf("modelPolicy is invalid: %w", err)
+		}
+		selection.ModelPolicy = cloneModelPolicy(*override.ModelPolicy)
+		selection.Origins.ModelPolicy = origin
+	}
+	if override.LLMGateway != nil {
+		if err := override.LLMGateway.Validate(); err != nil {
+			return fmt.Errorf("llmGateway is invalid: %w", err)
+		}
+		selection.LLMGateway = cloneLLMGatewayConfig(*override.LLMGateway)
+		selection.Origins.LLMGateway = origin
+	}
+	if override.Credential != nil {
+		if override.Credential.Clear == (override.Credential.Ref != nil) {
+			return fmt.Errorf("credential override must select exactly clear or ref")
+		}
+		selection.Credential = nil
+		selection.Origins.Credential = origin
+		if override.Credential.Ref != nil {
+			if err := override.Credential.Ref.Validate(); err != nil {
+				return fmt.Errorf("credential is invalid: %w", err)
+			}
+			ref := *override.Credential.Ref
+			selection.Credential = &ref
+		}
+	}
+	return nil
+}
+
+func resolvedExecutionSelectionOverrideHasAny(value ResolvedExecutionSelectionOverride) bool {
+	return value.ModelPolicy != nil || value.LLMGateway != nil || value.Credential != nil
+}
+
+func escalationExecutionConfigOrigin(
+	stageName string,
+	outcome string,
+	variant ResolvedEscalationExecutionConfig,
+) string {
+	if variant.Ref != nil {
+		return "executionConfig." + variant.Ref.ConfigID + "@" + variant.Ref.Version
+	}
+	return "workflow.stages." + stageName + ".on." + outcome + ".escalate.executionConfig"
 }
 
 func (l *loader) applyExecutionConfigPatch(
@@ -302,31 +481,38 @@ func optionalStringFromYAML(
 
 func validateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 	for stageName, stage := range workflow.Stages {
-		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
-		if plannerRef == "passthrough@1" {
-			if stage.ExecutionConfig.Planner != nil {
-				return fmt.Errorf("Stage %q passthrough@1 must not have Planner executionConfig", stageName)
-			}
-		} else {
-			if stage.ExecutionConfig.Planner == nil {
-				return fmt.Errorf("Stage %q modeled Planner has no executionConfig", stageName)
-			}
-			if err := validateConsumerExecutionConfig(*stage.ExecutionConfig.Planner, true, false); err != nil {
-				return fmt.Errorf("Stage %q Planner executionConfig: %w", stageName, err)
-			}
+		if err := validateStageExecutionConfig(stageName, stage); err != nil {
+			return err
 		}
-		if len(stage.ExecutionConfig.Agents) != len(stage.Agents) {
-			return fmt.Errorf("Stage %q executionConfig Agent set is incomplete", stageName)
+	}
+	return nil
+}
+
+func validateStageExecutionConfig(stageName string, stage ResolvedStage) error {
+	plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
+	if plannerRef == "passthrough@1" {
+		if stage.ExecutionConfig.Planner != nil {
+			return fmt.Errorf("Stage %q passthrough@1 must not have Planner executionConfig", stageName)
 		}
-		for logicalName, binding := range stage.Agents {
-			selection, ok := stage.ExecutionConfig.Agents[logicalName]
-			if !ok {
-				return fmt.Errorf("Stage %q Agent %q has no executionConfig", stageName, logicalName)
-			}
-			hasTools := len(binding.Template.Toolsets) > 0
-			if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
-				return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
-			}
+	} else {
+		if stage.ExecutionConfig.Planner == nil {
+			return fmt.Errorf("Stage %q modeled Planner has no executionConfig", stageName)
+		}
+		if err := validateConsumerExecutionConfig(*stage.ExecutionConfig.Planner, true, false); err != nil {
+			return fmt.Errorf("Stage %q Planner executionConfig: %w", stageName, err)
+		}
+	}
+	if len(stage.ExecutionConfig.Agents) != len(stage.Agents) {
+		return fmt.Errorf("Stage %q executionConfig Agent set is incomplete", stageName)
+	}
+	for logicalName, binding := range stage.Agents {
+		selection, ok := stage.ExecutionConfig.Agents[logicalName]
+		if !ok {
+			return fmt.Errorf("Stage %q Agent %q has no executionConfig", stageName, logicalName)
+		}
+		hasTools := len(binding.Template.Toolsets) > 0
+		if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
+			return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
 		}
 	}
 	return nil
@@ -370,28 +556,60 @@ func validateRunCredentials(
 	lookup CredentialLookup,
 ) error {
 	for stageName, stage := range workflow.Stages {
-		selections := make(map[string]ResolvedConsumerExecutionConfig, len(stage.ExecutionConfig.Agents)+1)
-		if stage.ExecutionConfig.Planner != nil {
-			selections["planner"] = *stage.ExecutionConfig.Planner
+		configs := map[string]ResolvedStageExecutionConfig{"base": stage.ExecutionConfig}
+		for outcome, action := range map[string]TransitionAction{
+			"failed escalation":      stage.On.Failed,
+			"interrupted escalation": stage.On.Interrupted,
+		} {
+			if action.Kind == TransitionEscalate && action.Escalate != nil {
+				configs[outcome] = action.Escalate.ExecutionConfig.Effective
+			}
 		}
-		for logicalName, selection := range stage.ExecutionConfig.Agents {
-			selections["agent "+logicalName] = selection
+		for _, variant := range sortedPatchKeys(configs) {
+			if err := validateStageExecutionConfigCredentials(
+				ctx, stageName, variant, configs[variant], lookup,
+			); err != nil {
+				return err
+			}
 		}
-		for _, consumer := range sortedPatchKeys(selections) {
-			selection := selections[consumer]
-			if selection.Credential == nil {
-				continue
-			}
-			if lookup == nil {
-				return fmt.Errorf("Stage %q %s selects unavailable credential %q", stageName, consumer, selection.Credential.CredentialID)
-			}
-			metadata, err := lookup.LookupLLMCredential(ctx, selection.Credential.CredentialID)
-			if err != nil {
-				return fmt.Errorf("Stage %q %s credential is unavailable", stageName, consumer)
-			}
-			if metadata.Ref != *selection.Credential || metadata.LLMGateway != selection.LLMGateway.Ref {
-				return fmt.Errorf("Stage %q %s credential is bound to another LLMGatewayConfig", stageName, consumer)
-			}
+	}
+	return nil
+}
+
+func validateStageExecutionConfigCredentials(
+	ctx context.Context,
+	stageName string,
+	variant string,
+	config ResolvedStageExecutionConfig,
+	lookup CredentialLookup,
+) error {
+	selections := make(map[string]ResolvedConsumerExecutionConfig, len(config.Agents)+1)
+	if config.Planner != nil {
+		selections["planner"] = *config.Planner
+	}
+	for logicalName, selection := range config.Agents {
+		selections["agent "+logicalName] = selection
+	}
+	for _, consumer := range sortedPatchKeys(selections) {
+		selection := selections[consumer]
+		if selection.Credential == nil {
+			continue
+		}
+		if lookup == nil {
+			return fmt.Errorf(
+				"Stage %q %s %s selects unavailable credential %q",
+				stageName, variant, consumer, selection.Credential.CredentialID,
+			)
+		}
+		metadata, err := lookup.LookupLLMCredential(ctx, selection.Credential.CredentialID)
+		if err != nil {
+			return fmt.Errorf("Stage %q %s %s credential is unavailable", stageName, variant, consumer)
+		}
+		if metadata.Ref != *selection.Credential || metadata.LLMGateway != selection.LLMGateway.Ref {
+			return fmt.Errorf(
+				"Stage %q %s %s credential is bound to another LLMGatewayConfig",
+				stageName, variant, consumer,
+			)
 		}
 	}
 	return nil

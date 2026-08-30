@@ -1,0 +1,11 @@
+apiVersion: contractor/v1alpha1
+kind: ExecutionConfig
+
+metadata:
+  name: strong-oas-review
+  version: "1"
+
+spec:
+  agents:
+    validator:
+      modelPolicy: strong_domain_worker@1

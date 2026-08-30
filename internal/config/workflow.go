@@ -142,7 +142,7 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, err
 	}
-	transitions, err := resolveTransitions(source.On, allStages)
+	transitions, err := l.resolveTransitions(source.On, allStages)
 	if err != nil {
 		return ResolvedStage{}, err
 	}
@@ -264,24 +264,24 @@ func resolveWorkflowOutputMappings(
 	return result, nil
 }
 
-func resolveTransitions(source *stageTransitionsSource, stages map[string]stageSource) (StageTransitions, error) {
+func (l *loader) resolveTransitions(source *stageTransitionsSource, stages map[string]stageSource) (StageTransitions, error) {
 	if source == nil || source.Succeeded == nil || source.Failed == nil || source.Interrupted == nil {
 		return StageTransitions{}, fmt.Errorf("on must contain succeeded, failed, and interrupted")
 	}
-	succeeded, err := resolveTransitionAction("on.succeeded", source.Succeeded, stages, map[TransitionKind]bool{
+	succeeded, err := l.resolveTransitionAction("on.succeeded", source.Succeeded, stages, map[TransitionKind]bool{
 		TransitionNext: true, TransitionSucceed: true,
 	})
 	if err != nil {
 		return StageTransitions{}, err
 	}
-	failed, err := resolveTransitionAction("on.failed", source.Failed, stages, map[TransitionKind]bool{
-		TransitionNext: true, TransitionRetry: true, TransitionFail: true,
+	failed, err := l.resolveTransitionAction("on.failed", source.Failed, stages, map[TransitionKind]bool{
+		TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true,
 	})
 	if err != nil {
 		return StageTransitions{}, err
 	}
-	interrupted, err := resolveTransitionAction("on.interrupted", source.Interrupted, stages, map[TransitionKind]bool{
-		TransitionNext: true, TransitionRetry: true, TransitionFail: true,
+	interrupted, err := l.resolveTransitionAction("on.interrupted", source.Interrupted, stages, map[TransitionKind]bool{
+		TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true,
 	})
 	if err != nil {
 		return StageTransitions{}, err
@@ -289,7 +289,7 @@ func resolveTransitions(source *stageTransitionsSource, stages map[string]stageS
 	return StageTransitions{Succeeded: succeeded, Failed: failed, Interrupted: interrupted}, nil
 }
 
-func resolveTransitionAction(
+func (l *loader) resolveTransitionAction(
 	field string,
 	source *transitionActionSource,
 	stages map[string]stageSource,
@@ -305,6 +305,9 @@ func resolveTransitionAction(
 	if source.Retry != nil {
 		count++
 	}
+	if source.Escalate != nil {
+		count++
+	}
 	if source.Succeed != nil {
 		count++
 	}
@@ -312,7 +315,7 @@ func resolveTransitionAction(
 		count++
 	}
 	if count != 1 {
-		return TransitionAction{}, fmt.Errorf("%s must select exactly one of next, retry, succeed, or fail", field)
+		return TransitionAction{}, fmt.Errorf("%s must select exactly one of next, retry, escalate, succeed, or fail", field)
 	}
 
 	var action TransitionAction
@@ -329,13 +332,38 @@ func resolveTransitionAction(
 		if source.Retry.MaxAttempts < 2 {
 			return TransitionAction{}, fmt.Errorf("%s.retry.maxAttempts must be at least 2", field)
 		}
-		then, err := resolveTransitionAction(field+".retry.then", source.Retry.Then, stages, map[TransitionKind]bool{
+		then, err := l.resolveTransitionAction(field+".retry.then", source.Retry.Then, stages, map[TransitionKind]bool{
 			TransitionNext: true, TransitionFail: true,
 		})
 		if err != nil {
 			return TransitionAction{}, err
 		}
 		action = TransitionAction{Kind: TransitionRetry, Retry: &RetryTransition{MaxAttempts: source.Retry.MaxAttempts, Then: then}}
+	case source.Escalate != nil:
+		if source.Escalate.MaxAttempts < 1 {
+			return TransitionAction{}, fmt.Errorf("%s.escalate.maxAttempts must be at least 1", field)
+		}
+		executionConfig, err := l.resolveEscalationExecutionConfig(
+			field+".escalate.executionConfig", source.Escalate.ExecutionConfig,
+		)
+		if err != nil {
+			return TransitionAction{}, err
+		}
+		then, err := l.resolveTransitionAction(
+			field+".escalate.then", source.Escalate.Then, stages,
+			map[TransitionKind]bool{TransitionNext: true, TransitionFail: true},
+		)
+		if err != nil {
+			return TransitionAction{}, err
+		}
+		action = TransitionAction{
+			Kind: TransitionEscalate,
+			Escalate: &EscalateTransition{
+				MaxAttempts:     source.Escalate.MaxAttempts,
+				ExecutionConfig: executionConfig,
+				Then:            then,
+			},
+		}
 	case source.Succeed != nil:
 		action = TransitionAction{Kind: TransitionSucceed}
 	case source.Fail != nil:
@@ -345,6 +373,52 @@ func resolveTransitionAction(
 		return TransitionAction{}, fmt.Errorf("%s action %q is not allowed", field, action.Kind)
 	}
 	return action, nil
+}
+
+func (l *loader) resolveEscalationExecutionConfig(
+	field string,
+	source *escalationExecutionConfigSource,
+) (ResolvedEscalationExecutionConfig, error) {
+	if source == nil {
+		return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s is required", field)
+	}
+	refPresent := source.refPresent
+	inlinePresent := source.plannerPresent || source.agentsPresent
+	if refPresent == inlinePresent {
+		return ResolvedEscalationExecutionConfig{}, fmt.Errorf(
+			"%s must contain exactly ref or inline planner/agents", field,
+		)
+	}
+	if refPresent {
+		value, err := optionalStringFromYAML(source.Ref, false, field+".ref")
+		if err != nil {
+			return ResolvedEscalationExecutionConfig{}, err
+		}
+		selector, err := ParseSelector(value.value)
+		if err != nil {
+			return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s.ref: %w", field, err)
+		}
+		profile, ok := l.executionConfigs[selector.String()]
+		if !ok {
+			return ResolvedEscalationExecutionConfig{}, fmt.Errorf(
+				"%s.ref selects unknown ExecutionConfig %q", field, selector,
+			)
+		}
+		ref := profile.Ref
+		return ResolvedEscalationExecutionConfig{
+			Ref: &ref, Override: cloneStageExecutionConfigOverride(profile.Override),
+		}, nil
+	}
+
+	patch, err := stageExecutionConfigPatchFromEscalationSource(source, field)
+	if err != nil {
+		return ResolvedEscalationExecutionConfig{}, err
+	}
+	override, err := l.resolveStageExecutionConfigOverride(patch)
+	if err != nil {
+		return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s: %w", field, err)
+	}
+	return ResolvedEscalationExecutionConfig{Override: override}, nil
 }
 
 // ValidateWorkflowGraph verifies the resolved serial control-flow contract.
@@ -378,12 +452,15 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 			allowed map[TransitionKind]bool
 		}{
 			{"succeeded", stage.On.Succeeded, map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}},
-			{"failed", stage.On.Failed, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionFail: true}},
-			{"interrupted", stage.On.Interrupted, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionFail: true}},
+			{"failed", stage.On.Failed, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
+			{"interrupted", stage.On.Interrupted, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
 		}
 		for _, check := range checks {
 			field := "Stage " + name + " on." + check.field
 			if err := validateResolvedTransition(field, check.action, workflow.Stages, check.allowed); err != nil {
+				return err
+			}
+			if err := validateStageEscalationVariant(name, check.field, stage, check.action); err != nil {
 				return err
 			}
 			continuation := transitionContinuation(check.action)
@@ -506,14 +583,14 @@ func validateResolvedTransition(
 	}
 	switch action.Kind {
 	case TransitionNext:
-		if action.Retry != nil || action.NextStage == "" {
+		if action.Retry != nil || action.Escalate != nil || action.NextStage == "" {
 			return fmt.Errorf("%s next Transition has an invalid payload", field)
 		}
 		if _, ok := stages[action.NextStage]; !ok {
 			return fmt.Errorf("%s next Transition names unknown Stage %q", field, action.NextStage)
 		}
 	case TransitionRetry:
-		if action.NextStage != "" || action.Retry == nil || action.Retry.MaxAttempts < 2 {
+		if action.NextStage != "" || action.Escalate != nil || action.Retry == nil || action.Retry.MaxAttempts < 2 {
 			return fmt.Errorf("%s retry Transition requires bounded maxAttempts >= 2", field)
 		}
 		if err := validateResolvedTransition(
@@ -524,8 +601,20 @@ func validateResolvedTransition(
 		); err != nil {
 			return err
 		}
+	case TransitionEscalate:
+		if action.NextStage != "" || action.Retry != nil || action.Escalate == nil || action.Escalate.MaxAttempts < 1 {
+			return fmt.Errorf("%s escalate Transition requires bounded maxAttempts >= 1", field)
+		}
+		if err := validateResolvedTransition(
+			field+".escalate.then",
+			action.Escalate.Then,
+			stages,
+			map[TransitionKind]bool{TransitionNext: true, TransitionFail: true},
+		); err != nil {
+			return err
+		}
 	case TransitionSucceed, TransitionFail:
-		if action.NextStage != "" || action.Retry != nil {
+		if action.NextStage != "" || action.Retry != nil || action.Escalate != nil {
 			return fmt.Errorf("%s terminal Transition has an invalid payload", field)
 		}
 	default:
@@ -537,6 +626,9 @@ func validateResolvedTransition(
 func transitionContinuation(action TransitionAction) TransitionAction {
 	if action.Kind == TransitionRetry && action.Retry != nil {
 		return action.Retry.Then
+	}
+	if action.Kind == TransitionEscalate && action.Escalate != nil {
+		return action.Escalate.Then
 	}
 	return action
 }

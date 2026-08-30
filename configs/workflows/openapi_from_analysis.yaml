@@ -126,8 +126,10 @@ spec:
         succeeded:
           succeed: {}
         failed:
-          retry:
-            maxAttempts: 2
+          escalate:
+            maxAttempts: 1
+            executionConfig:
+              ref: strong-oas-review@1
             then:
               fail: {}
         interrupted:

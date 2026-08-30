@@ -8,6 +8,7 @@ import (
 const (
 	modelPolicyKind      = "ModelPolicy"
 	llmGatewayConfigKind = "LLMGatewayConfig"
+	executionConfigKind  = "ExecutionConfig"
 	agentTemplateKind    = "AgentTemplate"
 	workflowKind         = "Workflow"
 )
@@ -88,26 +89,78 @@ type ResolvedStageExecutionConfig struct {
 	Agents  map[string]ResolvedConsumerExecutionConfig `json:"agents"`
 }
 
+// ExecutionConfigRef identifies one immutable Stage-local escalation profile.
+type ExecutionConfigRef struct {
+	ConfigID string `json:"configId"`
+	Version  string `json:"version"`
+	Digest   string `json:"digest"`
+}
+
+// ResolvedCredentialOverride preserves the escalation patch's selected/clear
+// distinction. A nil *ResolvedCredentialOverride means inherit the lower
+// layer; Clear and Ref are mutually exclusive.
+type ResolvedCredentialOverride struct {
+	Clear bool                        `json:"clear"`
+	Ref   *contracts.LLMCredentialRef `json:"ref,omitempty"`
+}
+
+// ResolvedExecutionSelectionOverride is a partial, dependency-resolved
+// selection. Nil fields inherit the Run's base Stage configuration.
+type ResolvedExecutionSelectionOverride struct {
+	ModelPolicy *contracts.ResolvedModelPolicy      `json:"modelPolicy,omitempty"`
+	LLMGateway  *contracts.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential  *ResolvedCredentialOverride         `json:"credential,omitempty"`
+}
+
+type ResolvedStageExecutionConfigOverride struct {
+	Planner *ResolvedExecutionSelectionOverride           `json:"planner,omitempty"`
+	Agents  map[string]ResolvedExecutionSelectionOverride `json:"agents,omitempty"`
+}
+
+// ResolvedExecutionConfigProfile is the safe immutable catalog value. It
+// contains exact dependency bodies but never credential token bytes.
+type ResolvedExecutionConfigProfile struct {
+	Ref      ExecutionConfigRef                   `json:"ref"`
+	Override ResolvedStageExecutionConfigOverride `json:"override"`
+}
+
+// ResolvedEscalationExecutionConfig pins both the declared patch and its fully
+// effective result for one consuming Stage. Ref is present only for a named
+// profile; inline declarations use the same Override representation.
+type ResolvedEscalationExecutionConfig struct {
+	Ref       *ExecutionConfigRef                  `json:"ref,omitempty"`
+	Override  ResolvedStageExecutionConfigOverride `json:"override"`
+	Effective ResolvedStageExecutionConfig         `json:"effective"`
+}
+
 type TransitionKind string
 
 const (
-	TransitionNext    TransitionKind = "next"
-	TransitionRetry   TransitionKind = "retry"
-	TransitionSucceed TransitionKind = "succeed"
-	TransitionFail    TransitionKind = "fail"
+	TransitionNext     TransitionKind = "next"
+	TransitionRetry    TransitionKind = "retry"
+	TransitionEscalate TransitionKind = "escalate"
+	TransitionSucceed  TransitionKind = "succeed"
+	TransitionFail     TransitionKind = "fail"
 )
 
-// TransitionAction is a validated tagged union. NextStage is set only for
-// next; Retry is set only for retry; succeed/fail carry no payload.
+// TransitionAction is a validated tagged union. NextStage, Retry, and Escalate
+// are set only for their matching kinds; succeed/fail carry no payload.
 type TransitionAction struct {
-	Kind      TransitionKind   `json:"kind"`
-	NextStage string           `json:"nextStage,omitempty"`
-	Retry     *RetryTransition `json:"retry,omitempty"`
+	Kind      TransitionKind      `json:"kind"`
+	NextStage string              `json:"nextStage,omitempty"`
+	Retry     *RetryTransition    `json:"retry,omitempty"`
+	Escalate  *EscalateTransition `json:"escalate,omitempty"`
 }
 
 type RetryTransition struct {
 	MaxAttempts int              `json:"maxAttempts"`
 	Then        TransitionAction `json:"then"`
+}
+
+type EscalateTransition struct {
+	MaxAttempts     int                               `json:"maxAttempts"`
+	ExecutionConfig ResolvedEscalationExecutionConfig `json:"executionConfig"`
+	Then            TransitionAction                  `json:"then"`
 }
 
 type StageTransitions struct {
@@ -142,11 +195,12 @@ type ResolvedWorkflow struct {
 
 // Counts summarizes a successfully published configuration snapshot.
 type Counts struct {
-	Workflows      int
-	AgentTemplates int
-	ModelPolicies  int
-	LLMGateways    int
-	Instructions   int
+	Workflows        int
+	AgentTemplates   int
+	ModelPolicies    int
+	LLMGateways      int
+	ExecutionConfigs int
+	Instructions     int
 }
 
 type metadataSource struct {
@@ -191,6 +245,20 @@ type llmGatewayConfigSpecSource struct {
 type llmCredentialManagerSpecSource struct {
 	Implementation string `yaml:"implementation"`
 	ManagementURL  string `yaml:"managementUrl"`
+}
+
+type executionConfigDocument struct {
+	APIVersion string                            `yaml:"apiVersion"`
+	Kind       string                            `yaml:"kind"`
+	Metadata   *metadataSource                   `yaml:"metadata"`
+	Spec       *executionConfigProfileSpecSource `yaml:"spec"`
+}
+
+type executionConfigProfileSpecSource struct {
+	Planner        *executionSelectionSource            `yaml:"planner,omitempty"`
+	Agents         *map[string]executionSelectionSource `yaml:"agents,omitempty"`
+	plannerPresent bool
+	agentsPresent  bool
 }
 
 type agentTemplateDocument struct {
@@ -293,15 +361,31 @@ type stageTransitionsSource struct {
 }
 
 type transitionActionSource struct {
-	Next    *string            `yaml:"next,omitempty"`
-	Retry   *retrySource       `yaml:"retry,omitempty"`
-	Succeed *emptyObjectSource `yaml:"succeed,omitempty"`
-	Fail    *emptyObjectSource `yaml:"fail,omitempty"`
+	Next     *string            `yaml:"next,omitempty"`
+	Retry    *retrySource       `yaml:"retry,omitempty"`
+	Escalate *escalateSource    `yaml:"escalate,omitempty"`
+	Succeed  *emptyObjectSource `yaml:"succeed,omitempty"`
+	Fail     *emptyObjectSource `yaml:"fail,omitempty"`
 }
 
 type retrySource struct {
 	MaxAttempts int                     `yaml:"maxAttempts"`
 	Then        *transitionActionSource `yaml:"then"`
+}
+
+type escalateSource struct {
+	MaxAttempts     int                              `yaml:"maxAttempts"`
+	ExecutionConfig *escalationExecutionConfigSource `yaml:"executionConfig"`
+	Then            *transitionActionSource          `yaml:"then"`
+}
+
+type escalationExecutionConfigSource struct {
+	Ref            yaml.Node                            `yaml:"ref,omitempty"`
+	Planner        *executionSelectionSource            `yaml:"planner,omitempty"`
+	Agents         *map[string]executionSelectionSource `yaml:"agents,omitempty"`
+	refPresent     bool
+	plannerPresent bool
+	agentsPresent  bool
 }
 
 type emptyObjectSource struct{}
