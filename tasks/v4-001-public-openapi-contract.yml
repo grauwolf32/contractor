@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V4-001
+title: Commit the complete public API v1 contract
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-010]
+languages: [go, yaml]
+
+goal: >-
+  Establish one OpenAPI 3.1 source of truth for the authenticated public /v1
+  Workflow, Run, Artifact, configuration, credential, Operations, auth, and
+  WebSocket-upgrade surfaces before generating the separate frontend client.
+
+context:
+  current_state: >-
+    Public Go handlers exist but there is no committed OpenAPI document and
+    response shapes were designed for an early bearer-token MVP. Private
+    Control Plane, Runtime Agent, Artifact allocation, and A2A endpoints must
+    remain outside the browser contract.
+
+scope:
+  in:
+    - Add api/openapi/contractor-public-v1.yaml using OpenAPI 3.1 and JSON Schema 2020-12 semantics.
+    - Describe existing and planned /v1 paths, auth mechanisms, ownership rules, headers, status codes, and one bounded error envelope.
+    - Define safe DTOs for Workflow contracts, Run/Stage attempts and transitions, PlannerPlan, artifact metadata/lineage, metrics, effective config refs, Runtime Agent/allocation Operations state, credentials, and publications.
+    - Specify Idempotency-Key, If-Match, X-CSRF-Token, ETag, X-Request-ID, Content-Disposition, pagination placeholders, and body limits where applicable.
+    - Link the versioned WebSocket event schema without pretending frames are normal HTTP responses.
+    - Add deterministic lint/bundle/example validation and Go contract tests against handler fixtures.
+    - Document additive versus incompatible versioning and keep all secrets/raw model data absent from schemas/examples.
+  out:
+    - Implementing every new endpoint, browser session logic, generated TypeScript client, or private wire contracts.
+
+deliverables:
+  - {path: api/openapi/contractor-public-v1.yaml, description: Bundled public OpenAPI 3.1 contract.}
+  - {path: api/events/contractor-events-v1.schema.json, description: Initial closed event-envelope/frame schema linked from OpenAPI.}
+  - {path: internal/httpapi/public, description: Contract example/shape tests and shared response DTO alignment.}
+  - {path: Makefile, description: Deterministic API lint and compatibility verification targets.}
+
+requirements:
+  - id: R1
+    text: Private control, mTLS artifact-allocation, Runtime Agent, and A2A paths/types are not exposed in the public document.
+  - id: R2
+    text: Unknown response/request fields are rejected where the corresponding server decoder is strict; nullable semantics match Go exactly.
+  - id: R3
+    text: Examples contain no credential, token, prompt, tool payload, provider body, or physical Worker endpoint.
+  - id: R4
+    text: CI uses pinned tooling and fails for an invalid document or uncommitted generated/bundled diff.
+
+acceptance_criteria:
+  - id: A1
+    given: Every currently implemented public handler fixture.
+    when: Contract tests validate its success and error envelopes.
+    then: They conform to the committed operation schema and documented headers/statuses.
+  - id: A2
+    given: A private path or secret-bearing field added to the public document.
+    when: API policy tests run.
+    then: Verification fails.
+  - id: A3
+    given: The WebSocket upgrade operation.
+    when: The contract is rendered.
+    then: It names the required subprotocol and links the exact JSON frame schema.
+
+tests:
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2, A3]}
+  - {name: go-contract, command: "go test ./internal/httpapi/public/...", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

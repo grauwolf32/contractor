@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V3-001
+title: Unify model-backed Planner completion under finish
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V1-006, V2-010]
+languages: [go]
+
+goal: >-
+  Make the existing Streamline Planner report both semantic success and
+  semantic failure through one validated finish operation so the model cannot
+  select Workflow escalation or any other Scheduler transition.
+
+context:
+  current_state: >-
+    internal/planner/streamline currently exposes finish for success and a
+    second model-facing escalate tool for failure. Its prompt tells the model
+    to choose between them. The ADK action flag named Escalate is only an
+    internal mechanism for ending the root agent and is not a Workflow action.
+  target_contract: >-
+    The only model-facing completion function is finish. It accepts outcome,
+    summary, exact artifact selections, and an error object required only for a
+    failed outcome. Scheduler later validates the candidate again and applies
+    the Workflow's failed/interrupted transition independently.
+
+scope:
+  in:
+    - Replace success-only finish arguments with outcome, summary, artifacts, and optional error.
+    - Require outcome to be exactly succeeded or failed.
+    - Require a safe TerminationError with code, message, and retryable for failed; reject it for succeeded.
+    - Remove the model-visible escalate function, schema, prompt guidance, allowlist entry, and metrics tool name.
+    - Preserve exact ArtifactRef and declared result-slot validation for both outcomes.
+    - Keep ADK's internal terminal action flag if required to stop the root agent after accepted finish.
+    - Update Streamline unit tests, examples, README/development text that describe the obsolete tool.
+  out:
+    - Scheduler escalation transitions, typed subtask planning, Router, or execution configuration resolution.
+
+deliverables:
+  - {path: internal/planner/streamline/tools.go, description: One finish function supporting valid success and failure candidates.}
+  - {path: internal/planner/streamline/planner.go, description: Model guidance that names finish as the sole semantic completion operation.}
+  - {path: internal/planner/streamline, description: Unit tests for success, failure, invalid shapes, and absence of model-facing escalate.}
+  - {path: README.md, description: Accurate high-level Streamline completion description.}
+  - {path: docs/development.md, description: Developer-facing completion and troubleshooting notes.}
+
+requirements:
+  - id: R1
+    text: The generated ADK tool set contains finish and no tool named escalate.
+  - id: R2
+    text: An accepted succeeded candidate has no error; an accepted failed candidate has a validated non-empty safe error.
+  - id: R3
+    text: Invalid outcome/error combinations produce a bounded finish_rejected tool result and no terminal decision.
+  - id: R4
+    text: Neither candidate outcome directly mutates RunStore or chooses retry, escalation, next, succeed, or fail.
+  - id: R5
+    text: Durable tool facts contain only the allowlisted finish name and safe outcome, never arbitrary summary, error message, or artifact payload.
+
+acceptance_criteria:
+  - id: A1
+    given: A model calls finish with succeeded and a valid declared exact artifact.
+    when: Streamline runs.
+    then: It returns and durably records the same successful StageContentResult.
+  - id: A2
+    given: A model calls finish with failed and a valid TerminationError.
+    when: Streamline runs.
+    then: It returns a failed StageContentResult without invoking a Workflow escalation operation.
+  - id: A3
+    given: A model supplies succeeded with error, failed without error, or an unknown outcome.
+    when: The finish tool validates the call.
+    then: No completion is recorded and the model may correct the bounded tool error within its remaining budget.
+  - id: A4
+    given: The root agent's generated function declarations and system instruction.
+    when: They are inspected in a unit test.
+    then: No model-visible escalate operation or semantic-escalation instruction exists.
+
+tests:
+  - {name: streamline-unit, command: "go test ./internal/planner/streamline/...", covers: [A1, A2, A3, A4]}
+  - {name: planner-session, command: "go test ./internal/planner/session/...", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+notes:
+  - >-
+    contracts.TerminationError.retryable remains model-produced because ordinary
+    Workflow retry may use it. A later Scheduler escalation task explicitly
+    ignores it when deciding whether an escalation branch is eligible.
+  - >-
+    ctx.Actions().Escalate in Google ADK means stop/bubble the agent execution;
+    retaining that internal flag does not reintroduce a model-facing Workflow
+    escalation decision.

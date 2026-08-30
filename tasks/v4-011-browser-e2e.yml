@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V4-011
+title: Verify the complete browser and Operations slice
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-009, V4-010]
+languages: [typescript, go, python, yaml]
+
+goal: >-
+  Prove the separately served Node/React UI interoperates with the real Go
+  public API, PostgreSQL, Scheduler, Control Plane, and Python Runtime Agent for
+  auth, artifacts, one live Run, and one authorized Operations mutation.
+
+context:
+  topology: >-
+    The test launches separate Node UI and Go Server processes plus PostgreSQL,
+    deterministic model/LiteLLM management fixtures, local deployment CA, and
+    one or more real Runtime Agents. Browser communicates directly with Go API;
+    Node serves no proxy and receives no auth/model credentials.
+
+scope:
+  in:
+    - Add Playwright tests for login/session recovery/logout and Server-restart session loss.
+    - Verify exact-origin CORS, CSRF rejection with no side effect, cookies, preflight headers, and incompatible API version UI.
+    - Upload an Artifact, start a representative OpenAPI/LikeC4 Run, observe live Planner progress/reconnect, cancel or complete, and download a frozen output.
+    - Publish one immutable ModelPolicy/Gateway version and create/delete one fake-manager credential without exposing token.
+    - Inspect Runtime Agent/allocation observed-authoritative state and metrics without administrative force actions.
+    - Verify WebSocket replay, duplicate/gap resync, Operations restart resync, and slow-consumer behavior at contract/integration layers.
+    - Search browser storage, traces, screenshots, logs, HTTP bodies, WebSocket frames, and database-safe columns for seeded secret canaries.
+    - Add reproducible local/CI orchestration with isolated temporary roots/keys/certs and cleanup.
+  out:
+    - Cross-browser matrix beyond the pinned baseline, visual-regression design testing, production TLS issuance, real paid provider billing, or multi-user RBAC.
+
+deliverables:
+  - {path: ui/e2e, description: Playwright browser flows and fixtures.}
+  - {path: tests/ui-stack, description: Real multi-process stack orchestration and deterministic model/credential manager.}
+  - {path: deploy, description: Single-VM UI plus Server example with separate services and exact origins.}
+  - {path: docs/development.md, description: End-to-end startup, troubleshooting, and independent release verification.}
+
+requirements:
+  - id: R1
+    text: Browser test uses the real Node static service and Go public handlers; it does not call domain services directly.
+  - id: R2
+    text: Node receives no cookie/password/CSRF/API/model credential and Go Server contains no UI bundle.
+  - id: R3
+    text: Tests use bounded deterministic external fixtures and clean all isolated resources on success/failure.
+  - id: R4
+    text: Secret-canary evidence covers browser, wire, log, database, and event-frame boundaries.
+
+acceptance_criteria:
+  - id: A1
+    given: Fresh single-VM test deployment.
+    when: User logs in, uploads source, starts a Run, watches progress, and downloads output.
+    then: All direct API/session/CSRF/WebSocket/artifact/execution boundaries succeed and UI shows authoritative terminal state.
+  - id: A2
+    given: Missing CSRF or disallowed origin.
+    when: Browser attempts cancel/publication/credential mutation.
+    then: Server rejects it and subsequent authoritative refetch proves no side effect.
+  - id: A3
+    given: One safe configuration publication and credential lifecycle.
+    when: Operations UI completes it.
+    then: Exact refs/effective policy update after refetch and no token appears in any inspected surface.
+  - id: A4
+    given: Node UI is rebuilt/restarted independently.
+    when: Server and API version remain compatible.
+    then: Execution continues and no Server rebuild/restart is needed.
+
+tests:
+  - {name: browser, command: "cd ui && corepack pnpm playwright test", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: full-stack, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-ui-stack", covers: [A1, A2, A3, A4]}

@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V4-002
+title: Publish immutable managed LLM configurations atomically
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-007, V4-001]
+languages: [go, yaml]
+
+goal: >-
+  Merge operator and Server-managed configuration roots into one validated
+  immutable namespace and provide create-only atomic publication for new
+  ModelPolicy and LLMGatewayConfig versions.
+
+context:
+  roots: >-
+    Operator/bootstrap and managed roots contain the same workflows,
+    agent-templates, model-policies, llm-gateways, execution-configs, and
+    instructions subtrees. Duplicate identities/paths across roots are errors;
+    there is no precedence. Workflow, AgentTemplate, ExecutionConfig, and
+    instructions remain read-only in the first UI slice.
+  publication: >-
+    Under one process lock, validate the complete current union plus candidate,
+    write canonical YAML to an exclusive same-directory temporary file, fsync,
+    atomic rename, fsync directory, swap one immutable in-memory snapshot, then
+    return success. Existing identities are never overwritten or disabled.
+
+scope:
+  in:
+    - Add separate operator/managed root flags and all-or-nothing union loading for all six subtrees.
+    - Add immutable configuration snapshot abstraction so concurrent readers see old or new complete sets.
+    - Implement create-only ModelPolicy and LLMGatewayConfig validation/publication application service.
+    - Derive safe managed paths from kind/name/version; reject symlinks, escapes, collisions, multiple documents, and client-supplied paths.
+    - Require Idempotency-Key; identical identity/body retry succeeds, same identity/different normalized body conflicts.
+    - Recover rename-before-memory-swap through normal startup loading and record non-authoritative safe audit metadata.
+    - Expose list/detail/publication handlers using the public contract and exact digest refs.
+  out:
+    - Edit/delete/disable/retire, Workflow or AgentTemplate editors, remote/S3 roots, or distributed publication locks.
+
+deliverables:
+  - {path: internal/config, description: Union snapshots, publication service, canonical YAML writer, and secure filesystem operations.}
+  - {path: internal/httpapi/public, description: Config list/detail/create-only handlers.}
+  - {path: internal/persistence, description: Non-authoritative publication audit metadata.}
+  - {path: tests/integration, description: Crash window, concurrency, idempotency, symlink, and restart tests.}
+
+requirements:
+  - id: R1
+    text: A successful response means both durable YAML and the current complete in-memory snapshot contain the new immutable version.
+  - id: R2
+    text: No request can select a filesystem path, overwrite an existing file, escape managed root, or follow a symlink.
+  - id: R3
+    text: Publication never re-resolves or mutates existing WorkflowRun snapshots.
+  - id: R4
+    text: Failure before atomic publication leaves readers and startup with a valid previous set.
+
+acceptance_criteria:
+  - id: A1
+    given: Concurrent readers and one valid publication.
+    when: Snapshot swaps.
+    then: Readers observe either complete old or complete new catalog, never partial dependencies.
+  - id: A2
+    given: Retry after response loss with identical normalized body.
+    when: The same idempotency key is used.
+    then: The exact published ref is returned without another file/version.
+  - id: A3
+    given: A crash after rename but before swap.
+    when: Server restarts.
+    then: Startup loads the durable new version exactly once.
+  - id: A4
+    given: Path traversal, symlink, duplicate across roots, or overwrite attempt.
+    when: Publication/loading runs.
+    then: It fails safely without changing current snapshot or unrelated files.
+
+tests:
+  - {name: config-race, command: "go test -race ./internal/config/...", covers: [A1, A2, A4]}
+  - {name: integration, command: "go test ./tests/integration/...", covers: [A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V4-006
+title: Add local browser sessions, CSRF, and exact-origin CORS
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-001]
+languages: [go, yaml]
+
+goal: >-
+  Authenticate the separate browser UI directly at Go Server with one secure
+  local principal, bounded in-memory cookie sessions, session-bound CSRF, and
+  exact-origin credentialed CORS while preserving non-browser API support.
+
+context:
+  bootstrap: >-
+    Server reads one secure absolute local-auth YAML containing userId,
+    case-sensitive username, and an exact Argon2id PHC hash. Browser sessions
+    and CSRF tokens are in memory only and are invalidated by Server restart.
+  cookie_contract: >-
+    Production uses a fresh 32-byte random value only in
+    __Host-contractor_session with HttpOnly, Secure, SameSite=Lax, Path=/ and no
+    Domain; only its SHA-256 digest is stored. Explicit loopback development
+    mode uses a separately named insecure cookie and is rejected elsewhere.
+
+scope:
+  in:
+    - Add secure local-auth file validation and interactive hash-password CLI with exact Argon2id parameters.
+    - Implement login/session/logout JSON endpoints, generic failures, body limits, no-store responses, and in-memory per-IP/global limiter.
+    - Implement eight-hour idle, 24-hour absolute, eight-session limit, oldest-session revocation, logout, and restart invalidation.
+    - Generate/recover a session-bound CSRF token through GET session; require exact token and allowed Origin on every cookie-authenticated unsafe request.
+    - Add exact browser-origin allowlist and strict credentialed CORS/preflight response headers; reject wildcard, reflection, null, and unexpected origins.
+    - Put immutable userId/capabilities into request context; never accept owner/audit actor from request bodies.
+    - Retain a documented non-browser authentication path without treating CORS as authorization.
+    - Add constant-shape auth errors and secret/cookie/password log-redaction tests.
+  out:
+    - OIDC, multiple users, durable sessions, RBAC roles, trusted proxy IP parsing, password reset, or account lockout.
+
+deliverables:
+  - {path: internal/auth, description: Bootstrap validation, Argon2 verifier, session store, CSRF, limiter, and middleware.}
+  - {path: cmd/contractor-server, description: Interactive auth hash-password command and auth flags.}
+  - {path: internal/httpapi/public, description: Auth endpoints and exact-origin CORS integration.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Cookie/non-browser security schemes and auth operations.}
+
+requirements:
+  - id: R1
+    text: Password, cookie value, cookie digest, and CSRF token never enter logs, database, URL, Node runtime config, or response bodies except CSRF from authenticated session recovery.
+  - id: R2
+    text: Unsafe cookie-authenticated requests require both exact allowed Origin and exact session-bound CSRF token before any domain side effect.
+  - id: R3
+    text: CORS never authenticates a request and disallowed/no authority keeps existing 401/403/non-disclosing 404 semantics.
+  - id: R4
+    text: Login work and memory usage are bounded before expensive Argon2 verification.
+
+acceptance_criteria:
+  - id: A1
+    given: Valid local credentials from allowed UI origin.
+    when: Login and session recovery run.
+    then: A secure cookie is issued, safe principal plus CSRF is returned, and no secret is durable/logged.
+  - id: A2
+    given: Missing/wrong Origin or CSRF on Run cancel, publication, or credential mutation.
+    when: The request is sent with a valid cookie.
+    then: It has no side effect and returns the documented bounded error.
+  - id: A3
+    given: Ninth session, idle/absolute expiry, logout, or Server restart.
+    when: The affected cookie is reused.
+    then: The appropriate oldest/expired/destroyed session is rejected.
+  - id: A4
+    given: Repeated invalid logins over configured bounds.
+    when: Another attempt arrives.
+    then: It returns bounded 429/Retry-After without Argon2 work or account lockout.
+
+tests:
+  - {name: auth-race, command: "go test -race ./internal/auth/... ./internal/httpapi/public/...", covers: [A1, A2, A3, A4]}
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

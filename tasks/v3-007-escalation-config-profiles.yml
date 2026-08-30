@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V3-007
+title: Load reusable Stage escalation configuration profiles
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-005]
+languages: [go, yaml]
+
+goal: >-
+  Add immutable ExecutionConfig manifests and a strict inline-or-ref Workflow
+  escalation override so every escalation variant can be resolved and pinned at
+  Run creation rather than looked up during failure handling.
+
+context:
+  manifest_shape: >-
+    contractor/v1alpha1 ExecutionConfig has metadata name/version and a non-empty
+    Stage-local spec with optional planner leaf and non-empty agents mapping.
+    Each leaf selects at least one of exact modelPolicy, exact llmGateway, or
+    credential string/null. The document cannot change Planner factory, Agent
+    bindings/templates, Stage context, result slots, or Workflow graph.
+  transition_shape: >-
+    A failed/interrupted transition escalation has maxAttempts greater than or
+    equal to one, executionConfig expressed either as exactly ref name@version
+    or as the inline planner/agents object, and a typed then action. Ref and
+    inline fields are mutually exclusive.
+
+scope:
+  in:
+    - Discover, strictly decode, normalize, digest, and catalog configs/execution-configs manifests.
+    - Resolve ModelPolicy and Gateway refs during configuration load while deferring Stage binding compatibility to consuming Workflows.
+    - Extend Workflow transition DTOs with bounded escalate action and closed inline-or-ref executionConfig union.
+    - Validate every referenced logical binding and consumer policy requirement for each consuming Stage.
+    - During Run creation apply the profile/inline patch as layer six over base resolution and pin every resulting escalation variant.
+    - Expose safe exact profile and dependency refs in config/Run read models without secrets.
+    - Ship one stronger OpenAPI review profile and strict invalid fixtures.
+  out:
+    - Scheduler choosing or executing an escalation transition, UI editing profiles, or inferring model strength.
+
+deliverables:
+  - {path: internal/config, description: ExecutionConfig manifest/catalog, transition union, resolution and digest tests.}
+  - {path: internal/runstore, description: Pinned named escalation variants inside immutable Run snapshots.}
+  - {path: configs/execution-configs, description: Loadable versioned example profile.}
+  - {path: configs/workflows, description: Example failed/interrupted escalation reference using existing logical bindings.}
+  - {path: schemas, description: Exact manifest and Workflow transition schemas.}
+
+requirements:
+  - id: R1
+    text: Ref form contains only ref; inline form contains planner and/or agents and no ref.
+  - id: R2
+    text: Profile digest is SHA-256 of normalized RFC 8785 JCS manifest and is stored with the resolved body.
+  - id: R3
+    text: One profile may be reused only where every named logical binding exists and every selected policy is compatible.
+  - id: R4
+    text: Run creation pins base plus every possible escalation variant before the Run becomes running.
+
+acceptance_criteria:
+  - id: A1
+    given: A Workflow references strong-oas-review@1 from one Stage.
+    when: Configuration and Run initialization complete.
+    then: The snapshot contains its exact digest and fully resolved stronger per-consumer variant.
+  - id: A2
+    given: Ref plus inline fields, an empty inline object, unknown binding, missing selector, or incompatible policy.
+    when: Loading runs.
+    then: The complete configuration set fails with no partially published catalog.
+  - id: A3
+    given: The profile file changes after a Run is created.
+    when: The stored Run variant is read.
+    then: It retains the original exact digest and resolved bodies.
+
+tests:
+  - {name: config, command: "go test ./internal/config/...", covers: [A1, A2, A3]}
+  - {name: run-snapshot, command: "go test ./internal/runstore/... ./internal/httpapi/public/...", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

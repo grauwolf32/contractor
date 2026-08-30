@@ -44,8 +44,10 @@ fixed_decisions:
       a durable Contractor planner session but does not need an LLM or ADK event
       loop.
     first_slice: >-
-      streamline@1 uses Google ADK Go with a PostgreSQL-backed SessionService
-      and fixed A2A Workers.
+      streamline@1 and router@1 use Google ADK Go with a PostgreSQL-backed
+      SessionService and a bounded typed subtask plan. Streamline has exactly
+      one logical Worker; Router selects among a fixed non-empty logical Worker
+      mapping without observing physical Runtime Agent identities.
   a2a:
     protocol: A2A 1.0
     binding: HTTP JSON-RPC
@@ -87,10 +89,22 @@ milestones:
     outcome: >-
       Every Worker tool loop has explicit cumulative model, tool, and token
       budgets and terminates with complete safe metrics before Stage retry.
+  - id: planner-routing-and-escalation
+    exit_task: V3-010
+    outcome: >-
+      Streamline and Router execute a durable bounded subtask plan through
+      deterministic Worker adapters, while Scheduler owns retry and pinned
+      execution-configuration escalation.
+  - id: server-ui-and-operations
+    exit_task: V4-011
+    outcome: >-
+      A separately deployed React UI uses the committed public API, local
+      browser sessions and a resumable WebSocket to operate Runs, inspect live
+      Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
   completed_through: V2-010
-  next_task: null
+  next_task: V3-001
   summary: >-
     The contractor-old OpenAPI and LikeC4 project workflows are ported as
     artifact-scoped four-Stage workflows, with explicit two-Stage variants for
@@ -98,7 +112,44 @@ current_checkpoint:
     document mutation/validation, production-boundary deterministic tests, and
     an opt-in live-model quality harness are implemented. Every Worker
     invocation now has cumulative model-call, tool-call, and token budgets with
-    safe terminal metrics and verified single-slot Runtime release.
+    safe terminal metrics and verified single-slot Runtime release. The next
+    increment replaces the obsolete multi-Worker/model-escalate Streamline
+    contract before adding typed plans, Router and Scheduler-owned escalation.
+
+current_planning_review:
+  reviewed_on: "2026-08-30"
+  verdict: ready_to_implement
+  checks:
+    - >-
+      V3-001 through V3-004 first correct the existing model-facing contract
+      and deliver Streamline plus Router without waiting for the UI or managed
+      configuration publication work.
+    - >-
+      Reusable configuration documents, immutable Run resolution and Scheduler
+      escalation are separate tasks so each schema, resolver and state-machine
+      change has an independently testable boundary.
+    - >-
+      Typed Planner state is introduced before persistence and WebSocket
+      delivery; no UI task needs to scrape prompts, ADK state or generic tool
+      payloads.
+    - >-
+      V4 starts with the committed API and security contracts, then adds
+      operational mutations and UI routes. The Node service remains a static
+      frontend host and never becomes a BFF or lifecycle authority.
+    - >-
+      Every new task is self-contained, names concrete production and test
+      deliverables, and retains the full implementation-commit rule above.
+  accepted_risks:
+    - >-
+      The first PlannerPlan intentionally omits legacy decomposition, skip and
+      summarizer machinery; those operations can be versioned later if simple
+      ordered subtasks prove insufficient.
+    - >-
+      Configuration hot reload remains absent until managed atomic publication
+      is implemented in V4-002.
+    - >-
+      UI visual design is deliberately functional and domain-neutral; design
+      system expansion is outside the first Operations slice.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -209,3 +260,24 @@ tasks:
   - {id: V2-008, file: v2-008-project-workflows-live-eval.yml}
   - {id: V2-009, file: v2-009-precomputed-analysis-variants.yml}
   - {id: V2-010, file: v2-010-worker-invocation-budgets.yml}
+  - {id: V3-001, file: v3-001-planner-finish-contract.yml}
+  - {id: V3-002, file: v3-002-typed-planner-plan.yml}
+  - {id: V3-003, file: v3-003-single-worker-streamline.yml}
+  - {id: V3-004, file: v3-004-router-planner.yml}
+  - {id: V3-005, file: v3-005-llm-gateway-config.yml}
+  - {id: V3-006, file: v3-006-resolved-execution-config.yml}
+  - {id: V3-007, file: v3-007-escalation-config-profiles.yml}
+  - {id: V3-008, file: v3-008-scheduler-escalation.yml}
+  - {id: V3-009, file: v3-009-planner-plan-events.yml}
+  - {id: V3-010, file: v3-010-routing-escalation-e2e.yml}
+  - {id: V4-001, file: v4-001-public-openapi-contract.yml}
+  - {id: V4-002, file: v4-002-managed-config-publication.yml}
+  - {id: V4-003, file: v4-003-encrypted-credential-store.yml}
+  - {id: V4-004, file: v4-004-litellm-key-manager.yml}
+  - {id: V4-005, file: v4-005-operations-api.yml}
+  - {id: V4-006, file: v4-006-browser-session-security.yml}
+  - {id: V4-007, file: v4-007-run-event-websocket.yml}
+  - {id: V4-008, file: v4-008-react-ui-foundation.yml}
+  - {id: V4-009, file: v4-009-workflow-run-ui.yml}
+  - {id: V4-010, file: v4-010-operations-ui.yml}
+  - {id: V4-011, file: v4-011-browser-e2e.yml}

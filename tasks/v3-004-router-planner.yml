@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V3-004
+title: Implement router@1 over the shared Planner plan
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-003]
+languages: [go, yaml]
+
+goal: >-
+  Add a Router PlannerFactory that shares Streamline's bounded plan and finish
+  behavior but lets the model select one logical Worker for the exact current
+  subtask through execute_current_subtask(subtask_id, worker_name).
+
+context:
+  abstraction_boundary: >-
+    Router runs in Server above WorkerInvoker. It sees the immutable logical
+    Stage binding map and descriptions, not Runtime Agent identities, capacity,
+    allocation addresses, credentials, or Worker implementation internals.
+  selection_policy: >-
+    Server validates worker_name against the fixed map. It rejects an unknown
+    name but does not second-guess a valid semantically poor selection; that
+    choice is preserved as an observable routing event.
+
+scope:
+  in:
+    - Register exact PlannerFactory ref router@1 beside passthrough@1 and streamline@1.
+    - Require a fixed non-empty Stage agents mapping and preserve logical names from the Run snapshot.
+    - Reuse the typed plan, add/list tools, budgets, finish contract, session service, request adapter, artifact checks, and report behavior.
+    - Expose one execute_current_subtask function with exactly subtask_id and worker_name.
+    - Constrain and validate worker_name against immutable bindings before a dispatch claim causes A2A side effects.
+    - Deterministically append an Available agents section sorted by logical name, using each resolved AgentTemplate.description.
+    - Ensure prompts, events, reports, and errors never expose physical placement or credential data.
+    - Add config descriptors, strict Planner cardinality validation, factory wiring, and a minimal Router workflow fixture.
+  out:
+    - Automatic semantic routing, fallback to another Worker after a valid poor selection, dynamic AgentTemplate lookup, or parallel dispatch.
+
+deliverables:
+  - {path: internal/planner/router, description: Router factory and Planner implementation using shared plan components.}
+  - {path: internal/planner, description: Reusable model-backed Planner helpers with no cyclic Streamline/Router dependency.}
+  - {path: internal/config, description: router@1 descriptor and non-empty binding validation.}
+  - {path: internal/app/app.go, description: Router registration using the configured Planner model client.}
+  - {path: configs/examples, description: Strict loadable Router example with distinct logical descriptions.}
+
+requirements:
+  - id: R1
+    text: One model tool selects only current subtask ID and an exact logical worker_name; no per-Worker function names are generated.
+  - id: R2
+    text: Available-agent text is stable under YAML mapping order and comes only from pinned resolved template descriptions.
+  - id: R3
+    text: Unknown Worker and stale subtask errors occur before A2A; a valid selection is invoked and recorded without semantic correction.
+  - id: R4
+    text: One model turn cannot execute parallel tool calls or more than one Worker dispatch.
+  - id: R5
+    text: Scheduler and WorkerInvoker interfaces remain framework-neutral and contain no Google ADK types.
+
+acceptance_criteria:
+  - id: A1
+    given: Bindings reviewer and builder declared in reverse lexical YAML order.
+    when: Router starts.
+    then: Its instruction lists builder then reviewer with exact immutable descriptions and no runtime placement data.
+  - id: A2
+    given: Current subtask 0 and worker_name reviewer.
+    when: The Router executes it.
+    then: Only reviewer's prepared handle is invoked with the deterministic full StageContext and the dispatch projection records reviewer.
+  - id: A3
+    given: Unknown worker_name or stale subtask ID.
+    when: The tool is called.
+    then: No WorkerInvoker call occurs, plan state is not advanced, and a bounded correctable error is returned.
+  - id: A4
+    given: A valid but inappropriate configured logical Worker.
+    when: The model selects it.
+    then: Router invokes and records that selection; it does not silently choose another binding.
+
+tests:
+  - {name: router-unit-race, command: "go test -race ./internal/planner/router/...", covers: [A1, A2, A3, A4]}
+  - {name: registry-config, command: "go test ./internal/planner/... ./internal/config/... ./internal/app/...", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

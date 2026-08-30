@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V3-006
+title: Resolve and pin per-consumer execution configuration
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-004, V3-005]
+languages: [go, python, yaml, sql]
+
+goal: >-
+  Resolve Workflow defaults and Run overrides into immutable per-Stage Planner
+  and per-binding Worker model/Gateway/credential selections, pin them in the
+  WorkflowRun snapshot, and construct consumers from those pinned values.
+
+context:
+  selection_layers: >-
+    Later values override earlier ones: AgentTemplate ModelPolicy, Workflow-wide
+    defaults, Workflow Stage/binding defaults, Run-wide overrides, and Run
+    Stage/binding overrides. Leaves accept exact modelPolicy and llmGateway
+    selectors plus optional credential ID; only override patches may use
+    credential null to clear an inherited credential.
+  consumer_rules: >-
+    adk@1 Workers require ModelPolicy maxOutputTokens/maxModelCalls/maxTotalTokens
+    and maxToolCalls when tools exist. streamline@1/router@1 Planners require
+    maxOutputTokens/maxModelCalls/maxWorkerCalls/maxTotalTokens. passthrough@1
+    has no Planner model selection. Every modeled consumer requires one Gateway
+    and zero or one credential bound to that exact Gateway.
+
+scope:
+  in:
+    - Extend strict Workflow YAML with optional executionConfig planner/workers/stages defaults using reference-only leaves.
+    - Extend POST /v1/runs with the same strict override shape and include it in idempotency hashing.
+    - Implement tri-state credential patching without using pointer ambiguity or string sentinels.
+    - Validate Stage names, logical agent names, exact selectors, consumer policy fields, Gateway compatibility, and credential binding/existence.
+    - Normalize complete base ResolvedExecutionConfig values for every modeled consumer at Run creation.
+    - Store resolved ModelPolicy/Gateway bodies, digest refs, non-secret credential refs, and value origins in the immutable Run snapshot.
+    - Build each Planner model client and RuntimeSettings from its own pinned selection; resolve secret bytes only at the final secret boundary.
+    - Remove process-wide model/Gateway selection as execution authority while retaining explicit development bootstrap only where documented.
+    - Add migration/backward fixture handling for existing tests and strict cross-language RuntimeSettings decoding.
+  out:
+    - Escalation's sixth override layer, reusable ExecutionConfig manifests, credential creation/deletion, or hot configuration publication.
+
+deliverables:
+  - {path: internal/config, description: Strict execution selection/patch DTOs and consumer compatibility validation.}
+  - {path: internal/runstore, description: Immutable resolved configuration snapshot and origin metadata.}
+  - {path: internal/httpapi/public, description: Run override decoding, validation, idempotency, and safe response fields.}
+  - {path: internal/app, description: Per-Planner model factory and per-allocation RuntimeSettings construction.}
+  - {path: runtime, description: Exact selected Gateway URL/model/token use with no global-selection ambiguity.}
+
+requirements:
+  - id: R1
+    text: Run creation resolves all consumers atomically before any StageExecution or allocation is schedulable.
+  - id: R2
+    text: Later config file edits cannot change a stored Run snapshot or retry attempt.
+  - id: R3
+    text: Secret bytes never enter YAML, Run snapshots, API responses, events, metrics, error details, or logs.
+  - id: R4
+    text: An omitted patch field inherits, a string replaces, and credential null alone clears; every other null is invalid.
+  - id: R5
+    text: Planner and Worker may intentionally use different ModelPolicy, Gateway, and credential selections in one Stage.
+
+acceptance_criteria:
+  - id: A1
+    given: Workflow-wide defaults, a Stage override, and a Run binding override.
+    when: A Run is created.
+    then: Every consumer has the documented merged refs/origins and the same values survive catalog-file changes and retry.
+  - id: A2
+    given: A Streamline Planner policy lacking maxWorkerCalls or a tool-using Worker policy lacking maxToolCalls.
+    when: Run initialization resolves the consumer.
+    then: Run creation fails before scheduling with a stable field-specific error.
+  - id: A3
+    given: A credential bound to Gateway A is selected with Gateway B, or a deleted credential is selected.
+    when: Run creation runs.
+    then: It fails safely without resolving or logging a token.
+  - id: A4
+    given: The same Run request and idempotency key but a different executionConfig selector.
+    when: The second request is submitted.
+    then: The idempotency conflict is detected rather than reusing the first Run.
+
+tests:
+  - {name: resolver, command: "go test -race ./internal/config/... ./internal/runstore/...", covers: [A1, A2, A3]}
+  - {name: public-api, command: "go test ./internal/httpapi/public/... ./internal/app/...", covers: [A3, A4]}
+  - {name: cross-language, command: "go test ./internal/contracts/... && cd runtime && uv run pytest tests/test_contracts.py tests/test_settings.py", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

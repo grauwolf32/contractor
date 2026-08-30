@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V3-005
+title: Load immutable LLMGatewayConfig manifests
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V2-010]
+languages: [go, python, yaml]
+
+goal: >-
+  Replace process-wide implicit model endpoint settings with strict,
+  digest-bearing LLMGatewayConfig documents that can be selected independently
+  from ModelPolicy without ever carrying a token.
+
+context:
+  current_state: >-
+    Server and Runtime currently obtain one LLM Gateway URL/token/model from
+    process environment and the configuration loader knows only Workflow,
+    AgentTemplate, ModelPolicy, and instruction resources. Per-Planner and
+    per-Agent resolution cannot be implemented safely until endpoint identity
+    is a first-class immutable configuration.
+  manifest_contract: >-
+    contractor/v1alpha1 LLMGatewayConfig has metadata name/version and spec with
+    protocol openai-compatible@1, inference url, and optional credentialManager
+    containing implementation litellm-virtual-keys@1 plus managementUrl. No
+    token, admin key, model alias, budget, or credential selector is permitted.
+
+scope:
+  in:
+    - Add strict YAML DTOs, validation, normalized JCS digest, exact ref, catalog lookup, and safe listing metadata.
+    - Discover only regular .yaml files recursively under configs/llm-gateways and require matching kind.
+    - Validate inference URL as absolute HTTP(S) with no userinfo, query, or fragment; keep path rules explicit.
+    - Validate optional management URL as an HTTPS origin with root path, except loopback HTTP for local single-VM use.
+    - Reject duplicate identities, YAML keys, documents, unknown fields, protocols, and manager implementations.
+    - Add corresponding resolved Go/Python wire contracts needed by RuntimeSettings without adding secret values.
+    - Ship an explicit local LiteLLM/LM Studio gateway fixture and update config counts/startup diagnostics.
+  out:
+    - Credential persistence/creation, managed UI publication, executionConfig precedence, or removal of legacy environment fallback.
+
+deliverables:
+  - {path: internal/config, description: LLMGatewayConfig manifest/ref/catalog implementation and strict fixtures.}
+  - {path: internal/contracts, description: Safe resolved Gateway wire representation with cross-language fixtures.}
+  - {path: runtime/src/contractor_runtime, description: Strict decode support for resolved non-secret Gateway settings.}
+  - {path: configs/llm-gateways/local_litellm.yaml, description: Local openai-compatible Gateway example without credentials.}
+  - {path: schemas, description: Versioned JSON Schema for the manifest and resolved contract.}
+
+requirements:
+  - id: R1
+    text: Digest covers the complete normalized manifest and uses sha256 plus 64 lowercase hexadecimal characters.
+  - id: R2
+    text: Configuration bodies, errors, logs, fixtures, and API metadata contain no inference token or LiteLLM admin key.
+  - id: R3
+    text: Catalog identity is kind plus exact case-sensitive name/version and never derives from file name or nesting.
+  - id: R4
+    text: One invalid Gateway prevents publication of the entire loaded configuration set.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid local LiteLLM manifest.
+    when: The catalog loads it.
+    then: Lookup returns exact normalized fields and a stable digest reproducible across Go and Python fixtures.
+  - id: A2
+    given: URL credentials, query, fragment, unknown protocol, secret-looking field, duplicate key, or wrong subtree kind.
+    when: Loading runs.
+    then: The complete set fails before Server begins serving Runs.
+  - id: A3
+    given: An optional LiteLLM manager using loopback HTTP and another using non-loopback HTTP.
+    when: Both are validated.
+    then: The loopback origin is accepted for local use and the non-loopback insecure origin is rejected.
+
+tests:
+  - {name: config, command: "go test ./internal/config/... ./internal/contracts/...", covers: [A1, A2, A3]}
+  - {name: runtime-contract, command: "cd runtime && uv run pytest tests/test_contracts.py", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

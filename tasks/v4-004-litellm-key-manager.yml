@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V4-004
+title: Implement the bounded LiteLLM virtual-key manager
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-003]
+languages: [go, yaml]
+
+goal: >-
+  Implement litellm-virtual-keys@1 as the first GatewayCredentialManager,
+  forwarding immutable model access, spend, rate, and concurrency policy to a
+  pinned LiteLLM management API without mirroring quota enforcement in Server.
+
+context:
+  adapter_contract: >-
+    Creation uses POST /key/generate with key_type llm_api; deletion uses POST
+    /key/delete. An operator bootstrap document binds one exact digest-bearing
+    LLMGatewayConfig ref to a secure admin-key file. Executions receive only the
+    generated virtual key, never the management key.
+  gateway_policy: >-
+    Credential create selects a non-empty set of exact ModelPolicyRefs and may
+    set positive finite maxBudget plus optional budgetDuration, tpmLimit,
+    rpmLimit, and maxParallelRequests. Models are sorted distinct aliases from
+    those policies. LiteLLM's returned effective policy is stored as provenance;
+    Contractor does not reject admission using local spend/rate counters.
+
+scope:
+  in:
+    - Strictly load exact Gateway/admin-key bindings and secure bounded sk- key files once at startup.
+    - Validate Gateway policy, resolve ModelPolicyRefs, derive deterministic key alias, and construct bounded LiteLLM payloads.
+    - Implement finite connect/request timeouts, bounded response bodies, strict JSON decoding, and safe stable error mapping.
+    - Validate generated key prefix/size and 64-lowercase-hex token_id; return exact token plus remote ID to encrypted store.
+    - Persist canonical requested refs/models and LiteLLM-returned effective limits without plaintext.
+    - Normalize confirmed not-found deletion to success and use token_id in keys list.
+    - Recover create crash windows using deterministic unique alias cleanup before retry.
+    - Add adapter contract tests against a pinned LiteLLM version/image and deterministic fake server tests for every malformed response.
+  out:
+    - key update, TTL, teams/users, custom aliases, local quota enforcement, direct LiteLLM database access, or arbitrary provider extensions.
+
+deliverables:
+  - {path: internal/credentials/litellm, description: Virtual-key manager, bootstrap loader, policy mapper, and redaction-safe errors.}
+  - {path: deploy/litellm, description: Pinned compatibility-test deployment with persistent LiteLLM database.}
+  - {path: internal/httpapi/public, description: Typed Gateway policy request and effective policy response fields.}
+  - {path: docs/development.md, description: Secure local admin binding/key setup and diagnostics.}
+
+requirements:
+  - id: R1
+    text: Admin key is sent only to the exact bound management origin and never to inference, Runtime Agent, Planner, database, API, logs, or errors.
+  - id: R2
+    text: Alias derivation is deterministic from Gateway digest and credential ID and reveals neither token nor admin key.
+  - id: R3
+    text: LiteLLM alone enforces key-level quotas; Contractor only validates, forwards, stores effective provenance, and reports safe consumption.
+  - id: R4
+    text: Every network path is bounded and an unknown/malformed response cannot create an active credential.
+
+acceptance_criteria:
+  - id: A1
+    given: Two ModelPolicies and explicit spend/rate/concurrency limits.
+    when: Key creation runs.
+    then: LiteLLM receives sorted distinct models and exact mapped fields; Server stores its bounded effective response.
+  - id: A2
+    given: Missing binding, wrong digest, insecure key file, oversized/error response, invalid key, or invalid token_id.
+    when: The operation runs.
+    then: It fails safely without an active credential or secret-bearing diagnostics.
+  - id: A3
+    given: Process loss after remote creation but before encrypted commit.
+    when: Recovery runs.
+    then: It removes the deterministic alias/key and retries without an untracked duplicate.
+  - id: A4
+    given: A Gateway quota rejection during inference.
+    when: Planner or Worker reports it.
+    then: It follows the ordinary bounded LLM failure path and no Server-side quota admission rule appears.
+
+tests:
+  - {name: adapter-unit, command: "go test -race ./internal/credentials/litellm/...", covers: [A1, A2, A3]}
+  - {name: pinned-contract, command: "make test-litellm-contract", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

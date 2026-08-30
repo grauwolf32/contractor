@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V4-005
+title: Expose safe Operations and configuration read models
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-002, V4-004]
+languages: [go]
+
+goal: >-
+  Provide the public API data needed by Operations and Run-override forms while
+  preserving Control Plane, Scheduler, configuration, and credential services
+  as the sole authorities for their state.
+
+context:
+  execution_view: >-
+    Runtime Agent is the long-running single-slot process; Worker is a temporary
+    allocation-scoped role. Operations must show observed and authoritative
+    state distinctly and cannot force idle, reassign an allocation, accept a
+    Stage result, or bypass finalize/abort/release.
+  configuration_view: >-
+    ModelPolicy and LLMGatewayConfig can be published create-only; Workflow,
+    AgentTemplate, ExecutionConfig, and instructions are list/detail read-only.
+    Credentials can be created/deleted but never edited, disabled, or revealed.
+
+scope:
+  in:
+    - Add versioned list/detail DTOs and handlers for all six configuration resource groups with exact refs/digests and safe compatibility metadata.
+    - Add Runtime Agent snapshot showing instance/software version, observed state, accepted heartbeat, confirmed lease horizon, slot state, and allocation ID.
+    - Add allocation snapshot showing Run/Stage/logical binding/template/effective config refs, lifecycle phase, bounded reason, and safe aggregate metrics.
+    - Add credential list/detail/create/delete endpoints backed by the lifecycle service and publication endpoints backed by config service.
+    - Add Run-detail effective-config origins/escalation variants and transition decision data needed by UI.
+    - Use existing domain services for mutations; require idempotency/CAS/audit actor according to the public contract.
+    - Add bounded collection sizes, stable ordering, safe not-found/ownership behavior, and coherent snapshot revisions.
+  out:
+    - Administrative force actions, configuration edit/delete/disable, credential update/disable, raw metrics payloads, or browser-specific state.
+
+deliverables:
+  - {path: internal/httpapi/public, description: Operations/config/credential/expanded Run handlers and contract tests.}
+  - {path: internal/controlplane, description: Coherent read-only Runtime Agent/allocation snapshot API.}
+  - {path: internal/app, description: Explicit wiring without exposing domain mutation internals to handlers.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Final matching Operations and configuration operations/examples.}
+
+requirements:
+  - id: R1
+    text: Read models label observed versus authoritative state and never infer one from the other.
+  - id: R2
+    text: No endpoint can mutate execution state except already declared Run cancellation and domain-owned config/credential operations.
+  - id: R3
+    text: Credentials contain only ID, exact Gateway ref, label, time, effective policy, and optional safe aggregates.
+  - id: R4
+    text: Snapshot responses carry a revision/cursor suitable for later Operations WebSocket resynchronization.
+
+acceptance_criteria:
+  - id: A1
+    given: An Agent fenced locally while Control Plane reconciliation is pending.
+    when: Operations snapshot is requested.
+    then: Both observed fenced and authoritative allocation/release facts are visible without claiming the slot is idle.
+  - id: A2
+    given: A Run with base and escalated attempts.
+    when: Run detail is requested.
+    then: It shows ordered attempts, decision, effective refs/origins, safe termination, plan projection, and metrics.
+  - id: A3
+    given: A credential read/list response and all application logs.
+    when: Secret canaries are searched.
+    then: No generated token, admin key, ciphertext, nonce, or provider body is present.
+
+tests:
+  - {name: public-api, command: "go test -race ./internal/httpapi/public/... ./internal/controlplane/...", covers: [A1, A2, A3]}
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

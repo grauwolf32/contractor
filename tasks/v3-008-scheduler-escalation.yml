@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V3-008
+title: Implement Scheduler-owned bounded Stage escalation
+milestone: planner-routing-and-escalation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-006, V3-007]
+languages: [go, sql]
+
+goal: >-
+  Let Workflow Scheduler apply a declared failed or interrupted escalation by
+  creating fresh StageExecutions with a pinned stronger execution configuration,
+  independently of any Planner model decision or retryable flag.
+
+context:
+  state_machine: >-
+    StageResult selects succeeded/failed and StageTermination selects
+    interrupted. Each matching transition has exactly one action. Escalate is
+    valid only for failed/interrupted, creates a new attempt of the same Stage,
+    and after at most maxAttempts new escalation executions applies its then
+    action. Cancellation never evaluates graph transitions.
+  counting: >-
+    maxAttempts counts only fresh executions created by that escalation action,
+    not the base execution or ordinary retries. The escalation profile is
+    always applied over the immutable base Run Stage configuration and does not
+    accumulate from a previous escalated attempt.
+
+scope:
+  in:
+    - Add escalate to durable transition-decision enums/check constraints and migration fixtures.
+    - Select escalation for accepted failed candidates or interrupted terminations without consulting their retryable value.
+    - Atomically record the decision and create a fresh StageExecution with attempt linkage and selected pinned variant identity.
+    - Keep ordinary retry behavior unchanged and still gated by retryable.
+    - Count escalation attempts per transition branch and deterministically execute then on exhaustion.
+    - Reconstruct the same decision after crash/recovery without duplicate executions or double count.
+    - Give Run cancellation priority over a concurrent escalation decision using existing locked Run serialization.
+    - Surface transition kind, source execution, escalation ordinal, effective refs, and exhaustion outcome in safe read models.
+  out:
+    - Model selection heuristics, conditional error-code rules, dynamic config lookup, editing Workflow files, or force-reassigning allocations.
+
+deliverables:
+  - {path: internal/persistence/migrations, description: Forward-only transition-decision and StageExecution configuration identity migration.}
+  - {path: internal/scheduler, description: Pure escalation decision logic and transactional application/recovery.}
+  - {path: internal/runstore, description: Durable escalation counters, linkage, and idempotent APIs.}
+  - {path: internal/httpapi/public, description: Safe Run/Stage transition and effective-config read fields.}
+
+requirements:
+  - id: R1
+    text: No Planner method, result field, tool name, or retryable value can directly request or suppress Scheduler escalation.
+  - id: R2
+    text: Each escalation creates a new immutable StageExecution; no terminal execution is reopened.
+  - id: R3
+    text: The new execution uses only the already pinned variant from its Run snapshot and performs no catalog lookup.
+  - id: R4
+    text: Decision write and successor creation are atomic, idempotent, and serialized with Run cancellation/final success.
+  - id: R5
+    text: Exhaustion executes exactly one declared then action and cannot loop without a finite graph bound.
+
+acceptance_criteria:
+  - id: A1
+    given: A failed non-retryable Planner candidate and failed.escalate maxAttempts 1.
+    when: Scheduler accepts the candidate.
+    then: It creates one fresh StageExecution using the pinned escalation variant despite retryable false.
+  - id: A2
+    given: The escalated execution also fails.
+    when: The branch is exhausted.
+    then: Scheduler applies then exactly once and creates no second escalation execution.
+  - id: A3
+    given: Scheduler crashes between handling outcome and its next loop.
+    when: Recovery repeats the decision path.
+    then: There is one decision and one successor execution with stable linkage.
+  - id: A4
+    given: Run cancellation races with escalation.
+    when: Both transactions execute.
+    then: The durable Run ordering permits no new schedulable execution after cancellation wins.
+
+tests:
+  - {name: scheduler-race, command: "go test -race ./internal/scheduler/...", covers: [A1, A2, A3, A4]}
+  - {name: runstore-postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/runstore/... ./internal/persistence/...", covers: [A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

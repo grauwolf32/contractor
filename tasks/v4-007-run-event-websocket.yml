@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V4-007
+title: Stream resumable Run and Operations events over WebSocket
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V3-009, V4-005, V4-006]
+languages: [go, json]
+
+goal: >-
+  Add one authenticated read-only WebSocket that multiplexes resumable durable
+  Run events and process-local Operations invalidations without becoming a
+  mutation channel or a raw model stream.
+
+context:
+  protocol: >-
+    GET /v1/events/ws negotiates contractor.events.v1. Frames are bounded,
+    versioned closed JSON from api/events/contractor-events-v1.schema.json. A
+    cursor is opaque generation plus unsigned-decimal string sequence. Run
+    streams replay durable events; Operations streams use process generation
+    and require REST resync after restart/gap.
+  limits: >-
+    Maximum client frame 16 KiB, Server frame 64 KiB, eight sockets/session, 32
+    subscriptions/socket, and output queue 256 frames or 1 MiB. Ping after 20
+    seconds without output; close after 60 seconds without response. Slow
+    consumers close with status 1013.
+
+scope:
+  in:
+    - Authenticate session cookie and exact Origin before upgrade; recheck stream authorization per subscription.
+    - Support run and operations subscribe/unsubscribe on one connection with no mutation frames or URL secrets/cursors.
+    - Replay committed Run events strictly after cursor then follow committed notifications in order with duplicate-tolerant delivery.
+    - Provide Operations generation/revision snapshot cursor and resync_required on restart, gap, or unavailable cursor.
+    - Bound parsing, subscriptions, sockets, queues, bytes, ping/pong, and shutdown; never block Scheduler/session commits on a client.
+    - Close all session sockets on expiry/logout/revocation.
+    - Add redaction/schema tests proving only typed reduced Planner facts enter frames.
+  out:
+    - Raw ADK/model token streaming, WebSocket mutations, guaranteed exactly-once delivery, durable Operations audit log, or Node proxying.
+
+deliverables:
+  - {path: internal/httpapi/public/events, description: Protocol codec, authenticated hub, replay/subscriptions, bounds, and tests.}
+  - {path: internal/runstore, description: Ordered replay and post-commit notification integration.}
+  - {path: internal/controlplane, description: Process-local Operations generation/revision notifications.}
+  - {path: api/events/contractor-events-v1.schema.json, description: Final exact client/Server frame schemas and examples.}
+
+requirements:
+  - id: R1
+    text: A Run event cannot be delivered before its source transaction commits and authorization is checked.
+  - id: R2
+    text: Socket input cannot invoke any domain mutation and requires no CSRF because the channel is strictly observational.
+  - id: R3
+    text: Duplicate/gap/restart semantics are explicit; clients never infer missing authoritative state from event payload.
+  - id: R4
+    text: Backpressure closes only the slow socket and cannot block Planner, Scheduler, RunStore, or Control Plane.
+
+acceptance_criteria:
+  - id: A1
+    given: An allowed authenticated user reconnects after sequence 41.
+    when: Run events 42 through 45 already committed.
+    then: They replay in order before live events and use the same stable Run generation.
+  - id: A2
+    given: Invalid Origin/session, another user's Run, unknown frame/version, or too many subscriptions.
+    when: Connection/subscription is attempted.
+    then: It is rejected/closed with no event disclosure or domain side effect.
+  - id: A3
+    given: Server restart or Operations cursor gap.
+    when: Client subscribes.
+    then: resync_required directs a fresh REST snapshot instead of fabricating events.
+  - id: A4
+    given: A client stops reading.
+    when: Its bounded queue fills.
+    then: Only that socket closes 1013 and committed domain work continues.
+
+tests:
+  - {name: websocket-race, command: "go test -race ./internal/httpapi/public/events/...", covers: [A1, A2, A3, A4]}
+  - {name: contract, command: "make verify-public-api", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

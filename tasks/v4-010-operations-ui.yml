@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V4-010
+title: Implement Operations and LLM configuration UI
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-005, V4-008]
+languages: [typescript, css]
+
+goal: >-
+  Deliver Operations views for Runtime Agents/allocations and safe create-only
+  LLM configuration/credential flows built entirely from Server read models and
+  domain mutations.
+
+context:
+  execution_scope: >-
+    Runtime state is observational. UI must distinguish authoritative Control
+    Plane facts from Agent-observed slot state and cannot force idle, reassign,
+    finish, abort, release, or edit an active execution.
+  config_scope: >-
+    ModelPolicy and LLMGatewayConfig support clone-to-draft then publish a new
+    immutable name/version. ExecutionConfig/Workflow/AgentTemplate are read-only.
+    Credentials accept ID, exact Gateway, safe label, and typed LiteLLM policy;
+    token is generated remotely, encrypted by Server, and never shown.
+
+scope:
+  in:
+    - Add Runtime Agent and allocation tables/details with heartbeat/lease, observed/authoritative state, binding/config refs, lifecycle, bounded errors, and metrics.
+    - Add Operations WebSocket invalidation with generation/revision resync and manual refresh.
+    - Add safe list/detail for all configuration kinds and create-only typed ModelPolicy/LLMGatewayConfig draft/publish forms.
+    - Validate compatible finite policy fields and Gateway URL/manager fields client-side for usability while relying on Server as authority.
+    - Add credential list/detail/create/delete with ModelPolicy set, spend/rate/concurrency fields, effective LiteLLM policy/usage, idempotency, and in-use conflict display.
+    - Never add disable/update/rotate/token-import/token-display actions.
+    - Refetch after every successful mutation and avoid optimistic published/credential state.
+    - Add routed accessibility and redaction tests with canary data.
+  out:
+    - Force-recovery controls, configuration edit/delete/retire, Workflow/AgentTemplate editor, key update/TTL, or billing-grade accounting.
+
+deliverables:
+  - {path: ui/src/routes/operations/runtime-agents, description: Runtime Agent observed/authoritative status views.}
+  - {path: ui/src/routes/operations/allocations, description: Allocation lifecycle/config/metrics views.}
+  - {path: ui/src/routes/operations/llm-configurations, description: Read/list and create-only ModelPolicy/Gateway publication flows.}
+  - {path: ui/src/routes/operations/credentials, description: Secret-free immutable credential lifecycle and policy display.}
+
+requirements:
+  - id: R1
+    text: UI labels Runtime Agent as one deployed single-slot process and Worker as its temporary allocated role.
+  - id: R2
+    text: No secret field exists in frontend DTO/form/state/storage/log/render paths.
+  - id: R3
+    text: Published identity/body and credential records are never edited optimistically or in place.
+  - id: R4
+    text: Gateway limits are displayed as LiteLLM-enforced state; UI does not claim Contractor enforces admission quotas.
+
+acceptance_criteria:
+  - id: A1
+    given: An Agent with response-only heartbeat loss and fenced slot.
+    when: Operations is open.
+    then: The UI clearly shows lease/reconciliation facts and offers refresh, not an unsafe force-idle action.
+  - id: A2
+    given: An existing ModelPolicy.
+    when: User clones and publishes another version.
+    then: A create-only request produces an exact new digest ref and the old document is unchanged.
+  - id: A3
+    given: User creates a LiteLLM credential with typed policy.
+    when: Server succeeds.
+    then: UI shows only safe ID/Gateway/effective policy/usage and never receives or renders the key.
+  - id: A4
+    given: Credential is pinned by a live Run.
+    when: Delete is attempted.
+    then: Safe in-use Run references are shown and the credential remains active.
+
+tests:
+  - {name: ui-unit, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3, A4]}
+  - {name: ui-build, command: "cd ui && corepack pnpm build", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

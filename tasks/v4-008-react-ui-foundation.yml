@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V4-008
+title: Scaffold the independently deployed React frontend
+milestone: server-ui-and-operations
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V4-001, V4-006]
+languages: [typescript, javascript, css, yaml]
+
+goal: >-
+  Create a strict React/Vite single-page application and minimal Node static
+  service that calls Go Server directly through a generated public API client
+  and can be rebuilt/released without rebuilding Server.
+
+context:
+  deployment: >-
+    Node serves only static assets and non-secret /runtime-config.json with UI
+    version, supported API versions, and one absolute apiBaseUrl. It has no SSR,
+    BFF, API proxy, session storage, Server credential, database, Control Plane,
+    or Runtime Agent access.
+  frontend_stack: >-
+    TypeScript strict, React, Vite, React Router Data Mode, and TanStack Query.
+    Router/form/presentation state stays local; there is no Redux/Zustand or
+    second authoritative domain model. Generated OpenAPI DTO/client code is not
+    hand-edited.
+
+scope:
+  in:
+    - Add ui workspace with pinned Node major/package manager/dependencies and reproducible lockfile.
+    - Configure strict tsc, ESLint/format checks, Vitest, React Testing Library, Vite build, and deterministic OpenAPI TypeScript client generation.
+    - Add handwritten transport adapter for runtime apiBaseUrl, credentials include, current CSRF, caller-provided idempotency/CAS headers, and bounded errors.
+    - Add session bootstrap/login/logout routes and guarded application shell with Workflows, Artifacts, Runs, and Operations navigation.
+    - Add TanStack Query provider/key policy and WebSocket adapter skeleton; no optimistic authoritative domain updates.
+    - Implement Node static server/runtime config validation, exact client-route fallback, cache/security headers, health/version endpoint, and graceful shutdown.
+    - Keep assets/API-looking paths/runtime-config errors distinct from SPA fallback and reject unsafe production apiBaseUrl.
+    - Add independent container/build targets; Go Server embeds no frontend files.
+  out:
+    - Workflow/Run/Operations feature pages, SSR, Framework Mode, API proxy, domain mutation logic in Node, or a design-system package.
+
+deliverables:
+  - {path: ui, description: React/Vite application, generated client, transport/session shell, tests, and lockfile.}
+  - {path: ui/server, description: Minimal Node static/runtime-config service.}
+  - {path: deploy, description: Independent UI container/service example and runtime configuration.}
+  - {path: Makefile, description: UI generate, typecheck, test, build, and aggregate verification targets.}
+
+requirements:
+  - id: R1
+    text: Node never receives or forwards password, session cookie, CSRF token, API bearer token, or model credential.
+  - id: R2
+    text: Browser calls configured Go apiBaseUrl directly and refuses incompatible API versions explicitly.
+  - id: R3
+    text: OpenAPI regeneration is deterministic and CI fails on uncommitted generated-client changes.
+  - id: R4
+    text: Vite build is not the type-check gate; strict tsc and tests run separately.
+
+acceptance_criteria:
+  - id: A1
+    given: Valid runtime config and a compatible Server.
+    when: UI starts and user logs in.
+    then: Browser calls Server directly with cookie/CSRF adapter and renders the guarded shell.
+  - id: A2
+    given: Incompatible API version, invalid production URL, missing asset, or unknown API-looking path.
+    when: Node/browser handles it.
+    then: It shows/returns an explicit bounded error and never silently falls back or proxies.
+  - id: A3
+    given: OpenAPI changes.
+    when: UI generation/checks run.
+    then: Generated diff is reproducible and hand edits are rejected by regeneration.
+  - id: A4
+    given: UI source changes only.
+    when: UI is rebuilt.
+    then: No Go Server rebuild or embedded asset change is required.
+
+tests:
+  - {name: ui-check, command: "cd ui && corepack pnpm generate:check && corepack pnpm typecheck && corepack pnpm test --run && corepack pnpm build", covers: [A1, A2, A3, A4]}
+  - {name: node, command: "cd ui && corepack pnpm test:server", covers: [A2, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
