@@ -3,8 +3,8 @@ id: V4-004
 title: Implement the bounded LiteLLM virtual-key manager
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 02697a98cae7fb1820cd0a84a4b458a497afbffb
 depends_on: [V4-003A]
 languages: [go, yaml]
 

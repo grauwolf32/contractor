@@ -103,20 +103,18 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-003A
-  next_task: V4-004
+  completed_through: V4-004
+  next_task: V4-005
   summary: >-
-    The encrypted credential foundation now has a recoverable lifecycle and
-    secret-free public API. V4-003A persists prepared intent before Gateway
-    side effects, recovers create/delete crash windows before traffic, and
-    serializes credential deletion against immutable WorkflowRun creation with
-    a process-local read/write barrier. Exact non-terminal Run pins prevent any
-    delete side effect and return bounded safe IDs. Active credential list,
-    detail, create, delete, pagination, idempotency and safe error responses are
-    covered by PostgreSQL race tests and the public OpenAPI validator; 25 public
-    operations are now marked implemented. All Go/Python verification gates
-    pass. V4-004 is next and supplies the bounded concrete LiteLLM virtual-key
-    manager plus its operator-owned admin-key bindings.
+    The managed-credential path now includes the concrete
+    litellm-virtual-keys@1 adapter. Exact digest-bearing Gateway refs are bound
+    at startup to owner-only admin-key files; finite direct HTTP, strict and
+    bounded provider responses, deterministic-alias crash recovery, exact
+    ModelPolicy forwarding, and encrypted token handoff all fail closed.
+    Compatibility is exercised against the digest-pinned LiteLLM 1.85.0 image
+    with persistent PostgreSQL semantics, while ordinary Go/Python,
+    PostgreSQL, race, configuration, and build gates pass. V4-005 is next and
+    completes the remaining Operations API projections and actions.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
