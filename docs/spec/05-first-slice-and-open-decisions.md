@@ -33,9 +33,9 @@ sandbox where a tool requires it.
 This slice must demonstrate:
 
 - Server recursively loads the fixed `workflows`, `agent-templates`,
-  `model-policies` and `llm-gateways` YAML subtrees from the operator and
-  managed configuration roots, plus relative resources under `instructions`;
-  document lookup uses
+  `model-policies`, `llm-gateways` and `execution-configs` YAML subtrees from
+  the operator and managed configuration roots, plus relative resources under
+  `instructions`; document lookup uses
   `kind + metadata.name + metadata.version`, not the file name, and duplicate
   identities or any invalid dependency reject the complete configuration set;
 - Operations publishes new ModelPolicy and LLMGatewayConfig identities as
@@ -82,15 +82,20 @@ This slice must demonstrate:
   ModelPolicy limits only bound one Planner or Worker execution;
 - Run creation selects an exact Workflow `<id>@<version>`, resolves Workflow
   execution defaults plus reference-only Run overrides, and stores the complete
-  per-consumer snapshot; later configuration-file edits cannot reinterpret that
-  Run;
+  base and declared escalation-variant per-consumer snapshots; later
+  configuration-file edits cannot reinterpret that Run;
+- escalation executionConfig is either one inline Stage-local
+  `planner`/`agents` override or an exact digest-bearing `ExecutionConfig` ref;
+  both normalize to the same override, mixed ref/inline form is invalid, and
+  every referenced body is resolved and pinned before Run execution;
 - public Run creation requires an owner-scoped `Idempotency-Key`; response-loss
   retry returns the same Run without repeating input forks or Scheduler wake,
   while reuse with different validated content conflicts;
 - template resolution happens before allocation and the exact ref is retained;
-- `planner` and `template` accept only the exact `<id>@<version>` grammar;
-  malformed, unversioned, `latest`, range and unknown selectors are rejected,
-  and the Run snapshot retains resolved refs instead of re-resolving strings;
+- `planner`, `template` and ExecutionConfig `ref` accept only the exact
+  `<id>@<version>` grammar; malformed, unversioned, `latest`, range and unknown
+  selectors are rejected, and the Run snapshot retains resolved refs instead
+  of re-resolving strings;
 - every declared Run parameter is a string slot with explicit `required`;
   missing required, unknown and non-string values are rejected without
   coercion, while the validated mapping is persisted immutably and supplied
@@ -161,20 +166,39 @@ This slice must demonstrate:
 - each Stage has a non-empty object-valued `agents` mapping; its keys become
   logical Worker names, order is ignored, and duplicate YAML keys, list and
   scalar shorthand forms are rejected;
-- Planner knows only the logical Worker name and WorkerHandle;
-- `streamline@1` pins Google ADK Go v1.6.0 behind the existing Planner
-  interface, exposes only the prepared logical Workers as sequential A2A tools,
-  and requires explicit validated `finish` or `escalate`;
-- Streamline receives Stage objective, Planner instructions, string parameters,
-  explicit optional artifact absence, exact present refs, fixed Worker mapping
-  and result contract as structured context; each Worker call explicitly
-  selects the string parameters and exact refs it needs;
-- Streamline enforces the selected ModelPolicy's model-call, cumulative-token,
-  per-response and Worker-call limits plus a finite Stage/Planner wall deadline;
-  exhaustion produces an interrupted,
-  retryable running-phase StageTermination through Scheduler's bounded abort;
-- Streamline uses its own exact ModelPolicy and LLMGatewayConfig selections from
-  ResolvedExecutionConfig and never inherits a Worker token/model implicitly;
+- no Planner or Worker sees a physical Runtime Agent identity: Planner knows
+  only logical Worker names and prepared WorkerHandles, while placement remains
+  inside Control Plane;
+- `passthrough@1` and `streamline@1` require exactly one logical Worker;
+  `router@1` accepts a fixed non-empty mapping and cannot add or replace a
+  binding;
+- `streamline@1` and `router@1` pin Google ADK Go v1.6.0 behind the existing
+  Planner interface and share the bounded subtask-plan and validated
+  `finish(StageResult)` operation;
+- Streamline exposes exactly `execute_current_subtask(subtask_id)`, while Router
+  exposes exactly `execute_current_subtask(subtask_id, worker_name)` with
+  `worker_name` constrained to the immutable Stage binding keys;
+- Router's system instruction is deterministically augmented with every logical
+  binding's name and purpose from the resolved immutable
+  `AgentTemplate.description`, never placement or credential information;
+- neither execution function accepts objective, instructions, parameters or
+  ArtifactRefs; its adapter supplies the exact current stored subtask and
+  complete immutable StageContext through the existing sequential A2A boundary;
+- an unknown/stale subtask or Worker name is rejected before side effects,
+  while a valid but poor Router selection remains an observable Planner routing
+  decision rather than being silently corrected;
+- model-backed Planners can report succeeded or failed only through `finish`;
+  they expose no `escalate` operation, and Scheduler alone applies independently
+  declared `failed` or `interrupted` escalation configuration by creating a new
+  StageExecution with a pinned executionConfig override; escalation eligibility
+  does not depend on a model-produced `retryable` value;
+- Streamline and Router enforce the selected ModelPolicy's model-call,
+  cumulative-token, per-response and Worker-call limits plus a finite
+  Stage/Planner wall deadline; exhaustion produces an interrupted, retryable
+  running-phase StageTermination through Scheduler's bounded abort;
+- Streamline and Router use their own exact ModelPolicy and LLMGatewayConfig
+  selections from ResolvedExecutionConfig and never inherit a Worker
+  token/model implicitly;
   successful responses must include consistent token usage, while provider
   error bodies and tokens never enter durable session events, reports, logs or
   the public API;
@@ -288,11 +312,12 @@ slice implementation needs it.
 - concurrent Tasks inside one Worker allocation;
 - resuming a Planner invocation from its persisted ADK Session or private plan;
 - artifact change subscriptions or semantic merge service;
-- dynamic or concurrent Streamline Worker expansion.
+- dynamic or concurrent Streamline/Router Worker expansion.
 
 ## Exit question
 
 The slice is successful when the `adk@1` runtime executes different
-AgentTemplates and `streamline@1` can coordinate a fixed prepared Worker set
-without changes to Workflow Scheduler, PassthroughPlanner, A2A or artifact
-contracts.
+AgentTemplates, `streamline@1` plans through one prepared Worker and `router@1`
+routes current subtasks over a fixed prepared logical Worker set without
+exposing placement or changing Workflow Scheduler, PassthroughPlanner, A2A or
+artifact contracts.

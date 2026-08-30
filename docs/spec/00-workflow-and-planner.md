@@ -34,9 +34,10 @@ Workflow definitions are YAML files. At Server startup `WorkflowCatalog` loads,
 parses and validates them into internal DTOs; the baseline has no hot reload.
 Creating a Run stores the complete validated Workflow snapshot used by that Run,
 including its resolved Planner factory refs and exact digest-bearing
-AgentTemplate, ModelPolicy and LLMGatewayConfig dependencies plus the resolved
-`executionConfig`, so later file edits cannot change its graph or execution
-contract. Every Workflow has an exact configuration key `(name, version)`,
+AgentTemplate, ModelPolicy, LLMGatewayConfig and referenced ExecutionConfig
+dependencies plus every resolved execution configuration, so later file edits
+cannot change its graph or execution contract. Every Workflow has an exact
+configuration key `(name, version)`,
 while the durable snapshot rather than a separately computed Workflow digest
 is the execution authority in the first slice.
 
@@ -44,7 +45,7 @@ is the execution authority in the first slice.
 
 The configuration/UI slice merges an operator/bootstrap root and a separate
 Server-managed publication root into one logical namespace. Both use the same
-five fixed manifest/resource subtrees:
+six fixed manifest/resource subtrees:
 
 ```text
 configs/
@@ -52,11 +53,12 @@ configs/
   agent-templates/    # AgentTemplate YAML manifests
   model-policies/     # ModelPolicy YAML manifests
   llm-gateways/       # LLMGatewayConfig YAML manifests; never secret values
+  execution-configs/  # reusable Stage-local ExecutionConfig YAML manifests
   instructions/       # UTF-8 instruction resources
 ```
 
 The local loader recursively discovers regular files ending in `.yaml` below
-the first four subtrees in either root. Each file contains exactly one
+the first five subtrees in either root. Each file contains exactly one
 non-empty YAML document; multi-document streams are invalid. Its `kind` must
 match its subtree. The loader rejects duplicate YAML mapping keys and validates
 the exact schema selected by `apiVersion` and `kind` rather than retaining
@@ -72,12 +74,14 @@ There is no precedence or last-writer-wins overlay.
 
 Configuration loading and UI publication are all-or-nothing. Server first
 loads and validates ModelPolicies and LLMGatewayConfigs, then resolves
-AgentTemplates, and finally resolves Workflows. It publishes no partially
-resolved in-memory configuration set if any manifest, instruction ref or
-cross-document selector is invalid. At startup it loads the complete union. At
-runtime Operations may create a new immutable ModelPolicy or LLMGatewayConfig
-version only in the managed root using the atomic publication contract in
-[06](06-server-ui-and-operations.md); it cannot replace an existing identity.
+AgentTemplates and reusable ExecutionConfigs, and finally resolves Workflows.
+It publishes no partially resolved in-memory configuration set if any manifest,
+instruction ref or cross-document selector is invalid. At startup it loads the
+complete union. At runtime Operations may create a new immutable ModelPolicy or
+LLMGatewayConfig version only in the managed root using the atomic publication
+contract in [06](06-server-ui-and-operations.md); it cannot replace an existing
+identity. ExecutionConfig publication remains operator-authored in the first UI
+increment.
 
 Instruction resources retain a different identity rule: their normalized
 logical path below `instructions/`, such as
@@ -89,9 +93,9 @@ Toolsets, SandboxProfiles, WorkerRuntime factories and Planner factories are
 registered code plus Server-visible descriptors, not additional configuration
 subtrees.
 
-A future S3-backed loader maps the same five logical manifest/resource
-subtrees to prefixes and
-preserves the same document keys and relative instruction refs. No YAML
+A future S3-backed loader maps the same six logical manifest/resource
+subtrees to prefixes and preserves the same document keys and relative
+instruction refs. No YAML
 manifest may depend on a local absolute path, inode or file name for its
 identity.
 
@@ -136,11 +140,12 @@ existence is checked again during Run initialization because an immutable YAML
 default may outlive a deleted operational credential; a missing credential
 makes that selection unrunnable but does not rewrite or hide the Workflow.
 
-Workflow defaults either omit `credential` or name an ID. In a Run override,
-an omitted field inherits the lower-precedence selection, a string replaces it,
-and explicit `credential: null` clears it for an unauthenticated Gateway. No
-other selector accepts null. This tri-state exists only in the override patch;
-ResolvedExecutionConfig always contains either one credential ref or none.
+Workflow defaults either omit `credential` or name an ID. In a Run or
+escalation override, an omitted field inherits the lower-precedence selection,
+a string replaces it, and explicit `credential: null` clears it for an
+unauthenticated Gateway. No other selector accepts null. This tri-state exists
+only in override patches; ResolvedExecutionConfig always contains either one
+credential ref or none.
 
 `POST /v1/runs` accepts an optional top-level `executionConfig` object whose
 content has the same `planner`/`workers`/`stages` shape. It is an override
@@ -154,9 +159,15 @@ winning:
 4. Run-request-wide overrides;
 5. Run-request Stage/binding overrides.
 
+For an escalated attempt only, the selected Stage transition's escalation
+executionConfig is applied as a sixth and final layer. Run initialization
+resolves both the base configuration and every declared escalation variant;
+the later Scheduler decision selects one already pinned variant rather than
+performing configuration lookup.
+
 Every `adk@1` Worker must resolve one compatible ModelPolicy and one
-LLMGatewayConfig and zero or one matching credential. Every `streamline@1`
-Planner must independently resolve one compatible ModelPolicy, one
+LLMGatewayConfig and zero or one matching credential. Every `streamline@1` or
+`router@1` Planner must independently resolve one compatible ModelPolicy, one
 LLMGatewayConfig and zero or one matching credential. `passthrough@1` has no
 model client, so a Planner model/Gateway/credential selection for that Stage is
 invalid. The consumer-specific ModelPolicy requirements are defined in
@@ -164,12 +175,12 @@ invalid. The consumer-specific ModelPolicy requirements are defined in
 
 Run initialization resolves complete ModelPolicy and LLMGatewayConfig bodies,
 their exact digest-bearing refs, and the non-secret credential ref.
-It stores the fully expanded per-Stage/per-binding `ResolvedExecutionConfig`
-with the immutable WorkflowRun snapshot. That snapshot, rather than later
-configuration edits or UI state, is authoritative for every attempt. Secret
-bytes are never stored in the Run snapshot; Control Plane resolves the pinned
-credential only when constructing RuntimeSettings or the Planner
-model client.
+It stores the fully expanded base and escalation-variant per-Stage/per-binding
+`ResolvedExecutionConfig` values with the immutable WorkflowRun snapshot. That
+snapshot, rather than later configuration edits or UI state, is authoritative
+for every attempt. Secret bytes are never stored in the Run snapshot; Control
+Plane resolves the pinned credential only when constructing RuntimeSettings or
+the Planner model client.
 
 The canonical idempotency digest for `POST /v1/runs` includes the supplied
 executionConfig selectors. Metrics and audit records identify the effective
@@ -231,16 +242,22 @@ spec:
         succeeded:
           succeed: {}
         failed:
-          fail: {}
+          escalate:
+            maxAttempts: 1
+            executionConfig:
+              ref: strong-oas-review@1
+            then:
+              fail: {}
         interrupted:
           fail: {}
 ```
 
 `entryStage` must name one key in `stages`. Each transition selects exactly one
-typed action: `next`, `retry`, `succeed` or `fail`. `next` names another Stage;
-`retry` creates a new StageExecution for the same Stage rather than reopening
-the prior attempt. Workflow cancellation is not a graph edge: once Run is
-`cancelling`, Stage cancellation does not evaluate `on` transitions.
+typed action: `next`, `retry`, `escalate`, `succeed` or `fail`. `next` names
+another Stage; `retry` and `escalate` create a new StageExecution for the same
+Stage rather than reopening the prior attempt. Workflow cancellation is not a
+graph edge: once Run is `cancelling`, Stage cancellation does not evaluate `on`
+transitions.
 
 In `v1alpha1`, `on` must contain exactly the three keys `succeeded`, `failed`
 and `interrupted`, each with one action object. There are no ordered rules,
@@ -252,17 +269,18 @@ WorkflowRun cancellation path.
 Action validity is constrained by outcome:
 
 - `succeeded` allows `next` or `succeed`;
-- `failed` allows `next`, `retry` or `fail`;
-- `interrupted` allows `next`, `retry` or `fail`.
+- `failed` allows `next`, `retry`, `escalate` or `fail`;
+- `interrupted` allows `next`, `retry`, `escalate` or `fail`.
 
 Every `next` target must exist, and every graph path must reach `succeed`,
-`fail` or a bounded retry exhaustion action. A future schema version may add
-ordered predicates without changing snapshots validated as `v1alpha1`.
+`fail` or a bounded retry/escalation exhaustion action. A future schema version
+may add ordered predicates without changing snapshots validated as `v1alpha1`.
 
 ### Versioned selectors
 
-The Workflow selector accepted when creating a Run, the `planner` field and
-every Agent binding's `template` field use the same compact authoring syntax:
+The Workflow selector accepted when creating a Run, the `planner` field, every
+Agent binding's `template` field and an escalation ExecutionConfig `ref` use the
+same compact authoring syntax:
 
 ```text
 <id>@<version>
@@ -291,9 +309,11 @@ WorkflowCatalog resolves `planner` through the configured PlannerFactory
 registry to an exact `(planner_id, version)` implementation ref. It resolves
 each `template` through AgentTemplateCatalog to an exact
 `AgentTemplateRef(template_id, version, digest)` and validated template body.
-Unknown or ambiguous selectors make the Workflow invalid. The normalized Run
-snapshot stores the resolved refs and template dependencies; Scheduler never
-re-resolves the authoring strings while executing that Run.
+It resolves every escalation ExecutionConfig selector to its exact
+digest-bearing ref and normalized Stage-local body. Unknown or ambiguous
+selectors make the Workflow invalid. The normalized Run snapshot stores the
+resolved refs and dependencies; Scheduler never re-resolves the authoring
+strings while executing that Run.
 
 ### Workflow parameters
 
@@ -325,9 +345,10 @@ Stage does not re-read or modify it.
 
 Every Planner receives the complete parameter object as read-only
 `StageContext` data. `v1alpha1` has no Stage-local parameter projection or
-expression language. Parameters are not automatically included in
-`AllocationSpec` or delivered to a Worker: Planner deliberately selects what to
-put in each A2A request.
+expression language. Parameters are not included in `AllocationSpec`; the
+deterministic Planner adapter delivers the complete immutable StageContext with
+each A2A subtask request. They are never model-selected execution-tool
+arguments.
 
 Parameters are ordinary persisted Run data, not a secret channel. Callers must
 not place credentials or provider tokens in them; deployment and
@@ -367,8 +388,90 @@ runtime override. Capacity backoff while preparing one attempt is an
 infrastructure concern and does not consume another Workflow attempt.
 
 Arbitrary cycles through `next` are rejected in `v1alpha1`; the only permitted
-cycle is the explicitly bounded `retry` action. This leaves a direct mapping to
-a future block editor without introducing a second Scheduler DAG.
+cycles are explicitly bounded `retry` and `escalate` actions. This leaves a
+direct mapping to a future block editor without introducing a second Scheduler
+DAG.
+
+### Escalation action
+
+Escalation is a Workflow Scheduler decision, never a model-facing Planner
+operation. A referenced profile is authored as:
+
+```yaml
+escalate:
+  maxAttempts: 1
+  executionConfig:
+    ref: strong-oas-review@1
+  then:
+    fail: {}
+```
+
+The selector resolves an immutable manifest under `configs/execution-configs/`:
+
+```yaml
+apiVersion: contractor/v1alpha1
+kind: ExecutionConfig
+
+metadata:
+  name: strong-oas-review
+  version: "1"
+
+spec:
+  planner:
+    modelPolicy: planner-strong@1
+  agents:
+    reviewer:
+      modelPolicy: oas-reviewer-strong@1
+```
+
+An ExecutionConfig `spec` is a non-empty Stage-local reference-only override.
+It contains optional `planner` and `agents` fields and at least one must be
+present. `planner` is one non-empty execution-selection leaf. `agents`, when
+present, is a non-empty mapping from logical Stage binding name to a non-empty
+leaf. Each leaf accepts only optional exact `modelPolicy` and `llmGateway`
+selectors plus optional exact credential ID or explicit `credential: null`; it
+must select at least one field. Unknown fields and duplicate YAML keys are
+invalid. ModelPolicy and Gateway refs resolve while loading the configuration
+set; binding names and consumer compatibility are validated against every Stage
+that references the profile.
+
+The manifest's exact `(name, version)` selector resolves to an
+`ExecutionConfigRef` carrying the SHA-256 digest of its normalized RFC 8785 JCS
+manifest. WorkflowCatalog embeds that exact ref and resolved body in the Run
+snapshot. A missing or incompatible profile rejects the consuming Workflow;
+later edits cannot reinterpret an existing Run.
+
+Alternatively, `executionConfig` may contain the inline `planner`/`agents`
+object directly. The two shapes are a closed union: an object contains exactly
+`ref`, or it contains the inline override; `ref` plus inline fields is invalid
+and there is no second merge layer inside a profile. Both forms produce the
+same normalized Stage-local override.
+
+The override may select other already published ModelPolicy,
+LLMGatewayConfig and credential refs, but cannot change the Planner factory,
+Agent bindings, AgentTemplates, Stage context, result contract or Workflow
+graph. Contractor does not infer whether a selected model is stronger; the
+Workflow author declares the escalation tier intentionally.
+
+`maxAttempts` is a positive integer and counts only new escalated executions,
+not the execution whose outcome selected the action. Each escalation creates a
+new StageExecution with the next ordinary Stage attempt number, a
+`previous_execution_id`, the Scheduler decision kind `escalate`, and an exact
+effective executionConfig resolved from the Run's base Stage configuration plus
+this action's override. Escalation overrides do not accumulate across attempts.
+All referenced configuration bodies and digests are resolved and pinned in the
+immutable Run snapshot before the Run starts; escalation never consults mutable
+files or UI state.
+
+Unlike retry, escalation does not consult the source StageError or
+StageTermination `retryable` flag: the explicit outcome branch, the action's own
+attempt limit and a still-`running` WorkflowRun are the complete eligibility
+rule. Thus a model-produced failed candidate cannot enable or suppress an
+escalation indirectly. When the limit is exhausted, Scheduler evaluates `then`,
+which contains exactly one `next` or `fail` action. The counter belongs to that
+exact declared action across the StageExecution ancestry and is not reset by
+alternating outcomes. A policy under `failed` never applies to `interrupted`,
+or vice versa; each outcome needs its own explicit escalation configuration.
 
 ### Stage objective and instructions
 
@@ -426,8 +529,10 @@ editing or deleting the configuration resource cannot change an existing Run.
 
 Planner receives `objective` and resolved instructions from the immutable
 StageSpec, the Run's string parameters from StageContext, and the separately
-pinned artifact refs. A planning strategy such as Streamline uses objective as
-its goal and the instruction text as its operating guidance.
+pinned artifact refs. A model-backed strategy such as Streamline or Router uses
+objective as its global task and the instruction text as its operating
+guidance. Router additionally receives the deterministic agent-purpose section
+defined below.
 
 PassthroughPlanner has no reasoning step of its own. It creates one Worker task
 text deterministically as:
@@ -604,7 +709,7 @@ Conceptually:
 objective: Build and review an OpenAPI description
 instructions:
   ref: instructions/build-and-review.md
-planner: passthrough@1
+planner: router@1
 agents:
   oas_builder:
     template: oas_builder@2
@@ -657,24 +762,29 @@ does not synthesize a Planner, Planner Session or StageResult.
 
 After a Planner terminates, Workflow Scheduler interprets `StageResult` under
 that policy and, while the Run remains `running`, selects the next Stage, a
-retry or an explicit escalation. The Planner cannot advance or rewrite the
-Workflow graph itself. Retry creates a new StageExecution with an incremented
-attempt number and, if preparation succeeds, a new Planner and ADK Session.
-When Scheduler records a `StageTermination`, Workflow policy makes the same
-outer progression decision without pretending that Planner returned a semantic
-result, again only while the Run is `running`. In `cancelling`, terminal Stage
-outcomes contribute only to reaching Run quiescence.
+retry or a configured escalation. The Planner cannot request escalation,
+advance or rewrite the Workflow graph itself. Retry and escalation create a new
+StageExecution with an incremented attempt number and, if preparation succeeds,
+a new Planner and ADK Session; only escalation applies its declared pinned
+executionConfig override. When Scheduler records a `StageTermination`, Workflow
+policy makes the same outer progression decision without pretending that
+Planner returned a semantic result, again only while the Run is `running`. In
+`cancelling`, terminal Stage outcomes contribute only to reaching Run
+quiescence.
 
 For every accepted StageResult or committed interrupted StageTermination while
 the Run remains `running`, Scheduler records one immutable transition decision
 keyed by the source `stage_execution_id`. The decision is exactly one of
-`next`, `retry`, `succeed`, or `fail`. A `next`/`retry` decision includes the
-target Stage name and newly created StageExecution ID; terminal decisions have
-no target. Completing the source execution, applying successful output
-mappings, recording this decision, and either creating/pinning the target
-execution or making the Run terminal are one database transaction. Recovery
-therefore observes either the old active source or the complete committed
-progression and never manufactures a second attempt for the same outcome.
+`next`, `retry`, `escalate`, `succeed`, or `fail`. A
+`next`/`retry`/`escalate` decision includes the target Stage name and newly
+created StageExecution ID; an escalation decision additionally identifies its
+resolved escalation action and effective executionConfig snapshot. Terminal
+decisions have no target. Completing the source execution, applying successful
+output mappings, recording this decision, and either creating/pinning the
+target execution or making the Run terminal are one database transaction.
+Recovery therefore observes either the old active source or the complete
+committed progression and never manufactures a second attempt for the same
+outcome.
 
 ## WorkflowRun lifecycle
 
@@ -777,21 +887,59 @@ time and volatile Planner state do not determine the winner.
 Planner is constructed for one prepared Stage. The replaceable Contractor
 abstraction is the Go `PlannerFactory`; Workflow Scheduler sees only the
 framework-neutral `Planner.Run(context.Context) (StageContentResult, error)`
-boundary. `passthrough@1` is deterministic Go code. `streamline@1` constructs
-one Google ADK Go `LlmAgent` behind that same boundary; ADK types do not enter
-Scheduler, RunStore, A2A, or artifact contracts.
+boundary. `passthrough@1` is deterministic Go code. `streamline@1` and
+`router@1` each construct one Google ADK Go `LlmAgent` behind that same
+boundary; ADK types do not enter Scheduler, RunStore, A2A, or artifact
+contracts.
 
-`streamline@1` pins `google.golang.org/adk` v1.6.0. It exposes every prepared
-logical Worker as a fixed function tool whose internal adapter calls the
-existing `WorkerInvoker` A2A boundary. The deterministic model-visible mapping
-from logical name to tool name is included in Planner context. Contractor does
-not depend on ADK's experimental remote-agent/A2A API, so changing that API
-cannot change the Planner or Scheduler domain interfaces. Allocation routing
-still comes only from the prepared `WorkerHandle` and its Agent Card.
+`streamline@1` and `router@1` pin `google.golang.org/adk` v1.6.0 and use the
+same bounded subtask-plan and `finish` operation. Their Worker selection
+contract is deliberately different:
 
-The ADK agent and its live conversation stay inside Server memory. Invoking a
-fixed Worker tool crosses the process boundary through A2A. Planner may
-decompose, iterate and route among the fixed names, but it cannot:
+- `passthrough@1` and `streamline@1` each require exactly one prepared logical
+  Worker;
+- `streamline@1` exposes exactly
+  `execute_current_subtask(subtask_id)`;
+- `router@1` accepts a fixed non-empty logical Worker mapping and exposes
+  exactly `execute_current_subtask(subtask_id, worker_name)`;
+- the Router function schema constrains `worker_name` to the exact Stage
+  binding keys from the immutable Run snapshot.
+
+Before starting `router@1`, Server deterministically appends an
+`Available agents` section to the resolved Planner system instruction. Entries
+are sorted by logical name and contain the logical `worker_name` plus that
+binding's resolved immutable `AgentTemplate.description`, for example:
+
+```text
+Available agents:
+- oas_builder: Builds and updates an OpenAPI description.
+- reviewer: Reviews an OpenAPI description for correctness and completeness.
+```
+
+This section tells Router the purpose for which each logical agent is assigned.
+It is configuration-derived context, not Planner-authored plan state. It never
+contains a physical Runtime Agent identity, allocation address, credential or
+capacity information. A later catalog edit cannot change the section for an
+existing Run.
+
+Both execution functions validate that `subtask_id` is the exact current
+subtask in the Planner's validated plan. They do not accept an objective,
+instructions, Run parameters or ArtifactRefs: their internal adapter supplies
+the exact stored subtask and immutable StageContext to the selected
+`WorkerInvoker` A2A boundary. Consequently the model cannot restate or mutate a
+subtask while dispatching it, nor choose a partial artifact/parameter view for
+the Worker. An unknown or stale subtask ID and an unknown Worker name are
+rejected before any A2A side effect. A valid but semantically poor Router
+selection remains an observable Planner routing decision and is not silently
+corrected by Server.
+
+Contractor does not depend on ADK's experimental remote-agent/A2A API, so
+changing that API cannot change the Planner or Scheduler domain interfaces.
+Allocation routing still comes only from the prepared `WorkerHandle` and its
+Agent Card. The ADK agent and its live conversation stay inside Server memory;
+an execution function crosses the process boundary through A2A. Planner may
+decompose and iterate, and Router may select among the fixed logical names, but
+neither can:
 
 - add or replace an Agent binding;
 - choose a physical Runtime Agent;
@@ -815,12 +963,15 @@ therefore become stable failed candidates in the passthrough baseline rather
 than an unbounded wait. A more capable Planner may satisfy the requested
 interaction and continue within its own budget.
 
-A Streamline-style Planner completes successfully only through an explicit
-`finish`; `escalate` produces an explicit semantic failed candidate. Both tools
-validate declared result slots, exact revisions and media types but cannot
-accept or advance Artifact bindings. An invalid completion call returns a
-bounded tool error so the model may correct it within the remaining budget.
-Scheduler independently repeats candidate validation before acceptance.
+Model-backed `streamline@1` and `router@1` Planners terminate semantically only
+through `finish(StageResult)`. The candidate may be `succeeded` or `failed`;
+failure reports that the Planner could not complete the Stage but does not
+select retry, escalation or any Workflow transition. `finish` validates outcome
+shape, declared result slots, exact revisions and media types but cannot accept
+or advance Artifact bindings. An invalid completion call returns a bounded tool
+error so the model may correct it within the remaining budget. Scheduler
+independently repeats candidate validation before acceptance and alone applies
+the declared outcome policy. There is no model-facing `escalate` operation.
 
 Each prepared ADK Worker independently enforces the cumulative model-call,
 tool-call, and provider-reported token ceilings embedded in its exact
@@ -829,9 +980,10 @@ budget. Exhaustion stops before the next side effect and returns retryable
 failed code `worker_budget_exhausted`; it is a Worker candidate, not a Planner
 budget termination and not a direct StageExecution write.
 
-`streamline@1` receives `maxOutputTokens`, `maxModelCalls`, `maxWorkerCalls`,
-and `maxTotalTokens` from its exact resolved ModelPolicy. The Stage/Planner
-deadline remains an execution limit outside ModelPolicy and is always finite.
+`streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
+`maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
+The Stage/Planner deadline remains an execution limit outside ModelPolicy and
+is always finite.
 An incompatible or incomplete policy fails Run initialization before capacity
 is prepared. Exhaustion without a valid terminal tool produces no semantic
 candidate: Planner returns a stable safe error and Scheduler enters bounded
@@ -851,10 +1003,10 @@ token, Gateway or policy merely because both participate in the same Stage.
 
 Only one tool call is executed per model turn. A parallel or unknown tool
 selection is rejected before any Worker side effect and the model may correct
-it. Each Worker call supplies a focused objective and instructions plus an
-explicitly selected mapping of string parameters and exact ArtifactRefs. The
-adapter verifies every added ref inside the same RunScope and applies the same
-Stage deadline. Authoritative live lease loss cancels that context independently.
+it. The current-subtask adapter verifies the stored StageContext and every
+pinned ArtifactRef inside the same RunScope, supplies that complete context to
+the selected Worker and applies the same Stage deadline. Authoritative live
+lease loss cancels that context independently.
 
 Once Planner has produced a candidate it performs no further semantic work. It
 may request cancellation of outstanding A2A Tasks, but candidate delivery does
@@ -949,6 +1101,6 @@ different allocated Runtime Agent processes and may execute concurrently.
 
 Workflow Scheduler persists the candidate before stopping Workers, accepts the
 terminal StageResult or records a StageTermination, then releases allocations.
-Planner-private plans and A2A Task IDs do not become additional Workflow
-stages. `finalizing` and `aborting` are mutually exclusive durable paths as
-defined in [04](04-execution-lifecycle-and-metrics.md).
+Planner subtasks, Router selections and A2A Task IDs do not become additional
+Workflow Stages. `finalizing` and `aborting` are mutually exclusive durable
+paths as defined in [04](04-execution-lifecycle-and-metrics.md).

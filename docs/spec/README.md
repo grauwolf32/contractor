@@ -16,9 +16,9 @@ security are initial Workflow examples, not a closed product-capability enum or
 a restriction on future Workflows. Domain semantics live in YAML Workflow,
 Planner and AgentTemplate definitions rather than in Scheduler branching.
 
-The configuration/UI target loads those definitions from `configs/` with five
+The configuration/UI target loads those definitions from `configs/` with six
 fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
-`llm-gateways` and `instructions`.
+`llm-gateways`, `execution-configs` and `instructions`.
 YAML document identity comes from
 `kind + metadata.name + metadata.version`, not its file name;
 [00](00-workflow-and-planner.md) owns the complete loading contract.

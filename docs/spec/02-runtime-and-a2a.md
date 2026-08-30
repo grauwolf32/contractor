@@ -79,8 +79,9 @@ Worker or allocation belonging to its previous process instance. The old
 registration becomes unavailable after its confirmed control lease expires,
 and any active StageExecution using that allocation enters `aborting`; Workflow
 Scheduler records an interrupted StageTermination, completes the bounded abort
-path and then lets Workflow policy retry with a new StageExecution, escalate or
-fail the Run.
+path and then lets Workflow Scheduler apply the declared interrupted policy:
+retry with a new StageExecution, use a configured escalation executionConfig,
+or fail the Run.
 
 This first model deliberately has no stable `AgentId`, incarnation nonce,
 registration generation, Server epoch, rotated fleet token or cross-process
@@ -444,8 +445,8 @@ slot rejects all work and remains unavailable until authoritative
 reconciliation and release acknowledgement complete.
 
 Every allocation receives a globally unique `allocation_id` that is never
-reused. Retry, escalation and replacement create new StageExecutions and new
-allocation IDs. This ID is the sole lifecycle, routing and report-correlation
+reused. Scheduler-owned retry, configured escalation and replacement create new
+StageExecutions and new allocation IDs. This ID is the sole lifecycle, routing and report-correlation
 key; there is no separate allocation generation. Repeated control commands for
 an active `allocation_id` are idempotent, while commands and A2A requests for a
 released or unknown ID are rejected.

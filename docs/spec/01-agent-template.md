@@ -118,7 +118,8 @@ The document follows the shared configuration-file and envelope contract in
 [00](00-workflow-and-planner.md). `metadata` contains exactly `name` and
 `version`; their pair is the AgentTemplateCatalog lookup key regardless of the
 file name. `spec` contains exactly the six fields shown above.
-`description` is a mandatory non-empty informational string. `runtime`,
+`description` is a mandatory non-empty purpose string for human-facing
+configuration and for the deterministic `router@1` agent roster. `runtime`,
 `modelPolicy` and `sandboxProfile` are mandatory exact selectors;
 `instructions` contains exactly the mandatory `ref`; and `toolsets` is the
 mandatory, possibly empty selection list defined below. Unknown fields and
@@ -187,8 +188,8 @@ spec:
   temperature: 0.1
 ```
 
-The same kind can describe a Streamline Planner without inventing a Worker tool
-limit:
+The same kind can describe a Streamline or Router Planner without inventing a
+Worker tool limit:
 
 ```yaml
 apiVersion: contractor/v1alpha1
@@ -225,9 +226,9 @@ before Run execution if the selected policy is incompatible:
   `maxTotalTokens`; it additionally requires `maxToolCalls` when the resolved
   AgentTemplate exposes any model-visible tool and does not use
   `maxWorkerCalls`;
-- a `streamline@1` Planner requires `maxOutputTokens`, `maxModelCalls`,
-  `maxWorkerCalls` and `maxTotalTokens`; it does not use `maxToolCalls` in the
-  first UI/configuration slice;
+- a `streamline@1` or `router@1` Planner requires `maxOutputTokens`,
+  `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens`; it does not use
+  `maxToolCalls` in the first UI/configuration slice;
 - `passthrough@1` does not use an LLM and therefore has no Planner ModelPolicy
   selection.
 

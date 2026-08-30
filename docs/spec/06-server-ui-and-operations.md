@@ -123,11 +123,17 @@ The first useful user surface supports:
 - rendering Run string parameters and input Artifact slots from the selected
   Workflow contract;
 - uploading a UserScope Artifact or selecting an existing exact version;
-- selecting published execution configurations when an override is desired;
+- selecting published ModelPolicy, LLMGatewayConfig and credential refs when a
+  Run execution override is desired, and showing any Workflow-pinned
+  ExecutionConfig escalation profiles;
 - creating an idempotent WorkflowRun and cancelling a non-terminal Run;
 - listing Runs and showing their durable lifecycle;
-- showing ordered Stages, attempts, retry/termination reasons and the currently
-  active StageExecution;
+- showing ordered Stages, attempts, retry/escalation decisions, effective
+  executionConfig refs, termination reasons and the currently active
+  StageExecution;
+- showing the active Stage's immutable objective as the global task, its ordered
+  validated Planner subtasks, current subtask and optional active logical Worker
+  dispatch; Planner subtasks are not rendered as additional Workflow Stages;
 - showing exact input, intermediate, frozen output and lineage metadata;
 - previewing bounded UTF-8 Markdown, YAML, JSON, OpenAPI and LikeC4 artifacts,
   while retaining an explicit download action for original bytes;
@@ -198,8 +204,9 @@ may point both flags at workspace-specific directories. A duplicate
 `kind + metadata.name + metadata.version` across either root invalidates the
 complete set; there is no root precedence and no implicit override. The first
 UI increment publishes only ModelPolicy and LLMGatewayConfig manifests. Existing
-Workflow, AgentTemplate and instruction resources remain operator-authored and
-read-only until their editors receive a separate contract.
+Workflow, AgentTemplate, ExecutionConfig and instruction resources remain
+operator-authored and read-only until their editors receive a separate
+contract; Operations may still list their exact identities and digests.
 
 UI publication is create-only. It cannot edit, replace, disable or delete an
 existing published identity. Retiring configurations and safe garbage
@@ -475,14 +482,21 @@ policies independently and may target a particular Stage/Agent binding.
 
 For example, the UI may leave discovery on a local Worker policy while choosing
 a stronger published policy and a separately metered credential for the
-OpenAPI builder. A `streamline@1` Stage may independently use a stronger Planner
-policy. `passthrough@1` exposes no Planner model selection because it makes no
-Planner LLM call.
+OpenAPI builder. A `streamline@1` or `router@1` Stage may independently use a
+stronger Planner policy. `passthrough@1` exposes no Planner model selection
+because it makes no Planner LLM call.
+
+A Workflow escalation may instead select one immutable Stage-local
+ExecutionConfig profile by exact `name@version`. Operations exposes that
+profile's digest and safe ModelPolicy/LLMGatewayConfig/credential IDs read-only;
+the Run form cannot edit its body or mix browser-supplied inline fields into the
+referenced profile.
 
 Before returning a successful Run-create response, Server expands defaults and
-overrides into a complete immutable per-consumer ResolvedExecutionConfig. The
-Run detail page shows both the selected refs and their origin (`workflow` or
-`run override`), but never reconstructs authority from browser state.
+overrides into complete immutable base and escalation-variant per-consumer
+ResolvedExecutionConfigs. The Run detail page shows the selected refs and their
+origin (`workflow`, `run override`, inline escalation or exact ExecutionConfig
+ref), but never reconstructs authority from browser state.
 
 ## API boundary
 
@@ -548,11 +562,11 @@ Run. A Run detail response includes the corresponding event cursor. Subscribing
 with `after` replays committed events after that cursor in order and then
 follows new commits; reconnect uses the last fully processed cursor. Run events
 remain replayable for as long as the Run itself is retained. `planner.event`
-carries exactly the reduced durable fact defined by
-[04](04-execution-lifecycle-and-metrics.md), never a live raw ADK or model
-stream. Lifecycle events are invalidation hints: the UI refetches the affected
-TanStack Query and does not treat their payload as a replacement authoritative
-aggregate.
+carries exactly the reduced durable fact or typed Planner-plan projection
+change defined by [04](04-execution-lifecycle-and-metrics.md), never a live raw
+ADK or model stream. Lifecycle events are invalidation hints: the UI refetches
+the affected TanStack Query and does not treat their payload as a replacement
+authoritative aggregate.
 
 The `operations` stream reports Runtime Agent, allocation, configuration and
 credential changes, but its cursor is process-local and its notifications are
@@ -670,7 +684,9 @@ Artifact use so later RBAC does not require changing domain semantics.
 1. UI can request domain operations but cannot manufacture execution state.
 2. Run overrides contain exact published refs only; no inline model, budget,
    URL, token or provider parameter is accepted.
-3. The immutable ResolvedExecutionConfig is authoritative after Run creation.
+3. Immutable base and escalation-variant ResolvedExecutionConfigs are
+   authoritative after Run creation; an ExecutionConfig ref is never resolved
+   during an attempt.
 4. Planner and every logical Worker resolve their model policy, Gateway and
    optional matching credential independently.
 5. Published configuration versions and their digests never change in place.

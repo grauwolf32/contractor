@@ -88,7 +88,7 @@ model {
       #contractor
     }
 
-    plannerSessions = storage 'Contractor Planner Sessions — completion recovery + redacted ADK facts' {
+    plannerSessions = storage 'Contractor Planner Sessions — completion recovery + typed plans + redacted ADK facts' {
       #contractor
     }
 
@@ -145,7 +145,7 @@ model {
       #contractor
     }
 
-    executionConfigService = component 'Published Model/Gateway Config + Credential Boundary' {
+    executionConfigService = component 'Execution Profiles + Model/Gateway Config + Credential Boundary' {
       #contractor
     }
 
@@ -165,7 +165,7 @@ model {
       #contractor
     }
 
-    stagePlanner = component 'Stage-local Planner — passthrough or Streamline ADK' {
+    stagePlanner = component 'Stage-local Planner — Passthrough, Streamline or Router ADK' {
       #contractor
     }
 
@@ -173,7 +173,7 @@ model {
       #contractor
     }
 
-    workerInvokerTools = component 'Fixed WorkerInvoker Tools — direct A2A adapter' {
+    workerInvokerTools = component 'Validated Current-Subtask Adapter — direct A2A WorkerInvoker' {
       #contractor
     }
 
@@ -222,17 +222,18 @@ model {
     eventApi -> plannerSessionService 'Stream only committed redacted Planner facts'
     eventApi -> runtimeRegistry 'Observe process-local Operations revisions; require resync on gaps'
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
+    workflowCatalog -> executionConfigService 'Resolve exact digest-bearing escalation profiles'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
     workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
     workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
-    plannerFactories -> stagePlanner 'Construct one Stage-local Planner over fixed WorkerHandles'
+    plannerFactories -> stagePlanner 'Construct Passthrough/one-Worker Streamline/logical multi-Worker Router'
     plannerFactories -> executionConfigService 'Resolve pinned Planner credential'
-    stagePlanner -> workerInvokerTools 'Invoke fixed logical Worker tools sequentially'
+    stagePlanner -> workerInvokerTools 'Dispatch exact current subtask sequentially; Router selects logical worker_name'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
     workflowScheduler -> artifactService 'Pin/fork inputs; transactionally bind exact accepted Run outputs'
     stagePlanner -> plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
-    stagePlanner -> plannerSessionService 'Durable request/completion and redacted ADK event facts'
+    stagePlanner -> plannerSessionService 'Durable request/completion, typed plan projection and redacted ADK facts'
     plannerArtifactInspector -> artifactService 'Read exact metadata inside current RunScope'
 
     controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
@@ -331,12 +332,12 @@ model {
   server.artifactRegistry -> artifactDatabase 'Transactional registry writes and reads'
   server.blobStore -> blobBackend 'Immutable blob operations'
   server.runStore -> artifactDatabase.runState 'Durable WorkflowRun and StageExecution state'
-  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion and redacted ADK facts'
+  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion, typed plans and redacted ADK facts'
   server.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.executionCollector -> server.controlPlane 'Trusted allocation final report'
 
-  server.stagePlanner -> llmGateway 'Streamline calls with resolved Planner policy/Gateway/credential'
+  server.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
   runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied resolved URL/token'
   server.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
   llmGateway -> llmProvider 'Provider requests'

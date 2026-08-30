@@ -101,9 +101,9 @@ A Planner implementation owns the semantic condition that ends its invocation:
 - `PassthroughPlanner` waits for its required remote Worker invocation to
   produce an immediate A2A Message, a terminal Task, or an interrupted Task
   state that the baseline maps to a stable failed candidate;
-- a Streamline-style Planner completes successfully only through its explicit
-  `finish` operation and produces a semantic failed candidate only through
-  explicit `escalate`;
+- model-backed `streamline@1` and `router@1` Planners produce either a
+  succeeded or failed semantic candidate only through their explicit
+  `finish(StageResult)` operation;
 - exhausting a hard model-call/token/Worker-call/deadline budget without a
   valid terminal tool stops the strategy without a candidate; Scheduler records
   the stable budget error as a retryable, running-phase interrupted
@@ -115,13 +115,20 @@ A Planner implementation owns the semantic condition that ends its invocation:
   Worker budget metrics.
 
 Planner does not update StageExecution storage. Its `finish` operation ends the
-Planner invocation and produces a candidate result. Workflow Scheduler validates
-and normalizes that candidate, may replace an invalid claimed success with a failed
-`result_contract_violation`, and owns the durable transition to a terminal
-state. An exception handled by the Planner strategy may become a failed
-candidate with a stable Planner error. An exception escaping the Planner
-invocation, or loss of the active Server/Planner before any candidate is
-durable, produces an `interrupted` StageTermination.
+Planner invocation and produces a candidate result; a failed candidate states
+only that the Stage task was not completed. Workflow Scheduler validates and
+normalizes that candidate, may replace an invalid claimed success with a failed
+`result_contract_violation`, and owns the durable transition and any configured
+retry or escalation. No Planner tool can select escalation. An exception
+handled by the Planner strategy may become a failed candidate with a stable
+Planner error. An exception escaping the Planner invocation, exhaustion before
+valid `finish`, or loss of the active Server/Planner before any candidate is
+durable produces an `interrupted` StageTermination.
+
+The Scheduler-owned escalation action and its independent `failed` or
+`interrupted` branch are defined in [00](00-workflow-and-planner.md). Its
+eligibility does not read a model-produced `retryable` field; that field gates
+ordinary retry only.
 
 This separation keeps Planner strategies independent of RunStore and gives
 cancellation, recovery and result acceptance one durable writer.
@@ -148,8 +155,8 @@ preparing / running -> aborting -> cancelled
   by the recorded abort deadline;
 - `succeeded` and `failed` contain an accepted StageResult; `cancelled` and
   `interrupted` contain a StageTermination;
-- terminal states are immutable. Workflow policy may create another
-  StageExecution for retry or escalation.
+- terminal states are immutable. Workflow Scheduler may apply the declared
+  policy by creating another StageExecution for retry or configured escalation.
 
 Preparation failure before Planner start still produces a durable execution
 outcome. Temporary lack of capacity is not such a failure: it keeps the
@@ -229,22 +236,35 @@ the durable transition.
 Every Planner runs in Server with one database-backed Contractor session. Its
 identity is created for one StageExecution and recorded with that execution.
 `passthrough@1` writes bounded request/completion events directly.
-`streamline@1` additionally supplies Google ADK with a SessionService adapter:
-live conversation contents remain in memory, while every non-partial ADK event
-is reduced before PostgreSQL append to author, allowed function names, action
-flags and aggregate token counts. Prompt/model text, tool arguments/results,
-provider bodies and unknown provider-controlled function names are not durable.
+`streamline@1` and `router@1` additionally supply Google ADK with a
+SessionService adapter: live conversation contents remain in memory, while
+every non-partial ADK event is reduced before PostgreSQL append to author,
+allowed function names, action flags and aggregate token counts. Prompt/model
+text, generic tool arguments/results, provider bodies and unknown
+provider-controlled function names are not durable.
+
+The narrow exception is the validated typed Planner-plan projection required
+for recovery and the Run UI. It contains only a monotonically increasing plan
+revision, ordered bounded subtask records with stable IDs and adapter-controlled
+status, the current subtask ID, and an optional active dispatch with its call ID
+and selected logical `worker_name`. For Streamline that name is the sole Stage
+binding; for Router it is the value validated against the immutable Stage
+mapping. The global task is always read from the immutable Stage objective and
+is never copied from model output. No raw ADK State snapshot, prompt, hidden
+reasoning, arbitrary tool payload or physical Runtime Agent identity belongs in
+this projection.
 
 Each committed reduced fact has a monotonically increasing sequence within its
 Planner session and also participates in the owning WorkflowRun's durable event
 sequence. The public Planner timeline uses only fixed fact kinds such as
-Planner started/completed/failed, model call completed, logical Worker call
-started/completed and validated finish/escalate requested. Its bounded payload
-may contain the configured logical Worker name, an allowlisted action name,
-success or stable error code and cumulative token/call counts. It contains no
-raw ADK event, partial model token, prompt, response, hidden reasoning, tool
-argument/result or provider error body. An event becomes stream-visible only
-after this reduced database record commits.
+Planner started/completed/failed, plan changed, current subtask changed, logical
+Worker dispatch selected/started/completed and validated finish requested. Its
+bounded payload may contain the typed plan projection or change, configured
+logical Worker name, an allowlisted action name, success or stable error code
+and cumulative token/call counts. It contains no raw ADK event, partial model
+token, prompt, response, hidden reasoning, generic tool argument/result or
+provider error body. An event becomes stream-visible only after this reduced
+database record commits.
 
 The database record supports inspection, statistics, audit and completed-result
 recovery. A completed Planner session returns its recorded candidate/failure
@@ -497,8 +517,8 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
   incomplete;
 - `preparing` or `running` without a candidate enters `aborting`; Scheduler
   records a retryable interrupted StageTermination, remaining allocations stop
-  or become lost at the abort deadline, and Workflow policy then chooses retry,
-  escalation or Run failure;
+  or become lost at the abort deadline, and Workflow Scheduler then chooses the
+  declared retry, configured escalation or Run failure action;
 - a Runtime Agent process restart never reattaches its old Worker; an affected
   in-process Worker no longer exists, and an affected `preparing` or `running`
   StageExecution follows the same `aborting -> interrupted` path;
