@@ -5,7 +5,7 @@ milestone: planner-routing-and-escalation
 priority: P0
 status: planned
 implementation_commit: null
-depends_on: [V3-005]
+depends_on: [V3-006]
 languages: [go, yaml]
 
 goal: >-

@@ -3,10 +3,10 @@ id: V3-006
 title: Resolve and pin per-consumer execution configuration
 milestone: planner-routing-and-escalation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "c7178d607962b3ee9d965fc191dbeff5191288fd"
 depends_on: [V3-004, V3-005]
-languages: [go, python, yaml, sql]
+languages: [go, python, yaml]
 
 goal: >-
   Resolve Workflow defaults and Run overrides into immutable per-Stage Planner
@@ -37,7 +37,7 @@ scope:
     - Store resolved ModelPolicy/Gateway bodies, digest refs, non-secret credential refs, and value origins in the immutable Run snapshot.
     - Build each Planner model client and RuntimeSettings from its own pinned selection; resolve secret bytes only at the final secret boundary.
     - Remove process-wide model/Gateway selection as execution authority while retaining explicit development bootstrap only where documented.
-    - Add migration/backward fixture handling for existing tests and strict cross-language RuntimeSettings decoding.
+    - Reuse the existing immutable WorkflowSnapshot JSONB storage, explicitly reject legacy snapshots without resolved executionConfig, and keep strict cross-language RuntimeSettings decoding.
   out:
     - Escalation's sixth override layer, reusable ExecutionConfig manifests, credential creation/deletion, or hot configuration publication.
 
@@ -79,7 +79,52 @@ acceptance_criteria:
     then: The idempotency conflict is detected rather than reusing the first Run.
 
 tests:
-  - {name: resolver, command: "go test -race ./internal/config/... ./internal/runstore/...", covers: [A1, A2, A3]}
+  - {name: resolver, command: "go test -race ./internal/config/... ./internal/credentials/... ./internal/runstore/... ./internal/scheduler/...", covers: [A1, A2, A3]}
   - {name: public-api, command: "go test ./internal/httpapi/public/... ./internal/app/...", covers: [A3, A4]}
   - {name: cross-language, command: "go test ./internal/contracts/... && cd runtime && uv run pytest tests/test_contracts.py tests/test_settings.py", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+completion:
+  evidence:
+    - >-
+      Strict Workflow YAML and Run JSON patches now resolve the five ordered
+      layers into complete per-Stage Planner and per-binding Worker values with
+      exact ModelPolicy/Gateway bodies, digest refs, optional credential refs,
+      and safe origin metadata. Tests cover mixed passthrough/modeled Stages,
+      unknown names, incompatible consumer policies, and credential null.
+    - >-
+      POST /v1/runs validates credential existence and exact Gateway binding,
+      includes canonical executionConfig selectors in its idempotency digest,
+      and persists only the expanded non-secret Workflow snapshot. A stored
+      snapshot remains unchanged after same-version catalog file edits.
+    - >-
+      Scheduler resolves credential bytes only when constructing one Planner
+      model client or allocation settings, safely discards provider errors, and
+      can give Planner and Worker distinct models, Gateways, and credentials.
+      AllocationSpec carries effective ModelPolicy separately from the
+      immutable digest-bearing AgentTemplate, and Python Runtime validates and
+      uses that effective policy.
+    - >-
+      Process-wide URL/model selection was removed. Legacy token environment
+      variables now create only the explicit in-memory development-worker and
+      development-planner credentials bound to exact local-litellm@1; E2E/live
+      harnesses author temporary pinned Gateway manifests instead of overriding
+      them through environment state.
+    - >-
+      No SQL migration was necessary because WorkflowRun already persists the
+      complete WorkflowSnapshot JSONB. Legacy snapshots lacking executionConfig
+      are rejected deterministically as unsupported rather than reinterpreted
+      from mutable process defaults.
+  verified_by:
+    - go test -race ./internal/config/... ./internal/credentials/... ./internal/runstore/... ./internal/scheduler/...
+    - make verify
+    - cd runtime && uv run pytest -W error tests
+    - go test -tags=e2e ./tests/e2e -run '^$'
+    - go test -tags=live ./tests/eval/project_workflows -run '^$'
+    - go run ./cmd/contractor-server config validate --root ./configs
+    - likec4 validate docs/spec
+  not_run:
+    - >-
+      Database-backed process E2E was unavailable because
+      CONTRACTOR_TEST_DATABASE_URL was not configured; both tagged suites were
+      compiled successfully.
