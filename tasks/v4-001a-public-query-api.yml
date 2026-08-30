@@ -3,8 +3,8 @@ id: V4-001A
 title: Implement Workflow, Run, and Artifact public read models
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 72a5e8681fc9a9294811a2636a767c9fc7ce412c
 depends_on: [V4-001]
 languages: [go, sql]
 

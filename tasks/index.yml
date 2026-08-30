@@ -103,23 +103,23 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-001
-  next_task: V4-001A
+  completed_through: V4-001A
+  next_task: V4-002
   summary: >-
     The execution, routing and Scheduler-escalation foundation remains complete.
-    Public API v1 is now a committed self-contained OpenAPI 3.1 contract with
-    implemented/planned markers across Workflow, Run, UserScope/RunScope
-    Artifact, configuration, credential, Operations, auth and WebSocket
-    surfaces. Its current six Go operations are request/response fixture-tested,
-    all public objects and errors have bounded closed shapes, and policy tests
-    reject private transport fields, raw model/tool data and secret-bearing
-    examples. The separate contractor.events.v1 Draft 2020-12 schema now
-    distinguishes exact reduced Planner facts, lifecycle invalidations and
-    Operations resync frames without exposing prompts or physical placement.
-    A pinned Go validator, make verify-public-api and the aggregate verify gate
-    enforce both contracts. Planning review found that ordinary Workflow/Run
-    and Artifact query endpoints had no dedicated implementation task, so
-    V4-001A now owns their bounded read models before UI work; it is next.
+    The public Go API now implements 18 OpenAPI operations. Immutable Workflow
+    list/detail projections omit instruction text and physical/model settings;
+    owner-scoped Run pages and expanded detail join exact inputs, immutable
+    Stage objectives, validated PlannerPlan state, safe effective refs/origins,
+    metrics, outputs, timestamps and the durable event cursor. UserScope and
+    owner-bound RunScope Artifact queries expose exact metadata, immutable
+    history, input_fork/output_bind lineage and byte downloads. Every page is
+    keyset ordered and bounded by a bearer-bound HMAC cursor; current lineage
+    pagination pins the selected revision. Foreign RunScope reads are rejected
+    before ArtifactStore access. OpenAPI fixtures, negative query tests, race
+    tests, disposable-PostgreSQL continuation tests and the aggregate verify
+    gate pass. V4-002 is next and owns atomic immutable managed configuration
+    publication.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
