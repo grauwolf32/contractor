@@ -103,8 +103,8 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V3-009
-  next_task: V3-010
+  completed_through: V3-010
+  next_task: V4-001
   summary: >-
     The OpenAPI/LikeC4 project workflows and bounded Worker/Planner execution
     foundation are complete. Model-backed Planner completion now uses one
@@ -128,8 +128,13 @@ current_checkpoint:
     owns contiguous session and Run sequences in the same transaction, while
     recovery exposes the latest plan and redaction excludes generic model/tool
     payloads, credentials, intermediate Worker responses, and physical Runtime
-    placement. The next increment exercises routing plus Scheduler escalation
-    across the real Server and Runtime Agent boundaries.
+    placement. A deterministic two-Runtime production-boundary gate now proves
+    Streamline, reviewer-only Router selection, one non-retryable failed
+    candidate followed by exact stronger Scheduler escalation, complete
+    reports, frozen outputs, and reusable slots. An opt-in LiteLLM/LM Studio
+    evaluation also drives the production Router contract with finite budgets.
+    The planner-routing-and-escalation milestone is complete; the next task
+    commits the public OpenAPI contract needed by the separate Operations UI.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
