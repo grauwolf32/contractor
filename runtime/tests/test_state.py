@@ -24,6 +24,24 @@ def test_idle_is_committed_only_after_registration_ack() -> None:
         assert {
             capability.ref: set(capability.tools) for capability in registration.supported_toolsets
         } == {
+            "openapi@1": {
+                "get_openapi_component",
+                "get_openapi_info",
+                "get_openapi_path",
+                "initialize_openapi",
+                "list_openapi_components",
+                "list_openapi_paths",
+                "list_openapi_servers",
+                "load_openapi",
+                "read_openapi_document",
+                "remove_openapi_component",
+                "remove_openapi_path",
+                "set_openapi_info",
+                "set_openapi_servers",
+                "upsert_openapi_component",
+                "upsert_openapi_path",
+                "validate_openapi",
+            },
             "run-artifacts@1": {"list_artifacts", "read_artifact", "write_artifact"},
             "source-analysis@1": {
                 "list_source_files",

@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ResolvedAgentTemplate, RuntimeSettings
+from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.source_analysis import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.text_artifacts import TextArtifactsToolsetFactory
@@ -98,6 +99,7 @@ def built_in_factories(
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory)
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
+    openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
@@ -105,6 +107,7 @@ def built_in_factories(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
             artifact_toolset.ref: artifact_toolset,
+            openapi_toolset.ref: openapi_toolset,
             source_toolset.ref: source_toolset,
             text_toolset.ref: text_toolset,
         },

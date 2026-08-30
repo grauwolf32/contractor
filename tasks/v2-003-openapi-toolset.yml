@@ -62,7 +62,7 @@ document_rules:
   max_parsed_depth: 128
   max_collection_items: 100000
   evidence_extensions_denied: [.json, .yaml, .yml, .md, .c4]
-  allowed_component_sections: [schemas, responses, parameters, examples, requestBodies, headers, securitySchemes, links, callbacks]
+  allowed_component_sections: [schemas, responses, parameters, examples, requestBodies, headers, securitySchemes, links, callbacks, pathItems]
   vacuum_command: [vacuum, spectral-report, -i, -o]
   vacuum_timeout_seconds: 30
 

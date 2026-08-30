@@ -89,6 +89,26 @@ func TestSourceAnalysisToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestOpenAPIToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["openapi@1"]
+	if !ok {
+		t.Fatal("openapi@1 descriptor is missing")
+	}
+	want := []string{
+		"get_openapi_component", "get_openapi_info", "get_openapi_path",
+		"initialize_openapi", "list_openapi_components", "list_openapi_paths",
+		"list_openapi_servers", "load_openapi", "read_openapi_document",
+		"remove_openapi_component", "remove_openapi_path", "set_openapi_info",
+		"set_openapi_servers", "upsert_openapi_component", "upsert_openapi_path",
+		"validate_openapi",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("openapi@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+}
+
 func TestWorkflowExamplesLoad(t *testing.T) {
 	for _, name := range []string{
 		"bounded_retry_workflow.yaml",
