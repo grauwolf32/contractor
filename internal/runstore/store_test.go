@@ -118,6 +118,67 @@ func TestStageExecutionInputValidation(t *testing.T) {
 	if err := validateCreateStageExecution(valid); err != nil {
 		t.Fatalf("valid retry lineage: %v", err)
 	}
+	ordinal := 1
+	valid.ExecutionConfigVariant = StageExecutionConfigFailedEscalation
+	valid.EscalationOrdinal = &ordinal
+	if err := validateCreateStageExecution(valid); err != nil {
+		t.Fatalf("valid escalation identity: %v", err)
+	}
+	valid.ExecutionConfigVariant = StageExecutionConfigBase
+	if err := validateCreateStageExecution(valid); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("base variant with escalation ordinal error = %v", err)
+	}
+	valid.ExecutionConfigVariant = "dynamic"
+	valid.EscalationOrdinal = nil
+	if err := validateCreateStageExecution(valid); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unknown executionConfig variant error = %v", err)
+	}
+}
+
+func TestStageTransitionEscalationDecisionValidation(t *testing.T) {
+	t.Parallel()
+
+	targetStage, targetExecution, ordinal := "build", "stage-2", 1
+	valid := RecordStageTransitionDecisionParams{
+		SourceExecutionID: "stage-1", RunID: "run-1", Action: StageTransitionEscalate,
+		TargetStageName: &targetStage, TargetExecutionID: &targetExecution,
+		EscalationOrdinal: &ordinal,
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid escalation decision: %v", err)
+	}
+	exhausted := RecordStageTransitionDecisionParams{
+		SourceExecutionID: "stage-2", RunID: "run-1", Action: StageTransitionFail,
+		EscalationOrdinal: &ordinal, EscalationExhausted: true,
+	}
+	if err := exhausted.Validate(); err != nil {
+		t.Fatalf("valid exhausted escalation decision: %v", err)
+	}
+	invalid := []RecordStageTransitionDecisionParams{
+		{
+			SourceExecutionID: "stage-1", RunID: "run-1", Action: StageTransitionEscalate,
+			TargetStageName: &targetStage, TargetExecutionID: &targetExecution,
+		},
+		{
+			SourceExecutionID: "stage-1", RunID: "run-1", Action: StageTransitionEscalate,
+			TargetStageName: &targetStage, TargetExecutionID: &targetExecution,
+			EscalationOrdinal: &ordinal, EscalationExhausted: true,
+		},
+		{
+			SourceExecutionID: "stage-2", RunID: "run-1", Action: StageTransitionFail,
+			EscalationOrdinal: &ordinal,
+		},
+		{
+			SourceExecutionID: "stage-2", RunID: "run-1", Action: StageTransitionRetry,
+			TargetStageName: &targetStage, TargetExecutionID: &targetExecution,
+			EscalationOrdinal: &ordinal,
+		},
+	}
+	for _, decision := range invalid {
+		if err := decision.Validate(); !errors.Is(err, ErrInvalid) {
+			t.Errorf("invalid escalation decision %+v error = %v", decision, err)
+		}
+	}
 }
 
 func TestTypedConflictAndNoWorkResults(t *testing.T) {

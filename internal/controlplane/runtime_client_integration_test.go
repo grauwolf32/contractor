@@ -93,10 +93,13 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 	}
 	baseURL := fmt.Sprintf("https://127.0.0.1:%d", port)
 	lease := time.Now().Add(time.Minute).UTC()
+	template := testTemplate(t)
 	reservation := testReservation(
-		"allocation_integration", "builder", baseURL, baseURL, testTemplate(t), lease,
+		"allocation_integration", "builder", baseURL, baseURL, template, lease,
 	)
-	settings := testRuntimeSettings()
+	settings := contracts.WorkerExecutionSettings{
+		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

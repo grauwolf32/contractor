@@ -347,8 +347,11 @@ func validateProgression(runID, sourceExecutionID string, value StageProgression
 	if decision.RunID != runID || decision.SourceExecutionID != sourceExecutionID {
 		return fmt.Errorf("Stage progression decision identifies another source")
 	}
+	if err := decision.Validate(); err != nil {
+		return fmt.Errorf("invalid Stage progression decision: %w", err)
+	}
 	switch decision.Action {
-	case runstore.StageTransitionNext, runstore.StageTransitionRetry:
+	case runstore.StageTransitionNext, runstore.StageTransitionRetry, runstore.StageTransitionEscalate:
 		if value.NextStage == nil || value.TerminalRunState != "" ||
 			decision.TargetStageName == nil || decision.TargetExecutionID == nil {
 			return fmt.Errorf("%s Stage progression requires exactly one next execution", decision.Action)
@@ -360,6 +363,19 @@ func validateProgression(runID, sourceExecutionID string, value StageProgression
 		}
 		if err := validateNextStagePins(*value.NextStage); err != nil {
 			return err
+		}
+		if decision.Action == runstore.StageTransitionEscalate {
+			if params.ExecutionConfigVariant != runstore.StageExecutionConfigFailedEscalation &&
+				params.ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation {
+				return fmt.Errorf("escalate Stage progression requires an escalation configuration variant")
+			}
+			if decision.EscalationOrdinal == nil || params.EscalationOrdinal == nil ||
+				*decision.EscalationOrdinal != *params.EscalationOrdinal || decision.EscalationExhausted {
+				return fmt.Errorf("escalate Stage progression ordinal differs from its target")
+			}
+		} else if params.ExecutionConfigVariant != runstore.StageExecutionConfigBase ||
+			params.EscalationOrdinal != nil {
+			return fmt.Errorf("next/retry Stage progression must use the base execution configuration")
 		}
 	case runstore.StageTransitionSucceed:
 		if value.NextStage != nil || value.TerminalRunState != runstore.RunSucceeded ||

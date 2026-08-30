@@ -493,13 +493,26 @@ func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
 
 func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
 	fixture := newHandlerFixture(t)
+	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageSnapshot, err := json.Marshal(workflow.Stages[workflow.EntryStage])
+	if err != nil {
+		t.Fatal(err)
+	}
 	fixture.runs.runs["run-metrics"] = runstore.WorkflowRun{
 		RunID: "run-metrics", OwnerID: "user-1", WorkflowName: "artifact-copy",
 		WorkflowVersion: "1", State: runstore.RunRunning,
 	}
 	fixture.runs.executions["run-metrics"] = []runstore.StageExecution{{
 		StageExecutionID: "stage-metrics", RunID: "run-metrics", StageName: "copy",
-		Attempt: 1, State: runstore.StageRunning,
+		Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+		StageSpecSnapshot: stageSnapshot, State: runstore.StageRunning,
 	}}
 	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
 		StageExecutionID: "stage-metrics",
@@ -542,7 +555,95 @@ func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
 		result.Attempts[0].Metrics.ModelCalls != 2 || result.Attempts[0].Metrics.ToolCalls != 1 {
 		t.Fatalf("public metrics summary = %+v", result.Attempts)
 	}
+	if result.Attempts[0].ExecutionConfig.Variant != runstore.StageExecutionConfigBase ||
+		result.Attempts[0].ExecutionConfig.Agents["builder"].ModelPolicy.PolicyID != "worker" {
+		t.Fatalf("public effective executionConfig refs = %+v", result.Attempts[0].ExecutionConfig)
+	}
 }
+
+func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("openapi-from-source@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages["openapi_validate"]
+	action := stage.On.Failed
+	if action.Escalate == nil || action.Escalate.ExecutionConfig.Ref == nil {
+		t.Fatal("repository Workflow has no named failed escalation")
+	}
+	baseSnapshot, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage.ExecutionConfig = action.Escalate.ExecutionConfig.Effective
+	escalatedSnapshot, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, ordinal := "stage-base", 1
+	fixture.runs.runs["run-escalation"] = runstore.WorkflowRun{
+		RunID: "run-escalation", OwnerID: "user-1", WorkflowName: "openapi-from-source",
+		WorkflowVersion: "1", State: runstore.RunFailed,
+	}
+	fixture.runs.executions["run-escalation"] = []runstore.StageExecution{
+		{
+			StageExecutionID: "stage-base", RunID: "run-escalation", StageName: "openapi_validate",
+			Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+			StageSpecSnapshot: baseSnapshot, State: runstore.StageFailed,
+		},
+		{
+			StageExecutionID: "stage-escalated", RunID: "run-escalation", StageName: "openapi_validate",
+			Attempt: 2, PreviousExecutionID: &previous,
+			ExecutionConfigVariant: runstore.StageExecutionConfigFailedEscalation,
+			EscalationOrdinal:      &ordinal,
+			StageSpecSnapshot:      escalatedSnapshot, State: runstore.StageFailed,
+		},
+	}
+	fixture.runs.decisions["run-escalation"] = []runstore.StageTransitionDecision{
+		{
+			SourceExecutionID: "stage-base", RunID: "run-escalation",
+			Action: runstore.StageTransitionEscalate, TargetStageName: stringTestPointer("openapi_validate"),
+			TargetExecutionID: stringTestPointer("stage-escalated"), EscalationOrdinal: &ordinal,
+		},
+		{
+			SourceExecutionID: "stage-escalated", RunID: "run-escalation",
+			Action: runstore.StageTransitionFail, EscalationOrdinal: &ordinal,
+			EscalationExhausted: true,
+		},
+	}
+
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-escalation", bytes.NewReader(nil),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status response = %d: %s", response.Code, response.Body.String())
+	}
+	var result runStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Attempts) != 2 || len(result.Transitions) != 2 ||
+		result.Attempts[1].PreviousExecutionID == nil || *result.Attempts[1].PreviousExecutionID != "stage-base" ||
+		result.Attempts[1].ExecutionConfig.Ref == nil ||
+		result.Attempts[1].ExecutionConfig.Ref.ConfigID != "strong-oas-review" ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "strong_domain_worker" ||
+		result.Transitions[0].Action != runstore.StageTransitionEscalate ||
+		!result.Transitions[1].EscalationExhausted {
+		t.Fatalf("public escalation read model = %+v", result)
+	}
+	if strings.Contains(response.Body.String(), "http://litellm") ||
+		strings.Contains(response.Body.String(), "credential") {
+		t.Fatalf("public escalation read model leaked connection details: %s", response.Body.String())
+	}
+}
+
+func stringTestPointer(value string) *string { return &value }
 
 func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	fixture := newHandlerFixture(t)

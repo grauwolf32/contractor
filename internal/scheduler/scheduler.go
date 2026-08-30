@@ -404,6 +404,10 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 			return s.failInvalidRunState(ctx, run.RunID, err)
 		}
 	}
+	workflow, err = workflow.selectExecution(execution)
+	if err != nil {
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
 	if err := validatePersistedExecution(execution, run, workflow); err != nil {
 		return s.failInvalidRunState(ctx, run.RunID, err)
 	}
@@ -465,7 +469,7 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	execution := active[0]
 	var reservations []controlplane.Reservation
 	if workflowErr == nil {
-		workflow, workflowErr = workflow.selectStage(execution.StageName)
+		workflow, workflowErr = workflow.selectExecution(execution)
 	}
 	if workflowErr == nil {
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
@@ -538,7 +542,10 @@ func (s *Scheduler) createStageExecution(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 ) (runstore.StageExecution, error) {
-	creation, err := s.buildStageCreation(ctx, run, workflow, 1, nil)
+	creation, err := s.buildStageCreation(
+		ctx, run, workflow, 1, nil,
+		stageExecutionConfiguration{variant: runstore.StageExecutionConfigBase},
+	)
 	if err != nil {
 		return runstore.StageExecution{}, err
 	}
@@ -553,6 +560,7 @@ func (s *Scheduler) buildStageCreation(
 	workflow executableWorkflow,
 	attempt int,
 	previousExecutionID *string,
+	configuration stageExecutionConfiguration,
 ) (NextStageCreation, error) {
 	stageExecutionID, err := s.options.NewID("stage_execution_")
 	if err != nil {
@@ -589,7 +597,25 @@ func (s *Scheduler) buildStageCreation(
 		}
 		pins = append(pins, ContextPin{Name: name, Ref: exact})
 	}
-	encodedStage, err := stageSnapshot(workflow.stage)
+	stage := workflow.stage
+	if configuration.variant == "" {
+		configuration.variant = runstore.StageExecutionConfigBase
+	}
+	switch configuration.variant {
+	case runstore.StageExecutionConfigBase:
+		if configuration.ordinal != nil || configuration.effective != nil {
+			return NextStageCreation{}, fmt.Errorf("base Stage execution configuration has escalation data")
+		}
+	case runstore.StageExecutionConfigFailedEscalation,
+		runstore.StageExecutionConfigInterruptedEscalation:
+		if configuration.ordinal == nil || *configuration.ordinal <= 0 || configuration.effective == nil {
+			return NextStageCreation{}, fmt.Errorf("escalated Stage execution configuration is incomplete")
+		}
+		stage.ExecutionConfig = *configuration.effective
+	default:
+		return NextStageCreation{}, fmt.Errorf("unknown Stage execution configuration %q", configuration.variant)
+	}
+	encodedStage, err := stageSnapshot(stage)
 	if err != nil {
 		return NextStageCreation{}, err
 	}
@@ -597,9 +623,17 @@ func (s *Scheduler) buildStageCreation(
 		StageExecutionID: stageExecutionID,
 		RunID:            run.RunID, StageName: workflow.stageName, Attempt: attempt,
 		PreviousExecutionID:    previousExecutionID,
+		ExecutionConfigVariant: configuration.variant,
+		EscalationOrdinal:      configuration.ordinal,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: contextSnapshot,
 	}, ContextPins: pins}, nil
+}
+
+type stageExecutionConfiguration struct {
+	variant   runstore.StageExecutionConfigVariant
+	ordinal   *int
+	effective *workflowconfig.ResolvedStageExecutionConfig
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {
@@ -1181,6 +1215,7 @@ func (s *Scheduler) resumeAborting(
 		workflow.stage.On.Interrupted,
 		execution.Termination.Retryable,
 		execution.Termination.Code,
+		runstore.StageExecutionConfigInterruptedEscalation,
 	)
 	if err == nil {
 		err = s.persistence.CommitTerminationProgression(commitContext, TerminationProgression{
@@ -1246,9 +1281,11 @@ func (s *Scheduler) resumeFinalizing(
 	action := workflow.stage.On.Succeeded
 	retryable := false
 	reasonCode := "workflow_succeeded"
+	escalationVariant := runstore.StageExecutionConfigBase
 	if execution.CandidateResult.Outcome == contracts.StageFailed {
 		action = workflow.stage.On.Failed
 		retryable = execution.CandidateResult.Error != nil && execution.CandidateResult.Error.Retryable
+		escalationVariant = runstore.StageExecutionConfigFailedEscalation
 		reasonCode = "stage_failed"
 		if execution.CandidateResult.Error != nil {
 			reasonCode = execution.CandidateResult.Error.Code
@@ -1256,7 +1293,7 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
 	progression, err := s.buildProgression(
-		commitContext, run, workflow, execution, action, retryable, reasonCode,
+		commitContext, run, workflow, execution, action, retryable, reasonCode, escalationVariant,
 	)
 	if err == nil {
 		err = s.persistence.CommitResultProgression(commitContext, ResultProgression{
@@ -1291,8 +1328,11 @@ func (s *Scheduler) buildProgression(
 	action workflowconfig.TransitionAction,
 	retryable bool,
 	reasonCode string,
+	escalationVariant runstore.StageExecutionConfigVariant,
 ) (StageProgression, error) {
 	selected := action
+	var nextEscalationOrdinal *int
+	var exhaustedEscalationOrdinal *int
 	if action.Kind == workflowconfig.TransitionRetry {
 		if action.Retry == nil {
 			return StageProgression{}, fmt.Errorf("retry Transition has no bounded policy")
@@ -1301,9 +1341,30 @@ func (s *Scheduler) buildProgression(
 			selected = action.Retry.Then
 		}
 	}
+	if action.Kind == workflowconfig.TransitionEscalate {
+		if action.Escalate == nil ||
+			(escalationVariant != runstore.StageExecutionConfigFailedEscalation &&
+				escalationVariant != runstore.StageExecutionConfigInterruptedEscalation) {
+			return StageProgression{}, fmt.Errorf("escalate Transition has no bounded policy or outcome identity")
+		}
+		used, err := s.escalationAttempts(ctx, run.RunID, execution.StageName, escalationVariant)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		if used >= action.Escalate.MaxAttempts {
+			selected = action.Escalate.Then
+			exhaustedEscalationOrdinal = intPointer(used)
+		} else {
+			nextEscalationOrdinal = intPointer(used + 1)
+		}
+	}
 	decision := runstore.RecordStageTransitionDecisionParams{
 		SourceExecutionID: execution.StageExecutionID,
 		RunID:             run.RunID,
+	}
+	if exhaustedEscalationOrdinal != nil {
+		decision.EscalationOrdinal = exhaustedEscalationOrdinal
+		decision.EscalationExhausted = true
 	}
 	switch selected.Kind {
 	case workflowconfig.TransitionRetry:
@@ -1312,7 +1373,10 @@ func (s *Scheduler) buildProgression(
 			return StageProgression{}, err
 		}
 		previous := execution.StageExecutionID
-		creation, err := s.buildStageCreation(ctx, run, targetWorkflow, execution.Attempt+1, &previous)
+		creation, err := s.buildStageCreation(
+			ctx, run, targetWorkflow, execution.Attempt+1, &previous,
+			stageExecutionConfiguration{variant: runstore.StageExecutionConfigBase},
+		)
 		if err != nil {
 			return StageProgression{}, err
 		}
@@ -1321,12 +1385,40 @@ func (s *Scheduler) buildProgression(
 		decision.TargetStageName = &targetStage
 		decision.TargetExecutionID = &targetExecution
 		return StageProgression{Decision: decision, NextStage: &creation}, nil
+	case workflowconfig.TransitionEscalate:
+		if action.Escalate == nil || nextEscalationOrdinal == nil {
+			return StageProgression{}, fmt.Errorf("escalate Transition selection is incomplete")
+		}
+		targetWorkflow, err := workflow.selectStage(execution.StageName)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		previous := execution.StageExecutionID
+		effective := action.Escalate.ExecutionConfig.Effective
+		creation, err := s.buildStageCreation(
+			ctx, run, targetWorkflow, execution.Attempt+1, &previous,
+			stageExecutionConfiguration{
+				variant: escalationVariant, ordinal: nextEscalationOrdinal, effective: &effective,
+			},
+		)
+		if err != nil {
+			return StageProgression{}, err
+		}
+		targetStage, targetExecution := creation.Params.StageName, creation.Params.StageExecutionID
+		decision.Action = runstore.StageTransitionEscalate
+		decision.TargetStageName = &targetStage
+		decision.TargetExecutionID = &targetExecution
+		decision.EscalationOrdinal = nextEscalationOrdinal
+		return StageProgression{Decision: decision, NextStage: &creation}, nil
 	case workflowconfig.TransitionNext:
 		targetWorkflow, err := workflow.selectStage(selected.NextStage)
 		if err != nil {
 			return StageProgression{}, err
 		}
-		creation, err := s.buildStageCreation(ctx, run, targetWorkflow, 1, nil)
+		creation, err := s.buildStageCreation(
+			ctx, run, targetWorkflow, 1, nil,
+			stageExecutionConfiguration{variant: runstore.StageExecutionConfigBase},
+		)
 		if err != nil {
 			return StageProgression{}, err
 		}
@@ -1353,6 +1445,42 @@ func (s *Scheduler) buildProgression(
 	default:
 		return StageProgression{}, fmt.Errorf("unknown Workflow Transition action %q", selected.Kind)
 	}
+}
+
+func (s *Scheduler) escalationAttempts(
+	ctx context.Context,
+	runID string,
+	stageName string,
+	variant runstore.StageExecutionConfigVariant,
+) (int, error) {
+	executions, err := s.store.ListStageExecutions(ctx, runID)
+	if err != nil {
+		return 0, err
+	}
+	maxOrdinal := 0
+	seen := make(map[int]struct{})
+	for _, current := range executions {
+		if current.StageName != stageName || current.ExecutionConfigVariant != variant {
+			continue
+		}
+		if current.EscalationOrdinal == nil || *current.EscalationOrdinal <= 0 {
+			return 0, fmt.Errorf("persisted escalation attempt has an invalid ordinal")
+		}
+		ordinal := *current.EscalationOrdinal
+		if _, duplicate := seen[ordinal]; duplicate {
+			return 0, fmt.Errorf("persisted escalation attempts have duplicate ordinal %d", ordinal)
+		}
+		seen[ordinal] = struct{}{}
+		if ordinal > maxOrdinal {
+			maxOrdinal = ordinal
+		}
+	}
+	for ordinal := 1; ordinal <= maxOrdinal; ordinal++ {
+		if _, present := seen[ordinal]; !present {
+			return 0, fmt.Errorf("persisted escalation attempts have a non-contiguous ordinal")
+		}
+	}
+	return maxOrdinal, nil
 }
 
 func (s *Scheduler) acceptFinalizingDuringCancellation(
@@ -1577,7 +1705,7 @@ func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
 		}
 		workflow, err := decodeExecutableWorkflow(run)
 		if err == nil {
-			workflow, err = workflow.selectStage(execution.StageName)
+			workflow, err = workflow.selectExecution(execution)
 		}
 		if err != nil || validatePersistedExecution(execution, run, workflow) != nil {
 			continue
@@ -1684,6 +1812,7 @@ func sameExactRef(left, right contracts.ArtifactRef) bool {
 }
 
 func stringPointer(value string) *string { return &value }
+func intPointer(value int) *int          { return &value }
 
 func schedulerID(prefix string) (string, error) {
 	buffer := make([]byte, 16)

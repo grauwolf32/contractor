@@ -162,6 +162,7 @@ func (*fakeArtifactRepository) FreezeOutputs(context.Context, artifacts.Scope) e
 type fakeRunStore struct {
 	runs              map[string]runstore.WorkflowRun
 	executions        map[string][]runstore.StageExecution
+	decisions         map[string][]runstore.StageTransitionDecision
 	idempotencyClaims map[string]fakeIdempotencyClaim
 }
 
@@ -173,6 +174,7 @@ type fakeIdempotencyClaim struct {
 func newFakeRunStore() *fakeRunStore {
 	return &fakeRunStore{
 		runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution),
+		decisions:         make(map[string][]runstore.StageTransitionDecision),
 		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
 	}
 }
@@ -261,6 +263,12 @@ func (f *fakeRunStore) RequestRunCancellation(
 
 func (f *fakeRunStore) ListStageExecutions(_ context.Context, runID string) ([]runstore.StageExecution, error) {
 	return append([]runstore.StageExecution(nil), f.executions[runID]...), nil
+}
+
+func (f *fakeRunStore) ListStageTransitionDecisions(
+	_ context.Context, runID string,
+) ([]runstore.StageTransitionDecision, error) {
+	return append([]runstore.StageTransitionDecision(nil), f.decisions[runID]...), nil
 }
 
 type fakeUnitOfWork struct {

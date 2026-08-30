@@ -716,6 +716,136 @@ func TestSchedulerRetryCancellationPreventsNewAttempt(t *testing.T) {
 	}
 }
 
+func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestart(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	strongPolicy := configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.results = []contracts.StageContentResult{
+		failedStageResult("permanent", false),
+		harness.planners.result,
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("first RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunRunning || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 1 {
+		t.Fatalf("escalation commit = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	base, escalated := harness.store.stages[0], harness.store.stages[1]
+	if base.State != runstore.StageFailed ||
+		escalated.ExecutionConfigVariant != runstore.StageExecutionConfigFailedEscalation ||
+		escalated.EscalationOrdinal == nil || *escalated.EscalationOrdinal != 1 ||
+		escalated.PreviousExecutionID == nil || *escalated.PreviousExecutionID != base.StageExecutionID {
+		t.Fatalf("escalated StageExecution identity = base:%+v escalated:%+v", base, escalated)
+	}
+	decision := harness.persistence.decisions[0]
+	if decision.Action != runstore.StageTransitionEscalate || decision.EscalationOrdinal == nil ||
+		*decision.EscalationOrdinal != 1 || decision.EscalationExhausted {
+		t.Fatalf("escalation decision = %+v", decision)
+	}
+
+	restarted, err := New(
+		harness.store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, harness.scheduler.options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err = restarted.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("restarted RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 2 {
+		t.Fatalf("recovered escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	if len(harness.workers.preparedSettings) != 2 ||
+		harness.workers.preparedSettings[0]["builder"].ModelPolicy.Ref == strongPolicy.Ref ||
+		harness.workers.preparedSettings[1]["builder"].ModelPolicy.Ref != strongPolicy.Ref {
+		t.Fatalf("effective Worker policies = %+v", harness.workers.preparedSettings)
+	}
+}
+
+func TestSchedulerEscalationExhaustionAppliesThenExactlyOnce(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.results = []contracts.StageContentResult{
+		failedStageResult("permanent_one", false),
+		failedStageResult("permanent_two", false),
+	}
+
+	for iteration := 0; iteration < 2; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 2 {
+		t.Fatalf("exhausted escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	first, exhausted := harness.persistence.decisions[0], harness.persistence.decisions[1]
+	if first.Action != runstore.StageTransitionEscalate ||
+		exhausted.Action != runstore.StageTransitionFail || !exhausted.EscalationExhausted ||
+		exhausted.EscalationOrdinal == nil || *exhausted.EscalationOrdinal != 1 ||
+		exhausted.TargetExecutionID != nil {
+		t.Fatalf("bounded escalation decisions = first:%+v exhausted:%+v", first, exhausted)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || worked || len(harness.store.stages) != 2 || len(harness.persistence.decisions) != 2 {
+		t.Fatalf("terminal re-run = (%v, %v), stages:%d decisions:%d",
+			worked, err, len(harness.store.stages), len(harness.persistence.decisions))
+	}
+}
+
+func TestSchedulerEscalatesNonRetryableInterruption(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "interrupted", 1)
+	harness.planners.runErrors = []error{
+		planner.NewError("planner_rejected", "Planner cannot continue", false, nil),
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunRunning || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].State != runstore.StageInterrupted ||
+		harness.store.stages[1].ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation ||
+		harness.store.stages[1].EscalationOrdinal == nil || *harness.store.stages[1].EscalationOrdinal != 1 ||
+		len(harness.persistence.decisions) != 1 ||
+		harness.persistence.decisions[0].Action != runstore.StageTransitionEscalate {
+		t.Fatalf("interrupted escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerCancellationWinsOverEscalation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.result = failedStageResult("would_escalate", false)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("cancel before escalation decision")
+		harness.scheduler.Cancel(harness.store.run.RunID)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("cancel/escalation race = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+}
+
 func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	configureMultiStageWorkflow(t, harness)
@@ -761,6 +891,75 @@ func configureRetryWorkflow(t *testing.T, harness *schedulerHarness, maxAttempts
 	stage.On.Interrupted = retry
 	harness.workflow.Stages[harness.workflow.EntryStage] = stage
 	installHarnessWorkflow(t, harness)
+}
+
+func configureEscalationWorkflow(
+	t *testing.T,
+	harness *schedulerHarness,
+	outcome string,
+	maxAttempts int,
+) contracts.ResolvedModelPolicy {
+	t.Helper()
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	strongPolicy, err := snapshot.ModelPolicy("strong_domain_worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageName := harness.workflow.EntryStage
+	stage := harness.workflow.Stages[stageName]
+	effective := stage.ExecutionConfig
+	effective.Agents = make(map[string]workflowconfig.ResolvedConsumerExecutionConfig, len(stage.ExecutionConfig.Agents))
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		effective.Agents[logicalName] = selection
+	}
+	selection := effective.Agents["builder"]
+	selection.ModelPolicy = strongPolicy
+	selection.Origins.ModelPolicy = fmt.Sprintf(
+		"workflow.stages.%s.on.%s.escalate.executionConfig.agents.builder", stageName, outcome,
+	)
+	effective.Agents["builder"] = selection
+	policyOverride := strongPolicy
+	escalate := workflowconfig.TransitionAction{
+		Kind: workflowconfig.TransitionEscalate,
+		Escalate: &workflowconfig.EscalateTransition{
+			MaxAttempts: maxAttempts,
+			ExecutionConfig: workflowconfig.ResolvedEscalationExecutionConfig{
+				Override: workflowconfig.ResolvedStageExecutionConfigOverride{
+					Agents: map[string]workflowconfig.ResolvedExecutionSelectionOverride{
+						"builder": {ModelPolicy: &policyOverride},
+					},
+				},
+				Effective: effective,
+			},
+			Then: workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail},
+		},
+	}
+	switch outcome {
+	case "failed":
+		stage.On.Failed = escalate
+	case "interrupted":
+		stage.On.Interrupted = escalate
+	default:
+		t.Fatalf("unknown escalation outcome %q", outcome)
+	}
+	harness.workflow.Stages[stageName] = stage
+	installHarnessWorkflow(t, harness)
+	return strongPolicy
+}
+
+func failedStageResult(code string, retryable bool) contracts.StageContentResult {
+	return contracts.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    contracts.StageFailed,
+		Summary:    "Stage failed",
+		Artifacts:  map[string]contracts.ArtifactRef{},
+		Error: &contracts.TerminationError{
+			Code: code, Message: "Stage could not produce a result", Retryable: retryable,
+		},
+	}
 }
 
 func configureMultiStageWorkflow(t *testing.T, harness *schedulerHarness) {
@@ -892,6 +1091,7 @@ func (h *schedulerHarness) persistedExecution(
 	execution := runstore.StageExecution{
 		StageExecutionID: "stage-recovery", RunID: h.store.run.RunID,
 		StageName: h.workflow.EntryStage, Attempt: 1,
+		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext: runstore.StageContextSnapshot{
@@ -1147,6 +1347,8 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 	execution := runstore.StageExecution{
 		StageExecutionID: params.StageExecutionID, RunID: params.RunID, StageName: params.StageName,
 		Attempt: params.Attempt, PreviousExecutionID: params.PreviousExecutionID,
+		ExecutionConfigVariant: params.ExecutionConfigVariant,
+		EscalationOrdinal:      params.EscalationOrdinal,
 		StageSpecSchemaVersion: params.StageSpecSchemaVersion, StageSpecSnapshot: params.StageSpecSnapshot,
 		StageContextSchemaVersion: params.StageContextSchemaVersion, StageContext: params.StageContext,
 		State: runstore.StagePreparing,
@@ -1245,11 +1447,13 @@ func (p *memoryAtomicPersistence) CommitTerminationProgression(
 
 func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
 	decision := runstore.StageTransitionDecision{
-		SourceExecutionID: value.Decision.SourceExecutionID,
-		RunID:             value.Decision.RunID,
-		Action:            value.Decision.Action,
-		TargetStageName:   value.Decision.TargetStageName,
-		TargetExecutionID: value.Decision.TargetExecutionID,
+		SourceExecutionID:   value.Decision.SourceExecutionID,
+		RunID:               value.Decision.RunID,
+		Action:              value.Decision.Action,
+		TargetStageName:     value.Decision.TargetStageName,
+		TargetExecutionID:   value.Decision.TargetExecutionID,
+		EscalationOrdinal:   value.Decision.EscalationOrdinal,
+		EscalationExhausted: value.Decision.EscalationExhausted,
 	}
 	p.decisions = append(p.decisions, decision)
 	if value.NextStage != nil {
@@ -1258,6 +1462,8 @@ func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
 			StageExecutionID: params.StageExecutionID, RunID: params.RunID,
 			StageName: params.StageName, Attempt: params.Attempt,
 			PreviousExecutionID:       params.PreviousExecutionID,
+			ExecutionConfigVariant:    params.ExecutionConfigVariant,
+			EscalationOrdinal:         params.EscalationOrdinal,
 			StageSpecSchemaVersion:    params.StageSpecSchemaVersion,
 			StageSpecSnapshot:         params.StageSpecSnapshot,
 			StageContextSchemaVersion: params.StageContextSchemaVersion,
@@ -1441,24 +1647,26 @@ func (a *memoryAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
 }
 
 type memoryWorkers struct {
-	allocator     *memoryAllocator
-	workflow      workflowconfig.ResolvedWorkflow
-	clock         staticClock
-	events        *eventRecorder
-	prepareCalls  int
-	finalizeCalls int
-	abortCalls    int
-	releaseCalls  int
-	prepareError  error
-	abortError    error
-	releaseError  error
+	allocator        *memoryAllocator
+	workflow         workflowconfig.ResolvedWorkflow
+	clock            staticClock
+	events           *eventRecorder
+	prepareCalls     int
+	finalizeCalls    int
+	abortCalls       int
+	releaseCalls     int
+	preparedSettings []map[string]contracts.WorkerExecutionSettings
+	prepareError     error
+	abortError       error
+	releaseError     error
 }
 
 func (w *memoryWorkers) PrepareAll(
 	_ context.Context, reservations []controlplane.Reservation,
-	_ map[string]contracts.WorkerExecutionSettings,
+	settings map[string]contracts.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
+	w.preparedSettings = append(w.preparedSettings, settings)
 	w.events.add("prepare")
 	if w.prepareError != nil {
 		return nil, w.prepareError

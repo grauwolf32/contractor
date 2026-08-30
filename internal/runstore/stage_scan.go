@@ -9,6 +9,7 @@ import (
 
 const stageExecutionColumns = `
 stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
+execution_config_variant, escalation_ordinal,
 stage_spec_schema_version, stage_spec_snapshot,
 stage_context_schema_version, stage_context_snapshot,
 state, state_reason_code, state_reason_message,
@@ -29,7 +30,8 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 	var termination []byte
 	if err := row.Scan(
 		&result.StageExecutionID, &result.RunID, &result.StageName, &result.Attempt,
-		&result.PreviousExecutionID, &result.StageSpecSchemaVersion, &stageSpec,
+		&result.PreviousExecutionID, &result.ExecutionConfigVariant, &result.EscalationOrdinal,
+		&result.StageSpecSchemaVersion, &stageSpec,
 		&result.StageContextSchemaVersion, &stageContext,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.PlannerSessionID, &result.PlannerInvocationID,

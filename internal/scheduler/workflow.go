@@ -90,6 +90,42 @@ func (w executableWorkflow) selectStage(name string) (executableWorkflow, error)
 	return w, nil
 }
 
+func (w executableWorkflow) selectExecution(
+	execution runstore.StageExecution,
+) (executableWorkflow, error) {
+	selected, err := w.selectStage(execution.StageName)
+	if err != nil {
+		return executableWorkflow{}, err
+	}
+	stage := selected.stage
+	switch execution.ExecutionConfigVariant {
+	case runstore.StageExecutionConfigBase:
+		if execution.EscalationOrdinal != nil {
+			return executableWorkflow{}, fmt.Errorf("base StageExecution has an escalation ordinal")
+		}
+	case runstore.StageExecutionConfigFailedEscalation:
+		if execution.EscalationOrdinal == nil || *execution.EscalationOrdinal <= 0 ||
+			stage.On.Failed.Kind != workflowconfig.TransitionEscalate || stage.On.Failed.Escalate == nil ||
+			*execution.EscalationOrdinal > stage.On.Failed.Escalate.MaxAttempts {
+			return executableWorkflow{}, fmt.Errorf("failed-escalation StageExecution identity is invalid")
+		}
+		stage.ExecutionConfig = stage.On.Failed.Escalate.ExecutionConfig.Effective
+	case runstore.StageExecutionConfigInterruptedEscalation:
+		if execution.EscalationOrdinal == nil || *execution.EscalationOrdinal <= 0 ||
+			stage.On.Interrupted.Kind != workflowconfig.TransitionEscalate || stage.On.Interrupted.Escalate == nil ||
+			*execution.EscalationOrdinal > stage.On.Interrupted.Escalate.MaxAttempts {
+			return executableWorkflow{}, fmt.Errorf("interrupted-escalation StageExecution identity is invalid")
+		}
+		stage.ExecutionConfig = stage.On.Interrupted.Escalate.ExecutionConfig.Effective
+	default:
+		return executableWorkflow{}, fmt.Errorf(
+			"StageExecution has unknown executionConfig variant %q", execution.ExecutionConfigVariant,
+		)
+	}
+	selected.stage = stage
+	return selected, nil
+}
+
 func validatePersistedExecution(
 	execution runstore.StageExecution,
 	run runstore.WorkflowRun,

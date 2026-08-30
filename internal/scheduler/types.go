@@ -69,8 +69,8 @@ type NextStageCreation struct {
 }
 
 // StageProgression is the complete post-Stage policy decision. NextStage is
-// present exactly for next/retry; TerminalRunState is present exactly for
-// succeed/fail. Persistence commits the decision together with the target
+// present exactly for next/retry/escalate; TerminalRunState is present exactly
+// for succeed/fail. Persistence commits the decision together with the target
 // StageExecution or terminal WorkflowRun transition.
 type StageProgression struct {
 	Decision         runstore.RecordStageTransitionDecisionParams

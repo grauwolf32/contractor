@@ -16,6 +16,9 @@ func (s *PostgresStore) CreateStageExecution(
 	ctx context.Context,
 	params CreateStageExecutionParams,
 ) (StageExecution, error) {
+	if params.ExecutionConfigVariant == "" {
+		params.ExecutionConfigVariant = StageExecutionConfigBase
+	}
 	if err := validateCreateStageExecution(params); err != nil {
 		return StageExecution{}, err
 	}
@@ -33,13 +36,15 @@ func (s *PostgresStore) CreateStageExecution(
 	result, err := scanStageExecution(s.db.QueryRow(ctx, `
 INSERT INTO stage_executions (
     stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
+    execution_config_variant, escalation_ordinal,
     stage_spec_schema_version, stage_spec_snapshot,
     stage_context_schema_version, stage_context_snapshot,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, 'preparing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, 'preparing', 'created', '')
 RETURNING `+stageExecutionColumns,
 		params.StageExecutionID, params.RunID, params.StageName, params.Attempt,
-		params.PreviousExecutionID, params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
+		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
+		params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
 		params.StageContextSchemaVersion, encodedContext,
 	))
 	if err != nil {
@@ -354,6 +359,22 @@ func validateCreateStageExecution(params CreateStageExecutionParams) error {
 		if err := validateOpaque("previousExecutionID", *params.PreviousExecutionID); err != nil {
 			return err
 		}
+	}
+	variant := params.ExecutionConfigVariant
+	if variant == "" {
+		variant = StageExecutionConfigBase
+	}
+	switch variant {
+	case StageExecutionConfigBase:
+		if params.EscalationOrdinal != nil {
+			return invalidf("base executionConfig variant must not have an escalation ordinal")
+		}
+	case StageExecutionConfigFailedEscalation, StageExecutionConfigInterruptedEscalation:
+		if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 {
+			return invalidf("escalation executionConfig variant requires a positive ordinal")
+		}
+	default:
+		return invalidf("unknown executionConfig variant %q", variant)
 	}
 	if err := validateJSONObject("stageSpecSnapshot", params.StageSpecSnapshot); err != nil {
 		return err

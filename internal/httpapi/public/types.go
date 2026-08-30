@@ -19,6 +19,7 @@ import (
 type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }
 
@@ -107,17 +108,44 @@ type runStatusResponse struct {
 	State        runstore.WorkflowRunState         `json:"state"`
 	Cancellation *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
 	Attempts     []stageAttemptResponse            `json:"attempts"`
+	Transitions  []stageTransitionResponse         `json:"transitions"`
 	Outputs      map[string]contracts.ArtifactRef  `json:"outputs"`
 }
 
 type stageAttemptResponse struct {
-	StageExecutionID string                        `json:"stageExecutionId"`
-	Stage            string                        `json:"stage"`
-	Attempt          int                           `json:"attempt"`
-	State            runstore.StageExecutionState  `json:"state"`
-	Result           *contracts.StageContentResult `json:"result,omitempty"`
-	Termination      *runstore.StageTermination    `json:"termination,omitempty"`
-	Metrics          *telemetry.Summary            `json:"metrics,omitempty"`
+	StageExecutionID    string                        `json:"stageExecutionId"`
+	Stage               string                        `json:"stage"`
+	Attempt             int                           `json:"attempt"`
+	PreviousExecutionID *string                       `json:"previousExecutionId,omitempty"`
+	ExecutionConfig     stageExecutionConfigResponse  `json:"executionConfig"`
+	State               runstore.StageExecutionState  `json:"state"`
+	Result              *contracts.StageContentResult `json:"result,omitempty"`
+	Termination         *runstore.StageTermination    `json:"termination,omitempty"`
+	Metrics             *telemetry.Summary            `json:"metrics,omitempty"`
+}
+
+type stageExecutionConfigResponse struct {
+	Variant           runstore.StageExecutionConfigVariant           `json:"variant"`
+	EscalationOrdinal *int                                           `json:"escalationOrdinal,omitempty"`
+	Ref               *config.ExecutionConfigRef                     `json:"ref,omitempty"`
+	Planner           *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
+	Agents            map[string]consumerExecutionConfigRefsResponse `json:"agents"`
+}
+
+type consumerExecutionConfigRefsResponse struct {
+	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy"`
+	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway"`
+	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
+}
+
+type stageTransitionResponse struct {
+	SourceExecutionID   string                         `json:"sourceExecutionId"`
+	Action              runstore.StageTransitionAction `json:"action"`
+	TargetStage         *string                        `json:"targetStage,omitempty"`
+	TargetExecutionID   *string                        `json:"targetExecutionId,omitempty"`
+	EscalationOrdinal   *int                           `json:"escalationOrdinal,omitempty"`
+	EscalationExhausted bool                           `json:"escalationExhausted"`
+	DecidedAt           time.Time                      `json:"decidedAt"`
 }
 
 type errorResponse struct {

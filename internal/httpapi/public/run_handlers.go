@@ -272,6 +272,11 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	decisions, err := h.dependencies.Runs.ListStageTransitionDecisions(r.Context(), run.RunID)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	outputs, err := h.runOutputs(r, run.RunID)
 	if err != nil {
 		h.handleError(w, err)
@@ -279,6 +284,11 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	for _, execution := range executions {
+		executionConfig, configErr := stageExecutionConfigReadModel(execution)
+		if configErr != nil {
+			h.handleError(w, configErr)
+			return
+		}
 		var metrics *telemetry.Summary
 		if h.dependencies.Metrics != nil {
 			if record, metricsErr := h.dependencies.Metrics.GetStageMetrics(
@@ -289,19 +299,95 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		attempts = append(attempts, stageAttemptResponse{
-			StageExecutionID: execution.StageExecutionID,
-			Stage:            execution.StageName,
-			Attempt:          execution.Attempt,
-			State:            execution.State,
-			Result:           execution.AcceptedResult,
-			Termination:      execution.Termination,
-			Metrics:          metrics,
+			StageExecutionID:    execution.StageExecutionID,
+			Stage:               execution.StageName,
+			Attempt:             execution.Attempt,
+			PreviousExecutionID: execution.PreviousExecutionID,
+			ExecutionConfig:     executionConfig,
+			State:               execution.State,
+			Result:              execution.AcceptedResult,
+			Termination:         execution.Termination,
+			Metrics:             metrics,
+		})
+	}
+	transitions := make([]stageTransitionResponse, 0, len(decisions))
+	for _, decision := range decisions {
+		transitions = append(transitions, stageTransitionResponse{
+			SourceExecutionID: decision.SourceExecutionID,
+			Action:            decision.Action, TargetStage: decision.TargetStageName,
+			TargetExecutionID:   decision.TargetExecutionID,
+			EscalationOrdinal:   decision.EscalationOrdinal,
+			EscalationExhausted: decision.EscalationExhausted,
+			DecidedAt:           decision.DecidedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, Cancellation: run.Cancellation, Attempts: attempts, Outputs: outputs,
+		State: run.State, Cancellation: run.Cancellation, Attempts: attempts,
+		Transitions: transitions, Outputs: outputs,
 	})
+}
+
+func stageExecutionConfigReadModel(
+	execution runstore.StageExecution,
+) (stageExecutionConfigResponse, error) {
+	variant := execution.ExecutionConfigVariant
+	if variant == "" {
+		variant = runstore.StageExecutionConfigBase
+	}
+	var stage config.ResolvedStage
+	if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
+		return stageExecutionConfigResponse{}, fmt.Errorf(
+			"decode StageExecution executionConfig read model: %w", err,
+		)
+	}
+	result := stageExecutionConfigResponse{
+		Variant: variant, EscalationOrdinal: execution.EscalationOrdinal,
+		Agents: make(map[string]consumerExecutionConfigRefsResponse, len(stage.ExecutionConfig.Agents)),
+	}
+	switch variant {
+	case runstore.StageExecutionConfigBase:
+	case runstore.StageExecutionConfigFailedEscalation:
+		if stage.On.Failed.Escalate == nil {
+			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no profile")
+		}
+		if stage.On.Failed.Escalate.ExecutionConfig.Ref != nil {
+			ref := *stage.On.Failed.Escalate.ExecutionConfig.Ref
+			result.Ref = &ref
+		}
+	case runstore.StageExecutionConfigInterruptedEscalation:
+		if stage.On.Interrupted.Escalate == nil {
+			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no profile")
+		}
+		if stage.On.Interrupted.Escalate.ExecutionConfig.Ref != nil {
+			ref := *stage.On.Interrupted.Escalate.ExecutionConfig.Ref
+			result.Ref = &ref
+		}
+	default:
+		return stageExecutionConfigResponse{}, fmt.Errorf("unknown Stage executionConfig variant %q", variant)
+	}
+	if stage.ExecutionConfig.Planner != nil {
+		planner := consumerExecutionConfigRefs(*stage.ExecutionConfig.Planner)
+		result.Planner = &planner
+	}
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		result.Agents[logicalName] = consumerExecutionConfigRefs(selection)
+	}
+	return result, nil
+}
+
+func consumerExecutionConfigRefs(
+	selection config.ResolvedConsumerExecutionConfig,
+) consumerExecutionConfigRefsResponse {
+	result := consumerExecutionConfigRefsResponse{
+		ModelPolicy: selection.ModelPolicy.Ref,
+		LLMGateway:  selection.LLMGateway.Ref,
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result
 }
 
 func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {

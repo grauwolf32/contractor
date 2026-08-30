@@ -10,7 +10,8 @@ import (
 )
 
 const stageTransitionDecisionColumns = `
-source_execution_id, run_id, action, target_stage_name, target_execution_id, decided_at`
+source_execution_id, run_id, action, target_stage_name, target_execution_id,
+escalation_ordinal, escalation_exhausted, decided_at`
 
 func (s *PostgresStore) RecordStageTransitionDecision(
 	ctx context.Context,
@@ -21,11 +22,13 @@ func (s *PostgresStore) RecordStageTransitionDecision(
 	}
 	decision, err := scanStageTransitionDecision(s.db.QueryRow(ctx, `
 INSERT INTO stage_transition_decisions (
-    source_execution_id, run_id, action, target_stage_name, target_execution_id
-) VALUES ($1, $2, $3, $4, $5)
+    source_execution_id, run_id, action, target_stage_name, target_execution_id,
+    escalation_ordinal, escalation_exhausted
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING `+stageTransitionDecisionColumns,
 		params.SourceExecutionID, params.RunID, params.Action,
 		params.TargetStageName, params.TargetExecutionID,
+		params.EscalationOrdinal, params.EscalationExhausted,
 	))
 	if err != nil {
 		switch persistencepostgres.SQLState(err) {
@@ -115,6 +118,8 @@ func scanStageTransitionDecision(row transitionDecisionScanner) (StageTransition
 		&result.Action,
 		&result.TargetStageName,
 		&result.TargetExecutionID,
+		&result.EscalationOrdinal,
+		&result.EscalationExhausted,
 		&result.DecidedAt,
 	)
 	return result, err
@@ -128,20 +133,68 @@ func validateStageTransitionDecision(params RecordStageTransitionDecisionParams)
 		return err
 	}
 	switch params.Action {
-	case StageTransitionNext, StageTransitionRetry:
+	case StageTransitionEscalate:
 		if params.TargetStageName == nil || params.TargetExecutionID == nil {
 			return invalidf("%s transition requires a target Stage and StageExecution", params.Action)
+		}
+		if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 || params.EscalationExhausted {
+			return invalidf("escalate transition requires a positive ordinal and must not be exhausted")
 		}
 		if err := validateOpaque("targetStageName", *params.TargetStageName); err != nil {
 			return err
 		}
 		return validateOpaque("targetExecutionID", *params.TargetExecutionID)
-	case StageTransitionSucceed, StageTransitionFail:
+	case StageTransitionNext:
+		if params.TargetStageName == nil || params.TargetExecutionID == nil {
+			return invalidf("next transition requires a target Stage and StageExecution")
+		}
+		if params.EscalationExhausted {
+			if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 {
+				return invalidf("exhausted escalation transition requires a positive ordinal")
+			}
+		} else if params.EscalationOrdinal != nil {
+			return invalidf("ordinary next transition must not have an escalation ordinal")
+		}
+		if err := validateOpaque("targetStageName", *params.TargetStageName); err != nil {
+			return err
+		}
+		return validateOpaque("targetExecutionID", *params.TargetExecutionID)
+	case StageTransitionRetry:
+		if params.TargetStageName == nil || params.TargetExecutionID == nil ||
+			params.EscalationOrdinal != nil || params.EscalationExhausted {
+			return invalidf("retry transition requires a target and no escalation metadata")
+		}
+		if err := validateOpaque("targetStageName", *params.TargetStageName); err != nil {
+			return err
+		}
+		return validateOpaque("targetExecutionID", *params.TargetExecutionID)
+	case StageTransitionSucceed:
 		if params.TargetStageName != nil || params.TargetExecutionID != nil {
 			return invalidf("%s transition must not identify a target", params.Action)
+		}
+		if params.EscalationOrdinal != nil || params.EscalationExhausted {
+			return invalidf("succeed transition must not have escalation metadata")
+		}
+		return nil
+	case StageTransitionFail:
+		if params.TargetStageName != nil || params.TargetExecutionID != nil {
+			return invalidf("fail transition must not identify a target")
+		}
+		if params.EscalationExhausted {
+			if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 {
+				return invalidf("exhausted escalation transition requires a positive ordinal")
+			}
+		} else if params.EscalationOrdinal != nil {
+			return invalidf("ordinary fail transition must not have an escalation ordinal")
 		}
 		return nil
 	default:
 		return invalidf("unknown Stage transition action %q", params.Action)
 	}
+}
+
+// Validate checks the complete durable decision shape before a transactional
+// persistence implementation performs any mutation.
+func (p RecordStageTransitionDecisionParams) Validate() error {
+	return validateStageTransitionDecision(p)
 }

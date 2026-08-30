@@ -124,11 +124,23 @@ type CreateStageExecutionParams struct {
 	StageName                 string
 	Attempt                   int
 	PreviousExecutionID       *string
+	ExecutionConfigVariant    StageExecutionConfigVariant
+	EscalationOrdinal         *int
 	StageSpecSchemaVersion    string
 	StageSpecSnapshot         json.RawMessage
 	StageContextSchemaVersion string
 	StageContext              StageContextSnapshot
 }
+
+// StageExecutionConfigVariant identifies which already-pinned Stage
+// executionConfig was copied into the immutable Stage spec snapshot.
+type StageExecutionConfigVariant string
+
+const (
+	StageExecutionConfigBase                  StageExecutionConfigVariant = "base"
+	StageExecutionConfigFailedEscalation      StageExecutionConfigVariant = "failed_escalation"
+	StageExecutionConfigInterruptedEscalation StageExecutionConfigVariant = "interrupted_escalation"
+)
 
 type TerminationOutcome string
 
@@ -175,6 +187,8 @@ type StageExecution struct {
 	StageName                    string
 	Attempt                      int
 	PreviousExecutionID          *string
+	ExecutionConfigVariant       StageExecutionConfigVariant
+	EscalationOrdinal            *int
 	StageSpecSchemaVersion       string
 	StageSpecSnapshot            json.RawMessage
 	StageContextSchemaVersion    string
@@ -200,32 +214,37 @@ type StageExecution struct {
 }
 
 // StageTransitionAction is the durable Scheduler decision made after one
-// StageExecution reaches a semantic terminal outcome. A next/retry decision
-// identifies the newly-created execution in the same transaction.
+// StageExecution reaches a semantic terminal outcome. A next/retry/escalate
+// decision identifies the newly-created execution in the same transaction.
 type StageTransitionAction string
 
 const (
-	StageTransitionNext    StageTransitionAction = "next"
-	StageTransitionRetry   StageTransitionAction = "retry"
-	StageTransitionSucceed StageTransitionAction = "succeed"
-	StageTransitionFail    StageTransitionAction = "fail"
+	StageTransitionNext     StageTransitionAction = "next"
+	StageTransitionRetry    StageTransitionAction = "retry"
+	StageTransitionEscalate StageTransitionAction = "escalate"
+	StageTransitionSucceed  StageTransitionAction = "succeed"
+	StageTransitionFail     StageTransitionAction = "fail"
 )
 
 type StageTransitionDecision struct {
-	SourceExecutionID string
-	RunID             string
-	Action            StageTransitionAction
-	TargetStageName   *string
-	TargetExecutionID *string
-	DecidedAt         time.Time
+	SourceExecutionID   string
+	RunID               string
+	Action              StageTransitionAction
+	TargetStageName     *string
+	TargetExecutionID   *string
+	EscalationOrdinal   *int
+	EscalationExhausted bool
+	DecidedAt           time.Time
 }
 
 type RecordStageTransitionDecisionParams struct {
-	SourceExecutionID string
-	RunID             string
-	Action            StageTransitionAction
-	TargetStageName   *string
-	TargetExecutionID *string
+	SourceExecutionID   string
+	RunID               string
+	Action              StageTransitionAction
+	TargetStageName     *string
+	TargetExecutionID   *string
+	EscalationOrdinal   *int
+	EscalationExhausted bool
 }
 
 type StartPlannerParams struct {

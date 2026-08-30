@@ -368,6 +368,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 				Params: runstore.CreateStageExecutionParams{
 					StageExecutionID: targetID, RunID: "run-1", StageName: targetStage,
 					Attempt: 2, PreviousExecutionID: &previous,
+					ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 					StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 					StageContextSchemaVersion: contracts.APIVersion,
 					StageContext: runstore.StageContextSnapshot{
@@ -404,6 +405,129 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	run, err := store.GetRun(ctx, "run-1")
 	if err != nil || run.State != runstore.RunRunning {
 		t.Fatalf("retry Run = (%+v, %v)", run, err)
+	}
+}
+
+func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	workflow := loadSchedulerWorkflow(t)
+	store := runstore.NewPostgresStore(pool)
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
+	persistence, err := NewPostgresPersistence(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageJSON, err := json.Marshal(workflow.Stages[workflow.EntryStage])
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID := "stage-escalation-1"
+	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
+		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{"objective": "copy exactly"},
+			Artifacts: map[string]runstore.PinnedContextArtifact{
+				"source": {Required: true, Artifact: &input.Ref},
+			},
+		},
+	}, []ContextPin{{Name: "source", Ref: input.Ref}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	termination := runstore.StageTermination{
+		Outcome: runstore.TerminationInterrupted,
+		Code:    "permanent", Message: "non-retryable failure", Retryable: false,
+		Phase: runstore.TerminationPreparing, OccurredAt: time.Now().UTC(),
+	}
+	if err := store.EnterAborting(ctx, runstore.EnterAbortingParams{
+		StageExecutionID: sourceID, ExpectedState: runstore.StagePreparing,
+		TerminationSchemaVersion: contracts.APIVersion, Termination: termination,
+		AbortID: "abort-escalation-1", Deadline: time.Now().Add(time.Minute),
+		Reason: runstore.Reason{Code: "stage_interrupted"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	targetID, targetStage, ordinal := "stage-escalation-2", workflow.EntryStage, 1
+	previous := sourceID
+	progression := TerminationProgression{
+		RunID: "run-1", StageExecutionID: sourceID,
+		Progression: StageProgression{
+			Decision: runstore.RecordStageTransitionDecisionParams{
+				SourceExecutionID: sourceID, RunID: "run-1", Action: runstore.StageTransitionEscalate,
+				TargetStageName: &targetStage, TargetExecutionID: &targetID,
+				EscalationOrdinal: &ordinal,
+			},
+			NextStage: &NextStageCreation{
+				Params: runstore.CreateStageExecutionParams{
+					StageExecutionID: targetID, RunID: "run-1", StageName: targetStage,
+					Attempt: 2, PreviousExecutionID: &previous,
+					ExecutionConfigVariant: runstore.StageExecutionConfigInterruptedEscalation,
+					EscalationOrdinal:      &ordinal,
+					StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+					StageContextSchemaVersion: contracts.APIVersion,
+					StageContext: runstore.StageContextSnapshot{
+						Parameters: map[string]string{"objective": "copy exactly"},
+						Artifacts: map[string]runstore.PinnedContextArtifact{
+							"source": {Required: true, Artifact: &input.Ref},
+						},
+					},
+				},
+				ContextPins: []ContextPin{{Name: "source", Ref: input.Ref}},
+			},
+		},
+	}
+	if err := persistence.CommitTerminationProgression(ctx, progression); err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.CommitTerminationProgression(ctx, progression); !errors.Is(err, runstore.ErrConflict) {
+		t.Fatalf("replayed escalation commit error = %v, want conflict", err)
+	}
+	executions, err := store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 2 || executions[0].State != runstore.StageInterrupted ||
+		executions[1].State != runstore.StagePreparing ||
+		executions[1].ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation ||
+		executions[1].EscalationOrdinal == nil || *executions[1].EscalationOrdinal != 1 ||
+		executions[1].PreviousExecutionID == nil || *executions[1].PreviousExecutionID != sourceID {
+		t.Fatalf("escalation executions = (%+v, %v)", executions, err)
+	}
+	decisions, err := store.ListStageTransitionDecisions(ctx, "run-1")
+	if err != nil || len(decisions) != 1 || decisions[0].Action != runstore.StageTransitionEscalate ||
+		decisions[0].EscalationOrdinal == nil || *decisions[0].EscalationOrdinal != 1 {
+		t.Fatalf("escalation decisions = (%+v, %v)", decisions, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE stage_executions SET escalation_ordinal = 2
+WHERE stage_execution_id = 'stage-escalation-2'`); persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("escalation identity rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	duplicateID, duplicatePrevious := "stage-escalation-duplicate", targetID
+	_, err = store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: duplicateID, RunID: "run-1", StageName: targetStage,
+		Attempt: 3, PreviousExecutionID: &duplicatePrevious,
+		ExecutionConfigVariant: runstore.StageExecutionConfigInterruptedEscalation,
+		EscalationOrdinal:      &ordinal,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{"objective": "copy exactly"},
+			Artifacts: map[string]runstore.PinnedContextArtifact{
+				"source": {Required: true, Artifact: &input.Ref},
+			},
+		},
+	})
+	if !errors.Is(err, runstore.ErrConflict) {
+		t.Fatalf("duplicate escalation ordinal error = %v, want conflict", err)
 	}
 }
 
