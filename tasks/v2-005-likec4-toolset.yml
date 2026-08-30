@@ -50,7 +50,7 @@ document_rules:
   max_visible_utf8_bytes: 131072
   max_replace_occurrences: 100
   validate_timeout_seconds: 30
-  validate_command: [likec4, validate, --json, --no-layout]
+  validate_command: [likec4, validate, --json, --no-layout, --file, <managed-file>, <managed-project>]
 
 deliverables:
   - {path: runtime/src/contractor_runtime/toolsets/likec4.py, description: Namespace-bound DSL session, CAS editing tools, and fixed validator adapter.}

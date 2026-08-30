@@ -24,6 +24,14 @@ def test_idle_is_committed_only_after_registration_ack() -> None:
         assert {
             capability.ref: set(capability.tools) for capability in registration.supported_toolsets
         } == {
+            "likec4@1": {
+                "append_likec4",
+                "load_likec4",
+                "read_likec4",
+                "replace_likec4",
+                "validate_likec4",
+                "write_likec4",
+            },
             "openapi@1": {
                 "get_openapi_component",
                 "get_openapi_info",

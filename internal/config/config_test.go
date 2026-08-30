@@ -109,6 +109,22 @@ func TestOpenAPIToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestLikeC4ToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["likec4@1"]
+	if !ok {
+		t.Fatal("likec4@1 descriptor is missing")
+	}
+	want := []string{
+		"append_likec4", "load_likec4", "read_likec4", "replace_likec4",
+		"validate_likec4", "write_likec4",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("likec4@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+}
+
 func TestWorkflowExamplesLoad(t *testing.T) {
 	for _, name := range []string{
 		"bounded_retry_workflow.yaml",

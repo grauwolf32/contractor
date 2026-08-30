@@ -84,6 +84,17 @@ class RuntimeState:
                 supportedRuntimes=["adk@1"],
                 supportedToolsets=[
                     ToolsetCapability(
+                        ref="likec4@1",
+                        tools=[
+                            "append_likec4",
+                            "load_likec4",
+                            "read_likec4",
+                            "replace_likec4",
+                            "validate_likec4",
+                            "write_likec4",
+                        ],
+                    ),
+                    ToolsetCapability(
                         ref="openapi@1",
                         tools=[
                             "get_openapi_component",

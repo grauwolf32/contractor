@@ -38,3 +38,26 @@ validated UTF-8 files and returns bounded source-relative file/line evidence.
 Allocation release removes the materialized tree with the rest of the
 workspace. Create archives with project contents at the ZIP root when possible;
 a containing directory is safe but remains part of every reported path.
+
+## LikeC4 documents
+
+`likec4@1` keeps one single-file DSL document as a CAS-versioned
+`text/vnd.likec4` Run artifact. The model can load/copy a seed, perform a
+bounded whole write, page reads, append exact text, replace exact fragments,
+and validate the current revision. It cannot select a host path, executable,
+package runner, CLI flag, or temporary directory, and it never writes into the
+materialized source tree.
+
+Install the LikeC4 CLI directly on every Runtime Agent host and make the
+`likec4` executable available on the service process `PATH`; for example, an
+administrator may manage a pinned global npm installation. Confirm the exact
+deployment with `command -v likec4` and `likec4 --version`. The Runtime does not
+fall back to `npx`, `pnpx`, or `bunx` and never downloads packages while a
+Worker is running.
+
+Validation uses one allocation-local temporary project and the fixed command
+shape `likec4 validate --json --no-layout --file <managed-file>
+<managed-project>`, with no shell and a 30-second timeout. The temporary project
+is removed after every outcome. Includes and multi-file projects, layout,
+rendering, export, and the development server are outside the `likec4@1`
+contract.

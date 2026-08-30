@@ -32,6 +32,12 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"likec4@1": {
+				Tools: []string{
+					"append_likec4", "load_likec4", "read_likec4", "replace_likec4",
+					"validate_likec4", "write_likec4",
+				},
+			},
 			"openapi@1": {
 				Tools: []string{
 					"get_openapi_component", "get_openapi_info", "get_openapi_path",
