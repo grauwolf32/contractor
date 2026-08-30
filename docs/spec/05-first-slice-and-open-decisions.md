@@ -52,9 +52,10 @@ This slice must demonstrate:
   through `/key/delete` and then the local row, while the deterministic alias
   lets restart recovery clean an interrupted creation without exposing a
   partial credential state;
-- virtual-key creation sends no Contractor-defined model allowlist, spend,
-  rate, concurrency or TTL policy; LiteLLM applies its operator-configured
-  defaults and remains the sole Gateway-quota enforcement authority, while
+- virtual-key creation derives a non-empty LiteLLM model allowlist from exact
+  ModelPolicy refs and forwards optional spend/reset, TPM, RPM and concurrency
+  fields; it stores the effective policy returned by LiteLLM for display and
+  provenance but leaves all Gateway-quota enforcement to LiteLLM, while
   ModelPolicy limits only bound one Planner or Worker execution;
 - Run creation selects an exact Workflow `<id>@<version>`, resolves Workflow
   execution defaults plus reference-only Run overrides, and stores the complete
@@ -243,9 +244,8 @@ implicitly:
   Plane replicas;
 - Contractor credential-encryption master-key rotation/re-encryption and
   external Vault/KMS adapters;
-- Operations authoring of LiteLLM-enforced virtual-key model, TTL, budget and
-  rate-limit policy beyond encrypted immutable credentials and the secret-free
-  create UI boundary;
+- LiteLLM virtual-key TTL/automatic rotation and policy fields beyond the
+  explicit first-slice model, spend/reset, TPM, RPM and concurrency allowlist;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;
 - multi-tenant authorization and quota policy.

@@ -307,7 +307,7 @@ model {
 
   server.stagePlanner -> llmGateway 'Streamline calls with resolved Planner policy/Gateway/credential'
   runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied resolved URL/token'
-  server.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys through bounded management API'
+  server.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
   llmGateway -> llmProvider 'Provider requests'
 
   server.telemetry -> telemetryBackend 'Export when configured'
