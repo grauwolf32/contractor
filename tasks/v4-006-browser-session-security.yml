@@ -3,8 +3,8 @@ id: V4-006
 title: Add local browser sessions, CSRF, and exact-origin CORS
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: fb80b9adbce55b4fc77b86f9212be1f69e405d41
 depends_on: [V4-001]
 languages: [go, yaml]
 

@@ -58,7 +58,10 @@ fixed_decisions:
   deployment:
     topology: One VM, one Server process, PostgreSQL, and one or more identical single-slot Runtime Agent processes.
     private_security: Deployment-CA mTLS
-    public_auth: One configured bearer token mapped to one configured user for MVP only.
+    public_auth: >-
+      One owner-only local-auth principal backs bounded in-memory browser
+      sessions and the retained bearer-token automation path; cookie mutations
+      require exact-origin CORS and session-bound CSRF.
 
 milestones:
   - id: mvp
@@ -103,18 +106,17 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-005
-  next_task: V4-006
+  completed_through: V4-006
+  next_task: V4-007
   summary: >-
-    The public API now exposes a mutex-coherent, process-generation-bound
-    Operations snapshot plus stable Runtime Agent and allocation pages.
-    Observed and authoritative lifecycle facts remain distinct; exact effective
-    config refs, bounded Runtime-reported software versions, safe final-report
-    aggregates, and stale-cursor rejection are covered across Go, Python,
-    OpenAPI, race, and PostgreSQL gates. Configuration publication and managed
-    LiteLLM credential operations remain the domain-owned mutations delivered
-    by V4-002 through V4-004. V4-006 is next and replaces the MVP bearer-only
-    browser boundary with the specified local session security model.
+    The Go Server now loads one strict owner-only local-auth bootstrap, issues
+    bounded process-local browser sessions, requires session-bound CSRF before
+    cookie-authenticated mutations, and applies exact allowlisted credentialed
+    CORS without treating it as authorization. The retained bearer path maps to
+    the same immutable principal for non-browser automation. Password hashing,
+    rate limiting, cookie modes, session expiry/revocation, actor propagation,
+    secret redaction, OpenAPI conformance, race safety, and PostgreSQL behavior
+    pass their gates. V4-007 is next and adds the resumable Run event WebSocket.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
