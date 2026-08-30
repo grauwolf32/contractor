@@ -3,8 +3,8 @@ id: V4-005
 title: Expose safe Operations and configuration read models
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 11f322fc6b0afbe8ce6b168dc89763afc1117b55
 depends_on: [V4-001A, V4-002, V4-004]
 languages: [go, python, json, yaml]
 

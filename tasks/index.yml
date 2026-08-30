@@ -103,18 +103,18 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-004
-  next_task: V4-005
+  completed_through: V4-005
+  next_task: V4-006
   summary: >-
-    The managed-credential path now includes the concrete
-    litellm-virtual-keys@1 adapter. Exact digest-bearing Gateway refs are bound
-    at startup to owner-only admin-key files; finite direct HTTP, strict and
-    bounded provider responses, deterministic-alias crash recovery, exact
-    ModelPolicy forwarding, and encrypted token handoff all fail closed.
-    Compatibility is exercised against the digest-pinned LiteLLM 1.85.0 image
-    with persistent PostgreSQL semantics, while ordinary Go/Python,
-    PostgreSQL, race, configuration, and build gates pass. V4-005 is next and
-    completes the remaining Operations API projections and actions.
+    The public API now exposes a mutex-coherent, process-generation-bound
+    Operations snapshot plus stable Runtime Agent and allocation pages.
+    Observed and authoritative lifecycle facts remain distinct; exact effective
+    config refs, bounded Runtime-reported software versions, safe final-report
+    aggregates, and stale-cursor rejection are covered across Go, Python,
+    OpenAPI, race, and PostgreSQL gates. Configuration publication and managed
+    LiteLLM credential operations remain the domain-owned mutations delivered
+    by V4-002 through V4-004. V4-006 is next and replaces the MVP bearer-only
+    browser boundary with the specified local session security model.
 
 current_planning_review:
   reviewed_on: "2026-08-30"
