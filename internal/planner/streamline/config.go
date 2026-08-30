@@ -54,8 +54,8 @@ func normalizeLimits(value Limits) (Limits, error) {
 		value.MaxWallTime = defaults.MaxWallTime
 	}
 	if value.MaxModelCalls <= 0 || value.MaxModelCalls > 1_000 ||
-		value.MaxTokens <= 0 || value.MaxTokens > 10_000_000 ||
-		value.MaxWorkerCalls <= 0 || value.MaxWorkerCalls > 1_000 ||
+		value.MaxTokens <= 0 || value.MaxTokens > contracts.MaxWorkerTotalTokens ||
+		value.MaxWorkerCalls <= 0 || value.MaxWorkerCalls > contracts.MaxPlannerWorkerCalls ||
 		value.MaxWallTime <= 0 || value.MaxWallTime > 24*time.Hour {
 		return Limits{}, fmt.Errorf("model-backed Planner limits are outside bounded ranges")
 	}
@@ -78,8 +78,8 @@ func normalizeGatewaySettings(settings GatewaySettings) (GatewaySettings, error)
 		parsed.RawQuery != "" || parsed.Fragment != "" {
 		return GatewaySettings{}, fmt.Errorf("Planner LLM Gateway URL is invalid")
 	}
-	if strings.TrimSpace(settings.Model) == "" || settings.Token.Reveal() == "" {
-		return GatewaySettings{}, fmt.Errorf("Planner LLM Gateway model and token are required")
+	if strings.TrimSpace(settings.Model) == "" {
+		return GatewaySettings{}, fmt.Errorf("Planner LLM Gateway model is required")
 	}
 	if settings.MaxOutputTokens == 0 {
 		settings.MaxOutputTokens = defaultMaxOutputTokens

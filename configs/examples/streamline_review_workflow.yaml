@@ -22,6 +22,13 @@ spec:
       required: true
       mediaTypes: [application/json]
 
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+    workers:
+      llmGateway: local-litellm@1
+
   entryStage: review
   stages:
     review:

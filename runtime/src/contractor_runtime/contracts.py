@@ -301,10 +301,11 @@ class ResolvedInstructions(WireModel):
 class ResolvedModelPolicy(WireModel):
     ref: ModelPolicyRef
     model: str
-    max_output_tokens: int = Field(gt=0)
-    max_model_calls: int = Field(gt=0, le=1000)
-    max_tool_calls: int = Field(gt=0, le=10_000)
-    max_total_tokens: int = Field(gt=0, le=100_000_000)
+    max_output_tokens: int | None = Field(default=None, gt=0)
+    max_model_calls: int | None = Field(default=None, gt=0, le=1000)
+    max_tool_calls: int | None = Field(default=None, gt=0, le=10_000)
+    max_worker_calls: int | None = Field(default=None, gt=0, le=10_000)
+    max_total_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
     temperature: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
@@ -313,6 +314,17 @@ class ResolvedModelPolicy(WireModel):
         if self.temperature is not None and not math.isfinite(self.temperature):
             raise ValueError("temperature must be finite")
         return self
+
+
+def _require_worker_policy(policy: ResolvedModelPolicy, *, has_tools: bool) -> None:
+    if (
+        policy.max_output_tokens is None
+        or policy.max_model_calls is None
+        or policy.max_total_tokens is None
+        or (has_tools and policy.max_tool_calls is None)
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with adk@1 Worker")
 
 
 class LLMGatewayCredentialManager(WireModel):
@@ -368,6 +380,7 @@ class ResolvedAgentTemplate(WireModel):
         visible = [tool for selection in self.toolsets for tool in selection.tools]
         if len(visible) != len(set(visible)):
             raise ValueError("model-visible tool names must be unique across Toolsets")
+        _require_worker_policy(self.model_policy, has_tools=bool(visible))
         return self
 
 
@@ -382,12 +395,6 @@ class RuntimeSettings(WireModel):
     def validate_url(cls, value: str, info: Any) -> str:
         return _require_url(info.field_name, value)
 
-    @field_validator("llm_gateway_token")
-    @classmethod
-    def validate_token(cls, value: SecretStr) -> SecretStr:
-        _require_text("llmGatewayToken", value.get_secret_value())
-        return value
-
     @field_serializer("llm_gateway_token", when_used="json")
     def serialize_token(self, value: SecretStr) -> str:
         return value.get_secret_value()
@@ -401,6 +408,7 @@ class AllocationSpec(VersionedWireModel):
     namespace: str
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
+    model_policy: ResolvedModelPolicy
     runtime_settings: RuntimeSettings
 
     @model_validator(mode="after")
@@ -416,6 +424,10 @@ class AllocationSpec(VersionedWireModel):
         if "/" in self.namespace:
             raise ValueError("namespace must not contain slash")
         _require_aware_datetime("leaseExpiresAt", self.lease_expires_at)
+        _require_worker_policy(
+            self.model_policy,
+            has_tools=any(selection.tools for selection in self.agent_template.toolsets),
+        )
         return self
 
 

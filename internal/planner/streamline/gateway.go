@@ -60,7 +60,9 @@ func (m *openAICompatibleModel) GenerateContent(
 			yield(nil, fmt.Errorf("build Planner Gateway request"))
 			return
 		}
-		httpRequest.Header.Set("Authorization", "Bearer "+m.settings.Token.Reveal())
+		if token := m.settings.Token.Reveal(); token != "" {
+			httpRequest.Header.Set("Authorization", "Bearer "+token)
+		}
 		httpRequest.Header.Set("Content-Type", "application/json")
 		httpRequest.Header.Set(requestid.Header, requestid.Ensure(ctx))
 		response, err := m.settings.HTTPClient.Do(httpRequest)

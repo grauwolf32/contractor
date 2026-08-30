@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -43,14 +44,17 @@ type ADKSessionFactory interface {
 }
 
 type Factory struct {
-	profile     plannerProfile
-	sessions    planner.SessionService
-	adkSessions ADKSessionFactory
-	invoker     planner.WorkerInvoker
-	inspector   planner.ArtifactInspector
-	model       model.LLM
-	limits      Limits
+	profile      plannerProfile
+	sessions     planner.SessionService
+	adkSessions  ADKSessionFactory
+	invoker      planner.WorkerInvoker
+	inspector    planner.ArtifactInspector
+	model        model.LLM
+	modelFactory InvocationModelFactory
+	limits       Limits
 }
+
+type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
 
 func NewFactory(
 	sessions planner.SessionService,
@@ -60,7 +64,20 @@ func NewFactory(
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, llm, limits)
+	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, llm, nil, limits)
+}
+
+func NewConfiguredFactory(
+	sessions planner.SessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		streamlineProfile, sessions, adkSessions, invoker, inspector, nil, modelFactory, limits,
+	)
 }
 
 // NewRouterDelegate creates the shared model-backed engine configured for
@@ -74,7 +91,20 @@ func NewRouterDelegate(
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, llm, limits)
+	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, llm, nil, limits)
+}
+
+func NewConfiguredRouterDelegate(
+	sessions planner.SessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		routerProfile, sessions, adkSessions, invoker, inspector, nil, modelFactory, limits,
+	)
 }
 
 func newFactory(
@@ -84,9 +114,11 @@ func newFactory(
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
 	llm model.LLM,
+	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
-	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || llm == nil {
+	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil ||
+		(llm == nil) == (modelFactory == nil) {
 		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
 	normalized, err := normalizeLimits(limits)
@@ -95,7 +127,7 @@ func newFactory(
 	}
 	return &Factory{
 		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
-		inspector: inspector, model: llm, limits: normalized,
+		inspector: inspector, model: llm, modelFactory: modelFactory, limits: normalized,
 	}, nil
 }
 
@@ -114,6 +146,24 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}
+	selectedModel := f.model
+	selectedLimits := f.limits
+	if f.modelFactory != nil {
+		if invocation.ModelAccess == nil {
+			return nil, fmt.Errorf("%s requires resolved Planner model access", f.profile.ref)
+		}
+		if err := validateModelAccess(*invocation.ModelAccess); err != nil {
+			return nil, err
+		}
+		selectedModel, err = f.modelFactory(*invocation.ModelAccess)
+		if err != nil {
+			return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
+		}
+		selectedLimits, err = limitsFromPolicy(invocation.ModelAccess.ModelPolicy, f.limits.MaxWallTime)
+		if err != nil {
+			return nil, err
+		}
+	}
 	workers := make([]workerBinding, 0, len(bindings))
 	for _, logicalName := range bindings {
 		binding := invocation.Stage.Agents[logicalName]
@@ -127,8 +177,35 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
-		invoker: f.invoker, inspector: f.inspector, model: f.model, limits: f.limits,
+		invoker: f.invoker, inspector: f.inspector, model: selectedModel, limits: selectedLimits,
 	}, nil
+}
+
+func validateModelAccess(access planner.ModelAccess) error {
+	if err := access.ModelPolicy.ValidateForPlanner(); err != nil {
+		return err
+	}
+	if err := access.LLMGateway.Validate(); err != nil {
+		return err
+	}
+	if access.Credential != nil {
+		if err := access.Credential.Validate(); err != nil {
+			return err
+		}
+		if access.Token.Reveal() == "" {
+			return fmt.Errorf("selected Planner credential resolved to an empty token")
+		}
+	}
+	return nil
+}
+
+func limitsFromPolicy(policy contracts.ResolvedModelPolicy, wallTime time.Duration) (Limits, error) {
+	return normalizeLimits(Limits{
+		MaxModelCalls:  policy.MaxModelCalls,
+		MaxTokens:      int64(policy.MaxTotalTokens),
+		MaxWorkerCalls: policy.MaxWorkerCalls,
+		MaxWallTime:    wallTime,
+	})
 }
 
 type workerBinding struct {

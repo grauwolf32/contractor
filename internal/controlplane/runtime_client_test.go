@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,12 @@ import (
 
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
+	effectivePolicy := template.ModelPolicy
+	effectivePolicy.Ref = contracts.ModelPolicyRef{
+		PolicyID: "worker-strong", Version: "2", Digest: "sha256:" + strings.Repeat("d", 64),
+	}
+	effectivePolicy.Model = "worker-strong-model"
+	effectivePolicy.MaxModelCalls++
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
 	var received contracts.PrepareAllocationRequest
@@ -56,7 +63,8 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}
 
 	handle, err := client.Prepare(
-		requestid.With(context.Background(), "scheduler-request-1"), reservation, settings,
+		requestid.With(context.Background(), "scheduler-request-1"), reservation,
+		contracts.WorkerExecutionSettings{ModelPolicy: effectivePolicy, RuntimeSettings: settings},
 	)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -65,6 +73,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		t.Fatalf("handle/request = (%+v, %+v)", handle, received.Spec)
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
+		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
+		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
+		received.Spec.ModelPolicy.Model != effectivePolicy.Model ||
 		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {
 		t.Fatalf("prepare request lost resolved inputs: %+v", received.Spec)
 	}
@@ -92,7 +103,9 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	client, _ := NewRuntimeControlClient(server.Client())
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 
-	_, err := client.Prepare(context.Background(), reservation, settings)
+	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{
+		ModelPolicy: template.ModelPolicy, RuntimeSettings: settings,
+	})
 	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
 		t.Fatalf("secret-bearing WorkerHandle error = %v", err)
 	}
@@ -140,7 +153,10 @@ func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
 	}
 
-	handles, err := controller.PrepareAll(context.Background(), reservations, testRuntimeSettings())
+	handles, err := controller.PrepareAll(
+		context.Background(), reservations,
+		testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second"),
+	)
 	if err == nil || handles != nil {
 		t.Fatalf("PrepareAll = (%+v, %v), want nil/error", handles, err)
 	}
@@ -225,7 +241,7 @@ type recordingRuntime struct {
 }
 
 func (r *recordingRuntime) Prepare(
-	_ context.Context, reservation Reservation, _ contracts.RuntimeSettings,
+	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -302,6 +318,20 @@ func testRuntimeSettings() contracts.RuntimeSettings {
 		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: contracts.NewSecretString("recognizable-runtime-secret"),
 		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
 	}
+}
+
+func testWorkerExecutionSettings(
+	template contracts.ResolvedAgentTemplate,
+	runtime contracts.RuntimeSettings,
+	logicalNames ...string,
+) map[string]contracts.WorkerExecutionSettings {
+	result := make(map[string]contracts.WorkerExecutionSettings, len(logicalNames))
+	for _, name := range logicalNames {
+		result[name] = contracts.WorkerExecutionSettings{
+			ModelPolicy: template.ModelPolicy, RuntimeSettings: runtime,
+		}
+	}
+	return result
 }
 
 func testExecutionReport(allocationID string) contracts.AllocationFinalReport {

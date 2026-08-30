@@ -40,6 +40,19 @@
     ],
     "sandboxProfile": {"sandboxProfileId": "local-workdir", "version": "1"}
   },
+  "modelPolicy": {
+    "ref": {
+      "policyId": "worker",
+      "version": "1",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "model": "worker-model",
+    "maxOutputTokens": 4096,
+    "maxModelCalls": 8,
+    "maxToolCalls": 16,
+    "maxTotalTokens": 32768,
+    "temperature": 0.1
+  },
   "runtimeSettings": {
     "llmGatewayUrl": "http://127.0.0.1:4000/v1",
     "llmGatewayToken": "golden-secret-token",

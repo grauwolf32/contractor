@@ -215,9 +215,10 @@ CONTRACTOR_LIVE_LLM_MODEL='worker-model' \
 
 The default local ports are public HTTP `127.0.0.1:8080`, Control Plane mTLS
 `127.0.0.1:8443`, and Runtime Agent mTLS `127.0.0.1:9443`. PostgreSQL and an
-OpenAI-compatible LLM Gateway must already be running. The gateway URL should
-be its OpenAI API base, commonly ending in `/v1`; LiteLLM is one supported
-backend, but it is not required by the architecture.
+OpenAI-compatible LLM Gateway must already be running. Its immutable API base
+is authored in `configs/llm-gateways/` and its model aliases and limits are
+authored in `configs/model-policies/`; LiteLLM is one supported backend, but it
+is not required by the architecture.
 
 Create deployment identities:
 
@@ -234,14 +235,21 @@ environment or a local ignored `.env`; do not place them in YAML manifests.
 export CONTRACTOR_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor?sslmode=disable'
 export CONTRACTOR_PUBLIC_USER_ID='local-user'
 export CONTRACTOR_PUBLIC_BEARER_TOKEN='replace-with-a-local-api-token'
-export CONTRACTOR_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1'
 export CONTRACTOR_LLM_GATEWAY_TOKEN='replace-with-the-gateway-token'
-export CONTRACTOR_PLANNER_MODEL='planner-model'
 export CONTRACTOR_CA_FILE='.local/pki/ca.crt'
 export CONTRACTOR_CONTROL_PLANE_CERT_FILE='.local/pki/control-plane.crt'
 export CONTRACTOR_CONTROL_PLANE_KEY_FILE='.local/pki/control-plane.key'
 make run-local
 ```
+
+The two token variables are a development bootstrap only. A non-empty
+`CONTRACTOR_LLM_GATEWAY_TOKEN` creates the in-memory credential ID
+`development-worker`; `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` creates
+`development-planner` and defaults to the Worker token. Select those IDs in a
+Workflow or Run `executionConfig`. URL, model and limits never come from these
+environment variables and cannot override an immutable Run snapshot. Omit the
+credential selector for a Gateway that intentionally accepts unauthenticated
+requests.
 
 In the second terminal, start the single-slot Runtime Agent:
 
@@ -572,13 +580,14 @@ The response is `202 Accepted` while bounded cleanup is in progress and `200 OK`
 when the Run was already terminal. Repeating the request never replaces
 the first cancellation reason or changes a successful terminal Run.
 
-Using a real LiteLLM/provider is deliberately opt-in. Worker settings use
-`CONTRACTOR_LLM_GATEWAY_URL` and `CONTRACTOR_LLM_GATEWAY_TOKEN`; Planner URL and
-token default to those values, while `CONTRACTOR_PLANNER_MODEL` selects its
-Gateway model. Separate deployments may set
-`CONTRACTOR_PLANNER_LLM_GATEWAY_URL` and
-`CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN`. CI and `make test-e2e` never use
-provider credentials or make an external model call.
+Using a real LiteLLM/provider is deliberately opt-in. Publish its non-secret
+endpoint as an exact `LLMGatewayConfig`, publish model aliases and bounds as
+exact `ModelPolicy` documents, then select them independently for Planner and
+Workers through `executionConfig`. For local bootstrap, the Worker and Planner
+may use the separately named `development-worker` and `development-planner`
+credentials described above. CI and `make test-e2e` use a temporary authored
+Gateway manifest and a deterministic fake model rather than an external
+provider.
 
 ## Troubleshooting
 

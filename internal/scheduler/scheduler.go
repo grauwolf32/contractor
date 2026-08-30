@@ -122,18 +122,13 @@ func applyOptionDefaults(options *Options) {
 }
 
 func validateRuntimeSettings(settings contracts.RuntimeSettings) error {
-	for name, raw := range map[string]string{
-		"LLM Gateway URL":  settings.LLMGatewayURL,
-		"Artifact API URL": settings.ArtifactAPIURL,
-	} {
-		parsed, err := url.Parse(raw)
-		if err != nil || parsed.Host == "" || parsed.User != nil ||
-			(parsed.Scheme != "http" && parsed.Scheme != "https") {
-			return fmt.Errorf("Scheduler %s is invalid", name)
-		}
+	parsed, err := url.Parse(settings.ArtifactAPIURL)
+	if err != nil || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("Scheduler Artifact API URL is invalid")
 	}
-	if settings.LLMGatewayToken.Reveal() == "" || settings.RequestTimeoutSeconds <= 0 {
-		return fmt.Errorf("Scheduler RuntimeSettings require a gateway token and positive timeout")
+	if settings.RequestTimeoutSeconds <= 0 {
+		return fmt.Errorf("Scheduler RuntimeSettings require a positive timeout")
 	}
 	return nil
 }
@@ -657,8 +652,14 @@ func (s *Scheduler) prepareAndPlan(
 		}
 	}
 
+	workerSettings, err := s.workerExecutionSettings(ctx, workflow.stage)
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "worker_execution_config_unavailable", Message: "Worker execution configuration is unavailable", Retryable: false,
+		})
+	}
 	prepareContext, cancelPrepare := context.WithTimeout(ctx, s.options.OperationTimeout)
-	handles, err := s.workers.PrepareAll(prepareContext, reservations, s.options.RuntimeSettings)
+	handles, err := s.workers.PrepareAll(prepareContext, reservations, workerSettings)
 	cancelPrepare()
 	if err != nil {
 		failure := infrastructureFailure("allocation_preparation_failed", "Worker allocation preparation failed", err)
@@ -668,12 +669,19 @@ func (s *Scheduler) prepareAndPlan(
 		return cause
 	}
 
+	modelAccess, err := s.plannerModelAccess(ctx, workflow.stage)
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "planner_execution_config_unavailable", Message: "Planner execution configuration is unavailable", Retryable: false,
+		})
+	}
 	invocation := planner.Invocation{
 		StageExecutionID: execution.StageExecutionID,
 		RunID:            run.RunID,
 		Stage:            workflow.stage,
 		Context:          plannerContext(execution.StageContext),
 		Workers:          handles,
+		ModelAccess:      modelAccess,
 		Deadline:         s.options.Clock.Now().Add(s.options.PlannerTimeout),
 	}
 	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
@@ -731,6 +739,69 @@ func (s *Scheduler) prepareAndPlan(
 	execution.FinalizationID = &finalizationID
 	execution.FinalizationDeadline = &deadline
 	return s.resumeFinalizing(ctx, run, workflow, execution, reservations)
+}
+
+func (s *Scheduler) workerExecutionSettings(
+	ctx context.Context,
+	stage workflowconfig.ResolvedStage,
+) (map[string]contracts.WorkerExecutionSettings, error) {
+	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		token, err := s.resolveCredential(ctx, selection)
+		if err != nil {
+			return nil, err
+		}
+		runtimeSettings := s.options.RuntimeSettings
+		runtimeSettings.LLMGatewayURL = selection.LLMGateway.URL
+		runtimeSettings.LLMGatewayToken = token
+		result[logicalName] = contracts.WorkerExecutionSettings{
+			ModelPolicy: cloneModelPolicy(selection.ModelPolicy), RuntimeSettings: runtimeSettings,
+		}
+	}
+	return result, nil
+}
+
+func (s *Scheduler) plannerModelAccess(
+	ctx context.Context,
+	stage workflowconfig.ResolvedStage,
+) (*planner.ModelAccess, error) {
+	if stage.ExecutionConfig.Planner == nil {
+		return nil, nil
+	}
+	selection := *stage.ExecutionConfig.Planner
+	token, err := s.resolveCredential(ctx, selection)
+	if err != nil {
+		return nil, err
+	}
+	result := &planner.ModelAccess{
+		ModelPolicy: cloneModelPolicy(selection.ModelPolicy),
+		LLMGateway:  selection.LLMGateway,
+		Token:       token,
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result, nil
+}
+
+func (s *Scheduler) resolveCredential(
+	ctx context.Context,
+	selection workflowconfig.ResolvedConsumerExecutionConfig,
+) (contracts.SecretString, error) {
+	if selection.Credential == nil {
+		return contracts.NewSecretString(""), nil
+	}
+	if s.options.Credentials == nil {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
+	}
+	token, err := s.options.Credentials.ResolveLLMCredential(
+		ctx, *selection.Credential, selection.LLMGateway.Ref,
+	)
+	if err != nil || token.Reveal() == "" {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
+	}
+	return token, nil
 }
 
 var (
@@ -1581,6 +1652,15 @@ func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
 	if source.Revision != nil {
 		revision := *source.Revision
 		result.Revision = &revision
+	}
+	return result
+}
+
+func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
+	result := source
+	if source.Temperature != nil {
+		temperature := *source.Temperature
+		result.Temperature = &temperature
 	}
 	return result
 }

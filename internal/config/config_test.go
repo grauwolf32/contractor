@@ -15,7 +15,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 5, AgentTemplates: 6, ModelPolicies: 2, LLMGateways: 1, Instructions: 13,
+		Workflows: 5, AgentTemplates: 6, ModelPolicies: 3, LLMGateways: 1, Instructions: 13,
 	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
@@ -233,13 +233,16 @@ func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
 	tests := []struct {
 		name, old, replacement, want string
 	}{
-		{"missing model calls", "  maxModelCalls: 8\n", "", "spec.maxModelCalls"},
-		{"zero model calls", "maxModelCalls: 8", "maxModelCalls: 0", "spec.maxModelCalls"},
+		{"missing output tokens", "  maxOutputTokens: 4096\n", "", "maxOutputTokens"},
+		{"zero output tokens", "maxOutputTokens: 4096", "maxOutputTokens: 0", "spec.maxOutputTokens"},
+		{"missing model calls", "  maxModelCalls: 8\n", "", "maxModelCalls"},
+		{"zero model calls", "maxModelCalls: 8", "maxModelCalls: 0", "maxModelCalls"},
 		{"negative tool calls", "maxToolCalls: 16", "maxToolCalls: -1", "spec.maxToolCalls"},
 		{"fractional tool calls", "maxToolCalls: 16", "maxToolCalls: 1.5", "decode strict YAML"},
 		{"too many model calls", "maxModelCalls: 8", "maxModelCalls: 1001", "spec.maxModelCalls"},
 		{"too many tool calls", "maxToolCalls: 16", "maxToolCalls: 10001", "spec.maxToolCalls"},
-		{"missing total tokens", "  maxTotalTokens: 32768\n", "", "spec.maxTotalTokens"},
+		{"zero Planner Worker calls", "  maxToolCalls: 16\n", "  maxToolCalls: 16\n  maxWorkerCalls: 0\n", "spec.maxWorkerCalls"},
+		{"missing total tokens", "  maxTotalTokens: 32768\n", "", "maxTotalTokens"},
 		{"too many total tokens", "maxTotalTokens: 32768", "maxTotalTokens: 100000001", "spec.maxTotalTokens"},
 	}
 	for _, test := range tests {
@@ -417,8 +420,8 @@ func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	if snapshot.Counts().ModelPolicies != 2 {
-		t.Fatalf("ModelPolicies = %d, want 2", snapshot.Counts().ModelPolicies)
+	if snapshot.Counts().ModelPolicies != 3 {
+		t.Fatalf("ModelPolicies = %d, want 3", snapshot.Counts().ModelPolicies)
 	}
 }
 
@@ -529,6 +532,8 @@ spec:
     source: {required: true, mediaTypes: [text/plain]}
   outputs:
     result: {required: true, mediaTypes: [text/plain]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1}
   entryStage: build
   stages:
     build:

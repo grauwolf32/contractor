@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -564,12 +565,15 @@ async def create_runtime(
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
-    context.agent_template.model_policy = context.agent_template.model_policy.model_copy(
-        update={
-            "max_model_calls": max_model_calls,
-            "max_tool_calls": max_tool_calls,
-            "max_total_tokens": max_total_tokens,
-        }
+    context = replace(
+        context,
+        model_policy=context.model_policy.model_copy(
+            update={
+                "max_model_calls": max_model_calls,
+                "max_tool_calls": max_tool_calls,
+                "max_total_tokens": max_total_tokens,
+            }
+        ),
     )
     factory = AdkWorkerRuntimeFactory(lambda _: model)  # type: ignore[arg-type,return-value]
     runtime = await factory.create(context)
@@ -597,13 +601,15 @@ async def selected_tools(
 def build_context(
     tmp_path: Path, state: WorkerState, tools: dict[str, object]
 ) -> WorkerBuildContext:
+    template = agent_template()
     return WorkerBuildContext(
         allocation_id="allocation-1",
         run_id="run-1",
         stage_execution_id="stage-execution-1",
         logical_agent_name="builder",
         namespace="builder",
-        agent_template=agent_template(),
+        agent_template=template,
+        model_policy=template.model_policy.model_copy(deep=True),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         tools=tools,  # type: ignore[arg-type]
         state=state,

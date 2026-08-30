@@ -42,17 +42,47 @@ type ResolvedInstructions struct {
 type ResolvedModelPolicy struct {
 	Ref             ModelPolicyRef `json:"ref"`
 	Model           string         `json:"model"`
-	MaxOutputTokens int            `json:"maxOutputTokens"`
-	MaxModelCalls   int            `json:"maxModelCalls"`
-	MaxToolCalls    int            `json:"maxToolCalls"`
-	MaxTotalTokens  int            `json:"maxTotalTokens"`
+	MaxOutputTokens int            `json:"maxOutputTokens,omitempty"`
+	MaxModelCalls   int            `json:"maxModelCalls,omitempty"`
+	MaxToolCalls    int            `json:"maxToolCalls,omitempty"`
+	MaxWorkerCalls  int            `json:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens  int            `json:"maxTotalTokens,omitempty"`
 	Temperature     *float64       `json:"temperature,omitempty"`
 }
 
+func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
+
+func (p ResolvedModelPolicy) ValidateForWorker(hasTools bool) error {
+	return validateWorkerModelPolicy(p, hasTools)
+}
+
+func (p ResolvedModelPolicy) ValidateForPlanner() error {
+	if err := validateModelPolicy(p); err != nil {
+		return err
+	}
+	if p.MaxOutputTokens <= 0 {
+		return invalidf("Planner modelPolicy requires maxOutputTokens")
+	}
+	if p.MaxModelCalls <= 0 {
+		return invalidf("Planner modelPolicy requires maxModelCalls")
+	}
+	if p.MaxWorkerCalls <= 0 {
+		return invalidf("Planner modelPolicy requires maxWorkerCalls")
+	}
+	if p.MaxTotalTokens <= 0 {
+		return invalidf("Planner modelPolicy requires maxTotalTokens")
+	}
+	if p.MaxToolCalls != 0 {
+		return invalidf("Planner modelPolicy must omit maxToolCalls")
+	}
+	return nil
+}
+
 const (
-	MaxWorkerModelCalls  = 1_000
-	MaxWorkerToolCalls   = 10_000
-	MaxWorkerTotalTokens = 100_000_000
+	MaxWorkerModelCalls   = 1_000
+	MaxWorkerToolCalls    = 10_000
+	MaxPlannerWorkerCalls = 10_000
+	MaxWorkerTotalTokens  = 100_000_000
 )
 
 type ToolsetSelection struct {
@@ -79,6 +109,14 @@ type RuntimeSettings struct {
 	RequestTimeoutSeconds int          `json:"requestTimeoutSeconds"`
 }
 
+// WorkerExecutionSettings is an in-process preparation value. AllocationSpec
+// carries its two members as separate wire fields so effective policy never
+// mutates the digest-bearing AgentTemplate.
+type WorkerExecutionSettings struct {
+	ModelPolicy     ResolvedModelPolicy
+	RuntimeSettings RuntimeSettings
+}
+
 type AllocationSpec struct {
 	APIVersion       string                `json:"apiVersion"`
 	AllocationID     string                `json:"allocationId"`
@@ -88,6 +126,7 @@ type AllocationSpec struct {
 	Namespace        string                `json:"namespace"`
 	LeaseExpiresAt   time.Time             `json:"leaseExpiresAt"`
 	AgentTemplate    ResolvedAgentTemplate `json:"agentTemplate"`
+	ModelPolicy      ResolvedModelPolicy   `json:"modelPolicy"`
 	RuntimeSettings  RuntimeSettings       `json:"runtimeSettings"`
 }
 
@@ -111,6 +150,9 @@ func (s AllocationSpec) Validate() error {
 		return invalidf("leaseExpiresAt must not be zero")
 	}
 	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
+		return err
+	}
+	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0); err != nil {
 		return err
 	}
 	return validateRuntimeSettings(s.RuntimeSettings)
@@ -232,7 +274,7 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	if err := validateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
 		return err
 	}
-	if err := validateModelPolicy(template.ModelPolicy); err != nil {
+	if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0); err != nil {
 		return err
 	}
 	seenToolsets := make(map[string]struct{})
@@ -283,17 +325,23 @@ func validateModelPolicy(policy ResolvedModelPolicy) error {
 	if err := validateDigest("modelPolicyRef.digest", policy.Ref.Digest); err != nil {
 		return err
 	}
-	if strings.TrimSpace(policy.Model) == "" || policy.MaxOutputTokens <= 0 {
-		return invalidf("modelPolicy model and positive maxOutputTokens are required")
+	if strings.TrimSpace(policy.Model) == "" {
+		return invalidf("modelPolicy model is required")
 	}
-	if policy.MaxModelCalls <= 0 || policy.MaxModelCalls > MaxWorkerModelCalls {
-		return invalidf("modelPolicy maxModelCalls must be between 1 and %d", MaxWorkerModelCalls)
+	if policy.MaxOutputTokens < 0 {
+		return invalidf("modelPolicy maxOutputTokens must be positive when present")
 	}
-	if policy.MaxToolCalls <= 0 || policy.MaxToolCalls > MaxWorkerToolCalls {
-		return invalidf("modelPolicy maxToolCalls must be between 1 and %d", MaxWorkerToolCalls)
+	if policy.MaxModelCalls < 0 || policy.MaxModelCalls > MaxWorkerModelCalls {
+		return invalidf("modelPolicy maxModelCalls must be between 1 and %d when present", MaxWorkerModelCalls)
 	}
-	if policy.MaxTotalTokens <= 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
-		return invalidf("modelPolicy maxTotalTokens must be between 1 and %d", MaxWorkerTotalTokens)
+	if policy.MaxToolCalls < 0 || policy.MaxToolCalls > MaxWorkerToolCalls {
+		return invalidf("modelPolicy maxToolCalls must be between 1 and %d when present", MaxWorkerToolCalls)
+	}
+	if policy.MaxWorkerCalls < 0 || policy.MaxWorkerCalls > MaxPlannerWorkerCalls {
+		return invalidf("modelPolicy maxWorkerCalls must be between 1 and %d when present", MaxPlannerWorkerCalls)
+	}
+	if policy.MaxTotalTokens < 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
+		return invalidf("modelPolicy maxTotalTokens must be between 1 and %d when present", MaxWorkerTotalTokens)
 	}
 	if policy.Temperature != nil {
 		temperature := *policy.Temperature
@@ -304,12 +352,31 @@ func validateModelPolicy(policy ResolvedModelPolicy) error {
 	return nil
 }
 
+func validateWorkerModelPolicy(policy ResolvedModelPolicy, hasTools bool) error {
+	if err := validateModelPolicy(policy); err != nil {
+		return err
+	}
+	if policy.MaxOutputTokens <= 0 {
+		return invalidf("Worker modelPolicy requires maxOutputTokens")
+	}
+	if policy.MaxModelCalls <= 0 {
+		return invalidf("Worker modelPolicy requires maxModelCalls")
+	}
+	if policy.MaxTotalTokens <= 0 {
+		return invalidf("Worker modelPolicy requires maxTotalTokens")
+	}
+	if hasTools && policy.MaxToolCalls <= 0 {
+		return invalidf("tool-using Worker modelPolicy requires maxToolCalls")
+	}
+	if policy.MaxWorkerCalls != 0 {
+		return invalidf("Worker modelPolicy must omit maxWorkerCalls")
+	}
+	return nil
+}
+
 func validateRuntimeSettings(settings RuntimeSettings) error {
 	if err := validateURL("runtimeSettings.llmGatewayUrl", settings.LLMGatewayURL); err != nil {
 		return err
-	}
-	if settings.LLMGatewayToken.Reveal() == "" {
-		return invalidf("runtimeSettings.llmGatewayToken must not be empty")
 	}
 	if err := validateURL("runtimeSettings.artifactApiUrl", settings.ArtifactAPIURL); err != nil {
 		return err

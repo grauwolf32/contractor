@@ -1,6 +1,9 @@
 package config
 
-import "github.com/grauwolf32/contractor/internal/contracts"
+import (
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"go.yaml.in/yaml/v4"
+)
 
 const (
 	modelPolicyKind      = "ModelPolicy"
@@ -62,6 +65,29 @@ type ResolvedAgentBinding struct {
 	Namespace string                          `json:"namespace"`
 }
 
+// ExecutionConfigOrigins records which authoring layer selected each resolved
+// field. Values are safe provenance strings, never secret material.
+type ExecutionConfigOrigins struct {
+	ModelPolicy string `json:"modelPolicy"`
+	LLMGateway  string `json:"llmGateway"`
+	Credential  string `json:"credential,omitempty"`
+}
+
+// ResolvedConsumerExecutionConfig is one complete immutable model-access
+// selection. Credential is a non-secret identity; token bytes never enter a
+// Workflow or Run snapshot.
+type ResolvedConsumerExecutionConfig struct {
+	ModelPolicy contracts.ResolvedModelPolicy      `json:"modelPolicy"`
+	LLMGateway  contracts.ResolvedLLMGatewayConfig `json:"llmGateway"`
+	Credential  *contracts.LLMCredentialRef        `json:"credential,omitempty"`
+	Origins     ExecutionConfigOrigins             `json:"origins"`
+}
+
+type ResolvedStageExecutionConfig struct {
+	Planner *ResolvedConsumerExecutionConfig           `json:"planner,omitempty"`
+	Agents  map[string]ResolvedConsumerExecutionConfig `json:"agents"`
+}
+
 type TransitionKind string
 
 const (
@@ -95,6 +121,7 @@ type ResolvedStage struct {
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
 	Agents          map[string]ResolvedAgentBinding `json:"agents"`
+	ExecutionConfig ResolvedStageExecutionConfig    `json:"executionConfig"`
 	Context         StageContext                    `json:"context"`
 	Result          StageResultContract             `json:"result"`
 	WorkflowOutputs map[string]string               `json:"workflowOutputs"`
@@ -140,10 +167,11 @@ type modelPolicyDocument struct {
 
 type modelPolicySpecSource struct {
 	Model           string   `yaml:"model"`
-	MaxOutputTokens int      `yaml:"maxOutputTokens"`
-	MaxModelCalls   int      `yaml:"maxModelCalls"`
-	MaxToolCalls    int      `yaml:"maxToolCalls"`
-	MaxTotalTokens  int      `yaml:"maxTotalTokens"`
+	MaxOutputTokens *int     `yaml:"maxOutputTokens,omitempty"`
+	MaxModelCalls   *int     `yaml:"maxModelCalls,omitempty"`
+	MaxToolCalls    *int     `yaml:"maxToolCalls,omitempty"`
+	MaxWorkerCalls  *int     `yaml:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens  *int     `yaml:"maxTotalTokens,omitempty"`
 	Temperature     *float64 `yaml:"temperature,omitempty"`
 }
 
@@ -194,11 +222,29 @@ type workflowDocument struct {
 }
 
 type workflowSpecSource struct {
-	Parameters *map[string]parameterSlotSource `yaml:"parameters"`
-	Inputs     *map[string]artifactSlotSource  `yaml:"inputs"`
-	Outputs    *map[string]artifactSlotSource  `yaml:"outputs"`
-	EntryStage string                          `yaml:"entryStage"`
-	Stages     *map[string]stageSource         `yaml:"stages"`
+	Parameters      *map[string]parameterSlotSource `yaml:"parameters"`
+	Inputs          *map[string]artifactSlotSource  `yaml:"inputs"`
+	Outputs         *map[string]artifactSlotSource  `yaml:"outputs"`
+	ExecutionConfig *workflowExecutionConfigSource  `yaml:"executionConfig,omitempty"`
+	EntryStage      string                          `yaml:"entryStage"`
+	Stages          *map[string]stageSource         `yaml:"stages"`
+}
+
+type executionSelectionSource struct {
+	ModelPolicy yaml.Node `yaml:"modelPolicy,omitempty"`
+	LLMGateway  yaml.Node `yaml:"llmGateway,omitempty"`
+	Credential  yaml.Node `yaml:"credential,omitempty"`
+}
+
+type workflowExecutionConfigSource struct {
+	Planner *executionSelectionSource             `yaml:"planner,omitempty"`
+	Workers *executionSelectionSource             `yaml:"workers,omitempty"`
+	Stages  map[string]stageExecutionConfigSource `yaml:"stages,omitempty"`
+}
+
+type stageExecutionConfigSource struct {
+	Planner *executionSelectionSource           `yaml:"planner,omitempty"`
+	Agents  map[string]executionSelectionSource `yaml:"agents,omitempty"`
 }
 
 type parameterSlotSource struct {

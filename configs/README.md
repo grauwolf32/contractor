@@ -18,6 +18,20 @@ shipped `local-litellm@1` config uses the OpenAI-compatible `/v1` inference
 path and a loopback-only HTTP LiteLLM management origin. Tokens and LiteLLM
 admin keys are never valid fields in these manifests.
 
+Workflow `spec.executionConfig` contains reference-only defaults. A modeled
+consumer resolves an exact `modelPolicy`, `llmGateway`, and optional non-secret
+credential ID; per-Stage and per-Agent leaves override Workflow-wide defaults.
+`POST /v1/runs` accepts the same shape as an override, with
+`credential: null` as the only explicit clear operation. The resolved bodies,
+digests, origins, and credential IDs are pinned in the Run snapshot, while
+token bytes are resolved only when constructing a Planner client or Worker
+allocation.
+
+For local development only, `CONTRACTOR_LLM_GATEWAY_TOKEN` and
+`CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` bootstrap the fixed credential IDs
+`development-worker` and `development-planner` against `local-litellm@1`.
+They do not override the Gateway URL or model selected by configuration.
+
 `examples/` contains copyable multi-Stage, bounded-retry, single-Worker
 `streamline@1`, and multi-Worker `router@1` Workflow manifests. They are
 intentionally outside `workflows/`, so they document supported shapes without

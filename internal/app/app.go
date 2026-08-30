@@ -17,6 +17,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -31,28 +32,59 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/adk/model"
 )
 
 // Config contains process-level settings needed by the bootstrap server.
 type Config struct {
-	ListenAddress         string
-	PrivateListenAddress  string
-	PrivateURL            string
-	ShutdownTimeout       time.Duration
-	RuntimeRequestTimeout time.Duration
-	DatabaseURL           string
-	ConfigRoot            string
-	CAFile                string
-	CertificateFile       string
-	PrivateKeyFile        string
-	LLMGatewayURL         string
-	LLMGatewayToken       contracts.SecretString
-	PlannerGatewayURL     string
-	PlannerGatewayToken   contracts.SecretString
-	PlannerModel          string
-	PlannerTimeout        time.Duration
-	PublicBearerToken     contracts.SecretString
-	PublicUserID          string
+	ListenAddress           string
+	PrivateListenAddress    string
+	PrivateURL              string
+	ShutdownTimeout         time.Duration
+	RuntimeRequestTimeout   time.Duration
+	DatabaseURL             string
+	ConfigRoot              string
+	CAFile                  string
+	CertificateFile         string
+	PrivateKeyFile          string
+	DevelopmentWorkerToken  contracts.SecretString
+	DevelopmentPlannerToken contracts.SecretString
+	PlannerTimeout          time.Duration
+	PublicBearerToken       contracts.SecretString
+	PublicUserID            string
+}
+
+const (
+	developmentWorkerCredential  = "development-worker"
+	developmentPlannerCredential = "development-planner"
+)
+
+func developmentCredentials(
+	snapshot *workflowconfig.Snapshot,
+	cfg Config,
+) (*credentials.StaticProvider, error) {
+	entries := make([]credentials.StaticEntry, 0, 2)
+	if cfg.DevelopmentWorkerToken.Reveal() == "" && cfg.DevelopmentPlannerToken.Reveal() == "" {
+		return credentials.NewStaticProvider(entries)
+	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		return nil, errors.New("development tokens require LLMGatewayConfig local-litellm@1")
+	}
+	appendEntry := func(id string, token contracts.SecretString) {
+		if token.Reveal() == "" {
+			return
+		}
+		entries = append(entries, credentials.StaticEntry{
+			Metadata: workflowconfig.CredentialMetadata{
+				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+			},
+			Token: token,
+		})
+	}
+	appendEntry(developmentWorkerCredential, cfg.DevelopmentWorkerToken)
+	appendEntry(developmentPlannerCredential, cfg.DevelopmentPlannerToken)
+	return credentials.NewStaticProvider(entries)
 }
 
 // RunCLI parses process configuration and runs the Server until cancellation.
@@ -83,16 +115,16 @@ func RunCLI(
 		strings.TrimSpace(cfg.PrivateKeyFile) == "" {
 		return errors.New("Control Plane certificate, private key, and deployment CA are required")
 	}
-	if strings.TrimSpace(cfg.LLMGatewayURL) == "" || cfg.LLMGatewayToken.Reveal() == "" {
-		return errors.New("LLM Gateway URL and token are required")
-	}
-	if strings.TrimSpace(cfg.PlannerGatewayURL) == "" || cfg.PlannerGatewayToken.Reveal() == "" ||
-		strings.TrimSpace(cfg.PlannerModel) == "" || cfg.PlannerTimeout <= 0 {
-		return errors.New("Planner LLM Gateway URL, token, model, and timeout are required")
+	if cfg.PlannerTimeout <= 0 {
+		return errors.New("Planner timeout is required")
 	}
 	snapshot, err := workflowconfig.Load(cfg.ConfigRoot, workflowconfig.MVPDescriptors())
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
+	}
+	credentialProvider, err := developmentCredentials(snapshot, cfg)
+	if err != nil {
+		return fmt.Errorf("configure development LLM credentials: %w", err)
 	}
 	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, persistencepostgres.PoolOptions{})
 	if err != nil {
@@ -139,23 +171,22 @@ func RunCLI(
 	if err != nil {
 		return err
 	}
-	plannerModel, err := streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-		URL: cfg.PlannerGatewayURL, Token: cfg.PlannerGatewayToken, Model: cfg.PlannerModel,
-		RequestTimeout: cfg.PlannerTimeout,
-	})
-	if err != nil {
-		return fmt.Errorf("configure Planner LLM Gateway: %w", err)
+	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
+		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
+			URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
+			MaxOutputTokens: access.ModelPolicy.MaxOutputTokens, RequestTimeout: cfg.PlannerTimeout,
+		})
 	}
 	streamlineLimits := streamline.DefaultLimits()
 	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
-	streamlineFactory, err := streamline.NewFactory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModel, streamlineLimits,
+	streamlineFactory, err := streamline.NewConfiguredFactory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Streamline Planner: %w", err)
 	}
-	routerFactory, err := plannerrouter.NewFactory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModel, streamlineLimits,
+	routerFactory, err := plannerrouter.NewConfiguredFactory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Router Planner: %w", err)
@@ -173,7 +204,6 @@ func RunCLI(
 		return err
 	}
 	runtimeSettings := contracts.RuntimeSettings{
-		LLMGatewayURL: cfg.LLMGatewayURL, LLMGatewayToken: cfg.LLMGatewayToken,
 		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
 		RequestTimeoutSeconds: int(cfg.RuntimeRequestTimeout / time.Second),
 	}
@@ -188,9 +218,10 @@ func RunCLI(
 			OperationTimeout: cfg.RuntimeRequestTimeout,
 			PlannerTimeout:   cfg.PlannerTimeout,
 			RuntimeSettings:  runtimeSettings,
+			Credentials:      credentialProvider,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
-				cfg.LLMGatewayToken.Reveal(), cfg.PlannerGatewayToken.Reveal(),
+				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
 			},
 			Logger: logger,
 		},
@@ -200,6 +231,7 @@ func RunCLI(
 	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Config: snapshot, Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
+		Credentials:  credentialProvider,
 		Metrics:      telemetry.NewRepository(pool),
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken, UserID: cfg.PublicUserID,

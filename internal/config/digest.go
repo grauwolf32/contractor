@@ -12,12 +12,9 @@ import (
 
 func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) (string, error) {
 	spec := map[string]any{
-		"model":           policy.Model,
-		"maxOutputTokens": policy.MaxOutputTokens,
-		"maxModelCalls":   policy.MaxModelCalls,
-		"maxToolCalls":    policy.MaxToolCalls,
-		"maxTotalTokens":  policy.MaxTotalTokens,
+		"model": policy.Model,
 	}
+	addModelPolicyLimits(spec, policy)
 	if policy.Temperature != nil {
 		spec["temperature"] = *policy.Temperature
 	}
@@ -63,12 +60,9 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			"version":  template.ModelPolicy.Ref.Version,
 			"digest":   template.ModelPolicy.Ref.Digest,
 		},
-		"model":           template.ModelPolicy.Model,
-		"maxOutputTokens": template.ModelPolicy.MaxOutputTokens,
-		"maxModelCalls":   template.ModelPolicy.MaxModelCalls,
-		"maxToolCalls":    template.ModelPolicy.MaxToolCalls,
-		"maxTotalTokens":  template.ModelPolicy.MaxTotalTokens,
+		"model": template.ModelPolicy.Model,
 	}
+	addModelPolicyLimits(modelPolicy, template.ModelPolicy)
 	if template.ModelPolicy.Temperature != nil {
 		modelPolicy["temperature"] = *template.ModelPolicy.Temperature
 	}
@@ -114,6 +108,20 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		},
 	}
 	return digestJCS(manifest)
+}
+
+func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelPolicy) {
+	for name, value := range map[string]int{
+		"maxOutputTokens": policy.MaxOutputTokens,
+		"maxModelCalls":   policy.MaxModelCalls,
+		"maxToolCalls":    policy.MaxToolCalls,
+		"maxWorkerCalls":  policy.MaxWorkerCalls,
+		"maxTotalTokens":  policy.MaxTotalTokens,
+	} {
+		if value != 0 {
+			target[name] = value
+		}
+	}
 }
 
 // digestJCS converts Go's typed values through encoding/json so the JCS

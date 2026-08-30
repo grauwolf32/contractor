@@ -10,6 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -166,8 +169,6 @@ func TestParseConfig(t *testing.T) {
 			return "/srv/contractor/pki/control.pem"
 		case "CONTRACTOR_CONTROL_PLANE_KEY_FILE":
 			return "/srv/contractor/pki/control-key.pem"
-		case "CONTRACTOR_LLM_GATEWAY_URL":
-			return "http://127.0.0.1:4000/v1"
 		case "CONTRACTOR_LLM_GATEWAY_TOKEN":
 			return "gateway-token"
 		case "CONTRACTOR_PUBLIC_USER_ID":
@@ -196,45 +197,62 @@ func TestParseConfig(t *testing.T) {
 	}
 	if cfg.PrivateListenAddress != "127.0.0.1:9443" || cfg.PrivateURL != "https://control.internal:9443" ||
 		cfg.CAFile != "/srv/contractor/pki/ca.pem" || cfg.CertificateFile != "/srv/contractor/pki/control.pem" ||
-		cfg.PrivateKeyFile != "/srv/contractor/pki/control-key.pem" || cfg.LLMGatewayURL != "http://127.0.0.1:4000/v1" ||
-		cfg.LLMGatewayToken.Reveal() != "gateway-token" {
+		cfg.PrivateKeyFile != "/srv/contractor/pki/control-key.pem" ||
+		cfg.DevelopmentWorkerToken.Reveal() != "gateway-token" {
 		t.Fatalf("private runtime settings were not parsed: %+v", cfg)
 	}
-	if cfg.PlannerGatewayURL != cfg.LLMGatewayURL ||
-		cfg.PlannerGatewayToken.Reveal() != cfg.LLMGatewayToken.Reveal() ||
-		cfg.PlannerModel != defaultPlannerModel || cfg.PlannerTimeout != defaultPlannerTimeout {
-		t.Fatalf("Planner settings or Worker-gateway fallback were not parsed: %+v", cfg)
+	if cfg.DevelopmentPlannerToken.Reveal() != cfg.DevelopmentWorkerToken.Reveal() ||
+		cfg.PlannerTimeout != defaultPlannerTimeout {
+		t.Fatalf("development credential fallback or Planner timeout was not parsed: %+v", cfg)
 	}
 }
 
-func TestParseConfigUsesIndependentPlannerGatewayOverrides(t *testing.T) {
+func TestParseConfigUsesIndependentDevelopmentPlannerCredential(t *testing.T) {
 	t.Parallel()
 	env := func(key string) string {
 		switch key {
-		case "CONTRACTOR_LLM_GATEWAY_URL":
-			return "https://worker-gateway.test/v1"
 		case "CONTRACTOR_LLM_GATEWAY_TOKEN":
 			return "worker-token"
-		case "CONTRACTOR_PLANNER_LLM_GATEWAY_URL":
-			return "https://planner-env.test/v1"
 		case "CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN":
 			return "planner-token"
-		case "CONTRACTOR_PLANNER_MODEL":
-			return "planner-env-model"
 		}
 		return ""
 	}
-	cfg, err := ParseConfig([]string{
-		"serve", "--planner-llm-gateway-url=https://planner-flag.test/v1",
-		"--planner-model=planner-flag-model", "--planner-timeout=2m",
-	}, env)
+	cfg, err := ParseConfig([]string{"serve", "--planner-timeout=2m"}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.PlannerGatewayURL != "https://planner-flag.test/v1" ||
-		cfg.PlannerGatewayToken.Reveal() != "planner-token" ||
-		cfg.PlannerModel != "planner-flag-model" || cfg.PlannerTimeout != 2*time.Minute {
-		t.Fatalf("independent Planner settings = %+v", cfg)
+	if cfg.DevelopmentWorkerToken.Reveal() != "worker-token" ||
+		cfg.DevelopmentPlannerToken.Reveal() != "planner-token" || cfg.PlannerTimeout != 2*time.Minute {
+		t.Fatalf("independent development credentials = %+v", cfg)
+	}
+}
+
+func TestDevelopmentCredentialsBindNamedTokensToPinnedLocalGateway(t *testing.T) {
+	t.Parallel()
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, err := developmentCredentials(snapshot, Config{
+		DevelopmentWorkerToken:  contracts.NewSecretString("worker-token"),
+		DevelopmentPlannerToken: contracts.NewSecretString("planner-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, _ := snapshot.LLMGateway("local-litellm@1")
+	for id, want := range map[string]string{
+		developmentWorkerCredential: "worker-token", developmentPlannerCredential: "planner-token",
+	} {
+		metadata, err := provider.LookupLLMCredential(t.Context(), id)
+		if err != nil || metadata.LLMGateway != gateway.Ref {
+			t.Fatalf("development credential %q metadata = (%+v, %v)", id, metadata, err)
+		}
+		token, err := provider.ResolveLLMCredential(t.Context(), metadata.Ref, metadata.LLMGateway)
+		if err != nil || token.Reveal() != want {
+			t.Fatalf("development credential %q token = (%s, %v)", id, token, err)
+		}
 	}
 }
 

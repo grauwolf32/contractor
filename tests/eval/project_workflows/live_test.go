@@ -225,7 +225,7 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 	t.Cleanup(cancelSetup)
 	databaseURL := liveIsolatedDatabase(t, setupContext, settings.databaseURL)
 	configRoot := filepath.Join(temporaryRoot, "configs")
-	copyLiveConfiguration(t, repositoryRoot, configRoot, settings.model)
+	copyLiveConfiguration(t, repositoryRoot, configRoot, settings.model, settings.gatewayURL)
 	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
 	runLiveChecked(t, repositoryRoot, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
 	runLiveChecked(t, repositoryRoot, map[string]string{
@@ -266,7 +266,6 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		"CONTRACTOR_CA_FILE":                 caPaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
-		"CONTRACTOR_LLM_GATEWAY_URL":         settings.gatewayURL,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       settings.gatewayToken,
 		"CONTRACTOR_PUBLIC_USER_ID":          "project-live-user-" + liveRandomHex(t, 8),
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,

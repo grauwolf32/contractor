@@ -18,6 +18,10 @@ spec:
       required: true
       mediaTypes: [text/plain]
 
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
   entryStage: copy
   stages:
     copy:

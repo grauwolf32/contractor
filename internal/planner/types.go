@@ -29,7 +29,18 @@ type Invocation struct {
 	Stage            workflowconfig.ResolvedStage
 	Context          StageContext
 	Workers          map[string]contracts.WorkerHandle
+	ModelAccess      *ModelAccess
 	Deadline         time.Time
+}
+
+// ModelAccess is resolved from the immutable Run snapshot. Token is held only
+// for construction of this invocation's model client and is never persisted in
+// Planner state or events.
+type ModelAccess struct {
+	ModelPolicy contracts.ResolvedModelPolicy
+	LLMGateway  contracts.ResolvedLLMGatewayConfig
+	Credential  *contracts.LLMCredentialRef
+	Token       contracts.SecretString
 }
 
 type ArtifactMetadata struct {

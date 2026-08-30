@@ -94,6 +94,19 @@ func TestRuntimeSettingsRedactFormattingButSerializeOnWire(t *testing.T) {
 	}
 }
 
+func TestRuntimeSettingsAllowsExplicitUnauthenticatedGateway(t *testing.T) {
+	t.Parallel()
+	settings := RuntimeSettings{
+		LLMGatewayURL:         "http://127.0.0.1:4000/v1",
+		LLMGatewayToken:       NewSecretString(""),
+		ArtifactAPIURL:        "https://server.example/private/v1",
+		RequestTimeoutSeconds: 30,
+	}
+	if err := validateRuntimeSettings(settings); err != nil {
+		t.Fatalf("unauthenticated RuntimeSettings were rejected: %v", err)
+	}
+}
+
 func TestDecodeStrictRejectsTrailingJSON(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +128,8 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 		value       any
 		remove      bool
 	}{
+		{"missing output tokens", "maxOutputTokens", nil, true},
+		{"zero output tokens", "maxOutputTokens", float64(0), false},
 		{"missing model calls", "maxModelCalls", nil, true},
 		{"zero model calls", "maxModelCalls", float64(0), false},
 		{"too many model calls", "maxModelCalls", float64(MaxWorkerModelCalls + 1), false},
@@ -122,22 +137,30 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 		{"too many tool calls", "maxToolCalls", float64(MaxWorkerToolCalls + 1), false},
 		{"missing total tokens", "maxTotalTokens", nil, true},
 		{"too many total tokens", "maxTotalTokens", float64(MaxWorkerTotalTokens + 1), false},
+		{"Planner-only Worker calls", "maxWorkerCalls", float64(1), false},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			encoded, _ := json.Marshal(baseline)
-			var candidate map[string]any
-			_ = json.Unmarshal(encoded, &candidate)
-			policy := candidate["agentTemplate"].(map[string]any)["modelPolicy"].(map[string]any)
-			if test.remove {
-				delete(policy, test.field)
-			} else {
-				policy[test.field] = test.value
-			}
-			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
-				t.Fatal("invalid Worker budget was accepted")
-			}
-		})
+		for _, target := range []string{"AgentTemplate default", "effective allocation"} {
+			t.Run(test.name+"/"+target, func(t *testing.T) {
+				encoded, _ := json.Marshal(baseline)
+				var candidate map[string]any
+				_ = json.Unmarshal(encoded, &candidate)
+				var policy map[string]any
+				if target == "AgentTemplate default" {
+					policy = candidate["agentTemplate"].(map[string]any)["modelPolicy"].(map[string]any)
+				} else {
+					policy = candidate["modelPolicy"].(map[string]any)
+				}
+				if test.remove {
+					delete(policy, test.field)
+				} else {
+					policy[test.field] = test.value
+				}
+				encoded, _ = json.Marshal(candidate)
+				if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+					t.Fatal("invalid Worker budget was accepted")
+				}
+			})
+		}
 	}
 }
 

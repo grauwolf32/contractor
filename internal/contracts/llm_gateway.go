@@ -17,6 +17,23 @@ type LLMGatewayConfigRef struct {
 	Digest    string `json:"digest"`
 }
 
+func (r LLMGatewayConfigRef) ValidateRef() error {
+	if err := validateSelector("llmGatewayConfigRef", r.GatewayID+"@"+r.Version); err != nil {
+		return err
+	}
+	return validateDigest("llmGatewayConfigRef.digest", r.Digest)
+}
+
+// LLMCredentialRef is deliberately non-secret. The token is resolved only at
+// the final model-client or allocation-preparation boundary.
+type LLMCredentialRef struct {
+	CredentialID string `json:"credentialId"`
+}
+
+func (r LLMCredentialRef) Validate() error {
+	return validateSelector("llmCredentialRef", r.CredentialID+"@1")
+}
+
 type LLMGatewayCredentialManager struct {
 	Implementation string `json:"implementation"`
 	ManagementURL  string `json:"managementUrl"`
@@ -32,10 +49,7 @@ type ResolvedLLMGatewayConfig struct {
 }
 
 func (c ResolvedLLMGatewayConfig) Validate() error {
-	if err := validateSelector("llmGatewayConfigRef", c.Ref.GatewayID+"@"+c.Ref.Version); err != nil {
-		return err
-	}
-	if err := validateDigest("llmGatewayConfigRef.digest", c.Ref.Digest); err != nil {
+	if err := c.Ref.ValidateRef(); err != nil {
 		return err
 	}
 	if c.Protocol != OpenAICompatibleProtocol {

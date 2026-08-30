@@ -76,6 +76,40 @@ func TestOpenAICompatibleModelConvertsADKToolConversation(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleModelOmitsAuthorizationForUnauthenticatedGateway(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if values := r.Header.Values("Authorization"); len(values) != 0 {
+			t.Fatalf("unauthenticated request Authorization = %v", values)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+  "model":"local-model",
+  "choices":[{"finish_reason":"stop","message":{"content":"done"}}],
+  "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+}`))
+	}))
+	defer server.Close()
+	llm, err := NewOpenAICompatibleModel(GatewaySettings{
+		URL: server.URL + "/v1", Model: "local-model", HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &model.LLMRequest{
+		Contents: []*genai.Content{genai.NewContentFromText("hello", genai.RoleUser)},
+	}
+	var got *model.LLMResponse
+	for response, currentErr := range llm.GenerateContent(t.Context(), request, false) {
+		if currentErr != nil {
+			t.Fatal(currentErr)
+		}
+		got = response
+	}
+	if got == nil || got.Content == nil || got.Content.Parts[0].Text != "done" {
+		t.Fatalf("response = %+v", got)
+	}
+}
+
 func TestOpenAICompatibleModelRedactsProviderErrorBodyAndToken(t *testing.T) {
 	const secret = "sk-secret-embedded-by-provider"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

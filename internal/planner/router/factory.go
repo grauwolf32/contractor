@@ -13,6 +13,7 @@ const Ref = planner.RouterRef
 
 type Limits = streamline.Limits
 type ADKSessionFactory = streamline.ADKSessionFactory
+type InvocationModelFactory = streamline.InvocationModelFactory
 
 func DefaultLimits() Limits { return streamline.DefaultLimits() }
 
@@ -30,6 +31,23 @@ func NewFactory(
 ) (*Factory, error) {
 	delegate, err := streamline.NewRouterDelegate(
 		sessions, adkSessions, invoker, inspector, llm, limits,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Factory{delegate: delegate}, nil
+}
+
+func NewConfiguredFactory(
+	sessions planner.SessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	delegate, err := streamline.NewConfiguredRouterDelegate(
+		sessions, adkSessions, invoker, inspector, modelFactory, limits,
 	)
 	if err != nil {
 		return nil, err

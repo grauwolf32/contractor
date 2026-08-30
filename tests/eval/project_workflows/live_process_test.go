@@ -284,9 +284,11 @@ func liveRepositoryRoot(t *testing.T) string {
 	return root
 }
 
-func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model string) {
+func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayURL string) {
 	t.Helper()
 	source := filepath.Join(repositoryRoot, "configs")
+	gatewayUpdated := false
+	workflowUpdates := 0
 	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -317,10 +319,33 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model string) {
 			}
 			data = []byte(updated)
 		}
+		if relative == filepath.Join("llm-gateways", "local_litellm.yaml") {
+			encoded, _ := jsonString(gatewayURL)
+			lines := strings.Split(string(data), "\n")
+			for index, line := range lines {
+				if strings.HasPrefix(line, "  url: ") {
+					lines[index] = "  url: " + encoded
+					gatewayUpdated = true
+				}
+			}
+			data = []byte(strings.Join(lines, "\n"))
+		}
+		if strings.HasPrefix(relative, "workflows"+string(filepath.Separator)) {
+			const gatewaySelection = "      llmGateway: local-litellm@1\n"
+			const credentialSelection = gatewaySelection + "      credential: development-worker\n"
+			updated := strings.ReplaceAll(string(data), gatewaySelection, credentialSelection)
+			if updated != string(data) {
+				workflowUpdates++
+				data = []byte(updated)
+			}
+		}
 		return os.WriteFile(destination, data, 0o600)
 	})
 	if err != nil {
 		t.Fatalf("copy live evaluation configuration (%s)", safeErrorType(err))
+	}
+	if !gatewayUpdated || workflowUpdates == 0 {
+		t.Fatalf("live config updates = gateway:%t workflows:%d", gatewayUpdated, workflowUpdates)
 	}
 }
 

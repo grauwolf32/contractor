@@ -115,7 +115,7 @@
     "allocationSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "runtimeSettings"],
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "modelPolicy", "runtimeSettings"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
@@ -125,13 +125,14 @@
         "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
         "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
         "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
+        "modelPolicy": {"$ref": "common.schema.json#/$defs/resolvedModelPolicy"},
         "runtimeSettings": {
           "type": "object",
           "additionalProperties": false,
           "required": ["llmGatewayUrl", "llmGatewayToken", "artifactApiUrl", "requestTimeoutSeconds"],
           "properties": {
             "llmGatewayUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
-            "llmGatewayToken": {"type": "string", "minLength": 1},
+            "llmGatewayToken": {"type": "string"},
             "artifactApiUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
             "requestTimeoutSeconds": {"type": "integer", "minimum": 1}
           }

@@ -316,6 +316,76 @@ func TestStreamlineRejectsInvalidWorkerCardinalityBeforeSideEffects(t *testing.T
 	}
 }
 
+func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.T) {
+	sessions := newFakeSessions()
+	workers := &fakeWorkerInvoker{}
+	inspector := &fakeInspector{}
+	models := []*scriptedModel{{}, {}}
+	var accesses []planner.ModelAccess
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, inspector,
+		func(access planner.ModelAccess) (model.LLM, error) {
+			accesses = append(accesses, access)
+			return models[len(accesses)-1], nil
+		},
+		Limits{MaxWallTime: 19 * time.Second},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := factory.Create(testInvocation("builder")); err == nil ||
+		!strings.Contains(err.Error(), "requires resolved Planner model access") {
+		t.Fatalf("missing ModelAccess error = %v", err)
+	}
+
+	for index, values := range []struct {
+		model, gateway, credential, token string
+		modelCalls, workerCalls, tokens   int
+	}{
+		{"planner-small", "small", "credential-small", "secret-small", 3, 4, 5000},
+		{"planner-strong", "strong", "credential-strong", "secret-strong", 7, 9, 15000},
+	} {
+		credential := contracts.LLMCredentialRef{CredentialID: values.credential}
+		access := planner.ModelAccess{
+			ModelPolicy: contracts.ResolvedModelPolicy{
+				Ref: contracts.ModelPolicyRef{
+					PolicyID: values.model, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('a'+index)), 64),
+				},
+				Model: values.model, MaxOutputTokens: 2048 + index,
+				MaxModelCalls: values.modelCalls, MaxWorkerCalls: values.workerCalls,
+				MaxTotalTokens: values.tokens,
+			},
+			LLMGateway: contracts.ResolvedLLMGatewayConfig{
+				Ref: contracts.LLMGatewayConfigRef{
+					GatewayID: values.gateway, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('c'+index)), 64),
+				},
+				Protocol: contracts.OpenAICompatibleProtocol,
+				URL:      "https://" + values.gateway + ".example/v1",
+			},
+			Credential: &credential,
+			Token:      contracts.NewSecretString(values.token),
+		}
+		invocation := testInvocation("builder")
+		invocation.ModelAccess = &access
+		created, err := factory.Create(invocation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance := created.(*streamlinePlanner)
+		if instance.model != models[index] || instance.limits.MaxModelCalls != values.modelCalls ||
+			instance.limits.MaxWorkerCalls != values.workerCalls ||
+			instance.limits.MaxTokens != int64(values.tokens) ||
+			instance.limits.MaxWallTime != 19*time.Second {
+			t.Fatalf("configured Planner %d = model:%T limits:%+v", index, instance.model, instance.limits)
+		}
+	}
+	if len(accesses) != 2 || accesses[0].ModelPolicy.Model == accesses[1].ModelPolicy.Model ||
+		accesses[0].LLMGateway.URL == accesses[1].LLMGateway.URL ||
+		accesses[0].Token.Reveal() == accesses[1].Token.Reveal() {
+		t.Fatalf("per-invocation model access = %+v", accesses)
+	}
+}
+
 func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing.T) {
 	revision := "report-r1"
 	model := &scriptedModel{steps: []modelStep{

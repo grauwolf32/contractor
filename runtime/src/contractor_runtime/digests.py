@@ -28,13 +28,16 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
     if instruction_digest != template.instructions.digest:
         raise TemplateDigestMismatch("resolved instruction digest does not match its text")
 
-    policy_digest = _model_policy_digest(template.model_policy)
-    if policy_digest != template.model_policy.ref.digest:
-        raise TemplateDigestMismatch("resolved ModelPolicy digest does not match its body")
+    verify_model_policy_digest(template.model_policy)
 
     template_digest = _agent_template_digest(template)
     if template_digest != template.ref.digest:
         raise TemplateDigestMismatch("resolved AgentTemplate digest does not match its body")
+
+
+def verify_model_policy_digest(policy: ResolvedModelPolicy) -> None:
+    if _model_policy_digest(policy) != policy.ref.digest:
+        raise TemplateDigestMismatch("resolved ModelPolicy digest does not match its body")
 
 
 def verify_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> None:
@@ -43,13 +46,8 @@ def verify_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> None:
 
 
 def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
-    spec: dict[str, Any] = {
-        "model": policy.model,
-        "maxOutputTokens": policy.max_output_tokens,
-        "maxModelCalls": policy.max_model_calls,
-        "maxToolCalls": policy.max_tool_calls,
-        "maxTotalTokens": policy.max_total_tokens,
-    }
+    spec: dict[str, Any] = {"model": policy.model}
+    _add_policy_limits(spec, policy)
     if policy.temperature is not None:
         spec["temperature"] = policy.temperature
     manifest = {
@@ -86,11 +84,8 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
             "digest": template.model_policy.ref.digest,
         },
         "model": template.model_policy.model,
-        "maxOutputTokens": template.model_policy.max_output_tokens,
-        "maxModelCalls": template.model_policy.max_model_calls,
-        "maxToolCalls": template.model_policy.max_tool_calls,
-        "maxTotalTokens": template.model_policy.max_total_tokens,
     }
+    _add_policy_limits(policy, template.model_policy)
     if template.model_policy.temperature is not None:
         policy["temperature"] = template.model_policy.temperature
 
@@ -135,6 +130,18 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
 def _digest_jcs(value: Any) -> str:
     canonical = jcs.canonicalize(value)
     return _digest_bytes(canonical)
+
+
+def _add_policy_limits(target: dict[str, Any], policy: ResolvedModelPolicy) -> None:
+    for name, value in (
+        ("maxOutputTokens", policy.max_output_tokens),
+        ("maxModelCalls", policy.max_model_calls),
+        ("maxToolCalls", policy.max_tool_calls),
+        ("maxWorkerCalls", policy.max_worker_calls),
+        ("maxTotalTokens", policy.max_total_tokens),
+    ):
+        if value is not None:
+            target[name] = value
 
 
 def _digest_bytes(value: bytes) -> str:

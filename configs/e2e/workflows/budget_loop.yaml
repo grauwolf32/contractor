@@ -15,6 +15,10 @@ spec:
 
   outputs: {}
 
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
   entryStage: analyze
   stages:
     analyze:

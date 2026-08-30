@@ -26,6 +26,10 @@ spec:
       required: true
       mediaTypes: [text/markdown]
 
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
   entryStage: dependency_discovery
   stages:
     dependency_discovery:

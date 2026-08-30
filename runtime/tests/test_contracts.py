@@ -118,6 +118,18 @@ def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     assert json.loads(settings.model_dump_json(by_alias=True))["llmGatewayToken"] == token
 
 
+def test_runtime_settings_accepts_explicit_unauthenticated_gateway() -> None:
+    settings = RuntimeSettings.model_validate(
+        {
+            "llmGatewayUrl": "http://127.0.0.1:4000/v1",
+            "llmGatewayToken": "",
+            "artifactApiUrl": "https://server.example/private/v1",
+            "requestTimeoutSeconds": 30,
+        }
+    )
+    assert settings.llm_gateway_token.get_secret_value() == ""
+
+
 def test_resolved_gateway_digest_matches_go_fixture() -> None:
     raw = (FIXTURES / "valid" / "llm-gateway-config.json").read_text(encoding="utf-8")
     gateway = ResolvedLLMGatewayConfig.model_validate_json(raw)
@@ -131,6 +143,7 @@ def test_resolved_gateway_digest_matches_go_fixture() -> None:
 @pytest.mark.parametrize(
     ("field", "invalid"),
     [
+        ("maxOutputTokens", 0),
         ("maxModelCalls", 0),
         ("maxModelCalls", 1001),
         ("maxToolCalls", -1),
@@ -141,14 +154,29 @@ def test_resolved_gateway_digest_matches_go_fixture() -> None:
 )
 def test_worker_budget_wire_fields_are_required_and_bounded(field: str, invalid: int) -> None:
     raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
-    policy = raw["agentTemplate"]["modelPolicy"]
-    missing = json.loads(json.dumps(raw))
-    del missing["agentTemplate"]["modelPolicy"][field]
-    with pytest.raises(ValidationError):
-        AllocationSpec.model_validate(missing)
-    policy[field] = invalid
-    with pytest.raises(ValidationError):
-        AllocationSpec.model_validate(raw)
+    for policy_path in (("agentTemplate", "modelPolicy"), ("modelPolicy",)):
+        missing = json.loads(json.dumps(raw))
+        policy: dict[str, Any] = missing
+        for component in policy_path:
+            policy = policy[component]
+        del policy[field]
+        with pytest.raises(ValidationError):
+            AllocationSpec.model_validate_json(json.dumps(missing))
+
+        invalid_value = json.loads(json.dumps(raw))
+        policy = invalid_value
+        for component in policy_path:
+            policy = policy[component]
+        policy[field] = invalid
+        with pytest.raises(ValidationError):
+            AllocationSpec.model_validate_json(json.dumps(invalid_value))
+
+
+def test_worker_policy_rejects_planner_only_limit() -> None:
+    raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    raw["modelPolicy"]["maxWorkerCalls"] = 1
+    with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
+        AllocationSpec.model_validate_json(json.dumps(raw))
 
 
 def test_all_golden_files_have_an_assigned_model() -> None:

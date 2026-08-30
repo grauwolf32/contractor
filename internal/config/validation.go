@@ -133,20 +133,23 @@ func validateModelPolicySpec(spec *modelPolicySpecSource) error {
 	if strings.TrimSpace(spec.Model) == "" {
 		return fmt.Errorf("spec.model must not be empty or whitespace-only")
 	}
-	if spec.MaxOutputTokens <= 0 {
-		return fmt.Errorf("spec.maxOutputTokens must be positive")
+	if spec.MaxOutputTokens != nil && *spec.MaxOutputTokens <= 0 {
+		return fmt.Errorf("spec.maxOutputTokens must be positive when present")
 	}
-	if spec.MaxOutputTokens > maxJSONSafeInteger {
+	if spec.MaxOutputTokens != nil && *spec.MaxOutputTokens > maxJSONSafeInteger {
 		return fmt.Errorf("spec.maxOutputTokens exceeds the I-JSON safe integer range")
 	}
-	if spec.MaxModelCalls <= 0 || spec.MaxModelCalls > contracts.MaxWorkerModelCalls {
-		return fmt.Errorf("spec.maxModelCalls must be between 1 and %d", contracts.MaxWorkerModelCalls)
+	if spec.MaxModelCalls != nil && (*spec.MaxModelCalls <= 0 || *spec.MaxModelCalls > contracts.MaxWorkerModelCalls) {
+		return fmt.Errorf("spec.maxModelCalls must be between 1 and %d when present", contracts.MaxWorkerModelCalls)
 	}
-	if spec.MaxToolCalls <= 0 || spec.MaxToolCalls > contracts.MaxWorkerToolCalls {
-		return fmt.Errorf("spec.maxToolCalls must be between 1 and %d", contracts.MaxWorkerToolCalls)
+	if spec.MaxToolCalls != nil && (*spec.MaxToolCalls <= 0 || *spec.MaxToolCalls > contracts.MaxWorkerToolCalls) {
+		return fmt.Errorf("spec.maxToolCalls must be between 1 and %d when present", contracts.MaxWorkerToolCalls)
 	}
-	if spec.MaxTotalTokens <= 0 || spec.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
-		return fmt.Errorf("spec.maxTotalTokens must be between 1 and %d", contracts.MaxWorkerTotalTokens)
+	if spec.MaxWorkerCalls != nil && (*spec.MaxWorkerCalls <= 0 || *spec.MaxWorkerCalls > contracts.MaxPlannerWorkerCalls) {
+		return fmt.Errorf("spec.maxWorkerCalls must be between 1 and %d when present", contracts.MaxPlannerWorkerCalls)
+	}
+	if spec.MaxTotalTokens != nil && (*spec.MaxTotalTokens <= 0 || *spec.MaxTotalTokens > contracts.MaxWorkerTotalTokens) {
+		return fmt.Errorf("spec.maxTotalTokens must be between 1 and %d when present", contracts.MaxWorkerTotalTokens)
 	}
 	if spec.Temperature != nil && (math.IsNaN(*spec.Temperature) || math.IsInf(*spec.Temperature, 0) || *spec.Temperature < 0) {
 		return fmt.Errorf("spec.temperature must be finite and non-negative")

@@ -20,6 +20,10 @@ spec:
       required: true
       mediaTypes: [text/plain]
 
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
   entryStage: build
   stages:
     build:

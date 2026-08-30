@@ -51,6 +51,9 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 		EntryStage: spec.EntryStage,
 		Stages:     stages,
 	}
+	if err := l.resolveWorkflowExecutionConfig(&workflow, spec.ExecutionConfig); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	if err := ValidateWorkflowGraph(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
@@ -354,7 +357,6 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	if _, ok := workflow.Stages[workflow.EntryStage]; !ok {
 		return fmt.Errorf("Workflow Graph entry Stage %q does not exist", workflow.EntryStage)
 	}
-
 	names := make([]string, 0, len(workflow.Stages))
 	adjacency := make(map[string]map[string]struct{}, len(workflow.Stages))
 	for name := range workflow.Stages {
@@ -389,6 +391,9 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 				adjacency[name][continuation.NextStage] = struct{}{}
 			}
 		}
+	}
+	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
+		return err
 	}
 
 	reachable := make(map[string]bool, len(workflow.Stages))

@@ -57,6 +57,7 @@ type RunCancellationNotifier interface {
 
 type Dependencies struct {
 	Config       *config.Snapshot
+	Credentials  config.CredentialLookup
 	Runs         RunReader
 	Metrics      MetricsReader
 	Artifacts    *artifacts.Service
@@ -73,9 +74,10 @@ type Dependencies struct {
 var errInvalidRequest = errors.New("invalid public API request")
 
 type createRunRequest struct {
-	Workflow   string                           `json:"workflow"`
-	Parameters map[string]string                `json:"parameters"`
-	Artifacts  map[string]contracts.ArtifactRef `json:"artifacts"`
+	Workflow        string                           `json:"workflow"`
+	Parameters      map[string]string                `json:"parameters"`
+	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
+	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
 }
 
 type createRunResponse struct {

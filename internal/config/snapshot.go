@@ -195,6 +195,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 		binding.Template = cloneAgentTemplate(binding.Template)
 		result.Agents[name] = binding
 	}
+	result.ExecutionConfig = cloneStageExecutionConfig(source.ExecutionConfig)
 	result.Context.Artifacts = make(map[string]ContextArtifact, len(source.Context.Artifacts))
 	for name, artifact := range source.Context.Artifacts {
 		result.Context.Artifacts[name] = artifact
@@ -208,6 +209,31 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 		Succeeded:   cloneTransition(source.On.Succeeded),
 		Failed:      cloneTransition(source.On.Failed),
 		Interrupted: cloneTransition(source.On.Interrupted),
+	}
+	return result
+}
+
+func cloneStageExecutionConfig(source ResolvedStageExecutionConfig) ResolvedStageExecutionConfig {
+	result := ResolvedStageExecutionConfig{
+		Agents: make(map[string]ResolvedConsumerExecutionConfig, len(source.Agents)),
+	}
+	if source.Planner != nil {
+		planner := cloneConsumerExecutionConfig(*source.Planner)
+		result.Planner = &planner
+	}
+	for name, selection := range source.Agents {
+		result.Agents[name] = cloneConsumerExecutionConfig(selection)
+	}
+	return result
+}
+
+func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) ResolvedConsumerExecutionConfig {
+	result := source
+	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	result.LLMGateway = cloneLLMGatewayConfig(source.LLMGateway)
+	if source.Credential != nil {
+		credential := *source.Credential
+		result.Credential = &credential
 	}
 	return result
 }

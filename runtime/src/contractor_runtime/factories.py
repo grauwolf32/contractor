@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
-from contractor_runtime.contracts import ResolvedAgentTemplate, RuntimeSettings
+from contractor_runtime.contracts import ResolvedAgentTemplate, ResolvedModelPolicy, RuntimeSettings
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
@@ -43,6 +43,7 @@ class WorkerBuildContext:
     logical_agent_name: str
     namespace: str
     agent_template: ResolvedAgentTemplate
+    model_policy: ResolvedModelPolicy
     workspace: AllocationWorkspace
     tools: Mapping[str, ToolInstance]
     state: Any

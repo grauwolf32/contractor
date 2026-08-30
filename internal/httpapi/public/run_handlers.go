@@ -30,9 +30,11 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	workflow, err := h.dependencies.Config.Workflow(request.Workflow)
+	workflow, err := h.dependencies.Config.ResolveRunWorkflow(
+		r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
+	)
 	if err != nil {
-		h.handleError(w, fmt.Errorf("%w: unknown Workflow selector", errInvalidRequest))
+		h.handleError(w, fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", errInvalidRequest, err))
 		return
 	}
 	if err := validateRunInputs(workflow, request); err != nil {
@@ -139,8 +141,9 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 	if artifactRefs == nil {
 		artifactRefs = map[string]contracts.ArtifactRef{}
 	}
-	encoded, err := json.Marshal(createRunRequest{
-		Workflow: request.Workflow, Parameters: parameters, Artifacts: artifactRefs,
+	encoded, err := json.Marshal(map[string]any{
+		"workflow": request.Workflow, "parameters": parameters, "artifacts": artifactRefs,
+		"executionConfig": request.ExecutionConfig.CanonicalValue(),
 	})
 	if err != nil {
 		return "", err

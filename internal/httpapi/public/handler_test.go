@@ -196,6 +196,9 @@ func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 		`{"workflow":"artifact-copy@1","parameters":{"objective":42},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{},"extra":true}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{}}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":null}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"modelPolicy":null}}}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{}}}`,
 	}
 	for _, body := range requests {
 		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader([]byte(body)))
@@ -282,6 +285,50 @@ func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
 	}
 }
 
+func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	requestBody := func(policy string) []byte {
+		return []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"modelPolicy":"` + policy + `"}}}`)
+	}
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("worker@1")))
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	var workflow config.ResolvedWorkflow
+	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
+	if selection.ModelPolicy.Ref.PolicyID != "worker" ||
+		selection.Origins.ModelPolicy != "run.executionConfig.workers" {
+		t.Fatalf("stored resolved executionConfig = %+v", selection)
+	}
+
+	conflict := authenticatedRequest(
+		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("domain_worker@1")),
+	)
+	conflictResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflictResponse, conflict)
+	if conflictResponse.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.repository.writes != 1 {
+		t.Fatalf(
+			"selector conflict = status:%d runs:%d writes:%d body:%s",
+			conflictResponse.Code, len(fixture.runs.runs), fixture.repository.writes,
+			conflictResponse.Body.String(),
+		)
+	}
+}
+
 func TestCreateRunRequiresValidIdempotencyKey(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
@@ -310,6 +357,19 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 	})
 	if err != nil || explicit != omitted {
 		t.Fatalf("semantic request digests = omitted:%q explicit:%q error:%v", omitted, explicit, err)
+	}
+	var emptyExecutionConfig config.ExecutionConfigPatch
+	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
+		t.Fatal(err)
+	}
+	withEmptyExecutionConfig, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", ExecutionConfig: emptyExecutionConfig,
+	})
+	if err != nil || withEmptyExecutionConfig != omitted {
+		t.Fatalf(
+			"empty executionConfig digest = %q, omitted = %q, error = %v",
+			withEmptyExecutionConfig, omitted, err,
+		)
 	}
 }
 

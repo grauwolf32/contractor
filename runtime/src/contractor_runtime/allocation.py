@@ -25,7 +25,11 @@ from contractor_runtime.contracts import (
     TerminationError,
     WorkerHandle,
 )
-from contractor_runtime.digests import TemplateDigestMismatch, verify_template_digests
+from contractor_runtime.digests import (
+    TemplateDigestMismatch,
+    verify_model_policy_digest,
+    verify_template_digests,
+)
 from contractor_runtime.factories import (
     FactoryRegistry,
     SandboxFactory,
@@ -182,6 +186,7 @@ class AllocationService:
                         logical_agent_name=spec.logical_agent_name,
                         namespace=spec.namespace,
                         agent_template=spec.agent_template,
+                        model_policy=spec.model_policy,
                         workspace=workspace,
                         tools=tools,
                         state=worker_state,
@@ -378,6 +383,7 @@ class AllocationService:
             )
         try:
             verify_template_digests(spec.agent_template)
+            verify_model_policy_digest(spec.model_policy)
         except TemplateDigestMismatch:
             raise AllocationError(
                 "template_digest_mismatch",
@@ -647,7 +653,7 @@ class AllocationService:
     ) -> None:
         encoded = json.dumps(handle.model_dump(mode="json", by_alias=True), ensure_ascii=False)
         token = settings.llm_gateway_token.get_secret_value()
-        if token in encoded or str(workspace.path) in encoded:
+        if (token and token in encoded) or str(workspace.path) in encoded:
             raise AllocationError(
                 "unsafe_worker_handle",
                 "Worker runtime exposed private allocation data in its Agent Card",

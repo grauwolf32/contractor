@@ -167,10 +167,10 @@ func (l *loader) loadModelPolicies() error {
 		}
 		policy := contracts.ResolvedModelPolicy{
 			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
-			Model: document.Spec.Model, MaxOutputTokens: document.Spec.MaxOutputTokens,
-			MaxModelCalls: document.Spec.MaxModelCalls, MaxToolCalls: document.Spec.MaxToolCalls,
-			MaxTotalTokens: document.Spec.MaxTotalTokens,
-			Temperature:    cloneFloat(document.Spec.Temperature),
+			Model: document.Spec.Model, MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
+			MaxModelCalls: optionalIntValue(document.Spec.MaxModelCalls), MaxToolCalls: optionalIntValue(document.Spec.MaxToolCalls),
+			MaxWorkerCalls: optionalIntValue(document.Spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(document.Spec.MaxTotalTokens),
+			Temperature: cloneFloat(document.Spec.Temperature),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {
@@ -180,6 +180,13 @@ func (l *loader) loadModelPolicies() error {
 		l.policies[selector.String()] = policy
 	}
 	return nil
+}
+
+func optionalIntValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func (l *loader) loadLLMGatewayConfigs() error {

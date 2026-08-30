@@ -694,14 +694,20 @@ func cloneReservation(source Reservation) Reservation {
 
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
 	result := source
-	if source.ModelPolicy.Temperature != nil {
-		temperature := *source.ModelPolicy.Temperature
-		result.ModelPolicy.Temperature = &temperature
-	}
+	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
 	for index, selection := range source.Toolsets {
 		result.Toolsets[index] = selection
 		result.Toolsets[index].Tools = append([]string(nil), selection.Tools...)
+	}
+	return result
+}
+
+func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
+	result := source
+	if source.Temperature != nil {
+		temperature := *source.Temperature
+		result.Temperature = &temperature
 	}
 	return result
 }

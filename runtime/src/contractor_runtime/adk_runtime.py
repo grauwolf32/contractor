@@ -183,14 +183,16 @@ class GatewayLiteLlm(LiteLlm):
 
 
 def gateway_model(context: WorkerBuildContext) -> BaseLlm:
-    policy = context.agent_template.model_policy
+    policy = context.model_policy
     settings = context.runtime_settings
-    return GatewayLiteLlm(
-        model=f"openai/{policy.model}",
-        api_base=settings.llm_gateway_url,
-        api_key=settings.llm_gateway_token.get_secret_value(),
-        timeout=float(settings.request_timeout_seconds),
-    )
+    options: dict[str, Any] = {
+        "api_base": settings.llm_gateway_url,
+        "timeout": float(settings.request_timeout_seconds),
+    }
+    token = settings.llm_gateway_token.get_secret_value()
+    if token:
+        options["api_key"] = token
+    return GatewayLiteLlm(model=f"openai/{policy.model}", **options)
 
 
 class AdkWorkerRuntimeFactory:
@@ -224,7 +226,7 @@ class AdkWorkerRuntime:
         self._finalizer_agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
 
-        policy = context.agent_template.model_policy
+        policy = context.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
@@ -309,7 +311,7 @@ class AdkWorkerRuntime:
             return _failure("worker_busy", "Worker already has an active A2A invocation", True)
         await self._invoke_lock.acquire()
         self._active_task = asyncio.current_task()
-        policy = self._context.agent_template.model_policy
+        policy = self._context.model_policy
         budget = _InvocationBudget(
             max_model_calls=policy.max_model_calls,
             max_tool_calls=policy.max_tool_calls,

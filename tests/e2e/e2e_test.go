@@ -101,6 +101,10 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 
 	gateway := newFakeGateway(llmGatewayToken)
 	t.Cleanup(gateway.close)
+	configRoot := stageE2EConfiguration(
+		t, filepath.Join(repositoryRoot, "configs", "e2e"),
+		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
+	)
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
 	runtimeAddress := freeAddress(t)
@@ -110,14 +114,13 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	userID := "e2e-user-" + randomHex(t, 8)
 	server := startProcess(t, "Go Server", repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
-		"CONTRACTOR_CONFIG_ROOT":             filepath.Join(repositoryRoot, "configs", "e2e"),
+		"CONTRACTOR_CONFIG_ROOT":             configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN":           publicAddress,
 		"CONTRACTOR_PRIVATE_LISTEN":          privateAddress,
 		"CONTRACTOR_PRIVATE_URL":             privateBaseURL,
 		"CONTRACTOR_CA_FILE":                 caPaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
-		"CONTRACTOR_LLM_GATEWAY_URL":         gateway.URL(),
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       llmGatewayToken,
 		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,

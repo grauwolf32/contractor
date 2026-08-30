@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -33,6 +35,23 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	reviewer := stage.Agents["builder"]
 	reviewer.Namespace = "reviewer"
 	stage.Agents["reviewer"] = reviewer
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	plannerPolicy, err := snapshot.ModelPolicy("planner@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plannerConfig := workflowconfig.ResolvedConsumerExecutionConfig{
+		ModelPolicy: plannerPolicy,
+		LLMGateway:  gateway,
+		Origins: workflowconfig.ExecutionConfigOrigins{
+			ModelPolicy: "test",
+			LLMGateway:  "test",
+		},
+	}
 
 	decode := func(value workflowconfig.ResolvedWorkflow) error {
 		encoded, marshalErr := json.Marshal(value)
@@ -47,15 +66,45 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	}
 	for _, plannerID := range []string{"streamline", "passthrough"} {
 		stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
+		stage.ExecutionConfig.Planner = &plannerConfig
+		if plannerID == "passthrough" {
+			stage.ExecutionConfig.Planner = nil
+		}
 		workflow.Stages[workflow.EntryStage] = stage
 		if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
 			t.Fatalf("multi-Worker %s error = %v", plannerID, err)
 		}
 	}
 	stage.Planner = workflowconfig.PlannerRef{PlannerID: "router", Version: "1"}
+	stage.ExecutionConfig.Planner = &plannerConfig
 	workflow.Stages[workflow.EntryStage] = stage
 	if err := decode(workflow); err != nil {
 		t.Fatalf("multi-Worker router Workflow was rejected: %v", err)
+	}
+}
+
+func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.ExecutionConfig = workflowconfig.ResolvedStageExecutionConfig{}
+	workflow.Stages[workflow.EntryStage] = stage
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = decodeExecutableWorkflow(runstore.WorkflowRun{
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+	})
+	if !errors.Is(err, ErrUnsupportedWorkflow) || !strings.Contains(err.Error(), "executionConfig") {
+		t.Fatalf("legacy Workflow snapshot error = %v", err)
 	}
 }
 
@@ -101,6 +150,85 @@ func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	if harness.planners.invocation.Context.Artifacts["source"] == nil ||
 		harness.planners.invocation.Context.Artifacts["source"].Revision == nil {
 		t.Fatalf("Planner did not receive exact StageContext: %+v", harness.planners.invocation.Context)
+	}
+}
+
+func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plannerPolicy, _ := snapshot.ModelPolicy("planner@1")
+	workerPolicy, _ := snapshot.ModelPolicy("domain_worker@1")
+	workerGateway, _ := snapshot.LLMGateway("local-litellm@1")
+	plannerGateway := contracts.ResolvedLLMGatewayConfig{
+		Ref: contracts.LLMGatewayConfigRef{
+			GatewayID: "planner-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+		},
+		Protocol: contracts.OpenAICompatibleProtocol,
+		URL:      "https://planner.example/v1",
+	}
+	plannerCredential := contracts.LLMCredentialRef{CredentialID: "planner-credential"}
+	workerCredential := contracts.LLMCredentialRef{CredentialID: "worker-credential"}
+	provider, err := credentials.NewStaticProvider([]credentials.StaticEntry{
+		{
+			Metadata: workflowconfig.CredentialMetadata{
+				Ref: plannerCredential, LLMGateway: plannerGateway.Ref,
+			},
+			Token: contracts.NewSecretString("planner-secret"),
+		},
+		{
+			Metadata: workflowconfig.CredentialMetadata{
+				Ref: workerCredential, LLMGateway: workerGateway.Ref,
+			},
+			Token: contracts.NewSecretString("worker-secret"),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.scheduler.options.Credentials = provider
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.ExecutionConfig.Planner = &workflowconfig.ResolvedConsumerExecutionConfig{
+		ModelPolicy: plannerPolicy, LLMGateway: plannerGateway, Credential: &plannerCredential,
+		Origins: workflowconfig.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
+	}
+	workerSelection := stage.ExecutionConfig.Agents["builder"]
+	workerSelection.ModelPolicy = workerPolicy
+	workerSelection.Credential = &workerCredential
+	stage.ExecutionConfig.Agents["builder"] = workerSelection
+
+	workerSettings, err := harness.scheduler.workerExecutionSettings(t.Context(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := workerSettings["builder"]
+	if worker.ModelPolicy.Ref != workerPolicy.Ref ||
+		worker.RuntimeSettings.LLMGatewayURL != workerGateway.URL ||
+		worker.RuntimeSettings.LLMGatewayToken.Reveal() != "worker-secret" ||
+		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" ||
+		stage.Agents["builder"].Template.ModelPolicy.Ref == workerPolicy.Ref {
+		t.Fatalf("Worker execution settings = %+v", worker)
+	}
+	plannerAccess, err := harness.scheduler.plannerModelAccess(t.Context(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plannerAccess == nil || plannerAccess.ModelPolicy.Ref != plannerPolicy.Ref ||
+		plannerAccess.LLMGateway.Ref != plannerGateway.Ref ||
+		plannerAccess.Token.Reveal() != "planner-secret" ||
+		plannerAccess.Credential == nil || *plannerAccess.Credential != plannerCredential {
+		t.Fatalf("Planner model access = %+v", plannerAccess)
+	}
+	harness.scheduler.options.Credentials = credentialResolverFunc(func(
+		context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+	) (contracts.SecretString, error) {
+		return contracts.SecretString{}, errors.New("provider leaked worker-secret")
+	})
+	if _, err := harness.scheduler.workerExecutionSettings(t.Context(), stage); err == nil ||
+		strings.Contains(err.Error(), "worker-secret") {
+		t.Fatalf("unsafe credential resolution error = %v", err)
 	}
 }
 
@@ -1327,7 +1455,8 @@ type memoryWorkers struct {
 }
 
 func (w *memoryWorkers) PrepareAll(
-	_ context.Context, reservations []controlplane.Reservation, _ contracts.RuntimeSettings,
+	_ context.Context, reservations []controlplane.Reservation,
+	_ map[string]contracts.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.events.add("prepare")
@@ -1454,6 +1583,20 @@ func (r *memoryPlannerRegistry) Create(
 type plannerFunc func(context.Context) (contracts.StageContentResult, error)
 
 func (f plannerFunc) Run(ctx context.Context) (contracts.StageContentResult, error) { return f(ctx) }
+
+type credentialResolverFunc func(
+	context.Context,
+	contracts.LLMCredentialRef,
+	contracts.LLMGatewayConfigRef,
+) (contracts.SecretString, error)
+
+func (f credentialResolverFunc) ResolveLLMCredential(
+	ctx context.Context,
+	credential contracts.LLMCredentialRef,
+	gateway contracts.LLMGatewayConfigRef,
+) (contracts.SecretString, error) {
+	return f(ctx, credential, gateway)
+}
 
 func exactRef(namespace, name, revision string) contracts.ArtifactRef {
 	return contracts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}

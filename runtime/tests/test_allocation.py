@@ -72,6 +72,12 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
         assert conflict.value.code == "allocation_conflict"
         assert (await state.snapshot()).process_state is ProcessState.ALLOCATED
 
+        changed_policy = make_spec()
+        changed_policy.model_policy.model = "another-effective-model"
+        changed_policy.model_policy.ref.digest = _model_policy_digest(changed_policy.model_policy)
+        with pytest.raises(AllocationError, match="differs from the active allocation"):
+            await service.prepare(changed_policy)
+
     asyncio.run(scenario())
 
 
@@ -84,6 +90,15 @@ def test_bad_digest_and_unsupported_ref_leave_no_residue(tmp_path: Path) -> None
             await service.prepare(bad_digest)
         assert mismatch.value.code == "template_digest_mismatch"
         assert not mismatch.value.retryable
+        assert await service.snapshot() is None
+        assert list(tmp_path.iterdir()) == []
+
+        bad_policy_digest = make_spec()
+        bad_policy_digest.model_policy.ref.digest = "sha256:" + "0" * 64
+        with pytest.raises(AllocationError) as policy_mismatch:
+            await service.prepare(bad_policy_digest)
+        assert policy_mismatch.value.code == "template_digest_mismatch"
+        assert not policy_mismatch.value.retryable
         assert await service.snapshot() is None
         assert list(tmp_path.iterdir()) == []
 
@@ -322,6 +337,7 @@ def make_spec(
         namespace="builder",
         leaseExpiresAt=NOW + timedelta(seconds=60),
         agentTemplate=template,
+        modelPolicy=policy.model_copy(deep=True),
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=SECRET,

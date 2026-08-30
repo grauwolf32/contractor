@@ -26,7 +26,7 @@ const maxRuntimeResponseBytes = 1 << 20
 var runtimePathIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type RuntimeLifecycle interface {
-	Prepare(context.Context, Reservation, contracts.RuntimeSettings) (contracts.WorkerHandle, error)
+	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error)
 	Finalize(context.Context, Reservation, string, time.Time) (contracts.AllocationFinalReport, error)
 	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
@@ -88,14 +88,14 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,
-	settings contracts.RuntimeSettings,
+	settings contracts.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	spec := contracts.AllocationSpec{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 		LeaseExpiresAt: wireTime(reservation.LeaseExpiresAt), AgentTemplate: cloneAgentTemplate(reservation.AgentTemplate),
-		RuntimeSettings: settings,
+		ModelPolicy: cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
 	}
 	request := contracts.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
@@ -105,7 +105,7 @@ func (c *RuntimeControlClient) Prepare(
 	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "prepare", request, &response); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings); err != nil {
+	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	return response.WorkerHandle, nil
@@ -481,20 +481,28 @@ func NewRuntimeBatchController(
 func (c *RuntimeBatchController) PrepareAll(
 	ctx context.Context,
 	reservations []Reservation,
-	settings contracts.RuntimeSettings,
+	settings map[string]contracts.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
 	handles := make(map[string]contracts.WorkerHandle, len(reservations))
 	for _, reservation := range reservations {
-		handle, err := c.runtime.Prepare(ctx, reservation, settings)
+		logicalName := reservation.Grant.LogicalAgentName
+		resolved, ok := settings[logicalName]
+		if !ok {
+			return nil, fmt.Errorf("missing execution settings for logical Agent %q", logicalName)
+		}
+		handle, err := c.runtime.Prepare(ctx, reservation, resolved)
 		if err != nil {
 			prepareErr := fmt.Errorf("prepare logical Agent %q: %w", reservation.Grant.LogicalAgentName, err)
 			cleanupErr := c.cleanupFailedPrepare(reservations)
 			return nil, errors.Join(prepareErr, cleanupErr)
 		}
 		handles[reservation.Grant.LogicalAgentName] = handle
+	}
+	if len(settings) != len(reservations) {
+		return nil, errors.New("Worker execution settings contain an unknown logical Agent")
 	}
 	return handles, nil
 }
