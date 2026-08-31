@@ -127,6 +127,14 @@ describe("Operations routes", () => {
               {
                 instanceId: "runtime-vm-1",
                 softwareVersion: "0.1.0",
+                supportedRuntimes: ["python@1", "adk@1"],
+                supportedToolsets: [
+                  {
+                    ref: "likec4@1",
+                    tools: ["validate_likec4", "read_likec4"],
+                  },
+                ],
+                supportedSandboxProfiles: ["local-workdir@1"],
                 observedState: "fenced",
                 slotState: "fenced",
                 lastAcceptedHeartbeat: "2026-08-31T12:00:00Z",
@@ -137,6 +145,16 @@ describe("Operations routes", () => {
                   code: "lease_confirmation_lost",
                   retryable: true,
                 },
+                probeDiagnostic: "LOCAL_PROBE_SECRET_CANARY /private/path",
+              },
+              {
+                instanceId: "runtime-vm-minimal",
+                softwareVersion: "0.1.0",
+                supportedRuntimes: ["adk@1"],
+                supportedToolsets: [],
+                supportedSandboxProfiles: ["local-workdir@1"],
+                observedState: "idle",
+                slotState: "idle",
               },
             ],
           });
@@ -150,6 +168,11 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("fenced")).toHaveLength(2);
     expect(screen.getByText("reconciliation pending")).toBeInTheDocument();
+    expect(screen.getByText("validate_likec4")).toBeInTheDocument();
+    expect(screen.getByText("No usable Toolsets reported")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/LOCAL_PROBE_SECRET_CANARY|private\/path/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Self-termination remains the recovery boundary/),
     ).toBeInTheDocument();

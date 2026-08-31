@@ -290,7 +290,12 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 		},
 		RuntimeAgents: []controlplane.RuntimeAgentObservation{{
 			InstanceID: "runtime-contract", SoftwareVersion: "0.1.0",
-			ObservedState: contracts.AgentIdle, SlotState: controlplane.SlotReserved,
+			SupportedRuntimes: []string{"adk@1"},
+			SupportedToolsets: []controlplane.RuntimeToolsetCapability{{
+				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
+			}},
+			SupportedSandboxProfiles: []string{"local-workdir@1"},
+			ObservedState:            contracts.AgentIdle, SlotState: controlplane.SlotReserved,
 			LastAcceptedHeartbeat:     &operationsNow,
 			AuthoritativeAllocationID: stringPointer("allocation-contract"),
 		}},

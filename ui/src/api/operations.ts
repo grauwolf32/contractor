@@ -29,6 +29,11 @@ export const BUDGET_DURATION_PATTERN = /^[1-9][0-9]*(?:s|m|h|d|mo)$/;
 const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const UNSIGNED_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
+const RUNTIME_CAPABILITY_REF_PATTERN =
+  /^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$/;
+const MAX_RUNTIME_CAPABILITY_REFS = 128;
+const MAX_RUNTIME_TOOLSETS = 128;
+const MAX_RUNTIME_TOOLS_PER_TOOLSET = 256;
 
 export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
 export type OperationsCursor = components["schemas"]["SnapshotCursor"];
@@ -136,9 +141,48 @@ function safeRuntimeAgent(
   value: RuntimeAgentObservation,
 ): RuntimeAgentObservation {
   const reason = safeReason(value.reconciliationReason);
+  const runtimes = safeCapabilityRefs(value.supportedRuntimes, true);
+  const sandboxes = safeCapabilityRefs(value.supportedSandboxProfiles, true);
+  if (
+    !Array.isArray(value.supportedToolsets) ||
+    value.supportedToolsets.length > MAX_RUNTIME_TOOLSETS
+  ) {
+    throw new TypeError("Runtime Agent capabilities are invalid");
+  }
+  const seenToolsets = new Set<string>();
+  const toolsets = value.supportedToolsets.map((capability) => {
+    if (
+      capability === null ||
+      typeof capability !== "object" ||
+      typeof capability.ref !== "string" ||
+      capability.ref.length > 256 ||
+      !RUNTIME_CAPABILITY_REF_PATTERN.test(capability.ref) ||
+      seenToolsets.has(capability.ref) ||
+      !Array.isArray(capability.tools) ||
+      capability.tools.length === 0 ||
+      capability.tools.length > MAX_RUNTIME_TOOLS_PER_TOOLSET
+    ) {
+      throw new TypeError("Runtime Agent capabilities are invalid");
+    }
+    seenToolsets.add(capability.ref);
+    const tools = capability.tools.map((tool) => {
+      if (typeof tool !== "string" || !CONFIG_ID_PATTERN.test(tool)) {
+        throw new TypeError("Runtime Agent capabilities are invalid");
+      }
+      return tool;
+    });
+    if (new Set(tools).size !== tools.length) {
+      throw new TypeError("Runtime Agent capabilities are invalid");
+    }
+    return { ref: capability.ref, tools: tools.sort() };
+  });
+  toolsets.sort((left, right) => left.ref.localeCompare(right.ref));
   return {
     instanceId: value.instanceId,
     softwareVersion: value.softwareVersion,
+    supportedRuntimes: runtimes,
+    supportedToolsets: toolsets,
+    supportedSandboxProfiles: sandboxes,
     observedState: value.observedState,
     slotState: value.slotState,
     ...(value.lastAcceptedHeartbeat === undefined
@@ -155,6 +199,30 @@ function safeRuntimeAgent(
       : { authoritativeAllocationId: value.authoritativeAllocationId }),
     ...(reason === undefined ? {} : { reconciliationReason: reason }),
   };
+}
+
+function safeCapabilityRefs(values: string[], required: boolean): string[] {
+  if (
+    !Array.isArray(values) ||
+    (required && values.length === 0) ||
+    values.length > MAX_RUNTIME_CAPABILITY_REFS
+  ) {
+    throw new TypeError("Runtime Agent capabilities are invalid");
+  }
+  const result = values.map((value) => {
+    if (
+      typeof value !== "string" ||
+      value.length > 256 ||
+      !RUNTIME_CAPABILITY_REF_PATTERN.test(value)
+    ) {
+      throw new TypeError("Runtime Agent capabilities are invalid");
+    }
+    return value;
+  });
+  if (new Set(result).size !== result.length) {
+    throw new TypeError("Runtime Agent capabilities are invalid");
+  }
+  return result.sort();
 }
 
 function safeAllocation(value: AllocationObservation): AllocationObservation {

@@ -58,6 +58,45 @@ export function RuntimeAgentListRoute() {
                             </dd>
                           </div>
                           <div>
+                            <dt>Worker runtimes</dt>
+                            <dd>
+                              {agent.supportedRuntimes.map((runtime) => (
+                                <code key={runtime}>{runtime}</code>
+                              ))}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Sandbox profiles</dt>
+                            <dd>
+                              {agent.supportedSandboxProfiles.map((sandbox) => (
+                                <code key={sandbox}>{sandbox}</code>
+                              ))}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Toolsets</dt>
+                            <dd>
+                              {agent.supportedToolsets.length === 0 ? (
+                                <span className="muted-copy">
+                                  No usable Toolsets reported
+                                </span>
+                              ) : (
+                                <ul
+                                  aria-label={`Toolsets for ${agent.instanceId}`}
+                                >
+                                  {agent.supportedToolsets.map((toolset) => (
+                                    <li key={toolset.ref}>
+                                      <code>{toolset.ref}</code>:{" "}
+                                      {toolset.tools.map((tool) => (
+                                        <code key={tool}>{tool}</code>
+                                      ))}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </dd>
+                          </div>
+                          <div>
                             <dt>Agent-reported allocation</dt>
                             <dd>
                               <code>{agent.currentAllocationId ?? "none"}</code>

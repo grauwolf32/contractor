@@ -32,12 +32,22 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 		RuntimeAgents: []controlplane.RuntimeAgentObservation{
 			{
 				InstanceID: "runtime-z", SoftwareVersion: "0.1.0",
-				ObservedState: "idle", SlotState: controlplane.SlotIdle,
+				SupportedRuntimes: []string{"adk@1"},
+				SupportedToolsets: []controlplane.RuntimeToolsetCapability{{
+					Ref: "run-artifacts@1", Tools: []string{"write_artifact", "read_artifact"},
+				}},
+				SupportedSandboxProfiles: []string{"local-workdir@1"},
+				ObservedState:            "idle", SlotState: controlplane.SlotIdle,
 				LastAcceptedHeartbeat: &now, ConfirmedLeaseUntil: &lease,
 			},
 			{
 				InstanceID: "runtime-a", SoftwareVersion: "0.1.0",
-				ObservedState: "fenced", SlotState: controlplane.SlotFenced,
+				SupportedRuntimes: []string{"adk@1"},
+				SupportedToolsets: []controlplane.RuntimeToolsetCapability{{
+					Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
+				}},
+				SupportedSandboxProfiles: []string{"local-workdir@1"},
+				ObservedState:            "fenced", SlotState: controlplane.SlotFenced,
 				LastAcceptedHeartbeat: &now, ConfirmedLeaseUntil: &lease,
 				CurrentAllocationID: &allocationID, AuthoritativeAllocationID: &allocationID,
 				ReconciliationReason: &controlplane.SafeReason{
@@ -74,11 +84,16 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	if full.Cursor.Generation != snapshot.Cursor.Generation || full.Cursor.Revision != "42" ||
 		len(full.RuntimeAgents) != 2 || full.RuntimeAgents[0].InstanceID != "runtime-a" ||
 		full.RuntimeAgents[0].ObservedState != "fenced" ||
+		len(full.RuntimeAgents[0].SupportedToolsets) != 1 ||
+		len(full.RuntimeAgents[0].SupportedToolsets[0].Tools) != 1 ||
 		full.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
 		full.RuntimeAgents[0].CurrentAllocationID == nil ||
 		len(full.Allocations) != 1 ||
 		full.Allocations[0].ObservedPhase != controlplane.AllocationObservedFenced {
 		t.Fatalf("Operations response collapsed or reordered facts: %+v", full)
+	}
+	if snapshot.RuntimeAgents[0].SupportedToolsets[0].Tools[0] != "write_artifact" {
+		t.Fatal("Operations response normalization mutated the source snapshot")
 	}
 
 	firstResponse := httptest.NewRecorder()
@@ -105,7 +120,8 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	))
 	var second runtimeAgentPageResponse
 	if secondResponse.Code != http.StatusOK || json.Unmarshal(secondResponse.Body.Bytes(), &second) != nil ||
-		len(second.Items) != 1 || second.Items[0].InstanceID != "runtime-z" || second.Page.HasMore {
+		len(second.Items) != 1 || second.Items[0].InstanceID != "runtime-z" || second.Page.HasMore ||
+		second.Items[0].SupportedToolsets[0].Tools[0] != "read_artifact" {
 		t.Fatalf("Runtime Agent second page = %d: %+v %s", secondResponse.Code, second, secondResponse.Body.String())
 	}
 

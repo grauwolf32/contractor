@@ -129,7 +129,9 @@ func (h *handler) operationsSnapshot() (controlplane.OperationsSnapshot, error) 
 		return controlplane.OperationsSnapshot{}, fmt.Errorf("invalid Operations snapshot: %w", err)
 	}
 	runtimeAgents := make([]controlplane.RuntimeAgentObservation, len(snapshot.RuntimeAgents))
-	copy(runtimeAgents, snapshot.RuntimeAgents)
+	for index, agent := range snapshot.RuntimeAgents {
+		runtimeAgents[index] = cloneRuntimeAgentObservation(agent)
+	}
 	snapshot.RuntimeAgents = runtimeAgents
 	allocations := make([]controlplane.AllocationObservation, len(snapshot.Allocations))
 	copy(allocations, snapshot.Allocations)
@@ -141,6 +143,30 @@ func (h *handler) operationsSnapshot() (controlplane.OperationsSnapshot, error) 
 		return snapshot.Allocations[left].AllocationID < snapshot.Allocations[right].AllocationID
 	})
 	return snapshot, nil
+}
+
+func cloneRuntimeAgentObservation(
+	source controlplane.RuntimeAgentObservation,
+) controlplane.RuntimeAgentObservation {
+	result := source
+	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
+	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
+	result.SupportedToolsets = make(
+		[]controlplane.RuntimeToolsetCapability,
+		len(source.SupportedToolsets),
+	)
+	for index, capability := range source.SupportedToolsets {
+		result.SupportedToolsets[index] = controlplane.RuntimeToolsetCapability{
+			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
+		}
+		sort.Strings(result.SupportedToolsets[index].Tools)
+	}
+	sort.Strings(result.SupportedRuntimes)
+	sort.Strings(result.SupportedSandboxProfiles)
+	sort.Slice(result.SupportedToolsets, func(left, right int) bool {
+		return result.SupportedToolsets[left].Ref < result.SupportedToolsets[right].Ref
+	})
+	return result
 }
 
 func (h *handler) operationsPageAfter(

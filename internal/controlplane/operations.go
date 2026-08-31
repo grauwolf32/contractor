@@ -14,14 +14,18 @@ import (
 )
 
 const (
-	maximumOperationsItems = 10_000
-	operationsHistoryLimit = 255
+	maximumOperationsItems        = 10_000
+	maximumRuntimeCapabilityRefs  = 128
+	maximumRuntimeToolsetRefs     = 128
+	maximumRuntimeToolsPerToolset = 256
+	operationsHistoryLimit        = 255
 )
 
 var (
 	operationsResourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 	operationsConfigIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
 	softwareVersionPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
+	runtimeCapabilityRefPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
 
 type SlotState string
@@ -131,6 +135,9 @@ func (c OperationsCursor) MarshalJSON() ([]byte, error) {
 type RuntimeAgentObservation struct {
 	InstanceID                string                       `json:"instanceId"`
 	SoftwareVersion           string                       `json:"softwareVersion"`
+	SupportedRuntimes         []string                     `json:"supportedRuntimes"`
+	SupportedToolsets         []RuntimeToolsetCapability   `json:"supportedToolsets"`
+	SupportedSandboxProfiles  []string                     `json:"supportedSandboxProfiles"`
 	ObservedState             contracts.AgentObservedState `json:"observedState"`
 	SlotState                 SlotState                    `json:"slotState"`
 	LastAcceptedHeartbeat     *time.Time                   `json:"lastAcceptedHeartbeat,omitempty"`
@@ -138,6 +145,11 @@ type RuntimeAgentObservation struct {
 	CurrentAllocationID       *string                      `json:"currentAllocationId,omitempty"`
 	AuthoritativeAllocationID *string                      `json:"authoritativeAllocationId,omitempty"`
 	ReconciliationReason      *SafeReason                  `json:"reconciliationReason,omitempty"`
+}
+
+type RuntimeToolsetCapability struct {
+	Ref   string   `json:"ref"`
+	Tools []string `json:"tools"`
 }
 
 type AllocationObservation struct {
@@ -195,6 +207,9 @@ func (o RuntimeAgentObservation) Validate() error {
 		o.LastAcceptedHeartbeat.IsZero() || o.ConfirmedLeaseUntil != nil && o.ConfirmedLeaseUntil.IsZero() {
 		return fmt.Errorf("invalid Runtime Agent observation identity or time")
 	}
+	if err := validateRuntimeCapabilities(o); err != nil {
+		return err
+	}
 	switch o.ObservedState {
 	case contracts.AgentIdle, contracts.AgentAllocated, contracts.AgentDraining, contracts.AgentFenced:
 	default:
@@ -214,6 +229,62 @@ func (o RuntimeAgentObservation) Validate() error {
 		return fmt.Errorf("invalid Runtime Agent reconciliation reason")
 	}
 	return nil
+}
+
+func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
+	if len(observation.SupportedRuntimes) == 0 ||
+		len(observation.SupportedRuntimes) > maximumRuntimeCapabilityRefs ||
+		len(observation.SupportedSandboxProfiles) == 0 ||
+		len(observation.SupportedSandboxProfiles) > maximumRuntimeCapabilityRefs ||
+		len(observation.SupportedToolsets) > maximumRuntimeToolsetRefs {
+		return fmt.Errorf("invalid Runtime Agent capability collection bound")
+	}
+	if !validUniqueCapabilityRefs(observation.SupportedRuntimes) ||
+		!validUniqueCapabilityRefs(observation.SupportedSandboxProfiles) {
+		return fmt.Errorf("invalid or duplicate Runtime Agent capability ref")
+	}
+	seenToolsets := make(map[string]struct{}, len(observation.SupportedToolsets))
+	for _, capability := range observation.SupportedToolsets {
+		if !validRuntimeCapabilityRef(capability.Ref) {
+			return fmt.Errorf("invalid Runtime Agent Toolset capability ref")
+		}
+		if _, duplicate := seenToolsets[capability.Ref]; duplicate {
+			return fmt.Errorf("duplicate Runtime Agent Toolset capability ref")
+		}
+		seenToolsets[capability.Ref] = struct{}{}
+		if len(capability.Tools) == 0 || len(capability.Tools) > maximumRuntimeToolsPerToolset {
+			return fmt.Errorf("invalid Runtime Agent Toolset tool collection bound")
+		}
+		seenTools := make(map[string]struct{}, len(capability.Tools))
+		for _, tool := range capability.Tools {
+			if !operationsConfigIDPattern.MatchString(tool) {
+				return fmt.Errorf("invalid Runtime Agent tool capability name")
+			}
+			if _, duplicate := seenTools[tool]; duplicate {
+				return fmt.Errorf("duplicate Runtime Agent tool capability name")
+			}
+			seenTools[tool] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func validUniqueCapabilityRefs(values []string) bool {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if !validRuntimeCapabilityRef(value) {
+			return false
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return false
+		}
+		seen[value] = struct{}{}
+	}
+	return true
+}
+
+func validRuntimeCapabilityRef(value string) bool {
+	return len(value) <= 256 && runtimeCapabilityRefPattern.MatchString(value)
 }
 
 func (o AllocationObservation) Validate() error {
@@ -447,11 +518,27 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 	result := RuntimeAgentObservation{
 		InstanceID:                entry.registration.InstanceID,
 		SoftwareVersion:           entry.registration.SoftwareVersion,
+		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),
+		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
+		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
 		CurrentAllocationID:       cloneString(entry.registration.AllocationID),
 		AuthoritativeAllocationID: cloneString(entry.authoritativeAllocationID),
 	}
+	for index, capability := range entry.registration.SupportedToolsets {
+		result.SupportedToolsets[index] = RuntimeToolsetCapability{
+			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
+		}
+	}
+	sort.Strings(result.SupportedRuntimes)
+	sort.Strings(result.SupportedSandboxProfiles)
+	for index := range result.SupportedToolsets {
+		sort.Strings(result.SupportedToolsets[index].Tools)
+	}
+	sort.Slice(result.SupportedToolsets, func(left, right int) bool {
+		return result.SupportedToolsets[left].Ref < result.SupportedToolsets[right].Ref
+	})
 	if !entry.lastAcceptedHeartbeatAt.IsZero() {
 		accepted := entry.lastAcceptedHeartbeatAt
 		result.LastAcceptedHeartbeat = &accepted

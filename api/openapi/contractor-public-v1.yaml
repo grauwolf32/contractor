@@ -1109,6 +1109,11 @@ components:
       minLength: 3
       maxLength: 193
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'
+    RuntimeCapabilityRef:
+      type: string
+      minLength: 3
+      maxLength: 256
+      pattern: '^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$'
     InstructionPath:
       type: string
       minLength: 14
@@ -2014,13 +2019,41 @@ components:
       properties:
         code: {$ref: '#/components/schemas/ConfigId'}
         retryable: {type: boolean}
+    RuntimeToolsetCapability:
+      type: object
+      additionalProperties: false
+      required: [ref, tools]
+      properties:
+        ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        tools:
+          type: array
+          minItems: 1
+          maxItems: 256
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ConfigId'}
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
-      required: [instanceId, softwareVersion, observedState, slotState]
+      required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, observedState, slotState]
       properties:
         instanceId: {$ref: '#/components/schemas/ResourceId'}
         softwareVersion: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'}
+        supportedRuntimes:
+          type: array
+          minItems: 1
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        supportedToolsets:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/RuntimeToolsetCapability'}
+        supportedSandboxProfiles:
+          type: array
+          minItems: 1
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         observedState: {enum: [idle, allocated, draining, fenced]}
         slotState: {enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}

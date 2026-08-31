@@ -536,6 +536,7 @@ export interface components {
         ConfigId: string;
         ConfigVersion: string;
         Selector: string;
+        RuntimeCapabilityRef: string;
         InstructionPath: string;
         Digest: string;
         Revision: string;
@@ -1234,9 +1235,16 @@ export interface components {
             code: components["schemas"]["ConfigId"];
             retryable: boolean;
         };
+        RuntimeToolsetCapability: {
+            ref: components["schemas"]["RuntimeCapabilityRef"];
+            tools: components["schemas"]["ConfigId"][];
+        };
         RuntimeAgentObservation: {
             instanceId: components["schemas"]["ResourceId"];
             softwareVersion: string;
+            supportedRuntimes: components["schemas"]["RuntimeCapabilityRef"][];
+            supportedToolsets: components["schemas"]["RuntimeToolsetCapability"][];
+            supportedSandboxProfiles: components["schemas"]["RuntimeCapabilityRef"][];
             /** @enum {unknown} */
             observedState: "idle" | "allocated" | "draining" | "fenced";
             /** @enum {unknown} */

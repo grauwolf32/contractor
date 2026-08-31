@@ -81,6 +81,86 @@ describe("Operations API", () => {
     );
   });
 
+  it("copies, validates, and normalizes Runtime Agent capabilities", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-capable",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["python@1", "adk@1"],
+              supportedToolsets: [
+                {
+                  ref: "source-analysis@1",
+                  tools: ["search_source", "read_source"],
+                  probeOutput: "PROBE_SECRET_CANARY",
+                },
+              ],
+              supportedSandboxProfiles: ["remote@1", "local-workdir@1"],
+              observedState: "idle",
+              slotState: "idle",
+              localPath: "/private/runtime/path",
+            },
+            {
+              instanceId: "runtime-minimal",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+
+    const result = await getOperationsSnapshot(api);
+    expect(result.runtimeAgents[0]?.supportedRuntimes).toEqual([
+      "adk@1",
+      "python@1",
+    ]);
+    expect(result.runtimeAgents[0]?.supportedToolsets[0]?.tools).toEqual([
+      "read_source",
+      "search_source",
+    ]);
+    expect(result.runtimeAgents[1]?.supportedToolsets).toEqual([]);
+    expect(JSON.stringify(result)).not.toMatch(
+      /PROBE_SECRET_CANARY|private\/runtime\/path|probeOutput|localPath/,
+    );
+  });
+
+  it("fails closed on malformed Runtime Agent capabilities", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-malformed",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1", "adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+
+    await expect(getOperationsSnapshot(api)).rejects.toThrow(
+      "Runtime Agent capabilities are invalid",
+    );
+  });
+
   it("gets and publishes exact immutable configuration versions", async () => {
     const requests: Request[] = [];
     const resource = {

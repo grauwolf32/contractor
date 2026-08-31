@@ -3,6 +3,7 @@ package controlplane
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -234,19 +235,84 @@ func TestOperationsSnapshotRetiresSupersededAgentAfterAllocationRelease(t *testi
 
 func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	registerReady(t, registry, "agent-z")
-	registerReady(t, registry, "agent-a")
+	capable := testRegistration("agent-z")
+	capable.SupportedRuntimes = []string{"python@1", "adk@1"}
+	capable.SupportedSandboxProfiles = []string{"remote@1", "local-workdir@1"}
+	capable.SupportedToolsets[0].Tools = []string{"write_artifact", "read_artifact"}
+	registerReadyWith(t, registry, capable)
+	minimal := testRegistration("agent-a")
+	minimal.SupportedToolsets = []contracts.ToolsetCapability{}
+	registerReadyWith(t, registry, minimal)
 	first := registry.SnapshotOperations()
 	second := registry.SnapshotOperations()
 	if first.Cursor.Generation == "" || first.Cursor != second.Cursor ||
 		len(first.RuntimeAgents) != 2 || first.RuntimeAgents[0].InstanceID != "agent-a" ||
-		first.RuntimeAgents[1].InstanceID != "agent-z" {
+		first.RuntimeAgents[1].InstanceID != "agent-z" ||
+		len(first.RuntimeAgents[0].SupportedToolsets) != 0 ||
+		first.RuntimeAgents[1].SupportedRuntimes[0] != "adk@1" ||
+		first.RuntimeAgents[1].SupportedSandboxProfiles[0] != "local-workdir@1" ||
+		first.RuntimeAgents[1].SupportedToolsets[0].Tools[0] != "read_artifact" {
 		t.Fatalf("stable ordered snapshot = first %+v second %+v", first, second)
 	}
 	first.RuntimeAgents[0].SoftwareVersion = "mutated"
+	first.RuntimeAgents[1].SupportedRuntimes[0] = "mutated@1"
+	first.RuntimeAgents[1].SupportedToolsets[0].Tools[0] = "mutated_tool"
 	third := registry.SnapshotOperations()
-	if third.RuntimeAgents[0].SoftwareVersion != "0.1.0" || third.Cursor != second.Cursor {
+	if third.RuntimeAgents[0].SoftwareVersion != "0.1.0" ||
+		third.RuntimeAgents[1].SupportedRuntimes[0] != "adk@1" ||
+		third.RuntimeAgents[1].SupportedToolsets[0].Tools[0] != "read_artifact" ||
+		third.Cursor != second.Cursor || third.Validate() != nil {
 		t.Fatalf("caller mutated authoritative snapshot: %+v", third)
+	}
+}
+
+func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
+	valid := func() RuntimeAgentObservation {
+		return RuntimeAgentObservation{
+			InstanceID: "agent-capabilities", SoftwareVersion: "0.1.0",
+			SupportedRuntimes: []string{"adk@1"},
+			SupportedToolsets: []RuntimeToolsetCapability{{
+				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
+			}},
+			SupportedSandboxProfiles: []string{"local-workdir@1"},
+			ObservedState:            contracts.AgentIdle, SlotState: SlotIdle,
+		}
+	}
+	tests := []struct {
+		name   string
+		mutate func(*RuntimeAgentObservation)
+	}{
+		{"missing-runtime", func(agent *RuntimeAgentObservation) {
+			agent.SupportedRuntimes = nil
+		}},
+		{"duplicate-runtime", func(agent *RuntimeAgentObservation) {
+			agent.SupportedRuntimes = []string{"adk@1", "adk@1"}
+		}},
+		{"malformed-toolset", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Ref = "probe-secret/path"
+		}},
+		{"empty-tool-list", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = nil
+		}},
+		{"duplicate-tool", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = []string{"read_artifact", "read_artifact"}
+		}},
+		{"oversized-tool-list", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = make([]string, maximumRuntimeToolsPerToolset+1)
+			for index := range agent.SupportedToolsets[0].Tools {
+				agent.SupportedToolsets[0].Tools[index] = fmt.Sprintf("tool_%d", index)
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			agent := valid()
+			test.mutate(&agent)
+			err := agent.Validate()
+			if err == nil || strings.Contains(err.Error(), "probe-secret") {
+				t.Fatalf("invalid capability validation error = %v", err)
+			}
+		})
 	}
 }
 
