@@ -119,13 +119,14 @@ milestones:
       history remains bounded and operationally current.
 
 current_checkpoint:
-  completed_through: V5-003
-  next_task: V6-001
+  completed_through: V6-003
+  next_task: null
   summary: >-
-    The live-model-reliability milestone is complete. Code review identified a
-    bounded lifecycle-hardening increment covering Artifact write/freeze races,
-    terminal release recovery, create-Run replay ordering and volatile Control
-    Plane retention. V6-001 through V6-003 are planned and under implementation.
+    The lifecycle review hardening milestone is complete. Artifact writes are
+    linearized with allocation fencing, empty and concurrent Artifact paths are
+    safe, terminal release recovery is durable, bounded and non-blocking, exact
+    Run replay precedes mutable dependency resolution, and volatile reservation
+    plus superseded Runtime state is bounded and operationally current.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

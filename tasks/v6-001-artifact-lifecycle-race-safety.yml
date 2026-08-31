@@ -3,7 +3,8 @@ id: V6-001
 title: Make Artifact writes and terminal freezing race-safe
 milestone: lifecycle-review-hardening
 priority: P0
-status: planned
+status: completed
+implementation_commit: 645d0a287e726e00075c5befc542614284f252dd
 depends_on: [V5-003]
 languages: [go, sql]
 
