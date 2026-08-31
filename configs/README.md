@@ -2,8 +2,23 @@
 
 This directory contains the executable default configuration. It includes the
 small artifact-copy fixture and the four-Stage `openapi-from-source@1` and
-`likec4-from-source@1` project workflows. Validate the complete set from the
-repository root with:
+`likec4-from-source@1` project workflows. The original LikeC4 identity remains
+available for reproducibility. New project-sized variants are:
+
+- `likec4-from-source@2`: the same deterministic `passthrough@1` graph with
+  `project_worker@1` (48 model calls, 256 tool calls, 1,000,000 cumulative
+  provider-reported tokens, and 32,768 output tokens per response);
+- `likec4-from-source-streamline@1`: the same four Stages and artifact handoffs,
+  but each Stage uses a model-backed `streamline@1` Planner with
+  `project_planner@1` (48 model calls, 64 Worker calls, 500,000 cumulative
+  tokens, and 8,192 output tokens per response) and the same project Worker
+  policy.
+
+All limits remain finite and are enforced per Planner or Worker invocation.
+Select the passthrough variant when one Worker can follow the complete Stage
+contract directly; select Streamline when the Planner should decompose that
+Stage into ordered subtasks for its one fixed logical Worker. Validate the
+complete set from the repository root with:
 
 ```sh
 go run ./cmd/contractor-server config validate --root ./configs

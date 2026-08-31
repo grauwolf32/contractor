@@ -113,6 +113,95 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	}
 }
 
+func TestRepositoryLikeC4HighBudgetWorkflowVariants(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	workerPolicy, err := snapshot.ModelPolicy("project_worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workerPolicy.Model != "worker-model" || workerPolicy.MaxOutputTokens != 32768 ||
+		workerPolicy.MaxModelCalls != 48 || workerPolicy.MaxToolCalls != 256 ||
+		workerPolicy.MaxTotalTokens != 1000000 || workerPolicy.MaxWorkerCalls != 0 {
+		t.Fatalf("project Worker policy = %+v", workerPolicy)
+	}
+	plannerPolicy, err := snapshot.ModelPolicy("project_planner@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plannerPolicy.Model != "planner-model" || plannerPolicy.MaxOutputTokens != 8192 ||
+		plannerPolicy.MaxModelCalls != 48 || plannerPolicy.MaxWorkerCalls != 64 ||
+		plannerPolicy.MaxTotalTokens != 500000 || plannerPolicy.MaxToolCalls != 0 {
+		t.Fatalf("project Planner policy = %+v", plannerPolicy)
+	}
+
+	baseline, err := snapshot.Workflow("likec4-from-source@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	passthrough, err := snapshot.Workflow("likec4-from-source@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamline, err := snapshot.Workflow("likec4-from-source-streamline@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if passthrough.EntryStage != baseline.EntryStage ||
+		!reflect.DeepEqual(passthrough.Inputs, baseline.Inputs) ||
+		!reflect.DeepEqual(passthrough.Outputs, baseline.Outputs) ||
+		len(passthrough.Stages) != len(baseline.Stages) ||
+		streamline.EntryStage != baseline.EntryStage ||
+		!reflect.DeepEqual(streamline.Inputs, baseline.Inputs) ||
+		!reflect.DeepEqual(streamline.Outputs, baseline.Outputs) ||
+		len(streamline.Stages) != len(baseline.Stages) {
+		t.Fatal("high-budget LikeC4 variants drifted from the four-Stage graph")
+	}
+
+	for name, baselineStage := range baseline.Stages {
+		passthroughStage := passthrough.Stages[name]
+		streamlineStage := streamline.Stages[name]
+		if passthroughStage.Planner != (PlannerRef{PlannerID: "passthrough", Version: "1"}) {
+			t.Fatalf("passthrough Stage %q planner = %+v", name, passthroughStage.Planner)
+		}
+		if streamlineStage.Planner != (PlannerRef{PlannerID: "streamline", Version: "1"}) {
+			t.Fatalf("streamline Stage %q planner = %+v", name, streamlineStage.Planner)
+		}
+		if !reflect.DeepEqual(passthroughStage.Agents, baselineStage.Agents) ||
+			!reflect.DeepEqual(passthroughStage.Context, baselineStage.Context) ||
+			!reflect.DeepEqual(passthroughStage.Result, baselineStage.Result) ||
+			!reflect.DeepEqual(passthroughStage.On, baselineStage.On) ||
+			!reflect.DeepEqual(passthroughStage.WorkflowOutputs, baselineStage.WorkflowOutputs) {
+			t.Fatalf("passthrough Stage %q changed its semantic contract", name)
+		}
+		if !reflect.DeepEqual(streamlineStage.Agents, baselineStage.Agents) ||
+			!reflect.DeepEqual(streamlineStage.Context, baselineStage.Context) ||
+			!reflect.DeepEqual(streamlineStage.Result, baselineStage.Result) ||
+			!reflect.DeepEqual(streamlineStage.On, baselineStage.On) ||
+			!reflect.DeepEqual(streamlineStage.WorkflowOutputs, baselineStage.WorkflowOutputs) {
+			t.Fatalf("streamline Stage %q changed its semantic contract", name)
+		}
+		for logicalName, selection := range passthroughStage.ExecutionConfig.Agents {
+			if selection.ModelPolicy.Ref != workerPolicy.Ref {
+				t.Fatalf("passthrough Stage %q Agent %q policy = %+v", name, logicalName, selection.ModelPolicy.Ref)
+			}
+		}
+		if passthroughStage.ExecutionConfig.Planner != nil {
+			t.Fatalf("passthrough Stage %q unexpectedly has modeled Planner config", name)
+		}
+		if streamlineStage.ExecutionConfig.Planner == nil ||
+			streamlineStage.ExecutionConfig.Planner.ModelPolicy.Ref != plannerPolicy.Ref {
+			t.Fatalf("streamline Stage %q Planner config = %+v", name, streamlineStage.ExecutionConfig.Planner)
+		}
+		for logicalName, selection := range streamlineStage.ExecutionConfig.Agents {
+			if selection.ModelPolicy.Ref != workerPolicy.Ref {
+				t.Fatalf("streamline Stage %q Agent %q policy = %+v", name, logicalName, selection.ModelPolicy.Ref)
+			}
+		}
+	}
+}
+
 func TestRepositoryLikeC4AgentToolAllowlists(t *testing.T) {
 	t.Parallel()
 

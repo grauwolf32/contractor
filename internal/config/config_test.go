@@ -15,7 +15,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 5, AgentTemplates: 6, ModelPolicies: 4, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 13,
+		Workflows: 7, AgentTemplates: 6, ModelPolicies: 6, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 13,
 	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
@@ -141,7 +141,7 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))
 			writeFile(t, filepath.Join(root, "workflows", name), example)
 			snapshot := mustLoad(t, root, MVPDescriptors())
-			if snapshot.Counts().Workflows != 6 {
+			if snapshot.Counts().Workflows != 8 {
 				t.Fatalf("example Workflow count = %d", snapshot.Counts().Workflows)
 			}
 		})
@@ -420,8 +420,8 @@ func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	if snapshot.Counts().ModelPolicies != 4 {
-		t.Fatalf("ModelPolicies = %d, want 4", snapshot.Counts().ModelPolicies)
+	if snapshot.Counts().ModelPolicies != 6 {
+		t.Fatalf("ModelPolicies = %d, want 6", snapshot.Counts().ModelPolicies)
 	}
 }
 

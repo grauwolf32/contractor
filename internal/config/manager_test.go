@@ -26,8 +26,8 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 		t.Fatalf("publication result = %+v", result)
 	}
 	assertDigest(t, result.Resource.Ref.Digest)
-	if got := manager.Counts().ModelPolicies; got != 5 {
-		t.Fatalf("current ModelPolicy count = %d, want 5", got)
+	if got := manager.Counts().ModelPolicies; got != 7 {
+		t.Fatalf("current ModelPolicy count = %d, want 7", got)
 	}
 
 	path := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
@@ -155,12 +155,12 @@ func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
 			for range 100 {
 				snapshot := manager.Snapshot()
 				count := snapshot.Counts().ModelPolicies
-				if count != 4 && count != 5 {
+				if count != 6 && count != 7 {
 					t.Errorf("reader observed partial count %d", count)
 					return
 				}
 				_, err := snapshot.ModelPolicy("ui-worker@2")
-				if count == 4 && err == nil || count == 5 && err != nil {
+				if count == 6 && err == nil || count == 7 && err != nil {
 					t.Errorf("reader observed inconsistent snapshot count=%d err=%v", count, err)
 					return
 				}
