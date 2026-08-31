@@ -54,12 +54,16 @@ class WorkerBuildContext:
 class WorkerRuntimeFactory(Protocol):
     ref: str
 
+    async def probe(self) -> bool: ...
+
     async def create(self, context: WorkerBuildContext) -> WorkerRuntime: ...
 
 
 class ToolsetFactory(Protocol):
     ref: str
     exported_tools: frozenset[str]
+
+    async def probe(self) -> frozenset[str]: ...
 
     async def create_selected(
         self,
@@ -76,6 +80,8 @@ class ToolsetFactory(Protocol):
 
 class SandboxFactory(Protocol):
     ref: str
+
+    async def probe(self) -> bool: ...
 
     async def prepare(self) -> AllocationWorkspace: ...
 
@@ -123,6 +129,9 @@ class StubADKWorkerRuntimeFactory:
     """Lifecycle-complete stand-in replaced by the real ADK adapter in MVP-012."""
 
     ref = "adk@1"
+
+    async def probe(self) -> bool:
+        return True
 
     async def create(self, context: WorkerBuildContext) -> WorkerRuntime:
         return StubWorkerRuntime(context)

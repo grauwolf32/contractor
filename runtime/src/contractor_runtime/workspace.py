@@ -33,6 +33,11 @@ class LocalWorkdirFactory:
     def __init__(self, root: Path) -> None:
         self._root = _resolved_work_root(root)
 
+    async def probe(self) -> bool:
+        workspace = await self.prepare()
+        await self.cleanup(workspace)
+        return True
+
     async def prepare(self) -> AllocationWorkspace:
         self._root.mkdir(mode=0o700, parents=True, exist_ok=True)
         path = self._root / f"{ALLOCATION_DIRECTORY_PREFIX}{uuid.uuid4().hex}"

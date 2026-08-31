@@ -38,6 +38,9 @@ class RunArtifactsToolsetFactory:
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client
 
+    async def probe(self) -> frozenset[str]:
+        return self.exported_tools
+
     async def create_selected(
         self,
         *,

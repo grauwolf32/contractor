@@ -8,6 +8,7 @@ import signal
 from pathlib import Path
 
 from contractor_runtime.allocation import AllocationService
+from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.mtls import runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
@@ -30,11 +31,14 @@ async def serve(args: argparse.Namespace) -> None:
         work_root=args.work_root,
     )
     cleanup_orphan_workdirs(settings.work_root)
-    state = RuntimeState(instance_id="runtime-cross-language")
+    factories = built_in_factories(settings.work_root)
+    capabilities = await discover_capabilities(factories)
+    state = RuntimeState(instance_id="runtime-cross-language", capabilities=capabilities)
     await state.mark_registered()
     service = AllocationService(
         state,
-        built_in_factories(settings.work_root),
+        factories,
+        capabilities,
         a2a_base_url=settings.advertised_a2a_url,
     )
     tls_context = runtime_agent_server_context(

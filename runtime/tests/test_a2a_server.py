@@ -16,6 +16,7 @@ from google.protobuf.struct_pb2 import Value
 
 from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES
 from contractor_runtime.allocation import AllocationService
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     FinalizeAllocationRequest,
@@ -28,10 +29,12 @@ from contractor_runtime.state import RuntimeState
 SECRET = "recognizable-a2a-test-token"
 
 
-def test_a2a_sdk_round_trip_and_stale_allocation_rejection(tmp_path: Path) -> None:
+def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
         model = scripted_model([json_result(success_payload("done"))])
-        state, service = await allocation_service(tmp_path, model)
+        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card_dict = prepared.worker_handle.agent_card
@@ -110,10 +113,12 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(tmp_path: Path) -> No
     asyncio.run(scenario())
 
 
-def test_concurrent_a2a_message_receives_worker_busy(tmp_path: Path) -> None:
+def test_concurrent_a2a_message_receives_worker_busy(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
         model = scripted_model([json_result(success_payload("first"))], block=True)
-        state, service = await allocation_service(tmp_path, model)
+        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
@@ -151,13 +156,18 @@ def test_concurrent_a2a_message_receives_worker_busy(tmp_path: Path) -> None:
 
 
 async def allocation_service(
-    tmp_path: Path, model: object
+    tmp_path: Path, model: object, capabilities: CapabilitySnapshot
 ) -> tuple[RuntimeState, AllocationService]:
     state = RuntimeState(instance_id="runtime-a2a-test")
     await state.mark_registered()
+    factories = built_in_factories(
+        tmp_path,
+        model_factory=lambda _: model,  # type: ignore[arg-type,return-value]
+    )
     service = AllocationService(
         state,
-        built_in_factories(tmp_path, model_factory=lambda _: model),  # type: ignore[arg-type,return-value]
+        factories,
+        capabilities,
         a2a_base_url="https://runtime.example",
     )
     return state, service

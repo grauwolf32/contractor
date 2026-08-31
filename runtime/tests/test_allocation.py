@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
@@ -47,9 +48,10 @@ SECRET = "allocation-only-recognizable-secret"
 
 def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
     tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
 ) -> None:
     async def scenario() -> None:
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec(tools=["read_artifact"])
 
         first = await service.prepare(spec)
@@ -81,9 +83,11 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
     asyncio.run(scenario())
 
 
-def test_bad_digest_and_unsupported_ref_leave_no_residue(tmp_path: Path) -> None:
+def test_bad_digest_and_unsupported_ref_leave_no_residue(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         bad_digest = make_spec()
         bad_digest.agent_template.ref.digest = "sha256:" + "0" * 64
         with pytest.raises(AllocationError) as mismatch:
@@ -114,7 +118,31 @@ def test_bad_digest_and_unsupported_ref_leave_no_residue(tmp_path: Path) -> None
     asyncio.run(scenario())
 
 
-def test_prepare_failure_rolls_back_workspace_tools_and_slot(tmp_path: Path) -> None:
+def test_tool_omitted_from_snapshot_is_rejected_before_workspace_creation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        capabilities = CapabilitySnapshot.create(
+            runtimes=["adk@1"],
+            toolsets={"run-artifacts@1": ["read_artifact"]},
+            sandbox_profiles=["local-workdir@1"],
+        )
+        state, service = await make_service(tmp_path, capabilities)
+
+        with pytest.raises(AllocationError) as unsupported:
+            await service.prepare(make_spec(tools=["write_artifact"]))
+
+        assert unsupported.value.code == "unsupported_tool"
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_prepare_failure_rolls_back_workspace_tools_and_slot(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
         state = RuntimeState(instance_id="runtime-test")
         await state.mark_registered()
@@ -126,7 +154,11 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(tmp_path: Path) -> 
             sandbox_profiles={"local-workdir@1": sandbox},
         )
         service = AllocationService(
-            state, registry, a2a_base_url="https://runtime.example", now=lambda: NOW
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
         )
 
         with pytest.raises(AllocationError) as failure:
@@ -139,9 +171,11 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_finalize_report_and_release_erase_context_and_workspace(tmp_path: Path) -> None:
+def test_finalize_report_and_release_erase_context_and_workspace(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
         workspace = Path((await service.snapshot()).workspace)  # type: ignore[union-attr]
@@ -187,7 +221,9 @@ def test_finalize_report_and_release_erase_context_and_workspace(tmp_path: Path)
     asyncio.run(scenario())
 
 
-def test_cleanup_failure_fences_slot_until_idempotent_release_retry(tmp_path: Path) -> None:
+def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
         state = RuntimeState(instance_id="runtime-test")
         await state.mark_registered()
@@ -198,7 +234,11 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(tmp_path: Pa
             sandbox_profiles={"local-workdir@1": sandbox},
         )
         service = AllocationService(
-            state, registry, a2a_base_url="https://runtime.example", now=lambda: NOW
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
         )
         spec = make_spec()
         await service.prepare(spec)
@@ -232,7 +272,9 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(tmp_path: Pa
     asyncio.run(scenario())
 
 
-def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(tmp_path: Path) -> None:
+def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
     async def scenario() -> None:
         state = RuntimeState(instance_id="runtime-test")
         await state.mark_registered()
@@ -247,6 +289,7 @@ def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(tmp_path: Path)
         service = AllocationService(
             state,
             registry,
+            runtime_capabilities,
             a2a_base_url="https://runtime.example",
             now=lambda: NOW,
             force_exit=exit_codes.append,
@@ -272,12 +315,16 @@ def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(tmp_path: Path)
     asyncio.run(scenario())
 
 
-async def make_service(tmp_path: Path) -> tuple[RuntimeState, AllocationService]:
+async def make_service(
+    tmp_path: Path, capabilities: CapabilitySnapshot
+) -> tuple[RuntimeState, AllocationService]:
     state = RuntimeState(instance_id="runtime-test")
     await state.mark_registered()
+    factories = built_in_factories(tmp_path)
     service = AllocationService(
         state,
-        built_in_factories(tmp_path),
+        factories,
+        capabilities,
         a2a_base_url="https://runtime.example",
         now=lambda: NOW,
         force_exit=lambda _: None,

@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
+from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
@@ -48,19 +49,20 @@ async def serve(
     control_transport = transport or MTLSJSONTransport(
         settings.control_plane_url, outgoing_tls, settings.request_timeout_seconds
     )
-    allocation_service = AllocationService(
-        runtime_state,
-        built_in_factories(
-            settings.work_root,
-            artifact_client_factory=lambda allocation_id, runtime_settings: ArtifactClient(
-                allocation_id,
-                MTLSArtifactTransport(
-                    runtime_settings.artifact_api_url,
-                    outgoing_tls,
-                    runtime_settings.request_timeout_seconds,
-                ),
+    factories = built_in_factories(
+        settings.work_root,
+        artifact_client_factory=lambda allocation_id, runtime_settings: ArtifactClient(
+            allocation_id,
+            MTLSArtifactTransport(
+                runtime_settings.artifact_api_url,
+                outgoing_tls,
+                runtime_settings.request_timeout_seconds,
             ),
         ),
+    )
+    allocation_service = AllocationService(
+        runtime_state,
+        factories,
         a2a_base_url=settings.advertised_a2a_url,
     )
     watchdog = LeaseWatchdog(
@@ -90,6 +92,8 @@ async def serve(
     try:
         await _wait_until_listening(server, server_task, settings.request_timeout_seconds)
         logger.info("runtime agent private listener is accepting on %s", settings.listen_address)
+        capabilities = await discover_capabilities(factories)
+        await runtime_state.install_capabilities(capabilities)
         registration_task = asyncio.create_task(
             control.register_until_stopped(stop), name="runtime-registration"
         )

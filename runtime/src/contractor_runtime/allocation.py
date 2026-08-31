@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
@@ -104,6 +105,7 @@ class AllocationService:
         self,
         state: RuntimeState,
         factories: FactoryRegistry,
+        capabilities: CapabilitySnapshot | None = None,
         *,
         a2a_base_url: str,
         now: Callable[[], datetime] | None = None,
@@ -111,6 +113,10 @@ class AllocationService:
     ) -> None:
         self._state = state
         self._factories = factories
+        # Tests and embedded callers may inject an already frozen snapshot.
+        # The process entry point resolves it from RuntimeState after the
+        # private listener is ready and startup discovery has completed.
+        self._capabilities = capabilities
         self._a2a_base_url = a2a_base_url.rstrip("/")
         self._now = now or (lambda: datetime.now(UTC))
         self._force_exit = force_exit
@@ -367,6 +373,7 @@ class AllocationService:
             )
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
+        capabilities = self._capabilities or self._state.capabilities
         if spec.namespace in RESERVED_NAMESPACES:
             raise AllocationError(
                 "invalid_agent_namespace",
@@ -391,6 +398,41 @@ class AllocationService:
                 retryable=False,
                 status_code=422,
             ) from None
+
+        runtime = spec.agent_template.runtime
+        runtime_ref = f"{runtime.runtime_id}@{runtime.version}"
+        if not capabilities.supports_runtime(runtime_ref):
+            raise AllocationError(
+                "unsupported_worker_runtime",
+                "AgentTemplate selects an unavailable WorkerRuntime",
+                retryable=False,
+                status_code=422,
+            )
+        sandbox = spec.agent_template.sandbox_profile
+        sandbox_ref = f"{sandbox.sandbox_profile_id}@{sandbox.version}"
+        if not capabilities.supports_sandbox(sandbox_ref):
+            raise AllocationError(
+                "unsupported_sandbox_profile",
+                "AgentTemplate selects an unavailable SandboxProfile",
+                retryable=False,
+                status_code=422,
+            )
+        for selection in spec.agent_template.toolsets:
+            toolset_ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
+            if not capabilities.has_toolset(toolset_ref):
+                raise AllocationError(
+                    "unsupported_toolset",
+                    "AgentTemplate selects an unavailable Toolset",
+                    retryable=False,
+                    status_code=422,
+                )
+            if not capabilities.supports_tools(toolset_ref, selection.tools):
+                raise AllocationError(
+                    "unsupported_tool",
+                    "AgentTemplate selects an unavailable tool",
+                    retryable=False,
+                    status_code=422,
+                )
 
     def _runtime_factory(self, spec: AllocationSpec) -> WorkerRuntimeFactory:
         ref = f"{spec.agent_template.runtime.runtime_id}@{spec.agent_template.runtime.version}"

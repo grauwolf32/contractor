@@ -10,6 +10,7 @@ import pytest
 from fakes.spec import allocation_spec
 
 from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
@@ -31,10 +32,13 @@ from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 
-def test_response_partition_expires_worker_and_late_ack_cannot_revive(tmp_path: Path) -> None:
+def test_response_partition_expires_worker_and_late_ack_cannot_revive(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
         clock = FakeMonotonic()
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         spec = allocation_spec()
         await service.prepare(spec)
         watchdog = LeaseWatchdog(lambda: service.expire_control_lease(1), monotonic=clock)
@@ -109,9 +113,10 @@ def test_idle_lease_loss_fences_until_new_registration_generation() -> None:
 
 def test_lost_release_response_keeps_slot_fenced_until_repeated_action(
     tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
 ) -> None:
     async def scenario() -> None:
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         spec = allocation_spec()
         await service.prepare(spec)
         await service.finalize(
@@ -173,7 +178,10 @@ def test_replayed_ack_does_not_extend_monotonic_deadline() -> None:
     asyncio.run(scenario())
 
 
-def test_unconfirmed_worker_stop_requests_process_exit(tmp_path: Path) -> None:
+def test_unconfirmed_worker_stop_requests_process_exit(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
         clock = FakeMonotonic()
         state = RuntimeState(instance_id="runtime-failed-stop")
@@ -187,6 +195,7 @@ def test_unconfirmed_worker_stop_requests_process_exit(tmp_path: Path) -> None:
         service = AllocationService(
             state,
             registry,
+            runtime_capabilities,
             a2a_base_url="https://runtime.example",
             force_exit=exits.append,
         )
@@ -204,7 +213,10 @@ def test_unconfirmed_worker_stop_requests_process_exit(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-async def make_service(tmp_path: Path) -> tuple[RuntimeState, AllocationService]:
+async def make_service(
+    tmp_path: Path,
+    capabilities: CapabilitySnapshot,
+) -> tuple[RuntimeState, AllocationService]:
     state = RuntimeState(instance_id="runtime-lease-test")
     await state.mark_registered()
     registry = FactoryRegistry(
@@ -215,6 +227,7 @@ async def make_service(tmp_path: Path) -> tuple[RuntimeState, AllocationService]
     return state, AllocationService(
         state,
         registry,
+        capabilities,
         a2a_base_url="https://runtime.example",
         force_exit=lambda _: None,
     )

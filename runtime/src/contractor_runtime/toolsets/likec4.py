@@ -15,6 +15,7 @@ from typing import Any
 
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.probe import executable_responds
 from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -49,6 +50,12 @@ class LikeC4ToolsetFactory:
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client
+
+    async def probe(self) -> frozenset[str]:
+        available = set(self.exported_tools)
+        if not await executable_responds("likec4", ("version",)):
+            available.discard("validate_likec4")
+        return frozenset(available)
 
     async def create_selected(
         self,

@@ -210,6 +210,11 @@ class AdkWorkerRuntimeFactory:
     def __init__(self, model_factory: ModelFactory | None = None) -> None:
         self._model_factory = model_factory or gateway_model
 
+    async def probe(self) -> bool:
+        # Importing and constructing this factory has already loaded the local
+        # ADK adapter. Gateway/model availability is allocation-scoped.
+        return True
+
     async def create(self, context: WorkerBuildContext) -> AdkWorkerRuntime:
         runtime = AdkWorkerRuntime(context, self._model_factory(context))
         await runtime.start()

@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.control_client import ControlClient, ControlClientError, MTLSJSONTransport
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import runtime_agent_client_context
@@ -18,9 +19,11 @@ from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 
 
-def test_registration_commits_idle_and_uses_server_timing() -> None:
+def test_registration_commits_idle_and_uses_server_timing(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-register")
+        state = RuntimeState(instance_id="runtime-register", capabilities=runtime_capabilities)
         transport = FakeTransport(
             [
                 {
@@ -42,9 +45,11 @@ def test_registration_commits_idle_and_uses_server_timing() -> None:
     asyncio.run(scenario())
 
 
-def test_response_loss_never_advances_echoed_ack() -> None:
+def test_response_loss_never_advances_echoed_ack(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-heartbeat")
+        state = RuntimeState(instance_id="runtime-heartbeat", capabilities=runtime_capabilities)
         transport = FakeTransport(
             [
                 registration_response(),
@@ -74,9 +79,11 @@ def test_response_loss_never_advances_echoed_ack() -> None:
     asyncio.run(scenario())
 
 
-def test_wrong_ack_is_rejected_without_changing_echo() -> None:
+def test_wrong_ack_is_rejected_without_changing_echo(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-wrong-ack")
+        state = RuntimeState(instance_id="runtime-wrong-ack", capabilities=runtime_capabilities)
         transport = FakeTransport([registration_response(), heartbeat_response(9)])
         client = ControlClient(make_settings(), state, transport)
         await client.register()
@@ -88,9 +95,11 @@ def test_wrong_ack_is_rejected_without_changing_echo() -> None:
     asyncio.run(scenario())
 
 
-def test_valid_reconciliation_actions_are_applied_after_ack() -> None:
+def test_valid_reconciliation_actions_are_applied_after_ack(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-actions")
+        state = RuntimeState(instance_id="runtime-actions", capabilities=runtime_capabilities)
         handler = RecordingReconciliation()
         watchdog = LeaseWatchdog(noop_expiry)
         transport = FakeTransport(
@@ -119,9 +128,11 @@ def test_valid_reconciliation_actions_are_applied_after_ack() -> None:
     asyncio.run(scenario())
 
 
-def test_reregister_action_starts_a_new_confirmed_lease_generation() -> None:
+def test_reregister_action_starts_a_new_confirmed_lease_generation(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-reregister")
+        state = RuntimeState(instance_id="runtime-reregister", capabilities=runtime_capabilities)
         transport = FakeTransport(
             [
                 registration_response(),
@@ -150,9 +161,10 @@ def test_retry_backoff_is_jittered_but_bounded() -> None:
 
 def test_retry_logging_does_not_include_exception_message(
     caplog: pytest.LogCaptureFixture,
+    runtime_capabilities: CapabilitySnapshot,
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-redaction")
+        state = RuntimeState(instance_id="runtime-redaction", capabilities=runtime_capabilities)
         stop = asyncio.Event()
 
         async def stop_after_retry(_: float) -> None:
@@ -186,6 +198,7 @@ def test_inflight_heartbeat_cancels_cleanly() -> None:
 
 def test_real_mtls_control_transport_registers_and_heartbeats(
     tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
 ) -> None:
     pki = generate_pki(tmp_path / "pki")
 
@@ -245,7 +258,7 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
             private_key_file=pki["agent_key"],
         )
         transport = MTLSJSONTransport(settings.control_plane_url, client_context, 2)
-        state = RuntimeState(instance_id="runtime-real-mtls")
+        state = RuntimeState(instance_id="runtime-real-mtls", capabilities=runtime_capabilities)
         client = ControlClient(settings, state, transport)
         try:
             await client.register()

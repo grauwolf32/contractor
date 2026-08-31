@@ -8,6 +8,7 @@ import pytest
 from fakes.spec import allocation_spec
 
 from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import API_VERSION, AbortAllocationRequest, TerminationError
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -20,9 +21,12 @@ from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 
-def test_abort_is_idempotent_and_returns_cached_metrics(tmp_path: Path) -> None:
+def test_abort_is_idempotent_and_returns_cached_metrics(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
-        state, service = await make_service(tmp_path)
+        state, service = await make_service(tmp_path, runtime_capabilities)
         spec = allocation_spec()
         await service.prepare(spec)
         assert service._context is not None
@@ -48,11 +52,15 @@ def test_abort_is_idempotent_and_returns_cached_metrics(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_abort_deadline_fences_slot_and_requests_process_exit(tmp_path: Path) -> None:
+def test_abort_deadline_fences_slot_and_requests_process_exit(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
         exits: list[int] = []
         state, service = await make_service(
             tmp_path,
+            runtime_capabilities,
             runtime_factory=BlockingRuntimeFactory(),
             force_exit=exits.append,
         )
@@ -78,12 +86,16 @@ def test_abort_deadline_fences_slot_and_requests_process_exit(tmp_path: Path) ->
     asyncio.run(scenario())
 
 
-def test_cancelled_abort_request_still_fences_and_requests_process_exit(tmp_path: Path) -> None:
+def test_cancelled_abort_request_still_fences_and_requests_process_exit(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
     async def scenario() -> None:
         exits: list[int] = []
         runtime_factory = BlockingRuntimeFactory()
         state, service = await make_service(
             tmp_path,
+            runtime_capabilities,
             runtime_factory=runtime_factory,
             force_exit=exits.append,
         )
@@ -112,6 +124,7 @@ def test_cancelled_abort_request_still_fences_and_requests_process_exit(tmp_path
 
 async def make_service(
     tmp_path: Path,
+    capabilities: CapabilitySnapshot,
     *,
     runtime_factory: StubADKWorkerRuntimeFactory | BlockingRuntimeFactory | None = None,
     force_exit: object | None = None,
@@ -130,6 +143,7 @@ async def make_service(
     service = AllocationService(
         state,
         registry,
+        capabilities,
         a2a_base_url="https://runtime.example",
         **options,  # type: ignore[arg-type]
     )

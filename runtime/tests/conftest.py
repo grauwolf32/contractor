@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from starlette.exceptions import StarletteDeprecationWarning
+
+if TYPE_CHECKING:
+    from contractor_runtime.capabilities import CapabilitySnapshot
 
 
 def _install_dependency_warning_filters() -> None:
@@ -54,3 +59,18 @@ def ignore_pinned_dependency_runtime_warnings() -> Iterator[None]:
     with warnings.catch_warnings():
         _install_dependency_warning_filters()
         yield
+
+
+@pytest.fixture
+def runtime_capabilities(tmp_path: Path) -> CapabilitySnapshot:
+    """Full declared inventory for tests that are not exercising probes."""
+
+    from contractor_runtime.capabilities import CapabilitySnapshot
+    from contractor_runtime.factories import built_in_factories
+
+    factories = built_in_factories(tmp_path)
+    return CapabilitySnapshot.create(
+        runtimes=factories.worker_runtimes,
+        toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+        sandbox_profiles=factories.sandbox_profiles,
+    )
