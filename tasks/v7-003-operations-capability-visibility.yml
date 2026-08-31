@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V7-003
+title: Show frozen Runtime Agent capabilities in Operations
+milestone: runtime-capability-placement
+priority: P0
+status: planned
+depends_on: [V7-001]
+languages: [go, typescript, yaml]
+
+goal: >-
+  Let an operator see why a current Runtime Agent is or is not eligible for an
+  AgentTemplate without exposing local probe failures, environment details, or
+  adding any execution mutation authority.
+
+context:
+  source_of_truth: >-
+    The positive runtime, Toolset/tool, and SandboxProfile snapshot already
+    resides in the accepted process-local AgentRegistration. Operations must
+    project a deep-copied, normalized read model from that snapshot and must not
+    rediscover capabilities from Server catalogs, Runtime softwareVersion, or
+    current allocations.
+  current_gap: >-
+    RuntimeAgentObservation and the public OpenAPI/UI currently show process,
+    lease, observed, and authoritative slot state but omit all registered
+    capabilities.
+
+scope:
+  in:
+    - Add required supportedRuntimes, supportedToolsets, and supportedSandboxProfiles fields to RuntimeAgentObservation using the existing private registration semantics.
+    - Deep-copy and stably sort exact refs and each non-empty tool list while holding the coherent Control Plane snapshot boundary.
+    - Validate collection bounds, exact selector syntax, uniqueness, and non-empty tool capabilities in the Go Operations model.
+    - Extend the committed public OpenAPI contract with closed bounded capability schemas and regenerate the strict TypeScript client.
+    - Preserve capability fields in the handwritten browser response sanitizer instead of passing through unknown server data.
+    - Render runtimes, sandboxes, and each Toolset's available tools inside the existing per-agent details on /operations/runtime-agents, including zero-Toolset state.
+    - Cover different snapshots for two otherwise equal CA-trusted agents and retain existing generation/revision pagination and WebSocket invalidation behavior.
+  out:
+    - Negative probe diagnostics, executable paths/versions, environment variables, command output, host names, credentials, or RuntimeSettings.
+    - Capability edits, force re-probe/re-register, agent labels, placement simulation, force-idle, or allocation reassignment controls.
+    - A durable Runtime inventory or a new WebSocket event payload carrying the complete snapshot.
+
+deliverables:
+  - {path: internal/controlplane/operations.go, description: Validated deep-copied Runtime capability projection.}
+  - {path: internal/controlplane/operations_test.go, description: Heterogeneous snapshot, ordering, mutation-alias, and bounds tests.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Closed Runtime capability fields on Operations observations.}
+  - {path: internal/httpapi/public, description: Public Operations conformance and example updates.}
+  - {path: ui/src/api/operations.ts, description: Explicit safe capability copying from generated API values.}
+  - {path: ui/src/routes/operations/runtime-agents, description: Accessible grouped capability rendering.}
+
+requirements:
+  - id: R1
+    text: Operations returns only positive registered capabilities and cannot reveal why another capability failed its local startup probe.
+  - id: R2
+    text: Returned slices never alias mutable registration or another response, and their order is stable regardless of registration input order.
+  - id: R3
+    text: Existing clients regenerate from one committed OpenAPI source; generated TypeScript is never hand-edited.
+  - id: R4
+    text: Capability visibility is read-only and does not change Scheduler, Control Plane trust, or registration lifecycle semantics.
+
+acceptance_criteria:
+  - id: A1
+    given: Two registered agents with different positive tool subsets.
+    when: An authorized operator lists Runtime Agents.
+    then: API and UI show each exact frozen snapshot independently with stable runtime, sandbox, Toolset, and tool ordering.
+  - id: A2
+    given: A Runtime Agent with no Toolsets but a valid runtime and sandbox.
+    when: Its Operations details render.
+    then: The empty Toolset state is explicit and the agent remains a valid observation.
+  - id: A3
+    given: Malformed, duplicate, oversized, or caller-mutated capability collections plus secret/path canaries in local diagnostics.
+    when: Operations validation, snapshots, logs, and browser rendering are exercised.
+    then: Invalid data fails closed, returned snapshots remain immutable, and no diagnostic canary or local environment detail appears publicly.
+
+tests:
+  - {name: go-operations, command: "go test -race ./internal/controlplane/... ./internal/httpapi/public/... && make verify-public-api", covers: [A1, A2, A3]}
+  - {name: ui-operations, command: "cd ui && corepack pnpm generate && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

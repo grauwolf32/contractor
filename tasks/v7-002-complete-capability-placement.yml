@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V7-002
+title: Select a complete capability-compatible Runtime Agent assignment
+milestone: runtime-capability-placement
+priority: P0
+status: planned
+depends_on: [V6-003]
+languages: [go]
+
+goal: >-
+  Make Control Plane reserve a Stage whenever a complete assignment of its
+  exact AgentTemplate requirements to current eligible Runtime Agent slots
+  exists, including heterogeneous specialist/generalist fleets.
+
+context:
+  current_gap: >-
+    internal/controlplane/registry.go already checks exact WorkerRuntime and
+    SandboxProfile refs plus Toolset tool-set containment, but ReserveAll walks
+    bindings in request order and takes the first compatible agent. That greedy
+    choice can consume a specialist for a generic binding and report false
+    insufficient capacity even though another complete assignment exists.
+  requirement_derivation: >-
+    Each logical Stage binding requires its resolved AgentTemplate runtime ref,
+    sandbox ref, and every selected tool under each exact Toolset ref. Extra
+    advertised capabilities do not become model-visible and physical instance
+    identity never reaches Planner.
+
+scope:
+  in:
+    - Derive one immutable placement requirement and candidate set for each normalized logical Stage binding.
+    - Filter candidates by current idle/confirmed-lease/reconciliation eligibility and exact capability set containment.
+    - Find a complete injective binding-to-instance assignment with deterministic maximum bipartite matching or an equivalent complete algorithm.
+    - Preserve stable deterministic traversal and output order for tests while making no semantic promise between equally valid complete assignments.
+    - Install allocation IDs and mutate slot/reservation state only after a complete match exists; a miss leaves every candidate slot and reservation map unchanged.
+    - Preserve the existing one-lock atomic reservation, no-network/no-database-under-lock rule, stageExecutionId idempotency, and reservation fingerprint behavior.
+    - Keep current handling for busy versus absent compatible capacity: both return ErrInsufficientCapacity so Scheduler leaves the same attempt preparing under bounded backoff.
+    - Add regression coverage for exact runtime, sandbox, Toolset ref, selected-tool subset, lease, reconciliation, and single-slot uniqueness constraints.
+  out:
+    - Placement labels, host affinity, load/cost scoring, preferred environments, autoscaling, preemption, multi-slot agents, or multi-Control-Plane coordination.
+    - Workflow-load rejection based on the currently connected fleet or Planner-selected physical agents.
+    - Reserving a partial Worker set while waiting for another capability.
+
+deliverables:
+  - {path: internal/controlplane/registry.go, description: Complete deterministic capability-aware assignment before atomic reservation mutation.}
+  - {path: internal/controlplane/registry_test.go, description: Specialist/generalist, no-match, determinism, idempotency, and concurrency regressions.}
+  - {path: internal/controlplane/operations_test.go, description: Observation invariants remain coherent after heterogeneous reservations.}
+
+requirements:
+  - id: R1
+    text: If any complete injective assignment exists over the eligible snapshot held under the registry lock, ReserveAll must not return ErrInsufficientCapacity.
+  - id: R2
+    text: Matching uses exact refs and set containment only; it cannot infer capabilities from softwareVersion, endpoints, instanceId, certificate fields, or AgentTemplate description.
+  - id: R3
+    text: Failed matching performs no slot, grant, tombstone, Operations revision, or reservation mutation visible outside the call; precomputed unused random IDs carry no authority.
+  - id: R4
+    text: The algorithm is bounded by the existing maximum agent and Stage-binding collection sizes and does not recurse on untrusted depth.
+
+acceptance_criteria:
+  - id: A1
+    given: Agent A supports source analysis plus LikeC4 validation, Agent B supports only source analysis, and the generic binding is ordered first.
+    when: ReserveAll handles a Stage needing one generic source Worker and one LikeC4 validator.
+    then: It assigns generic to B and validator to A atomically rather than returning false insufficient capacity.
+  - id: A2
+    given: No complete assignment exists because one exact tool, runtime, sandbox, confirmed lease, or distinct slot is missing.
+    when: ReserveAll runs.
+    then: It returns ErrInsufficientCapacity with no partial reservation or Operations mutation.
+  - id: A3
+    given: Multiple equally valid complete assignments and an injected stable agent order.
+    when: The request is repeated or raced with another Stage.
+    then: Sequential results are deterministic, idempotent replay returns the same allocations, and concurrent calls never allocate one slot twice.
+
+tests:
+  - {name: registry-race, command: "go test -race ./internal/controlplane/...", covers: [A1, A2, A3]}
+  - {name: scheduler-regression, command: "go test -race ./internal/scheduler/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

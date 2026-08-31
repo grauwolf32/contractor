@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V7-004
+title: Prove heterogeneous Runtime capability placement end to end
+milestone: runtime-capability-placement
+priority: P0
+status: planned
+depends_on: [V7-001, V7-002, V7-003]
+languages: [go, python, yaml]
+
+goal: >-
+  Prove through the real Go Server and Python Runtime Agent processes that a
+  Workflow waits without consuming an attempt until a compatible environment
+  registers, then executes only on agents advertising every required tool.
+
+context:
+  test_boundary: >-
+    Reuse the existing local PKI, PostgreSQL, public/private HTTP, fake
+    OpenAI-compatible Gateway, deterministic validator executable, Scheduler,
+    A2A, Artifact, and Operations harnesses. The test may substitute external
+    model and validator behavior but must not replace production capability
+    probes, registration, matching, reservation, or Runtime preparation.
+  target_scenario: >-
+    One Runtime environment can execute source/artifact tools but has no
+    LikeC4 validator. A second environment has the same Contractor code plus a
+    deterministic LikeC4 executable. The environment and capability snapshot of
+    each process remain fixed from startup through exit.
+
+scope:
+  in:
+    - Add test-process support for isolated deterministic executable search paths without inheriting host LikeC4/Vacuum installations accidentally.
+    - Start a Runtime Agent lacking LikeC4, assert through Operations that validate_likec4 is absent while independent tools remain present, and create a Run whose current Stage requires it.
+    - Assert the Stage remains on the same preparing StageExecution with no allocation and no Planner invocation while only the incompatible slot is live.
+    - Start a second Runtime Agent with a fixed fake LikeC4 executable, observe its distinct instanceId and positive validation capability, and let the existing Run continue without creating a retry attempt.
+    - Execute through real capability matching, private prepare, Python Worker/A2A, exact Artifact handling, finalization, release, and Run completion using deterministic external substitutes.
+    - Assert the incompatible agent is never assigned to the validator binding and both slots reconcile back to idle after completion.
+    - Add a focused multi-binding integration case or retain the V7-002 specialist/generalist race regression as an explicit prerequisite gate.
+    - Document how an operator starts environment-specific agents, verifies their positive snapshots in Operations, and restarts a process after changing dependencies.
+  out:
+    - Network-dependent LM Studio tests, changing a Runtime environment after registration, dynamic capability withdrawal, autoscaling, placement preferences, or testing arbitrary host package managers.
+    - Exposing physical Runtime identity to Planner, Workflow YAML, or public Run semantics.
+
+deliverables:
+  - {path: tests/e2e, description: Two-environment process fixture and deterministic capability-placement Workflow scenario.}
+  - {path: runtime/tests, description: Cross-process registration immutability regression where needed by the harness.}
+  - {path: docs/development.md, description: Environment-specific Runtime startup and Operations verification procedure.}
+  - {path: Makefile, description: Focused capability end-to-end target included in the appropriate aggregate gate.}
+
+requirements:
+  - id: R1
+    text: The end-to-end scenario crosses production startup probes, registration, Control Plane matching, Scheduler, prepare, A2A, finalization, release, and Operations read models.
+  - id: R2
+    text: Lack of currently compatible capacity is infrastructure waiting inside one attempt, not a failed/interrupted result or a consumed Workflow retry.
+  - id: R3
+    text: Test environments cannot see validators installed on the developer host unless the fixture explicitly supplies them.
+  - id: R4
+    text: Logs and public responses remain free of executable paths, environment values, probe output, private endpoints, and secrets.
+
+acceptance_criteria:
+  - id: A1
+    given: Only a healthy idle Runtime Agent that omits validate_likec4 is registered.
+    when: A Stage selecting likec4@1 validate_likec4 reaches preparing.
+    then: It receives no allocation, invokes no Planner, stays on attempt one, and does not reserve the incompatible idle slot.
+  - id: A2
+    given: The waiting Stage and a newly registered Runtime Agent whose startup snapshot includes validate_likec4.
+    when: Scheduler polls again.
+    then: The same StageExecution is allocated to the compatible process and completes through the real Worker lifecycle.
+  - id: A3
+    given: The successful Run has released its allocation.
+    when: Operations is refreshed and retained logs/public bodies are scanned.
+    then: Both current agents are idle with their distinct immutable snapshots and no local path, probe output, environment value, or secret is exposed.
+
+tests:
+  - {name: capability-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-capability-e2e", covers: [A1, A2, A3]}
+  - {name: registry-race, command: "go test -race ./internal/controlplane/...", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

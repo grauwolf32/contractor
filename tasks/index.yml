@@ -56,7 +56,10 @@ fixed_decisions:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
   deployment:
-    topology: One VM, one Server process, PostgreSQL, and one or more identical single-slot Runtime Agent processes.
+    topology: >-
+      One VM, one Server process, PostgreSQL, and one or more single-slot
+      Runtime Agent processes whose immutable environments may expose different
+      positive capability snapshots.
     private_security: Deployment-CA mTLS
     public_auth: >-
       One owner-only local-auth principal backs bounded in-memory browser
@@ -117,62 +120,64 @@ milestones:
       allocation cleanup is bounded and cannot block unrelated Runs, exact Run
       replay survives mutable dependency deletion, and volatile registry
       history remains bounded and operationally current.
+  - id: runtime-capability-placement
+    exit_task: V7-004
+    outcome: >-
+      Runtime Agents probe and freeze environment-specific capabilities before
+      registration, Control Plane finds complete compatible Stage assignments,
+      Operations explains each positive snapshot, and a real heterogeneous
+      process test proves capacity waiting plus later execution.
 
 current_checkpoint:
   completed_through: V6-003
-  next_task: null
+  next_task: V7-001
   summary: >-
-    The lifecycle review hardening milestone is complete. Artifact writes are
-    linearized with allocation fencing, empty and concurrent Artifact paths are
-    safe, terminal release recovery is durable, bounded and non-blocking, exact
-    Run replay precedes mutable dependency resolution, and volatile reservation
-    plus superseded Runtime state is bounded and operationally current.
+    Lifecycle review hardening is complete. V7-001 through V7-004 now form the
+    next implementation increment: replace hard-coded Runtime capabilities,
+    make heterogeneous placement complete rather than greedy, expose the
+    accepted snapshot in Operations, and prove it across real processes.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
-  verdict: implemented
+  verdict: ready_to_implement
   checks:
     - >-
-      V3-001 through V3-004 first correct the existing model-facing contract
-      and deliver Streamline plus Router without waiting for the UI or managed
-      configuration publication work.
+      V7-001 changes only Python discovery, frozen registration construction,
+      and Runtime-side AllocationSpec enforcement; the existing registration
+      wire shape remains sufficient.
     - >-
-      Reusable configuration documents, immutable Run resolution and Scheduler
-      escalation are separate tasks so each schema, resolver and state-machine
-      change has an independently testable boundary.
+      V7-002 is an independent Go allocator correction. Its complete matching
+      requirement is stronger than first-fit but does not introduce scoring,
+      affinity, partial reservation, or new Workflow semantics.
     - >-
-      Typed Planner state is introduced before persistence and WebSocket
-      delivery; no UI task needs to scrape prompts, ADK state or generic tool
-      payloads.
+      V7-003 projects the already accepted positive snapshot through the
+      existing Operations API/UI; it neither sends negative probe diagnostics
+      nor adds a capability mutation endpoint.
     - >-
-      V4 starts with the committed API contract and a separate owner-scoped
-      Workflow/Run/Artifact query slice before configuration, Operations,
-      security and UI work. The Node service remains a static frontend host
-      and never becomes a BFF or lifecycle authority.
+      V7-004 is last because its real-process scenario depends on discovery,
+      matching, and visibility. It proves that compatible-capacity waiting
+      stays inside one Stage attempt before a later agent joins.
     - >-
-      Every new task is self-contained, names concrete production and test
-      deliverables, and retains the full implementation-commit rule above.
+      The dependency graph permits V7-001 and V7-002 to be implemented
+      independently, then converges through V7-003 and V7-004 without a
+      circular dependency.
     - >-
-      Credential work is split into encrypted persistence (V4-003), generic
-      recoverable lifecycle/public API (V4-003A), and the concrete bounded
-      LiteLLM adapter (V4-004), so crypto, state transitions and HTTP behavior
-      have independent gates.
-    - >-
-      The former all-in-one Workflow/Artifact/Run UI task is split into
-      UserScope Artifact management (V4-009), Workflow selection/idempotent Run
-      creation (V4-009A), and authoritative live Run inspection (V4-009B), so
-      each mutation and resynchronization boundary has an independent commit.
+      Every task is self-contained for a worker without spec context, has one
+      primary implementation boundary, explicit failure cases, acceptance
+      criteria, test commands, and inherits the full implementation-commit rule.
   accepted_risks:
     - >-
-      The first PlannerPlan intentionally omits legacy decomposition, skip and
-      summarizer machinery; those operations can be versioned later if simple
-      ordered subtasks prove insufficient.
+      Capability dimensions remain composable sets in v1alpha1. An environment
+      with combination-specific incompatibilities must advertise a common safe
+      subset or run separate process configurations.
     - >-
-      Managed publication uses the specified single-Server process lock;
-      distributed publication and remote configuration roots remain deferred.
+      Current-fleet absence and temporarily busy compatible capacity share one
+      ErrInsufficientCapacity path until the Stage deadline or cancellation;
+      proactive unschedulable diagnosis and autoscaling remain deferred.
     - >-
-      UI visual design is deliberately functional and domain-neutral; design
-      system expansion is outside the first Operations slice.
+      Probe failures are local redacted diagnostics. Operations deliberately
+      shows only positive capabilities, not paths, command output, environment
+      values, or a remotely actionable re-probe control.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -236,8 +241,10 @@ planning_review:
       application/zip remains subject to the existing 16 MiB Artifact limit;
       larger repositories require the deferred streaming/S3 increment.
     - >-
-      Vacuum and LikeC4 are direct Runtime host prerequisites. Missing binaries
-      fail explicitly at tool use and never masquerade as successful validation.
+      Vacuum and LikeC4 are direct Runtime environment prerequisites. The
+      planned startup probes omit their validation tools when unavailable, so
+      a requiring Stage waits for compatible capacity rather than assigning a
+      Worker that cannot honor the validator contract.
     - >-
       Initial source search is bounded text search rather than the legacy
       tree-sitter/graph index. Live evidence shows that it is adequate for the
@@ -312,3 +319,10 @@ tasks:
   - {id: V5-001, file: v5-001-structured-worker-result-recovery.yml}
   - {id: V5-002, file: v5-002-high-budget-likec4-streamline.yml}
   - {id: V5-003, file: v5-003-attempt-diagnostics.yml}
+  - {id: V6-001, file: v6-001-artifact-lifecycle-race-safety.yml}
+  - {id: V6-002, file: v6-002-terminal-release-recovery.yml}
+  - {id: V6-003, file: v6-003-idempotency-and-registry-retention.yml}
+  - {id: V7-001, file: v7-001-runtime-capability-probes.yml}
+  - {id: V7-002, file: v7-002-complete-capability-placement.yml}
+  - {id: V7-003, file: v7-003-operations-capability-visibility.yml}
+  - {id: V7-004, file: v7-004-heterogeneous-capability-e2e.yml}

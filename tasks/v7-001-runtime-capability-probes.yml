@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: V7-001
+title: Probe and freeze Runtime Agent capabilities at startup
+milestone: runtime-capability-placement
+priority: P0
+status: planned
+depends_on: [V6-003]
+languages: [python]
+
+goal: >-
+  Replace the Runtime Agent's hard-coded capability advertisement with one
+  bounded startup discovery pass that reports only locally usable runtime,
+  Toolset/tool, and SandboxProfile capabilities and remains immutable for the
+  process instance.
+
+context:
+  current_gap: >-
+    runtime/src/contractor_runtime/state.py currently constructs the same
+    supportedRuntimes, supportedToolsets, and supportedSandboxProfiles values
+    for every process, even when an environment lacks LikeC4, Vacuum, or a
+    usable local workspace. Control Plane already accepts the required wire
+    fields and matches selected tools, so no new registration DTO is needed.
+  process_contract: >-
+    Probe once after settings, certificates, orphan-workdir cleanup, factories,
+    and the private listener are ready but before the first registration. The
+    enabled factory set, executable resolution, and local dependency
+    configuration are immutable after registration; changing them requires a
+    process restart and new instanceId.
+  capability_meaning: >-
+    Installed factory code is only inventory. A positive runtime or sandbox
+    capability means its complete local contract passed. A Toolset capability
+    contains only the exported tools whose complete local prerequisites passed;
+    tools depending solely on later AllocationSpec RuntimeSettings remain
+    eligible when their local client implementation is usable.
+
+scope:
+  in:
+    - Add an immutable normalized capability snapshot and a probe coordinator over the enabled FactoryRegistry.
+    - Give WorkerRuntime, Toolset, and Sandbox factories bounded local probe contracts; a Toolset probe returns a non-empty usable subset or is omitted.
+    - Probe adk@1 local adapter readiness without making an LLM call.
+    - Probe local-workdir@1 by creating and cleaning one uniquely named resource below the configured work root; cleanup failure fails that sandbox capability.
+    - Keep allocation-scoped Artifact clients, LLM Gateway URLs/tokens, and Server reachability out of startup capability probes.
+    - Make validate_likec4 conditional on a directly invokable LikeC4 CLI and validate_openapi conditional on a directly invokable Vacuum CLI; retain independent editing tools when their prerequisites pass.
+    - Invoke external probe commands without a shell, with closed stdin, bounded output, redacted diagnostics, a five-second per-factory timeout, and a thirty-second total probe deadline.
+    - Freeze and reuse one sorted snapshot for every registration retry and Control Plane reconnect under the same instanceId; heartbeat never recomputes or mutates it.
+    - Build AgentRegistration exclusively from the frozen snapshot and remove the hard-coded capability lists from RuntimeState.
+    - Validate every AllocationSpec against the frozen snapshot before preparing a workspace, constructing tools, or creating a Worker, even if a matching factory object remains installed.
+    - Refuse to register an idle slot when no WorkerRuntime or no SandboxProfile passes; zero available Toolsets remains valid.
+  out:
+    - Dynamic re-probing, capability withdrawal through heartbeat, watching PATH/filesystem changes, remote health checks, or mutating the environment in place.
+    - A new public/private capability schema, host labels, resource scoring, or Server placement changes.
+    - Downloading validators, invoking npx, making model calls, or accessing Workflow/User artifacts during probes.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/factories.py, description: Factory probe protocols, immutable snapshot model, normalization, and bounded coordinator.}
+  - {path: runtime/src/contractor_runtime/state.py, description: Registration built from one injected frozen capability snapshot rather than hard-coded lists.}
+  - {path: runtime/src/contractor_runtime/cli.py, description: Startup ordering that completes probes before first registration.}
+  - {path: runtime/src/contractor_runtime/allocation.py, description: AllocationSpec capability validation against the advertised snapshot.}
+  - {path: runtime/src/contractor_runtime/toolsets, description: Built-in per-tool local prerequisite probes, including LikeC4 and Vacuum.}
+  - {path: runtime/src/contractor_runtime/workspace.py, description: Safe local-workdir probe and cleanup behavior.}
+  - {path: runtime/tests/test_capabilities.py, description: Partial availability, timeout, cleanup, immutability, and redaction tests.}
+
+requirements:
+  - id: R1
+    text: Registration fields retain their existing v1alpha1 shape and contain sorted unique exact refs plus sorted unique non-empty tool lists.
+  - id: R2
+    text: The same instanceId always serializes the same capability snapshot; a registration retry never repeats probes.
+  - id: R3
+    text: Probe code cannot access RuntimeSettings, model credentials, allocation grants, Run artifacts, or arbitrary paths outside Runtime-owned roots.
+  - id: R4
+    text: A probe timeout or optional factory failure removes only the affected capability and never silently advertises the full installed registry.
+  - id: R5
+    text: Startup diagnostics contain only exact capability ref, safe tool name, outcome code, and duration; command output, paths, environment values, and exception bodies are excluded.
+
+acceptance_criteria:
+  - id: A1
+    given: An environment with all built-in Python factories but without LikeC4 and Vacuum executables.
+    when: Runtime Agent completes startup discovery.
+    then: >-
+      It advertises adk@1 and local-workdir@1, retains independent LikeC4 and
+      OpenAPI editing tools, omits validate_likec4 and validate_openapi, and
+      registration retries send byte-equivalent capability fields without
+      running another probe.
+  - id: A2
+    given: A Toolset probe times out or local-workdir probe cleanup fails.
+    when: The snapshot is finalized.
+    then: >-
+      The affected capability is absent, no probe resource remains after a
+      successful sandbox probe, and the process does not register if no runtime
+      or sandbox capability remains.
+  - id: A3
+    given: Control Plane sends an AllocationSpec selecting a tool omitted from the frozen snapshot.
+    when: Runtime Agent handles prepare.
+    then: It rejects preparation before workspace/tool/Worker creation despite the factory exporting that tool in code.
+  - id: A4
+    given: Secret canaries and recognizable path/command output in a failing probe.
+    when: Startup logs and registration JSON are inspected.
+    then: No canary, raw output, local path, environment value, Gateway setting, or credential is present.
+
+tests:
+  - {name: capability-unit, command: "cd runtime && uv run pytest tests/test_capabilities.py tests/test_state.py tests/test_allocation.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime-hardening, command: "make test-runtime-hardening", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
