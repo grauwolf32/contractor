@@ -545,6 +545,54 @@ func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
 	}
 }
 
+func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := fixture.configs.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", config.ExecutionConfigPatch{}, fixture.credentials,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := resolved.Stages[resolved.EntryStage].ExecutionConfig.Agents["builder"].LLMGateway.Ref
+	fixture.credentials.records["ephemeral-worker"] = credentials.Record{
+		CredentialID: "ephemeral-worker", LLMGateway: gateway,
+		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"credential":"ephemeral-worker"}}}`)
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	first.Header.Set(idempotencyKeyHeader, "credential-replay")
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+	fixture.credentials.mu.Lock()
+	delete(fixture.credentials.records, "ephemeral-worker")
+	fixture.credentials.mu.Unlock()
+
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	retry.Header.Set(idempotencyKeyHeader, "credential-replay")
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() {
+		t.Fatalf("credential-independent replay = %d headers=%v body=%s",
+			retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if fixture.credentials.guarded != 1 {
+		t.Fatalf("replay entered mutable credential resolution %d times", fixture.credentials.guarded)
+	}
+}
+
 func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
 	user, _ := fixture.artifacts.User("user-1")

@@ -2,11 +2,9 @@ package artifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 func (r *PostgresRepository) ForkInput(
@@ -296,7 +294,7 @@ func (r *PostgresRepository) FreezeOutputs(ctx context.Context, scope Scope) err
 	if err := validateScope(scope); err != nil || scope.kind != ScopeRun {
 		return ErrInvalidScope
 	}
-	var scopeExists bool
+	var runExists bool
 	err := r.db.QueryRow(ctx, `
 WITH updated AS (
     UPDATE artifact_bindings
@@ -304,16 +302,11 @@ WITH updated AS (
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = 'outputs'
     RETURNING 1
 )
-SELECT EXISTS(
-    SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2
-)`, scope.kind, scope.id).Scan(&scopeExists)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrArtifactNotFound
-	}
+SELECT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id = $2)`, scope.kind, scope.id).Scan(&runExists)
 	if err != nil {
 		return fmt.Errorf("freeze Run outputs: %w", err)
 	}
-	if !scopeExists {
+	if !runExists {
 		return ErrArtifactNotFound
 	}
 	return nil

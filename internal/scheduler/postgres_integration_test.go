@@ -104,8 +104,13 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 		t.Fatalf("StageExecutions = (%+v, %v)", executions, err)
 	}
 	releasable, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
-	if err != nil || len(releasable) != 1 || releasable[0].StageExecutionID != executions[0].StageExecutionID {
-		t.Fatalf("terminal allocation recovery query = (%+v, %v)", releasable, err)
+	if err != nil || len(releasable) != 0 {
+		t.Fatalf("completed allocation remained in recovery query = (%+v, %v)", releasable, err)
+	}
+	allocations, err := store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].ReleaseAttemptedAt == nil ||
+		allocations[0].ReleaseCompletedAt == nil {
+		t.Fatalf("durable allocation release marker = (%+v, %v)", allocations, err)
 	}
 	output, err := runStore.Read(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"})
 	if err != nil || string(output.Payload.Data) != "copied\n" || output.Payload.MediaType != "text/plain" {

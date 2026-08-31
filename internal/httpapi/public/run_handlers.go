@@ -120,6 +120,19 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
 		return
 	}
+	ownerID := principalUserID(r.Context())
+	storedRun, replayed, err := h.dependencies.Runs.LookupRunIdempotency(
+		r.Context(), ownerID, idempotencyKey, requestDigest,
+	)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
+		writeJSON(w, http.StatusAccepted, createRunResponse{RunID: storedRun.RunID, State: storedRun.State})
+		return
+	}
 	runID, err := h.dependencies.NewID("run_")
 	if err != nil {
 		h.handleError(w, fmt.Errorf("generate Run ID: %w", err))
@@ -127,7 +140,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created := false
-	var storedRun runstore.WorkflowRun
+	storedRun = runstore.WorkflowRun{}
 	err = h.dependencies.ManagedCredentials.WithRunCreation(r.Context(), func() error {
 		workflow, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
 			r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
@@ -142,7 +155,6 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return fmt.Errorf("encode resolved Workflow: %w", err)
 		}
-		ownerID := principalUserID(r.Context())
 		return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
 			var createErr error
 			storedRun, created, createErr = runs.CreateRunIdempotent(

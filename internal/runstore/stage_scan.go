@@ -3,6 +3,7 @@ package runstore
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -19,6 +20,14 @@ accepted_result_schema_version, accepted_stage_result,
 termination_schema_version, stage_termination,
 finalization_id, finalization_deadline, abort_id, abort_deadline,
 created_at, updated_at, planner_started_at, terminal_at`
+
+func prefixedStageExecutionColumns(alias string) string {
+	parts := strings.Split(stageExecutionColumns, ",")
+	for index, part := range parts {
+		parts[index] = alias + "." + strings.TrimSpace(part)
+	}
+	return strings.Join(parts, ", ")
+}
 
 func scanStageExecution(row rowScanner) (StageExecution, error) {
 	var result StageExecution

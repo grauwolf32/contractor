@@ -386,6 +386,8 @@ type StageAllocation struct {
 	WorkerRuntimeRef       contracts.WorkerRuntimeRef
 	RuntimeAgentInstanceID string
 	CreatedAt              time.Time
+	ReleaseAttemptedAt     *time.Time
+	ReleaseCompletedAt     *time.Time
 }
 
 // StageExecutionReport is the trusted Server envelope around one bounded

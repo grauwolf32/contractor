@@ -541,6 +541,14 @@ keeps that Runtime Agent fenced without rewriting the terminal Stage outcome.
 Control Plane does not offer the slot until a confirmed heartbeat reports the
 matching idle state.
 
+Each durable Stage allocation records bounded release-attempt and
+release-completion metadata separately from its immutable provenance. Recovery
+selects only a bounded least-recently-attempted batch of incomplete terminal
+releases. It retries each still-live allocation independently, so one member of
+a partially released multi-Agent Stage cannot hide another; a cleanup error is
+reported and retried but never prevents Scheduler from claiming an unrelated
+WorkflowRun.
+
 Incremental per-A2A-Task report delivery is not required for the first slice.
 It may later reduce data loss from a hard Worker crash without changing the
 terminal report schema.

@@ -21,6 +21,7 @@ var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,2
 type Repository interface {
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
+	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
 	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)
@@ -48,6 +49,8 @@ type Repository interface {
 	ListRunEvents(context.Context, string, int64, int) ([]WorkflowRunEvent, error)
 	RecordStageAllocation(context.Context, StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
+	MarkStageAllocationReleaseAttempt(context.Context, string) error
+	MarkStageAllocationReleased(context.Context, string) error
 	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error
 	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
 	RecordPlannerExecutionReport(context.Context, RecordPlannerExecutionReportParams) error
@@ -212,6 +215,47 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 		return WorkflowRun{}, false, err
 	}
 	return existing, false, nil
+}
+
+// LookupRunIdempotency resolves an already committed public create-Run claim
+// without consulting mutable Workflow dependencies such as managed
+// credentials. A digest mismatch is the same fail-closed key reuse conflict as
+// CreateRunIdempotent.
+func (s *PostgresStore) LookupRunIdempotency(
+	ctx context.Context,
+	ownerID string,
+	idempotencyKey string,
+	requestDigest string,
+) (WorkflowRun, bool, error) {
+	if err := validateOpaque("ownerID", ownerID); err != nil {
+		return WorkflowRun{}, false, err
+	}
+	if err := validateIdempotencyKey(idempotencyKey); err != nil {
+		return WorkflowRun{}, false, err
+	}
+	if !digestPattern.MatchString(requestDigest) {
+		return WorkflowRun{}, false, invalidf("request digest is invalid")
+	}
+	var runID, storedDigest string
+	err := s.db.QueryRow(ctx, `
+SELECT run_id, request_digest
+FROM workflow_runs
+WHERE owner_id = $1 AND request_idempotency_key = $2`, ownerID, idempotencyKey,
+	).Scan(&runID, &storedDigest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WorkflowRun{}, false, nil
+	}
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("lookup idempotent WorkflowRun: %w", err)
+	}
+	if storedDigest != requestDigest {
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+	}
+	run, err := s.GetRun(ctx, runID)
+	if err != nil {
+		return WorkflowRun{}, false, err
+	}
+	return run, true, nil
 }
 
 func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, error) {

@@ -165,6 +165,35 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	}
 }
 
+func TestOperationsSnapshotRetiresSupersededAgentAfterAllocationRelease(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	oldRegistration := testRegistration("agent-old-operations")
+	registerReadyWith(t, registry, oldRegistration)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-old-operations", StageExecutionID: "stage-old-operations",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := testRegistration("agent-new-operations")
+	restarted.ControlURL = oldRegistration.ControlURL
+	restarted.A2AURL = oldRegistration.A2AURL
+	registerReadyWith(t, registry, restarted)
+	whileOwned := registry.SnapshotOperations()
+	if len(whileOwned.RuntimeAgents) != 2 {
+		t.Fatalf("superseded allocation owner disappeared before release: %+v", whileOwned.RuntimeAgents)
+	}
+	if err := registry.Release(reservations[0].Grant.AllocationID); err != nil {
+		t.Fatal(err)
+	}
+	released := registry.SnapshotOperations()
+	if len(released.RuntimeAgents) != 1 || released.RuntimeAgents[0].InstanceID != restarted.InstanceID {
+		t.Fatalf("released superseded agent remained current: %+v", released.RuntimeAgents)
+	}
+}
+
 func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	registerReady(t, registry, "agent-z")

@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -99,16 +100,23 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	store, err := h.runStore(r, true)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	result, err := store.Write(
-		r.Context(),
-		contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
-		artifacts.Payload{MediaType: mediaType, Data: payload},
-		expectedRevision,
+	allocationID := r.PathValue("allocationID")
+	var result artifacts.WriteResult
+	err = h.dependencies.Registry.WithWriteGrant(
+		allocationID,
+		func(grant controlplane.AllocationGrant) error {
+			store, storeErr := h.runStoreForGrant(allocationID, grant, true)
+			if storeErr != nil {
+				return storeErr
+			}
+			result, storeErr = store.Write(
+				r.Context(),
+				contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
+				artifacts.Payload{MediaType: mediaType, Data: payload},
+				expectedRevision,
+			)
+			return storeErr
+		},
 	)
 	if err != nil {
 		h.handleError(w, err)

@@ -51,6 +51,8 @@ type Store interface {
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	RecordStageAllocation(context.Context, runstore.StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
+	MarkStageAllocationReleaseAttempt(context.Context, string) error
+	MarkStageAllocationReleased(context.Context, string) error
 	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
 	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
 	RebuildStageMetrics(context.Context, string, string) error
@@ -133,6 +135,7 @@ type ArtifactResolver interface {
 type Allocator interface {
 	ReserveAll(controlplane.ReservationRequest) ([]controlplane.Reservation, error)
 	GetGrant(string) (controlplane.AllocationGrant, error)
+	GetReservation(string) (controlplane.Reservation, error)
 	SetWriteFence(string) error
 	Release(string) error
 	PollAllocationLosses() []controlplane.AllocationLoss

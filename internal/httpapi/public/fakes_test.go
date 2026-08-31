@@ -554,6 +554,20 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	return run, true, nil
 }
 
+func (f *fakeRunStore) LookupRunIdempotency(
+	ctx context.Context, ownerID, idempotencyKey, requestDigest string,
+) (runstore.WorkflowRun, bool, error) {
+	existing, ok := f.idempotencyClaims[ownerID+"\x00"+idempotencyKey]
+	if !ok {
+		return runstore.WorkflowRun{}, false, nil
+	}
+	if existing.digest != requestDigest {
+		return runstore.WorkflowRun{}, false, runstore.ErrConflict
+	}
+	run, err := f.GetRun(ctx, existing.runID)
+	return run, err == nil, err
+}
+
 func (f *fakeRunStore) GetRun(_ context.Context, runID string) (runstore.WorkflowRun, error) {
 	run, ok := f.runs[runID]
 	if !ok {

@@ -46,19 +46,24 @@ func (r *PostgresRepository) Write(
 		return WriteResult{}, err
 	}
 	digest := sha256.Sum256(payload.Data)
-
+	// Scope creation is intentionally a separate statement. Under READ COMMITTED, a
+	// concurrent INSERT ... DO NOTHING that waited for the winning transaction
+	// is visible to the binding statement below; a same-statement CTE would keep
+	// the pre-wait snapshot and could falsely report a conflict.
+	if _, err := r.db.Exec(ctx, `
+INSERT INTO artifact_scopes (scope_kind, scope_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
+		if persistencepostgres.SQLState(err) == "23503" {
+			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
+		}
+		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
+	}
 	var storedRevision string
 	var mediaType string
 	var size int64
 	err = r.db.QueryRow(ctx, `
-WITH inserted_scope AS (
-    INSERT INTO artifact_scopes (scope_kind, scope_id)
-    VALUES ($1, $2)
-    ON CONFLICT DO NOTHING
-    RETURNING 1
-), scope_ready AS (
-    SELECT 1 FROM inserted_scope
-    UNION
+WITH scope_ready AS (
     SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2
 ), updated_binding AS (
     UPDATE artifact_bindings
@@ -81,13 +86,13 @@ WITH inserted_scope AS (
 ), inserted_blob AS (
     INSERT INTO artifact_blobs (sha256, payload, size_bytes)
     SELECT $8, $9, $10 FROM claimed_binding
-    ON CONFLICT DO NOTHING
+    ON CONFLICT (sha256) DO UPDATE
+    SET sha256 = EXCLUDED.sha256
+    WHERE artifact_blobs.payload = EXCLUDED.payload
+      AND artifact_blobs.size_bytes = EXCLUDED.size_bytes
     RETURNING 1
 ), blob_ready AS (
     SELECT 1 FROM inserted_blob
-    UNION
-    SELECT 1 FROM artifact_blobs, claimed_binding
-    WHERE sha256 = $8 AND payload = $9 AND size_bytes = $10
 ), inserted_version AS (
     INSERT INTO artifact_versions (version_id, blob_sha256, media_type)
     SELECT $7, $8, $11 FROM claimed_binding, blob_ready

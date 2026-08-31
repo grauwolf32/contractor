@@ -183,7 +183,10 @@ Plane resolves the pinned credential only when constructing RuntimeSettings or
 the Planner model client.
 
 The canonical idempotency digest for `POST /v1/runs` includes the supplied
-executionConfig selectors. Metrics and audit records identify the effective
+executionConfig selectors. An already committed `(owner, idempotency key)` is
+looked up and its digest compared before resolving mutable Workflow
+dependencies such as a managed credential; an exact replay therefore returns
+the existing Run even if such a dependency was later deleted. Metrics and audit records identify the effective
 ModelPolicy, LLMGatewayConfig and credential refs, allowing consumption to be
 grouped without exposing a token. A caller may select only published
 configurations it is authorized to use; the single-owner first UI slice exposes

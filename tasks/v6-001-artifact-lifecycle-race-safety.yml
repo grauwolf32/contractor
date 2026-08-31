@@ -34,6 +34,7 @@ deliverables:
   - {path: internal/controlplane, description: Allocation-scoped write authorization guard shared by writes, fencing and release.}
   - {path: internal/httpapi/privateartifacts, description: Private PUT holds the authorization guard through Store.Write.}
   - {path: internal/artifacts, description: Empty freeze and PostgreSQL uniqueness-wait fixes with deterministic integration tests.}
+  - {path: internal/persistence/migrations/000014_artifact_blob_upsert.sql, description: Immutable no-op blob UPSERT support for atomic concurrent reuse.}
   - {path: docs/spec/03-artifact-plane.md, description: Linearization and empty-output requirements.}
 
 acceptance_criteria:

@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,7 +14,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const heartbeatHistoryLimit = 128
+const (
+	heartbeatHistoryLimit          = 128
+	stageReservationTombstoneLimit = 1024
+)
 
 type Registry interface {
 	RegistrationResponse() contracts.AgentRegistrationResponse
@@ -21,6 +25,8 @@ type Registry interface {
 	Heartbeat(contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error)
 	ReserveAll(ReservationRequest) ([]Reservation, error)
 	GetGrant(string) (AllocationGrant, error)
+	GetReservation(string) (Reservation, error)
+	WithWriteGrant(string, func(AllocationGrant) error) error
 	SetWriteFence(string) error
 	Release(string) error
 	GetAgent(string) (AgentSnapshot, error)
@@ -52,23 +58,24 @@ type AgentSnapshot struct {
 }
 
 type InMemoryRegistry struct {
-	mu                    sync.Mutex
-	idMu                  sync.Mutex
-	agents                map[string]*agentEntry
-	allocations           map[string]storedReservation
-	stageReservations     map[string]stageReservation
-	heartbeatInterval     time.Duration
-	confirmedLease        time.Duration
-	now                   func() time.Time
-	monotonicNow          func() time.Duration
-	newID                 func(string) (string, error)
-	agentOrderKey         func(contracts.AgentRegistration) string
-	pendingLosses         []AllocationLoss
-	operationsGeneration  string
-	operationsRevision    uint64
-	operationsHistory     []OperationsChange
-	operationsWatchers    map[uint64]chan struct{}
-	nextOperationsWatcher uint64
+	mu                         sync.Mutex
+	idMu                       sync.Mutex
+	agents                     map[string]*agentEntry
+	allocations                map[string]storedReservation
+	stageReservations          map[string]stageReservation
+	stageReservationTombstones []string
+	heartbeatInterval          time.Duration
+	confirmedLease             time.Duration
+	now                        func() time.Time
+	monotonicNow               func() time.Duration
+	newID                      func(string) (string, error)
+	agentOrderKey              func(contracts.AgentRegistration) string
+	pendingLosses              []AllocationLoss
+	operationsGeneration       string
+	operationsRevision         uint64
+	operationsHistory          []OperationsChange
+	operationsWatchers         map[uint64]chan struct{}
+	nextOperationsWatcher      uint64
 }
 
 type agentEntry struct {
@@ -97,6 +104,7 @@ type agentEntry struct {
 type stageReservation struct {
 	fingerprint   string
 	allocationIDs []string
+	released      bool
 }
 
 func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
@@ -274,6 +282,9 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		if existing.fingerprint != fingerprint {
 			return nil, ErrReservationConflict
 		}
+		if existing.released {
+			return nil, ErrReservationReleased
+		}
 		return r.existingReservations(existing)
 	}
 	for _, allocationID := range allocationIDs {
@@ -329,7 +340,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		entry.authoritativeAllocationID = cloneString(&allocationID)
 		entry.allocationActivated = false
 		r.allocations[allocationID] = storedReservation{
-			reservation: reservation, phase: AllocationPreparing,
+			reservation: reservation, phase: AllocationPreparing, writeGate: &sync.RWMutex{},
 		}
 		reservations[index] = cloneReservation(reservation)
 	}
@@ -353,11 +364,71 @@ func (r *InMemoryRegistry) GetGrant(allocationID string) (AllocationGrant, error
 	return stored.reservation.Grant, nil
 }
 
-func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
+func (r *InMemoryRegistry) GetReservation(allocationID string) (Reservation, error) {
+	if strings.TrimSpace(allocationID) == "" {
+		return Reservation{}, ErrAllocationNotFound
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	stored, ok := r.allocations[allocationID]
 	if !ok {
+		return Reservation{}, ErrAllocationNotFound
+	}
+	return cloneReservation(stored.reservation), nil
+}
+
+// WithWriteGrant keeps the allocation's write authorization stable for the
+// complete mutation. SetWriteFence and Release take the exclusive side of the
+// same gate, so once either returns no earlier private Artifact write can
+// commit afterward.
+func (r *InMemoryRegistry) WithWriteGrant(
+	allocationID string,
+	operation func(AllocationGrant) error,
+) error {
+	if strings.TrimSpace(allocationID) == "" || operation == nil {
+		return ErrAllocationNotFound
+	}
+	r.mu.Lock()
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.writeGate == nil {
+		r.mu.Unlock()
+		return ErrAllocationNotFound
+	}
+	gate := stored.writeGate
+	r.mu.Unlock()
+
+	gate.RLock()
+	defer gate.RUnlock()
+	r.mu.Lock()
+	stored, ok = r.allocations[allocationID]
+	if !ok || stored.writeGate != gate {
+		r.mu.Unlock()
+		return ErrAllocationNotFound
+	}
+	grant := stored.reservation.Grant
+	r.mu.Unlock()
+	return operation(grant)
+}
+
+func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
+	if strings.TrimSpace(allocationID) == "" {
+		return ErrAllocationNotFound
+	}
+	r.mu.Lock()
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.writeGate == nil {
+		r.mu.Unlock()
+		return ErrAllocationNotFound
+	}
+	gate := stored.writeGate
+	r.mu.Unlock()
+
+	gate.Lock()
+	defer gate.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stored, ok = r.allocations[allocationID]
+	if !ok || stored.writeGate != gate {
 		return ErrAllocationNotFound
 	}
 	if stored.reservation.Grant.WriteFenced {
@@ -370,10 +441,24 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 }
 
 func (r *InMemoryRegistry) Release(allocationID string) error {
+	if strings.TrimSpace(allocationID) == "" {
+		return ErrAllocationNotFound
+	}
+	r.mu.Lock()
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.writeGate == nil {
+		r.mu.Unlock()
+		return ErrAllocationNotFound
+	}
+	gate := stored.writeGate
+	r.mu.Unlock()
+
+	gate.Lock()
+	defer gate.Unlock()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	stored, ok := r.allocations[allocationID]
-	if !ok {
+	stored, ok = r.allocations[allocationID]
+	if !ok || stored.writeGate != gate {
 		return ErrAllocationNotFound
 	}
 	entry, ok := r.agents[stored.reservation.Grant.RuntimeInstanceID]
@@ -390,6 +475,7 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 	// fresh post-release heartbeat before offering this slot again.
 	entry.reconciliationRequired = true
 	delete(r.allocations, allocationID)
+	r.compactStageReservationLocked(stored.reservation.Grant.StageExecutionID)
 	for _, candidate := range r.agents {
 		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
 			candidate.blockedByInstanceID = nil
@@ -397,7 +483,31 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 		}
 	}
 	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
+	r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
 	return nil
+}
+
+func (r *InMemoryRegistry) compactStageReservationLocked(stageExecutionID string) {
+	existing, ok := r.stageReservations[stageExecutionID]
+	if !ok || existing.released {
+		return
+	}
+	for _, allocationID := range existing.allocationIDs {
+		if _, live := r.allocations[allocationID]; live {
+			return
+		}
+	}
+	existing.allocationIDs = nil
+	existing.released = true
+	r.stageReservations[stageExecutionID] = existing
+	r.stageReservationTombstones = append(r.stageReservationTombstones, stageExecutionID)
+	for len(r.stageReservationTombstones) > stageReservationTombstoneLimit {
+		oldest := r.stageReservationTombstones[0]
+		r.stageReservationTombstones = r.stageReservationTombstones[1:]
+		if tombstone, present := r.stageReservations[oldest]; present && tombstone.released {
+			delete(r.stageReservations, oldest)
+		}
+	}
 }
 
 func (r *InMemoryRegistry) GetAgent(instanceID string) (AgentSnapshot, error) {
@@ -590,7 +700,8 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)
 	}
-	return string(encoded), bindings, nil
+	digest := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(digest[:]), bindings, nil
 }
 
 func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {

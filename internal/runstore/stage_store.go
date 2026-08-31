@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const terminalReleaseRecoveryBatchLimit = 32
+
 func (s *PostgresStore) CreateStageExecution(
 	ctx context.Context,
 	params CreateStageExecutionParams,
@@ -77,22 +79,31 @@ func (s *PostgresStore) GetStageExecution(ctx context.Context, stageExecutionID 
 	return result, nil
 }
 
-// ListTerminalStageExecutionsWithAllocations supports best-effort release
-// recovery after the semantic terminal transaction committed. Stage allocation
-// rows remain immutable provenance, so callers determine liveness through the
-// volatile Control Plane registry before issuing an idempotent release.
+// ListTerminalStageExecutionsWithAllocations returns a bounded, fair batch of
+// terminal executions whose allocation cleanup is incomplete. Durable release
+// timestamps preserve immutable allocation provenance without rescanning the
+// complete execution history on every Scheduler poll.
 func (s *PostgresStore) ListTerminalStageExecutionsWithAllocations(
 	ctx context.Context,
 ) ([]StageExecution, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT `+stageExecutionColumns+`
-FROM stage_executions AS execution
-WHERE execution.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
-  AND EXISTS (
-      SELECT 1 FROM stage_allocations AS allocation
-      WHERE allocation.stage_execution_id = execution.stage_execution_id
-  )
-ORDER BY execution.terminal_at, execution.stage_execution_id`)
+WITH pending AS (
+    SELECT allocation.stage_execution_id,
+           min(COALESCE(allocation.release_attempted_at, '-infinity'::timestamptz)) AS next_attempt_at
+    FROM stage_allocations AS allocation
+    JOIN stage_executions AS candidate
+      ON candidate.stage_execution_id = allocation.stage_execution_id
+    WHERE allocation.release_completed_at IS NULL
+      AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+    GROUP BY allocation.stage_execution_id
+    ORDER BY next_attempt_at, allocation.stage_execution_id
+    LIMIT $1
+)
+SELECT `+prefixedStageExecutionColumns("execution")+`
+FROM pending
+JOIN stage_executions AS execution
+  ON execution.stage_execution_id = pending.stage_execution_id
+ORDER BY pending.next_attempt_at, execution.stage_execution_id`, terminalReleaseRecoveryBatchLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list terminal StageExecutions with allocations: %w", err)
 	}

@@ -262,6 +262,28 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second completion error = %v, want conflict", err)
 	}
+	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
+	if err != nil || len(pendingRelease) != 1 || pendingRelease[0].StageExecutionID != execution.StageExecutionID {
+		t.Fatalf("pending terminal allocation release = (%+v, %v)", pendingRelease, err)
+	}
+	if err := store.MarkStageAllocationReleaseAttempt(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("mark allocation release attempt: %v", err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("mark allocation released: %v", err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("repeat allocation released marker: %v", err)
+	}
+	allocations, err = store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].ReleaseAttemptedAt == nil ||
+		allocations[0].ReleaseCompletedAt == nil {
+		t.Fatalf("allocation release state = (%+v, %v)", allocations, err)
+	}
+	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx)
+	if err != nil || len(pendingRelease) != 0 {
+		t.Fatalf("completed release remained pending = (%+v, %v)", pendingRelease, err)
+	}
 
 	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
 		StageExecutionID: "stage-aborted", RunID: run.RunID, StageName: "precheck", Attempt: 1,

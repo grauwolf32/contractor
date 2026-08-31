@@ -16,6 +16,7 @@ import (
 
 type AllocationRegistry interface {
 	GetGrant(string) (controlplane.AllocationGrant, error)
+	WithWriteGrant(string, func(controlplane.AllocationGrant) error) error
 }
 
 type Dependencies struct {
@@ -64,6 +65,14 @@ func (h *handler) runStore(r *http.Request, write bool) (artifacts.ScopedStore, 
 	if err != nil {
 		return artifacts.ScopedStore{}, err
 	}
+	return h.runStoreForGrant(allocationID, grant, write)
+}
+
+func (h *handler) runStoreForGrant(
+	allocationID string,
+	grant controlplane.AllocationGrant,
+	write bool,
+) (artifacts.ScopedStore, error) {
 	if grant.AllocationID != allocationID || strings.TrimSpace(grant.RunID) == "" {
 		return artifacts.ScopedStore{}, controlplane.ErrAllocationNotFound
 	}

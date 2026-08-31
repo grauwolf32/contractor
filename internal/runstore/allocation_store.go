@@ -110,7 +110,8 @@ func (s *PostgresStore) ListStageAllocations(
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
-       agent_template_ref, worker_runtime_ref, runtime_agent_instance_id, created_at
+       agent_template_ref, worker_runtime_ref, runtime_agent_instance_id, created_at,
+       release_attempted_at, release_completed_at
 FROM stage_allocations
 WHERE stage_execution_id = $1
 ORDER BY logical_agent_name`, stageExecutionID)
@@ -127,6 +128,7 @@ ORDER BY logical_agent_name`, stageExecutionID)
 			&allocation.AllocationID, &allocation.StageExecutionID,
 			&allocation.LogicalAgentName, &allocation.Namespace,
 			&templateRef, &runtimeRef, &allocation.RuntimeAgentInstanceID, &allocation.CreatedAt,
+			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan allocation for StageExecution %q: %w", stageExecutionID, err)
 		}
@@ -154,4 +156,58 @@ ORDER BY logical_agent_name`, stageExecutionID)
 		}
 	}
 	return result, nil
+}
+
+func (s *PostgresStore) MarkStageAllocationReleaseAttempt(
+	ctx context.Context,
+	allocationID string,
+) error {
+	if err := validateOpaque("allocationID", allocationID); err != nil {
+		return err
+	}
+	tag, err := s.db.Exec(ctx, `
+UPDATE stage_allocations
+SET release_attempted_at = clock_timestamp()
+WHERE allocation_id = $1 AND release_completed_at IS NULL`, allocationID)
+	if err != nil {
+		return fmt.Errorf("mark Stage allocation %q release attempt: %w", allocationID, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	return s.verifyStageAllocationExists(ctx, allocationID)
+}
+
+func (s *PostgresStore) MarkStageAllocationReleased(
+	ctx context.Context,
+	allocationID string,
+) error {
+	if err := validateOpaque("allocationID", allocationID); err != nil {
+		return err
+	}
+	tag, err := s.db.Exec(ctx, `
+UPDATE stage_allocations
+SET release_attempted_at = statement_timestamp(),
+    release_completed_at = statement_timestamp()
+WHERE allocation_id = $1 AND release_completed_at IS NULL`, allocationID)
+	if err != nil {
+		return fmt.Errorf("mark Stage allocation %q released: %w", allocationID, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	return s.verifyStageAllocationExists(ctx, allocationID)
+}
+
+func (s *PostgresStore) verifyStageAllocationExists(ctx context.Context, allocationID string) error {
+	var exists bool
+	if err := s.db.QueryRow(ctx, `
+SELECT EXISTS(SELECT 1 FROM stage_allocations WHERE allocation_id = $1)`, allocationID,
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("verify Stage allocation %q: %w", allocationID, err)
+	}
+	if !exists {
+		return fmt.Errorf("Stage allocation %q: %w", allocationID, ErrNotFound)
+	}
+	return nil
 }

@@ -197,6 +197,82 @@ func TestReservationRetryReturnsSameAllocationsAndGrantLifecycleIsExact(t *testi
 	}
 }
 
+func TestWriteFenceWaitsForAuthorizedArtifactMutation(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-write-gate")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-write-gate", StageExecutionID: "stage-write-gate",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	writeStarted := make(chan struct{})
+	finishWrite := make(chan struct{})
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- registry.WithWriteGrant(allocationID, func(grant AllocationGrant) error {
+			if grant.WriteFenced {
+				return errors.New("write unexpectedly started fenced")
+			}
+			close(writeStarted)
+			<-finishWrite
+			return nil
+		})
+	}()
+	<-writeStarted
+	fenceDone := make(chan error, 1)
+	go func() { fenceDone <- registry.SetWriteFence(allocationID) }()
+	select {
+	case err := <-fenceDone:
+		t.Fatalf("write fence overtook in-flight mutation: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(finishWrite)
+	if err := <-writeDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-fenceDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.WithWriteGrant(allocationID, func(grant AllocationGrant) error {
+		if !grant.WriteFenced {
+			return errors.New("post-fence mutation observed an unfenced grant")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReleasedStageReservationHistoryIsCompactAndBounded(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registry.mu.Lock()
+	for index := 0; index <= stageReservationTombstoneLimit; index++ {
+		stageID := fmt.Sprintf("stage-tombstone-%d", index)
+		registry.stageReservations[stageID] = stageReservation{
+			fingerprint: "sha256:bounded", allocationIDs: []string{},
+		}
+		registry.compactStageReservationLocked(stageID)
+	}
+	count := len(registry.stageReservations)
+	_, oldestPresent := registry.stageReservations["stage-tombstone-0"]
+	newest := registry.stageReservations[fmt.Sprintf("stage-tombstone-%d", stageReservationTombstoneLimit)]
+	registry.mu.Unlock()
+	if count != stageReservationTombstoneLimit || oldestPresent || !newest.released || newest.allocationIDs != nil {
+		t.Fatalf("bounded reservation tombstones = count:%d oldest:%v newest:%+v", count, oldestPresent, newest)
+	}
+
+	fingerprint, _, err := normalizeReservationRequest(ReservationRequest{
+		RunID: "run-fingerprint", StageExecutionID: "stage-fingerprint",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil || len(fingerprint) != len("sha256:")+64 {
+		t.Fatalf("compact reservation fingerprint = (%q, %v)", fingerprint, err)
+	}
+}
+
 func TestCapabilityMatchingRequiresExactRefsAndSelectedTools(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)

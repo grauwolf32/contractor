@@ -132,7 +132,9 @@ When that StageExecution durably enters `finalizing` or `aborting`, Scheduler
 establishes a Server-side write fence for every associated allocation. From
 that transition onward the private Artifact API rejects its writes even if a
 Worker or A2A Task has not yet stopped. Waiting until allocation release is not
-a conforming write-revocation boundary.
+a conforming write-revocation boundary. Fence establishment is serialized with
+the complete Artifact mutation, not merely with grant lookup: when the fence
+operation returns, no earlier authorized write may commit afterward.
 
 There are no separate `read_any_artifact` aliases. The authority is evident in
 the explicitly selected generic tool, its explicit ref and the allocation
@@ -288,6 +290,13 @@ bindings are frozen in the same transaction as `running -> succeeded`. When a
 Run instead becomes `failed` or `cancelled`, any output bindings accepted from
 earlier Stages are also frozen for audit but do not constitute successful Run
 completion and are not implicitly published.
+
+A Run with no Artifact bindings has an empty output set. Freezing that set is a
+successful no-op; absence of an Artifact scope row cannot prevent a terminal
+WorkflowRun transition. Concurrent first writes to the same scope, and
+concurrent writes of identical content to different bindings, must both observe
+the committed scope/blob after a uniqueness wait rather than return a false CAS
+conflict.
 
 A successful Run does not implicitly overwrite the user's artifact library.
 Publishing a result is an explicit controlled fork from the exact Run output

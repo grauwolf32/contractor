@@ -200,9 +200,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // RunOnce claims and advances at most one WorkflowRun.
 func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	s.pollAllocationLosses()
-	released, err := s.recoverTerminalRelease(ctx)
-	if err != nil || released {
-		return released, err
+	released, terminalReleaseErr := s.recoverTerminalRelease(ctx)
+	if terminalReleaseErr != nil {
+		s.options.Logger.Warn("terminal allocation release recovery failed", "error", terminalReleaseErr)
 	}
 	claimID, err := s.options.NewID("claim_")
 	if err != nil {
@@ -212,7 +212,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	run, err := s.store.ClaimRunnableRun(claimContext, claimID, s.options.ClaimDuration)
 	cancelClaim()
 	if errors.Is(err, runstore.ErrNoWork) {
-		return false, nil
+		return released && terminalReleaseErr == nil, nil
 	}
 	if err != nil {
 		return false, err
@@ -1681,16 +1681,46 @@ func (s *Scheduler) releaseTerminal(
 	if len(reservations) == 0 {
 		return nil
 	}
+	var failures []error
+	for _, reservation := range reservations {
+		markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+		err := s.store.MarkStageAllocationReleaseAttempt(
+			markContext, reservation.Grant.AllocationID,
+		)
+		cancelMark()
+		if err != nil {
+			failures = append(failures, err)
+		}
+	}
 	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-	defer cancelRelease()
-	if err := s.workers.ReleaseAll(releaseContext, reservations); err != nil {
+	releaseErr := s.workers.ReleaseAll(releaseContext, reservations)
+	cancelRelease()
+	if releaseErr != nil {
 		s.options.Logger.Warn(
 			"terminal allocation release was incomplete",
 			"stage_execution_id", stageExecutionID,
+			"error", releaseErr,
 		)
-		return err
+		failures = append(failures, releaseErr)
 	}
-	return nil
+	for _, reservation := range reservations {
+		allocationID := reservation.Grant.AllocationID
+		_, err := s.allocator.GetGrant(allocationID)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, controlplane.ErrAllocationNotFound) {
+			failures = append(failures, err)
+			continue
+		}
+		markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+		err = s.store.MarkStageAllocationReleased(markContext, allocationID)
+		cancelMark()
+		if err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
@@ -1701,26 +1731,73 @@ func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	for _, execution := range executions {
-		runContext, cancelRun := context.WithTimeout(ctx, s.options.OperationTimeout)
-		run, err := s.store.GetRun(runContext, execution.RunID)
-		cancelRun()
+		allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
+		allocations, err := s.store.ListStageAllocations(
+			allocationContext, execution.StageExecutionID,
+		)
+		cancelAllocations()
 		if err != nil {
-			return false, err
+			return true, err
 		}
-		workflow, err := decodeExecutableWorkflow(run)
-		if err == nil {
-			workflow, err = workflow.selectExecution(execution)
+		worked := false
+		reservations := make([]controlplane.Reservation, 0, len(allocations))
+		var failures []error
+		for _, allocation := range allocations {
+			if allocation.ReleaseCompletedAt != nil {
+				continue
+			}
+			worked = true
+			markContext, cancelMark := context.WithTimeout(ctx, s.options.OperationTimeout)
+			markErr := s.store.MarkStageAllocationReleaseAttempt(markContext, allocation.AllocationID)
+			cancelMark()
+			if markErr != nil {
+				failures = append(failures, markErr)
+			}
+			reservation, reservationErr := s.allocator.GetReservation(allocation.AllocationID)
+			if errors.Is(reservationErr, controlplane.ErrAllocationNotFound) {
+				markContext, cancelMark = context.WithTimeout(ctx, s.options.OperationTimeout)
+				markErr = s.store.MarkStageAllocationReleased(markContext, allocation.AllocationID)
+				cancelMark()
+				if markErr != nil {
+					failures = append(failures, markErr)
+				}
+				continue
+			}
+			if reservationErr != nil {
+				failures = append(failures, reservationErr)
+				continue
+			}
+			if err := verifyTerminalReleaseReservation(execution, allocation, reservation); err != nil {
+				failures = append(failures, err)
+				continue
+			}
+			reservations = append(reservations, reservation)
 		}
-		if err != nil || validatePersistedExecution(execution, run, workflow) != nil {
-			continue
+		if len(reservations) != 0 {
+			failures = append(failures, s.releaseTerminal(execution.StageExecutionID, reservations))
 		}
-		reservations := s.existingLiveReservations(ctx, run, workflow, execution)
-		if len(reservations) == 0 {
-			continue
+		if worked {
+			return true, errors.Join(failures...)
 		}
-		return true, s.releaseTerminal(execution.StageExecutionID, reservations)
 	}
 	return false, nil
+}
+
+func verifyTerminalReleaseReservation(
+	execution runstore.StageExecution,
+	allocation runstore.StageAllocation,
+	reservation controlplane.Reservation,
+) error {
+	grant := reservation.Grant
+	if grant.AllocationID != allocation.AllocationID ||
+		grant.RunID != execution.RunID || grant.StageExecutionID != execution.StageExecutionID ||
+		grant.LogicalAgentName != allocation.LogicalAgentName || grant.Namespace != allocation.Namespace ||
+		grant.RuntimeInstanceID != allocation.RuntimeAgentInstanceID ||
+		reservation.AgentTemplate.Ref != allocation.AgentTemplateRef ||
+		reservation.AgentTemplate.Runtime != allocation.WorkerRuntimeRef {
+		return fmt.Errorf("live allocation %q differs from durable terminal provenance", allocation.AllocationID)
+	}
+	return nil
 }
 
 func (s *Scheduler) finishRunFromTerminalTermination(

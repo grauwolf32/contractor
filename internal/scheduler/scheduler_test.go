@@ -421,6 +421,75 @@ func TestSchedulerRestartRetriesReleaseAfterTerminalTransaction(t *testing.T) {
 	}
 }
 
+func TestTerminalReleaseFailureDoesNotBlockClaimPath(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	harness.installRecordedReservation(execution.StageExecutionID)
+	harness.workers.releaseError = errors.New("runtime unavailable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || worked {
+		t.Fatalf("RunOnce with failed cleanup = (%v, %v)", worked, err)
+	}
+	if harness.store.claimCalls != 1 || harness.workers.releaseCalls != 1 {
+		t.Fatalf("failed cleanup blocked claim path: claims=%d releases=%d",
+			harness.store.claimCalls, harness.workers.releaseCalls)
+	}
+}
+
+func TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	first := harness.allocator.reservation(execution.StageExecutionID)
+	second := first
+	second.Grant.AllocationID = "allocation-second"
+	second.Grant.RuntimeInstanceID = "runtime-2"
+	second.Grant.LogicalAgentName = "reviewer"
+	second.Grant.Namespace = "reviewer"
+	harness.allocator.cached = []controlplane.Reservation{first, second}
+	harness.allocator.grants[first.Grant.AllocationID] = first.Grant
+	harness.allocator.grants[second.Grant.AllocationID] = second.Grant
+	harness.store.allocations = []runstore.StageAllocation{
+		stageAllocationFromReservation(first), stageAllocationFromReservation(second),
+	}
+	harness.workers.releaseErrors = map[string]error{
+		second.Grant.AllocationID: errors.New("second Runtime unavailable"),
+	}
+
+	worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+	if !worked || err == nil {
+		t.Fatalf("partial release = (%v, %v)", worked, err)
+	}
+	if harness.store.allocations[0].ReleaseCompletedAt == nil ||
+		harness.store.allocations[1].ReleaseCompletedAt != nil {
+		t.Fatalf("partial release markers = %+v", harness.store.allocations)
+	}
+	if _, ok := harness.allocator.grants[first.Grant.AllocationID]; ok {
+		t.Fatal("successfully released allocation remained live")
+	}
+	delete(harness.workers.releaseErrors, second.Grant.AllocationID)
+	worked, err = harness.scheduler.recoverTerminalRelease(context.Background())
+	if !worked || err != nil || harness.store.allocations[1].ReleaseCompletedAt == nil {
+		t.Fatalf("remaining release retry = (%v, %v), allocations=%+v", worked, err, harness.store.allocations)
+	}
+	if harness.workers.releasedBatches[0] != 2 || harness.workers.releasedBatches[1] != 1 {
+		t.Fatalf("release retry batches = %v", harness.workers.releasedBatches)
+	}
+}
+
+func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
+	return runstore.StageAllocation{
+		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
+		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
+		AgentTemplateRef: reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
+		RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
+	}
+}
+
 func TestSchedulerAbortsRunningStageWhenVolatileControlPlaneStateWasLost(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	execution := harness.persistedExecution(t, runstore.StageRunning)
@@ -1161,12 +1230,14 @@ type memorySchedulerStore struct {
 	reports     []runstore.RecordStageExecutionReportParams
 	reportError error
 	claimID     string
+	claimCalls  int
 	events      *eventRecorder
 }
 
 func (s *memorySchedulerStore) ClaimRunnableRun(
 	_ context.Context, claimID string, duration time.Duration,
 ) (runstore.WorkflowRun, error) {
+	s.claimCalls++
 	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunCancelling ||
 		s.claimID != "" || duration <= 0 {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
@@ -1235,7 +1306,8 @@ func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
 			continue
 		}
 		for _, allocation := range s.allocations {
-			if allocation.StageExecutionID == execution.StageExecutionID {
+			if allocation.StageExecutionID == execution.StageExecutionID &&
+				allocation.ReleaseCompletedAt == nil {
 				result = append(result, execution)
 				break
 			}
@@ -1281,6 +1353,33 @@ func (s *memorySchedulerStore) ListStageAllocations(
 		}
 	}
 	return result, nil
+}
+
+func (s *memorySchedulerStore) MarkStageAllocationReleaseAttempt(
+	_ context.Context, allocationID string,
+) error {
+	for index := range s.allocations {
+		if s.allocations[index].AllocationID == allocationID {
+			now := time.Now().UTC()
+			s.allocations[index].ReleaseAttemptedAt = &now
+			return nil
+		}
+	}
+	return runstore.ErrNotFound
+}
+
+func (s *memorySchedulerStore) MarkStageAllocationReleased(
+	_ context.Context, allocationID string,
+) error {
+	for index := range s.allocations {
+		if s.allocations[index].AllocationID == allocationID {
+			now := time.Now().UTC()
+			s.allocations[index].ReleaseAttemptedAt = &now
+			s.allocations[index].ReleaseCompletedAt = &now
+			return nil
+		}
+	}
+	return runstore.ErrNotFound
 }
 
 func (s *memorySchedulerStore) RecordStageExecutionReport(
@@ -1616,6 +1715,17 @@ func (a *memoryAllocator) GetGrant(allocationID string) (controlplane.Allocation
 	return grant, nil
 }
 
+func (a *memoryAllocator) GetReservation(allocationID string) (controlplane.Reservation, error) {
+	for _, reservation := range a.cached {
+		if reservation.Grant.AllocationID == allocationID {
+			if _, ok := a.grants[allocationID]; ok {
+				return reservation, nil
+			}
+		}
+	}
+	return controlplane.Reservation{}, controlplane.ErrAllocationNotFound
+}
+
 func (a *memoryAllocator) SetWriteFence(allocationID string) error {
 	grant, ok := a.grants[allocationID]
 	if !ok {
@@ -1661,6 +1771,8 @@ type memoryWorkers struct {
 	prepareError     error
 	abortError       error
 	releaseError     error
+	releaseErrors    map[string]error
+	releasedBatches  []int
 }
 
 func (w *memoryWorkers) PrepareAll(
@@ -1733,15 +1845,27 @@ func schedulerTestAllocationReport(
 
 func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplane.Reservation) error {
 	w.releaseCalls++
+	w.releasedBatches = append(w.releasedBatches, len(reservations))
 	w.events.add("release")
 	if w.releaseError != nil {
 		return w.releaseError
 	}
+	var failures []error
 	for _, reservation := range reservations {
+		if err := w.releaseErrors[reservation.Grant.AllocationID]; err != nil {
+			failures = append(failures, err)
+			continue
+		}
 		delete(w.allocator.grants, reservation.Grant.AllocationID)
 	}
-	w.allocator.cached = nil
-	return nil
+	remaining := w.allocator.cached[:0]
+	for _, reservation := range w.allocator.cached {
+		if _, live := w.allocator.grants[reservation.Grant.AllocationID]; live {
+			remaining = append(remaining, reservation)
+		}
+	}
+	w.allocator.cached = remaining
+	return errors.Join(failures...)
 }
 
 type memoryPlannerRegistry struct {

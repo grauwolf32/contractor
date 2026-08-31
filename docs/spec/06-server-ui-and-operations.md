@@ -189,6 +189,12 @@ Runtime report arrives, allocation metrics are an incomplete zero aggregate;
 only safe counters and the exhausted budget dimension are retained in this
 live projection.
 
+When a process registration supersedes an older registration at the same
+Runtime endpoints, the older process remains visible only while it owns an
+authoritative allocation that still requires reconciliation. After that
+allocation is released—or immediately when it owned none—it is retired from
+the current-state snapshot rather than shown indefinitely as a fenced slot.
+
 ## Published LLM configuration
 
 Run creation never accepts free-form model names, budgets, Gateway URLs or

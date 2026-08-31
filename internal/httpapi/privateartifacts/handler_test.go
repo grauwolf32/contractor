@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -140,6 +141,43 @@ func TestPrivateArtifactWriteFenceRejectsLaterWriteWithoutMutation(t *testing.T)
 	}
 }
 
+func TestPrivateArtifactWriteFenceWaitsForInFlightStoreCommit(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.writeStarted = make(chan struct{})
+	repository.continueWrite = make(chan struct{})
+	registry := &fakeRegistry{grant: testGrant("run-a")}
+	handler := newTestHandler(t, registry, repository)
+
+	responseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		responseDone <- putArtifact(t, handler, "builder", "report", "*", []byte("committed before fence"))
+	}()
+	<-repository.writeStarted
+	fenceDone := make(chan struct{})
+	go func() {
+		registry.mu.Lock()
+		registry.grant.WriteFenced = true
+		registry.mu.Unlock()
+		close(fenceDone)
+	}()
+	select {
+	case <-fenceDone:
+		t.Fatal("write fence completed before the authorized Store mutation")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(repository.continueWrite)
+	response := <-responseDone
+	if response.Code != http.StatusCreated {
+		t.Fatalf("in-flight write = %d %s", response.Code, response.Body.String())
+	}
+	<-fenceDone
+
+	later := putArtifact(t, handler, "builder", "later", "*", []byte("must be rejected"))
+	if later.Code != http.StatusConflict || !strings.Contains(later.Body.String(), "allocation_write_fenced") {
+		t.Fatalf("post-fence write = %d %s", later.Code, later.Body.String())
+	}
+}
+
 func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.seed("run-a", "analysis", "report", "revision-a", []byte("report"))
@@ -239,6 +277,18 @@ func (f *fakeRegistry) GetGrant(allocationID string) (controlplane.AllocationGra
 	return f.grant, nil
 }
 
+func (f *fakeRegistry) WithWriteGrant(
+	allocationID string,
+	operation func(controlplane.AllocationGrant) error,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if allocationID != f.grant.AllocationID {
+		return controlplane.ErrAllocationNotFound
+	}
+	return operation(f.grant)
+}
+
 type storedArtifact struct {
 	revision  string
 	mediaType string
@@ -246,11 +296,14 @@ type storedArtifact struct {
 }
 
 type memoryRepository struct {
-	mu         sync.Mutex
-	next       int
-	writeCalls int
-	bindings   map[string]storedArtifact
-	history    map[string]storedArtifact
+	mu             sync.Mutex
+	next           int
+	writeCalls     int
+	bindings       map[string]storedArtifact
+	history        map[string]storedArtifact
+	writeStarted   chan struct{}
+	continueWrite  chan struct{}
+	writeStartOnce sync.Once
 }
 
 func newMemoryRepository() *memoryRepository {
@@ -282,6 +335,10 @@ func (m *memoryRepository) Write(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.writeCalls++
+	if m.writeStarted != nil {
+		m.writeStartOnce.Do(func() { close(m.writeStarted) })
+		<-m.continueWrite
+	}
 	key := artifactKey(string(scope.Kind()), scope.ID(), target.Namespace, target.Name)
 	current, exists := m.bindings[key]
 	if expected == nil && exists || expected != nil && (!exists || current.revision != *expected) {

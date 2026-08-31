@@ -236,6 +236,7 @@ func (o AllocationObservation) Validate() error {
 
 type storedReservation struct {
 	reservation        Reservation
+	writeGate          *sync.RWMutex
 	loss               *AllocationLoss
 	phase              AllocationAuthoritativePhase
 	reason             *SafeReason
@@ -253,6 +254,9 @@ func (r *InMemoryRegistry) SnapshotOperations() OperationsSnapshot {
 		Allocations:   make([]AllocationObservation, 0, len(r.allocations)),
 	}
 	for _, entry := range r.agents {
+		if entry.superseded && entry.authoritativeAllocationID == nil {
+			continue
+		}
 		result.RuntimeAgents = append(result.RuntimeAgents, runtimeObservation(entry))
 	}
 	sort.Slice(result.RuntimeAgents, func(left, right int) bool {

@@ -139,6 +139,14 @@ VALUES (decode(repeat('00', 32), 'hex'), 'bad digest'::bytea, 10)`)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("invalid blob digest SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
+	_, err = pool.Exec(ctx, `UPDATE artifact_blobs SET payload = 'changed'::bytea`)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("blob mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `DELETE FROM artifact_blobs`)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("blob deletion SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
 }
 
 func TestPostgresIntegrationArtifactCASRace(t *testing.T) {
@@ -191,6 +199,152 @@ func TestPostgresIntegrationArtifactCASRace(t *testing.T) {
 	current, err := user.Read(ctx, ArtifactRef{Namespace: "docs", Name: "report"})
 	if err != nil || bytes.Equal(current.Payload.Data, []byte("initial")) {
 		t.Fatalf("current read after race = (%+v, %v)", current, err)
+	}
+}
+
+func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+
+	t.Run("scope created by concurrent transaction", func(t *testing.T) {
+		createArtifactRun(t, ctx, pool, "run-scope-race", true)
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, _ := NewService(NewPostgresRepository(tx)).Run("run-scope-race")
+		if _, err := first.Write(
+			ctx, ArtifactRef{Namespace: "builder", Name: "first"},
+			Payload{MediaType: "text/plain", Data: []byte("first payload")}, nil,
+		); err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatal(err)
+		}
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatal(err)
+		}
+		defer conn.Release()
+		pid := postgresBackendPID(t, ctx, conn)
+		second, _ := NewService(NewPostgresRepository(conn)).Run("run-scope-race")
+		done := make(chan error, 1)
+		go func() {
+			_, writeErr := second.Write(
+				ctx, ArtifactRef{Namespace: "builder", Name: "second"},
+				Payload{MediaType: "text/plain", Data: []byte("second payload")}, nil,
+			)
+			done <- writeErr
+		}()
+		commitBlockedWriter(t, ctx, pool, tx, pid, done)
+	})
+
+	t.Run("blob committed by concurrent transaction", func(t *testing.T) {
+		createArtifactRun(t, ctx, pool, "run-blob-race", true)
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, _ := NewService(NewPostgresRepository(tx)).Run("run-blob-race")
+		payload := Payload{MediaType: "text/plain", Data: []byte("shared payload")}
+		if _, err := first.Write(
+			ctx, ArtifactRef{Namespace: "builder", Name: "first"}, payload, nil,
+		); err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatal(err)
+		}
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatal(err)
+		}
+		defer conn.Release()
+		pid := postgresBackendPID(t, ctx, conn)
+		second, _ := NewService(NewPostgresRepository(conn)).Run("run-blob-race")
+		done := make(chan error, 1)
+		go func() {
+			_, writeErr := second.Write(
+				ctx, ArtifactRef{Namespace: "builder", Name: "second"}, payload, nil,
+			)
+			done <- writeErr
+		}()
+		commitBlockedWriter(t, ctx, pool, tx, pid, done)
+	})
+}
+
+func TestPostgresIntegrationFreezeEmptyRunOutputs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	createArtifactRun(t, ctx, pool, "run-empty-freeze", true)
+	service := NewService(NewPostgresRepository(pool))
+	if err := service.FreezeRunOutputs(ctx, "run-empty-freeze"); err != nil {
+		t.Fatalf("freeze empty Run outputs: %v", err)
+	}
+	var scopes int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM artifact_scopes
+WHERE scope_kind = 'run' AND scope_id = 'run-empty-freeze'`).Scan(&scopes); err != nil {
+		t.Fatal(err)
+	}
+	if scopes != 0 {
+		t.Fatalf("empty freeze created an unnecessary Artifact scope: %d", scopes)
+	}
+}
+
+func postgresBackendPID(t *testing.T, ctx context.Context, db persistencepostgres.DBTX) int32 {
+	t.Helper()
+	var pid int32
+	if err := db.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	return pid
+}
+
+func commitBlockedWriter(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	tx pgx.Tx,
+	blockedPID int32,
+	done <-chan error,
+) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			_ = tx.Rollback(ctx)
+			t.Fatalf("concurrent write completed before blocker committed: %v", err)
+		default:
+		}
+		var blocked bool
+		if err := pool.QueryRow(ctx,
+			`SELECT cardinality(pg_blocking_pids($1)) > 0`, blockedPID,
+		).Scan(&blocked); err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = tx.Rollback(ctx)
+			t.Fatal("concurrent artifact write did not reach the expected PostgreSQL conflict wait")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("concurrent artifact write after winner commit: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
 	}
 }
 

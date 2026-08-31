@@ -25,6 +25,7 @@ import (
 
 type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
