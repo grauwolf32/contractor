@@ -144,15 +144,15 @@ milestones:
       and deterministic failure-path gates preserve secrets and slot reuse.
 
 current_checkpoint:
-  completed_through: V8-001
-  next_task: V8-002
+  completed_through: V8-002
+  next_task: V8-003
   summary: >-
-    RuntimeConfig now has strict normalized JCS documents, immutable PostgreSQL
-    versions, durable publication replay and uint64 revisioned label bindings.
-    The exact contractor-empty@1/default bootstrap, same-layer merge conflicts,
-    Gateway-ref pinning and concurrent binding CAS are covered by focused race
-    and PostgreSQL tests. Next, add encrypted write-only credentials for the
-    OTLP and HTTP-proxy adapters.
+    Runtime adapter credentials now support immutable AES-256-GCM records for
+    OTLP headers and HTTP-proxy basic/bearer secrets, master-key-derived HMAC
+    create replay, permanent tombstones and metadata-only reads. RuntimeConfig
+    publication and binding mutations share a lifecycle barrier with credential
+    deletion, validate adapter kind, and cannot commit a dangling reference.
+    Next, add the synchronized Go/Python private Runtime protocol v2 contract.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
