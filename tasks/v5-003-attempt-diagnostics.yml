@@ -3,7 +3,8 @@ id: V5-003
 title: Expose safe detailed Stage attempt diagnostics
 milestone: live-model-reliability
 priority: P0
-status: planned
+status: completed
+implementation_commit: 5b1e315c99567aebd72058a095dfe414e4e22d80
 depends_on: [V5-001]
 languages: [go, typescript, yaml]
 
@@ -55,4 +56,3 @@ tests:
   - {name: go, command: "go test ./internal/telemetry/... ./internal/httpapi/public/...", covers: [A1, A2, A3]}
   - {name: ui, command: "cd ui && corepack pnpm generate && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-

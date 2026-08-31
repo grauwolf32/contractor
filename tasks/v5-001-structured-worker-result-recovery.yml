@@ -3,7 +3,8 @@ id: V5-001
 title: Recover Worker results with structured output
 milestone: live-model-reliability
 priority: P0
-status: planned
+status: completed
+implementation_commit: 7bda680abb957577a6996d9ea5250e10a356e1e7
 depends_on: [V4-011]
 languages: [python]
 
@@ -60,4 +61,3 @@ acceptance_criteria:
 tests:
   - {name: runtime, command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_metrics.py tests/test_dependency_smoke.py", covers: [A1, A2, A3, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
-

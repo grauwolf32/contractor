@@ -3,7 +3,8 @@ id: V5-002
 title: Add high-budget LikeC4 and Streamline Workflow variants
 milestone: live-model-reliability
 priority: P0
-status: planned
+status: completed
+implementation_commit: 7e4e68b3bb0663528669e29360ffe43660ecaee5
 depends_on: [V5-001]
 languages: [go, yaml]
 
@@ -56,4 +57,3 @@ acceptance_criteria:
 tests:
   - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs && go test ./internal/config/...", covers: [A1, A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-

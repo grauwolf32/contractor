@@ -112,17 +112,18 @@ milestones:
       finite budgets, and owners can inspect safe actionable attempt errors.
 
 current_checkpoint:
-  completed_through: V4-011
-  next_task: V5-001
+  completed_through: V5-003
+  next_task: null
   summary: >-
-    The server-ui-and-operations milestone is complete. Live LikeC4 evidence
-    identified the next bounded increment: structured result-envelope recovery,
-    immutable high-budget project variants, and owner-visible safe attempt
-    diagnostics. V5-001 through V5-003 are planned and ready to implement.
+    The live-model-reliability milestone is complete. Workers have bounded
+    structured result-envelope recovery, immutable project-sized LikeC4
+    passthrough and Streamline variants, and owner-visible safe attempt
+    diagnostics in the public API and UI. The full repository verification gate
+    passes.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
-  verdict: ready_to_implement
+  verdict: implemented
   checks:
     - >-
       V3-001 through V3-004 first correct the existing model-facing contract
