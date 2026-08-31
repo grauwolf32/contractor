@@ -3,8 +3,8 @@ id: V8-003
 title: Introduce private Runtime protocol v2 and adapter capabilities
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 2ff1ebcdb7fd08c919590df4b65c228d616191f6
 depends_on: [V7-004]
 languages: [go, python]
 

@@ -240,15 +240,16 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-002
-  next_task: V8-003
+  completed_through: V8-003
+  next_task: V8-004
   summary: >-
-    Runtime adapter credentials now support immutable AES-256-GCM records for
-    OTLP headers and HTTP-proxy basic/bearer secrets, master-key-derived HMAC
-    create replay, permanent tombstones and metadata-only reads. RuntimeConfig
-    publication and binding mutations share a lifecycle barrier with credential
-    deletion, validate adapter kind, and cannot commit a dangling reference.
-    Next, add the synchronized Go/Python private Runtime protocol v2 contract.
+    The inactive private Runtime protocol v2 now has strict parity DTOs and
+    canonical Go/Python fixtures for labels, adapter capabilities, typed secret
+    settings, safe resolution provenance and adapter metrics. Startup freezes
+    bounded adapter capabilities and parses inert initial labels while the
+    production path deliberately remains v1. Next, bind registration and
+    allocations to durable certificate-key principals and activate v2 on both
+    peers atomically.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
