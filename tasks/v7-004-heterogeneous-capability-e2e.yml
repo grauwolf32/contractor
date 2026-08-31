@@ -3,7 +3,8 @@ id: V7-004
 title: Prove heterogeneous Runtime capability placement end to end
 milestone: runtime-capability-placement
 priority: P0
-status: planned
+status: completed
+implementation_commit: fee68586bab250454348b9cbd177af88c05977df
 depends_on: [V7-001, V7-002, V7-003]
 languages: [go, python, yaml]
 
