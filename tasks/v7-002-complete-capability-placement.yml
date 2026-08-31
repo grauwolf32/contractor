@@ -3,7 +3,8 @@ id: V7-002
 title: Select a complete capability-compatible Runtime Agent assignment
 milestone: runtime-capability-placement
 priority: P0
-status: planned
+status: completed
+implementation_commit: 64126511ffd00b19044b1cd9729cf6ecfb3adb4c
 depends_on: [V6-003]
 languages: [go]
 
