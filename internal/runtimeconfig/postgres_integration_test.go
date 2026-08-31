@@ -59,7 +59,14 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 		}, nil
 	})
 	now := time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
-	publisher := NewPublisher(pool, resolver, func() time.Time { return now })
+	publisher, err := NewPublisher(PublisherOptions{
+		Pool: pool, GatewayResolver: resolver,
+		RuntimeCredentials: allowRuntimeCredentialCatalog{},
+		Now:                func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	document := []byte(`{
   "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
   "metadata":{"name":"debug","version":"1"},
@@ -106,7 +113,14 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 			Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
-	concurrentPublisher := NewPublisher(pool, concurrentResolver, func() time.Time { return now.Add(30 * time.Second) })
+	concurrentPublisher, err := NewPublisher(PublisherOptions{
+		Pool: pool, GatewayResolver: concurrentResolver,
+		RuntimeCredentials: allowRuntimeCredentialCatalog{},
+		Now:                func() time.Time { return now.Add(30 * time.Second) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	concurrentResults := make([]PublishResult, 2)
 	concurrentErrors := make([]error, 2)
 	var concurrentWait sync.WaitGroup
@@ -239,4 +253,14 @@ func assertRuntimeConfigSQLState(t *testing.T, err error, want string) {
 	if !errors.As(err, &postgresError) || postgresError.Code != want {
 		t.Fatalf("PostgreSQL error = %v, want SQLSTATE %s", err, want)
 	}
+}
+
+type allowRuntimeCredentialCatalog struct{}
+
+func (allowRuntimeCredentialCatalog) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return nil
+}
+
+func (allowRuntimeCredentialCatalog) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
 }

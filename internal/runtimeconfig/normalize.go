@@ -347,7 +347,7 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 				patch.Credential.Clear = true
 				value["credential"] = nil
 			} else {
-				if err := validateID("spec.worker.llmGateway.credential", source.LLMGateway.value.Credential.value, 63); err != nil {
+				if err := validateID("spec.worker.llmGateway.credential", source.LLMGateway.value.Credential.value, 128); err != nil {
 					return WorkerPatch{}, nil, 0, err
 				}
 				patch.Credential.Value = source.LLMGateway.value.Credential.value
@@ -400,7 +400,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 		return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.credential cannot be null", path)
 	}
 	if value.Credential.present {
-		if err := validateID(path+".credential", value.Credential.value, 63); err != nil {
+		if err := validateID(path+".credential", value.Credential.value, 128); err != nil {
 			return AtomicPatch[TelemetryConfig]{}, nil, err
 		}
 	}
@@ -444,7 +444,7 @@ func materializeHTTPProxy(source optional[httpProxySource]) (AtomicPatch[HTTPPro
 		return AtomicPatch[HTTPProxyConfig]{}, nil, invalid("spec.worker.httpProxy.credential cannot be null")
 	}
 	if value.Credential.present {
-		if err := validateID("spec.worker.httpProxy.credential", value.Credential.value, 63); err != nil {
+		if err := validateID("spec.worker.httpProxy.credential", value.Credential.value, 128); err != nil {
 			return AtomicPatch[HTTPProxyConfig]{}, nil, err
 		}
 	}

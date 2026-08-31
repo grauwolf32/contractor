@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -170,6 +171,15 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("inspect encrypted LLM credentials: %w", err)
 	}
+	runtimeCredentialRepository := credentials.NewRuntimeCredentialRepository(pool)
+	storedRuntimeCredentialCount, err := runtimeCredentialRepository.CountStored(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect encrypted Runtime credentials: %w", err)
+	}
+	if storedRuntimeCredentialCount > 0 && activeCredentialCount > math.MaxInt64-storedRuntimeCredentialCount {
+		return errors.New("encrypted credential count is invalid")
+	}
+	activeCredentialCount += storedRuntimeCredentialCount
 	tokenCipher, err := credentials.RequireTokenCipher(cfg.CredentialMasterKeyFile, activeCredentialCount)
 	if err != nil {
 		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
@@ -177,6 +187,9 @@ func RunCLI(
 	if tokenCipher != nil {
 		if err := credentialRepository.VerifyActiveKey(ctx, tokenCipher.KeyID()); err != nil {
 			return fmt.Errorf("verify encrypted LLM credential key: %w", err)
+		}
+		if err := runtimeCredentialRepository.VerifyStoredKey(ctx, tokenCipher.KeyID()); err != nil {
+			return fmt.Errorf("verify encrypted Runtime credential key: %w", err)
 		}
 	}
 	encryptedCredentialProvider, err := credentials.NewEncryptedProvider(credentialRepository, tokenCipher)
@@ -215,9 +228,10 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Gateway credential managers: %w", err)
 	}
+	credentialBarrier := credentials.NewLifecycleBarrier()
 	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
 		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
-		Runs: runstore.NewPostgresStore(pool), Cipher: tokenCipher,
+		Runs: runstore.NewPostgresStore(pool), Cipher: tokenCipher, Barrier: credentialBarrier,
 	})
 	if err != nil {
 		return fmt.Errorf("configure LLM credential lifecycle: %w", err)

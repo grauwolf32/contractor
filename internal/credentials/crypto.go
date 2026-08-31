@@ -3,6 +3,7 @@ package credentials
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,9 +15,10 @@ import (
 )
 
 type TokenCipher struct {
-	aead   cipher.AEAD
-	keyID  string
-	random io.Reader
+	aead          cipher.AEAD
+	keyID         string
+	runtimeMACKey [sha256.Size]byte
+	random        io.Reader
 }
 
 func NewTokenCipher(key []byte) (*TokenCipher, error) {
@@ -36,9 +38,121 @@ func newTokenCipher(key []byte, random io.Reader) (*TokenCipher, error) {
 		return nil, ErrKeyUnavailable
 	}
 	fingerprint := sha256.Sum256(key)
+	derivation := hmac.New(sha256.New, key)
+	_, _ = derivation.Write([]byte("contractor/runtime-credential-create-mac/v1"))
+	derivedMACKey := derivation.Sum(nil)
+	var runtimeMACKey [sha256.Size]byte
+	copy(runtimeMACKey[:], derivedMACKey)
+	wipeBytes(derivedMACKey)
 	return &TokenCipher{
-		aead: aead, keyID: "sha256:" + hex.EncodeToString(fingerprint[:]), random: random,
+		aead: aead, keyID: "sha256:" + hex.EncodeToString(fingerprint[:]),
+		runtimeMACKey: runtimeMACKey, random: random,
 	}, nil
+}
+
+func (c *TokenCipher) SealRuntimeCredential(
+	credentialID string,
+	material RuntimeCredentialMaterial,
+) (EncryptedEnvelope, error) {
+	if c == nil || c.aead == nil {
+		return EncryptedEnvelope{}, ErrKeyUnavailable
+	}
+	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(material.kind) ||
+		len(material.canonical) == 0 || len(material.canonical) > MaximumRuntimePlaintextBytes {
+		return EncryptedEnvelope{}, ErrRuntimeCredentialInvalid
+	}
+	aad, err := runtimeCredentialAAD(credentialID, material.kind)
+	if err != nil {
+		return EncryptedEnvelope{}, ErrCrypto
+	}
+	nonce := make([]byte, c.aead.NonceSize())
+	if _, err := io.ReadFull(c.random, nonce); err != nil {
+		return EncryptedEnvelope{}, ErrCrypto
+	}
+	plaintext := append([]byte(nil), material.canonical...)
+	ciphertext := c.aead.Seal(nil, nonce, plaintext, aad)
+	wipeBytes(plaintext)
+	return EncryptedEnvelope{
+		SchemaVersion: RuntimeCredentialSchemaVersion,
+		KeyID:         c.keyID,
+		Nonce:         append([]byte(nil), nonce...),
+		Ciphertext:    append([]byte(nil), ciphertext...),
+	}, nil
+}
+
+func (c *TokenCipher) OpenRuntimeCredential(
+	credentialID string,
+	kind RuntimeCredentialKind,
+	envelope EncryptedEnvelope,
+) (RuntimeCredentialMaterial, error) {
+	if c == nil || c.aead == nil {
+		return RuntimeCredentialMaterial{}, ErrKeyUnavailable
+	}
+	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(kind) {
+		return RuntimeCredentialMaterial{}, ErrRuntimeCredentialInvalid
+	}
+	if envelope.SchemaVersion != RuntimeCredentialSchemaVersion || envelope.KeyID != c.keyID ||
+		len(envelope.Nonce) != c.aead.NonceSize() || len(envelope.Ciphertext) < c.aead.Overhead()+1 ||
+		len(envelope.Ciphertext) > MaximumRuntimePlaintextBytes+c.aead.Overhead() {
+		return RuntimeCredentialMaterial{}, ErrCrypto
+	}
+	aad, err := runtimeCredentialAAD(credentialID, kind)
+	if err != nil {
+		return RuntimeCredentialMaterial{}, ErrCrypto
+	}
+	plaintext, err := c.aead.Open(nil, envelope.Nonce, envelope.Ciphertext, aad)
+	if err != nil {
+		return RuntimeCredentialMaterial{}, ErrCrypto
+	}
+	material, materialErr := runtimeCredentialMaterialFromCanonical(kind, plaintext)
+	wipeBytes(plaintext)
+	if materialErr != nil {
+		return RuntimeCredentialMaterial{}, ErrCrypto
+	}
+	return material, nil
+}
+
+func (c *TokenCipher) RuntimeCredentialRequestMAC(
+	credentialID string,
+	material RuntimeCredentialMaterial,
+) ([]byte, error) {
+	if c == nil || c.aead == nil {
+		return nil, ErrKeyUnavailable
+	}
+	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(material.kind) ||
+		len(material.canonical) == 0 || len(material.canonical) > MaximumRuntimePlaintextBytes {
+		return nil, ErrRuntimeCredentialInvalid
+	}
+	request, err := json.Marshal(struct {
+		SchemaVersion string                `json:"schemaVersion"`
+		CredentialID  string                `json:"credentialId"`
+		Kind          RuntimeCredentialKind `json:"kind"`
+		Material      json.RawMessage       `json:"material"`
+	}{
+		SchemaVersion: RuntimeCredentialSchemaVersion,
+		CredentialID:  credentialID,
+		Kind:          material.kind, Material: json.RawMessage(material.canonical),
+	})
+	if err != nil {
+		return nil, ErrCrypto
+	}
+	authenticator := hmac.New(sha256.New, c.runtimeMACKey[:])
+	_, _ = authenticator.Write(request)
+	result := authenticator.Sum(nil)
+	wipeBytes(request)
+	return result, nil
+}
+
+func runtimeCredentialAAD(credentialID string, kind RuntimeCredentialKind) ([]byte, error) {
+	return json.Marshal(struct {
+		SchemaVersion string                `json:"schemaVersion"`
+		CredentialID  string                `json:"credentialId"`
+		Kind          RuntimeCredentialKind `json:"kind"`
+	}{
+		SchemaVersion: RuntimeCredentialSchemaVersion,
+		CredentialID:  credentialID,
+		Kind:          kind,
+	})
 }
 
 func (c *TokenCipher) KeyID() string {
@@ -47,6 +161,9 @@ func (c *TokenCipher) KeyID() string {
 	}
 	return c.keyID
 }
+
+func (c *TokenCipher) String() string   { return "credentials.TokenCipher([REDACTED])" }
+func (c *TokenCipher) GoString() string { return c.String() }
 
 func (c *TokenCipher) Seal(
 	credentialID string,

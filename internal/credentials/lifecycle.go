@@ -74,6 +74,7 @@ type ServiceOptions struct {
 	Managers *ManagerRegistry
 	Runs     NonTerminalRunLookup
 	Cipher   *TokenCipher
+	Barrier  *LifecycleBarrier
 	Now      func() time.Time
 	NewID    func(string) (string, error)
 
@@ -99,7 +100,7 @@ type Service struct {
 	afterDelete func() error
 
 	lifecycleMu sync.Mutex
-	runGuard    sync.RWMutex
+	barrier     *LifecycleBarrier
 	deleteDirty bool
 	ready       atomic.Bool
 }
@@ -114,10 +115,13 @@ func NewService(options ServiceOptions) (*Service, error) {
 	if options.NewID == nil {
 		options.NewID = randomCredentialID
 	}
+	if options.Barrier == nil {
+		options.Barrier = NewLifecycleBarrier()
+	}
 	return &Service{
 		pool: options.Pool, repository: NewRepository(options.Pool),
 		gateways: options.Gateways, managers: options.Managers, runs: options.Runs,
-		cipher: options.Cipher, now: options.Now, newID: options.NewID,
+		cipher: options.Cipher, barrier: options.Barrier, now: options.Now, newID: options.NewID,
 		afterCreate: options.AfterManagerCreate, afterDelete: options.AfterManagerDelete,
 	}, nil
 }
@@ -144,15 +148,12 @@ func (s *Service) WithRunCreation(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return ErrInvalid
 	}
-	s.runGuard.RLock()
-	defer s.runGuard.RUnlock()
-	if !s.ready.Load() || s.deleteDirty {
-		return ErrRecoveryRequired
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return fn()
+	return s.barrier.WithCredentialReferences(ctx, func() error {
+		if !s.ready.Load() || s.deleteDirty {
+			return ErrRecoveryRequired
+		}
+		return fn()
+	})
 }
 
 func (s *Service) Recover(ctx context.Context) error {
@@ -183,13 +184,15 @@ func (s *Service) Recover(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				s.runGuard.Lock()
+				if err := s.barrier.lockMutation(ctx); err != nil {
+					return err
+				}
 				s.deleteDirty = true
 				err = s.executeDelete(ctx, operation, request)
 				if err == nil {
 					s.deleteDirty = false
 				}
-				s.runGuard.Unlock()
+				s.barrier.unlockMutation()
 				if err != nil {
 					return err
 				}
@@ -276,8 +279,10 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if !s.ready.Load() {
 		return DeleteResult{}, ErrRecoveryRequired
 	}
-	s.runGuard.Lock()
-	defer s.runGuard.Unlock()
+	if err := s.barrier.lockMutation(ctx); err != nil {
+		return DeleteResult{}, err
+	}
+	defer s.barrier.unlockMutation()
 
 	prepared, err := s.preparedFor(ctx, OperationDelete, request.IdempotencyKey)
 	if err != nil {

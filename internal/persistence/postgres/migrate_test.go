@@ -41,9 +41,15 @@ func TestRuntimeConfigurationMigrationContainsExactIdempotentBootstrap(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	latest := items[len(items)-1]
-	if latest.name != "000015_runtime_configuration.sql" {
-		t.Fatalf("latest migration = %q, want RuntimeConfig migration", latest.name)
+	var runtimeConfiguration migration
+	for _, item := range items {
+		if item.name == "000015_runtime_configuration.sql" {
+			runtimeConfiguration = item
+			break
+		}
+	}
+	if runtimeConfiguration.name == "" {
+		t.Fatal("RuntimeConfig migration is not embedded")
 	}
 	canonical := `{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}`
 	sum := sha256.Sum256([]byte(canonical))
@@ -51,7 +57,7 @@ func TestRuntimeConfigurationMigrationContainsExactIdempotentBootstrap(t *testin
 	if digest != "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f" {
 		t.Fatalf("test fixture digest = %s", digest)
 	}
-	contents := string(latest.contents)
+	contents := string(runtimeConfiguration.contents)
 	for _, required := range []string{
 		canonical,
 		digest,
@@ -62,6 +68,38 @@ func TestRuntimeConfigurationMigrationContainsExactIdempotentBootstrap(t *testin
 	} {
 		if !strings.Contains(contents, required) {
 			t.Fatalf("RuntimeConfig migration does not contain %q", required)
+		}
+	}
+}
+
+func TestRuntimeCredentialMigrationKeepsOnlyEncryptedReplayState(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runtimeCredentials migration
+	for _, item := range items {
+		if item.name == "000016_runtime_credentials.sql" {
+			runtimeCredentials = item
+			break
+		}
+	}
+	if runtimeCredentials.name == "" {
+		t.Fatal("Runtime credential migration is not embedded")
+	}
+	contents := string(runtimeCredentials.contents)
+	for _, required := range []string{
+		"encryption_schema_version", "request_mac bytea", "octet_length(request_mac) = 32",
+		"runtime_credential_tombstones", "contractor_protect_runtime_credential_immutable",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Runtime credential migration does not contain %q", required)
+		}
+	}
+	for _, forbidden := range []string{"plaintext", "request_hash", "secret json", "token text", "password text"} {
+		if strings.Contains(strings.ToLower(contents), forbidden) {
+			t.Fatalf("Runtime credential migration contains unsafe construct %q", forbidden)
 		}
 	}
 }

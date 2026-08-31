@@ -16,22 +16,37 @@ type PublishResult struct {
 }
 
 type Publisher struct {
-	pool     *pgxpool.Pool
-	resolver GatewayResolver
-	now      func() time.Time
+	pool        *pgxpool.Pool
+	resolver    GatewayResolver
+	credentials RuntimeCredentialCatalog
+	now         func() time.Time
 }
 
-func NewPublisher(pool *pgxpool.Pool, resolver GatewayResolver, now func() time.Time) *Publisher {
-	if now == nil {
-		now = time.Now
+type PublisherOptions struct {
+	Pool               *pgxpool.Pool
+	GatewayResolver    GatewayResolver
+	RuntimeCredentials RuntimeCredentialCatalog
+	Now                func() time.Time
+}
+
+func NewPublisher(options PublisherOptions) (*Publisher, error) {
+	if options.Pool == nil || options.RuntimeCredentials == nil {
+		return nil, errors.New("RuntimeConfig publisher dependencies are incomplete")
 	}
-	return &Publisher{pool: pool, resolver: resolver, now: now}
+	if options.Now == nil {
+		options.Now = time.Now
+	}
+	return &Publisher{
+		pool: options.Pool, resolver: options.GatewayResolver,
+		credentials: options.RuntimeCredentials,
+		now:         options.Now,
+	}, nil
 }
 
 // Publish deliberately performs its first durable replay lookup before using
 // the mutable Gateway resolver.
 func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey, actor string) (PublishResult, error) {
-	if p == nil || p.pool == nil {
+	if p == nil || p.pool == nil || p.credentials == nil {
 		return PublishResult{}, invalid("RuntimeConfig publisher is not configured")
 	}
 	if !validActor(actor) {
@@ -52,55 +67,69 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 		return replay, nil
 	}
 
-	version, err := prepared.Resolve(ctx, p.resolver)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	version.ActorID = actor
-	version.CreatedAt = p.now()
-	publication := Publication{
-		IdempotencyKeyDigest: keyDigest, RequestDigest: prepared.RequestDigest(), Ref: version.Ref,
-		ActorID: actor, PublishedAt: version.CreatedAt,
-	}
-
 	var result PublishResult
-	err = persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txRepository := NewRepository(tx)
-		if replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest()); replayErr != nil {
+	err = p.credentials.WithCredentialReferences(ctx, func() error {
+		// A deletion may have committed between the lock-free fast replay lookup
+		// and acquiring the shared reference barrier. Replay still wins before
+		// any mutable validation or Gateway resolution.
+		if replay, found, replayErr := lookupReplay(ctx, repository, keyDigest, prepared.RequestDigest()); replayErr != nil {
 			return replayErr
 		} else if found {
 			result = replay
 			return nil
 		}
-		_, insertErr := txRepository.InsertVersion(ctx, version)
-		if insertErr != nil {
-			if errors.Is(insertErr, ErrConflict) {
-				if replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest()); replayErr != nil {
-					return replayErr
-				} else if found {
-					result = replay
-					return nil
-				}
-			}
-			return insertErr
+		version, resolveErr := prepared.Resolve(ctx, p.resolver)
+		if resolveErr != nil {
+			return resolveErr
 		}
-		inserted, insertErr := txRepository.InsertPublication(ctx, publication)
-		if insertErr != nil {
-			return insertErr
+		if validationErr := validateSpecRuntimeCredentials(ctx, version.Spec, p.credentials); validationErr != nil {
+			return validationErr
 		}
-		if !inserted {
-			replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest())
-			if replayErr != nil {
+		version.ActorID = actor
+		version.CreatedAt = p.now()
+		publication := Publication{
+			IdempotencyKeyDigest: keyDigest, RequestDigest: prepared.RequestDigest(), Ref: version.Ref,
+			ActorID: actor, PublishedAt: version.CreatedAt,
+		}
+
+		return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			txRepository := NewRepository(tx)
+			if replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest()); replayErr != nil {
 				return replayErr
+			} else if found {
+				result = replay
+				return nil
 			}
-			if !found {
-				return ErrConflict
+			_, insertErr := txRepository.InsertVersion(ctx, version)
+			if insertErr != nil {
+				if errors.Is(insertErr, ErrConflict) {
+					if replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest()); replayErr != nil {
+						return replayErr
+					} else if found {
+						result = replay
+						return nil
+					}
+				}
+				return insertErr
 			}
-			result = replay
+			inserted, insertErr := txRepository.InsertPublication(ctx, publication)
+			if insertErr != nil {
+				return insertErr
+			}
+			if !inserted {
+				replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest())
+				if replayErr != nil {
+					return replayErr
+				}
+				if !found {
+					return ErrConflict
+				}
+				result = replay
+				return nil
+			}
+			result = PublishResult{Version: version}
 			return nil
-		}
-		result = PublishResult{Version: version}
-		return nil
+		})
 	})
 	if err != nil {
 		return PublishResult{}, err

@@ -379,7 +379,7 @@ func newLifecycleFixtureWithCipher(
 	var ids atomic.Int32
 	options := ServiceOptions{
 		Pool: pool, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
-		Runs: runstore.NewPostgresStore(pool), Cipher: cipher,
+		Runs: runstore.NewPostgresStore(pool), Cipher: cipher, Barrier: overrides.Barrier,
 		Now: time.Now,
 		NewID: func(prefix string) (string, error) {
 			return fmt.Sprintf("%s%d", prefix, ids.Add(1)), nil
