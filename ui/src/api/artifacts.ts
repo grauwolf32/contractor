@@ -306,6 +306,14 @@ export async function downloadArtifact(
   metadata: ArtifactMetadata,
 ): Promise<DownloadedArtifact> {
   const path = `${artifactPath(metadata.artifact.namespace, metadata.artifact.name)}${exactQuery(metadata.artifact.revision)}`;
+  return downloadExactArtifact(api, metadata, path);
+}
+
+export async function downloadExactArtifact(
+  api: PublicAPI,
+  metadata: ArtifactMetadata,
+  path: string,
+): Promise<DownloadedArtifact> {
   const response = await api.fetch(path, {
     method: "GET",
     headers: { Accept: metadata.mediaType },
@@ -352,12 +360,19 @@ export async function previewArtifact(
   api: PublicAPI,
   metadata: ArtifactMetadata,
 ): Promise<string> {
+  return previewExactArtifact(metadata, () => downloadArtifact(api, metadata));
+}
+
+export async function previewExactArtifact(
+  metadata: ArtifactMetadata,
+  download: () => Promise<DownloadedArtifact>,
+): Promise<string> {
   if (!canPreviewArtifact(metadata)) {
     throw new TypeError(
       "This Artifact is not eligible for bounded text preview",
     );
   }
-  const downloaded = await downloadArtifact(api, metadata);
+  const downloaded = await download();
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(
       await downloaded.blob.arrayBuffer(),

@@ -174,6 +174,10 @@ export class PublicAPI {
     });
   }
 
+  get apiBaseUrl(): string {
+    return this.#apiOrigin;
+  }
+
   async request<T>(
     operation: (client: Client<paths>) => Promise<T>,
   ): Promise<T> {

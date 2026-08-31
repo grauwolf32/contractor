@@ -38,6 +38,71 @@ export const queryKeys = {
     all: ["credentials"] as const,
     picker: ["credentials", "picker"] as const,
   },
-  runs: { all: ["runs"] as const },
+  runs: {
+    all: ["runs"] as const,
+    list: (state: string | undefined, cursor: string | undefined) =>
+      ["runs", "list", state ?? null, cursor ?? null] as const,
+    detail: (runId: string) => ["runs", "detail", runId] as const,
+    artifacts: (
+      runId: string,
+      namespace: string | undefined,
+      cursor: string | undefined,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "list",
+        namespace ?? null,
+        cursor ?? null,
+      ] as const,
+    artifactMetadata: (
+      runId: string,
+      namespace: string,
+      name: string,
+      revision?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "metadata",
+        namespace,
+        name,
+        revision ?? null,
+      ] as const,
+    artifactVersions: (
+      runId: string,
+      namespace: string,
+      name: string,
+      cursor?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "versions",
+        namespace,
+        name,
+        cursor ?? null,
+      ] as const,
+    artifactLineage: (
+      runId: string,
+      namespace: string,
+      name: string,
+      revision: string,
+      cursor?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "lineage",
+        namespace,
+        name,
+        revision,
+        cursor ?? null,
+      ] as const,
+  },
   operations: ["operations"] as const,
 };

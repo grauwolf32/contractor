@@ -4,7 +4,9 @@ import { AuthenticatedRoute } from "../routes/guard";
 import { LoginRoute } from "../routes/login";
 import { ArtifactDetailRoute } from "../routes/artifacts/detail";
 import { ArtifactListRoute } from "../routes/artifacts/list";
-import { AcceptedRunRoute } from "../routes/runs/accepted";
+import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
+import { RunDetailRoute } from "../routes/runs/detail";
+import { RunListRoute } from "../routes/runs/list";
 import { WorkflowDetailRoute } from "../routes/workflows/detail";
 import { WorkflowListRoute } from "../routes/workflows/list";
 import { NotFoundRoute, PlaceholderRoute } from "../routes/placeholders";
@@ -36,8 +38,12 @@ export function applicationRoutes(): RouteObject[] {
               path: "/artifacts/:namespace/:name",
               element: <ArtifactDetailRoute />,
             },
-            { path: "/runs", element: <PlaceholderRoute kind="runs" /> },
-            { path: "/runs/:runId", element: <AcceptedRunRoute /> },
+            { path: "/runs", element: <RunListRoute /> },
+            { path: "/runs/:runId", element: <RunDetailRoute /> },
+            {
+              path: "/runs/:runId/artifacts/:namespace/:name",
+              element: <RunArtifactDetailRoute />,
+            },
             {
               path: "/operations",
               element: <PlaceholderRoute kind="operations" />,

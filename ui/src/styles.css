@@ -34,7 +34,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -841,8 +842,404 @@ code {
   color: var(--muted);
 }
 
-.accepted-run-page .notice code {
-  font-size: 1rem;
+.run-library,
+.run-artifact-library,
+.cancellation-panel {
+  margin-top: 1.5rem;
+}
+
+.compact-select {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.compact-select select,
+.cancellation-panel textarea {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #080b0f;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.compact-select select:focus,
+.cancellation-panel textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #d8ff7222;
+}
+
+.state-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid #4d5968;
+  border-radius: 999px;
+  background: #1a202b;
+  color: #c9d2dd;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.state-running,
+.state-preparing,
+.state-finalizing,
+.state-pending {
+  border-color: #52622d;
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+
+.state-cancelling,
+.state-aborting,
+.state-interrupted {
+  border-color: #76642d;
+  background: #28220f;
+  color: #ffe9a4;
+}
+
+.state-failed,
+.state-cancelled {
+  border-color: #753f42;
+  background: #2b171a;
+  color: #ffc2bc;
+}
+
+.state-succeeded {
+  border-color: #357067;
+  background: #102b28;
+  color: #95e6d9;
+}
+
+.live-status {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #121720;
+  color: var(--muted);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.live-reconnecting .status-dot,
+.live-resyncing .status-dot,
+.live-connecting .status-dot {
+  background: #ffe9a4;
+  box-shadow: 0 0 1rem #ffe9a4;
+}
+
+.live-error .status-dot,
+.live-unavailable .status-dot {
+  background: var(--danger);
+  box-shadow: none;
+}
+
+.run-binding-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.run-definition-panel {
+  min-width: 0;
+}
+
+.key-value-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.8rem 0 0;
+}
+
+.key-value-list div {
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.key-value-list dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.key-value-list dd {
+  overflow-wrap: anywhere;
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+}
+
+.artifact-ref-list,
+.result-record {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.artifact-ref-link {
+  display: grid;
+  gap: 0.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+  text-decoration: none;
+}
+
+.artifact-ref-link strong {
+  color: #dce5ef;
+  font-size: 0.76rem;
+}
+
+.run-attempts {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 2rem;
+}
+
+.run-attempt {
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: #121720bf;
+}
+
+.run-attempt > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+}
+
+.run-attempt > summary > span {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.run-attempt > summary > span:first-child > strong,
+.current-marker {
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.2rem 0.45rem;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.run-attempt-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding: 1.2rem;
+}
+
+.attempt-block,
+.planner-projection {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #0c1016aa;
+  padding: 1rem;
+}
+
+.attempt-block h4,
+.planner-projection h4 {
+  margin: 0 0 0.65rem;
+}
+
+.global-task h4 {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.compact-copy {
+  margin: 0.45rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.attempt-timestamps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+}
+
+.attempt-timestamps dt,
+.metrics-grid dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.attempt-timestamps dd,
+.metrics-grid dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+}
+
+.planner-projection .section-heading > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.dispatch-banner {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.8rem 0;
+  border: 1px solid #52622d;
+  border-radius: 0.55rem;
+  background: var(--accent-dark);
+  padding: 0.7rem;
+}
+
+.dispatch-banner span,
+.dispatch-banner code {
+  font-size: 0.72rem;
+}
+
+.subtask-list,
+.transition-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subtask-list li,
+.transition-list li {
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  padding: 0.75rem;
+}
+
+.subtask-list li.current {
+  border-color: #71843f;
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.subtask-list li > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subtask-list p {
+  line-height: 1.5;
+}
+
+.subtask-list details {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.subtask-list details summary {
+  cursor: pointer;
+}
+
+.subtask-list details p {
+  color: #c1cad5;
+  white-space: pre-wrap;
+}
+
+.live-event-note {
+  display: block;
+  margin-top: 0.75rem;
+  color: var(--muted);
+}
+
+.config-origins {
+  line-height: 1.45;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.metrics-grid dd {
+  color: var(--accent);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.result-record p,
+.termination-record p {
+  margin: 0.4rem 0;
+  line-height: 1.5;
+}
+
+.termination-record small {
+  color: var(--muted);
+}
+
+.transition-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+}
+
+.transition-list small {
+  width: 100%;
+  color: var(--muted);
+}
+
+.cancellation-record span,
+.cancellation-record small {
+  color: #ffe9a4;
+}
+
+.cancellation-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cancellation-panel label {
+  display: grid;
+  gap: 0.4rem;
+  color: #bcc5d0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cancellation-panel textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.cancellation-panel textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.cancellation-panel button {
+  justify-self: start;
+  background: var(--danger);
+}
+
+.cancellation-panel > small {
+  color: var(--muted);
+}
+
+.run-artifact-actions {
+  margin-top: 1.2rem;
 }
 
 .spinner {
@@ -892,7 +1289,9 @@ code {
   .workflow-contract-grid,
   .stage-contract-body,
   .run-field-grid,
-  .override-grid {
+  .override-grid,
+  .run-binding-grid,
+  .run-attempt-body {
     grid-template-columns: 1fr;
   }
 
@@ -906,7 +1305,9 @@ code {
   }
 
   .stage-contract > summary,
-  .stage-contract > summary > span {
+  .stage-contract > summary > span,
+  .run-attempt > summary,
+  .run-attempt > summary > span {
     align-items: flex-start;
     flex-direction: column;
   }

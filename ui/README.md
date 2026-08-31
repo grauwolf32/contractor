@@ -56,3 +56,17 @@ idempotency key remains bound to the canonical submitted draft after response
 loss; an unchanged explicit retry reuses it, while changed submitted content
 gets a new key. The UI navigates to the Server-returned Run ID only after a 202
 response and never inserts a speculative Run into its cache.
+
+The `/runs` route lists owner-scoped Run snapshots and renders ordered Stage
+attempts, Scheduler decisions, resolved execution configuration, safe aggregate
+metrics, exact RunScope Artifacts, and frozen outputs. Cancellation always
+refetches the authoritative aggregate, including when it races a terminal
+transition; the browser never predicts a lifecycle state.
+
+One `contractor.events.v1` WebSocket is multiplexed across open Run views.
+Lifecycle frames only invalidate REST queries. Closed, typed Planner frames may
+advance the nested subtask projection in exact cursor order, while duplicate
+frames are ignored and any sequence gap, generation change, explicit resync, or
+unknown frame discards live continuity and requires a REST snapshot. Prompt and
+model text, tool payloads, provider bodies, credentials, and physical Runtime
+placement are not accepted by the browser event DTO.

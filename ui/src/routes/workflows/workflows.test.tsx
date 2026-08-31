@@ -250,6 +250,19 @@ describe("Workflow routes", () => {
             { status: 202 },
           );
         }
+        if (url.pathname === "/v1/runs/run_openapi") {
+          return apiResponse({
+            runId: "run_openapi",
+            workflow: "openapi-from-source@1",
+            state: "running",
+            attempts: [],
+            transitions: [],
+            outputs: {},
+          });
+        }
+        if (url.pathname === "/v1/runs/run_openapi/artifacts") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
@@ -335,9 +348,9 @@ describe("Workflow routes", () => {
       },
     });
     expect(
-      await screen.findByRole("heading", { name: "Run accepted" }),
+      await screen.findByRole("heading", { name: "run_openapi" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("run_openapi")).toBeInTheDocument();
+    expect(screen.getByText("Authoritative aggregate")).toBeInTheDocument();
   });
 
   it("blocks a mutation while required declared fields are missing", async () => {
