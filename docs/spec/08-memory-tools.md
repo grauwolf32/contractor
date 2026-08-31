@@ -183,8 +183,10 @@ and appendable at the limit. MemoryTools never evicts an older note to make
 room.
 
 `v1` has no delete/forget operation, automatic compaction, `link_memories`,
-skills/inbox category, semantic retrieval or bulk import. Removing or changing
-those choices requires a new Toolset version, not an undocumented tool.
+inbox category, semantic retrieval or bulk import. Agent Skills are the
+separate immutable package/artifact contract in [09](09-agent-skills.md), never
+a Memory note category. Removing or changing the remaining choices requires a
+new Toolset version, not an undocumented tool.
 
 ## AgentTemplate selection and Planner mirroring
 
@@ -251,6 +253,14 @@ ArtifactStore view directly. The Python Worker adapter uses the existing
 allocation-bound private Artifact API and client. Both implementations share
 canonical fixtures for validation, payload encoding and logical results.
 
+The Planner view is also bound to the active `StageExecution`, not merely to
+`run_id`. A Planner mutation checks the same durable Stage write-fence state in
+the Artifact transaction that advances the binding. Entering `finalizing` or
+`aborting` atomically revokes both Planner and Worker Memory mutation authority:
+an in-flight write either linearizes completely before that fence or fails as
+`memory_forbidden`; it can never commit afterward. Planner reads after its
+invocation is cancelled are rejected by its bound tool context.
+
 Every mutation uses ArtifactStore compare-and-swap internally:
 
 1. the wrapper reads the current hidden revision, if any;
@@ -292,7 +302,7 @@ Worker mutations travel through the existing private Artifact PUT, so Agent
 mTLS, allocation-to-Run binding, CAS and the atomic durable write fence are
 reused unchanged. Runtime supplies the already fixed Agent Namespace; the model
 supplies only logical MemoryTools arguments. Planner calls are synchronous
-inside the active Stage invocation and use its bound Run/Agent Namespace view;
+inside the active Stage invocation and use the Stage-bound trusted view above;
 Planner produces no candidate until its current tool call has returned.
 Finalization/abort performs no tool work, and retry or escalation cannot revive
 an old wrapper.
@@ -340,8 +350,9 @@ never placed in model context or a public Planner event.
    atomic ArtifactStore primitive first.
 8. Mutation uses hidden Artifact CAS and canonical-payload reconciliation;
    response loss cannot duplicate an append and needs no separate replay store.
-9. Worker mutations stop at the durable Artifact write fence; a Planner memory
-   call completes before Planner can return a candidate and enter finalizing.
+9. Worker and Planner mutations linearize against the same durable Stage write
+   fence; a Planner memory call also completes before Planner can return a
+   candidate and enter finalizing.
 10. Note bodies and descriptive metadata never enter durable or external
     telemetry.
 11. Memory is Run-scoped and observed only through explicit tools; there is no

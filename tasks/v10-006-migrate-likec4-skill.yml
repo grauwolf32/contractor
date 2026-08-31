@@ -1,0 +1,97 @@
+schema_version: "1.0"
+id: V10-006
+title: Migrate and assign the contractor-old LikeC4 skill in new config versions
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-003]
+languages: [markdown, yaml, go]
+
+goal: >-
+  Convert the actively useful LikeC4 knowledge corpus to the initial Agent
+  Skills package profile and publish additive skill-enabled LikeC4 Worker and
+  Workflow versions without changing the immutable behavior of existing
+  versions or carrying the old Memory-based Skill adapter.
+
+context:
+  source: >-
+    Copy only contractor/skills/likec4 from contractor-old revision
+    9c76b56cf7b83377fb1dd5e4a17440fa27b723f3. It contains index.md and fourteen
+    references. The source text assumes skills_read and says the index is always
+    in memory; neither statement is valid in native ADK.
+  target: >-
+    Create configs/skills/likec4/SKILL.md plus references/*.md. Frontmatter name
+    is likec4. On-demand examples name native
+    load_skill_resource(skill_name="likec4", file_path="references/<file>.md").
+    New AgentTemplates likec4_builder@2 and likec4_validator@2 select the logical
+    ArtifactRef {namespace: skills, name: likec4}. New Workflows
+    likec4-from-source@3, likec4-from-source-streamline@2 and
+    likec4-from-analysis@2 select those templates. Existing template and
+    Workflow versions remain byte-for-byte unchanged.
+
+scope:
+  in:
+    - Rename index.md to exact SKILL.md, add valid name/compatibility/source-revision metadata and preserve all useful LikeC4 DSL/CLI content and reference files.
+    - Replace every skills_read/path-without-extension/always-in-memory statement with accurate native ADK progressive-disclosure instructions and verify every named resource exists with exact case.
+    - Audit and correct stale factual references against the LikeC4 Toolset/CLI behavior already implemented in this repository without broadening the workflow domain.
+    - Create new v2 Worker instruction resources that remove duplicated detailed syntax catalog text now owned by the package while retaining mandatory artifact procedure, phase ordering, evidence, validation and finish conditions; do not edit instruction resources referenced by v1 templates.
+    - >-
+      Publish additive likec4_builder@2 and likec4_validator@2 definitions with
+      the versionless Skill ArtifactRef; do not mutate either @1 definition or
+      require explicit empty lists in unrelated templates.
+    - Publish additive versions of all three current LikeC4 Workflow families that select the @2 templates, without changing their Stage graphs or mutating prior Workflow versions.
+    - Add deterministic package/digest regression and config digest updates with an explicit provenance note for the old revision.
+  out:
+    - Porting old Workflow/agent prompts wholesale, changing LikeC4 Stage graph, assigning security skills, live-model prompt tuning or scripts.
+
+deliverables:
+  - {path: configs/skills/likec4, description: Standard SKILL.md and complete migrated LikeC4 reference corpus.}
+  - {path: configs/agent-templates/likec4_builder_v2.yaml, description: Additive builder version with the versionless likec4 Skill ArtifactRef.}
+  - {path: configs/agent-templates/likec4_validator_v2.yaml, description: Additive validator version sharing the likec4 Skill ArtifactRef.}
+  - {path: configs/instructions/likec4-builder-worker-v2.md, description: Skill-aware always-on builder contract retaining mandatory behavior.}
+  - {path: configs/instructions/likec4-validator-worker-v2.md, description: Skill-aware always-on validator contract retaining mandatory behavior.}
+  - {path: configs/workflows/likec4_from_source_v3.yaml, description: Additive passthrough Workflow version selecting the v2 templates.}
+  - {path: configs/workflows/likec4_from_source_streamline_v2.yaml, description: Additive Streamline Workflow version selecting the v2 templates.}
+  - {path: configs/workflows/likec4_from_analysis_v2.yaml, description: Additive analysis-input Workflow version selecting the v2 templates.}
+  - {path: configs/README.md, description: Version map distinguishing legacy empty-skill and additive Skill-enabled LikeC4 selectors.}
+  - {path: docs/migrations/contractor-old-agent-skills-likec4.md, description: Pinned source inventory mapping and intentional content/config-version changes.}
+  - {path: internal/agentskills, description: Migrated package inventory reference-link and deterministic-digest regression tests.}
+
+requirements:
+  - id: R1
+    text: Migration does not copy contractor-old runner/Memory code, skills_read/skills_list tool names or absolute source paths.
+  - id: R2
+    text: Every removed instruction remains either mandatory in AgentTemplate instructions or intentionally progressive in SKILL.md/references; correctness/finish rules never depend on optional activation.
+  - id: R3
+    text: Builder and validator share one owner binding and one Run fork, but AllocationSpec later gives each only its declared template subset.
+  - id: R4
+    text: Existing @1 templates, their instruction resources and prior Workflow versions are immutable compatibility fixtures and do not acquire the Skill implicitly.
+
+acceptance_criteria:
+  - id: A1
+    given: The migrated source tree.
+    when: contractor-skill validate/package and reference-link checks run.
+    then: It passes the strict profile, packages deterministically, contains all fourteen references and has no legacy Skill API token.
+  - id: A2
+    given: Both old and new LikeC4 AgentTemplates plus all repository templates and Workflows.
+    when: Config validation and digest fixtures run.
+    then: Exactly likec4_builder@2 and likec4_validator@2 select skills/likec4, old template/workflow bytes and digests remain unchanged, and each new Workflow version selects only the v2 templates.
+  - id: A3
+    given: Worker instructions plus migrated package read without contractor-old.
+    when: Responsibilities are classified.
+    then: Mandatory build/repair/artifact/validation/finish behavior is always-on while detailed DSL and troubleshooting knowledge is progressively loadable through valid native calls.
+  - id: A4
+    given: Old and migrated file inventories.
+    when: A migration manifest compares them.
+    then: Every old LikeC4 knowledge file is accounted for exactly once and intentional text changes are documented.
+  - id: A5
+    given: Existing and additive LikeC4 config versions.
+    when: Their selectors and resolved instruction refs are compared.
+    then: Prior versions still resolve their original @1 templates/instructions while @3/@2 Workflow versions resolve the new Skill-enabled @2 templates.
+
+tests:
+  - {name: package, command: "go run ./cmd/contractor-skill validate ./configs/skills/likec4 && go test ./internal/agentskills/...", covers: [A1, A4]}
+  - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs && go test ./internal/config/...", covers: [A2, A3, A5]}
+  - {name: legacy-token-scan, command: "! rg -n 'skills_(read|list)|index is always in memory' configs/skills/likec4 configs/instructions/likec4-*", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

@@ -380,10 +380,14 @@ than being accepted as a silent no-op. A combined `debug` config may still
 configure Worker telemetry when assigned to an Agent and both Worker/Planner
 telemetry when selected on a Run.
 
-Filesystem/SandboxProfile selection and startup capability discovery remain
-separate. `local-workdir@1`, a future in-memory filesystem or an OverlayFS
-profile is selected and advertised through the existing immutable sandbox and
-tool capability model; none is inferred from a label.
+Project filesystem configuration remains entirely Runtime-local under
+[10](10-runtime-filesystems-and-edit-tools.md). A label cannot supply a host
+path, add a mount, change `local`/`memory`/`overlay` mode, enable host write or
+materialize changes. Runtime advertises only ordinary filesystem Toolset/tool
+subsets after probing its immutable startup configuration; no filesystem
+setting is inferred from a label. The existing `local-workdir@1`
+SandboxProfile continues to own allocation scratch rather than the mounted
+project view.
 
 ## Run labels and pinning
 
@@ -815,7 +819,7 @@ errors. Error bodies remain bounded and secret-free.
 5. ExecutionConfig alone selects ModelPolicy and budgets. Labels can affect
    physical Worker connection settings but never those semantic limits.
 6. Labels configure adapters and already selected tools; they never add a
-   model-visible tool, AgentTemplate or Worker binding.
+   model-visible tool, Agent Skill, AgentTemplate or Worker binding.
 7. Runtime adapter availability is an immutable positive startup capability,
    while remote endpoint health is an allocation preparation/execution fact.
 8. Worker HTTP proxying is allocation-scoped and cannot intercept Contractor

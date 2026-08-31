@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V10-009
+title: Migrate contractor-old live-testing and exploitation skills
+milestone: agent-skills-port-and-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V9-005, V10-007]
+languages: [markdown, go]
+
+goal: >-
+  Preserve the auth, Caido, code-execution and exploitability guidance from
+  contractor-old as explicit future-compatible Agent Skill packages while
+  removing false claims about Runtime tools, sandboxes and old Memory paths.
+
+context:
+  source: >-
+    Use only contractor-old revision
+    9c76b56cf7b83377fb1dd5e4a17440fa27b723f3 and directories
+    contractor/skills/auth, caido, code-exec and exploit. Exploit has fifteen
+    reference files. Old auth text uses auth/* reserved Memory conventions;
+    code-exec promises an ephemeral Kali container/host network; Caido and
+    exploit name legacy tools. None is a current v2 Runtime guarantee.
+  target: >-
+    Create configs/skills/auth, caido, code-exec and exploit using native Agent
+    Skills layout. Compatibility text must state the exact Toolsets/operations
+    a future AgentTemplate must select. Packages remain unassigned until those
+    capabilities and authorized-target workflow contracts exist.
+  memory_contract: >-
+    memory-tools@1 exports exactly list_memories, read_memory, write_memory,
+    append_memory, search_memory and list_memory_tags. Note names are at most
+    128 ASCII bytes and match ^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$, so old auth/*
+    paths must become explicit names such as auth_creds and auth_endpoints.
+
+scope:
+  in:
+    - Convert roots to SKILL.md with valid name/metadata, preserve all fifteen exploit references and rewrite native resource-loading examples.
+    - Rewrite old auth/* note paths to the v1 memory-tools@1 operation vocabulary and valid logical note names, always conditional on explicit AgentTemplate MemoryTools selection.
+    - Remove unconditional claims about Kali, mounted /project, host network, subprocess persistence or tool availability; express recipes conditionally on explicitly selected compatible Toolsets/SandboxProfile.
+    - Inventory every mentioned model-visible tool and record the required future Toolset operation; do not create aliases, fake tools or broader Runtime capabilities merely to make prose true.
+    - Retain explicit authorization, scope verification, non-destructive proof and cleanup constraints from the reviewed source and add no new target/payload material.
+    - Keep all four packages unassigned and add config tests preventing accidental selection by current general-purpose Workers.
+    - Add whole-group inventory, reference closure, deterministic package and forbidden legacy assumption tests.
+  out:
+    - Implementing Caido/code-exec/HTTP exploit Toolsets, network sandboxing, credentials, live-target Workflows, automatic authorization decisions or script support.
+
+deliverables:
+  - {path: configs/skills/auth, description: Migrated conditional authentication-discovery package.}
+  - {path: configs/skills/caido, description: Migrated conditional Caido workflow package.}
+  - {path: configs/skills/code-exec, description: Migrated conditional code-execution usage package with no false sandbox promise.}
+  - {path: configs/skills/exploit, description: Migrated exploitability package and fifteen references with retained safety boundary.}
+  - {path: docs/migrations/contractor-old-agent-skills-live.md, description: Tool compatibility matrix and source accounting for the live-testing group.}
+  - {path: internal/agentskills, description: Whole-group package and compatibility regression tests.}
+
+requirements:
+  - id: R1
+    text: A package can describe how to use a tool only conditionally; it cannot grant, register or imply that tool, proxy, network access or sandbox profile.
+  - id: R2
+    text: Memory wording matches memory-tools@1 list/read/write/append/search/tag operations and never relies on contractor-old reserved skill/memory categories.
+  - id: R3
+    text: Packages remain dormant ordinary artifacts until an explicit future AgentTemplate selects both the package and every required tool operation.
+  - id: R4
+    text: Authorization and non-destructive testing constraints remain prominent in SKILL.md rather than hidden in an optional reference.
+
+acceptance_criteria:
+  - id: A1
+    given: Old and new inventories at the pinned source revision.
+    when: Migration accounting runs.
+    then: All 19 source Markdown files are mapped exactly once and no implementation/source binary is copied.
+  - id: A2
+    given: All four migrated packages.
+    when: Strict validation, deterministic packaging and resource closure run.
+    then: Every package passes, all fifteen exploit references resolve and no skills_read/skills_list token or false unconditional Runtime promise remains.
+  - id: A3
+    given: The compatibility matrix and current descriptors/AgentTemplates.
+    when: Tests compare required operations with implemented selections.
+    then: No current AgentTemplate selects these packages and no migration adds a tool, capability or Runtime descriptor.
+  - id: A4
+    given: Auth/exploit root instructions loaded without references.
+    when: Their safety contract is reviewed.
+    then: Explicit authorization, target scope, non-destructive evidence and cleanup are visible before any procedural detail.
+
+tests:
+  - {name: packages, command: "make test-migrated-agent-skills-live", covers: [A1, A2, A4]}
+  - {name: validator, command: "go test ./internal/agentskills/...", covers: [A1, A2]}
+  - {name: compatibility, command: "go test ./internal/config/... -run SkillCompatibility", covers: [A3]}
+  - {name: legacy-scan, command: "! rg -n 'skills_(read|list)|always in memory|ephemeral Kali container|mounted read-only at /project' configs/skills/auth configs/skills/caido configs/skills/code-exec configs/skills/exploit", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

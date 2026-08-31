@@ -24,6 +24,10 @@ remain replaceable deployment adapters.
 - [First slice and open decisions](spec/05-first-slice-and-open-decisions.md)
 - [Server UI and Operations](spec/06-server-ui-and-operations.md)
 - [Runtime labels and infrastructure configuration](spec/07-runtime-labels-and-infrastructure-config.md)
+- [Shared MemoryTools](spec/08-memory-tools.md)
+- [Agent Skills](spec/09-agent-skills.md)
+- [Runtime filesystems and Edit tools](spec/10-runtime-filesystems-and-edit-tools.md)
+- [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Local commands
 

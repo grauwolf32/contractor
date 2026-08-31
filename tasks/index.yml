@@ -62,6 +62,29 @@ fixed_decisions:
     toolset: >-
       memory-tools@1 exports exactly list, read, write, append, any-tag search
       and tag-list operations selected through each AgentTemplate allowlist.
+  agent_skills:
+    source: Versionless UserScope ArtifactRefs in AgentTemplate, resolved exactly per Run
+    storage: Ordinary UserScope and reserved read-only RunScope Artifact bindings
+    catalog: >-
+      Internal SkillCatalog validates bundled sources and resolves/forks
+      ordinary artifacts; it has no endpoint, SystemScope or separate schema.
+    runtime: >-
+      Google ADK native SkillToolset with registry disabled; the initial package
+      profile accepts SKILL.md, references and assets but rejects scripts.
+  runtime_filesystems:
+    ownership: >-
+      Named host roots, local/memory/overlay mode, upper state and host-write
+      authority are immutable Python Runtime Agent startup configuration; no
+      path, backend state or change set crosses the Server wire.
+    implementation: >-
+      fsspec-backed WorkspaceReader/Writer/ChangeSet adapters with virtual
+      rooted paths; Edit tools depend on narrow interfaces rather than concrete
+      Local, Memory or Overlay classes.
+    safety: >-
+      Direct or materialized host mutation requires hostWrite=true plus an
+      explicitly selected tool. Memory/overlay state is allocation-private,
+      and interrupted local materialization fences Runtime startup until its
+      local journal is recovered.
   deployment:
     topology: >-
       One VM, one Server process, PostgreSQL, and one or more single-slot
@@ -156,6 +179,65 @@ milestones:
       logical Workers through explicitly selected bounded Run-scoped notes over
       the existing ArtifactStore, with hidden revisions, safe response-loss
       reconciliation, exact routing schemas and content-free telemetry.
+  - id: agent-skills-mvp
+    exit_task: V10-007
+    outcome: >-
+      Bundled and owner-updated LikeC4 Skill artifacts are validated, pinned per
+      Run and loaded through native ADK progressive disclosure using only the
+      existing Artifact APIs and persistence.
+  - id: agent-skills-port-and-hardening
+    exit_task: V10-010
+    outcome: >-
+      All nine contractor-old packages are migrated with explicit compatibility
+      boundaries, and adversarial races/isolation/redaction prove that no script
+      or Skill-specific transport/persistence authority was introduced.
+  - id: runtime-filesystems-mvp
+    exit_task: V11-009
+    outcome: >-
+      One Runtime-local configuration exposes confined named project roots
+      through local, isolated-memory and overlay Workspace sessions; explicitly
+      selected read/Edit/change tools work with bounded backend-independent
+      behavior and no Server filesystem state.
+  - id: runtime-filesystems-materialization-and-hardening
+    exit_task: V11-012
+    outcome: >-
+      Explicit overlay materialization detects stale lowers, recovers partial
+      host writes before registration, and the selectively ported legacy plus
+      adversarial matrix proves path confinement, allocation isolation,
+      cancellation, cleanup and content-free metrics.
+
+v8_v11_spec_review:
+  reviewed_on: "2026-09-01"
+  verdict: ready_to_implement
+  blocking_findings: []
+  corrections_applied:
+    - >-
+      Removed model-visible run_skill_script and ADK's stock script-bearing
+      guidance; the Runtime adapter keeps only native list/load/resource Skill
+      behavior and probes that exact surface.
+    - >-
+      Bound Planner Memory mutations to the active StageExecution and the same
+      durable finalizing/aborting Artifact write fence as Worker mutations.
+    - >-
+      Kept project filesystems entirely Runtime-local, separated the new
+      contractor_runtime.projectfs package from existing allocation scratch,
+      and prohibited filesystem fields in Server wire/API/database state.
+    - >-
+      Reconciled project import with the existing 30-second global Runtime
+      startup deadline and made hostWrite probing non-mutating.
+    - >-
+      Added hard-link rejection, honest direct-local crash limitations and
+      exact host materialization/journal/recovery resource bounds.
+    - >-
+      Clarified that Contractor credentials have no disabled/revoked state:
+      access removal deletes the Gateway key and durable row through the
+      existing fenced lifecycle.
+  verification:
+    - All indexed task YAML parsed and the 110-task dependency graph is acyclic.
+    - All local Markdown links resolve and git diff whitespace validation passes.
+    - LikeC4 1.56.0 validates docs/spec/architecture.c4.
+    - make verify passes with 175 Python tests, 1 skipped, all Go packages, 102 UI tests, Node server tests and production builds.
+  decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
   completed_through: V8-002
@@ -240,6 +322,10 @@ memory_tools_planning_review:
       timestamps are a small generic Artifact response enhancement; logical
       models and tool schemas never expose ArtifactRef or revision.
     - >-
+      Planner direct-store mutations are StageExecution-bound and linearize in
+      the same Artifact transaction as finalizing/aborting write fencing; they
+      do not become a Run-wide bypass around the Worker allocation fence.
+    - >-
       V9-001 starts after the label-runtime P0 process gate V8-013, so the
       MemoryTools MVP does not wait for label UI/Planner-telemetry hardening.
       V9-005 joins V8-016 before the final adversarial release gate.
@@ -276,6 +362,184 @@ memory_tools_planning_review:
       Concurrent different-name creates in one Memory Namespace are outside v1
       scheduling. Enabling them requires generic ArtifactStore atomic batch/CAS
       before changing Scheduler or Planner concurrency.
+
+agent_skill_port:
+  source_repository: /home/ruslan/src/contractor-old
+  reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  package_inventory:
+    - {target: likec4, source: contractor/skills/likec4, markdown_files: 15, assignment: [likec4_builder@2, likec4_validator@2]}
+    - {target: stride, source: contractor/skills/stride, markdown_files: 1, assignment: []}
+    - {target: trace, source: contractor/skills/trace, markdown_files: 8, assignment: []}
+    - {target: vuln-scan, source: contractor/skills/vuln_scan, markdown_files: 9, assignment: []}
+    - {target: vulns, source: contractor/skills/vulns, markdown_files: 5, assignment: []}
+    - {target: auth, source: contractor/skills/auth, markdown_files: 1, assignment: []}
+    - {target: caido, source: contractor/skills/caido, markdown_files: 1, assignment: []}
+    - {target: code-exec, source: contractor/skills/code-exec, markdown_files: 1, assignment: []}
+    - {target: exploit, source: contractor/skills/exploit, markdown_files: 16, assignment: []}
+  migration_rules:
+    - Rename every index.md to exact SKILL.md and add frontmatter name matching the target directory.
+    - Replace contractor-old skills_read/skills_list semantics with native ADK progressive resource loading.
+    - Preserve useful domain content and safety boundaries while removing false assumptions about old prompts, Memory paths, tools, sandboxes and Runtime capabilities.
+    - Keep a migrated package unassigned until a current AgentTemplate has every required behavior/tool contract; only LikeC4 is selected in this increment.
+
+agent_skills_planning_review:
+  reviewed_on: "2026-09-01"
+  verdict: ready_after_label_runtime_p0
+  checks:
+    - >-
+      The design reuses ordinary owner UserScope Artifact PUT/GET/history and
+      exact UserScope-to-RunScope forks. SkillCatalog is an internal validation
+      and resolution boundary, not a new HTTP API, Artifact scope, SQL model or
+      Runtime credential.
+    - >-
+      AgentTemplate contains optional versionless skills ArtifactRefs, with
+      omitted and explicit empty sets normalized identically;
+      WorkflowRun resolves all current/later/escalation template refs once and
+      stores exact owner source, Run fork and package digest before scheduling.
+    - >-
+      V10-001 owns the hostile-package contract, V10-002 owns SkillCatalog and
+      bundled initialization, V10-003 owns template/Run pinning, V10-004 owns
+      wire parity and V10-005 owns only Runtime/ADK lifecycle. Their boundaries
+      do not require a worker to infer behavior from this specification.
+    - >-
+      The P0 path ends at V10-007 after LikeC4 migration and exercises the
+      production Artifact API for package update, exact old/new Run pinning,
+      native ADK functions and slot cleanup without direct state fixtures.
+      Skill-enabled LikeC4 templates and Workflows are additive versions;
+      existing versioned configuration remains unchanged.
+    - >-
+      The remaining eight contractor-old packages are split by compatibility
+      risk. Analysis packages can migrate independently; live-testing packages
+      wait for V9-005 so old auth memory conventions can be rewritten against
+      the final MemoryTools contract. None is assigned to a mismatched Worker.
+    - >-
+      V10-010 joins the completed label and Memory hardening gates and owns
+      update-vs-initialize races, dual validation, reserved-Namespace attacks,
+      content redaction, cleanup faults and the exact nine-package inventory.
+    - >-
+      The pinned ADK build injects script guidance even without an executor.
+      V10-005 therefore retains native list/load/resource implementations but
+      owns an exact three-tool filter plus a script-free instruction adapter,
+      both covered by its startup compatibility probe.
+    - >-
+      Every V10 task is self-contained, granular, has implementation_commit
+      null until completion, and names focused deterministic tests plus an
+      aggregate verification gate.
+  accepted_risks:
+    - >-
+      Initial public authentication has one owner. Skills are therefore stored
+      in that owner's UserScope; multi-owner shared/operator provisioning is
+      deliberately deferred instead of introducing premature SystemScope/RBAC.
+    - >-
+      The generic Artifact API may store an invalid Skill ZIP. Authoring helper
+      catches this early, but authoritative Server validation occurs only when
+      a referencing Run initializes; unrelated ordinary Artifact behavior stays
+      domain-neutral.
+    - >-
+      A versionless AgentTemplate ref intentionally means future Runs observe a
+      newer owner current revision without a new template version. Exact Run
+      source/fork pinning preserves execution reproducibility after creation.
+    - >-
+      ADK 2.8.0 natively includes run_skill_script and script-bearing guidance.
+      Runtime retains native list/load/resource implementations but filters the
+      script declaration and replaces only that generated guidance; startup
+      probes make an upstream behavior change fail closed.
+
+runtime_filesystem_port:
+  source_repository: /home/ruslan/src/contractor-old
+  reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  implementation_references:
+    - cli/fs.py
+    - contractor/tools/fs/overlayfs.py
+    - contractor/tools/fs/overlay_diff.py
+    - contractor/tools/fs/overlay_patch.py
+    - contractor/tools/fs/read_tools.py
+    - contractor/tools/fs/write_tools.py
+  test_references:
+    - tests/units/cli_tests/test_fs_paths.py
+    - tests/units/cli_tests/test_fs_glob.py
+    - tests/units/cli_tests/test_fs_ls.py
+    - tests/units/contractor_tests/tools/test_fs.py
+    - tests/units/contractor_tests/tools/test_overlayfs.py
+    - tests/units/contractor_tests/tools/test_overlay_patch_type_change.py
+  retained_behavior: >-
+    Virtual rooted paths, bounded path-aware glob/read/search, exact text Edit
+    semantics, CRLF preservation, lower-preserving overlay writes, tombstones,
+    type conflicts, deterministic changed paths, unified diff and rollback.
+  rejected_behavior: >-
+    Implicit overlay wrapping, concrete Overlay isinstance checks in Edit
+    tools, stock global MemoryFileSystem isolation, raw lower delegation,
+    readable symlinks, unbounded fallback scans, Server-persisted overlay state
+    and the specialized longest-byte fork merge.
+
+runtime_filesystems_planning_review:
+  reviewed_on: "2026-09-01"
+  verdict: ready_to_implement_independently
+  checks:
+    - >-
+      The design is Runtime-only. No task adds an AllocationSpec field, public
+      or private endpoint, SQL table, Artifact kind, label setting or UI. Go
+      work is limited to immutable Toolset/tool-name descriptors already
+      required for AgentTemplate authoring validation.
+    - >-
+      Allocation scratch remains local-workdir@1, while project WorkspaceFS is
+      a separate Runtime service sourced from an optional strict local config.
+      This avoids turning SandboxProfile into a path transport or changing an
+      existing exact profile's semantics.
+    - >-
+      The implementation package is contractor_runtime.projectfs because
+      contractor_runtime.workspace already owns allocation scratch; no task
+      creates a conflicting Python module/package or renames existing imports.
+    - >-
+      V11-001 through V11-004 establish config, confinement, isolated memory
+      and overlay behavior before any model-visible mutation is registered.
+      V11-005 through V11-007 then bind independent Reader, Writer and
+      ChangeSet Toolsets, and V11-008 owns lifecycle/capability integration.
+    - >-
+      V11-009 is the earliest process gate and proves a Runtime with no config
+      remains backward compatible. It also proves local/memory/overlay read and
+      Edit parity, diff/rollback and release isolation with no model or network
+      dependency.
+    - >-
+      Host materialization is not hidden inside the MVP. V11-010 owns
+      fingerprint preflight plus the journal state machine, V11-011 owns
+      restart recovery and real-process failure injection, and V11-012 closes
+      legacy/adversarial parity, cancellation, metrics and leak checks.
+    - >-
+      Materialization bounds are executable before the first host write:
+      10000 affected paths, 16 MiB per backup, 64 MiB staged bytes, 128 MiB
+      backup, 8 MiB metadata and bounded resumable startup recovery.
+    - >-
+      Direct local write is deliberately available in the MVP only under
+      hostWrite=true and has no rollback promise. Overlay-local is the safer
+      choice; no automatic finalize/abort materialization exists.
+    - >-
+      Stock fsspec MemoryFileSystem global class state and instance cache are
+      explicitly excluded as isolation mechanisms. Tests create simultaneous
+      and sequential allocation sessions and prove teardown/prefix separation.
+    - >-
+      Every V11 task repeats paths, bounds, failure behavior and exclusions for
+      a worker with no spec context, remains independently testable and starts
+      with implementation_commit null.
+  accepted_risks:
+    - >-
+      Control Plane receives no project identity. Initially, only one eligible
+      filesystem Runtime may be connected or all eligible processes must have
+      equivalent logical mounts/content; artifact auto-mounting or affinity is
+      a later Server/allocation design.
+    - >-
+      Tool confinement is not an OS sandbox against arbitrary in-process code.
+      The increment exposes no shell/Python executor, follows no links and
+      requires a future stronger SandboxProfile for hostile native plugins.
+    - >-
+      A host filesystem cannot provide portable atomic multi-file commit.
+      Materialization therefore uses stale-base preflight, per-file atomic
+      replacement and a recoverable rollback journal rather than claiming a
+      false global transaction.
+    - >-
+      Memory import is strict UTF-8 text-only and bounded to 64 MiB/10,000
+      files per mount. Binary-aware project tooling and larger/remote trees are
+      separate increments.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -445,3 +709,25 @@ tasks:
   - {id: V9-003, file: v9-003-planner-memory-tools.yml}
   - {id: V9-004, file: v9-004-shared-memory-mvp-e2e.yml}
   - {id: V9-005, file: v9-005-shared-memory-hardening.yml}
+  - {id: V10-001, file: v10-001-agent-skill-package-contract.yml}
+  - {id: V10-002, file: v10-002-artifact-backed-skill-catalog.yml}
+  - {id: V10-003, file: v10-003-agent-template-run-skill-pinning.yml}
+  - {id: V10-004, file: v10-004-resolved-skills-allocation-contract.yml}
+  - {id: V10-005, file: v10-005-runtime-adk-skill-toolset.yml}
+  - {id: V10-006, file: v10-006-migrate-likec4-skill.yml}
+  - {id: V10-007, file: v10-007-agent-skills-mvp-e2e.yml}
+  - {id: V10-008, file: v10-008-migrate-analysis-security-skills.yml}
+  - {id: V10-009, file: v10-009-migrate-live-testing-skills.yml}
+  - {id: V10-010, file: v10-010-agent-skills-hardening.yml}
+  - {id: V11-001, file: v11-001-runtime-workspace-config.yml}
+  - {id: V11-002, file: v11-002-confined-workspace-core.yml}
+  - {id: V11-003, file: v11-003-isolated-memory-workspace.yml}
+  - {id: V11-004, file: v11-004-overlay-workspace-core.yml}
+  - {id: V11-005, file: v11-005-filesystem-read-toolset.yml}
+  - {id: V11-006, file: v11-006-backend-independent-edit-toolset.yml}
+  - {id: V11-007, file: v11-007-workspace-change-toolset.yml}
+  - {id: V11-008, file: v11-008-workspace-runtime-lifecycle.yml}
+  - {id: V11-009, file: v11-009-runtime-filesystems-mvp-e2e.yml}
+  - {id: V11-010, file: v11-010-overlay-materialization-journal.yml}
+  - {id: V11-011, file: v11-011-materialization-recovery-e2e.yml}
+  - {id: V11-012, file: v11-012-runtime-filesystems-hardening.yml}

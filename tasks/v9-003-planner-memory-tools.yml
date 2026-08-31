@@ -39,6 +39,7 @@ scope:
     - Keep Planner execution dispatch, add_subtask/list_subtasks/finish surfaces unchanged and detect any final model-visible name collision at construction.
     - Count Planner memory calls through ordinary function-call accounting and one finite maxModelCalls turn each; retain only content-free diagnostics.
     - Reduce durable Planner facts/WebSocket events to operation, logical Worker, note name, byte sizes and stable outcome; strip content, description, tags and hidden revisions.
+    - Bind the trusted Planner Artifact view to the active StageExecution and check its durable write fence atomically in the same transaction as a memory binding mutation; finalizing/aborting wins or the complete write wins, never a late commit.
     - Cancel the bound tool context with Planner invocation and ensure a call completes before candidate/finalizing transition.
   out:
     - Mirroring run-artifacts@1 or any other domain Toolset, Passthrough model tools, concurrent tool execution, new Workflow YAML or dynamic Worker expansion.
@@ -58,6 +59,8 @@ requirements:
     text: Planner never receives a Worker ArtifactClient credential, allocation address, ArtifactRef or revision.
   - id: R4
     text: Passthrough remains deterministic and unchanged even when its sole Worker selects memory-tools@1.
+  - id: R5
+    text: Planner direct-store access is never a Run-wide bypass around StageExecution lifecycle, write fencing or terminal cancellation.
 
 acceptance_criteria:
   - id: A1
@@ -73,9 +76,9 @@ acceptance_criteria:
     when: The next side reads memory.
     then: Both observe the same current logical note and no Artifact revision appears in either model transcript.
   - id: A4
-    given: A stale/unknown Worker, hidden CAS conflict, budget exhaustion or finalizing transition.
+    given: A stale/unknown Worker, hidden CAS conflict, budget exhaustion or concurrent finalizing/aborting transition.
     when: Planner invokes MemoryTools.
-    then: It fails before an unauthorized mutation with a bounded stable error and durable facts contain no note body/description/tags.
+    then: The mutation commits wholly before the fence or fails memory_forbidden with no late write, and durable facts contain no note body/description/tags.
 
 tests:
   - {name: planner-memory, command: "go test ./internal/memory/... ./internal/planner/...", covers: [A1, A2, A3, A4]}

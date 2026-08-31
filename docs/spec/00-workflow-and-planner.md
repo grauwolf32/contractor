@@ -35,8 +35,10 @@ parses and validates them into internal DTOs; the baseline has no hot reload.
 Creating a Run stores the complete validated Workflow snapshot used by that Run,
 including its resolved Planner factory refs and exact digest-bearing
 AgentTemplate, ModelPolicy, LLMGatewayConfig and referenced ExecutionConfig
-dependencies plus every resolved execution configuration, so later file edits
-cannot change its graph or execution contract. Every Workflow has an exact
+dependencies, every resolved execution configuration and exact Agent Skill
+artifact refs/digests selected under [09](09-agent-skills.md), so later file or
+current-Skill-binding edits cannot change its graph or active execution
+contract. Every Workflow has an exact
 configuration key `(name, version)`,
 while the durable snapshot rather than a separately computed Workflow digest
 is the execution authority in the first slice.
@@ -346,6 +348,14 @@ digest-bearing ref and normalized Stage-local body. Unknown or ambiguous
 selectors make the Workflow invalid. The normalized Run snapshot stores the
 resolved refs and dependencies; Scheduler never re-resolves the authoring
 strings while executing that Run.
+
+Agent Skill ArtifactRefs inside those AgentTemplates are the exception to
+configuration-time exact-version selection. They are versionless logical refs
+in the Run owner's ordinary UserScope. Run initialization resolves their union
+to current exact revisions, validates and forks them once into RunScope, then
+stores source/fork provenance and package digests under [09]. Missing or invalid
+current packages fail that Run's initialization rather than making Server
+configuration loading depend on ArtifactStore content.
 
 ### Workflow parameters
 
@@ -767,8 +777,10 @@ At Run creation, the caller maps Workflow input slots to artifacts in its
 authenticated UserScope. Before selecting the first Stage, Workflow Scheduler
 pins their exact versions and forks independent working bindings into the Run's
 reserved `inputs` Namespace. Run output bindings live in reserved `outputs` and
-are created from accepted Stage results. The one-store, scoped fork and
-publication contract is owned by [03](03-artifact-plane.md).
+are created from accepted Stage results. In the same initialization boundary,
+Scheduler pins/forks every selected Agent Skill into reserved `skills`. The
+one-store, scoped fork and publication contracts are owned by
+[03](03-artifact-plane.md) and [09](09-agent-skills.md).
 
 Workflow Scheduler owns this sequence for the normal, successfully prepared
 StageExecution path:
@@ -852,7 +864,7 @@ same immutable WorkflowRunCancellation recorded by the winning cancel request.
 
 - `initializing`: the validated Workflow snapshot, immutable Run parameters,
   normalized executionConfig, pinned default/Run-label configurations and
-  exact input forks are being committed; no Stage may start;
+  exact input and Agent Skill forks are being committed; no Stage may start;
 - `running`: Workflow Scheduler may select and create StageExecutions;
 - `cancelling`: cancellation intent is durable, no new StageExecution or
   Workflow-output mapping is allowed, and active executions are stopped through
@@ -869,11 +881,12 @@ validated request includes Workflow selector, parameters, input refs, sorted
 Run labels and the optional reference-only executionConfig override. Server
 binds the key to the authenticated owner and a canonical digest of that request
 in the same transaction as Run creation, execution-config resolution,
-Run-label pinning and exact input forks. A retry with the same owner, key and
-digest returns the existing Run and does not repeat label resolution, input
-forks or Scheduler notification. Reusing the key with a different digest is a
-conflict. Thus losing the successful HTTP response cannot create a second
-WorkflowRun or semantic execution.
+Run-label pinning, exact input forks and the complete Agent Skill current-source
+selection outcome. A retry with the same owner, key and digest returns the
+existing Run and does not repeat label/Skill resolution, input forks or
+Scheduler notification. Reusing the key with a different digest is a conflict.
+Thus losing the successful HTTP response cannot create a second WorkflowRun or
+semantic execution.
 
 Run success is committed only when all of the following are true:
 
@@ -1155,9 +1168,10 @@ StageMetrics but never rewrites this semantic result.
   position or by parsing an ArtifactRef;
 - metrics are not part of StageResult and cannot change its outcome.
 
-Exact AgentTemplate refs, WorkerRuntime refs, Runtime Agent process identities
-and allocation IDs are recorded with the StageExecution for provenance; they
-are not duplicated inside presentation content.
+Exact AgentTemplate refs, Run-pinned Agent Skill refs/digests, WorkerRuntime
+refs, Runtime Agent process identities and allocation IDs are recorded with the
+StageExecution for provenance; they are not duplicated inside presentation
+content.
 
 Scheduler-driven cancellation or interruption is not represented as a
 StageResult. It uses the distinct `StageTermination` contract defined in

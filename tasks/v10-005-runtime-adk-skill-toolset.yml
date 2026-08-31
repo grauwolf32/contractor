@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V10-005
+title: Load exact Run skills through native ADK SkillToolset
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-001, V10-004]
+languages: [python]
+
+goal: >-
+  Construct each Python ADK Worker with exactly its allocation-selected Skill
+  packages, native progressive-disclosure tools and deterministic cleanup while
+  preserving the single-slot Runtime lifecycle.
+
+context:
+  preparation: >-
+    resolvedSkills contains exact RunScope skills/<name> refs and exact package
+    digests. Runtime fetches bytes through its allocation-bound private Artifact
+    client after workspace/grant creation but before Worker readiness. It must
+    require media type application/vnd.contractor.agent-skill+zip, revalidate
+    with V10-001, verify digest/name, and extract only into allocation-local
+    storage.
+  adk_contract: >-
+    Use the pinned Google ADK native package loader and list/load/resource tool
+    implementations through one Contractor adapter around
+    SkillToolset(skills=[...], registry=None). Expose exactly list_skills,
+    load_skill and load_skill_resource. Filter run_skill_script and replace the
+    stock ADK instruction because ADK 2.8.0 mentions scripts even when no
+    executor is configured.
+
+scope:
+  in:
+    - Extend adk@1 startup probing to verify exact pinned ADK Skill models, package loader, registry=None construction and exactly list_skills/load_skill/load_skill_resource with no run_skill_script or search_skills before registration.
+    - Fetch exact artifacts sequentially with existing private timeouts/limits; reject media, digest, name, manifest or extraction mismatch before instantiating ADK Agent.
+    - Enforce the 32-package, 64 MiB stored and 128 MiB decompressed allocation totals in addition to every per-package limit.
+    - Extract through validated member paths with exclusive/no-follow semantics into the allocation workspace and never scan host/global skill directories.
+    - Attach no SkillToolset for an empty list and exactly one script-free adapter over the native SkillToolset for a non-empty list; pass registry=None, no environment/code_executor/skills_folder/additional_tools/tool_name_prefix, and an exact three-tool filter.
+    - Replace only ADK's stock script-bearing system instruction with bounded progressive-disclosure guidance for SKILL.md, references and assets; assert the outgoing request contains no run_skill_script, search_skills or scripts/ guidance and do not auto-activate/copy every body.
+    - Validate model-supplied skill names against the exact allocation set and bound portable reference/asset paths before native dispatch; reject oversize, absolute, backslash and dot-segment values as INVALID_ARGUMENTS without retaining them as metric paths.
+    - Before native dispatch, use a Runtime-owned ADK callback to atomically reserve a deterministic conservative charge for complete model-visible list_skills/load_skill/load_skill_resource results, including envelopes, metadata, encoded binary data and repeats; cap the allocation at 16 MiB, do not refund a reservation after a later native error, and return SKILL_DISCLOSURE_LIMIT before activation/content lookup on overflow.
+    - Keep ADK activation State allocation-local and collect safe tool metrics containing only name, bounded resource path, outcome, duration, byte count and stable code.
+    - Map preparation failures to skill_artifact_unavailable, skill_digest_mismatch, the exact V10-001 validator code or skill_runtime_unsupported with specified retryability.
+    - On release/lease loss remove extraction, Skill objects, toolset, activation State and model context before idle; cleanup failure keeps the slot fenced.
+  out:
+    - Script execution, remote registry/search_skills, a name-based mutable cache, Server package resolution or Planner skills.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/agent_skills, description: Exact Artifact fetch validation extraction native ADK loader and lifecycle owner.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Worker factory SkillToolset composition and preparation failure mapping.}
+  - {path: runtime/src/contractor_runtime/capabilities.py, description: adk@1 native Agent Skills startup probe without package-name capabilities.}
+  - {path: runtime/src/contractor_runtime/metrics.py, description: Content-free Skill function metric projection.}
+  - {path: runtime/tests, description: Native function invocation extraction attack preparation and cleanup tests.}
+
+requirements:
+  - id: R1
+    text: Runtime trusts neither Server validation nor ZIP metadata; it verifies exact bytes and streams all bounds again before ADK sees a path.
+  - id: R2
+    text: registry is always None and Runtime never receives or uses owner UserScope refs, owner Artifact credentials, database credentials or a global package directory; its existing allocation-bound mTLS client is the only package transport.
+  - id: R3
+    text: run_skill_script is absent from declarations and generated instructions; no Skill path can reach subprocess, shell, executor callback or network.
+  - id: R4
+    text: No cleanup path may transition the slot to idle while allocation-local Skill material or activated State remains reachable.
+  - id: R5
+    text: Progressive disclosure is bounded independently of model behavior; each pre-dispatch charge is no smaller than its possible native result and all reservations total at most 16 MiB per allocation.
+
+acceptance_criteria:
+  - id: A1
+    given: One exact valid package containing SKILL.md and a reference.
+    when: A scripted ADK model calls list_skills, load_skill and load_skill_resource.
+    then: Native ADK functions return only the selected package/body/resource and Worker completes under normal tool/model/disclosure budgets.
+  - id: A2
+    given: Wrong media, digest, name, traversal, oversize or malformed packages returned by the private Artifact endpoint.
+    when: Allocation preparation runs.
+    then: No Worker/A2A task becomes ready, the exact stable failure class is reported and no extracted material survives.
+  - id: A3
+    given: A non-empty selected package and a captured outgoing ADK model request.
+    when: The Skill adapter contributes instructions and function declarations.
+    then: Exactly list_skills, load_skill and load_skill_resource are declared, guidance mentions no scripts/run/search function, and no executor/process/network entry point is reachable.
+  - id: A4
+    given: Normal release, abort, lease loss and injected deletion failure.
+    when: Runtime tears down allocation.
+    then: Successful cleanup leaves no Skill state before idle; deletion failure fences the slot and safe report/log surfaces contain no package content.
+  - id: A5
+    given: Repeated valid list, body and resource calls whose deterministic charges fall immediately below, exactly at and across the 16 MiB allocation limit.
+    when: Native calls execute through Runtime callbacks.
+    then: Reservations up to the exact limit dispatch, the first overflowing call returns bounded SKILL_DISCLOSURE_LIMIT without activation or content lookup, an injected later native error is not refunded, and release resets the counter for the next allocation.
+
+tests:
+  - {name: native-adk, command: "cd runtime && uv run pytest tests/test_agent_skill_toolset.py tests/test_adk_runtime.py", covers: [A1, A2, A3, A5]}
+  - {name: lifecycle, command: "cd runtime && uv run pytest tests/test_agent_skill_lifecycle.py tests/test_slot_manager.py", covers: [A2, A4, A5]}
+  - {name: metrics, command: "cd runtime && uv run pytest tests/test_metrics.py -k skill", covers: [A1, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V10-001
+title: Define deterministic Agent Skill package validation
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-013]
+languages: [go, python]
+
+goal: >-
+  Give Server, Runtime Agent and repository authors one byte-exact, hostile-ZIP
+  safe contract for the initial non-executable Agent Skills package profile.
+
+context:
+  package_profile: >-
+    A package stores canonical application/vnd.contractor.agent-skill+zip with
+    no parameters. Its archive root contains exact uppercase SKILL.md plus
+    optional regular files under
+    references/ and assets/. scripts/, other roots, links, special files,
+    encrypted members, duplicate normalized paths and unsafe paths are invalid.
+    Resource paths are lowercase portable POSIX paths: at most eight components
+    and 512 ASCII bytes total; each component matches
+    [a-z0-9][a-z0-9._-]{0,127}. Accept only stored/deflate ZIP members.
+  frontmatter: >-
+    SKILL.md is UTF-8 YAML frontmatter plus a non-empty Markdown body. name and
+    description are required; name is 1-64 lowercase ASCII letters/digits with
+    single hyphens, description is at most 1024 UTF-8 bytes, license at most
+    512, compatibility at most 500. metadata has at most 32 string pairs, keys
+    match [A-Za-z0-9_.-]{1,64}, values are at most 1024 UTF-8 bytes. Reject
+    duplicate YAML keys, allowed-tools/allowed_tools and metadata keys prefixed
+    adk_. Frontmatter content is at most 32 KiB and bounded tokenization accepts
+    at most 128 YAML nodes at depth at most 3 before typed construction.
+  bounds: >-
+    Stored ZIP is at most 16 MiB, entry count at most 2000, declared and
+    actually streamed decompression at most 32 MiB, SKILL.md at most 256 KiB,
+    one reference or asset at most 1 MiB. Text members have
+    no NUL and are valid UTF-8. Digest is lowercase sha256:<64 hex> over exact
+    ZIP bytes.
+  failure_codes: >-
+    Use exactly skill_archive_invalid, skill_path_invalid,
+    skill_member_forbidden, skill_manifest_invalid, skill_name_mismatch and
+    skill_limit_exceeded. A diagnostic may include only a portable validated
+    member name and never content, raw parser text or an absolute path.
+
+scope:
+  in:
+    - Implement a side-effect-free Go validator/parser and equivalent Python Runtime validator with stable error classes and safe diagnostics.
+    - Share valid and adversarial package fixtures and assert both languages accept/reject the same corpus and return the same normalized manifest and digest.
+    - Enforce streamed decompression limits independently of forged ZIP central-directory sizes and reject traversal, backslashes, absolute paths, links and duplicate normalized paths before extraction.
+    - Add a contractor-skill validate/package developer command that creates deterministic ZIPs from configs/skills/<name> using lexicographic paths, fixed portable metadata and unchanged source bytes; open every source entry no-follow and reject symlinks or special files instead of traversing them.
+    - Reject unknown frontmatter keys, YAML aliases/anchors/custom tags and non-string mapping keys; accept only name, description, license, compatibility and metadata, enforcing byte/node/depth bounds before recursive typed construction.
+    - Keep the parsed manifest limited to safe frontmatter metadata, resource paths, per-resource sizes and exact digest; never retain instruction/resource content in errors or logs.
+  out:
+    - Artifact persistence/catalog initialization, AgentTemplate resolution, ADK loading, scripts, signing, remote registries or a skill editor.
+
+deliverables:
+  - {path: internal/agentskills, description: Canonical Go package model validator parser and deterministic archive writer.}
+  - {path: runtime/src/contractor_runtime/agent_skills, description: Runtime-side equivalent package validator and safe manifest model.}
+  - {path: testdata/agent-skills, description: Cross-language valid malformed adversarial and boundary fixtures.}
+  - {path: cmd/contractor-skill, description: Local validate and deterministic package authoring command.}
+
+requirements:
+  - id: R1
+    text: Validation is all-or-nothing and never silently drops a forbidden member or normalizes bytes before digesting.
+  - id: R2
+    text: Extraction is not part of the shared validator; it returns only validated paths and bounded member readers so callers cannot accidentally trust raw names.
+  - id: R3
+    text: Go and Python use the same stable failure-code vocabulary without embedding archive content, host paths or raw parser errors.
+  - id: R4
+    text: Packaging reads only no-follow regular source files and emits lexicographically ordered stored files with fixed DOS-epoch timestamps, portable 0644 mode, ASCII names and no directory entries/extras/comments, so identical sources produce byte-identical ZIP and digest.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid package with SKILL.md, references and a binary asset.
+    when: Go and Python validate it.
+    then: Both return the exact same name, description, safe metadata, ordered resource inventory and sha256 digest.
+  - id: A2
+    given: Traversal, absolute/backslash paths, links, duplicates, scripts, forbidden frontmatter and malformed UTF-8 fixtures.
+    when: Both validators process them.
+    then: Every fixture is rejected before extraction with the expected stable safe code.
+  - id: A3
+    given: Forged sizes, compression bombs and every exact count/byte boundary.
+    when: Validation streams the archive.
+    then: Limits cannot be bypassed and boundary-valid packages remain accepted without unbounded memory use.
+  - id: A4
+    given: One reviewable configs/skills/<name> source tree.
+    when: contractor-skill package is invoked twice and both outputs are validated.
+    then: Outputs are byte-identical, source files remain unchanged and SKILL.md name equals the directory/package name.
+
+tests:
+  - {name: go-validator, command: "go test -race ./internal/agentskills/... ./cmd/contractor-skill/...", covers: [A1, A2, A3, A4]}
+  - {name: python-validator, command: "cd runtime && uv run pytest tests/test_agent_skill_package.py", covers: [A1, A2, A3]}
+  - {name: cross-language, command: "make test-agent-skill-contract", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

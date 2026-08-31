@@ -32,7 +32,7 @@ scope:
     - Inject response loss before/after private Artifact PUT commit for create, replacement and append and assert canonical same-precondition reconciliation.
     - Inject a newer same-binding Artifact revision between MemoryTools read and write and assert memory_changed without overwrite or semantic merge.
     - Exercise serial notes 0 through 127, the rejected 129th create, existing-note update at capacity, exact ordering and malformed stored memory payloads.
-    - Race Worker mutation against the durable finalizing/aborting fence and prove the existing Artifact mutation/fence linearization remains authoritative.
+    - Race both Worker private-API and Planner direct-store mutations against the durable finalizing/aborting fence and prove one shared Artifact mutation/fence linearization remains authoritative.
     - Verify run-artifacts@1 prefix filtering cannot be bypassed through encoded names, explicit revision, list filters or tool argument aliases.
     - Scan PostgreSQL text/JSON, reports, Planner sessions/events, HTTP errors, logs and OTLP for unique content/description/tag canaries.
     - Assert migration/schema and route inventories contain no Memory-only table, replay record, endpoint or credential and include the gate in release verification.
@@ -62,7 +62,7 @@ acceptance_criteria:
     when: Worker reconciliation executes.
     then: Each logical mutation occurs at most once, exact intended current bytes return success and any newer differing bytes return memory_changed.
   - id: A2
-    given: A stale write, capacity boundary and terminal fence race.
+    given: A stale write, capacity boundary and Worker/Planner terminal fence races.
     when: Faults are released in both possible orders.
     then: CAS/fence winner is authoritative, count/order remain valid under serialized creation and no late memory Artifact commits after the fence.
   - id: A3

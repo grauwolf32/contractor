@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V11-003
+title: Add bounded isolated in-memory project snapshots
+milestone: runtime-filesystems-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-002]
+languages: [python]
+
+goal: >-
+  Load complete bounded non-binary source trees into an immutable Runtime
+  startup baseline and give every allocation an independently writable fsspec
+  memory clone with no host mutation or cross-allocation state.
+
+context:
+  import_contract: >-
+    Walk one configured memory/overlay-memory host root without following links.
+    Import regular files only when bytes are strict UTF-8 with no NUL; preserve
+    bytes and safe empty directories. Skip fixed VCS, Contractor, virtualenv,
+    dependency, cache, build and known binary paths. Count/size/depth bounds per
+    mount are 100000 visited entries, 10000 imported files, 4 MiB/file, 64 MiB
+    total and depth 50; the complete configured import phase has one 30-second
+    deadline shared across all memory-backed mounts. Any scan/time/size/count
+    ceiling makes startup fail rather than silently publish a partial tree.
+  isolation: >-
+    fsspec MemoryFileSystem has global class-level store/pseudo_dirs and normal
+    fsspec classes may cache instances. That stock unprefixed behavior is not an
+    allocation boundary. Use instance-owned state or an unguessable private
+    prefix hidden by the mount adapter, skip instance cache, and erase it on
+    close. Each allocation starts from the same frozen baseline, never a prior
+    allocation's mutable state.
+
+scope:
+  in:
+    - Implement bounded deterministic startup scanning and a content-free ImportSummary with imported/skipped counts and byte totals by reason.
+    - Reject root changes/symlinks/special files observed between enumeration and open; a skipped binary is allowed, an unsafe structural race fails the snapshot.
+    - Build an immutable baseline manifest with normalized relative paths, entry kinds, sizes and SHA-256 hashes; do not retain skipped bytes.
+    - Implement IsolatedMemoryFileSystem satisfying the V11-002 Reader/Writer contract including empty directories, quotas, type errors, glob and cleanup.
+    - Clone the baseline for each allocation without aliasing mutable file buffers or directory collections.
+    - Add simultaneous and sequential allocation tests that know another allocation's virtual paths but still cannot observe its created/edited/deleted state.
+  out:
+    - Overlay/tombstones, ADK Toolsets, host writes, Artifact archives, source parser migration or materialization.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/projectfs/importer.py, description: Bounded text-tree scanner baseline manifest and safe summary.}
+  - {path: runtime/src/contractor_runtime/projectfs/memory.py, description: Allocation-isolated fsspec-compatible memory Reader/Writer.}
+  - {path: runtime/tests/test_workspace_importer.py, description: Binary ignored race and exact-bound fixtures.}
+  - {path: runtime/tests/test_workspace_memory.py, description: Backend parity clone isolation and teardown tests.}
+
+requirements:
+  - id: R1
+    text: A successful baseline is complete under declared filters and bounds; truncation is never a successful capability.
+  - id: R2
+    text: Imported source bytes and names beyond bounded virtual diagnostics are absent from logs/metrics and no host path enters ImportSummary.
+  - id: R3
+    text: Mutating or closing one clone cannot alter the frozen baseline, another live clone or a later clone.
+  - id: R4
+    text: Memory mutations obey the exact same virtual path, text and quota contract as rooted local mutations.
+
+acceptance_criteria:
+  - id: A1
+    given: A mixed source tree with UTF-8, binary, invalid encoding, ignored directories, empty dirs, links and boundary-sized files.
+    when: Snapshot import runs.
+    then: Only safe complete text state is retained, unsafe structure/overflow fails, and summary counts are exact without content.
+  - id: A2
+    given: Two concurrent allocation clones and a third clone after both close.
+    when: Identical paths are edited, added and removed independently.
+    then: Each effective tree is isolated and the third clone equals the immutable startup baseline.
+  - id: A3
+    given: Repeated Runtime factory construction using equal fsspec options.
+    when: Instance caching and global MemoryFileSystem state would normally reuse data.
+    then: Contractor instances remain separate and teardown leaves no reachable allocation prefix or buffer.
+
+tests:
+  - {name: memory-workspace, command: "cd runtime && uv run pytest tests/test_workspace_importer.py tests/test_workspace_memory.py", covers: [A1, A2, A3]}
+  - {name: leak-regression, command: "cd runtime && uv run pytest tests/test_workspace_memory.py -k 'isolation or teardown or cache'", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

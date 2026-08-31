@@ -70,7 +70,7 @@ model {
     #optional
   }
 
-  configFilesystem = system 'Published YAML — operator + managed roots' {
+  configFilesystem = system 'Published config roots — YAML/text definitions + bundled Skill sources' {
     #external
   }
 
@@ -127,6 +127,11 @@ model {
     #optional
   }
 
+  runtimeWorkspaceRoots = system 'Runtime-local project roots — operator configured / never sent to Server' {
+    #external
+    #optional
+  }
+
   server = system 'Contractor Server' {
     #contractor
 
@@ -167,6 +172,10 @@ model {
     }
 
     agentTemplateCatalog = component 'AgentTemplate Catalog — versioned behavior definitions' {
+      #contractor
+    }
+
+    skillCatalog = component 'Agent Skill Catalog — validate bundled sources; resolve/fork ordinary owner artifacts' {
       #contractor
     }
 
@@ -242,6 +251,7 @@ model {
     workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
     workflowCatalog -> executionConfigService 'Resolve exact digest-bearing escalation profiles'
     workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
+    workflowScheduler -> skillCatalog 'Resolve owner refs once; validate and fork exact packages into RunScope'
     workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
     publicApi -> runtimeConfigService 'Pin default + explicit Run labels in idempotent Run creation'
     workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
@@ -250,7 +260,7 @@ model {
     plannerFactories -> executionConfigService 'Resolve pinned Planner credential'
     stagePlanner -> workerInvokerTools 'Dispatch exact current subtask sequentially; Router selects logical worker_name'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
-    workflowScheduler -> artifactService 'Pin/fork inputs; transactionally bind exact accepted Run outputs'
+    workflowScheduler -> artifactService 'Pin/fork inputs and exact owner skills; transactionally bind accepted Run outputs'
     stagePlanner -> plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
     stagePlanner -> plannerSessionService 'Durable request/completion, typed plan projection and redacted ADK facts'
     stagePlanner -> plannerMemoryTools 'Stage-bound Streamline/Router MemoryTools; logical Worker view only'
@@ -261,6 +271,7 @@ model {
     controlPlane -> runtimeConfigService 'Overlay pinned Run config with candidate Agent labels; resolve adapters + secrets'
     artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
     artifactService -> blobStore 'Stream immutable content'
+    skillCatalog -> artifactService 'Create missing owner skills/*; resolve current and fork exact revisions into RunScope'
     plannerMemoryTools -> artifactService 'Reserved memory.* canonical note artifacts; hidden Artifact revisions'
     controlPlane -> telemetry 'Bind allocation final reports to trusted execution identity'
     workflowScheduler -> telemetry 'Assemble bounded StageMetrics while finalizing or aborting'
@@ -311,6 +322,16 @@ model {
       #contractor
     }
 
+    workspaceProvider = component 'WorkspaceFS Provider — rooted local / isolated memory / allocation overlay' {
+      #contractor
+      #optional
+    }
+
+    filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
+      #contractor
+      #optional
+    }
+
     namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
       #contractor
     }
@@ -321,6 +342,10 @@ model {
 
     memoryTools = component 'Explicitly selected memory-tools@1 — allocation-bound logical notes' {
       #contractor
+    }
+
+    skillToolset = component 'Native ADK SkillToolset — exact allocation-selected packages / no remote registry' {
+      #adk
     }
 
     artifactClient = component 'Private Artifact API Client / ADK Adapter' {
@@ -339,6 +364,8 @@ model {
     slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
     slotManager -> workerState 'Create / destroy allocation-local Session and State'
     slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
+    capabilityProbe -> workspaceProvider 'Probe immutable Runtime-local mounts and positive filesystem tool subset'
+    slotManager -> workspaceProvider 'Create / discard one allocation WorkspaceSession; never auto-materialize'
     a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
     workerRuntime -> workerState 'Read / update in-memory allocation State'
     workerRuntime -> executionCollector 'Accumulate bounded metrics across allocation'
@@ -346,12 +373,17 @@ model {
     workerRuntime -> namespaceTools 'Construct only AgentTemplate-selected domain tools for fixed Namespace'
     workerRuntime -> runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
     workerRuntime -> memoryTools 'Construct selected shared-note operations for fixed Namespace'
+    workerRuntime -> filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
+    workerRuntime -> skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
     runArtifactTools -> artifactClient 'Read/write/list with explicit CAS preconditions'
     memoryTools -> artifactClient 'Canonical memory.* artifacts with hidden CAS; no model-visible ref/revision'
+    workerRuntime -> artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
     workerRuntime -> modelClient 'Model calls when required'
     adapterHost -> modelClient 'Inject allocation-scoped proxy / telemetry transports'
     adapterHost -> namespaceTools 'Inject proxy-aware clients only into selected tools'
+    filesystemTools -> workspaceProvider 'Virtual rooted paths only; no raw host path or backend selection'
+    workspaceProvider -> runtimeWorkspaceRoots 'Read or explicitly authorized direct/materialized writes; no Server hop'
   }
 
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
@@ -387,6 +419,8 @@ model {
 
   server.telemetry -> telemetryBackend 'Export when configured'
   server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
+  server.agentTemplateCatalog -> configFilesystem 'Load versioned templates and resolved instruction resources'
+  server.skillCatalog -> configFilesystem 'Validate and deterministically package bundled skill source trees before readiness'
   server.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
   server.runtimeConfigService -> artifactDatabase.runtimeConfiguration 'Store immutable configs, CAS bindings and durable Agent labels'
   server.runtimeConfigService -> artifactDatabase.credentials 'Store/resolve encrypted adapter credentials just in time'
@@ -427,6 +461,7 @@ views {
     include server.publicApi
     include server.workflowCatalog
     include server.agentTemplateCatalog
+    include server.skillCatalog
     include server.workflowScheduler
     include server.plannerFactories
     include server.stagePlanner
@@ -449,6 +484,7 @@ views {
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
     include runtimeAgent.memoryTools
+    include runtimeAgent.skillToolset
     include runtimeAgent.artifactClient
 
     exclude * -> * where tag is #contextOnly
@@ -475,6 +511,7 @@ views {
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
     include runtimeAgent.memoryTools
+    include runtimeAgent.skillToolset
     include runtimeAgent.artifactClient
 
     include llmGateway
@@ -493,6 +530,7 @@ views {
     include server
     include server.workflowScheduler
     include server.agentTemplateCatalog
+    include server.skillCatalog
     include server.controlPlane
     include server.runtimeRegistry
     include server.runtimeConfigService
@@ -507,8 +545,30 @@ views {
     include runtimeAgent.workerState
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
+    include runtimeAgent.workspaceProvider
+    include runtimeAgent.filesystemTools
     include runtimeAgent.memoryTools
+    include runtimeAgent.skillToolset
     include runtimeAgent.artifactClient
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view runtimeFilesystems {
+    title 'Contractor v2 — Runtime-only Project Filesystems and Edit Tools'
+
+    include runtimeAgent
+    include runtimeAgent.capabilityProbe
+    include runtimeAgent.slotManager
+    include runtimeAgent.sandboxManager
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.workspaceProvider
+    include runtimeAgent.filesystemTools
+    include runtimeAgent.executionCollector
+    include runtimeWorkspaceRoots
 
     exclude * -> * where tag is #contextOnly
 
@@ -522,6 +582,7 @@ views {
     include apiClient
     include server
     include server.userArtifactApi
+    include server.skillCatalog
     include server.workflowScheduler
     include server.stagePlanner
     include server.plannerArtifactInspector
@@ -535,6 +596,7 @@ views {
     include runtimeAgent.namespaceTools
     include runtimeAgent.runArtifactTools
     include runtimeAgent.memoryTools
+    include runtimeAgent.skillToolset
     include runtimeAgent.artifactClient
 
     include artifactDatabase
@@ -564,6 +626,39 @@ views {
     include runtimeAgent.slotManager
     include runtimeAgent.workerRuntime
     include runtimeAgent.adapterHost
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view agentSkills {
+    title 'Contractor v2 — Owner Artifact Skill Update, Run Pinning and ADK Loading'
+
+    include browser
+    include apiClient
+    include server
+    include server.userArtifactApi
+    include server.agentTemplateCatalog
+    include server.skillCatalog
+    include server.workflowScheduler
+    include server.artifactService
+    include server.artifactRegistry
+    include server.blobStore
+
+    include runtimeAgent
+    include runtimeAgent.controlEndpoint
+    include runtimeAgent.slotManager
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.skillToolset
+    include runtimeAgent.artifactClient
+
+    include artifactDatabase
+    include artifactDatabase.artifactVersions
+    include artifactDatabase.artifactEvents
+    include blobBackend
+    include configFilesystem
 
     exclude * -> * where tag is #contextOnly
 

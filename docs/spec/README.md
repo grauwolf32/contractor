@@ -16,12 +16,17 @@ security are initial Workflow examples, not a closed product-capability enum or
 a restriction on future Workflows. Domain semantics live in YAML Workflow,
 Planner and AgentTemplate definitions rather than in Scheduler branching.
 
-The configuration/UI target loads those definitions from `configs/` with six
-fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
+The configuration/UI target loads YAML/text definitions from `configs/` with
+six fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
 `llm-gateways`, `execution-configs` and `instructions`.
 YAML document identity comes from
 `kind + metadata.name + metadata.version`, not its file name;
 [00](00-workflow-and-planner.md) owns the complete loading contract.
+Reviewable built-in Agent Skill sources live in the additional non-YAML
+`configs/skills` subtree. It is the create-only source for initial
+`SkillCatalog` population of the local owner's ordinary `skills/*` UserScope
+artifacts, not live desired state; restart never overwrites a binding advanced
+through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 
 ## Reading order
 
@@ -36,6 +41,8 @@ YAML document identity comes from
 | [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
 | [07](07-runtime-labels-and-infrastructure-config.md) | Run/Agent labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
 | [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
+| [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
+| [10](10-runtime-filesystems-and-edit-tools.md) | Runtime-local rooted/memory/overlay filesystems and backend-independent Edit tools |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -45,7 +52,7 @@ point for links that previously targeted the monolithic working agreement.
 
 ```text
 Workflow
-  -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs into RunArtifactSpace
+  -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs and selected owner skills into RunArtifactSpace
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
   -> Control Plane resolves pinned default/Run labels plus Agent labels and prepares compatible Worker allocations
@@ -81,7 +88,10 @@ The boundaries are deliberately narrow:
 | Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |
 | Runtime adapter | Allocation-scoped Runtime code configured by Control Plane without adding model-visible tools |
 | ArtifactStore | One physical artifact service, registry and blob boundary |
+| Agent Skill | Owner UserScope guidance artifact selected by AgentTemplate and pinned/forked per Run |
+| SkillCatalog | Internal validator/resolver over ordinary Skill artifacts; no separate API or storage |
 | MemoryTools | Thin Planner/Worker wrapper over reserved RunScope note artifacts; hidden CAS and logical note projection |
+| WorkspaceFS | Runtime-local, allocation-scoped project view over operator-configured rooted/memory/overlay mounts |
 | UserScope | Authenticated user's durable artifact library |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 

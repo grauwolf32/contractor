@@ -6,7 +6,9 @@ Depends on: [00](00-workflow-and-planner.md) through
 [04](04-execution-lifecycle-and-metrics.md),
 [06](06-server-ui-and-operations.md) and
 [07](07-runtime-labels-and-infrastructure-config.md), plus the later
-shared-memory increment in [08](08-memory-tools.md)
+shared-memory increment in [08](08-memory-tools.md) and Agent Skills increment
+in [09](09-agent-skills.md), and the Runtime filesystem increment in
+[10](10-runtime-filesystems-and-edit-tools.md)
 
 ## First implementation slice
 
@@ -352,6 +354,70 @@ changing Stage or Planner ownership. It must demonstrate:
 - a process-level test covers one Streamline Worker, two Router Workers,
   response loss, same-binding CAS conflict, quota and terminal release.
 
+## Agent Skills increment
+
+The Agent Skills increment adds centrally updateable Worker guidance without
+changing Planner, Workflow graph or A2A Task semantics. It must demonstrate:
+
+- AgentTemplate has an optional sorted set of versionless `skills/*`
+  ArtifactRefs; omission and an explicit empty set are identical;
+- reviewable packages under `configs/skills/<name>` create only missing
+  configured-owner UserScope artifacts through `SkillCatalog` before Server
+  readiness; existing Artifact API updates are never overwritten and differing
+  bytes surface as `seed_drift`;
+- a user/operator updates a package through the existing User Artifact API with
+  ordinary CAS and receives a new exact ArtifactRef; there is no Skill API;
+- Run initialization resolves every referenced current binding once, records
+  exact package refs/digests and forks them into the reserved RunScope `skills`
+  Namespace before scheduling;
+- current UserScope Artifact updates affect new Runs while retries and later Stages of
+  an existing Run retain their exact pinned packages;
+- AllocationSpec carries only exact RunScope refs/digests, and Runtime fetches
+  bytes through the existing private Artifact API before constructing Google
+  ADK's native SkillToolset with no remote registry;
+- packages accept `SKILL.md`, `references/**` and `assets/**`, while dual
+  Server/Runtime validation rejects scripts, executable ADK metadata, traversal,
+  links, duplicates and bounded-size violations;
+- model-visible generic Artifact tools cannot observe or mutate `skills`, a
+  Skill cannot add a domain tool, and Runtime filters both `run_skill_script`
+  and ADK's stock script-bearing guidance;
+- final reports retain bounded Skill tool names/paths/counts/outcomes without
+  instruction or resource content, and release removes all allocation-local
+  extracted files and ADK activation State;
+- the initial `contractor-old` Skill corpus is converted under `configs/skills`,
+  validated, initialized as artifacts and connected only to the intended
+  AgentTemplates rather than copied into MemoryTools.
+
+## Runtime filesystem increment
+
+The Runtime filesystem increment adds project-directory tools without adding a
+Server filesystem boundary. It must demonstrate:
+
+- an optional strict Runtime-local config binds named virtual mounts to
+  operator-owned roots using `local`, `memory`, `overlay-local` or
+  `overlay-memory`; no host path or backend state crosses registration,
+  AllocationSpec, Agent Card or metrics;
+- Runtime startup probes and freezes ordinary `filesystem@1`, `edit-files@1`
+  and `workspace-changes@1` positive tool subsets, while a process without
+  mounts continues to execute existing artifact-only templates;
+- local access is rooted/no-follow, memory baselines contain complete bounded
+  UTF-8 trees and every allocation receives private memory/overlay state;
+- read and Edit tools consume narrow WorkspaceReader/Writer interfaces and
+  behave consistently without inspecting the concrete fsspec backend;
+- overlay changes remain in memory until explicit materialization, with
+  deterministic diff/rollback and stale-lower conflict detection;
+- local host mutation requires trusted `hostWrite: true` plus explicit
+  AgentTemplate selection, and interrupted materialization is recovered from a
+  Runtime-local journal before that process can register again;
+- selected `contractor-old` confinement, Edit and overlay regression tests are
+  ported while implicit overlay wrapping, global MemoryFileSystem state and
+  specialized fork merge are not.
+
+[10](10-runtime-filesystems-and-edit-tools.md) owns the complete contract. The
+first Runtime-only profile assumes one filesystem-capable process or equivalent
+logical mounts across all eligible processes; source Artifact auto-mounting or
+project affinity would be a later Server/allocation increment.
+
 ## Deliberately deferred
 
 The following decisions remain open; no legacy document defines them
@@ -396,6 +462,10 @@ slice implementation needs it.
 - dynamic or concurrent Streamline/Router Worker expansion;
 - cross-Run/user-scoped memory, automatic note injection, semantic retrieval,
   deletion or automatic eviction.
+- Agent Skill script execution, remote registry search, Run/Stage/Planner skill
+  selection, multi-owner shared skills or hot replacement inside an active Run.
+- Server-managed project paths, Run-selected mounts, filesystem affinity or
+  automatic overlay materialization.
 
 ## Exit question
 
@@ -416,3 +486,15 @@ Worker coordinate through bounded notes without seeing revisions, Router
 cannot cross a logical Worker's selected surface, Artifact CAS reconciliation
 cannot duplicate an append, and a new Run starts with an empty Memory
 Namespace.
+
+The Agent Skills increment is successful when one ordinary Artifact CAS update
+is observed by a new Run on any compatible Runtime Agent, an existing Run keeps
+its prior exact package, native ADK progressive disclosure reads its reference
+through no new content API, and no accepted first-profile package can execute a
+script or expand the AgentTemplate's domain-tool authority.
+
+The Runtime filesystem increment is successful when one configured Runtime can
+read and safely edit the same project through local, memory and overlay-backed
+Workspace interfaces, cannot escape a named mount, exposes only its probed tool
+subset, and either completes or recovers an explicitly authorized host
+materialization without introducing any Server filesystem state.

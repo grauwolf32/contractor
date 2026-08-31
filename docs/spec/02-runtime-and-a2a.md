@@ -153,10 +153,16 @@ private registration body bound.
 Every enabled factory owns its local probe semantics:
 
 - a WorkerRuntime probe verifies that the adapter and its Runtime-owned local
-  prerequisites can construct that exact runtime contract;
+  prerequisites can construct that exact runtime contract; for `adk@1` after
+  the Agent Skills increment this includes the pinned ADK Skill models, package
+  loader and native SkillToolset required by [09](09-agent-skills.md), but no
+  particular skill package;
 - a Toolset probe returns the exact subset of `exported_tools` that can honor
   their complete contracts, including required local executables, libraries
-  and compatible versions;
+  and compatible versions; for the optional filesystem Toolsets this probe is
+  backed only by Runtime-local rooted/memory/overlay mount configuration from
+  [10](10-runtime-filesystems-and-edit-tools.md), while registration contains
+  tool names and no mount path or backend state;
 - a SandboxProfile probe proves that the profile can prepare and clean an
   isolated probe resource under its operator-owned root. A cleanup failure is
   a failed probe;
@@ -173,6 +179,14 @@ probe/work root and must remove them before reporting success. External
 programs are invoked directly without a shell, with closed stdin, bounded
 output and the same effective executable search/configuration that the real
 tool will use.
+
+Runtime-local projectfs provider initialization under [10] is shared
+preparation inside that same complete thirty-second phase, not one independent
+tree import per Toolset factory. Filesystem factory probes reuse the frozen
+provider and therefore remain within the five-second per-factory bound. A
+host-write probe validates local primitives/authority without creating a file
+inside the operator's project root; ordinary probe mutations remain confined
+to Runtime-owned work roots.
 
 A positive Toolset capability means more than “the function can be called”. If
 an operation requires an external validator to fulfill its declared behavior,
@@ -358,23 +372,33 @@ For one allocation the Runtime Agent:
 
 1. reserves its only slot and validates `AllocationSpec` against its frozen
    startup runtime, Toolset/tool, SandboxProfile and RuntimeAdapter capability
-   snapshot, including the effective digest-bearing ModelPolicy;
+   snapshot, including the effective digest-bearing ModelPolicy and exact
+   `resolvedSkills` manifest;
 2. asks that profile to prepare the allocation-local workspace;
-3. constructs the selected allocation-scoped infrastructure adapters, prepares
-   allocation-local State and selected tools, then creates one
-   in-process Worker runtime from the complete AgentTemplate plus the effective
-   ModelPolicy selected by the Run's ResolvedExecutionConfig;
-4. configures its own A2A Server and Agent Card for that allocation;
-5. binds its Artifact client and model access to the allocation context;
-6. reports ready and handles the Worker's A2A Tasks itself;
-7. on finalization or abort, rejects new Tasks, requests cancellation of any
+3. when filesystem tools were selected, creates a fresh allocation-local
+   WorkspaceSession from the already-probed Runtime startup configuration;
+   this requires no AllocationSpec field and reveals no physical mount to
+   Control Plane;
+4. constructs the selected allocation-scoped infrastructure adapters, binds
+   the private Artifact client and fetches/validates the exact RunScope Agent
+   Skill packages selected under [09](09-agent-skills.md);
+5. prepares allocation-local State and selected tools, then creates one
+   in-process Worker runtime from the complete AgentTemplate, resolved native
+   ADK SkillToolset and effective ModelPolicy selected by the Run's
+   ResolvedExecutionConfig;
+6. configures its own A2A Server and Agent Card for that allocation;
+7. binds model access to the allocation context;
+8. reports ready and handles the Worker's A2A Tasks itself;
+9. on finalization or abort, rejects new Tasks, requests cancellation of any
    active Task, bounded-flushes/destroys allocation adapters, serializes the
    accumulated execution report and destroys the Worker runtime instance;
-8. after the terminal Stage outcome is committed, an idempotent private release
-   removes allocation State, tools, RuntimeSettings, access tokens and the
-   profile workspace, but retains the allocation identity and cached report in
-   `fenced` state;
-9. after Control Plane has removed its authority, a subsequent heartbeat
+10. after the terminal Stage outcome is committed, an idempotent private
+   release removes allocation State, tools, the WorkspaceSession and every
+   non-host memory/overlay change, loaded Skill objects, extracted
+   allocation-local skill files, RuntimeSettings, access tokens and the profile
+   workspace, but retains the allocation identity and cached report in
+   `fenced` state; configured project roots are never cleanup targets;
+11. after Control Plane has removed its authority, a subsequent heartbeat
    `release` action confirms that edge; only then does Runtime Agent clear the
    retained identity/report, become `idle` and free the slot.
 
@@ -564,8 +588,8 @@ cancellation is requested.
 After reserving the full set, Control Plane creates one globally unique
 `allocation_id` and one complete AllocationSpec per logical Stage Agent binding,
 including that binding's effective ModelPolicy and resolved RuntimeSettings
-plus exact label/config provenance, then may initialize those
-Runtime Agents concurrently. Planner
+plus exact label/config provenance and the exact Run-pinned `resolvedSkills`
+manifest from [09], then may initialize those Runtime Agents concurrently. Planner
 starts only after every Runtime Agent reports ready and Control Plane can return
 the complete `WorkerHandle` map.
 
@@ -697,7 +721,9 @@ artifact refs.
 
 The artifact plane owns data access, authenticated scope and Namespace grants,
 and never sends normal durable artifact bytes through A2A. See
-[03](03-artifact-plane.md).
+[03](03-artifact-plane.md). Agent Skill package bytes follow the same rule:
+AllocationSpec carries exact refs/digests and Runtime reads them through the
+private Artifact API under [09](09-agent-skills.md).
 
 ## Single-VM baseline
 
@@ -772,3 +798,6 @@ managed AgentTemplate service are not prerequisites.
     interprets the label name or mutates an active RuntimeSettings snapshot.
 22. Allocation proxy settings never intercept registration, heartbeat,
     control, A2A or Artifact API traffic.
+23. Agent Skill packages are allocation data pinned by WorkflowRun, not Runtime
+    environment capabilities or A2A Agent Card operations; Runtime never
+    resolves an owner UserScope current skill binding.

@@ -14,6 +14,8 @@ The current working agreement is split across the documents indexed in
 - [Server UI and Operations](06-server-ui-and-operations.md);
 - [Runtime labels and infrastructure configuration](07-runtime-labels-and-infrastructure-config.md);
 - [Shared MemoryTools](08-memory-tools.md).
+- [Agent Skills](09-agent-skills.md).
+- [Runtime filesystems and Edit tools](10-runtime-filesystems-and-edit-tools.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

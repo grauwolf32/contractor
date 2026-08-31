@@ -6,9 +6,9 @@ Depends on: [00](00-workflow-and-planner.md), [02](02-runtime-and-a2a.md)
 
 ## Model
 
-Contractor has one physical `ArtifactStore`, not separate `UserArtifactStore`
-and `RunArtifactStore` services. Every store operation is evaluated in one
-authenticated scope:
+Contractor has one physical `ArtifactStore`, not separate User and Run artifact
+services. Every store operation is evaluated in one authenticated or
+trusted internal scope:
 
 - `UserScope(user_id)` is the user's durable artifact library. The public API
   derives `user_id` from authentication rather than accepting an arbitrary
@@ -36,8 +36,8 @@ Adding `revision` to that key identifies one exact retained binding revision
 and its immutable internal version.
 
 This keeps one ref model while preventing a Worker from selecting another Run
-or UserScope in a tool call. A revision is an opaque selection token, not an
-authorization credential.
+or UserScope in a tool call. A revision is an opaque selection
+token, not an authorization credential.
 
 ## Namespaces
 
@@ -48,11 +48,13 @@ The space contains Namespaces. A Namespace is:
 - unique only within its UserScope or RunScope;
 - not a security boundary against explicitly granted current-Run tools.
 
-RunScope reserves two Namespaces:
+RunScope reserves three Namespaces:
 
 - `inputs` contains mutable working copies of declared Workflow inputs;
 - `outputs` contains declared Workflow results and is managed by Workflow
-  Scheduler.
+  Scheduler;
+- `skills` contains exact read-only Agent Skill packages pinned/forked by
+  Workflow Scheduler under [09].
 
 All other Namespaces hold intermediate artifacts. They normally use the Stage
 Agent Namespace selected by its binding. For display and authoring,
@@ -65,9 +67,9 @@ oas/review-report             ArtifactRef(namespace="oas", name="review-report")
 outputs/openapi               ArtifactRef(namespace="outputs", name="openapi")
 ```
 
-`inputs` and `outputs` cannot be selected as Stage Agent Namespaces. Their names
-are Workflow input/output slot names rather than arbitrary Worker-selected
-paths.
+`inputs`, `outputs` and `skills` cannot be selected as Stage Agent Namespaces.
+Their names are Workflow slot or trusted runtime-resource names rather than
+arbitrary Worker-selected paths.
 
 ## Stage Namespace binding
 
@@ -113,12 +115,21 @@ grant kind. [08](08-memory-tools.md) owns the mapping, bounds, hidden CAS and
 response-loss reconciliation. Authenticated Run-owner/operator inspection may
 still observe the underlying Artifact metadata and revisions.
 
+The reserved `skills` Namespace follows the same model/tool separation at
+Namespace granularity. The trusted Runtime loader may read exact package refs
+through its allocation-bound private client, while `run-artifacts@1` filters
+the Namespace from list/read/write operations exposed to the model. Every
+allocation write to `skills` is rejected. Exact owner-UserScope fork, package
+validation and ADK access are owned by [09](09-agent-skills.md). Authenticated
+Run-owner inspection of exact metadata, lineage and bytes remains ordinary
+public Artifact behavior and is not model authority.
+
 Namespace is not a model-selected argument of domain tools. The generic tools
-deliberately have broader read authority inside the current Run. The baseline
-write grant permits `inputs` and non-reserved Namespaces, so Workers can modify
-their working input copies and intermediate artifacts. It denies writes to
-`outputs`, whose bindings are created only by Workflow Scheduler from accepted
-Stage results.
+deliberately have broader read authority inside the current Run except for the
+purpose-reserved `skills` Namespace and `memory.` names. The baseline write
+grant permits `inputs` and non-reserved Namespaces, so Workers can modify their
+working input copies and intermediate artifacts. It denies writes to `outputs`
+and `skills`, whose bindings are created only by trusted Scheduler operations.
 
 The Server's private Artifact API authenticates the Runtime Agent through mTLS,
 binds the request to its active allocation and enforces the hard Run boundary,
@@ -252,12 +263,13 @@ One resolved, versioned ref identifies one payload with one media type.
 Contractor has no compound artifact/`parts[]` contract. Multi-file output is an
 archive or a manifest that names exact versioned refs.
 
-The same contract backs the User Artifact API and Run clients, but scope binding
-and grants differ. A public user client is bound to its authenticated
-`UserScope`; a Worker client is bound to the `RunScope` in its allocation. Only
-purpose-specific trusted Server operations may perform a controlled cross-scope
-fork; there is no generic client operation that accepts arbitrary source and
-target scopes.
+The same contract backs the User Artifact API, Run clients and trusted
+Scheduler operations, but scope binding and grants differ. A public user client
+is bound to its authenticated `UserScope`; a Worker client is bound to the
+`RunScope` in its allocation. Only purpose-specific trusted Server operations
+may perform a controlled UserScope-to-RunScope fork, including Workflow input
+forks and Agent Skill forks in [09]; there is no generic client operation that
+accepts arbitrary source and target scopes.
 
 ## Workflow inputs and scope fork
 
@@ -551,3 +563,7 @@ version.
     bindings: `run-artifacts@1` cannot list, read or mutate them, while the
     lower-level private client, their bytes and immutable revisions remain
     ordinary ArtifactStore behavior.
+19. RunScope `skills` bindings are Scheduler-created exact forks from the Run
+    owner's UserScope; allocations may read them only through trusted Skill
+    loading, can never write them, and generic Artifact tools cannot observe
+    them.

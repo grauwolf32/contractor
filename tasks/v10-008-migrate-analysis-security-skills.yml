@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V10-008
+title: Migrate contractor-old analysis and security-review skills
+milestone: agent-skills-port-and-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V10-007]
+languages: [markdown, go]
+
+goal: >-
+  Preserve the reusable STRIDE, trace, vulnerability-scan and vulnerability
+  playbook knowledge from contractor-old as valid native Agent Skill packages,
+  without pretending their old agents/workflows or tools already exist.
+
+context:
+  source: >-
+    Use only contractor-old revision
+    9c76b56cf7b83377fb1dd5e4a17440fa27b723f3 and directories
+    contractor/skills/stride, trace, vuln_scan and vulns. Old roots are index.md;
+    trace has seven references, vuln_scan eight and vulns four. Old text may
+    call skills_read, omit .md extensions and assume old prompt/tool contracts.
+  target_names: >-
+    configs/skills/stride, configs/skills/trace,
+    configs/skills/vuln-scan and configs/skills/vulns. vuln_scan must be renamed
+    because Agent Skill names prohibit underscores; all internal mentions and
+    resource calls use vuln-scan.
+
+scope:
+  in:
+    - Convert each index.md to exact SKILL.md with name, bounded description, compatibility and source-revision metadata; copy every reference into the standard references tree.
+    - Replace skills_read/skills_list and extensionless old paths with native load_skill_resource(skill_name=..., file_path="references/<file>.md") examples and accurate progressive-disclosure wording.
+    - Audit all cross-references, tool names, memory assumptions and old agent-specific mandates; keep reusable analysis knowledge, rewrite only platform integration statements, and document intentional changes per package.
+    - Preserve explicit authorization/non-destructive boundaries in vulnerability content and do not add new offensive techniques beyond the reviewed source revision.
+    - Keep all four packages unassigned because no current AgentTemplate exactly represents the legacy threat-analysis/trace/vulnerability agents and their complete tool surfaces.
+    - Add inventory, reference closure, deterministic package and forbidden-token tests for the complete four-package group.
+  out:
+    - Porting legacy workflows/agents/prompts, implementing source annotation or vulnerability toolsets, assigning these packages to LikeC4/OpenAPI Workers, or changing security content scope.
+
+deliverables:
+  - {path: configs/skills/stride, description: Migrated single-file STRIDE package.}
+  - {path: configs/skills/trace, description: Migrated trace package and seven references.}
+  - {path: configs/skills/vuln-scan, description: Renamed vulnerability-scan package and eight references.}
+  - {path: configs/skills/vulns, description: Migrated authorized-testing playbook package and four references.}
+  - {path: docs/migrations/contractor-old-agent-skills-analysis.md, description: Source revision inventory renames and intentional platform-integration edits.}
+  - {path: internal/agentskills, description: Whole-group migration inventory and validation regressions.}
+
+requirements:
+  - id: R1
+    text: Every source file is accounted for exactly once; migration neither silently drops references nor copies Python implementation code.
+  - id: R2
+    text: Package text never claims a reference is always injected and never names unavailable skills_read/skills_list.
+  - id: R3
+    text: No current AgentTemplate selects these packages until a future task defines the matching Worker tools and behavior explicitly.
+  - id: R4
+    text: Migrated security guidance retains the source authorization and evidence discipline and adds no unreviewed payload corpus.
+
+acceptance_criteria:
+  - id: A1
+    given: Old and new inventories at the pinned source revision.
+    when: Migration accounting runs.
+    then: All 23 source Markdown files are mapped, vuln_scan rename is explicit and no unexpected file/content category is introduced.
+  - id: A2
+    given: All four target source trees.
+    when: Strict validation, deterministic packaging and reference closure run.
+    then: Every package passes twice with stable bytes/digest and every native resource example resolves exactly.
+  - id: A3
+    given: Repository AgentTemplates.
+    when: Config topology is inspected.
+    then: None selects stride, trace, vuln-scan or vulns and all legacy Skill tool tokens are absent from migrated content.
+  - id: A4
+    given: The old and migrated security prose diff.
+    when: A bounded semantic review is performed.
+    then: Technical knowledge and safety boundaries are preserved while only obsolete Contractor integration statements changed.
+
+tests:
+  - {name: packages, command: "make test-migrated-agent-skills-analysis", covers: [A1, A2, A4]}
+  - {name: validator, command: "go test ./internal/agentskills/...", covers: [A1, A2]}
+  - {name: config-selection, command: "go test ./internal/config/... -run Skill && ! rg -n 'skills_(read|list)' configs/skills/stride configs/skills/trace configs/skills/vuln-scan configs/skills/vulns", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

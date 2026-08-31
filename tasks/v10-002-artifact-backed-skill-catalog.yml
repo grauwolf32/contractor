@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V10-002
+title: Add the artifact-backed SkillCatalog and bundled initialization
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-001]
+languages: [go]
+
+goal: >-
+  Provide one internal SkillCatalog over ordinary ArtifactStore data and use it
+  to initialize reviewable configs/skills packages into the local owner's
+  UserScope before readiness, without a new endpoint, table or restart-time
+  desired-state overwrite.
+
+context:
+  source: >-
+    Scan only immediate directories below <operator-config-root>/skills; the
+    repository path is configs/skills/<name>. The managed configuration root is
+    not another source. Missing/empty skills subtree is valid. Each directory
+    is validated and deterministically packaged by the V10-001 contract and its
+    name must equal SKILL.md name. At most 128 seed directories and 256 MiB
+    total deterministic package bytes are accepted; source symlinks and special
+    files are invalid.
+  target: >-
+    Write application/vnd.contractor.agent-skill+zip through the ordinary
+    ArtifactService to UserScope(configured local userId), namespace skills,
+    name <skill>. Absent uses create precondition. Equal current digest plus
+    canonical media type is in_sync. Different digest or media type is
+    seed_drift and remains untouched.
+
+scope:
+  in:
+    - Establish SkillCatalog as the typed validation/resolution/fork application boundary while keeping ArtifactStore authoritative for bytes, bindings, CAS, versions, lineage and retention; this task implements bundled discovery and create-only owner initialization, and V10-003 adds its Run-resolution methods.
+    - Extend config validate to validate and package the entire bundled skill source set without opening a database or mutating files.
+    - Compose startup so authentication identifies the owner and ArtifactStore is available before bundled initialization and before public/private listeners report ready.
+    - Validate and freeze the exact canonical bytes for the complete discovered set before the first Artifact write, never re-read source during mutation, then create only absent bindings using existing atomic UserScope CAS.
+    - On existing bindings read exact current metadata/bytes only to compare media type and SHA-256; do not advance equal or differing bindings and do not treat drift as startup failure.
+    - Emit bounded structured startup outcomes containing only skill name, in_sync/created/seed_drift and digests; no instructions, resource bytes or absolute paths.
+    - Make a crash after any subset safe: restart recognizes committed creates and initializes only still-absent names.
+    - Reconcile concurrent first initialization through ordinary create CAS: one winner creates, every loser re-reads and reports in_sync or seed_drift without another persistence path.
+    - Explicitly assert migration/schema/route inventories gain no SystemScope, Skill table, Skill publication API or synthetic user.
+  out:
+    - Run pinning, Runtime loading, automatic application of changed bundled sources, multi-owner provisioning or a file watcher.
+
+deliverables:
+  - {path: internal/agentskills/catalog.go, description: Artifact-backed SkillCatalog with pure discovery plan and create-only owner initialization.}
+  - {path: internal/app, description: Pre-readiness SkillCatalog initialization using the authenticated local owner and ordinary ArtifactService.}
+  - {path: internal/config, description: Offline bundled source validation integrated with config validate.}
+  - {path: docs/development.md, description: Bundled seed drift and explicit contractor-skill plus Artifact PUT update workflow.}
+
+requirements:
+  - id: R1
+    text: Startup never performs an update PUT for an existing skills binding, even when bundled bytes or media type differ.
+  - id: R2
+    text: No target scope or owner is accepted from skill files; owner comes from the configured authenticated local user and namespace is constant skills.
+  - id: R3
+    text: Invalid source prevents every seed write for that startup; a process crash between valid independent creates is recovered idempotently.
+  - id: R4
+    text: SkillCatalog initialization calls the production ArtifactService/CAS path and introduces no direct artifact SQL or second persistence model.
+
+acceptance_criteria:
+  - id: A1
+    given: Two valid bundled skills and an empty configured-owner UserScope.
+    when: Server starts twice.
+    then: First start creates exactly two current artifacts and second reports both in_sync without new revisions.
+  - id: A2
+    given: One current skill was updated through ordinary Artifact PUT or has a non-Skill media type while bundled source contains the same name.
+    when: Server restarts.
+    then: A differing digest or media type reports seed_drift, leaves the exact existing revision current and becomes ready.
+  - id: A3
+    given: One invalid bundled directory among valid directories.
+    when: Offline config validation or Server startup runs.
+    then: Validation fails before any valid sibling is written and diagnostics expose no content or absolute path.
+  - id: A4
+    given: A fault after the first of several valid creates.
+    when: Startup is retried.
+    then: It creates only missing bindings, consumes no duplicate revisions and all targets belong to the real local owner.
+  - id: A5
+    given: Two Server initializers concurrently observe one missing bundled Skill binding.
+    when: Both execute the production create-only path.
+    then: Exactly one revision is created, the loser re-reads it as in_sync or seed_drift, and neither overwrites current.
+
+tests:
+  - {name: catalog-initialization-unit, command: "go test -race ./internal/agentskills/... ./internal/config/... ./internal/app/...", covers: [A1, A2, A3, A4, A5]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/agentskills/... ./internal/app/...", covers: [A1, A2, A4, A5]}
+  - {name: config-cli, command: "go run ./cmd/contractor-server config validate --root ./configs", covers: [A3]}
+  - {name: route-schema-regression, command: "make verify-public-api && CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/persistence/postgres/...", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

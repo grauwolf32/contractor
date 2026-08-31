@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V10-010
+title: Harden Agent Skills races bounds isolation and redaction
+milestone: agent-skills-port-and-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-016, V9-005, V10-007, V10-008, V10-009]
+languages: [go, python]
+
+goal: >-
+  Close the Agent Skills increment with adversarial package, Artifact CAS,
+  Run-initialization, allocation cleanup and content-leak gates across all nine
+  migrated packages and every production boundary.
+
+context:
+  concurrency: >-
+    ArtifactStore binding CAS is authoritative. A UserScope skill update racing
+    Run initialization must yield one complete old or new exact source and a
+    matching exact Run fork/digest, never mixed files or a later fall-forward.
+    SkillCatalog initialization is create-only and must never win by overwriting
+    existing current.
+  security: >-
+    Skills are behavioral content but not authority. Package validation occurs
+    at authoring/catalog initialization, Server Run resolution and Runtime
+    loading. Reserved RunScope skills is invisible to generic model tools and
+    immutable from every allocation; only native ADK functions expose selected
+    body/resources.
+
+scope:
+  in:
+    - Fuzz Go/Python package validators with ZIP traversal, alternate separators, Unicode/path collisions, duplicate headers, links, special files, malformed YAML, bombs, forged sizes, count and per-member/total boundaries.
+    - Race create/update/restart/catalog initialization and Run initialization at every current-resolution/fork commit boundary; inject lost responses and process crashes and assert exact old-or-new provenance.
+    - Store invalid packages through the intentionally generic Artifact API and prove referencing Runs fail before scheduling with bounded safe diagnostics while unrelated Runs continue.
+    - Exercise reserved skills through public Run Artifact owner/foreign-owner routes, private allocation routes, run-artifacts tool aliases/encoded values, stale allocations and finalizing/aborting write-fence races; preserve legitimate owner inspection while denying model/cross-owner authority.
+    - Exercise native list/load/resource/script calls, malformed paths, repeated resources, exact 16 MiB disclosure boundaries, oversized results and budget exhaustion; prove scripts never execute and no remote registry/global directory is consulted.
+    - Inject release, lease loss and extraction cleanup faults and prove slot fencing/recovery and no cross-allocation ADK activation/files.
+    - Scan PostgreSQL reports/sessions/events, WebSocket, logs, errors and OTLP using unique package/body/resource/ref canaries; retain only allowed safe names/paths/counts/outcomes.
+    - Validate/package all nine migrated configs/skills directories and assert only likec4_builder@2 and likec4_validator@2 select a Skill in current config.
+    - Assert public OpenAPI/routes and PostgreSQL schema contain no Skill-specific endpoint/table/SystemScope while SkillCatalog continues to use production ArtifactStore.
+  out:
+    - Performance benchmarks, multi-owner shared catalog, historical garbage collection, package signing, scripts or external Skill registries.
+
+deliverables:
+  - {path: internal/agentskills, description: Go fuzz/property tests for package Catalog and exact fork races.}
+  - {path: runtime/tests, description: Python adversarial loader native tool redaction and cleanup fault matrix.}
+  - {path: tests/e2e, description: PostgreSQL mTLS response-loss race fence isolation and leak scenarios.}
+  - {path: Makefile, description: Bounded test-agent-skills-hardening release gate.}
+  - {path: docs/development.md, description: Supported profile authority boundary update procedure and recovery diagnostics.}
+
+requirements:
+  - id: R1
+    text: Every injected fault has a finite deadline and leaves no partial Run skill snapshot, unpinned source, late write or idle slot with allocation-local Skill state.
+  - id: R2
+    text: Dual validation uses independent Go/Python implementations and the same adversarial corpus; neither assumes the other made content safe.
+  - id: R3
+    text: Redaction scans fail on raw, JSON-escaped, URL-encoded and base64 canaries while preserving bounded operational codes.
+  - id: R4
+    text: The aggregate gate proves all nine migrated source packages and does not contact an external model, registry or live target.
+
+acceptance_criteria:
+  - id: A1
+    given: The full adversarial archive/frontmatter corpus at all exact bounds.
+    when: Authoring, Server and Runtime validation execute.
+    then: All three agree on valid/invalid outcomes, extraction cannot escape and memory/disk use remains bounded.
+  - id: A2
+    given: Concurrent owner update, Run initialization, catalog reinitialization and injected response loss.
+    when: Fault barriers are released in every relevant order.
+    then: Each committed Run records/forks exactly A or B, restart never overwrites current and replay never falls forward after exact selection.
+  - id: A3
+    given: Generic/private tool attacks, stale allocations and terminal fence races.
+    when: Every skills namespace access form is attempted.
+    then: Only trusted exact native loading and correctly authenticated owner inspection read packages, no generic model or foreign owner sees them, no allocation advances a binding and unrelated artifact behavior remains unchanged.
+  - id: A4
+    given: Unique content/ref canaries plus normal/error/script/cleanup scenarios.
+    when: Durable and external diagnostic surfaces are scanned and a subsequent clean Run executes.
+    then: Forbidden canaries are absent, allowed metrics are useful, script execution count is zero and Runtime slots are clean or explicitly fenced.
+  - id: A5
+    given: All migrated packages and repository configuration.
+    when: The release gate inventories, packages and resolves them.
+    then: Nine packages are valid/deterministic, only likec4_builder@2 and likec4_validator@2 select one and no new Skill transport/persistence surface exists.
+
+tests:
+  - {name: hardening-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-agent-skills-hardening", covers: [A1, A2, A3, A4, A5]}
+  - {name: go-race-fuzz, command: "go test -race ./internal/agentskills/... ./internal/artifacts/... ./internal/scheduler/...", covers: [A1, A2, A3]}
+  - {name: python, command: "cd runtime && uv run pytest tests/test_agent_skill_package.py tests/test_agent_skill_toolset.py tests/test_agent_skill_lifecycle.py", covers: [A1, A3, A4]}
+  - {name: package-corpus, command: "make test-migrated-agent-skills", covers: [A5]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

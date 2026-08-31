@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V10-007
+title: Prove Agent Skills end to end through ordinary Artifacts
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-002, V10-005, V10-006]
+languages: [go, python]
+
+goal: >-
+  Prove the first usable Agent Skills slice across real PostgreSQL, Go Server,
+  Python Runtime Agent, existing Artifact API, Run pinning, native ADK tools and
+  release without a Skill-specific API or persistence fixture.
+
+context:
+  scenario: >-
+    Start Server with configs/skills/likec4 and one compatible Runtime Agent.
+    SkillCatalog initialization creates owner artifact revision A. Create a
+    likec4-from-source@3 Run and pause it immediately after its source-selection
+    transaction, then update skills/likec4 through ordinary Artifact PUT with
+    revision A ETag to valid package B. A deterministic scripted model
+    lists/loads likec4 and reads one distinguishing reference while the old Run
+    resumes and a new Run executes.
+  pinning: >-
+    A Run whose creation transaction commits before the PUT retains exact owner
+    source A even if validation/fork has not run yet, and its Run fork A is used
+    for retries/later allocations. A Run created after the PUT selects B. No
+    test may insert skill rows or rewrite Run snapshots directly.
+
+scope:
+  in:
+    - Add a real-process fixture using PostgreSQL, production Go HTTP handlers, mTLS private traffic and Python Runtime Agent with the pinned ADK build.
+    - Assert bundled initialization is visible through existing GET/list/version Artifact endpoints and creates no second revision on Server restart.
+    - Drive exact native list_skills, load_skill and load_skill_resource calls through a deterministic model adapter and verify safe metrics plus successful Worker result.
+    - Update the package through authenticated PUT /v1/artifacts/skills/likec4 using ordinary media type/CAS and retain its returned exact ArtifactRef.
+    - Pause the old Run after its create/source-selection commit but before validation/fork, apply the PUT, resume it, force a retry/later allocation and start a new Run; prove old uses A and new uses B even when both execute on the same Runtime process sequentially.
+    - >-
+      Assert release removes allocation-local package/activation material and
+      the slot executes an existing empty-skill artifact-copy@1 Run afterward.
+    - Assert public route inventory, OpenAPI and migrations contain no Skill-specific API/table/SystemScope.
+  out:
+    - Live external LLM quality evaluation, frontend feature work, multi-owner behavior, script execution or package deletion.
+
+deliverables:
+  - {path: tests/e2e/agent_skills_test.go, description: Real-process bundled initialize native ADK Artifact update pinning and cleanup scenario.}
+  - {path: runtime/tests/fixtures, description: Deterministic model sequence and two valid distinguishable LikeC4 packages.}
+  - {path: Makefile, description: Bounded test-agent-skills-mvp gate.}
+  - {path: docs/development.md, description: Operator commands for package validate Artifact PUT Run and version inspection.}
+
+requirements:
+  - id: R1
+    text: The scenario uses only production SkillCatalog initialization, public Artifact/Run APIs, private mTLS Artifact/A2A paths and ordinary Scheduler; direct SQL is inspection-only.
+  - id: R2
+    text: Package A/B canaries appear only inside allowed model tool responses and test assertions, never reports, logs, events, errors or OTLP.
+  - id: R3
+    text: Every wait has a finite deadline and teardown proves Runtime slot and PostgreSQL resources are reusable.
+
+acceptance_criteria:
+  - id: A1
+    given: Empty owner artifacts and bundled LikeC4 source.
+    when: Server starts, restarts and its existing Artifact API is queried.
+    then: One current exact revision A exists with correct media/digest, restart adds no revision and no Skill endpoint/table exists.
+  - id: A2
+    given: A LikeC4 Run using package A.
+    when: Scripted Worker invokes native Skill functions.
+    then: It lists only likec4, loads its body/reference, produces a valid bounded result and reports content-free Skill metrics.
+  - id: A3
+    given: Package B updates the owner binding after the old Run's atomic source-selection commit but before its validation/fork.
+    when: Old Run retries and a new Run starts.
+    then: Old allocations fetch exact fork A, new allocation fetches B and every exact source/fork/lineage/digest is internally consistent.
+  - id: A4
+    given: Both Runs terminate and a following empty-skill Run is submitted.
+    when: Runtime returns idle and accepts it.
+    then: No extracted/activated state crosses allocation boundaries and all three executions release normally.
+
+tests:
+  - {name: process-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-agent-skills-mvp", covers: [A1, A2, A3, A4]}
+  - {name: race, command: "go test -race ./internal/agentskills/... ./internal/scheduler/... ./internal/httpapi/public/...", covers: [A1, A3]}
+  - {name: runtime, command: "cd runtime && uv run pytest tests/test_agent_skill_toolset.py tests/test_agent_skill_lifecycle.py", covers: [A2, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

@@ -79,6 +79,7 @@ class AgentTemplate(BaseModel):
     description: str
     runtime: WorkerRuntimeRef
     instructions: ResolvedInstructions
+    skills: list[ArtifactRef] = Field(default_factory=list)
     model_policy: ModelPolicyRef
     toolsets: list[ToolsetSelection]
     sandbox_profile: SandboxProfileRef
@@ -117,13 +118,16 @@ spec:
 The document follows the shared configuration-file and envelope contract in
 [00](00-workflow-and-planner.md). `metadata` contains exactly `name` and
 `version`; their pair is the AgentTemplateCatalog lookup key regardless of the
-file name. `spec` contains exactly the six fields shown above.
+file name. `spec` contains the six mandatory fields and the optional `skills`
+field described below.
 `description` is a mandatory non-empty purpose string for human-facing
 configuration and for the deterministic `router@1` agent roster. `runtime`,
 `modelPolicy` and `sandboxProfile` are mandatory exact selectors;
-`instructions` contains exactly the mandatory `ref`; and `toolsets` is the
-mandatory, possibly empty selection list defined below. Unknown fields and
-duplicate YAML mapping keys are invalid.
+`instructions` contains exactly the mandatory `ref`; `skills` is the optional
+versionless ArtifactRef set defined by [09](09-agent-skills.md), with omission
+equivalent to an empty set; and
+`toolsets` is the mandatory, possibly empty selection list defined below.
+Unknown fields and duplicate YAML mapping keys are invalid.
 
 In AgentTemplate YAML, the mandatory Worker instructions use the same
 configuration-root-relative text-resource ref contract as Stage Planner
@@ -143,6 +147,23 @@ catalog or filesystem access. ModelPolicy, Toolset selections and
 SandboxProfile are framework-neutral Contractor data; an ADK Worker adapter
 translates them into runtime configuration only when an allocation is
 prepared.
+
+`skills` contains sorted unique logical Agent Skill ArtifactRefs. Namespace is
+exactly `skills`, revision is omitted, and the owner UserScope is supplied by
+the Run rather than encoded in the ref. The normalized `(namespace, name)`
+pairs contribute to AgentTemplate digest. Their current exact revisions are
+resolved and pinned only while WorkflowRun initializes, so configuration load
+validates syntax but does not require current packages. Ordinary Artifact
+update, Run fork, AllocationSpec and native ADK behavior belong to
+[09](09-agent-skills.md). One AgentTemplate contains at most 32 refs; one Run
+snapshot contains at most 128 distinct refs.
+
+```yaml
+spec:
+  skills:
+    - namespace: skills
+      name: likec4
+```
 
 ### ModelPolicy
 
@@ -224,7 +245,8 @@ before Run execution if the selected policy is incompatible:
 
 - an `adk@1` Worker requires `maxOutputTokens`, `maxModelCalls` and
   `maxTotalTokens`; it additionally requires `maxToolCalls` when the resolved
-  AgentTemplate exposes any model-visible tool and does not use
+  AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
+  does not use
   `maxWorkerCalls`;
 - a `streamline@1` or `router@1` Planner requires `maxOutputTokens`,
   `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens`; it does not use
@@ -359,6 +381,22 @@ prevents a newly added Toolset function from becoming model-visible to an
 existing AgentTemplate without a template change and new digest. Omitting a
 Toolset exposes none of its tools.
 
+The native ADK Agent Skill functions are the one bounded first-class exception
+to this generic Toolset rule. A non-empty `skills` field constructs ADK's
+standard SkillToolset under [09](09-agent-skills.md); it does not select a
+Contractor Toolset ref and cannot add any domain tool. The initial accepted
+packages contain no scripts or ADK metadata capable of extending the tool
+surface. This exception is explicit in the AgentTemplate body rather than
+being inferred from Runtime installation or a label. When `skills` is
+non-empty, AgentTemplateCatalog rejects any selected Contractor Toolset
+operation named `list_skills`, `load_skill` or `load_skill_resource`; the
+model-visible function namespace remains unambiguous. Contractor filters ADK's
+`run_skill_script` and its script-bearing prompt under [09], so that function
+is not part of the reserved visible set.
+It also validates the Worker ModelPolicy as tool-using even when the ordinary
+`toolsets` list is empty. Native Skill calls consume the same `maxToolCalls`
+counter as Contractor Toolset calls.
+
 `run-artifacts@1` is the built-in current-Run Artifact Toolset for the first
 slice. It exports exactly `list_artifacts`, `read_artifact` and
 `write_artifact`. These tools are not injected implicitly: an AgentTemplate
@@ -375,6 +413,16 @@ bound to the allocation's resolved Agent Namespace; its model receives no Run,
 Namespace, ArtifactRef or revision argument. Model-backed Planner mirroring,
 the Router `worker_name` schema, note limits and the artifact wrapper are owned
 solely by [08](08-memory-tools.md).
+
+The optional project-filesystem Toolsets are `filesystem@1`, `edit-files@1`
+and `workspace-changes@1`. They follow the same explicit operation allowlist;
+none is injected by a SandboxProfile or instruction. Their paths, backend
+mode, host-write authority and allocation-local overlay state belong only to
+the Runtime Agent under
+[10](10-runtime-filesystems-and-edit-tools.md). AgentTemplate can select the
+model-visible operations but cannot name a host path, choose `local` versus
+`memory`/`overlay`, or enable host writes. A Runtime advertises only the subset
+its immutable local workspace configuration can honor.
 
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
@@ -466,10 +514,16 @@ Toolsets remain responsible for safe input handling, while stronger future
 profiles require new exact refs rather than changing `local-workdir@1`
 semantics.
 
-An AgentTemplate is immutable. `template_id + version + digest` identifies one
-exact body. Workflow authoring uses the exact `<id>@<version>` selector defined
+An AgentTemplate body is immutable. `template_id + version + digest` identifies
+that exact body, including its logical skill ArtifactRef set. Workflow authoring
+uses the exact `<id>@<version>` selector defined
 in [00](00-workflow-and-planner.md); `latest`, ranges and unversioned aliases are
-invalid. A behavior or policy change creates a new version and digest.
+invalid. Any template instruction, policy, tool or normalized logical skill-ref
+set change creates a new version and digest. Omitted `skills` and explicit
+`skills: []` are the same empty body. Writing a new current UserScope artifact
+revision for an already selected logical ref is deliberately resolved as
+separate Run-pinned behavior under [09](09-agent-skills.md) and does not mutate
+this body.
 
 ### Canonical digest
 
@@ -481,22 +535,26 @@ sha256(JCS(normalized resolved AgentTemplate manifest))
 ```
 
 The manifest is an I-JSON object containing the normalized `apiVersion`, `kind`,
-template name and version, plus every validated `spec` field. Resolved Worker
-instructions appear as their normalized configuration-root-relative `ref` and
+template name and version, plus the canonical `spec` representation below.
+Resolved Worker instructions appear as their normalized
+configuration-root-relative `ref` and
 exact instruction `digest`; their full text is carried beside the manifest but
-need not be duplicated inside it. Every model, toolset and sandbox reference
-appears in its normalized exact form. The computed AgentTemplate digest itself
-is the only AgentTemplate field excluded from the input.
+need not be duplicated inside it. A non-empty `skills` set appears as sorted
+logical `{namespace,name}` refs with no revision; the property is omitted for
+the empty set. Every model, toolset and sandbox reference appears in its
+normalized exact form. The computed AgentTemplate digest itself is the only
+AgentTemplate field excluded from the input.
 
 The manifest is serialized with the JSON Canonicalization Scheme from
 [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785.html), then its canonical UTF-8
 bytes are hashed with SHA-256. Object property order is canonical; array order
-is preserved unless a field such as `toolsets` is explicitly defined as an
-unordered set and sorted during normalization; Unicode strings are not
+is preserved unless a field such as `toolsets` or `skills` is explicitly
+defined as an unordered set and sorted during normalization; Unicode strings are not
 normalized. YAML comments, mapping order, anchors, aliases and scalar
 presentation therefore do not independently affect identity after parsing and
 validation. Changing any normalized value or the bytes of the resolved
-instruction resource changes the digest.
+instruction resource changes the digest. This empty-set normalization preserves
+the digest of an existing pre-Agent-Skills template.
 
 AgentTemplateCatalog computes and stores the digest with the resolved template.
 AllocationSpec carries the normalized manifest, resolved instruction text,
@@ -520,6 +578,7 @@ An AgentTemplate contains no:
 - Planner strategy or Planner agent tree;
 - physical Runtime Agent, allocation, endpoint or Agent Card;
 - process ID, host path, Python class/module or executable;
+- project filesystem backend, mount source or host-write switch;
 - credential or provider secret;
 - retry, deadline or Stage budget state;
 - Run-specific Namespace or artifact grant.
@@ -591,7 +650,8 @@ The resolution path is deliberately short:
 ```text
 StageAgentBinding
   -> AgentTemplateCatalog: resolve exact id/version/digest
-  -> WorkflowRun snapshot retains the resolved template dependency
+  -> Run owner UserScope: resolve/fork each logical Skill ArtifactRef exactly
+  -> WorkflowRun snapshot retains the resolved template and skill dependencies
   -> Workflow Scheduler records it for the StageExecution
   -> Control Plane builds AllocationSpec
   -> Runtime Agent creates one in-process Worker instance from that template
@@ -600,6 +660,8 @@ StageAgentBinding
 After Stage preparation begins, Planner, Control Plane recovery, Runtime Agent
 and Worker do not consult a mutable template alias. Changing or removing the
 catalog entry cannot retarget an already prepared or recorded StageExecution.
+Likewise, they never re-resolve a current owner skill binding: exact skill
+artifacts come from the immutable WorkflowRun snapshot defined by [09].
 
 `AgentTemplateCatalog` is an in-process Server configuration boundary in the
 single-VM baseline. It loads through the shared all-or-nothing configuration
@@ -638,6 +700,7 @@ AllocationSpec
   run and stage identity
   logical Agent name and resolved Namespace
   complete AgentTemplate + exact ref
+  exact resolvedSkills refs and package digests selected by WorkflowRun
   effective ModelPolicy + exact ref
   exact WorkerRuntimeRef
   RuntimeSettings supplied by Control Plane
@@ -678,15 +741,18 @@ but another backend may replace it when it satisfies the configured
 model-client protocol. An active allocation uses one resolved settings
 snapshot; configuration changes or label rebinding never mutate it.
 
-AgentTemplate remains the sole model-visible tool contract. A Runtime label may
+AgentTemplate remains the sole authored model-visible behavior contract. Its
+explicit Toolset selections own domain tools and its explicit `skills` refs
+own the bounded native ADK SkillToolset described by [09]. A Runtime label may
 configure a proxy, telemetry exporter or an already selected Toolset adapter,
-but cannot add a tool, Toolset, instruction or Worker behavior. Runtime Agent
-receives typed settings and never interprets label names.
+but cannot add a tool, Toolset, skill, instruction or Worker behavior. Runtime
+Agent receives typed settings and never interprets label names.
 
-Durable provenance records the exact AgentTemplate, effective ModelPolicy,
-LLMGatewayConfig and non-secret credential refs, WorkerRuntimeRef, allocation ID
-and Runtime Agent process identity. It never records ephemeral access material
-or secret-bearing RuntimeSettings values.
+Durable provenance records the exact AgentTemplate, Run-pinned Agent Skill
+artifact refs/digests, effective ModelPolicy, LLMGatewayConfig and non-secret
+credential refs, WorkerRuntimeRef, allocation ID and Runtime Agent process
+identity. It never records ephemeral access material or secret-bearing
+RuntimeSettings values.
 
 The PostgreSQL connection URL is Server bootstrap configuration. It never
 appears in AgentTemplate, AllocationSpec or Runtime Agent configuration supplied
@@ -722,3 +788,6 @@ incompatible runtime/card fails preparation before Planner starts.
    arguments.
 10. Runtime labels configure allocation infrastructure around the resolved
     template and never change its model-visible instructions or selected tools.
+11. AgentTemplate declares versionless Agent Skill ArtifactRefs; WorkflowRun,
+    not Runtime, resolves them in owner UserScope and pins exact immutable
+    revisions under [09].

@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V10-003
+title: Resolve AgentTemplate skills into immutable Run artifacts
+milestone: agent-skills-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-002]
+languages: [go, python, yaml, sql]
+
+goal: >-
+  Let AgentTemplates reference owner Skill artifacts while guaranteeing that one
+  WorkflowRun and every retry, later Stage and escalation observe one exact
+  immutable package set.
+
+context:
+  template_contract: >-
+    spec.skills is optional. Omission and [] normalize to the same empty set and
+    preserve existing template digests. A non-empty unordered input normalizes
+    to sorted unique versionless ArtifactRefs with namespace skills and 1-64
+    character logical names; at most 32 per AgentTemplate. Namespace and name
+    contribute to AgentTemplate digest, but config loading does not require
+    owner bindings.
+  run_contract: >-
+    Before scheduling, resolve the union across every AgentTemplate retained by
+    the Run snapshot, including later Stages and escalation profiles; at most
+    128 distinct refs. Resolve each in the Run owner's UserScope, pin the exact
+    current source and digest, fork it once to read-only RunScope skills/<name>,
+    and persist both refs. One template is bounded to 64 MiB stored/128 MiB
+    decompressed across skills; one Run union to 256 MiB stored/512 MiB
+    decompressed.
+
+scope:
+  in:
+    - >-
+      Add optional skills to strict AgentTemplate YAML/domain/canonical digest
+      models; normalize omission and an explicit empty list identically and do
+      not modify existing empty-skill template files or digests.
+    - Reject any namespace other than skills, present revision, invalid name, duplicate logical ref and count limits with deterministic config diagnostics; accept omission and an empty list.
+    - For a non-empty set, reserve list_skills, load_skill and load_skill_resource and reject any selected Contractor Toolset operation with a colliding model-visible name; run_skill_script is filtered by Runtime and is not a visible reserved name.
+    - Treat a non-empty skills set as a model-visible tool surface for ModelPolicy validation, requiring maxToolCalls even when toolsets is empty and retaining the existing shared tool-call maximum.
+    - Extend Run snapshot persistence and SkillCatalog Run resolution to resolve all possible template refs in owner UserScope, validate/fork each unique package once and commit schedulability only after the complete set succeeds.
+    - Select the complete owner-current source outcome in one short database snapshot and commit it atomically with WorkflowRun creation and its idempotency binding; record an exact ref or durable missing marker for every logical ref, never a partial set.
+    - Make Run creation idempotency and initialization recovery retain already selected exact revisions or the same missing-source result even after owner current advances; never silently re-resolve a committed Run.
+    - Treat a transient source-selection transaction failure as a retryable Run-create failure with no committed Run/idempotency row; after creation, only exact-read/fork failures may leave the same Run initializing for recovery.
+    - Reserve RunScope namespace skills: Scheduler can create exact forks, the allocation grant can read exact versions for trusted loading, and every allocation/model write is denied atomically with the existing write fence.
+    - Filter skills from Python run-artifacts@1 list/read/write model operations while retaining ordinary authenticated Run-owner metadata/history inspection through the public API.
+    - Record ordinary Artifact fork lineage for each exact owner source and Run binding and retain both exact versions while the immutable Run snapshot is retained.
+    - Emit terminal skill_artifact_not_found, skill_media_type_invalid, the exact V10-001 validator code or skill_fork_conflict, and transient skill_artifact_unavailable/skill_fork_failed containing the logical ref only.
+  out:
+    - Exact resolvedSkills AllocationSpec fields, Runtime ADK loading, new HTTP/UI surfaces, Run/Stage skill overrides or deletion.
+
+deliverables:
+  - {path: internal/config, description: Strict skills field normalization digest and topology validation.}
+  - {path: internal/contracts, description: Normalized logical Skill refs on the Go resolved AgentTemplate with empty-wire compatibility.}
+  - {path: internal/runstore, description: Durable exact source and RunScope skill snapshot provenance.}
+  - {path: internal/persistence/migrations, description: Durable Run skill source fork digest and lineage state required for recovery.}
+  - {path: internal/httpapi/public, description: Run-create idempotency transaction integration for atomic owner-current Skill selection.}
+  - {path: internal/scheduler, description: Atomic pre-scheduling skill resolution fork and recovery.}
+  - {path: internal/agentskills, description: SkillCatalog owner resolution validation and exact Run fork operation.}
+  - {path: internal/artifacts, description: Reserved skills namespace read/write policy.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Model-visible reserved-Namespace filtering without blocking trusted exact loader reads.}
+
+requirements:
+  - id: R1
+    text: Existing omitted-empty template digests remain unchanged; a digest changes whenever the normalized logical ArtifactRef set changes to a distinct value, but not for omitted versus explicit empty or owner current revision changes.
+  - id: R2
+    text: No committed Run has an unresolved source outcome and no Stage may be claimed while its Run has incomplete forks; recovery uses only recorded exact sources or the recorded missing result.
+  - id: R3
+    text: Duplicate use by multiple AgentTemplates creates one Run binding; each later allocation can derive only its own template subset.
+  - id: R4
+    text: A skill binding is immutable from model and allocation authority even before finalizing; exact trusted reads still obey mTLS principal/allocation/run grant binding.
+  - id: R5
+    text: Native Skill function names cannot collide with a selected Contractor Toolset operation, and package refs never expand that reserved function set.
+  - id: R6
+    text: Every native Skill invocation consumes the existing Worker maxToolCalls budget; selecting a Skill can never create an unbudgeted tool loop.
+
+acceptance_criteria:
+  - id: A1
+    given: Existing configs plus templates with omitted, explicit-empty, shared, duplicate, invalid, over-limit, missing-tool-budget and native-name-colliding skill/tool selections.
+    when: Strict config loading and digest fixtures run in randomized file order.
+    then: Existing digests stay stable, omitted and explicit empty normalize identically, valid non-empty digests are stable and invalid, unbudgeted or colliding definitions fail deterministically.
+  - id: A2
+    given: A Workflow whose current and escalation templates share one skill and later template adds another.
+    when: Run initialization completes.
+    then: Exactly two current sources are read/forked once, the immutable Run snapshot records exact source/run refs, digests and ordinary lineage, and the Run becomes schedulable only after both commits.
+  - id: A3
+    given: An ordinary owner Artifact CAS update after the old POST /v1/runs transaction commits but before package validation/fork, plus later Stage retry and escalation.
+    when: Allocations are prepared.
+    then: The old Run keeps its exact packages while a newly created Run for that owner selects the new current revision.
+  - id: A4
+    given: A generic Worker Artifact tool and a stale allocation.
+    when: They enumerate, read versionless or mutate skills/<name>.
+    then: No package is disclosed through generic tools and no skill binding or blob lineage is advanced.
+
+tests:
+  - {name: config, command: "go test -race ./internal/config/...", covers: [A1]}
+  - {name: run-pinning, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/runstore/... ./internal/scheduler/... ./internal/httpapi/public/...", covers: [A2, A3]}
+  - {name: artifact-policy, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/artifacts/... ./internal/httpapi/privateartifacts/... && cd runtime && uv run pytest tests/test_run_artifacts_toolset.py -k reserved", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

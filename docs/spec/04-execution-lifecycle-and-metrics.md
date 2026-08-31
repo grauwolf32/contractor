@@ -297,6 +297,12 @@ finalization the Worker converts it to the framework-neutral `ExecutionReport`;
 ADK State itself is only an accumulator implementation, never the Contractor
 wire or persistence schema.
 
+When Agent Skills are selected, ADK's allocation-local activated-skill State is
+separate from `metrics`, remains process-local and is destroyed with Worker. It
+is neither copied into MemoryTools nor persisted as resumable Session state.
+The package/ref lifecycle and allowed telemetry projection are defined by
+[09](09-agent-skills.md).
+
 RuntimeSettings secrets supplied by Control Plane are held outside ADK Session,
 State, events and model-visible instruction/context. They configure clients
 such as the LLM Gateway adapter and are never a telemetry source.
@@ -461,6 +467,10 @@ RuntimeSettings remain absent. The owning pinning and merge contract is
 - MemoryTools applies a stricter projection: content, description and tags are
   always dropped rather than merely truncated. Only operation, logical Worker
   when applicable, note name, byte sizes, outcome and duration may remain.
+- Agent Skill tools apply a similar stricter projection: only validated logical
+  skill name, bounded normalized reference/asset path, outcome, duration,
+  result size and stable error code may remain. Instructions, resource/package
+  bytes, extracted paths and generated context are always dropped under [09].
 - RuntimeSettings tokens and other known deployment secrets are always removed,
   even if a tool argument or error accidentally contains them.
 - Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by

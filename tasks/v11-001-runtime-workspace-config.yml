@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V11-001
+title: Add strict Runtime-local project workspace configuration
+milestone: runtime-filesystems-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V7-004]
+languages: [python]
+
+goal: >-
+  Let one Python Runtime Agent declare immutable named project roots and their
+  local/memory/overlay authority at process startup without sending any path or
+  backend state to Contractor Server.
+
+context:
+  boundary: >-
+    This is local Runtime process configuration, not Workflow, AgentTemplate,
+    RuntimeSettings, label or AllocationSpec data. The optional CLI flag is
+    --workspace-config with CONTRACTOR_WORKSPACE_CONFIG as its environment
+    equivalent. A process without the option behaves exactly as today and later
+    omits filesystem Toolsets.
+  schema: >-
+    Strict YAML has schemaVersion contractor.runtime-workspace/v1 and mounts, a
+    mapping of 1..8 names matching [a-z][a-z0-9_-]{0,63}. Each mount contains
+    exactly absolute path, mode in local|memory|overlay-local|overlay-memory and
+    optional hostWrite default false. hostWrite=true is valid only for local or
+    overlay-local. Unknown/duplicate keys, aliases, multiple documents and
+    interpolation are invalid.
+  roots: >-
+    Config file is supplied as an absolute existing regular non-symlink path.
+    Every project path is absolute/clean, exists as a directory, is not itself
+    a symlink or filesystem root, and canonical roots are distinct,
+    non-overlapping and disjoint from Runtime work_root. Host paths are safe
+    local diagnostics only and must never enter object repr, registration,
+    Agent Card, execution metrics or remote errors.
+
+scope:
+  in:
+    - Add frozen typed WorkspaceConfig and WorkspaceMountConfig models with exact validation and deterministic mount-name ordering.
+    - Parse the optional CLI/environment setting and load the complete YAML before factory construction or private listener registration.
+    - Preserve the original absolute no-symlink config-file check before parsing; do not accept a symlink merely because resolve reaches a regular target.
+    - Canonicalize and validate all roots together so overlap/work-root conflicts fail all-or-nothing.
+    - Provide a content-free config digest over normalized safe fields plus canonical local paths for Runtime-local journal binding; never serialize this digest input remotely.
+    - Add safe operator diagnostics keyed by mount name and validation class, with no YAML values or host path in the default structured fields.
+  out:
+    - fsspec adapters, tree scanning, Toolsets, capability registration, allocation sessions, materialization or any Go/Server contract.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/workspace_config.py, description: Strict typed parser validator and normalized Runtime-local config digest.}
+  - {path: runtime/src/contractor_runtime/settings.py, description: Optional absolute workspace-config process setting.}
+  - {path: runtime/tests/test_workspace_config.py, description: Valid boundary malformed and path-topology tests.}
+
+requirements:
+  - id: R1
+    text: Loading is side-effect-free and occurs before any source tree scan or write probe.
+  - id: R2
+    text: Settings/config repr and validation exceptions do not disclose private project paths across generic logging boundaries.
+  - id: R3
+    text: No accepted value is derived from Control Plane, a label, AgentTemplate, environment-variable expansion inside YAML or model input.
+  - id: R4
+    text: Omitted configuration is a first-class empty WorkspaceConfig and does not make Runtime startup fail.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid config with local, memory, overlay-local and overlay-memory mounts.
+    when: Runtime settings load it twice.
+    then: Both normalized models and local digests are identical, mount order is lexical and no remote DTO changes.
+  - id: A2
+    given: Relative/root/symlink/overlapping/work-root paths, invalid modes or illegal hostWrite combinations.
+    when: The config is loaded.
+    then: Startup fails before factory construction with a bounded safe class and no partial mount set.
+  - id: A3
+    given: No workspace option.
+    when: Existing Runtime settings and serve tests execute.
+    then: Their values and behavior remain unchanged apart from an empty local workspace config field.
+
+tests:
+  - {name: workspace-config, command: "cd runtime && uv run pytest tests/test_workspace_config.py tests/test_settings.py", covers: [A1, A2, A3]}
+  - {name: runtime-lint, command: "cd runtime && uv run ruff check src tests", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
