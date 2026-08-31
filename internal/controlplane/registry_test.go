@@ -93,6 +93,35 @@ func TestReserveAllIsAtomicWithInsufficientCapacity(t *testing.T) {
 	}
 }
 
+func TestReserveAllFindsCompleteSpecialistGeneralistAssignment(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	specialist := testRegistration("agent-a-specialist")
+	specialist.SupportedToolsets = append(specialist.SupportedToolsets, contracts.ToolsetCapability{
+		Ref: "likec4@1", Tools: []string{"validate_likec4"},
+	})
+	registerReadyWith(t, registry, specialist)
+	registerReady(t, registry, "agent-b-generalist")
+
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-heterogeneous", StageExecutionID: "stage-heterogeneous",
+		Bindings: []BindingRequirement{
+			testBinding(t, "a-generic", "generic", testTemplate(t)),
+			testBinding(t, "b-validator", "validator", likeC4ValidationTemplate(t)),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reservations) != 2 ||
+		reservations[0].Grant.LogicalAgentName != "a-generic" ||
+		reservations[0].Grant.RuntimeInstanceID != "agent-b-generalist" ||
+		reservations[1].Grant.LogicalAgentName != "b-validator" ||
+		reservations[1].Grant.RuntimeInstanceID != "agent-a-specialist" {
+		t.Fatalf("complete heterogeneous assignment = %+v", reservations)
+	}
+}
+
 func TestReserveAllRejectsRunReservedAgentNamespace(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	_, err := registry.ReserveAll(ReservationRequest{
@@ -274,17 +303,43 @@ func TestReleasedStageReservationHistoryIsCompactAndBounded(t *testing.T) {
 }
 
 func TestCapabilityMatchingRequiresExactRefsAndSelectedTools(t *testing.T) {
-	clock := newTestClock()
-	registry := newTestRegistry(t, clock)
-	registration := testRegistration("agent-1")
-	registration.SupportedToolsets[0].Tools = []string{"read_artifact"}
-	registerReadyWith(t, registry, registration)
-	_, err := registry.ReserveAll(ReservationRequest{
-		RunID: "run-1", StageExecutionID: "stage-1",
-		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
-	})
-	if !errors.Is(err, ErrInsufficientCapacity) {
-		t.Fatalf("missing selected tool reservation error = %v", err)
+	tests := []struct {
+		name   string
+		mutate func(*contracts.ResolvedAgentTemplate)
+	}{
+		{"runtime", func(template *contracts.ResolvedAgentTemplate) {
+			template.Runtime.Version = "2"
+		}},
+		{"sandbox", func(template *contracts.ResolvedAgentTemplate) {
+			template.SandboxProfile.Version = "2"
+		}},
+		{"toolset", func(template *contracts.ResolvedAgentTemplate) {
+			template.Toolsets[0].Ref.Version = "2"
+		}},
+		{"selected-tool", func(template *contracts.ResolvedAgentTemplate) {
+			template.Toolsets[0].Tools = append(template.Toolsets[0].Tools, "unavailable_tool")
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			registry := newTestRegistry(t, newTestClock())
+			registerReady(t, registry, "agent-1")
+			template := testTemplate(t)
+			test.mutate(&template)
+			before := registry.SnapshotOperations()
+			_, err := registry.ReserveAll(ReservationRequest{
+				RunID: "run-1", StageExecutionID: "stage-1",
+				Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+			})
+			if !errors.Is(err, ErrInsufficientCapacity) {
+				t.Fatalf("incompatible %s reservation error = %v", test.name, err)
+			}
+			after := registry.SnapshotOperations()
+			if after.Cursor != before.Cursor || len(after.Allocations) != 0 ||
+				after.RuntimeAgents[0].AuthoritativeAllocationID != nil {
+				t.Fatalf("failed %s match mutated Operations: before=%+v after=%+v", test.name, before, after)
+			}
+		})
 	}
 }
 
@@ -610,6 +665,16 @@ func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return template
+}
+
+func likeC4ValidationTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
+	t.Helper()
+	template := testTemplate(t)
+	template.Toolsets = append(template.Toolsets, contracts.ToolsetSelection{
+		Ref:   contracts.ToolsetRef{ToolsetID: "likec4", Version: "1"},
+		Tools: []string{"validate_likec4"},
+	})
 	return template
 }
 

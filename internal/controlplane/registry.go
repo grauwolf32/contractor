@@ -305,20 +305,9 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		}
 		return available[i].orderKey < available[j].orderKey
 	})
-	selected := make([]*agentEntry, len(normalizedBindings))
-	used := make(map[string]struct{}, len(normalizedBindings))
-	for bindingIndex, binding := range normalizedBindings {
-		for _, entry := range available {
-			if _, exists := used[entry.registration.InstanceID]; exists || !isCompatible(entry.registration, binding.AgentTemplate) {
-				continue
-			}
-			selected[bindingIndex] = entry
-			used[entry.registration.InstanceID] = struct{}{}
-			break
-		}
-		if selected[bindingIndex] == nil {
-			return nil, ErrInsufficientCapacity
-		}
+	selected, complete := completeCapabilityAssignment(available, normalizedBindings)
+	if !complete {
+		return nil, ErrInsufficientCapacity
 	}
 
 	reservations := make([]Reservation, len(normalizedBindings))
@@ -349,6 +338,90 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 	}
 	r.recordOperationsChangeLocked(OperationsAllocation, "")
 	return reservations, nil
+}
+
+// completeCapabilityAssignment finds a complete injective binding-to-slot
+// assignment over two already stable-ordered collections. Each augmentation
+// uses an explicit queue and parent edges so request-controlled binding depth
+// never becomes call-stack depth. It does not mutate Runtime Agent entries.
+func completeCapabilityAssignment(
+	available []*agentEntry,
+	bindings []BindingRequirement,
+) ([]*agentEntry, bool) {
+	if len(bindings) > len(available) {
+		return nil, false
+	}
+	candidates := make([][]int, len(bindings))
+	for bindingIndex, binding := range bindings {
+		for agentIndex, entry := range available {
+			if isCompatible(entry.registration, binding.AgentTemplate) {
+				candidates[bindingIndex] = append(candidates[bindingIndex], agentIndex)
+			}
+		}
+		if len(candidates[bindingIndex]) == 0 {
+			return nil, false
+		}
+	}
+
+	bindingToAgent := integersFilled(len(bindings), -1)
+	agentToBinding := integersFilled(len(available), -1)
+	for startBinding := range bindings {
+		seenBindings := make([]bool, len(bindings))
+		seenAgents := make([]bool, len(available))
+		parentBindingForAgent := integersFilled(len(available), -1)
+		queue := make([]int, 1, len(bindings))
+		queue[0] = startBinding
+		seenBindings[startBinding] = true
+		augmented := false
+
+		for len(queue) > 0 && !augmented {
+			bindingIndex := queue[0]
+			queue = queue[1:]
+			for _, agentIndex := range candidates[bindingIndex] {
+				if seenAgents[agentIndex] {
+					continue
+				}
+				seenAgents[agentIndex] = true
+				parentBindingForAgent[agentIndex] = bindingIndex
+				occupiedBy := agentToBinding[agentIndex]
+				if occupiedBy == -1 {
+					for currentAgent := agentIndex; currentAgent != -1; {
+						currentBinding := parentBindingForAgent[currentAgent]
+						previousAgent := bindingToAgent[currentBinding]
+						bindingToAgent[currentBinding] = currentAgent
+						agentToBinding[currentAgent] = currentBinding
+						currentAgent = previousAgent
+					}
+					augmented = true
+					break
+				}
+				if !seenBindings[occupiedBy] {
+					seenBindings[occupiedBy] = true
+					queue = append(queue, occupiedBy)
+				}
+			}
+		}
+		if !augmented {
+			return nil, false
+		}
+	}
+
+	selected := make([]*agentEntry, len(bindings))
+	for bindingIndex, agentIndex := range bindingToAgent {
+		if agentIndex < 0 {
+			return nil, false
+		}
+		selected[bindingIndex] = available[agentIndex]
+	}
+	return selected, true
+}
+
+func integersFilled(length int, value int) []int {
+	result := make([]int, length)
+	for index := range result {
+		result[index] = value
+	}
+	return result
 }
 
 func (r *InMemoryRegistry) GetGrant(allocationID string) (AllocationGrant, error) {

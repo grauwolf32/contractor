@@ -91,6 +91,44 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	}
 }
 
+func TestOperationsSnapshotReflectsCompleteHeterogeneousAssignment(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	specialist := testRegistration("agent-a-specialist-operations")
+	specialist.SupportedToolsets = append(specialist.SupportedToolsets, contracts.ToolsetCapability{
+		Ref: "likec4@1", Tools: []string{"validate_likec4"},
+	})
+	registerReadyWith(t, registry, specialist)
+	registerReady(t, registry, "agent-b-generalist-operations")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-heterogeneous-operations", StageExecutionID: "stage-heterogeneous-operations",
+		Bindings: []BindingRequirement{
+			testBinding(t, "a-generic", "generic", testTemplate(t)),
+			testBinding(t, "b-validator", "validator", likeC4ValidationTemplate(t)),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot := registry.SnapshotOperations()
+	if len(snapshot.RuntimeAgents) != 2 || len(snapshot.Allocations) != 2 {
+		t.Fatalf("heterogeneous Operations cardinality = %+v", snapshot)
+	}
+	assigned := make(map[string]string, len(reservations))
+	for _, reservation := range reservations {
+		assigned[reservation.Grant.LogicalAgentName] = reservation.Grant.RuntimeInstanceID
+	}
+	for _, observation := range snapshot.RuntimeAgents {
+		if observation.SlotState != SlotReserved || observation.AuthoritativeAllocationID == nil {
+			t.Fatalf("heterogeneous reserved agent observation = %+v", observation)
+		}
+	}
+	if assigned["a-generic"] != "agent-b-generalist-operations" ||
+		assigned["b-validator"] != "agent-a-specialist-operations" {
+		t.Fatalf("heterogeneous Operations assignment = %+v", assigned)
+	}
+}
+
 func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	registerReady(t, registry, "agent-report")
