@@ -47,3 +47,12 @@ PUT after a conflict or lost response. Version and lineage views retain exact
 revisions. Inline preview is opt-in, capped at 256 KiB, restricted to a small
 text media-type allowlist, and rendered as escaped text. Other payloads remain
 available only through exact-revision download.
+
+The `/workflows` route lists exact published Workflow versions and renders the
+selected parameter, input, output, Stage and escalation contract. Run drafts
+accept only declared strings, loaded exact Artifact revisions, published
+ModelPolicy/LLMGatewayConfig selectors and active credential IDs. One in-memory
+idempotency key remains bound to the canonical submitted draft after response
+loss; an unchanged explicit retry reuses it, while changed submitted content
+gets a new key. The UI navigates to the Server-returned Run ID only after a 202
+response and never inserts a speculative Run into its cache.

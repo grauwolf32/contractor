@@ -900,34 +900,22 @@ export interface components {
             namespace: components["schemas"]["ArtifactName"];
         };
         WorkflowNextTransition: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "WorkflowNextTransition";
+            /** @constant */
+            kind: "next";
             nextStage: components["schemas"]["ConfigId"];
         };
         WorkflowSucceedTransition: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "WorkflowSucceedTransition";
+            /** @constant */
+            kind: "succeed";
         };
         WorkflowFailTransition: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "WorkflowFailTransition";
+            /** @constant */
+            kind: "fail";
         };
         WorkflowNextOrFailTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowFailTransition"];
         WorkflowRetryTransition: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "WorkflowRetryTransition";
+            /** @constant */
+            kind: "retry";
             maxAttempts: number;
             then: components["schemas"]["WorkflowNextOrFailTransition"];
         };
@@ -936,11 +924,8 @@ export interface components {
             effective: components["schemas"]["ResolvedStageExecutionConfig"];
         };
         WorkflowEscalateTransition: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "WorkflowEscalateTransition";
+            /** @constant */
+            kind: "escalate";
             maxAttempts: number;
             executionConfig: components["schemas"]["WorkflowEscalationConfig"];
             then: components["schemas"]["WorkflowNextOrFailTransition"];

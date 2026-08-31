@@ -14,15 +14,13 @@ export function Application({
   router,
 }: {
   api: SessionAPI;
-  publicAPI?: PublicAPI;
+  publicAPI: PublicAPI;
   router: RouterProviderProps["router"];
 }): ReactNode {
   const [queryClient] = useState(createApplicationQueryClient);
   return (
     <QueryClientProvider client={queryClient}>
-      <PublicAPIProvider
-        {...(publicAPI === undefined ? {} : { api: publicAPI })}
-      >
+      <PublicAPIProvider api={publicAPI}>
         <SessionProvider api={api}>
           <RouterProvider router={router} />
         </SessionProvider>

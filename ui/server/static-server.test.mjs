@@ -69,9 +69,11 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/",
     "/login",
     "/workflows",
+    "/workflows/openapi-from-source/1",
     "/artifacts",
     "/artifacts/projects/source",
     "/runs",
+    "/runs/run_example",
     "/operations",
   ]) {
     const response = await fetch(`${origin}${route}`);
@@ -125,6 +127,8 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
     "/assets/missing-12345678.js",
     "/unknown",
     "/manifest.json",
+    "/workflows/name/1/extra",
+    "/runs/run_example/extra",
   ]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 404, path);

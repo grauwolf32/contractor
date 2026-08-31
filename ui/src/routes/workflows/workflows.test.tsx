@@ -1,0 +1,467 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
+import { describe, expect, it, vi } from "vitest";
+
+import { PublicAPI } from "../../api/client";
+import type { RuntimeConfig } from "../../config/runtime-config";
+import { Application } from "../../app/application";
+import { applicationRoutes } from "../../app/router";
+import type { WorkflowResource } from "../../api/workflows";
+
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+const digest = `sha256:${"1".repeat(64)}`;
+const session = {
+  principal: {
+    userId: "user_local",
+    username: "owner",
+    capabilities: ["user", "operations"] as const,
+  },
+  csrfToken: "a".repeat(43),
+  idleExpiresAt: "2026-08-31T20:00:00Z",
+  absoluteExpiresAt: "2026-09-01T12:00:00Z",
+};
+
+const workerConfig = {
+  modelPolicy: { policyId: "worker", version: "1", digest },
+  llmGateway: { gatewayId: "local", version: "1", digest },
+};
+
+const workflow: WorkflowResource = {
+  ref: { name: "openapi-from-source", version: "1" },
+  entryStage: "build",
+  parameters: {
+    objective: { required: true },
+    audience: { required: false },
+  },
+  inputs: {
+    source: { required: true, mediaTypes: ["application/zip"] },
+  },
+  outputs: {
+    openapi: { required: true, mediaTypes: ["application/yaml"] },
+  },
+  stages: {
+    build: {
+      objective: "Build an OpenAPI contract from the supplied source tree.",
+      instructions: { ref: "instructions/openapi-planner.md", digest },
+      planner: { plannerId: "passthrough", version: "1" },
+      agents: {
+        builder: {
+          template: {
+            templateId: "openapi-builder",
+            version: "1",
+            digest,
+          },
+          namespace: "builder",
+        },
+      },
+      executionConfig: { agents: { builder: workerConfig } },
+      contextArtifacts: {
+        source: { namespace: "inputs", name: "source", required: true },
+      },
+      resultArtifacts: {
+        openapi: { required: true, mediaTypes: ["application/yaml"] },
+      },
+      workflowOutputs: { openapi: "openapi" },
+      on: {
+        succeeded: { kind: "succeed" },
+        failed: {
+          kind: "escalate",
+          maxAttempts: 1,
+          executionConfig: {
+            ref: {
+              configId: "strong-escalation",
+              version: "2",
+              digest,
+            },
+            effective: { agents: { builder: workerConfig } },
+          },
+          then: { kind: "fail" },
+        },
+        interrupted: { kind: "fail" },
+      },
+    },
+  },
+};
+
+const sourceArtifact = {
+  artifact: {
+    namespace: "projects",
+    name: "source",
+    revision: "revision-7",
+  },
+  mediaType: "application/zip",
+  size: 1024,
+  current: true,
+  frozen: false,
+  createdAt: "2026-08-31T12:00:00Z",
+};
+
+function apiResponse(value: unknown, options: ResponseInit = {}): Response {
+  const headers = new Headers(options.headers);
+  headers.set("content-type", "application/json");
+  headers.set("X-Contractor-API-Version", "contractor.public.v1");
+  return new Response(JSON.stringify(value), { ...options, headers });
+}
+
+function inventoryResponse(path: string): Response | undefined {
+  if (path === "/v1/artifacts") {
+    return apiResponse({
+      items: [sourceArtifact],
+      page: { hasMore: false },
+    });
+  }
+  if (path === "/v1/configurations/model-policies") {
+    return apiResponse({
+      items: [
+        {
+          ref: {
+            kind: "model-policies",
+            name: "worker-strong",
+            version: "2",
+            digest,
+          },
+          body: { model: "strong-model", maxTotalTokens: 100_000 },
+          source: "operator",
+        },
+      ],
+      page: { hasMore: false },
+    });
+  }
+  if (path === "/v1/configurations/llm-gateways") {
+    return apiResponse({
+      items: [
+        {
+          ref: {
+            kind: "llm-gateways",
+            name: "local",
+            version: "1",
+            digest,
+          },
+          body: {
+            protocol: "openai-compatible@1",
+            url: "http://192.0.2.1:4000",
+          },
+          source: "operator",
+        },
+      ],
+      page: { hasMore: false },
+    });
+  }
+  if (path === "/v1/operations/credentials") {
+    return apiResponse({
+      items: [
+        {
+          credentialId: "worker-budget",
+          llmGateway: { gatewayId: "local", version: "1", digest },
+          label: "Worker budget",
+          createdAt: "2026-08-31T12:00:00Z",
+          effectivePolicy: {
+            modelPolicies: [
+              { policyId: "worker-strong", version: "2", digest },
+            ],
+            models: ["strong-model"],
+          },
+        },
+      ],
+      page: { hasMore: false },
+    });
+  }
+  return undefined;
+}
+
+function renderWorkflowApplication(api: PublicAPI, path: string) {
+  const router = createMemoryRouter(applicationRoutes(), {
+    initialEntries: [path],
+  });
+  return {
+    ...render(<Application api={api} publicAPI={api} router={router} />),
+    router,
+  };
+}
+
+describe("Workflow routes", () => {
+  it("paginates exact published Workflow versions", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/workflows") {
+          if (url.searchParams.get("cursor") === "next-workflow") {
+            return apiResponse({
+              items: [
+                {
+                  ...workflow,
+                  ref: { name: "likec4-from-source", version: "1" },
+                },
+              ],
+              page: { hasMore: false },
+            });
+          }
+          return apiResponse({
+            items: [workflow],
+            page: { hasMore: true, nextCursor: "next-workflow" },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, "/workflows");
+    expect(
+      await screen.findByRole("link", { name: "openapi-from-source@1" }),
+    ).toHaveAttribute("href", "/workflows/openapi-from-source/1");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "likec4-from-source@1" }),
+    ).toBeInTheDocument();
+  });
+
+  it("submits declared strings, an exact Artifact, and published overrides", async () => {
+    const posts: Array<{ request: Request; body: unknown }> = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+          return apiResponse(workflow);
+        }
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory !== undefined) {
+          return inventory;
+        }
+        if (url.pathname === "/v1/runs" && request.method === "POST") {
+          posts.push({ request, body: await request.clone().json() });
+          return apiResponse(
+            { runId: "run_openapi", state: "running" },
+            { status: 202 },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderWorkflowApplication(
+      api,
+      "/workflows/openapi-from-source/1",
+    );
+    expect(
+      await screen.findByRole("heading", { name: "openapi-from-source@1" }),
+    ).toBeInTheDocument();
+    await screen.findByText("Scheduler transitions");
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "SPAN" &&
+          element.textContent?.includes("escalate up to 1 attempt using") ===
+            true,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("strong-escalation@2", { selector: "code" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /escalate/i }),
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^objective/i), "Build public API");
+    await screen.findByRole("option", {
+      name: /projects\/source@revision-7/,
+    });
+    await user.selectOptions(
+      screen.getByLabelText(/^source/i),
+      "projects/source@revision-7",
+    );
+    await user.click(
+      screen.getByText("Optional published execution overrides"),
+    );
+    const workerOverrides = screen.getByRole("group", { name: "Workers" });
+    await user.selectOptions(
+      within(workerOverrides).getByLabelText("Model policy"),
+      "worker-strong@2",
+    );
+    await user.selectOptions(
+      within(workerOverrides).getByLabelText("LLM Gateway"),
+      "local@1",
+    );
+    await user.selectOptions(
+      within(workerOverrides).getByLabelText("Credential"),
+      "worker-budget",
+    );
+    expect(screen.queryByLabelText(/Gateway URL/i)).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/runs/run_openapi"),
+    );
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.request.headers.get("X-CSRF-Token")).toBe(
+      session.csrfToken,
+    );
+    expect(posts[0]?.request.headers.get("Idempotency-Key")).toMatch(
+      /^run-ui-[0-9a-f]{32}$/,
+    );
+    expect(posts[0]?.body).toEqual({
+      workflow: "openapi-from-source@1",
+      parameters: { objective: "Build public API" },
+      artifacts: {
+        source: {
+          namespace: "projects",
+          name: "source",
+          revision: "revision-7",
+        },
+      },
+      executionConfig: {
+        workers: {
+          modelPolicy: "worker-strong@2",
+          llmGateway: "local@1",
+          credential: "worker-budget",
+        },
+      },
+    });
+    expect(
+      await screen.findByRole("heading", { name: "Run accepted" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("run_openapi")).toBeInTheDocument();
+  });
+
+  it("blocks a mutation while required declared fields are missing", async () => {
+    let postCount = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+          return apiResponse(workflow);
+        }
+        if (
+          url.pathname.startsWith("/v1/configurations/") ||
+          url.pathname === "/v1/operations/credentials"
+        ) {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory !== undefined) {
+          return inventory;
+        }
+        if (url.pathname === "/v1/runs") {
+          postCount += 1;
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, "/workflows/openapi-from-source/1");
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+    expect(
+      await screen.findByText("Required string parameter is missing."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Required Artifact input is missing."),
+    ).toBeInTheDocument();
+    expect(postCount).toBe(0);
+    await user.click(
+      screen.getByText("Optional published execution overrides"),
+    );
+    expect(
+      await screen.findByText("No ModelPolicy versions published."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No LLMGatewayConfig versions published."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No active credentials available."),
+    ).toBeInTheDocument();
+  });
+
+  it("reuses one key for exact response-loss retry and rotates it after edits", async () => {
+    const keys: string[] = [];
+    let postCount = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+          return apiResponse(workflow);
+        }
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory !== undefined) {
+          return inventory;
+        }
+        if (url.pathname === "/v1/runs" && request.method === "POST") {
+          keys.push(request.headers.get("Idempotency-Key") ?? "missing");
+          postCount += 1;
+          if (postCount < 3) {
+            throw new TypeError("response lost");
+          }
+          return apiResponse(
+            { runId: "run_changed", state: "running" },
+            { status: 202 },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderWorkflowApplication(
+      api,
+      "/workflows/openapi-from-source/1",
+    );
+    const user = userEvent.setup();
+    const objective = await screen.findByLabelText(/^objective/i);
+    await user.type(objective, "Initial objective");
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    await user.selectOptions(
+      screen.getByLabelText(/^source/i),
+      "projects/source@revision-7",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Retry exact request" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Retry exact request" }),
+    ).toBeInTheDocument();
+    expect(keys[0]).toBe(keys[1]);
+
+    await user.clear(objective);
+    await user.type(objective, "Changed objective");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Start changed draft with a new key",
+      }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/runs/run_changed"),
+    );
+    expect(keys).toHaveLength(3);
+    expect(keys[2]).not.toBe(keys[1]);
+  });
+});

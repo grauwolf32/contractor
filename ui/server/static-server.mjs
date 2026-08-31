@@ -13,6 +13,8 @@ const CLIENT_ROUTES = new Set([
 ]);
 const CLIENT_ROUTE_PATTERNS = [
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
+  /^\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
+  /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
 ];
 const API_PREFIXES = ["/v1", "/api", "/private"];
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;

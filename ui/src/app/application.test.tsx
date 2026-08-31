@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../api/client";
+import { PublicAPI, type AuthSession } from "../api/client";
+import type { RuntimeConfig } from "../config/runtime-config";
 import type { SessionAPI } from "../auth/session";
 import { Application } from "./application";
 import { applicationRoutes } from "./router";
@@ -19,11 +20,32 @@ const session: AuthSession = {
   absoluteExpiresAt: "2026-09-01T12:00:00Z",
 };
 
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+function response(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    headers: {
+      "content-type": "application/json",
+      "X-Contractor-API-Version": "contractor.public.v1",
+    },
+  });
+}
+
 function renderApplication(api: SessionAPI, initialPath: string) {
+  const publicAPI = new PublicAPI(
+    runtimeConfig,
+    vi.fn(async () => response({ items: [], page: { hasMore: false } })),
+  );
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [initialPath],
   });
-  const view = render(<Application api={api} router={router} />);
+  const view = render(
+    <Application api={api} publicAPI={publicAPI} router={router} />,
+  );
   return { ...view, router };
 }
 
