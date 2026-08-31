@@ -752,7 +752,7 @@ func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
 	}
 }
 
-func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
+func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
@@ -775,25 +775,43 @@ func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
 		Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 		StageSpecSnapshot: stageSnapshot, State: runstore.StageRunning,
 	}}
+	retryable := true
+	normalizedWorker, err := telemetry.NewPolicy("must-not-be-public").NormalizeExecutionReport(
+		contracts.ExecutionReport{
+			ReportID: "worker-secret", Complete: true,
+			Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+			ToolCalls: []contracts.ToolCallRecord{{
+				CallID: "call-secret", Tool: "probe",
+				Arguments: map[string]any{"token": "must-not-be-public"},
+				Outcome:   contracts.ToolCallSucceeded,
+			}},
+			Errors: []contracts.ExecutionError{
+				{
+					Code:      "worker_result_schema_json_invalid",
+					Message:   "Worker result did not match StageContentResult",
+					Retryable: &retryable,
+				},
+				{
+					Code:    "gateway_error",
+					Message: "provider must-not-be-public at https://provider.example.test/v1",
+				},
+			},
+		},
+		telemetry.MaxReportJSONBytes,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
 		StageExecutionID: "stage-metrics",
 		Metrics: contracts.StageMetrics{
 			Workers: map[string]contracts.ExecutionReport{
-				"builder": {
-					ReportID: "worker-secret", Complete: true,
-					Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-					ToolCalls: []contracts.ToolCallRecord{{
-						CallID: "call-secret", Tool: "probe",
-						Arguments: map[string]any{"token": "must-not-be-public"},
-						Outcome:   contracts.ToolCallSucceeded,
-					}},
-					Errors: []contracts.ExecutionError{},
-				},
+				"builder": normalizedWorker,
 			},
 			Runtime: map[string]contracts.RuntimeReport{"builder": {Complete: true}},
 		},
 		Summary: telemetry.Summary{
-			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1,
+			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1, ErrorCount: 2,
 		},
 	}
 
@@ -805,7 +823,9 @@ func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
 		t.Fatalf("status response = %d: %s", response.Code, response.Body.String())
 	}
 	if strings.Contains(response.Body.String(), "must-not-be-public") ||
-		strings.Contains(response.Body.String(), "call-secret") {
+		strings.Contains(response.Body.String(), "call-secret") ||
+		strings.Contains(response.Body.String(), "worker-secret") ||
+		strings.Contains(response.Body.String(), "https://provider.example.test") {
 		t.Fatalf("public status leaked detailed telemetry: %s", response.Body.String())
 	}
 	var result runStatusResponse
@@ -815,6 +835,15 @@ func TestRunStatusExposesOnlySafeMetricsSummary(t *testing.T) {
 	if len(result.Attempts) != 1 || result.Attempts[0].Metrics == nil ||
 		result.Attempts[0].Metrics.ModelCalls != 2 || result.Attempts[0].Metrics.ToolCalls != 1 {
 		t.Fatalf("public metrics summary = %+v", result.Attempts)
+	}
+	diagnostics := result.Attempts[0].Diagnostics
+	if diagnostics == nil || diagnostics.Truncated || len(diagnostics.Items) != 2 ||
+		diagnostics.Items[0].Participant != telemetry.AttemptDiagnosticWorker ||
+		diagnostics.Items[0].LogicalAgent != "builder" ||
+		diagnostics.Items[0].Code != "worker_result_schema_json_invalid" ||
+		diagnostics.Items[0].Retryable == nil || !*diagnostics.Items[0].Retryable ||
+		!strings.Contains(diagnostics.Items[1].Message, "[REDACTED_URL]") {
+		t.Fatalf("public attempt diagnostics = %+v", diagnostics)
 	}
 	if result.Attempts[0].ExecutionConfig.Variant != runstore.StageExecutionConfigBase ||
 		result.Attempts[0].ExecutionConfig.Agents["builder"].ModelPolicy.PolicyID != "worker" {

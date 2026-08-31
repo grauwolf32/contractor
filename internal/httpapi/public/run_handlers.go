@@ -390,12 +390,15 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var metrics *telemetry.Summary
+		var diagnostics *telemetry.AttemptDiagnostics
 		if h.dependencies.Metrics != nil {
 			if record, metricsErr := h.dependencies.Metrics.GetStageMetrics(
 				r.Context(), execution.StageExecutionID,
 			); metricsErr == nil {
 				value := record.Summary
 				metrics = &value
+				diagnosticValue := telemetry.ProjectAttemptDiagnostics(record.Metrics)
+				diagnostics = &diagnosticValue
 			}
 		}
 		var plan *planner.PlannerPlanProjection
@@ -432,6 +435,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			Result:              execution.AcceptedResult,
 			Termination:         execution.Termination,
 			Metrics:             metrics,
+			Diagnostics:         diagnostics,
 			Plan:                plan,
 			CreatedAt:           execution.CreatedAt,
 			UpdatedAt:           execution.UpdatedAt,

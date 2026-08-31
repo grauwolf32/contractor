@@ -1113,7 +1113,8 @@ code {
 }
 
 .subtask-list,
-.transition-list {
+.transition-list,
+.diagnostic-list {
   display: grid;
   gap: 0.7rem;
   margin: 0.8rem 0 0;
@@ -1122,7 +1123,8 @@ code {
 }
 
 .subtask-list li,
-.transition-list li {
+.transition-list li,
+.diagnostic-list li {
   border: 1px solid var(--line);
   border-radius: 0.55rem;
   padding: 0.75rem;
@@ -1200,6 +1202,30 @@ code {
 .transition-list small {
   width: 100%;
   color: var(--muted);
+}
+
+.diagnostic-list li {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.diagnostic-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+}
+
+.diagnostic-list li > div span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.diagnostic-list p {
+  margin: 0;
+  color: #d8dee8;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .cancellation-record span,

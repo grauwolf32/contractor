@@ -456,9 +456,23 @@ telemetry expires after 30 days; cleanup is batch-bounded and may delete only
 telemetry belonging to a terminal StageExecution. These values may become
 deployment policy later without changing the report shape.
 
-The public Run status exposes only aggregate counts and report completeness.
-Tool arguments, report/session/allocation identities and error messages remain
-on the authenticated Server side and are never part of that projection.
+The authenticated owner Run status exposes aggregate counts, report
+completeness and one optional `AttemptDiagnostics` projection when StageMetrics
+exists. Diagnostics contain only normalized Planner/Worker report errors:
+participant kind, the logical Agent name for a Worker, a bounded stable code,
+a message of at most 4,096 bytes and optional `retryable`. Planner entries are
+ordered before Workers, Workers are sorted by logical Agent name, and source
+error order is preserved. At most the newest 128 entries in that deterministic
+sequence are returned; any source or projection overflow sets `truncated`.
+
+Before this projection, the mandatory persistence-boundary policy has already
+removed configured secrets and bounded every error. The projection additionally
+replaces URL-shaped text and rejects non-contract error codes. Raw model output,
+prompts, provider bodies/URLs, tool calls, tool arguments/results, stack traces,
+physical Runtime addresses and report/session/allocation identities are never
+part of public Run status. An absent StageMetrics record omits diagnostics; a
+present record with no normalized errors returns an empty list so the UI can
+distinguish “no participant errors” from “telemetry unavailable”.
 
 ## Worker drain and finalization
 

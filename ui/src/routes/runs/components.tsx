@@ -13,6 +13,7 @@ import type { PlannerProjection } from "./live";
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type Metrics = components["schemas"]["MetricsSummary"];
+type Diagnostics = components["schemas"]["AttemptDiagnostics"];
 
 function stateLabel(value: string): string {
   return value.replaceAll("_", " ");
@@ -217,6 +218,50 @@ function MetricsView({ metrics }: { metrics: Metrics }) {
   );
 }
 
+function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
+  return (
+    <div className="attempt-block">
+      <h4>Attempt diagnostics</h4>
+      {diagnostics.items.length === 0 ? (
+        <p className="compact-copy">
+          No normalized Planner or Worker errors were reported.
+        </p>
+      ) : (
+        <ol className="diagnostic-list">
+          {diagnostics.items.map((diagnostic, index) => (
+            <li
+              key={`${diagnostic.participant}-${diagnostic.logicalAgent ?? "planner"}-${diagnostic.code}-${index}`}
+            >
+              <div>
+                <strong>
+                  {diagnostic.participant === "planner" ? "Planner" : "Worker"}
+                </strong>
+                {diagnostic.logicalAgent === undefined ? null : (
+                  <code>{diagnostic.logicalAgent}</code>
+                )}
+                <code>{diagnostic.code}</code>
+                <span>
+                  {diagnostic.retryable === undefined
+                    ? "retryability unknown"
+                    : diagnostic.retryable
+                      ? "retryable"
+                      : "not retryable"}
+                </span>
+              </div>
+              <p>{diagnostic.message}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+      {diagnostics.truncated ? (
+        <p className="compact-copy">
+          Older diagnostics were omitted by a bounded report or public response.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ResultView({
   runId,
   attempt,
@@ -359,6 +404,9 @@ export function StageAttemptView({
         <ExecutionConfigView attempt={attempt} />
         {attempt.metrics === undefined ? null : (
           <MetricsView metrics={attempt.metrics} />
+        )}
+        {attempt.diagnostics === undefined ? null : (
+          <DiagnosticsView diagnostics={attempt.diagnostics} />
         )}
         <ResultView runId={runId} attempt={attempt} />
         {transitions.length === 0 ? null : (

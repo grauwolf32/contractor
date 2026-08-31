@@ -1299,6 +1299,31 @@ components:
         toolFailures: {type: integer, minimum: 0}
         errorCount: {type: integer, minimum: 0}
         truncated: {type: boolean}
+    AttemptDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [participant, code, message]
+      properties:
+        participant: {enum: [planner, worker]}
+        logicalAgent: {$ref: '#/components/schemas/ConfigId'}
+        code: {$ref: '#/components/schemas/ConfigId'}
+        message: {type: string, minLength: 1, maxLength: 4096}
+        retryable: {type: boolean}
+      allOf:
+        - if: {properties: {participant: {const: planner}}}
+          then: {not: {required: [logicalAgent]}}
+        - if: {properties: {participant: {const: worker}}}
+          then: {required: [logicalAgent]}
+    AttemptDiagnostics:
+      type: object
+      additionalProperties: false
+      required: [items, truncated]
+      properties:
+        items:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/AttemptDiagnostic'}
+        truncated: {type: boolean}
     ModelPolicyRef:
       type: object
       additionalProperties: false
@@ -1391,6 +1416,7 @@ components:
         result: {$ref: '#/components/schemas/StageContentResult'}
         termination: {$ref: '#/components/schemas/StageTermination'}
         metrics: {$ref: '#/components/schemas/MetricsSummary'}
+        diagnostics: {$ref: '#/components/schemas/AttemptDiagnostics'}
         plan: {$ref: '#/components/schemas/PlannerPlan'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}

@@ -673,6 +673,18 @@ export interface components {
             errorCount: number;
             truncated: boolean;
         };
+        AttemptDiagnostic: {
+            /** @enum {unknown} */
+            participant: "planner" | "worker";
+            logicalAgent?: components["schemas"]["ConfigId"];
+            code: components["schemas"]["ConfigId"];
+            message: string;
+            retryable?: boolean;
+        } & (unknown & unknown);
+        AttemptDiagnostics: {
+            items: components["schemas"]["AttemptDiagnostic"][];
+            truncated: boolean;
+        };
         ModelPolicyRef: {
             policyId: components["schemas"]["ConfigId"];
             version: components["schemas"]["ConfigVersion"];
@@ -733,6 +745,7 @@ export interface components {
             result?: components["schemas"]["StageContentResult"];
             termination?: components["schemas"]["StageTermination"];
             metrics?: components["schemas"]["MetricsSummary"];
+            diagnostics?: components["schemas"]["AttemptDiagnostics"];
             plan?: components["schemas"]["PlannerPlan"];
             /** Format: date-time */
             createdAt?: string;

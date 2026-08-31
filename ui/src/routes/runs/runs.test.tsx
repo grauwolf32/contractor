@@ -522,6 +522,10 @@ describe("Run routes", () => {
             phase: "running",
             occurredAt: "2026-08-31T12:02:00Z",
           },
+          diagnostics: {
+            items: [],
+            truncated: true,
+          },
           createdAt: "2026-08-31T12:00:00Z",
           updatedAt: "2026-08-31T12:02:00Z",
           terminalAt: "2026-08-31T12:02:00Z",
@@ -549,6 +553,18 @@ describe("Run routes", () => {
             toolCalls: 6,
             toolFailures: 1,
             errorCount: 1,
+            truncated: false,
+          },
+          diagnostics: {
+            items: [
+              {
+                participant: "worker",
+                logicalAgent: "reviewer",
+                code: "worker_result_schema_json_invalid",
+                message: "Worker result did not match StageContentResult.",
+                retryable: true,
+              },
+            ],
             truncated: false,
           },
           createdAt: "2026-08-31T12:02:01Z",
@@ -613,6 +629,24 @@ describe("Run routes", () => {
     expect(screen.getByText("strong-review@2")).toBeInTheDocument();
     expect(screen.getByText("Model calls")).toBeInTheDocument();
     expect(screen.getByText("1600")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Attempt diagnostics" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getByText("No normalized Planner or Worker errors were reported."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Older diagnostics were omitted by a bounded report or public response.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("worker_result_schema_json_invalid"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("reviewer")).toBeInTheDocument();
+    expect(
+      screen.getByText("Worker result did not match StageContentResult."),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("escalation 1")).toHaveLength(2);
     expect(
       await screen.findAllByRole("link", { name: /outputs\/report@output-r2/ }),

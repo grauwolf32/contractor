@@ -199,6 +199,7 @@ type stageAttemptResponse struct {
 	Result              *contracts.StageContentResult  `json:"result,omitempty"`
 	Termination         *runstore.StageTermination     `json:"termination,omitempty"`
 	Metrics             *telemetry.Summary             `json:"metrics,omitempty"`
+	Diagnostics         *telemetry.AttemptDiagnostics  `json:"diagnostics,omitempty"`
 	Plan                *planner.PlannerPlanProjection `json:"plan,omitempty"`
 	CreatedAt           time.Time                      `json:"createdAt,omitempty"`
 	UpdatedAt           time.Time                      `json:"updatedAt,omitempty"`

@@ -1,8 +1,41 @@
 package telemetry
 
-import "github.com/grauwolf32/contractor/internal/contracts"
+import (
+	"regexp"
+	"sort"
+	"strings"
 
-// Summary is the only telemetry projection exposed through the public API.
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
+
+const MaxAttemptDiagnosticRecords = 128
+
+type AttemptDiagnosticParticipant string
+
+const (
+	AttemptDiagnosticPlanner AttemptDiagnosticParticipant = "planner"
+	AttemptDiagnosticWorker  AttemptDiagnosticParticipant = "worker"
+)
+
+type AttemptDiagnostic struct {
+	Participant  AttemptDiagnosticParticipant `json:"participant"`
+	LogicalAgent string                       `json:"logicalAgent,omitempty"`
+	Code         string                       `json:"code"`
+	Message      string                       `json:"message"`
+	Retryable    *bool                        `json:"retryable,omitempty"`
+}
+
+type AttemptDiagnostics struct {
+	Items     []AttemptDiagnostic `json:"items"`
+	Truncated bool                `json:"truncated"`
+}
+
+var (
+	diagnosticCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	diagnosticURLPattern  = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"']+`)
+)
+
+// Summary is the aggregate telemetry projection exposed through the public API.
 // It contains no arguments, error messages, participant IDs, or provider URLs.
 type Summary struct {
 	ReportsComplete bool  `json:"reportsComplete"`
@@ -60,6 +93,65 @@ func MergeSummaries(summaries ...Summary) Summary {
 		result.Truncated = result.Truncated || summary.Truncated
 	}
 	return result
+}
+
+// ProjectAttemptDiagnostics returns only already normalized Planner and Worker
+// report errors. Reports are ordered Planner first and then by logical Agent;
+// error order within each report is preserved. If the public cap is exceeded,
+// the tail of that deterministic sequence is retained because report policy
+// itself also retains newest records.
+func ProjectAttemptDiagnostics(metrics contracts.StageMetrics) AttemptDiagnostics {
+	result := AttemptDiagnostics{Items: make([]AttemptDiagnostic, 0)}
+	if metrics.Planner != nil {
+		appendAttemptDiagnostics(&result, AttemptDiagnosticPlanner, "", *metrics.Planner)
+	}
+	workers := make([]string, 0, len(metrics.Workers))
+	for logicalAgent := range metrics.Workers {
+		workers = append(workers, logicalAgent)
+	}
+	sort.Strings(workers)
+	for _, logicalAgent := range workers {
+		appendAttemptDiagnostics(
+			&result, AttemptDiagnosticWorker, logicalAgent, metrics.Workers[logicalAgent],
+		)
+	}
+	if len(result.Items) > MaxAttemptDiagnosticRecords {
+		start := len(result.Items) - MaxAttemptDiagnosticRecords
+		items := make([]AttemptDiagnostic, MaxAttemptDiagnosticRecords)
+		copy(items, result.Items[start:])
+		result.Items = items
+		result.Truncated = true
+	}
+	return result
+}
+
+func appendAttemptDiagnostics(
+	target *AttemptDiagnostics,
+	participant AttemptDiagnosticParticipant,
+	logicalAgent string,
+	report contracts.ExecutionReport,
+) {
+	target.Truncated = target.Truncated || report.Truncated
+	for _, source := range report.Errors {
+		code := source.Code
+		if !diagnosticCodePattern.MatchString(code) {
+			code = "execution_error"
+		}
+		message := diagnosticURLPattern.ReplaceAllString(source.Message, "[REDACTED_URL]")
+		message = truncateUTF8(message, MaxErrorMessageBytes)
+		if strings.TrimSpace(message) == "" {
+			message = "Execution failed"
+		}
+		var retryable *bool
+		if source.Retryable != nil {
+			value := *source.Retryable
+			retryable = &value
+		}
+		target.Items = append(target.Items, AttemptDiagnostic{
+			Participant: participant, LogicalAgent: logicalAgent,
+			Code: code, Message: message, Retryable: retryable,
+		})
+	}
 }
 
 func addExecutionReport(summary *Summary, report contracts.ExecutionReport) {
