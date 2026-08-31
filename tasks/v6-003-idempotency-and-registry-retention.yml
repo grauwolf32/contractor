@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V6-003
+title: Harden Run replay and bound volatile registry history
+milestone: lifecycle-review-hardening
+priority: P0
+status: planned
+depends_on: [V5-003]
+languages: [go]
+
+goal: >-
+  Preserve exact create-Run replay after mutable dependencies disappear and
+  prevent completed reservation and superseded Runtime state from polluting a
+  long-lived Control Plane or its current Operations view.
+
+context:
+  failure_modes: >-
+    POST /v1/runs resolved managed credentials before checking its durable
+    idempotency claim, so a lost-response replay could fail after credential
+    deletion. The in-memory registry retained a serialized full reservation
+    request for every Stage forever. A restarted Runtime process also left its
+    superseded, allocation-free predecessor visible as a fenced current agent.
+
+scope:
+  in:
+    - Look up owner/key and compare the canonical request digest before any mutable Workflow dependency resolution.
+    - Keep the transactional CreateRunIdempotent path for misses and concurrent creators.
+    - Store a fixed SHA-256 reservation fingerprint rather than a full request serialization.
+    - Compact a fully released Stage reservation into a bounded tombstone ring.
+    - Keep a superseded allocation owner visible until safe release, then omit it from the current Operations snapshot.
+  out:
+    - Replaying a different request body, durable Runtime liveness, deleting allocation provenance, or adding an administrative agent-delete command.
+
+deliverables:
+  - {path: internal/runstore, description: Read-only durable Run idempotency lookup.}
+  - {path: internal/httpapi/public, description: Dependency-independent exact replay ordering and regression test.}
+  - {path: internal/controlplane, description: Hashed bounded reservation tombstones and current-agent retirement.}
+  - {path: docs/spec/00-workflow-and-planner.md, description: Replay ordering contract.}
+  - {path: docs/spec/06-server-ui-and-operations.md, description: Superseded Runtime visibility rule.}
+
+acceptance_criteria:
+  - id: A1
+    given: A committed Run selected a managed credential that was later deleted.
+    when: The owner repeats the exact key and request body.
+    then: The existing Run is returned without entering credential resolution.
+  - id: A2
+    given: More completed Stages than the reservation tombstone limit.
+    when: Their allocations are released.
+    then: Active reservations remain exact while released history stays fixed-size and contains no full AgentTemplate or instructions snapshot.
+  - id: A3
+    given: A Runtime process supersedes an older process at the same endpoints.
+    when: The old process owns no authoritative allocation or its allocation is released.
+    then: Only the new process appears in the current Operations Runtime Agent list.
+
+tests:
+  - {name: unit, command: "go test ./internal/httpapi/public ./internal/controlplane ./internal/runstore", covers: [A1, A2, A3]}
+  - {name: postgres, command: "make test-postgres", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

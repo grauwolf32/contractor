@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V6-002
+title: Make terminal allocation release bounded and non-blocking
+milestone: lifecycle-review-hardening
+priority: P0
+status: planned
+depends_on: [V5-003]
+languages: [go, sql]
+
+goal: >-
+  Retry incomplete terminal allocation cleanup without blocking unrelated Runs,
+  losing a remaining member of a partial multi-Agent release, or scanning all
+  historical Stage allocations on every Scheduler poll.
+
+context:
+  failure_modes: >-
+    Recovery returned before ClaimRunnableRun whenever one Runtime release
+    failed. ReleaseAll could remove successful grants and leave one failed
+    grant, while the next all-or-nothing reservation reconstruction stopped at
+    the first missing grant. Immutable provenance rows also made every terminal
+    Stage match the recovery query forever.
+
+scope:
+  in:
+    - Persist release-attempted and release-completed timestamps beside immutable StageAllocation provenance.
+    - Select a bounded least-recently-attempted batch containing only incomplete terminal releases.
+    - Recover each still-live allocation directly from its exact Control Plane reservation.
+    - Mark missing volatile grants complete and retry only the remaining live allocations.
+    - Log cleanup failures and continue into the normal Run claim path in the same Scheduler iteration.
+  out:
+    - Reopening terminal Stage semantics, reusing a fenced slot, or treating remote cleanup success as Workflow success authority.
+
+deliverables:
+  - {path: internal/persistence/migrations/000013_allocation_release_recovery.sql, description: Indexed durable release recovery state.}
+  - {path: internal/runstore, description: Bounded fair pending query and idempotent marker operations.}
+  - {path: internal/scheduler, description: Per-allocation partial release recovery that cannot block claims.}
+  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Normative terminal cleanup recovery semantics.}
+
+acceptance_criteria:
+  - id: A1
+    given: One terminal allocation remains unreachable indefinitely.
+    when: Scheduler polls.
+    then: Cleanup is retried and an unrelated runnable Run can still be claimed.
+  - id: A2
+    given: A two-allocation release succeeds for one Runtime and fails for the other.
+    when: Recovery runs again.
+    then: Only the remaining live allocation is sent to ReleaseAll and both durable markers eventually complete.
+  - id: A3
+    given: Arbitrarily many successfully released historical allocations.
+    when: Scheduler polls.
+    then: The recovery query excludes them and examines at most the fixed pending batch size.
+
+tests:
+  - {name: unit, command: "go test ./internal/scheduler ./internal/runstore", covers: [A1, A2, A3]}
+  - {name: postgres, command: "make test-postgres", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

@@ -110,16 +110,22 @@ milestones:
       Tool-complete Workers recover malformed result envelopes through bounded
       structured output, project-scale LikeC4 variants use explicit larger
       finite budgets, and owners can inspect safe actionable attempt errors.
+  - id: lifecycle-review-hardening
+    exit_task: V6-003
+    outcome: >-
+      Artifact revocation and concurrent writes are linearizable, terminal
+      allocation cleanup is bounded and cannot block unrelated Runs, exact Run
+      replay survives mutable dependency deletion, and volatile registry
+      history remains bounded and operationally current.
 
 current_checkpoint:
   completed_through: V5-003
-  next_task: null
+  next_task: V6-001
   summary: >-
-    The live-model-reliability milestone is complete. Workers have bounded
-    structured result-envelope recovery, immutable project-sized LikeC4
-    passthrough and Streamline variants, and owner-visible safe attempt
-    diagnostics in the public API and UI. The full repository verification gate
-    passes.
+    The live-model-reliability milestone is complete. Code review identified a
+    bounded lifecycle-hardening increment covering Artifact write/freeze races,
+    terminal release recovery, create-Run replay ordering and volatile Control
+    Plane retention. V6-001 through V6-003 are planned and under implementation.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
