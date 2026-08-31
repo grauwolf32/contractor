@@ -106,17 +106,16 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-010
-  next_task: V4-011
+  completed_through: V4-011
+  next_task: null
   summary: >-
-    The Operations workspace now observes coherent Runtime Agent and allocation
-    state without force controls, multiplexes typed invalidations on the shared
-    contractor.events.v1 socket, and resynchronizes every continuity failure
-    through REST. It inspects all configuration kinds, publishes create-only
-    ModelPolicy and LLMGatewayConfig versions, and manages secret-free immutable
-    LiteLLM credentials with exact refs, typed policies, idempotency and safe
-    in-use conflicts. V4-011 next proves the complete separate Node UI, Go
-    Server, PostgreSQL, Scheduler and Python Runtime Agent stack in a browser.
+    The server-ui-and-operations milestone is complete. A pinned Chromium flow
+    now drives the separately served Node UI and Go API through local same-site
+    HTTPS while PostgreSQL, Scheduler, Control Plane and the real Python Runtime
+    Agent execute Streamline and four-Stage OpenAPI workflows. The gate proves
+    browser auth/CORS/CSRF, resumable WebSockets, independent UI and Server
+    restart behavior, Artifact outputs, Operations configuration/credential
+    mutations and bounded cross-surface secret-canary evidence.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
