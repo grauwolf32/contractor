@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -28,6 +30,38 @@ func TestEmbeddedMigrationsAreOrderedAndExcludeRuntimeLiveness(t *testing.T) {
 			if strings.Contains(lower, forbidden) {
 				t.Fatalf("migration %s contains forbidden durable construct %q", item.name, forbidden)
 			}
+		}
+	}
+}
+
+func TestRuntimeConfigurationMigrationContainsExactIdempotentBootstrap(t *testing.T) {
+	t.Parallel()
+
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest := items[len(items)-1]
+	if latest.name != "000015_runtime_configuration.sql" {
+		t.Fatalf("latest migration = %q, want RuntimeConfig migration", latest.name)
+	}
+	canonical := `{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}`
+	sum := sha256.Sum256([]byte(canonical))
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	if digest != "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f" {
+		t.Fatalf("test fixture digest = %s", digest)
+	}
+	contents := string(latest.contents)
+	for _, required := range []string{
+		canonical,
+		digest,
+		"'default'",
+		"ON CONFLICT (name, version) DO NOTHING",
+		"ON CONFLICT (label) DO NOTHING",
+		"revision numeric(20, 0)",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("RuntimeConfig migration does not contain %q", required)
 		}
 	}
 }
