@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V5-002
+title: Add high-budget LikeC4 and Streamline Workflow variants
+milestone: live-model-reliability
+priority: P0
+status: planned
+depends_on: [V5-001]
+languages: [go, yaml]
+
+goal: >-
+  Publish immutable LikeC4 Workflow variants with budgets appropriate for
+  non-trivial repositories, including a model-backed Streamline variant whose
+  Planner can decompose each Stage into ordered subtasks for one fixed Worker.
+
+context:
+  immutability: >-
+    Existing ModelPolicy and Workflow identities remain unchanged. New exact
+    refs carry the larger budgets so historical Run snapshots and digests stay
+    reproducible.
+  selected_budgets: >-
+    project_worker@1 uses maxOutputTokens 32768, maxModelCalls 48,
+    maxToolCalls 256 and maxTotalTokens 1000000. project_planner@1 uses
+    maxOutputTokens 8192, maxModelCalls 48, maxWorkerCalls 64 and
+    maxTotalTokens 500000.
+
+scope:
+  in:
+    - Add project_worker@1 and project_planner@1 ModelPolicies with the exact finite budgets above.
+    - Add likec4-from-source@2 with the existing four-Stage passthrough topology and a Workflow-level project_worker@1 override.
+    - Add likec4-from-source-streamline@1 with the same inputs, outputs, Stage graph and retry policy, streamline@1 for every Stage, project_planner@1 for Planner and project_worker@1 for Workers.
+    - Preserve exactly one logical Agent per Streamline Stage and all existing explicit artifact handoffs.
+    - Add loader/topology/digest tests and operator documentation.
+  out:
+    - Mutating likec4-from-source@1 or domain_worker@1, removing finite limits, changing Scheduler retry semantics, adding Router selection, or sharing hidden state across Stages.
+
+deliverables:
+  - {path: configs/model-policies, description: Dedicated immutable high-budget project policies.}
+  - {path: configs/workflows, description: Passthrough v2 and Streamline v1 LikeC4 manifests.}
+  - {path: internal/config/likec4_workflow_test.go, description: Exact topology, planner and resolved-budget regression tests.}
+  - {path: configs/README.md, description: Selection guidance and finite-budget values.}
+
+acceptance_criteria:
+  - id: A1
+    given: The repository configuration root.
+    when: It is loaded.
+    then: Old refs retain their original digests and both new LikeC4 refs resolve with the exact new policy refs and budgets.
+  - id: A2
+    given: likec4-from-source-streamline@1.
+    when: Every Stage is validated.
+    then: It uses streamline@1, has exactly one logical Worker and a resolved Planner configuration.
+  - id: A3
+    given: A project Worker reaches the old 24 model-call or 96 tool-call ceilings.
+    when: It continues within the new exact policy.
+    then: Runtime permits work only up to the new finite 48/256 ceilings and reports them in WorkerBudgetMetrics.
+
+tests:
+  - {name: config, command: "go run ./cmd/contractor-server config validate --root ./configs && go test ./internal/config/...", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

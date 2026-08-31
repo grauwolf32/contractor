@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V5-001
+title: Recover Worker results with structured output
+milestone: live-model-reliability
+priority: P0
+status: planned
+depends_on: [V4-011]
+languages: [python]
+
+goal: >-
+  Prevent a completed Worker tool phase from failing only because the model's
+  final StageContentResult text is missing or invalid JSON, while preserving
+  exact ArtifactRef verification and all existing invocation budgets.
+
+context:
+  observed_failure: >-
+    Live Run run_1120a626cf5283c661cf76edf40eab53 successfully wrote
+    analysis/dependencies, but qwen/qwen3.8-27b emitted a final candidate that
+    failed JSON parsing. Runtime returned retryable invalid_worker_result even
+    though trusted tool state contained the exact written ArtifactRef.
+  provider_capability: >-
+    LM Studio's OpenAI-compatible chat-completions endpoint accepts
+    response_format.type=json_schema. The locally running model was probed
+    through LiteLLM and returned schema-valid JSON with finish_reason stop.
+
+scope:
+  in:
+    - Keep the tool-using ADK Worker unconstrained so tool calls remain compatible with OpenAI-style backends.
+    - Give the separate tool-free finalizer a strict StageContentResult output schema.
+    - Invoke the finalizer at most once after missing or schema-invalid final text, using only the immutable StageContentRequest and exact ArtifactRefs observed through trusted tools.
+    - Charge the finalizer model response to the same maxModelCalls and maxTotalTokens budget as the tool phase.
+    - Validate the recovered result with the existing strict Pydantic schema, size, secret and exact-revision checks before it crosses A2A.
+    - Record bounded recovery counters and a safe diagnostic when recovery fails; never retain raw model candidates.
+  out:
+    - Applying an output schema to tool-selection turns, provider-specific LM Studio flags, unbounded retries, or constructing a successful result without a model decision.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Structured tool-free finalizer and one-shot invalid-result recovery.}
+  - {path: runtime/tests/test_adk_runtime.py, description: Missing, invalid, recovered, exhausted and strict-schema regression tests.}
+  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Normative finalizer and budget semantics.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Worker writes an artifact and then emits syntactically invalid JSON.
+    when: Runtime validates the final candidate.
+    then: Exactly one schema-constrained tool-free call may return a valid result containing only an observed exact ArtifactRef.
+  - id: A2
+    given: No remaining model-call or token budget.
+    when: Recovery would start.
+    then: No extra provider call occurs and Runtime returns worker_budget_exhausted with complete metrics.
+  - id: A3
+    given: The structured finalizer still returns invalid, oversized, unsafe or unverified output.
+    when: Runtime validates it.
+    then: Runtime fails closed with bounded diagnostics and never retries finalization again.
+  - id: A4
+    given: A normal valid Worker result.
+    when: Runtime validates it.
+    then: It is accepted without an extra model call.
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_metrics.py tests/test_dependency_smoke.py", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+

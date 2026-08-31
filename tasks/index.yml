@@ -104,18 +104,21 @@ milestones:
       A separately deployed React UI uses the committed public API, local
       browser sessions and a resumable WebSocket to operate Runs, inspect live
       Planner progress and manage active LLM configuration and credentials.
+  - id: live-model-reliability
+    exit_task: V5-003
+    outcome: >-
+      Tool-complete Workers recover malformed result envelopes through bounded
+      structured output, project-scale LikeC4 variants use explicit larger
+      finite budgets, and owners can inspect safe actionable attempt errors.
 
 current_checkpoint:
   completed_through: V4-011
-  next_task: null
+  next_task: V5-001
   summary: >-
-    The server-ui-and-operations milestone is complete. A pinned Chromium flow
-    now drives the separately served Node UI and Go API through local same-site
-    HTTPS while PostgreSQL, Scheduler, Control Plane and the real Python Runtime
-    Agent execute Streamline and four-Stage OpenAPI workflows. The gate proves
-    browser auth/CORS/CSRF, resumable WebSockets, independent UI and Server
-    restart behavior, Artifact outputs, Operations configuration/credential
-    mutations and bounded cross-surface secret-canary evidence.
+    The server-ui-and-operations milestone is complete. Live LikeC4 evidence
+    identified the next bounded increment: structured result-envelope recovery,
+    immutable high-budget project variants, and owner-visible safe attempt
+    diagnostics. V5-001 through V5-003 are planned and ready to implement.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
@@ -298,3 +301,6 @@ tasks:
   - {id: V4-009B, file: v4-009b-live-run-ui.yml}
   - {id: V4-010, file: v4-010-operations-ui.yml}
   - {id: V4-011, file: v4-011-browser-e2e.yml}
+  - {id: V5-001, file: v5-001-structured-worker-result-recovery.yml}
+  - {id: V5-002, file: v5-002-high-budget-likec4-streamline.yml}
+  - {id: V5-003, file: v5-003-attempt-diagnostics.yml}

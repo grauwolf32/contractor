@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V5-003
+title: Expose safe detailed Stage attempt diagnostics
+milestone: live-model-reliability
+priority: P0
+status: planned
+depends_on: [V5-001]
+languages: [go, typescript, yaml]
+
+goal: >-
+  Let an authenticated owner understand why a Stage attempt failed without
+  querying PostgreSQL or Runtime logs and without exposing prompts, model
+  responses, tool arguments, provider bodies, URLs or secrets.
+
+context:
+  observed_gap: >-
+    Run detail exposed invalid_worker_result and aggregate errorCount=2, while
+    the already normalized Worker report contained the actionable safe code
+    worker_result_schema_json_invalid. The useful distinction was invisible in
+    both the public API and UI.
+
+scope:
+  in:
+    - Project normalized Planner and Worker ExecutionReport errors into a bounded deterministic AttemptDiagnostics DTO.
+    - Include participant kind, optional logical Worker name, stable code, safe message and optional retryable value.
+    - Cap the public projection at 128 newest records and expose an explicit truncated flag.
+    - Add diagnostics to StageAttempt in the committed OpenAPI contract and regenerate the TypeScript client.
+    - Render diagnostics beside the terminal record and metrics in Run detail, including empty/truncated states.
+    - Update normative telemetry privacy rules: normalized errors are owner-visible; raw tool calls/arguments, prompts and provider payloads remain private.
+  out:
+    - Raw model output, stack traces, tool arguments/results, allocation/session/report IDs, physical Runtime addresses, provider URLs, or unauthenticated diagnostics.
+
+deliverables:
+  - {path: internal/telemetry, description: Bounded stable diagnostic projection over normalized reports.}
+  - {path: internal/httpapi/public, description: StageAttempt diagnostics read model and tests.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: AttemptDiagnostics public contract.}
+  - {path: ui/src/routes/runs, description: Accessible per-attempt diagnostic rendering and tests.}
+  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Updated owner-visible safety boundary.}
+
+acceptance_criteria:
+  - id: A1
+    given: A failed Worker result with a normalized schema diagnostic.
+    when: The owner loads Run detail.
+    then: API and UI identify the Worker, code, safe message and retryability in deterministic order.
+  - id: A2
+    given: More than 128 participant errors or a truncated source report.
+    when: Diagnostics are projected.
+    then: The response remains bounded, retains the newest records and marks diagnostics truncated.
+  - id: A3
+    given: Secret canaries in raw errors or tool arguments.
+    when: Reports are normalized and Run detail is returned.
+    then: No canary, raw argument, provider body, URL or internal report identity appears in the public response or UI.
+
+tests:
+  - {name: go, command: "go test ./internal/telemetry/... ./internal/httpapi/public/...", covers: [A1, A2, A3]}
+  - {name: ui, command: "cd ui && corepack pnpm generate && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
