@@ -144,16 +144,15 @@ milestones:
       and deterministic failure-path gates preserve secrets and slot reuse.
 
 current_checkpoint:
-  completed_through: V7-004
-  next_task: V8-001
+  completed_through: V8-001
+  next_task: V8-002
   summary: >-
-    The runtime-capability-placement milestone is complete. Runtime Agents
-    probe and freeze positive environment-specific capabilities, Control Plane
-    computes complete heterogeneous assignments, and Operations exposes each
-    safe snapshot. The V8 Runtime-label increment is specified, validated and
-    split into an acyclic implementation plan. Its P0 Worker-side usable
-    checkpoint ends at V8-013; Planner telemetry, UI and full hardening follow
-    without changing the core label model.
+    RuntimeConfig now has strict normalized JCS documents, immutable PostgreSQL
+    versions, durable publication replay and uint64 revisioned label bindings.
+    The exact contractor-empty@1/default bootstrap, same-layer merge conflicts,
+    Gateway-ref pinning and concurrent binding CAS are covered by focused race
+    and PostgreSQL tests. Next, add encrypted write-only credentials for the
+    OTLP and HTTP-proxy adapters.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
