@@ -129,13 +129,14 @@ milestones:
       process test proves capacity waiting plus later execution.
 
 current_checkpoint:
-  completed_through: V6-003
-  next_task: V7-001
+  completed_through: V7-001
+  next_task: V7-002
   summary: >-
-    Lifecycle review hardening is complete. V7-001 through V7-004 now form the
-    next implementation increment: replace hard-coded Runtime capabilities,
-    make heterogeneous placement complete rather than greedy, expose the
-    accepted snapshot in Operations, and prove it across real processes.
+    Runtime Agents now probe and freeze their usable runtime, sandbox, and
+    per-tool capabilities before registration and reject allocations outside
+    that snapshot. Next, make heterogeneous placement complete rather than
+    greedy, expose accepted capabilities in Operations, and prove the flow
+    across real processes.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
