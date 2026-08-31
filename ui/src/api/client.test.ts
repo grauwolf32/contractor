@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
-import { APICompatibilityError, PublicAPIError } from "./error";
+import { APICompatibilityError, PublicAPIError, publicAPIError } from "./error";
 import { PublicAPI } from "./client";
 
 const runtimeConfig: RuntimeConfig = {
@@ -155,6 +155,38 @@ describe("PublicAPI", () => {
       code: "request_failed",
       message: "Public API request failed",
     });
+  });
+
+  it("retains only bounded credential-in-use Run references", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        apiResponse(
+          {
+            code: "credential_in_use",
+            message: "Credential is pinned",
+            retryable: false,
+            requestId: "request-conflict",
+            details: {
+              kind: "credential_in_use",
+              runIds: ["run-2", "run-1"],
+            },
+          },
+          409,
+        ),
+      ),
+    );
+    const response = await api.fetch("/v1/test");
+    const error = await api.error(response);
+    expect(error.referencedRunIds).toEqual(["run-2", "run-1"]);
+
+    const unsafe = publicAPIError(409, {
+      code: "credential_in_use",
+      message: "Credential is pinned",
+      retryable: false,
+      details: { kind: "credential_in_use", runIds: ["../escape"] },
+    });
+    expect(unsafe.referencedRunIds).toBeUndefined();
   });
 
   it("fences direct binary requests and attaches the current CSRF", async () => {

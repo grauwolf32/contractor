@@ -66,6 +66,12 @@ export interface LifecycleEventData {
   state: string;
 }
 
+export interface OperationsEventData {
+  resource: "runtimeAgent" | "allocation" | "configuration" | "credential";
+  resourceId?: string;
+  revision: string;
+}
+
 export interface RunEventEnvelope<T> {
   cursor: EventCursor;
   occurredAt: string;
@@ -80,8 +86,25 @@ export interface RunEventCallbacks {
   onError: (message: string) => void;
 }
 
+export interface OperationsEventCallbacks {
+  onOperationsEvent: (event: RunEventEnvelope<OperationsEventData>) => void;
+  onResync: (reason: RunResyncReason) => void;
+  onStateChange: (state: RunEventConnectionState) => void;
+  onError: (message: string) => void;
+}
+
 export interface RunEventSubscription {
   resume(after: EventCursor): void;
+  unsubscribe(): void;
+}
+
+export interface OperationsSnapshotCursor {
+  generation: string;
+  revision: string;
+}
+
+export interface OperationsEventSubscription {
+  resume(after: OperationsSnapshotCursor): void;
   unsubscribe(): void;
 }
 
@@ -101,6 +124,7 @@ interface ManagerOptions {
 }
 
 interface RunSubscriptionRecord {
+  kind: "run";
   id: string;
   runId: string;
   cursor: EventCursor;
@@ -108,6 +132,17 @@ interface RunSubscriptionRecord {
   phase: "pending" | "subscribed" | "waiting" | "closing";
   callbacks: RunEventCallbacks;
 }
+
+interface OperationsSubscriptionRecord {
+  kind: "operations";
+  id: string;
+  cursor: EventCursor;
+  requestedCursor?: EventCursor;
+  phase: "pending" | "subscribed" | "waiting" | "closing";
+  callbacks: OperationsEventCallbacks;
+}
+
+type SubscriptionRecord = RunSubscriptionRecord | OperationsSubscriptionRecord;
 
 type SubscribedFrame = {
   type: "subscribed";
@@ -131,6 +166,16 @@ type RunEventFrame = {
   | { kind: "planner.event"; data: PlannerEventData }
   | { kind: "lifecycle.changed"; data: LifecycleEventData }
 );
+
+type OperationsEventFrame = {
+  type: "event";
+  subscriptionId: string;
+  stream: { kind: "operations" };
+  cursor: EventCursor;
+  occurredAt: string;
+  kind: "operations.changed";
+  data: OperationsEventData;
+};
 
 type ResyncFrame = {
   type: "resync_required";
@@ -156,6 +201,7 @@ type ServerFrame =
   | SubscribedFrame
   | UnsubscribedFrame
   | RunEventFrame
+  | OperationsEventFrame
   | ResyncFrame
   | ErrorFrame;
 
@@ -602,6 +648,37 @@ function parseLifecycleEvent(value: unknown): LifecycleEventData {
   };
 }
 
+function parseOperationsEvent(value: unknown): OperationsEventData {
+  if (!isRecord(value)) {
+    throw new Error("Operations event is invalid");
+  }
+  exactKeys(value, ["resource", "revision"], ["resourceId"]);
+  if (
+    value.resource !== "runtimeAgent" &&
+    value.resource !== "allocation" &&
+    value.resource !== "configuration" &&
+    value.resource !== "credential"
+  ) {
+    throw new Error("Operations resource is unknown");
+  }
+  if (
+    typeof value.revision !== "string" ||
+    value.revision.length > 20 ||
+    !UNSIGNED_DECIMAL.test(value.revision)
+  ) {
+    throw new Error("Operations revision is invalid");
+  }
+  const resourceId =
+    value.resourceId === undefined
+      ? undefined
+      : safeIdentifier(value.resourceId);
+  return {
+    resource: value.resource,
+    revision: value.revision,
+    ...(resourceId === undefined ? {} : { resourceId }),
+  };
+}
+
 function parseOccurredAt(value: unknown): string {
   const result = boundedString(value, 1, 64);
   if (Number.isNaN(Date.parse(result))) {
@@ -662,19 +739,27 @@ export function parseServerFrame(source: string): ServerFrame {
       ]);
       const subscriptionId = subscriptionIdentifier(parsed.subscriptionId);
       const stream = parseStream(parsed.stream);
-      if (stream.kind !== "run") {
-        throw new Error("Run event manager received another stream kind");
-      }
       const common = {
         type: "event" as const,
         subscriptionId,
-        stream,
         cursor: parseCursor(parsed.cursor),
         occurredAt: parseOccurredAt(parsed.occurredAt),
       };
+      if (stream.kind === "operations") {
+        if (parsed.kind !== "operations.changed") {
+          throw new Error("Operations event kind is unknown");
+        }
+        return {
+          ...common,
+          stream,
+          kind: "operations.changed",
+          data: parseOperationsEvent(parsed.data),
+        };
+      }
       if (parsed.kind === "planner.event") {
         return {
           ...common,
+          stream,
           kind: "planner.event",
           data: parsePlannerEvent(parsed.data),
         };
@@ -682,6 +767,7 @@ export function parseServerFrame(source: string): ServerFrame {
       if (parsed.kind === "lifecycle.changed") {
         return {
           ...common,
+          stream,
           kind: "lifecycle.changed",
           data: parseLifecycleEvent(parsed.data),
         };
@@ -757,13 +843,22 @@ function validateCursor(cursor: EventCursor): void {
   parseCursor(cursor);
 }
 
+function subscriptionMatchesStream(
+  record: SubscriptionRecord,
+  stream: { kind: "run"; id: string } | { kind: "operations" },
+): boolean {
+  return record.kind === "run"
+    ? stream.kind === "run" && stream.id === record.runId
+    : stream.kind === "operations";
+}
+
 export class RunEventsManager {
   readonly #apiBaseUrl: string;
   readonly #webSocketImplementation: WebSocketFactory | undefined;
   readonly #random: () => number;
   readonly #schedule: ManagerOptions["schedule"];
   readonly #cancelSchedule: ManagerOptions["cancelSchedule"];
-  readonly #subscriptions = new Map<string, RunSubscriptionRecord>();
+  readonly #subscriptions = new Map<string, SubscriptionRecord>();
   #connection: EventsSocket | undefined;
   #reconnectHandle: ReturnType<typeof setTimeout> | undefined;
   #reconnectAttempt = 0;
@@ -788,6 +883,7 @@ export class RunEventsManager {
     const id = `run-ui-${this.#nextSubscription}`;
     this.#nextSubscription += 1;
     const record: RunSubscriptionRecord = {
+      kind: "run",
       id,
       runId,
       cursor: copyCursor(after),
@@ -808,6 +904,60 @@ export class RunEventsManager {
         }
         validateCursor(cursor);
         record.cursor = copyCursor(cursor);
+        delete record.requestedCursor;
+        record.phase = "pending";
+        callbacks.onStateChange("connecting");
+        this.#ensureConnection();
+        if (this.#connection?.socket.readyState === 1) {
+          this.#sendSubscription(record);
+        }
+      },
+      unsubscribe: () => {
+        if (!active) {
+          return;
+        }
+        active = false;
+        this.#unsubscribe(record);
+      },
+    };
+  }
+
+  subscribeOperations(
+    after: OperationsSnapshotCursor,
+    callbacks: OperationsEventCallbacks,
+  ): OperationsEventSubscription {
+    const initialCursor = {
+      generation: after.generation,
+      sequence: after.revision,
+    };
+    validateCursor(initialCursor);
+    const id = `operations-ui-${this.#nextSubscription}`;
+    this.#nextSubscription += 1;
+    const record: OperationsSubscriptionRecord = {
+      kind: "operations",
+      id,
+      cursor: initialCursor,
+      phase: "pending",
+      callbacks,
+    };
+    this.#subscriptions.set(id, record);
+    callbacks.onStateChange("connecting");
+    this.#ensureConnection();
+    if (this.#connection?.socket.readyState === 1) {
+      this.#sendSubscription(record);
+    }
+    let active = true;
+    return {
+      resume: (cursor) => {
+        if (!active) {
+          return;
+        }
+        const resumed = {
+          generation: cursor.generation,
+          sequence: cursor.revision,
+        };
+        validateCursor(resumed);
+        record.cursor = copyCursor(resumed);
         delete record.requestedCursor;
         record.phase = "pending";
         callbacks.onStateChange("connecting");
@@ -892,7 +1042,7 @@ export class RunEventsManager {
     }
   }
 
-  #sendSubscription(record: RunSubscriptionRecord): void {
+  #sendSubscription(record: SubscriptionRecord): void {
     if (this.#connection === undefined || record.phase !== "pending") {
       return;
     }
@@ -900,7 +1050,9 @@ export class RunEventsManager {
       record.requestedCursor = copyCursor(record.cursor);
       this.#connection.subscribe(
         record.id,
-        { kind: "run", id: record.runId },
+        record.kind === "run"
+          ? { kind: "run", id: record.runId }
+          : { kind: "operations" },
         record.requestedCursor,
       );
     } catch {
@@ -948,8 +1100,7 @@ export class RunEventsManager {
       record === undefined ||
       record.phase !== "pending" ||
       record.requestedCursor === undefined ||
-      frame.stream.kind !== "run" ||
-      frame.stream.id !== record.runId ||
+      !subscriptionMatchesStream(record, frame.stream) ||
       !sameCursor(frame.cursor, record.requestedCursor)
     ) {
       this.#resyncAll("protocol_error");
@@ -972,7 +1123,7 @@ export class RunEventsManager {
     this.#closeIfIdle();
   }
 
-  #event(frame: RunEventFrame): void {
+  #event(frame: RunEventFrame | OperationsEventFrame): void {
     const record = this.#subscriptions.get(frame.subscriptionId);
     if (record?.phase === "closing") {
       return;
@@ -980,7 +1131,7 @@ export class RunEventsManager {
     if (
       record === undefined ||
       record.phase !== "subscribed" ||
-      frame.stream.id !== record.runId
+      !subscriptionMatchesStream(record, frame.stream)
     ) {
       this.#resyncAll("protocol_error");
       return;
@@ -999,7 +1150,20 @@ export class RunEventsManager {
       return;
     }
     try {
-      if (frame.kind === "planner.event") {
+      if (record.kind === "operations") {
+        if (
+          frame.kind !== "operations.changed" ||
+          frame.data.revision !== frame.cursor.sequence
+        ) {
+          this.#resyncAll("protocol_error");
+          return;
+        }
+        record.callbacks.onOperationsEvent({
+          cursor: copyCursor(frame.cursor),
+          occurredAt: frame.occurredAt,
+          data: frame.data,
+        });
+      } else if (frame.kind === "planner.event") {
         const accepted = record.callbacks.onPlannerEvent({
           cursor: copyCursor(frame.cursor),
           occurredAt: frame.occurredAt,
@@ -1009,7 +1173,7 @@ export class RunEventsManager {
           this.#resyncAll("projection_gap");
           return;
         }
-      } else {
+      } else if (frame.kind === "lifecycle.changed") {
         if (frame.data.runId !== record.runId) {
           this.#resyncAll("protocol_error");
           return;
@@ -1019,6 +1183,9 @@ export class RunEventsManager {
           occurredAt: frame.occurredAt,
           data: frame.data,
         });
+      } else {
+        this.#resyncAll("protocol_error");
+        return;
       }
     } catch {
       this.#resyncAll("projection_gap");
@@ -1031,8 +1198,7 @@ export class RunEventsManager {
     const record = this.#subscriptions.get(frame.subscriptionId);
     if (
       record === undefined ||
-      frame.stream.kind !== "run" ||
-      frame.stream.id !== record.runId
+      !subscriptionMatchesStream(record, frame.stream)
     ) {
       this.#resyncAll("protocol_error");
       return;
@@ -1135,7 +1301,7 @@ export class RunEventsManager {
     }
   }
 
-  #unsubscribe(record: RunSubscriptionRecord): void {
+  #unsubscribe(record: SubscriptionRecord): void {
     if (!this.#subscriptions.has(record.id)) {
       return;
     }

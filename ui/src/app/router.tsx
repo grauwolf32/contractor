@@ -7,9 +7,17 @@ import { ArtifactListRoute } from "../routes/artifacts/list";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { RunListRoute } from "../routes/runs/list";
+import { AllocationListRoute } from "../routes/operations/allocations";
+import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
+import { CredentialListRoute } from "../routes/operations/credentials";
+import { OperationsLayoutRoute } from "../routes/operations/layout";
+import { OperationsOverviewRoute } from "../routes/operations/overview";
+import { ConfigurationDetailRoute } from "../routes/operations/llm-configurations/detail";
+import { ConfigurationListRoute } from "../routes/operations/llm-configurations";
+import { RuntimeAgentListRoute } from "../routes/operations/runtime-agents";
 import { WorkflowDetailRoute } from "../routes/workflows/detail";
 import { WorkflowListRoute } from "../routes/workflows/list";
-import { NotFoundRoute, PlaceholderRoute } from "../routes/placeholders";
+import { NotFoundRoute } from "../routes/placeholders";
 import { ApplicationShell } from "./shell";
 
 export function applicationRoutes(): RouteObject[] {
@@ -46,7 +54,34 @@ export function applicationRoutes(): RouteObject[] {
             },
             {
               path: "/operations",
-              element: <PlaceholderRoute kind="operations" />,
+              element: <OperationsLayoutRoute />,
+              children: [
+                { index: true, element: <OperationsOverviewRoute /> },
+                {
+                  path: "runtime-agents",
+                  element: <RuntimeAgentListRoute />,
+                },
+                {
+                  path: "allocations",
+                  element: <AllocationListRoute />,
+                },
+                {
+                  path: "configurations",
+                  element: <ConfigurationListRoute />,
+                },
+                {
+                  path: "configurations/:kind/:name/:version",
+                  element: <ConfigurationDetailRoute />,
+                },
+                {
+                  path: "credentials",
+                  element: <CredentialListRoute />,
+                },
+                {
+                  path: "credentials/:credentialId",
+                  element: <CredentialDetailRoute />,
+                },
+              ],
             },
           ],
         },

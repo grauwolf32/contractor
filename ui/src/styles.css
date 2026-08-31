@@ -1242,6 +1242,240 @@ code {
   margin-top: 1.2rem;
 }
 
+.operations-navigation {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.65rem;
+}
+
+.operations-navigation a {
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.operations-navigation a:hover,
+.operations-navigation a.active {
+  border-color: #52622d;
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+
+.operations-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.operations-summary-card > strong {
+  display: block;
+  color: var(--accent);
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.operations-summary-card h3 {
+  margin-top: 0.5rem;
+}
+
+.operations-summary-card p:last-child,
+.operations-snapshot-record p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.operations-snapshot-record {
+  grid-column: 1 / -1;
+}
+
+.operations-library,
+.configuration-detail,
+.credential-detail {
+  margin-top: 1rem;
+}
+
+.operations-library .section-heading > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.inline-details summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.inline-details[open] {
+  min-width: 18rem;
+}
+
+.reconciled,
+.reconciliation-warning {
+  display: block;
+  margin-top: 0.35rem;
+  color: #95e6d9;
+  font-size: 0.7rem;
+}
+
+.reconciliation-warning {
+  color: #ffe9a4;
+}
+
+.reason-record,
+.exact-config-ref,
+.nested-value {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.reason-record span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.operations-safety-note {
+  margin-bottom: 0;
+}
+
+.allocation-card-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.allocation-card {
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #0c1016aa;
+}
+
+.allocation-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+}
+
+.allocation-card > summary > span {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.allocation-card-body {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1fr) minmax(20rem, 1fr);
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding: 1rem;
+}
+
+.allocation-bindings {
+  margin: 0;
+}
+
+.operations-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.configuration-inspector,
+.configuration-draft,
+.credential-policy-panel,
+.credential-consumption-panel,
+.credential-delete-panel {
+  margin-top: 1rem;
+}
+
+.configuration-draft {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #52622d;
+  border-radius: 0.8rem;
+  background: #10180f;
+  padding: clamp(1rem, 3vw, 1.6rem);
+}
+
+.configuration-draft .form-grid select,
+.configuration-draft .form-grid input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #080b0f;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.configuration-draft .form-grid select:focus,
+.configuration-draft .form-grid input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #d8ff7222;
+}
+
+.configuration-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-value-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.policy-selection {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 1rem;
+}
+
+.policy-selection legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+}
+
+.credential-create-form > button,
+.credential-delete-panel > button {
+  justify-self: start;
+}
+
+.credential-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.credential-policy-grid > .key-value-list {
+  grid-column: 1 / -1;
+}
+
+.credential-policy-grid h4 {
+  margin: 0 0 0.65rem;
+}
+
+.credential-delete-panel {
+  display: grid;
+  gap: 0.8rem;
+  border-color: #753f42;
+}
+
+.danger-button {
+  background: var(--danger);
+}
+
 .spinner {
   width: 1.8rem;
   height: 1.8rem;
@@ -1293,6 +1527,24 @@ code {
   .run-binding-grid,
   .run-attempt-body {
     grid-template-columns: 1fr;
+  }
+
+  .operations-overview-grid,
+  .allocation-card-body,
+  .configuration-body,
+  .credential-policy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operations-snapshot-record,
+  .credential-policy-grid > .key-value-list {
+    grid-column: auto;
+  }
+
+  .allocation-card > summary,
+  .allocation-card > summary > span {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .artifact-update-panel {

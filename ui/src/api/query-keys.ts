@@ -33,10 +33,17 @@ export const queryKeys = {
   configurations: {
     all: ["configurations"] as const,
     picker: (kind: string) => ["configurations", "picker", kind] as const,
+    list: (kind: string, cursor?: string) =>
+      ["configurations", "list", kind, cursor ?? null] as const,
+    detail: (kind: string, name: string, version: string) =>
+      ["configurations", "detail", kind, name, version] as const,
   },
   credentials: {
     all: ["credentials"] as const,
     picker: ["credentials", "picker"] as const,
+    list: (cursor?: string) => ["credentials", "list", cursor ?? null] as const,
+    detail: (credentialId: string) =>
+      ["credentials", "detail", credentialId] as const,
   },
   runs: {
     all: ["runs"] as const,
@@ -104,5 +111,8 @@ export const queryKeys = {
         cursor ?? null,
       ] as const,
   },
-  operations: ["operations"] as const,
+  operations: {
+    all: ["operations"] as const,
+    snapshot: ["operations", "snapshot"] as const,
+  },
 };

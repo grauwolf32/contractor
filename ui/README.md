@@ -63,10 +63,27 @@ metrics, exact RunScope Artifacts, and frozen outputs. Cancellation always
 refetches the authoritative aggregate, including when it races a terminal
 transition; the browser never predicts a lifecycle state.
 
-One `contractor.events.v1` WebSocket is multiplexed across open Run views.
+One `contractor.events.v1` WebSocket is multiplexed across open Run views and
+the Operations workspace.
 Lifecycle frames only invalidate REST queries. Closed, typed Planner frames may
 advance the nested subtask projection in exact cursor order, while duplicate
 frames are ignored and any sequence gap, generation change, explicit resync, or
 unknown frame discards live continuity and requires a REST snapshot. Prompt and
 model text, tool payloads, provider bodies, credentials, and physical Runtime
 placement are not accepted by the browser event DTO.
+
+The `/operations` workspace begins from one coherent REST snapshot and keeps
+Runtime Agent observations separate from authoritative single-slot allocation
+state. Its WebSocket frames are invalidation hints only; every change, cursor
+gap, or generation change refetches REST. Execution state has no force-idle,
+reassign, finish, abort, or release controls.
+
+Configuration pages inspect all versioned kinds, while only ModelPolicy and
+LLMGatewayConfig support clone-to-draft, typed validation, and create-only
+publication. Credential forms select an exact manager-enabled Gateway and
+exact ModelPolicies plus LiteLLM-enforced spend/rate/concurrency policy. No
+token field or token response exists in frontend types or state. Every listed
+credential is active; replacement uses a new ID, and deletion remains blocked
+with safe Run links while a non-terminal Run pins the old ID. Configuration and
+credential mutations retain one in-memory idempotency key for an unchanged
+canonical draft and always reconcile through Server reads.

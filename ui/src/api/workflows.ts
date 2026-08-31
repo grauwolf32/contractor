@@ -1,6 +1,7 @@
 import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
+import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -88,7 +89,7 @@ export async function listConfigurations(
       },
     }),
   );
-  return requireData(result);
+  return safeConfigurationPage(requireData(result));
 }
 
 export async function listCredentials(
@@ -105,7 +106,7 @@ export async function listCredentials(
       },
     }),
   );
-  return requireData(result);
+  return safeCredentialPage(requireData(result));
 }
 
 function invalidRunResponse(status: number): PublicAPIError {

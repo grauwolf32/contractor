@@ -16,6 +16,9 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
+  /^\/operations\/(?:runtime-agents|allocations|configurations|credentials)$/,
+  /^\/operations\/configurations\/(?:agent-templates|execution-configs|model-policies|llm-gateways)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
+  /^\/operations\/credentials\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
 ];
 const API_PREFIXES = ["/v1", "/api", "/private"];
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;

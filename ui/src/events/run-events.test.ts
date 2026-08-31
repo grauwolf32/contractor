@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   parseServerFrame,
   RunEventsManager,
+  type OperationsEventCallbacks,
   type RunEventCallbacks,
   type RunEventConnectionState,
   type RunResyncReason,
@@ -131,6 +132,20 @@ function callbacks() {
   return { value, states, resyncs, planner, lifecycle, errors };
 }
 
+function operationsCallbacks() {
+  const states: RunEventConnectionState[] = [];
+  const resyncs: RunResyncReason[] = [];
+  const changed = vi.fn();
+  const errors: string[] = [];
+  const value: OperationsEventCallbacks = {
+    onOperationsEvent: changed,
+    onResync: (reason) => resyncs.push(reason),
+    onStateChange: (state) => states.push(state),
+    onError: (message) => errors.push(message),
+  };
+  return { value, states, resyncs, changed, errors };
+}
+
 describe("Run event protocol", () => {
   it("parses only the reduced typed Planner projection", () => {
     const parsed = parseServerFrame(
@@ -155,6 +170,31 @@ describe("Run event protocol", () => {
     expect(() => parseServerFrame(JSON.stringify(unsafe))).toThrow(
       "closed shape",
     );
+  });
+
+  it("parses a closed Operations invalidation without resource payload", () => {
+    const parsed = parseServerFrame(
+      JSON.stringify({
+        version: "contractor.events.v1",
+        type: "event",
+        subscriptionId: "operations-ui-1",
+        stream: { kind: "operations" },
+        cursor: { generation: "operations-generation-1", sequence: "10" },
+        kind: "operations.changed",
+        occurredAt: "2026-08-31T12:00:00Z",
+        data: {
+          resource: "allocation",
+          resourceId: "allocation-1",
+          revision: "10",
+        },
+      }),
+    );
+    expect(parsed).toMatchObject({
+      type: "event",
+      kind: "operations.changed",
+      data: { resource: "allocation", revision: "10" },
+    });
+    expect(JSON.stringify(parsed)).not.toMatch(/observedState|credentialId/);
   });
 });
 
@@ -227,6 +267,58 @@ describe("RunEventsManager", () => {
     socket?.message(subscribed("run-ui-2", "run-2", "9"));
     expect(first.states).toEqual(["connecting", "live"]);
     expect(second.states).toEqual(["connecting", "live"]);
+  });
+
+  it("multiplexes Operations invalidation on the existing Run socket", () => {
+    FakeWebSocket.instances = [];
+    const run = callbacks();
+    const operations = operationsCallbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    manager.subscribeRun("run-1", cursor("4"), run.value);
+    const socket = FakeWebSocket.instances[0];
+    socket?.open();
+    socket?.message(subscribed("run-ui-1", "run-1", "4"));
+
+    manager.subscribeOperations(
+      { generation: "operations-generation-1", revision: "9" },
+      operations.value,
+    );
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toEqual({
+      version: "contractor.events.v1",
+      type: "subscribe",
+      subscriptionId: "operations-ui-2",
+      stream: { kind: "operations" },
+      after: { generation: "operations-generation-1", sequence: "9" },
+    });
+    socket?.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: "operations-ui-2",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "9" },
+    });
+    const changed = {
+      version: "contractor.events.v1",
+      type: "event",
+      subscriptionId: "operations-ui-2",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "10" },
+      kind: "operations.changed",
+      occurredAt: "2026-08-31T12:00:00Z",
+      data: {
+        resource: "runtimeAgent",
+        resourceId: "runtime-1",
+        revision: "10",
+      },
+    };
+    socket?.message(changed);
+    socket?.message(changed);
+    expect(operations.changed).toHaveBeenCalledTimes(1);
+    expect(operations.states).toEqual(["connecting", "live"]);
+    expect(run.states).toEqual(["connecting", "live"]);
   });
 
   it("resynchronizes every projection on generation mismatch", () => {
