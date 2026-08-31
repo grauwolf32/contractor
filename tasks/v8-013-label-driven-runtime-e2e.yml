@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V8-013
+title: Prove label-driven Worker configuration across real processes
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-008, V8-009, V8-011, V8-012]
+languages: [go, python, yaml]
+
+goal: >-
+  Close the Worker-side MVP with one deterministic process-level test that
+  configures labels through Operations, places on heterogeneous agents and
+  exercises real OTLP/proxy adapters without secret leakage or slot retention.
+
+context:
+  production_boundaries: >-
+    Use the real Go Server/Scheduler/Control Plane/public API/PostgreSQL, two real
+    Python Runtime Agent processes with distinct CA-signed keys, private mTLS,
+    A2A, Artifact lifecycle and release recovery. External LLM, OTLP and HTTP
+    proxy services may be deterministic local fakes; core Contractor services
+    and adapter implementations may not be mocked.
+  key_scenarios: >-
+    A debug Run must execute on an Agent with no debug label when it advertises
+    otlp-http@1. An Agent-specific label must override the Run/default physical
+    settings on its next allocation. A caido Run must proxy only selected Worker
+    traffic. Rebind must leave active settings unchanged and affect a later
+    resolution boundary.
+
+scope:
+  in:
+    - Extend the e2e harness with unique per-Agent certificates, fake OTLP protobuf collector and authenticated fail-closed forward proxy.
+    - Configure runtime credentials, immutable configs and default/debug/caido/Agent labels only through the production Operations API.
+    - Run an unlabeled baseline Workflow to prove contractor-empty@1 preserves existing executionConfig behavior.
+    - Run debug and caido scenarios through real candidate-specific placement, prepare, Worker work, finalization, metrics and release.
+    - Rebind a label while an allocation is active, prove its old pinned settings, then prove the next Run/allocation receives the new endpoint/config.
+    - Scan retained DB/public responses/events/logs/OTLP payloads for canary secrets and assert all agents return to eligible idle state.
+    - Add an operator development recipe for starting two uniquely certified agents with initial labels and inspecting effective safe provenance.
+  out:
+    - Network-dependent LM Studio/Langfuse/Caido tests, Planner OTLP telemetry, UI browser behavior, multi-Server Control Plane or performance load tests.
+
+deliverables:
+  - {path: tests/e2e, description: Label-driven two-Agent Worker configuration process test and local fakes.}
+  - {path: deploy, description: Safe example RuntimeConfig/label/credential setup where existing deployment assets live.}
+  - {path: docs/development.md, description: Unique-cert, startup-label, config/rebind and inspection walkthrough.}
+  - {path: Makefile, description: test-runtime-labels-e2e target included in the relevant e2e aggregate.}
+
+requirements:
+  - id: R1
+    text: Test setup uses public/private production protocols and cannot seed final state by directly editing PostgreSQL.
+  - id: R2
+    text: Different Agent environments advertise only adapters their real local probes pass; labels do not manufacture capability.
+  - id: R3
+    text: Every wait is bounded and failures print safe actionable lifecycle/config provenance without dumping settings or service bodies.
+  - id: R4
+    text: All allocations terminate, release and permit slot reuse even when OTLP delivery fails or proxy requests fail.
+
+acceptance_criteria:
+  - id: A1
+    given: A debug Run and two Agents without a debug label, only one advertising otlp-http@1.
+    when: Scheduler places the Stage.
+    then: The capable Agent executes it, fake collector sees safe traces, and no affinity/equality check consumes the other slot.
+  - id: A2
+    given: A common Run telemetry/Gateway config and a higher-priority Agent label with another safe endpoint/credential.
+    when: Work is placed on that principal.
+    then: Worker traffic uses the Agent layer while ModelPolicy/budgets and Planner settings remain unchanged.
+  - id: A3
+    given: A caido allocation and concurrent label rebind.
+    when: Model/tool/private traffic runs and a later allocation starts.
+    then: Only selected Worker channels use the proxy, the active allocation keeps old settings, and the later allocation uses the new exact config.
+  - id: A4
+    given: All scenarios completed, including one failing exporter/proxy request.
+    when: State and retained data are inspected.
+    then: Both Agents are reusable, terminal outcomes follow semantic policy, and no canary secret exists outside intended outbound auth headers.
+
+tests:
+  - {name: worker-label-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-labels-e2e", covers: [A1, A2, A3, A4]}
+  - {name: race, command: "go test -race ./internal/controlplane/... ./internal/runtimeconfig/... ./internal/runstore/...", covers: [A1, A2, A3]}
+  - {name: aggregate-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-e2e", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

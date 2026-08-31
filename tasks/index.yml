@@ -60,7 +60,15 @@ fixed_decisions:
       One VM, one Server process, PostgreSQL, and one or more single-slot
       Runtime Agent processes whose immutable environments may expose different
       positive capability snapshots.
-    private_security: Deployment-CA mTLS
+    private_security: >-
+      Deployment-CA mTLS. Each concurrent Runtime Agent process uses a distinct
+      certificate/key; Server derives its durable configuration principal from
+      SHA-256 of the authenticated certificate public key.
+    runtime_configuration: >-
+      Database-backed Runtime labels select immutable typed infrastructure
+      configs. Every Run pins default plus explicit labels; candidate Agent
+      labels are the highest physical Worker configuration layer but never
+      change ModelPolicy, budgets, tools or Workflow behavior.
     public_auth: >-
       One owner-only local-auth principal backs bounded in-memory browser
       sessions and the retained bearer-token automation path; cookie mutations
@@ -127,59 +135,83 @@ milestones:
       registration, Control Plane finds complete compatible Stage assignments,
       Operations explains each positive snapshot, and a real heterogeneous
       process test proves capacity waiting plus later execution.
+  - id: label-driven-runtime-configuration
+    exit_task: V8-016
+    outcome: >-
+      Control Plane resolves pinned default/Run labels plus durable Agent labels
+      into exact allocation-scoped LLM, OTLP and HTTP-proxy settings; complete
+      capability placement, APIs/UI, Planner telemetry, mTLS principal binding
+      and deterministic failure-path gates preserve secrets and slot reuse.
 
 current_checkpoint:
   completed_through: V7-004
-  next_task: null
+  next_task: V8-001
   summary: >-
     The runtime-capability-placement milestone is complete. Runtime Agents
     probe and freeze positive environment-specific capabilities, Control Plane
     computes complete heterogeneous assignments, and Operations exposes each
-    safe snapshot. A real two-process gate proves that incompatible capacity
-    remains idle while one StageExecution waits, then completes on a later
-    compatible process without consuming a retry.
+    safe snapshot. The V8 Runtime-label increment is specified, validated and
+    split into an acyclic implementation plan. Its P0 Worker-side usable
+    checkpoint ends at V8-013; Planner telemetry, UI and full hardening follow
+    without changing the core label model.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
   verdict: ready_to_implement
   checks:
     - >-
-      V7-001 changes only Python discovery, frozen registration construction,
-      and Runtime-side AllocationSpec enforcement; the existing registration
-      wire shape remains sufficient.
+      The owning spec and all cross-document edits pass LikeC4 validation,
+      relative-link checks, the fixed contractor-empty@1 digest check and git
+      whitespace validation before task decomposition.
     - >-
-      V7-002 is an independent Go allocator correction. Its complete matching
-      requirement is stronger than first-fit but does not introduce scoring,
-      affinity, partial reservation, or new Workflow semantics.
+      The graph has two independent roots: V8-001 builds durable configuration
+      while V8-003 lands the synchronized Go/Python private-v2 contract. They
+      converge through principal identity, Run pinning and the pure resolver;
+      no task depends on itself or a later cycle.
     - >-
-      V7-003 projects the already accepted positive snapshot through the
-      existing Operations API/UI; it neither sends negative probe diagnostics
-      nor adds a capability mutation endpoint.
+      V8-006 isolates precedence/conflict semantics from V8-007 database,
+      registry and network integration. This keeps the most important label
+      rule exhaustively unit-testable before allocation concurrency is added.
     - >-
-      V7-004 is last because its real-process scenario depends on discovery,
-      matching, and visibility. It proves that compatible-capacity waiting
-      stays inside one Stage attempt before a later agent joins.
+      V8-008 and V8-009 expose management APIs before the P0 process gate, so
+      V8-013 configures its scenario through production boundaries instead of
+      direct SQL fixtures. V8-015 consumes the already committed API rather
+      than coupling frontend work to Server asset rebuilding.
     - >-
-      The dependency graph permits V7-001 and V7-002 to be implemented
-      independently, then converges through V7-003 and V7-004 without a
-      circular dependency.
+      V8-010 supplies one adapter lifecycle host; OTLP and proxy behavior land
+      independently in V8-011 and V8-012. Their common release, lease-loss and
+      redaction invariants therefore have one implementation owner.
     - >-
-      Every task is self-contained for a worker without spec context, has one
-      primary implementation boundary, explicit failure cases, acceptance
-      criteria, test commands, and inherits the full implementation-commit rule.
+      The P0 path ends at V8-013 with default, Run and Agent precedence, complete
+      heterogeneous placement, write-only config APIs, real Worker telemetry
+      and selected proxy traffic. P1 adds Server Planner telemetry, UI and a
+      broader adversarial release gate without delaying the Worker MVP.
+    - >-
+      Every task repeats the exact behavior it owns for a worker without spec
+      context, names concrete files/failures/acceptance criteria, and keeps
+      implementation_commit null until the task's final implementation commit.
+    - >-
+      Labels remain infrastructure aliases rather than affinity or policy: a
+      debug Run can use an unlabeled adapter-capable Agent, while an Agent label
+      overrides only future physical Worker settings and never semantic model
+      policy, tools, budgets or Workflow graph behavior.
   accepted_risks:
     - >-
-      Capability dimensions remain composable sets in v1alpha1. An environment
-      with combination-specific incompatibilities must advertise a common safe
-      subset or run separate process configurations.
+      RuntimeConfig is database/API-managed in this increment; export/import,
+      immutable version garbage collection and an S3/file authoring workflow
+      are deferred.
     - >-
-      Current-fleet absence and temporarily busy compatible capacity share one
-      ErrInsufficientCapacity path until the Stage deadline or cancellation;
-      proactive unschedulable diagnosis and autoscaling remain deferred.
+      OTLP support exports content-free traces only with a bounded in-memory
+      queue. There is no durable external-telemetry spool, content capture or
+      cross-process W3C parent topology; Contractor reports remain authoritative.
     - >-
-      Probe failures are local redacted diagnostics. Operations deliberately
-      shows only positive capabilities, not paths, command output, environment
-      values, or a remotely actionable re-probe control.
+      Runtime capabilities remain composable positive sets and the process
+      environment remains immutable. Combination-specific environments still
+      require a safe common subset or separate uniquely certified processes.
+    - >-
+      The first implementation remains one active Control Plane and uses labels
+      neither for RBAC nor arbitrary scheduling affinity. HTTP proxy injection
+      covers declared model/tool channels, not a general network sandbox.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -328,3 +360,19 @@ tasks:
   - {id: V7-002, file: v7-002-complete-capability-placement.yml}
   - {id: V7-003, file: v7-003-operations-capability-visibility.yml}
   - {id: V7-004, file: v7-004-heterogeneous-capability-e2e.yml}
+  - {id: V8-001, file: v8-001-runtime-config-store.yml}
+  - {id: V8-002, file: v8-002-runtime-adapter-credentials.yml}
+  - {id: V8-003, file: v8-003-private-runtime-protocol-v2.yml}
+  - {id: V8-004, file: v8-004-runtime-agent-principals.yml}
+  - {id: V8-005, file: v8-005-run-runtime-label-pinning.yml}
+  - {id: V8-006, file: v8-006-runtime-config-resolver.yml}
+  - {id: V8-007, file: v8-007-candidate-runtime-config-placement.yml}
+  - {id: V8-008, file: v8-008-runtime-config-operations-api.yml}
+  - {id: V8-009, file: v8-009-runtime-agent-principal-api.yml}
+  - {id: V8-010, file: v8-010-allocation-adapter-host.yml}
+  - {id: V8-011, file: v8-011-worker-otlp-telemetry.yml}
+  - {id: V8-012, file: v8-012-allocation-http-proxy.yml}
+  - {id: V8-013, file: v8-013-label-driven-runtime-e2e.yml}
+  - {id: V8-014, file: v8-014-planner-otlp-telemetry.yml}
+  - {id: V8-015, file: v8-015-runtime-configuration-ui.yml}
+  - {id: V8-016, file: v8-016-runtime-configuration-hardening-e2e.yml}

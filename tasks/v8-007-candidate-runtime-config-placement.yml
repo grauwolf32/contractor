@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V8-007
+title: Resolve and pin candidate-specific Runtime settings during placement
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-002, V8-004, V8-006]
+languages: [go, sql]
+
+goal: >-
+  Integrate the pure resolver with complete capability matching, durable
+  allocation pinning and just-in-time secret delivery without introducing a
+  label/registry race.
+
+context:
+  placement: >-
+    For every logical Worker and candidate principal, combine the immutable Run
+    snapshot with that principal's current Agent labels, derive required exact
+    RuntimeAdapter refs and build candidate-specific edges. Extra capabilities
+    and matching label names are irrelevant. Multi-Worker placement remains a
+    complete injective matching.
+  linearization: >-
+    Optimistically read Agent label/binding revisions, compute matching, reserve
+    the complete slot set in memory, then lock Agent-label bindings lexically
+    and principal rows by runtimeAgentId. Revalidate, re-resolve and persist the
+    non-secret allocation snapshot before any prepare request. Never perform DB
+    or network work while holding the registry lock.
+  active_snapshot: >-
+    RuntimeSettings is immutable once prepared. Binding/Agent-label changes
+    affect a later allocation. Secrets are decrypted after placement under the
+    credential lifecycle reader and erased on release.
+
+scope:
+  in:
+    - Add migration 000019_allocation_runtime_configuration.sql for exact non-secret allocation provenance, revisions and credential usage indexes.
+    - Extend Control Plane inventory snapshots with principal identity and current authoritative labels/revisions without making PostgreSQL a liveness store.
+    - Build candidate-specific compatibility edges only after adapter, Gateway protocol and selected-ModelPolicy credential authorization checks, then reuse complete matching/reservation semantics from V7.
+    - Revalidate revisions and adapter capability containment after reservation; release an unprepared batch and retry the same StageExecution on change.
+    - Persist exact provenance, resolve only selected secrets and construct protocol-v2 AllocationSpec after transaction commit.
+    - Extend credential deletion fences to live allocation snapshots and prohibit new references once StageExecution enters finalizing or aborting.
+    - Attribute final reports to Server-owned config provenance and discard unknown adapter metric keys without blocking terminalization.
+    - Drain every reservation on preparation failure using existing non-blocking terminal release recovery.
+  out:
+    - Concrete Runtime adapter behavior, Planner telemetry, public management APIs or UI.
+
+deliverables:
+  - {path: internal/persistence/migrations/000019_allocation_runtime_configuration.sql, description: Durable exact allocation config provenance.}
+  - {path: internal/controlplane, description: Candidate-aware matching, revision validation and RuntimeSettings creation.}
+  - {path: internal/scheduler, description: Same-attempt retry/wait integration and provenance-aware reports.}
+  - {path: internal/runstore, description: Allocation config transaction and credential usage queries.}
+  - {path: Makefile, description: Focused label-placement integration target.}
+
+requirements:
+  - id: R1
+    text: An Agent with no labels can run a debug Run when it supports the resolved adapter; an Agent label applies even when the Run did not select the same name.
+  - id: R2
+    text: Revision churn consumes neither a Workflow retry nor a Planner invocation and remains bounded by the existing preparation deadline/cancellation path.
+  - id: R3
+    text: No AllocationSpec is sent before exact non-secret provenance commits, and no secret is persisted in that provenance.
+  - id: R4
+    text: Proxy/telemetry capability mismatch is an ineligible edge; remote endpoint health is not a startup placement capability.
+
+acceptance_criteria:
+  - id: A1
+    given: One idle Agent lacks otlp-http@1 and another unlabeled Agent advertises it.
+    when: A debug Run requiring Worker telemetry is placed.
+    then: Only the adapter-capable Agent receives the allocation even though neither has a debug label.
+  - id: A2
+    given: Agent label revision changes after matching but before allocation pinning.
+    when: The transaction revalidates revisions.
+    then: No prepare request is sent, all provisional slots are released, and the same StageExecution is matched again.
+  - id: A3
+    given: A successfully prepared allocation and concurrent label rebind/credential delete.
+    when: The allocation executes and releases.
+    then: It retains its old settings, deletion remains fenced while referenced, and the next allocation observes the new binding.
+  - id: A4
+    given: A multi-Worker Stage whose candidate-specific Agent labels make a greedy assignment impossible.
+    when: Complete matching runs.
+    then: It finds a valid injective assignment when one exists and reserves nothing when none exists.
+
+tests:
+  - {name: placement, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-label-placement", covers: [A1, A2, A3, A4]}
+  - {name: scheduler, command: "go test -race ./internal/controlplane/... ./internal/scheduler/... ./internal/runstore/...", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/runstore/... ./internal/runtimeconfig/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

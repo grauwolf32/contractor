@@ -126,6 +126,8 @@ The first useful user surface supports:
 - selecting published ModelPolicy, LLMGatewayConfig and credential refs when a
   Run execution override is desired, and showing any Workflow-pinned
   ExecutionConfig escalation profiles;
+- selecting zero or more active Runtime labels such as `debug` or `caido` for
+  the concrete Run and showing their exact pinned RuntimeConfig refs;
 - creating an idempotent WorkflowRun and cancelling a non-terminal Run;
 - listing Runs and showing their durable lifecycle;
 - showing ordered Stages, attempts, retry/escalation decisions, effective
@@ -153,7 +155,10 @@ read-only for execution state and shows at least:
 - Runtime Agent instance ID, software version, observed state, last accepted
   heartbeat, confirmed lease horizon and current allocation ID;
 - the Runtime Agent's frozen positive capability snapshot: exact runtime and
-  SandboxProfile refs plus each exact Toolset ref and its available tool names;
+  SandboxProfile refs, each exact Toolset ref and available tool names, plus
+  exact RuntimeAdapter refs;
+- the certificate-derived Runtime Agent principal and its authoritative durable
+  label set, without exposing certificate bytes or label-supplied secrets;
 - `idle`, `reserved`, `busy`, `draining` and `fenced` slot state using the
   authoritative/observed reconciliation vocabulary from [02];
 - allocation ID, WorkflowRun, StageExecution, logical Worker binding,
@@ -175,6 +180,13 @@ generation. Pagination cursors pin both values and fail closed when either is
 stale, causing the UI to fetch a new snapshot. This is a current-state view,
 not durable allocation history: an allocation disappears after authoritative
 release.
+
+The durable Runtime Agent principal/label configuration in [07] is a separate
+Operations resource. It remains listable while no process for that certificate
+principal is connected and does not claim liveness. When an instance is live,
+the current-state projection links it to that principal and its pinned active
+allocation settings; process-local Operations revisions still govern only the
+live registry view.
 
 `lastAcceptedHeartbeat` and `confirmedLeaseUntil` are absent between a new
 registration and the corresponding first accepted/confirmed heartbeat; the
@@ -384,15 +396,18 @@ When any credential row exists, Server startup requires the master key. A
 decryption/authentication failure is a bounded internal configuration error and
 never falls back to plaintext, another credential or an unauthenticated
 request. Planner construction and Control Plane allocation preparation decrypt
-exactly the credential ID pinned by the Run, just in time. The token is never
+exactly the credential ID pinned by the Run or durable allocation-config
+snapshot, just in time. The token is never
 copied into WorkflowRun, StageExecution, Planner Session, audit rows or metrics.
 A YAML default naming a deleted or missing credential remains inspectable but
-is not runnable until the request supplies another valid credential override.
+is not runnable unless a valid higher-precedence Run/Agent infrastructure layer
+under [07] replaces that physical Worker credential before prepare.
 
 There is no disable operation. Credential deletion is idempotent and allowed
-only when no non-terminal WorkflowRun pins that credential; otherwise it
-returns `credential_in_use` with safe referencing Run IDs and performs no side
-effect. Under a credential lock, Server first asks the bound Gateway credential
+only when no non-terminal WorkflowRun, active RuntimeConfig label binding or
+live allocation snapshot pins/references that credential; otherwise it returns
+`credential_in_use` with safe referencing Run IDs/label names and performs no
+side effect. Under a credential lock, Server first asks the bound Gateway credential
 manager to delete `remote_key_id` (`already absent` counts as success), then
 deletes the encrypted PostgreSQL row. A Gateway error retains the database
 record. Contractor never automatically aborts a Run or silently substitutes a
@@ -490,11 +505,12 @@ check. Thus Contractor-managed transitions expose only active credentials, not
 a user-visible provisioning, deleting or partially active state. Out-of-band
 LiteLLM mutation is unsupported drift and produces a bounded operational error.
 
-Run initialization and credential deletion share one process-local read/write
-barrier. Run initialization holds the read side from current credential
-revalidation through immutable WorkflowRun commit; deletion holds the write
-side from the non-terminal-Run query through remote deletion and local
-tombstone commit. If a delete call has an ambiguous Gateway or database result,
+Run initialization, RuntimeConfig binding/Agent-label mutation, allocation
+config pinning and credential deletion share one credential-lifecycle barrier.
+Readers hold it from current credential revalidation through their immutable
+Run/allocation commit; deletion holds the write side from all durable/live
+reference checks through remote deletion and local tombstone commit. If a
+delete call has an ambiguous Gateway or database result,
 the encrypted row remains active and inspectable but the write intent remains
 prepared and new Run initialization is rejected until the same request or
 startup recovery resolves it. This prevents a newly committed Run from pinning
@@ -547,10 +563,40 @@ the Run form cannot edit its body or mix browser-supplied inline fields into the
 referenced profile.
 
 Before returning a successful Run-create response, Server expands defaults and
-overrides into complete immutable base and escalation-variant per-consumer
-ResolvedExecutionConfigs. The Run detail page shows the selected refs and their
-origin (`workflow`, `run override`, inline escalation or exact ExecutionConfig
-ref), but never reconstructs authority from browser state.
+overrides into immutable base and escalation-variant per-consumer
+ResolvedExecutionConfigs. Planner selections are complete; a Worker's physical
+Gateway route may remain incomplete until the default/Run/Agent configuration
+layers in [07] are resolved for placement. The Run detail page shows the
+selected refs and their origin (`workflow`, `run override`, inline escalation
+or exact ExecutionConfig ref), but never reconstructs authority from browser
+state.
+
+## Runtime labels and infrastructure configuration
+
+Operations manages database-backed immutable RuntimeConfig versions,
+revisioned label bindings, write-only encrypted adapter credentials and durable
+Runtime Agent label assignments under the contract in
+[07](07-runtime-labels-and-infrastructure-config.md). These resources are not
+part of the six YAML configuration subtrees and have no disabled state.
+
+The Run form submits only label names. The successful Run response and detail
+surface show the exact pinned binding revision, RuntimeConfig ref/digest and
+safe adapter refs. They never expose resolved secret headers, proxy passwords,
+tokens or allocation RuntimeSettings. Rebinding a label uses an idempotency key
+and `If-Match`; the UI reports a stale revision instead of overwriting another
+operator's update.
+
+The reserved default binding is displayed separately and is never a checkbox:
+it is pinned for every Run even when the explicit label selection is empty.
+Before placement the Run page can show only default/Run layers. Once a
+StageExecution pins an allocation, its detail shows the selected Agent labels
+and final safe provenance, making any higher-precedence Agent override explicit.
+
+Runtime Agent detail permits replacing the complete authoritative label set.
+Startup labels seed only an unseen certificate-derived principal, so the UI has
+one set to explain rather than separate declared/managed/effective views. A
+busy agent retains its active allocation snapshot; the page makes clear that
+the changed labels apply to a future allocation.
 
 ## API boundary
 
@@ -752,8 +798,8 @@ or credential semantics.
 
 Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
-future administrative commands require their own idempotency keys and audit
-actor.
+RuntimeConfig/label/Agent-label administrative commands require their own
+idempotency keys, revision preconditions where specified and audit actor.
 
 Pagination, filter grammar and live-update transport are not selected yet. The
 API keeps configuration/credential mutations distinct from ordinary Run and
@@ -766,14 +812,18 @@ Artifact use so later RBAC does not require changing domain semantics.
    URL, token or provider parameter is accepted.
 3. Immutable base and escalation-variant ResolvedExecutionConfigs are
    authoritative after Run creation; an ExecutionConfig ref is never resolved
-   during an attempt.
+   during an attempt. The default/Run/Agent infrastructure layers in [07] may
+   complete or override only a Worker's physical connection settings under
+   their separately pinned provenance.
 4. Planner and every logical Worker resolve their model policy, Gateway and
    optional matching credential independently.
 5. Published configuration versions and their digests never change in place.
-6. Public APIs neither accept raw key material during credential creation nor
-   return it on any read. LiteLLM virtual keys and its master key never appear
-   in durable execution state, metrics, logs or browser persistence; only
-   generated virtual keys are encrypted in the credential store.
+6. Public read APIs never return raw key material. LiteLLM virtual keys and its
+   master key never appear in durable execution state, metrics, logs or browser
+   persistence; only generated virtual keys are encrypted in the LLM
+   credential store. Adapter-specific runtime credentials may be submitted
+   once through the authenticated write-only Operations boundary defined by
+   [07], then are likewise encrypted and never readable.
 7. Operations reflects both observed Runtime state and authoritative Control
    Plane state without conflating them.
 8. LiteLLM, not Contractor, is authoritative for Gateway-wide model access,

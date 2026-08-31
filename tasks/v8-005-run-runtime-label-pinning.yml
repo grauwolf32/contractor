@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V8-005
+title: Pin default and explicit Runtime labels during Run creation
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-001, V8-002, V8-004]
+languages: [go, sql, yaml]
+
+goal: >-
+  Make Runtime labels immutable Run input and persist exact configuration
+  snapshots atomically with existing Run idempotency and artifact forks.
+
+context:
+  request_contract: >-
+    POST /v1/runs accepts optional labels containing at most 32 unique valid
+    names. Input order is not semantic; canonical request hashing sorts it.
+    default is reserved and cannot be supplied. Workflow YAML has no label
+    field.
+  pinning_contract: >-
+    Every Run pins the current default binding and every explicit label's exact
+    binding revision, RuntimeConfig ref/digest and non-secret credential refs.
+    Later rebind/remove never changes that Run. Exact idempotency replay must
+    return the existing Run before consulting any current binding or credential.
+  execution_config_interaction: >-
+    Planner ModelPolicy/Gateway remains complete at Run initialization. A
+    Worker always has a complete ModelPolicy, but its physical Gateway and
+    credential may remain explicitly absent for candidate-specific completion
+    by a later task.
+
+scope:
+  in:
+    - Add migration 000018_run_runtime_labels.sql for immutable default/explicit label snapshots and exact config provenance keyed by Run.
+    - Extend the committed public OpenAPI Run-create/read schemas and generated Go/UI types with labels and safe pinned RuntimeConfig refs.
+    - Include sorted explicit labels in the canonical Run request digest and preserve lookup-before-resolution replay ordering.
+    - Lock default and selected binding rows lexically inside the same PostgreSQL transaction as Run creation, execution config snapshot and input forks.
+    - Validate same-layer Run-label conflicts for Worker and Planner blocks, credential existence/kind and exact immutable config digests.
+    - Relax only Worker physical Gateway completeness in execution-config resolution; retain all ModelPolicy and Planner completeness rules.
+    - Extend runtime-credential and LLM-credential deletion usage checks with non-terminal Run snapshots.
+  out:
+    - Agent-label placement, secret-bearing RuntimeSettings, mutable Run labels, Workflow default labels or UI controls.
+
+deliverables:
+  - {path: internal/persistence/migrations/000018_run_runtime_labels.sql, description: Immutable per-Run default and label snapshots.}
+  - {path: internal/runstore, description: Transactional Run label pin/read repository operations.}
+  - {path: internal/httpapi/public/run_handlers.go, description: Request normalization, replay ordering and safe response projection.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Public Run label and pinned provenance schema.}
+  - {path: internal/config, description: Worker-route optionality with unchanged semantic policy validation.}
+
+requirements:
+  - id: R1
+    text: An empty explicit label set still pins exactly one default snapshot and remains compatible with existing fully configured Workflows.
+  - id: R2
+    text: Unknown, duplicate, malformed, reserved or conflicting labels create no Run and no artifact fork.
+  - id: R3
+    text: Successful responses and durable projections sort explicit labels and distinguish the always-applied default from caller-selected labels.
+  - id: R4
+    text: Secret values never enter Run rows, idempotency rows, events, public JSON or logs.
+
+acceptance_criteria:
+  - id: A1
+    given: default points to A and debug points to B.
+    when: A Run with debug commits and both bindings are later rebound.
+    then: Run detail still exposes the exact old A/B revisions and digests while a new Run pins the new refs.
+  - id: A2
+    given: A committed Run whose selected credential or label binding was later removed where permitted.
+    when: The original idempotency request is replayed after response loss.
+    then: The existing Run is returned without resolving the now-mutable dependency.
+  - id: A3
+    given: Two label binding mutations race Run creation.
+    when: Transactions commit.
+    then: The Run contains a complete old or complete new exact snapshot for each locked binding and never mixed ref fields.
+  - id: A4
+    given: A model-backed Planner and a Worker whose Gateway is supplied only by a Runtime label.
+    when: Run initialization validates them.
+    then: Planner resolution is complete, Worker ModelPolicy is complete, and Worker route absence is retained for allocation rather than replaced from environment.
+
+tests:
+  - {name: public-api, command: "make verify-public-api", covers: [A1, A2, A4]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/runstore/... ./internal/httpapi/public/...", covers: [A1, A2, A3]}
+  - {name: config, command: "go test ./internal/config/...", covers: [A4]}
+  - {name: race, command: "go test -race ./internal/runstore/... ./internal/runtimeconfig/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

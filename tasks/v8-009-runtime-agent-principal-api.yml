@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V8-009
+title: Expose durable Runtime Agent principals and label assignment
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-004, V8-007, V8-008]
+languages: [go, yaml, typescript]
+
+goal: >-
+  Let Operations inspect offline/live certificate principals and atomically
+  replace their authoritative Agent label sets without confusing configuration
+  state with process liveness.
+
+context:
+  resource_model: >-
+    A durable principal is keyed by the Server-derived SPKI fingerprint and has
+    one sorted label set plus uint64 revision. The live in-memory Runtime Agent
+    observation remains process-scoped by instanceId. A durable record may be
+    visible while no process is connected and must not claim a heartbeat,
+    allocation or lease.
+  mutation: >-
+    PUT labels replaces the complete set using Idempotency-Key and If-Match.
+    Assignment validates existing bindings, same-layer Worker conflicts and at
+    least one Worker-applicable setting per label. Capability mismatch is
+    allowed but makes a currently live process ineligible for future placement.
+  deletion: >-
+    A principal can be removed only while offline, with an empty label set and
+    no live/durable allocation reference. Later registration seeds a new record.
+
+scope:
+  in:
+    - Add OpenAPI list/get/delete principal resources and PUT /labels with safe exact schemas, pagination and strong ETags.
+    - Join durable principal configuration to current Operations Runtime Agent observations without persisting heartbeat/liveness state.
+    - Expose frozen RuntimeAdapter capabilities, authoritative labels/revision and safe ineligibility/conflict reasons.
+    - Implement authenticated, audited, idempotent CAS handlers and stable runtime_agent_label_not_applicable/precondition/in-use errors.
+    - Emit bounded Operations change hints so connected UIs refetch after principal/label mutation; do not mutate over WebSocket.
+    - Add generated TypeScript client methods and defensive response validation.
+  out:
+    - UI pages, RBAC by label, remote capability updates, forced agent restart or mutation of active allocation settings.
+
+deliverables:
+  - {path: api/openapi/contractor-public-v1.yaml, description: Principal, label-set and live-link read models.}
+  - {path: internal/httpapi/public, description: Principal Operations handlers and tests.}
+  - {path: internal/controlplane/operations.go, description: Safe live/durable projection without liveness persistence.}
+  - {path: ui/src/api/operations.ts, description: Generated-safe principal and label mutation client.}
+
+requirements:
+  - id: R1
+    text: Public resources never contain certificate DER/PEM, SPKI bytes, private endpoint secrets or resolved RuntimeSettings.
+  - id: R2
+    text: A label mutation on a busy principal changes only future allocation resolution; active provenance remains immutable.
+  - id: R3
+    text: Startup initialLabels are shown only as the seeded authoritative set, not as a second declared/effective/source model.
+  - id: R4
+    text: Operations distinguishes adapter capability mismatch from offline or busy capacity using bounded safe facts.
+
+acceptance_criteria:
+  - id: A1
+    given: A principal that registered once and is now offline.
+    when: Operations lists principals.
+    then: Its labels/revision remain visible and heartbeat, lease, instance and live allocation fields are absent.
+  - id: A2
+    given: A live Agent without otlp-http@1.
+    when: debug is assigned by valid CAS.
+    then: Assignment succeeds, the current allocation is unchanged, and Operations marks the slot ineligible for future debug-resolved work.
+  - id: A3
+    given: Concurrent label-set replacement using one ETag.
+    when: Both requests arrive.
+    then: One commits revision+1, one receives 412, and no merged partial set appears.
+  - id: A4
+    given: A principal that is live, labeled or allocation-referenced.
+    when: Delete is requested.
+    then: It fails with a bounded in-use error; an offline empty unreferenced principal deletes idempotently.
+
+tests:
+  - {name: api-contract, command: "make verify-public-api", covers: [A1, A2, A3, A4]}
+  - {name: handlers, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -race ./internal/httpapi/public/... ./internal/controlplane/...", covers: [A1, A2, A3, A4]}
+  - {name: ui-client, command: "npm --prefix ui test -- --run src/api/operations.test.ts", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

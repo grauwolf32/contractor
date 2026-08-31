@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V8-016
+title: Harden Runtime labels with full API browser and failure-path E2E
+milestone: label-driven-runtime-configuration
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-013, V8-014, V8-015]
+languages: [go, python, typescript, sql]
+
+goal: >-
+  Prove the complete increment under replay, races, mTLS impersonation,
+  dependency failure and browser operation, then make it part of the standard
+  release gate.
+
+context:
+  boundary: >-
+    Exercise real browser/public API, PostgreSQL transactions, Go
+    Scheduler/Planner/Control Plane, two uniquely certified Python Runtime
+    Agents, mTLS/A2A/Artifacts and real Runtime adapters. Local deterministic
+    fake LLM/OTLP/proxy endpoints may replace only external services.
+  required_properties: >-
+    Old/new Run pinning is immutable; Agent label changes linearize at
+    allocation; same-layer conflicts never depend on order; private traffic
+    bypasses proxy; telemetry failure is best effort; proxy failure is semantic;
+    secrets are absent from all retained surfaces; every slot releases.
+
+scope:
+  in:
+    - Add a browser/process scenario covering config/credential creation, default/debug/caido binding, Run selection, Agent-label assignment and safe detail views.
+    - Inject response loss and exact idempotency replay for RuntimeConfig, runtime credential, binding, Agent-label and Run-create mutations.
+    - Race binding/Agent-label CAS against Run creation and allocation pinning and prove the documented old-or-new linearization outcomes.
+    - Attempt duplicate-key registration, endpoint SPKI substitution and Artifact allocation borrowing with different CA-valid Agent certificates.
+    - Exercise OTLP delay/failure/overflow, proxy auth/TLS/refusal, prepare rollback, confirmed-lease loss and terminal release retry.
+    - Prove Planner/Worker telemetry may use different endpoints under Agent override without changing ModelPolicy, budgets or escalation.
+    - Add database/public/event/log/browser/OTLP scans for secret canaries and bounded resource/slot reuse assertions.
+    - Include the gate in CI/release aggregate and document accepted deferred limitations.
+  out:
+    - Multi-Control-Plane HA, KMS/Vault, dynamic capabilities, arbitrary content telemetry, performance benchmarks or real cloud services.
+
+deliverables:
+  - {path: tests/e2e, description: Full race, identity, adapter failure and secret-retention process matrix.}
+  - {path: tests/ui-stack, description: Real browser management and Run provenance scenario.}
+  - {path: Makefile, description: Bounded full Runtime-configuration release gate.}
+  - {path: docs/development.md, description: Troubleshooting and deferred-boundary notes backed by the gate.}
+
+requirements:
+  - id: R1
+    text: No test replaces Contractor config resolution, matching, pinning, mTLS identity, adapter host, Scheduler or release logic with a fake.
+  - id: R2
+    text: Every injected failure has a finite deadline and leaves either a terminal released allocation or a safely fenced allocation that recovery releases.
+  - id: R3
+    text: Secret scans cover PostgreSQL text/JSON projections, HTTP/WebSocket bodies, logs, browser storage/DOM, ExecutionReports and OTLP payloads.
+  - id: R4
+    text: The final gate remains deterministic and does not depend on LM Studio, Langfuse, Caido or internet availability.
+
+acceptance_criteria:
+  - id: A1
+    given: Response loss and concurrent CAS/rebind at every new mutation boundary.
+    when: Clients replay and work continues.
+    then: Exactly one semantic mutation occurs per key, stale writers fail, and each Run/allocation observes one complete old-or-new snapshot.
+  - id: A2
+    given: Another valid CA Agent certificate and a copied instance/allocation ID.
+    when: It registers a conflicting slot, substitutes an endpoint or calls Artifact API.
+    then: Principal/SPKI/grant checks fail without disclosing settings or body data and the legitimate allocation continues or aborts safely.
+  - id: A3
+    given: Planner/Worker OTLP failures plus required proxy failures and lease loss.
+    when: Lifecycle completes and recovery polls.
+    then: Telemetry failure never changes semantics, proxy failures follow policy, and all grants/settings/adapters/slots are eventually released.
+  - id: A4
+    given: The complete browser/process scenario has finished.
+    when: Durable/live state and all secret-retention surfaces are scanned.
+    then: Expected safe provenance is complete, every canary is absent, and both agents execute a subsequent baseline Run.
+
+tests:
+  - {name: full-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-configuration-e2e", covers: [A1, A2, A3, A4]}
+  - {name: browser, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-ui-stack", covers: [A1, A2, A3, A4]}
+  - {name: races, command: "go test -race ./internal/controlplane/... ./internal/runtimeconfig/... ./internal/runstore/... ./internal/httpapi/...", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

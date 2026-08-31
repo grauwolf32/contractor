@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V8-014
+title: Apply pinned Run telemetry configuration to Server Planners
+milestone: label-driven-runtime-configuration
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-006, V8-008, V8-013]
+languages: [go]
+
+goal: >-
+  Export safe Planner traces from the Go Server using the pinned default/Run
+  configuration while keeping Agent labels and Worker proxy settings out of the
+  Planner boundary.
+
+context:
+  resolution: >-
+    Planner telemetry is one atomic block resolved only from the default and
+    explicit Run RuntimeConfig snapshot pinned at Run creation. Agent labels,
+    Run executionConfig model selection and Worker HTTP proxy do not alter it.
+    It applies to passthrough@1, streamline@1 and router@1 invocations.
+  behavior: >-
+    The Server owns a versioned PlannerTelemetryAdapter registry. otlp-http@1
+    uses OTLP/HTTP protobuf traces, the same no-content/resource bounds as the
+    Worker adapter and a just-in-time otlp-headers@1 credential. Delivery and
+    final flush are best effort and never change Planner/Stage semantics.
+
+scope:
+  in:
+    - Add a Go Planner telemetry adapter registry and reject unknown planner.telemetry refs during RuntimeConfig publication.
+    - Resolve exact pinned Planner telemetry before invocation, decrypt only its selected credential and create an invocation-scoped exporter.
+    - Instrument plan/session lifecycle, model calls, WorkerInvoker calls, subtask state transitions, finish and bounded Planner errors without content.
+    - Flush within configured timeout and remaining Planner/finalization bound; record safe exporter failure without changing StageResult/StageTermination.
+    - Attribute traces and durable safe projections to exact Run config refs, Planner type/session and ModelPolicy/Gateway/credential refs.
+    - Add a local protobuf collector test matrix for passthrough, streamline, router, backend failure and no-telemetry Runs.
+  out:
+    - Agent-label input, Worker proxy use, LangChain, prompt/tool-argument export, durable exporter spool or W3C cross-process parent topology.
+
+deliverables:
+  - {path: internal/telemetry, description: Versioned Planner adapter registry and bounded OTLP exporter.}
+  - {path: internal/planner, description: Content-free invocation/model/Worker/subtask instrumentation hooks.}
+  - {path: internal/scheduler, description: Pinned telemetry construction and bounded flush lifecycle.}
+  - {path: internal/runtimeconfig, description: Server Planner-adapter publication validation.}
+
+requirements:
+  - id: R1
+    text: Agent label changes can make Worker telemetry use a different endpoint but can never alter Planner telemetry for the same Run.
+  - id: R2
+    text: Planner telemetry failure is supplementary and cannot trigger retry, escalation, failure or delayed allocation release.
+  - id: R3
+    text: Prompts, model responses, subtask objective/instructions, tool arguments/results, artifacts, credentials and provider bodies are never exported.
+  - id: R4
+    text: Planner credential bytes are never stored in SessionService, Run events, reports or logs.
+
+acceptance_criteria:
+  - id: A1
+    given: A Run debug label configuring Planner and Worker telemetry and an Agent label overriding only Worker telemetry.
+    when: Streamline executes.
+    then: Planner spans reach the Run-pinned endpoint and Worker spans reach the Agent-selected endpoint.
+  - id: A2
+    given: passthrough, streamline and router Stages.
+    when: Each executes under Planner telemetry.
+    then: Safe invocation/session/outcome correlation is emitted without model/subtask content.
+  - id: A3
+    given: An unavailable or hanging Planner OTLP endpoint.
+    when: Planner finishes and Scheduler finalizes.
+    then: The semantic result/retry/escalation decision is unchanged and bounded flush cannot delay release beyond its deadline.
+  - id: A4
+    given: A Run without Planner telemetry after default/Run resolution.
+    when: Planner executes.
+    then: No exporter or external request is created and durable Contractor events remain complete.
+
+tests:
+  - {name: planner-telemetry, command: "go test -race ./internal/telemetry/... ./internal/planner/... ./internal/scheduler/...", covers: [A1, A2, A3, A4]}
+  - {name: streamline, command: "make test-streamline", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

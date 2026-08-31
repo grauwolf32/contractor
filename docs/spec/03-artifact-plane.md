@@ -449,6 +449,16 @@ Server binds requests to that allocation's RunScope, enforces
 grants/limits/preconditions and streams bytes. Neither public nor private
 interface lets its caller supply an arbitrary scope ID.
 
+The grant records the certificate-derived Runtime Agent principal and its
+process `instance_id` beside `allocation_id`. Each request must match all three;
+another otherwise valid CA-signed Runtime Agent certificate cannot borrow an
+allocation ID. The principal has no broader scope or role—this check only proves
+that the caller is the process to which Control Plane issued the grant.
+
+The allocation remains the path identity, while the client repeats its process
+identity in bounded `X-Contractor-Runtime-Instance-ID`; Server validates that
+header against the mTLS principal-bound grant before reading a request body.
+
 Workflow Scheduler uses an internal ArtifactStore capability to pin versions,
 fork UserScope inputs into RunScope and bind accepted versions into `outputs`.
 The User Artifact API exposes a separate, purpose-specific publication

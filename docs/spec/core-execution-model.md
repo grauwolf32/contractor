@@ -10,7 +10,9 @@ The current working agreement is split across the documents indexed in
 - [Runtime and A2A](02-runtime-and-a2a.md);
 - [Artifact plane](03-artifact-plane.md);
 - [Execution lifecycle and metrics](04-execution-lifecycle-and-metrics.md);
-- [First slice and open decisions](05-first-slice-and-open-decisions.md).
+- [First slice and open decisions](05-first-slice-and-open-decisions.md);
+- [Server UI and Operations](06-server-ui-and-operations.md);
+- [Runtime labels and infrastructure configuration](07-runtime-labels-and-infrastructure-config.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

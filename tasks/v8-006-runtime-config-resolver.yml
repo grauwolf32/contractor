@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V8-006
+title: Implement deterministic Runtime configuration precedence and conflicts
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-001, V8-003, V8-005]
+languages: [go]
+
+goal: >-
+  Produce one pure, exhaustively tested resolver that combines Run,
+  executionConfig and candidate Agent settings without secrets or hidden label
+  ordering.
+
+context:
+  precedence: >-
+    Later layers win: pinned default RuntimeConfig; Workflow Worker
+    executionConfig defaults; pinned explicit Run RuntimeConfigs; Run-request
+    executionConfig override; selected escalation patch; current candidate
+    Agent RuntimeConfigs. Agent label input uses only spec.worker. Planner
+    telemetry uses default plus explicit Run configs only.
+  merge_units: >-
+    worker.llmGateway.gateway and credential are independent leaves; explicit
+    credential null clears. worker.telemetry, worker.httpProxy and
+    planner.telemetry are atomic blocks; explicit null clears and omission
+    inherits. Multiple labels in one layer may set disjoint or byte-identical
+    units, but different values for one unit conflict without order-based
+    resolution.
+  semantic_boundary: >-
+    Labels never change ModelPolicy, budgets, Planner model access,
+    AgentTemplate, Toolset, SandboxProfile, instructions or graph behavior.
+
+scope:
+  in:
+    - Implement typed layer inputs and a pure ResolvedRuntimeConfig output with complete safe provenance and required RuntimeAdapter refs.
+    - Preserve field origin for default, workflow, Run label, Run override, escalation and Agent label without retaining complete config documents in model context.
+    - Validate final Worker Gateway protocol, credential binding, credential authorization for the already selected exact ModelPolicy/model alias and complete route requirements after all layers.
+    - Resolve Planner telemetry independently from candidate Agents and reject Agent configs with no Worker-applicable setting at assignment time.
+    - Return stable safe conflict/incomplete/kind-mismatch codes and paths without endpoints, headers or secret values.
+    - Add a table-driven precedence matrix covering omission, explicit null, identical values, conflicts and escalation.
+  out:
+    - Database locking, registry selection, secret decryption, Runtime network calls or adapter construction.
+
+deliverables:
+  - {path: internal/runtimeconfig/resolver.go, description: Pure layered resolver and provenance builder.}
+  - {path: internal/runtimeconfig/resolver_test.go, description: Exhaustive precedence/conflict matrix.}
+  - {path: internal/runtimeconfig/testdata, description: Canonical complex resolution fixtures.}
+
+requirements:
+  - id: R1
+    text: Run and Agent label names never need to match; candidate eligibility depends on the resolved required adapter set, not label equality.
+  - id: R2
+    text: A candidate Agent block can override or clear lower physical Worker settings but cannot alter the already selected ModelPolicy or budgets.
+  - id: R3
+    text: Returned provenance contains only sorted labels, exact refs/digests/revisions, adapter refs and non-secret Gateway/credential IDs.
+  - id: R4
+    text: Resolver output is deterministic for every permutation of labels within one layer.
+  - id: R5
+    text: A label-provided Gateway or credential can route/account one Agent differently but cannot bypass the selected ModelPolicy authorization or limits.
+
+acceptance_criteria:
+  - id: A1
+    given: default supplies Gateway and a Run debug label supplies Worker telemetry while the candidate has no labels.
+    when: The resolver runs.
+    then: It returns both settings and requires otlp-http@1; it never requires a debug Agent label.
+  - id: A2
+    given: Run caido proxy and candidate direct-network with an explicit null proxy block.
+    when: Candidate layers resolve.
+    then: The final allocation has no proxy while the pinned Run snapshot remains unchanged.
+  - id: A3
+    given: Two Run labels set different telemetry endpoints and another case sets byte-identical normalized blocks.
+    when: Run-layer resolution executes in every input order.
+    then: The first case deterministically conflicts and the second deduplicates to one block.
+  - id: A4
+    given: An Agent label attempts to affect planner telemetry and a valid Run label configures both Worker and Planner telemetry.
+    when: Both consumers resolve.
+    then: The Agent layer affects Worker only and Planner uses pinned default/Run layers only.
+  - id: A5
+    given: An Agent-specific credential bound to the final Gateway but not authorized for the Worker's selected ModelPolicy.
+    when: Candidate resolution validates the final route.
+    then: Resolution returns a safe incompatibility and never substitutes another ModelPolicy, credential or model alias.
+
+tests:
+  - {name: resolver, command: "go test ./internal/runtimeconfig/... -run 'Resolver|Merge|Precedence'", covers: [A1, A2, A3, A4, A5]}
+  - {name: race, command: "go test -race ./internal/runtimeconfig/...", covers: [A1, A2, A3, A4, A5]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

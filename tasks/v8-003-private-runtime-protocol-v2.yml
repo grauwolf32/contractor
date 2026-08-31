@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V8-003
+title: Introduce private Runtime protocol v2 and adapter capabilities
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V7-004]
+languages: [go, python]
+
+goal: >-
+  Land one strict Go/Python wire contract for Runtime labels, adapter
+  capabilities, typed allocation settings, safe provenance and adapter metrics.
+
+context:
+  compatibility: >-
+    This is a synchronized breaking change to the private API only. Registration
+    request and response require integer privateProtocolVersion=2 while their
+    existing apiVersion remains contractor/v1alpha1. An older peer must fail
+    negotiation rather than default missing arrays or settings. This task lands
+    versioned DTOs/codecs and fixtures without advertising v2 from production;
+    V8-004 activates both peers atomically once durable principal state exists.
+  registration_fields: >-
+    Request adds sorted initialLabels (max 32) and supportedRuntimeAdapters
+    (max 64 exact refs, empty allowed). Response adds runtimeAgentId,
+    authoritative sorted labels and uint64 labelRevision.
+  allocation_fields: >-
+    RuntimeSettings gains optional otlp-http@1 telemetry and http-proxy@1 blocks
+    with marked secret fields. AllocationSpec gains safe exact
+    ResolvedRuntimeConfigProvenance. RuntimeReport gains bounded per-adapter
+    counters and flush status.
+
+scope:
+  in:
+    - Add versioned internal/contracts and runtime/contracts.py v2 DTOs with identical bounds, aliases and redaction behavior while retaining the active v1 path until V8-004.
+    - Reject duplicate JSON keys before DTO construction on both sides, in addition to unknown fields and invalid enum/ref values.
+    - Add RuntimeAdapterRef and a Runtime adapter factory/probe registry dimension; fake factories may advertise capability before concrete adapters land.
+    - Extend Python startup settings/CLI with initial labels and make capability discovery freeze sorted adapter refs for the process instance.
+    - Add v2 Go registration normalization/fingerprint helpers and Operations-safe adapter capability projections for activation by V8-004.
+    - Add shared canonical JSON fixtures for empty, telemetry-only, proxy-only and combined settings plus malformed/redaction cases.
+    - Keep production registration on its old protocol during this commit; a partially populated v2 response must never be served.
+  out:
+    - Durable principal behavior, config resolution, real OTLP/proxy clients, label APIs or placement changes.
+
+deliverables:
+  - {path: internal/contracts, description: Strict protocol-v2 registration, allocation, provenance and metrics DTOs.}
+  - {path: runtime/src/contractor_runtime/contracts.py, description: Python parity models and secret-safe representation.}
+  - {path: runtime/src/contractor_runtime/capabilities.py, description: Frozen RuntimeAdapter capability discovery.}
+  - {path: testdata/contracts, description: Cross-language canonical success and failure fixtures.}
+  - {path: Makefile, description: Focused private-v2 contract parity target.}
+
+requirements:
+  - id: R1
+    text: Go and Python accept and canonicalize the same valid fixtures and reject every malformed fixture for the same contract reason class.
+  - id: R2
+    text: Formatting, validation errors and logs redact LLM tokens, OTLP headers, proxy auth and any future field explicitly marked secret.
+  - id: R3
+    text: Adapter probes are local, bounded and never contact an endpoint, Gateway, Artifact API or credential service.
+  - id: R4
+    text: Runtime label strings may be retained only as safe provenance and cannot select behavior; typed settings are the sole activation input.
+
+acceptance_criteria:
+  - id: A1
+    given: A v1 or versionless registration fixture.
+    when: The v2 decoder/negotiator validates it.
+    then: Validation fails with a bounded protocol-version error before registry behavior, while the still-active production v1 path remains unchanged until V8-004.
+  - id: A2
+    given: Equivalent canonical v2 fixtures.
+    when: Go and Python decode, validate and encode them.
+    then: Exact refs, sorted sets, null/omission semantics and safe provenance round-trip identically.
+  - id: A3
+    given: A fixture containing a duplicate key, unknown adapter, two proxy auth variants or a secret inside provenance.
+    when: Either implementation decodes it.
+    then: It fails before allocation resource construction and the error contains no supplied secret.
+  - id: A4
+    given: Adapter factories whose probes pass, fail or time out.
+    when: Startup discovery completes.
+    then: Only passing exact refs are frozen and registration retry cannot mutate the snapshot.
+
+tests:
+  - {name: go-contracts, command: "go test ./internal/contracts/... ./internal/controlplane/...", covers: [A1, A2, A3]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py tests/test_settings.py", covers: [A1, A2, A3, A4]}
+  - {name: parity, command: "make test-runtime-wire-v2", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

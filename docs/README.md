@@ -22,6 +22,8 @@ remain replaceable deployment adapters.
 - [Artifact plane](spec/03-artifact-plane.md)
 - [Execution lifecycle and metrics](spec/04-execution-lifecycle-and-metrics.md)
 - [First slice and open decisions](spec/05-first-slice-and-open-decisions.md)
+- [Server UI and Operations](spec/06-server-ui-and-operations.md)
+- [Runtime labels and infrastructure configuration](spec/07-runtime-labels-and-infrastructure-config.md)
 
 ## Local commands
 

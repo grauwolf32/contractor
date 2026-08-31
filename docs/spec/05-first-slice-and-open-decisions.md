@@ -3,7 +3,9 @@
 Status: **Working agreement**
 
 Depends on: [00](00-workflow-and-planner.md) through
-[04](04-execution-lifecycle-and-metrics.md)
+[04](04-execution-lifecycle-and-metrics.md),
+[06](06-server-ui-and-operations.md) and
+[07](07-runtime-labels-and-infrastructure-config.md)
 
 ## First implementation slice
 
@@ -150,11 +152,12 @@ This slice must demonstrate:
 - every first-slice Runtime Agent runs the same Contractor code but advertises
   `adk@1` only after its local runtime probe passes; two processes may advertise
   different Toolset/tool subsets because their immutable environments differ;
-- Workflow defaults plus reference-only Run overrides resolve exact
-  ModelPolicy, LLMGatewayConfig and non-secret credential refs for every modeled
-  Planner/Worker consumer; Control Plane supplies the resulting allocation URL
-  and optional token in RuntimeSettings over mTLS, and Agent clears secrets on
-  release;
+- Workflow defaults plus reference-only Run overrides resolve an exact
+  ModelPolicy for every modeled consumer and a complete Gateway route for every
+  model-backed Planner; a Worker route may be completed or physically
+  overridden by the pinned Run/Agent-label boundary in [07]. Control Plane
+  supplies the resulting allocation URL and optional token in RuntimeSettings
+  over mTLS, and Agent clears secrets on release;
 - Workflow Scheduler records `preparing -> running -> finalizing -> terminal`;
 - WorkflowRun records `initializing -> running -> succeeded`, with the final
   Stage acceptance, required output bindings and Run success in one transaction;
@@ -231,10 +234,11 @@ This slice must demonstrate:
 - private Control Plane/Runtime Agent traffic uses the deployment CA for mTLS;
   Runtime Agents additionally require the Control Plane URI SAN prefix
   `urn:contractor:control-plane:` while Control Plane treats all valid Runtime
-  Agent certificates as peers with equal capabilities;
+  Agent certificates as peers with equal private-API privileges; their reported
+  execution capabilities and assigned infrastructure labels may differ;
 - each Runtime Agent process registers one in-memory `instance_id`; restarting
-  it creates a new identity and interrupts rather than adopts its old
-  allocation;
+  it creates a new process identity (while retaining its certificate principal)
+  and interrupts rather than adopts its old allocation;
 - Runtime Agent sends a monotonic heartbeat every 10 seconds and echoes the
   last received ack; both sides advance the confirmed control lease only
   through that round trip and expire it after 60 seconds;
@@ -286,6 +290,41 @@ This slice must demonstrate:
   mutating first-slice operation under response loss, restart, races, fencing,
   mTLS/tampering attacks and bounded resource shutdown.
 
+## Label-driven infrastructure increment
+
+The next implementation increment extends the runnable slice without changing
+Workflow graph, Planner/Worker or artifact semantics. It must demonstrate:
+
+- PostgreSQL stores immutable typed RuntimeConfig versions, revisioned
+  label-to-config bindings, encrypted adapter credentials and durable Agent
+  label sets;
+- a Runtime Agent principal is derived from its certificate public key while
+  every process incarnation retains a fresh `instance_id`; two concurrent
+  single-slot agents use two CA-signed certificate/key pairs;
+- Run creation always pins the default RuntimeConfig, accepts optional immutable
+  labels, pins their exact binding/config versions in its idempotent
+  transaction and survives later rebinding;
+- Runtime registration reports immutable `otlp-http@1` and `http-proxy@1`
+  adapter capabilities after bounded local probes;
+- Control Plane overlays pinned Run labels on the default and allocation-time
+  Agent labels on both, rejects same-layer typed conflicts, performs complete
+  capability placement and sends no unresolved label string as Runtime
+  behavior;
+- a `debug` Run emits content-free bounded Worker telemetry to its pinned OTLP
+  endpoint, and optional Planner telemetry uses the same pinned Run config on
+  Server;
+- a `caido` Run applies HTTP proxying only to explicitly selected Worker model,
+  tool-client or tool-subprocess targets while all Contractor private traffic
+  bypasses it;
+- rebinding either label requires no Workflow/AgentTemplate edit or Runtime
+  restart, affects the next defined resolution boundary and leaves an active
+  allocation unchanged;
+- Operations/API/UI create and inspect safe config versions/bindings, assign
+  Agent labels, select Run labels and never return credentials;
+- a process-level end-to-end test proves old/new binding pinning, heterogeneous
+  adapter placement, secret redaction, bounded exporter failure and complete
+  release/slot reuse.
+
 ## Deliberately deferred
 
 The following decisions remain open; no legacy document defines them
@@ -335,3 +374,9 @@ AgentTemplates, `streamline@1` plans through one prepared Worker and `router@1`
 routes current subtasks over a fixed prepared logical Worker set without
 exposing placement or changing Workflow Scheduler, PassthroughPlanner, A2A or
 artifact contracts.
+
+The label-driven increment is successful when a compatible Runtime with no
+Agent labels executes a `debug`/`caido` Run from typed pinned settings, an
+Agent-specific label overrides the next allocation without changing semantic
+policy, a live allocation keeps its old snapshot across rebind, and all
+adapters release without exposing or retaining secrets.

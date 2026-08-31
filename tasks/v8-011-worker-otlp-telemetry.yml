@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V8-011
+title: Implement bounded content-free Worker OTLP telemetry
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-002, V8-007, V8-010]
+languages: [python]
+
+goal: >-
+  Implement otlp-http@1 so a debug Run can export safe Worker traces to a
+  Control-Plane-selected OTLP endpoint without LangChain or durable exporter
+  state.
+
+context:
+  transport: >-
+    Use backend-neutral OTLP/HTTP protobuf traces against the complete configured
+    traces endpoint. Optional otlp-headers@1 values are secret request headers.
+    Startup probe checks local construction only and never contacts the backend.
+  content_policy: >-
+    captureContent is false and true is invalid. Export correlation IDs, safe
+    exact refs/labels, operation kind, model alias, tool name, outcome,
+    durations and aggregate token/count data only. Never export prompts,
+    responses, artifact bytes, tool arguments/results, credentials, provider
+    bodies or unsafe URL parts.
+  resource_bounds: >-
+    Queue at most 2048 spans and 2 MiB encoded pending data; one span has at
+    most 64 attributes and one string value at most 256 UTF-8 bytes. Overflow,
+    delivery and flush failure increment adapter metrics without blocking work.
+
+scope:
+  in:
+    - Add an otlp-http@1 RuntimeAdapterFactory and bounded allocation-owned exporter with no durable spool or infinite retry.
+    - Instrument Worker model calls, selected tool calls, A2A task lifecycle and bounded Worker errors through framework-neutral hooks.
+    - Add safe correlation attributes for Run, StageExecution, allocation, logical Worker, RuntimeConfig and adapter refs.
+    - Apply secret OTLP headers only to the configured exporter authority and redact them from all errors/logs/objects.
+    - Implement bounded final flush/close and RuntimeAdapterMetrics integration.
+    - Test against a local fake OTLP collector that decodes protobuf and can return errors, delay, disconnect and inspect headers.
+  out:
+    - OpenTelemetry metrics/logs, prompt/content capture, LangChain integration, durable retry spool, cross-process parent spans or Planner telemetry.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/adapters/otlp_http.py, description: otlp-http@1 factory/exporter and safe instrumentation.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Model/tool/A2A instrumentation hooks without content capture.}
+  - {path: runtime/tests/test_otlp_adapter.py, description: Protobuf, bounds, redaction and failure tests.}
+  - {path: runtime/pyproject.toml, description: Locked minimal OTLP dependencies without LangChain.}
+
+requirements:
+  - id: R1
+    text: External telemetry is supplementary; Contractor ExecutionReport remains the durable authoritative metric/lifecycle record.
+  - id: R2
+    text: Queue overflow and every backend failure are bounded, observable in adapter metrics and never fail semantic Worker execution.
+  - id: R3
+    text: The exporter follows ordinary allocation HTTP trust plus its own selected settings and never receives Runtime client certificates or Artifact grants.
+  - id: R4
+    text: Label names may appear only as safe bounded attributes; they never branch adapter behavior.
+
+acceptance_criteria:
+  - id: A1
+    given: A debug allocation with a valid fake OTLP collector and secret auth header.
+    when: Worker performs model, tool and A2A operations.
+    then: The collector receives bounded protobuf spans and the secret appears only in the request header, not payload/log/report.
+  - id: A2
+    given: Prompts, tool arguments, artifact content and provider errors containing canary secrets.
+    when: Spans and errors are exported.
+    then: No canary occurs in encoded payload, adapter metrics, logs or safe provenance.
+  - id: A3
+    given: A slow/failing collector and enough spans to exceed both queue bounds.
+    when: Work completes and finalization flushes.
+    then: Drops/failures are counted, semantic result is unchanged and release completes within the bound.
+  - id: A4
+    given: An allocation without telemetry settings.
+    when: The same Worker executes.
+    then: No exporter or network request is created and ordinary execution metrics remain unchanged.
+
+tests:
+  - {name: otlp, command: "cd runtime && uv run pytest -W error tests/test_otlp_adapter.py tests/test_metrics.py tests/test_adk_runtime.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "make test-runtime-hardening", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

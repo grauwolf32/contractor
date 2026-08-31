@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V8-008
+title: Expose RuntimeConfig, label and credential Operations APIs
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-001, V8-002, V8-005, V8-007]
+languages: [go, yaml, typescript]
+
+goal: >-
+  Make Runtime infrastructure configuration operable through the authenticated
+  public API while keeping all secret input write-only and every mutation
+  replay/CAS safe.
+
+context:
+  endpoints: >-
+    Add /v1/operations/runtime-configs, exact version reads,
+    /runtime-labels/{label}, and /runtime-credentials/{credentialId}. Config and
+    credential creation require Idempotency-Key. Binding mutation requires
+    Idempotency-Key plus strong revision ETag; creation uses If-None-Match:*.
+  security: >-
+    Reuse owner authentication, exact-origin CORS and session-bound CSRF for
+    cookie mutations. Bearer automation remains supported. Reads never return
+    secret payload, secret-derived hash, ciphertext, nonce or resolved settings.
+  lifecycle: >-
+    There is no disabled state. default cannot be deleted. Credential/config
+    deletion must honor active binding, non-terminal Run and live allocation
+    usage fences already exposed by domain services.
+
+scope:
+  in:
+    - Extend the committed OpenAPI contract with exact request/response/error schemas and bounded pagination for configs, bindings and runtime credentials.
+    - Implement strict public handlers and safe read models using existing auth, CSRF, idempotency and no-store response middleware.
+    - Implement quoted-decimal ETags, If-Match/If-None-Match behavior and 412 stale-precondition responses without revision consumption.
+    - Return stable secret-free runtime_label_unknown, runtime_config_conflict, runtime_config_invalid, runtime_credential_in_use and runtime_label_in_use codes.
+    - Generate/check Go and TypeScript clients and add API-layer safe-response validation.
+    - Add audit actor/request correlation without logging RuntimeConfig endpoint query/userinfo or credential input.
+  out:
+    - Runtime Agent principal APIs, UI pages, mutable config bodies, disabled toggles or WebSocket mutations.
+
+deliverables:
+  - {path: api/openapi/contractor-public-v1.yaml, description: Runtime config, binding and credential API contract.}
+  - {path: internal/httpapi/public, description: Authenticated Operations handlers and contract tests.}
+  - {path: ui/src/api/generated/public.ts, description: Regenerated public API types.}
+  - {path: ui/src/api/operations.ts, description: Safe typed client methods without secret reads.}
+
+requirements:
+  - id: R1
+    text: Runtime credential success/replay returns metadata only; GET never has a secret field in its schema.
+  - id: R2
+    text: Config publication and exact reads preserve immutable normalized identity; binding reads expose current exact ref and revision.
+  - id: R3
+    text: Every mutation is authenticated, audited and idempotent; cookie mutations additionally require valid CSRF and Origin.
+  - id: R4
+    text: Error bodies are bounded and never echo endpoint userinfo/query, headers, passwords, tokens, PEM content or database details.
+
+acceptance_criteria:
+  - id: A1
+    given: A valid telemetry config and write-only OTLP credential.
+    when: They are created and bound to debug through the API.
+    then: Safe reads expose exact refs/digest/revision and no response contains the submitted header value.
+  - id: A2
+    given: Two operators mutate one binding from the same ETag.
+    when: Requests race.
+    then: One succeeds, one receives 412, and replay of the winner returns the same revision.
+  - id: A3
+    given: A credential/config/label in active use.
+    when: Delete is requested.
+    then: The API returns the stable in-use error with only safe bounded references and performs no partial deletion.
+  - id: A4
+    given: Cross-origin, missing-CSRF, unknown-field, oversized or secret-probing requests.
+    when: They reach the public API.
+    then: They fail without state change or secret-bearing response/log data.
+
+tests:
+  - {name: openapi, command: "make verify-public-api", covers: [A1, A2, A3, A4]}
+  - {name: handlers, command: "go test -race ./internal/httpapi/public/...", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test ./internal/httpapi/public/...", covers: [A1, A2, A3]}
+  - {name: ui-client, command: "npm --prefix ui test -- --run src/api/operations.test.ts", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

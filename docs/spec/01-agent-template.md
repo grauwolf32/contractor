@@ -384,6 +384,15 @@ Installed code alone is not a capability: the Runtime Agent advertises a
 Toolset ref only when at least one exported tool can honor its complete
 contract in that process environment.
 
+Each exported-tool descriptor also declares a fixed subset of infrastructure
+channels it consumes: `runtime-http-client` and/or
+`runtime-subprocess-launcher`. This is registered code metadata under the exact
+Toolset version, not an AgentTemplate option. A selected tool declaring a
+channel must use the allocation-owned handle supplied by Runtime; a tool
+declaring neither remains local/artifact-only. The HTTP-proxy targeting
+contract and its private-traffic bypass are owned by
+[07](07-runtime-labels-and-infrastructure-config.md).
+
 A Toolset capability contains the exact ref and the subset of its exported
 tools whose prerequisites passed. This deliberately has the same granularity
 as `ToolsetSelection`. For example, an environment without the LikeC4
@@ -520,9 +529,11 @@ stored AgentTemplate.
 The template selects an in-process Worker runtime by stable ref but does not
 contain host-specific process details. Runtime Agents may run the same
 Contractor code in different immutable process environments and therefore
-advertise different runtime, Toolset/tool and SandboxProfile capability
-snapshots. AgentTemplate expresses semantic requirements only; it never names
-an environment or physical process.
+advertise different runtime, Toolset/tool, SandboxProfile and RuntimeAdapter
+capability snapshots. AgentTemplate expresses semantic requirements only; it
+never names an environment or physical process. Infrastructure-channel
+metadata belongs to the exact registered Toolset descriptor and does not add
+fields to the AgentTemplate manifest.
 
 ## Stage binding
 
@@ -637,6 +648,7 @@ RuntimeSettings
   llm_gateway_url
   llm_gateway_token               secret, preferably allocation-scoped
   artifact_api_url
+  typed allocation adapter settings (telemetry / HTTP proxy when selected)
   request timeouts and size/resource limits
 ```
 
@@ -646,11 +658,21 @@ resolves the Workflow defaults plus the request's reference-only
 `executionConfig` overrides. Control Plane obtains the selected URL from the
 exact LLMGatewayConfig and the pinned credential from the trusted
 Server secret store, then delivers their values over the private mTLS control
-channel. `LLM Gateway` is the Contractor role: LiteLLM is the initial backend,
+channel. When executionConfig deliberately omits the Worker Gateway, Control
+Plane may instead complete it from pinned Run labels or allocation-time Agent
+labels; those higher infrastructure layers may also override an explicitly
+selected physical route without changing ModelPolicy. The exact merge, adapter
+and secret lifecycle rules are owned by
+[07](07-runtime-labels-and-infrastructure-config.md). `LLM Gateway` is the
+Contractor role: LiteLLM is the initial backend,
 but another backend may replace it when it satisfies the configured
 model-client protocol. An active allocation uses one resolved settings
-snapshot; configuration changes apply only to Runs that resolve a newer
-published Gateway version and credential ID.
+snapshot; configuration changes or label rebinding never mutate it.
+
+AgentTemplate remains the sole model-visible tool contract. A Runtime label may
+configure a proxy, telemetry exporter or an already selected Toolset adapter,
+but cannot add a tool, Toolset, instruction or Worker behavior. Runtime Agent
+receives typed settings and never interprets label names.
 
 Durable provenance records the exact AgentTemplate, effective ModelPolicy,
 LLMGatewayConfig and non-secret credential refs, WorkerRuntimeRef, allocation ID
@@ -689,3 +711,5 @@ incompatible runtime/card fails preparation before Planner starts.
    has at most one active Worker instance.
 9. Workflow/API input cannot select an executable, module, image or raw process
    arguments.
+10. Runtime labels configure allocation infrastructure around the resolved
+    template and never change its model-visible instructions or selected tools.

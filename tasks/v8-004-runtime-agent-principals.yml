@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V8-004
+title: Bind durable Runtime Agent labels and allocations to mTLS principals
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-001, V8-002, V8-003]
+languages: [go, python, sql]
+
+goal: >-
+  Give Operations a stable authenticated subject for Agent labels while
+  retaining process-scoped instance IDs and equal CA-trusted Agent privileges.
+
+context:
+  identity: >-
+    Server derives runtimeAgentId as lowercase hex SHA-256 of DER
+    SubjectPublicKeyInfo from the verified Runtime Agent leaf certificate.
+    instanceId remains fresh per process. Certificate renewal with the same key
+    retains the principal; key rotation creates another principal.
+  label_behavior: >-
+    initialLabels seed only a previously unseen principal. PostgreSQL is
+    authoritative afterward. Operations replaces the complete sorted set by
+    revision CAS. A busy allocation keeps its old snapshot; changes affect a
+    future allocation. Labels configure no RBAC.
+  deployment_rule: >-
+    Every concurrent logical Runtime Agent, including two processes on one VM,
+    needs a distinct CA-signed certificate/key. The same principal cannot own
+    two live instance IDs simultaneously.
+
+scope:
+  in:
+    - Add migration 000017_runtime_agent_principals.sql with labels, label revision, audit metadata and indexes supporting label rebind validation.
+    - Derive the principal in the private mTLS middleware and pass it explicitly through registration, heartbeat, report and grant paths.
+    - Atomically switch the Go Server and Python Runtime client from private v1 to the complete v2 DTOs; do not retain a compatibility mode or serve a partial v2 response.
+    - Seed/return authoritative labels transactionally; reject a second live instance for the same principal and a principal mismatch on retry/heartbeat.
+    - Implement label-set CAS, same-layer worker-setting conflict validation, non-Agent-applicable rejection and safe offline principal deletion rules.
+    - During label rebind, validate every assigned principal under binding-then-principal lexical lock order and reject newly conflicting sets atomically.
+    - Verify registered Control/A2A endpoints with normal DNS/IP SAN plus the same SPKI fingerprint before sending settings or A2A traffic.
+    - Store principal and instance ID in Artifact grants; require bounded X-Contractor-Runtime-Instance-ID and matching mTLS principal before reading a body.
+  out:
+    - Per-Agent authorization roles, certificate issuance automation, label-driven placement, Operations HTTP endpoints or UI.
+
+deliverables:
+  - {path: internal/persistence/migrations/000017_runtime_agent_principals.sql, description: Durable principal and label-set schema.}
+  - {path: internal/runtimeconfig, description: Principal repository, CAS and binding-conflict checks.}
+  - {path: internal/controlplane, description: Authenticated principal registration and same-SPKI endpoint verification.}
+  - {path: internal/httpapi/privateartifacts, description: Principal plus instance plus allocation grant enforcement.}
+  - {path: runtime/src/contractor_runtime, description: Instance header on every private Artifact request.}
+
+requirements:
+  - id: R1
+    text: Runtime JSON never supplies runtimeAgentId; only the verified TLS key determines it.
+  - id: R2
+    text: All valid Agent certificates retain equal endpoint privileges; principal checks prevent allocation/config impersonation but do not introduce label-derived RBAC.
+  - id: R3
+    text: No database or network operation runs while the in-memory Runtime Registry lock is held.
+  - id: R4
+    text: Artifact identity validation happens before request-body read and retains the existing atomic write-fence behavior.
+
+acceptance_criteria:
+  - id: A1
+    given: A new principal registering startup labels and then restarting with the same key but different startup arguments.
+    when: Both registrations complete sequentially.
+    then: The new instance receives the original database-authoritative labels and revision.
+  - id: A2
+    given: Two concurrently live instance IDs using one certificate key.
+    when: The second registers.
+    then: It is rejected without superseding or interrupting the first slot.
+  - id: A3
+    given: A registered endpoint or Artifact request authenticated by another valid Agent principal.
+    when: It names the victim instance/allocation.
+    then: Control/Artifact access fails before settings, grant data or body bytes are disclosed.
+  - id: A4
+    given: A busy principal whose labels are changed by CAS.
+    when: Its current and next allocation are inspected.
+    then: The current allocation remains unchanged and only the next resolution sees the new revision.
+
+tests:
+  - {name: principal-store, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-principals", covers: [A1, A2, A4]}
+  - {name: protocol-activation, command: "make test-runtime-wire-v2", covers: [A1, A2, A3]}
+  - {name: mtls, command: "make test-mtls", covers: [A2, A3]}
+  - {name: artifact-security, command: "go test -race ./internal/httpapi/privateartifacts/... ./internal/controlplane/...", covers: [A2, A3, A4]}
+  - {name: runtime-client, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_control_client.py", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

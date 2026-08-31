@@ -387,10 +387,19 @@ class ExecutionReport(BaseModel):
     truncated: bool = False
 
 
+class RuntimeAdapterMetrics(BaseModel):
+    operations: int
+    failed_operations: int
+    flush_attempted: bool | None = None
+    flush_succeeded: bool | None = None
+    last_error_code: str | None = None
+
+
 class RuntimeReport(BaseModel):
     complete: bool
     duration_ms: int | None = None
     stop_reason: str | None = None
+    adapters: dict[str, RuntimeAdapterMetrics] = Field(default_factory=dict)
 
 
 class AllocationFinalReport(BaseModel):
@@ -413,12 +422,21 @@ globally unique allocation ID and logical Agent name. A Worker-supplied payload
 cannot select or override those identities. `report_id` makes repeated delivery
 idempotent.
 
-The same trusted envelope derives model attribution from the Run's immutable
-ResolvedExecutionConfig: effective ModelPolicyRef, LLMGatewayConfigRef and the
-non-secret LLMCredentialRef for the Planner or logical Worker. These
-refs are never accepted from a Runtime report. They let Operations aggregate
-calls/tokens by policy, route and credential without persisting or exposing the
-secret value.
+The same trusted envelope derives ModelPolicy attribution from the Run's
+immutable ResolvedExecutionConfig. Planner LLMGatewayConfig/LLMCredential refs
+also come from that Run snapshot. For a logical Worker, the final
+LLMGatewayConfig/LLMCredential refs come from the Server-pinned allocation
+config provenance because the default/Run/Agent infrastructure layers may
+override the Workflow route under [07]. None of these refs is accepted from a
+Runtime report. They let Operations aggregate calls/tokens by policy, route and
+credential without persisting or exposing the secret value.
+
+When label-driven infrastructure configuration is active, the trusted envelope
+also derives sorted Run/Agent label names, exact RuntimeConfig refs/digests and
+RuntimeAdapter refs from Server-owned resolution provenance. Runtime reports
+cannot claim or replace them. Endpoint credentials and resolved secret-bearing
+RuntimeSettings remain absent. The owning pinning and merge contract is
+[07](07-runtime-labels-and-infrastructure-config.md).
 
 ### Meaning and capture rules
 
@@ -436,6 +454,15 @@ secret value.
   truncation marker.
 - RuntimeSettings tokens and other known deployment secrets are always removed,
   even if a tool argument or error accidentally contains them.
+- Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by
+  trusted Server provenance. Counters are non-negative and saturating;
+  `flush_*` is absent for adapters without a flush operation. Error codes are a
+  bounded allowlist and never contain an endpoint, provider body or exception
+  message.
+- Server accepts adapter metrics only for refs present in the pinned allocation
+  provenance. Unknown keys or malformed counters are discarded as incomplete
+  telemetry with a bounded safe diagnostic; they cannot relabel attribution or
+  block semantic terminalization and allocation release.
 - Full tool results are not retained by default. Durable or large results belong
   in ArtifactStore; metrics may retain their size/outcome without their body.
 - For every expected participant that started but produced no report, Scheduler
@@ -447,6 +474,10 @@ secret value.
   telemetry but never mutate the frozen StageResult or StageTermination.
 - External observability exporters are optional adapters over Contractor-owned
   reports; no LangChain/Langfuse-style service is required.
+- An allocation-scoped OTLP exporter records bounded delivery/flush failures in
+  adapter metrics. Export failure is best-effort and cannot change StageResult,
+  StageTermination or release eligibility; the flush is bounded by both its
+  configured timeout and the remaining finalization/abort deadline.
 
 The first-slice bounded policy is fixed: at most 1,000 tool-call records and 100
 errors per participant, at most 4,096 UTF-8/JSON bytes per argument summary or
@@ -605,5 +636,8 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 8. Missing telemetry never invalidates an otherwise valid StageResult or
    StageTermination.
 9. Planner Session persistence does not imply Planner resume.
-10. Runtime Agent has no direct PostgreSQL or external telemetry credentials.
+10. Runtime Agent has no PostgreSQL or long-lived external telemetry
+    credential. It may receive an allocation-scoped exporter credential only
+    inside RuntimeSettings under [07], holds it in memory and erases it during
+    release.
 11. Allocations are released only after StageExecution is terminal.

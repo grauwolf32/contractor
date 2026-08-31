@@ -51,13 +51,19 @@ are associated with the Runtime Agent to which the allocation was issued. That
 association protects execution-state consistency; it does not give different
 Runtime Agents different privileges.
 
-## Registration and process identity
+## Registration, principal and process identity
 
-Runtime Agent registration represents one running process, not a durable
-machine or deployment identity. On process start the agent generates a fresh
-random `instance_id`. It retains that value in memory across registration
-retries and Control Plane reconnects, but does not reuse it after its own
-restart.
+Runtime Agent registration represents one running process. On process start
+the agent generates a fresh random `instance_id`. It retains that value in
+memory across registration retries and Control Plane reconnects, but does not
+reuse it after its own restart.
+
+Separately, Control Plane derives a stable `runtime_agent_id` from the
+authenticated leaf certificate's public-key fingerprint. It binds durable
+Agent-label configuration to a trusted peer but grants no different Runtime
+authorization. Each concurrently running logical Runtime Agent therefore uses
+its own certificate/key pair, even on one VM. The complete principal and label
+contract is owned by [07](07-runtime-labels-and-infrastructure-config.md).
 
 The minimal registration describes:
 
@@ -68,7 +74,8 @@ RuntimeAgentRegistration
   started_at
   control endpoint
   A2A endpoint
-  frozen startup WorkerRuntime, Toolset/tool and SandboxProfile capabilities
+  initial labels used only to seed a previously unseen certificate principal
+  frozen startup WorkerRuntime, Toolset/tool, SandboxProfile and RuntimeAdapter capabilities
   observed_state
   allocation_id?
   private protocol version
@@ -81,15 +88,31 @@ placement capability or trust assertion.
 
 Registration with the same `instance_id` is idempotent. The `instance_id` is a
 correlation and routing identity, not an authentication credential; mTLS
-authenticates the agent. Control Plane records the last accepted
+authenticates the agent and derives its stable principal. Control Plane records
+the last accepted
 registration/heartbeat request, issued and confirmed heartbeat sequences, plus
 observed and authoritative single-slot facts for the live instance. Placement
-checks the explicitly reported exact runtime, tool and sandbox capabilities;
+checks the explicitly reported exact runtime, tool, sandbox and adapter
+capabilities;
 those capabilities do not grant a different authorization role to otherwise
 equal CA-trusted Runtime Agents.
 
-A restarted Runtime Agent registers with a new `instance_id`. It cannot adopt a
-Worker or allocation belonging to its previous process instance. The old
+The accepted registration binds `(runtime_agent_id, instance_id)` for the
+process lifetime. Every later registration retry, heartbeat, private Artifact
+call and final report carrying that `instance_id`/allocation must arrive through
+the same certificate-derived principal; a different CA-valid peer is rejected.
+This is allocation consistency, not per-Agent RBAC.
+
+The registered control and A2A endpoints must present a CA-valid leaf with the
+same SPKI fingerprint when Control Plane connects to them. Normal DNS/IP SAN
+verification still applies. A Runtime Agent cannot register another trusted
+agent's endpoint and cause Control Plane to deliver that allocation's
+RuntimeSettings or A2A traffic to the wrong peer.
+
+A restarted Runtime Agent under the same certificate principal registers with
+a new `instance_id` and retains the Control Plane's durable Agent labels. It
+cannot adopt a Worker or allocation belonging to its previous process instance.
+The old
 registration becomes unavailable after its confirmed control lease expires,
 and any active StageExecution using that allocation enters `aborting`; Workflow
 Scheduler records an interrupted StageTermination, completes the bounded abort
@@ -97,9 +120,9 @@ path and then lets Workflow Scheduler apply the declared interrupted policy:
 retry with a new StageExecution, use a configured escalation executionConfig,
 or fail the Run.
 
-This first model deliberately has no stable `AgentId`, incarnation nonce,
-registration generation, Server epoch, rotated fleet token or cross-process
-Worker continuation protocol.
+The stable principal is not an incarnation or Worker-continuation identity.
+This first model still has no registration generation, Server epoch, rotated
+fleet token or cross-process Worker continuation protocol.
 
 ## Startup capability discovery
 
@@ -113,6 +136,7 @@ CapabilitySnapshot
   supported_runtimes: sorted set of exact WorkerRuntime refs
   supported_toolsets: sorted map of exact Toolset ref -> sorted non-empty tool set
   supported_sandbox_profiles: sorted set of exact SandboxProfile refs
+  supported_runtime_adapters: sorted set of exact RuntimeAdapter refs
 ```
 
 The snapshot maps directly to the existing registration fields; there is no
@@ -121,8 +145,10 @@ capabilities are registered. Probe failures remain bounded, redacted Runtime
 Agent startup diagnostics and are not sent as placement facts. A Toolset with
 no usable exported tool is omitted. If no WorkerRuntime or no SandboxProfile
 passes, the process fails startup readiness and does not register an `idle`
-slot. An empty Toolset list is valid and can serve templates that select no
-tools.
+slot. Empty Toolset and RuntimeAdapter lists are valid and can serve templates
+and resolved settings that require neither. The RuntimeAdapter list contains at
+most 64 sorted unique exact refs; the complete request remains subject to the
+private registration body bound.
 
 Every enabled factory owns its local probe semantics:
 
@@ -133,7 +159,9 @@ Every enabled factory owns its local probe semantics:
   and compatible versions;
 - a SandboxProfile probe proves that the profile can prepare and clean an
   isolated probe resource under its operator-owned root. A cleanup failure is
-  a failed probe.
+  a failed probe;
+- a RuntimeAdapter probe proves that its local code/dependencies can construct
+  that exact typed adapter contract without contacting a configured endpoint.
 
 One factory probe has a five-second timeout and the complete startup probe
 phase has a thirty-second timeout. Timeout, cancellation or an unexpected
@@ -153,10 +181,11 @@ capability. The factory omits that tool while retaining independent tools that
 passed their own prerequisites.
 
 Capability probes cover only Runtime-owned prerequisites available before an
-allocation. They do not probe an LLM Gateway URL/token, Artifact API grant or
-other RuntimeSettings supplied later in AllocationSpec. Availability of those
-per-allocation dependencies follows the ordinary bounded preparation or
-execution failure path and is not a physical-agent placement capability.
+allocation. They do not probe an LLM Gateway URL/token, OTLP endpoint, HTTP
+proxy, Artifact API grant or other RuntimeSettings supplied later in
+AllocationSpec. Availability of those per-allocation dependencies follows the
+ordinary bounded preparation or execution failure path and is not a
+physical-agent placement capability.
 
 The computed snapshot is frozen for the lifetime of `instance_id` and reused
 byte-for-byte across registration retries and Control Plane reconnects.
@@ -169,9 +198,10 @@ Agent, which creates a new `instance_id`, probes again and registers a new
 snapshot. Dynamic re-probing, capability withdrawal and in-place
 re-registration are outside the first slice.
 
-The `v1alpha1` registration shape treats the three capability dimensions as
+The `v1alpha1` registration shape treats the four capability dimensions as
 composable sets. A Runtime Agent must therefore advertise only runtimes,
-Toolsets/tools and sandboxes that can be combined safely within that process.
+Toolsets/tools, sandboxes and Runtime adapters that can be combined safely
+within that process.
 An environment with combination-specific incompatibilities must expose their
 common safe subset or run separate Runtime Agent processes with compatible
 registries; capability-profile expressions are deferred.
@@ -313,7 +343,9 @@ for continued Planner execution.
 This design permits one active Control Plane instance in the first slice.
 Shared fleet coordination, durable liveness state and multiple active Control
 Plane replicas are deferred together; they must not be approximated by sharing
-an unfenced `runtime_agents` table.
+an unfenced `runtime_agents` table. Durable certificate principals and their
+label assignments under [07] are configuration records only; they never imply
+that a process is live, leased or eligible.
 
 ## Runtime Agent
 
@@ -325,18 +357,19 @@ instance, not another service, daemon, subprocess or container.
 For one allocation the Runtime Agent:
 
 1. reserves its only slot and validates `AllocationSpec` against its frozen
-   startup runtime, Toolset/tool and SandboxProfile capability snapshot,
-   including the effective digest-bearing ModelPolicy;
+   startup runtime, Toolset/tool, SandboxProfile and RuntimeAdapter capability
+   snapshot, including the effective digest-bearing ModelPolicy;
 2. asks that profile to prepare the allocation-local workspace;
-3. prepares allocation-local State and selected tools, then creates one
+3. constructs the selected allocation-scoped infrastructure adapters, prepares
+   allocation-local State and selected tools, then creates one
    in-process Worker runtime from the complete AgentTemplate plus the effective
    ModelPolicy selected by the Run's ResolvedExecutionConfig;
 4. configures its own A2A Server and Agent Card for that allocation;
 5. binds its Artifact client and model access to the allocation context;
 6. reports ready and handles the Worker's A2A Tasks itself;
 7. on finalization or abort, rejects new Tasks, requests cancellation of any
-   active Task, serializes the accumulated execution report and destroys the
-   Worker runtime instance;
+   active Task, bounded-flushes/destroys allocation adapters, serializes the
+   accumulated execution report and destroys the Worker runtime instance;
 8. after the terminal Stage outcome is committed, an idempotent private release
    removes allocation State, tools, RuntimeSettings, access tokens and the
    profile workspace, but retains the allocation identity and cached report in
@@ -372,12 +405,14 @@ container, filesystem-permission or network security boundary.
 
 Control Plane includes a resolved `RuntimeSettings` snapshot in every
 AllocationSpec. It may contain the selected LLM Gateway URL and optional token,
-the Server Artifact API endpoint, timeouts, limits and other adapter settings.
-The Gateway values come from the WorkflowRun's immutable
-`ResolvedExecutionConfig`: URL/protocol from its exact LLMGatewayConfig and
-secret bytes from its pinned credential. Runtime Agent does not resolve
-these values from AgentTemplate, local Worker configuration, environment
-defaults or a mutable configuration alias.
+the Server Artifact API endpoint, timeouts, limits and typed telemetry/HTTP
+proxy adapter settings. Gateway values come either from the WorkflowRun's
+immutable `ResolvedExecutionConfig` or from a higher-precedence Run/Agent label
+layer that completes or overrides its physical Worker route. Runtime Agent does
+not resolve these values from AgentTemplate, label strings, local Worker
+configuration, environment defaults or a mutable configuration alias. The
+complete precedence, pinning, adapter isolation and credential rules are owned
+by [07](07-runtime-labels-and-infrastructure-config.md).
 
 `LLM Gateway` is a backend-neutral role in this contract. LiteLLM is the initial
 backend, not a required Contractor component; a compatible backend can replace
@@ -390,6 +425,13 @@ release. Durable execution and metrics may retain the non-secret
 LLMGatewayConfig and credential refs, never their resolved token. A token that
 expires during a long allocation fails through the ordinary bounded Gateway
 error path; silently replacing the active settings snapshot is not allowed.
+
+Runtime Agent applies Worker proxy and telemetry settings only through
+allocation-owned adapter objects. It does not mutate process-global proxy
+environment or trust stores, and registration, heartbeat, control, A2A and
+Artifact API traffic always bypasses the Worker proxy. Finalization/abort closes
+adapters after a bounded best-effort telemetry flush; release idempotently
+ensures they remain closed and erases their retained settings secrets.
 
 ### Correlation and redacted boundary failures
 
@@ -435,7 +477,8 @@ It also contains no LLM Gateway token or other RuntimeSettings secret.
 
 ```text
 Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
-  -> Control Plane matches every template requirement against frozen capability snapshots
+  -> Control Plane resolves pinned default/Run labels plus candidate Agent labels
+  -> Control Plane matches every template/adapter requirement against frozen capability snapshots
   -> Control Plane atomically selects a complete set of free Runtime Agents
   -> Runtime Agents reserve their slots and accept AllocationSpecs
   -> each Runtime Agent creates one in-process Worker instance
@@ -469,13 +512,22 @@ For one resolved Stage Agent binding, the placement requirement is exactly:
 required runtime = AgentTemplate.runtime
 required sandbox = AgentTemplate.sandboxProfile
 required tools   = each AgentTemplate.toolsets[ref].tools
+required adapters = RuntimeAdapters referenced by resolved Run + Agent label settings
 ```
 
 A Runtime Agent is a candidate only when it is `idle`, has a confirmed control
 lease, is otherwise placement-eligible, advertises the exact runtime and
-sandbox refs, and its advertised tool set is a superset of every selected tool
-for each exact Toolset ref. Extra capabilities neither change Worker behavior
+sandbox refs, its advertised tool set is a superset of every selected tool for
+each exact Toolset ref, and its advertised adapter set contains every adapter
+required after combining that principal's Agent labels with the pinned Run
+labels. Extra capabilities neither activate settings, change Worker behavior
 nor become model-visible.
+
+Placement never requires a Run label name to appear in the candidate's Agent
+label set. A Run `debug` configuration applies to an unlabeled Runtime Agent
+when that process advertises the resulting required adapter; Agent labels are
+only the higher-precedence candidate-specific configuration layer defined by
+[07].
 
 For a multi-Agent Stage, Control Plane must find a complete injective matching
 between logical bindings and eligible single-slot Runtime Agents before
@@ -509,8 +561,9 @@ cancellation is requested.
 
 After reserving the full set, Control Plane creates one globally unique
 `allocation_id` and one complete AllocationSpec per logical Stage Agent binding,
-including that binding's effective ModelPolicy and Gateway-derived
-RuntimeSettings, then may initialize those Runtime Agents concurrently. Planner
+including that binding's effective ModelPolicy and resolved RuntimeSettings
+plus exact label/config provenance, then may initialize those
+Runtime Agents concurrently. Planner
 starts only after every Runtime Agent reports ready and Control Plane can return
 the complete `WorkerHandle` map.
 
@@ -685,7 +738,8 @@ managed AgentTemplate service are not prerequisites.
 10. A Runtime Agent recognizes a Control Plane peer by the reserved URI SAN
     prefix in a certificate signed by the deployment CA; Control Plane applies
     no per-agent authorization policy beyond allocation ownership consistency.
-11. Runtime Agent process restart creates a new registration identity and never
+11. Runtime Agent process restart creates a new process `instance_id`, may
+    retain its certificate-derived principal and durable labels, and never
     resumes or adopts the previous process instance's allocation.
 12. The confirmed control lease advances only through a new monotonic
     request/ack/echo round trip; receiving heartbeat requests alone does not
@@ -702,12 +756,17 @@ managed AgentTemplate service are not prerequisites.
     generation exists in the first model.
 17. Capacity for one Stage is reserved all-or-nothing; Planner never receives a
     partial WorkerHandle map.
-18. Runtime Agent advertises only capabilities proven before first
-    registration; that normalized snapshot is immutable for its process-scoped
-    `instance_id` and is never changed by heartbeat.
+18. Runtime Agent advertises only runtime, Toolset/tool, SandboxProfile and
+    RuntimeAdapter capabilities proven before first registration; that
+    normalized snapshot is immutable for its process-scoped `instance_id` and
+    is never changed by heartbeat.
 19. Capability-aware placement requires set containment for each binding and a
     complete injective matching for the whole Stage; extra advertised tools are
     never exposed implicitly.
 20. Runtime Agent's process environment is immutable after registration.
     Changing dependencies, executable resolution or enabled factories requires
     a process restart, new `instance_id` and new startup probes.
+21. A label/config change affects only a future allocation; Runtime Agent never
+    interprets the label name or mutates an active RuntimeSettings snapshot.
+22. Allocation proxy settings never intercept registration, heartbeat,
+    control, A2A or Artifact API traffic.

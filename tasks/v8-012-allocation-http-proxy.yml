@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V8-012
+title: Route selected allocation traffic through http-proxy@1
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-007, V8-010]
+languages: [go, python, yaml]
+
+goal: >-
+  Apply Caido-compatible proxy settings only to explicitly targeted Worker
+  model/tool channels while guaranteeing that Contractor private traffic and
+  process-global state bypass them.
+
+context:
+  targets: >-
+    http-proxy@1 supports a non-empty subset of llm-gateway, tool-http and
+    tool-subprocess. Proxy basic/bearer credentials and optional CA bundle are
+    allocation-scoped secrets/material. A selected target fails closed; the
+    same request is never retried directly.
+  tool_contract: >-
+    Exact registered Toolset descriptors declare fixed infrastructure channels
+    runtime-http-client and/or runtime-subprocess-launcher per exported tool.
+    AgentTemplate still selects tools only; labels cannot add a tool. A tool
+    declaring no channel remains local/artifact-only.
+  bypass: >-
+    Registration, heartbeat, control, Runtime A2A, Artifact API and all
+    Server-internal traffic never use the Worker proxy or its CA roots.
+
+scope:
+  in:
+    - Extend Go/Python Toolset descriptor parity with immutable infrastructure-channel metadata and reject mismatched factory registration.
+    - Implement http-proxy@1 allocation factory, explicit proxy-aware model/HTTP clients and bounded subprocess launcher handles.
+    - Inject handles only into selected target channels; never mutate os.environ, module-global clients or system/process trust stores.
+    - For child processes, create child-only proxy/NO_PROXY/trust environment and temporary CA file, then remove both on exit/release.
+    - Keep private Contractor hosts in bypass and never give a child Runtime mTLS key, Control token or Artifact grant unless another explicit tool handle requires it.
+    - Enforce fail-closed proxy/TLS/auth behavior and send proxy credentials only to the configured proxy authority.
+    - Add fake forward/MITM proxy integration tests proving targeted traffic, bypass, auth, CA and cleanup behavior.
+  out:
+    - Transparent whole-process interception, arbitrary network sandboxing, model-visible Caido API tools or caido-api@1.
+
+deliverables:
+  - {path: internal/config/descriptors.go, description: Server-side immutable Tool infrastructure-channel metadata.}
+  - {path: runtime/src/contractor_runtime/adapters/http_proxy.py, description: Allocation proxy clients, auth and CA handling.}
+  - {path: runtime/src/contractor_runtime/factories.py, description: Channel-aware Tool factory validation and injected handles.}
+  - {path: runtime/src/contractor_runtime/model_client.py, description: Allocation-owned proxy transport for llm-gateway target.}
+  - {path: runtime/tests/test_http_proxy_adapter.py, description: Target, bypass, failure, redaction and teardown tests.}
+
+requirements:
+  - id: R1
+    text: Proxy configuration changes no model-visible AgentTemplate instructions, tool names or schemas.
+  - id: R2
+    text: Optional CA roots augment ordinary public trust only for targeted allocation clients and never the private Contractor mTLS context.
+  - id: R3
+    text: A proxied request failure returns a bounded ordinary model/tool error and never falls back to a direct connection.
+  - id: R4
+    text: Release removes temporary trust material, closes all proxy transports and erases auth before the slot becomes idle.
+
+acceptance_criteria:
+  - id: A1
+    given: Proxy targets only llm-gateway.
+    when: Worker makes a model call, Artifact call, heartbeat and local tool subprocess.
+    then: The proxy observes only the model call; all Contractor private traffic and the unselected subprocess bypass it.
+  - id: A2
+    given: A selected tool-http or tool-subprocess channel with proxy auth and CA.
+    when: Its fake operation runs.
+    then: It uses the injected handle, succeeds through the proxy and leaves no auth/global environment/temp file afterward.
+  - id: A3
+    given: Proxy refusal, auth failure or TLS validation failure.
+    when: A targeted request executes.
+    then: It fails with a bounded redacted model/tool error and direct backend records no fallback request.
+  - id: A4
+    given: An AgentTemplate selecting only tools that declare no infrastructure channel.
+    when: A proxy label targets tool-http/tool-subprocess.
+    then: No implicit tool traffic is created or intercepted; only actually declared/selected channels are reported.
+
+tests:
+  - {name: proxy, command: "cd runtime && uv run pytest -W error tests/test_http_proxy_adapter.py tests/test_control_client.py tests/test_artifacts.py", covers: [A1, A2, A3, A4]}
+  - {name: descriptors, command: "go test ./internal/config/... && cd runtime && uv run pytest tests/test_capabilities.py", covers: [A2, A4]}
+  - {name: mtls, command: "make test-mtls", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

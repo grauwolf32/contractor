@@ -34,6 +34,7 @@ YAML document identity comes from
 | [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
 | [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
+| [07](07-runtime-labels-and-infrastructure-config.md) | Run/Agent labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -46,7 +47,7 @@ Workflow
   -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs into RunArtifactSpace
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
-  -> Control Plane prepares Worker allocations
+  -> Control Plane resolves pinned default/Run labels plus Agent labels and prepares compatible Worker allocations
   -> PlannerFactory creates the selected Stage-local Planner
   -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
   -> all participants exchange durable data through RunArtifactSpace
@@ -75,6 +76,8 @@ The boundaries are deliberately narrow:
 | AgentTemplate | Immutable, reusable Worker behavior/configuration |
 | Control Plane | Capacity and allocation lifecycle |
 | Runtime Agent | One process and one slot: control client, A2A Server and one in-process Worker runtime while allocated |
+| Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |
+| Runtime adapter | Allocation-scoped Runtime code configured by Control Plane without adding model-visible tools |
 | ArtifactStore | One physical artifact service, registry and blob boundary |
 | UserScope | Authenticated user's durable artifact library |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |

@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V8-010
+title: Add allocation-scoped Runtime adapter lifecycle host
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-003]
+languages: [python]
+
+goal: >-
+  Give the single-slot Python Runtime one explicit owner for typed telemetry and
+  proxy adapters, with bounded teardown and secret erasure on every lifecycle
+  path.
+
+context:
+  lifecycle: >-
+    AllocationAdapterHost validates typed RuntimeSettings against the frozen
+    adapter capability snapshot and constructs only selected adapter factories.
+    It is allocation-scoped, never process-global. Finalize/abort and local
+    confirmed-lease loss perform bounded best-effort flush/close; release
+    idempotently ensures closure, removes temporary material and erases retained
+    settings secrets before idle reuse.
+  failure_rules: >-
+    Unsupported/malformed settings or local construction failure are bounded
+    preparation errors before Worker creation. Telemetry delivery/flush failure
+    is metrics-only. A required proxy request failure is returned to the
+    ordinary model/tool path by its concrete adapter.
+  injection: >-
+    WorkerBuildContext and Tool factory context receive explicit allocation
+    handles. Adapter objects and complete RuntimeConfig/label documents are not
+    model-visible.
+
+scope:
+  in:
+    - Add RuntimeAdapterFactory and AllocationAdapter protocols plus a registry integrated with the capability probes from V8-003.
+    - Construct AllocationAdapterHost before Worker/tools, expose typed model/HTTP/subprocess/instrumentation handles and retain no ambient globals.
+    - Integrate rollback, finalize, abort, release, confirm_release, reconciliation drain and lease-expiry teardown with one idempotent state machine.
+    - Bound all flush/close operations by configured timeout and remaining lifecycle deadline; a hung adapter cannot block release.
+    - Aggregate saturating operations/failures/flush status/allowlisted last error into RuntimeReport.
+    - Redact all adapter settings and secret values from repr, exceptions, fingerprints, logs and snapshots.
+    - Provide deterministic fake adapters for lifecycle, timeout, rollback and metric tests.
+  out:
+    - OTLP encoding/network delivery, HTTP proxy transports, Planner telemetry or Control Plane resolution.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/adapters, description: Factory registry, host, handles, metrics and redaction primitives.}
+  - {path: runtime/src/contractor_runtime/allocation.py, description: Adapter-aware prepare/termination/release lifecycle.}
+  - {path: runtime/src/contractor_runtime/factories.py, description: Explicit Worker/tool adapter handle contexts.}
+  - {path: runtime/tests/test_adapter_host.py, description: Exhaustive lifecycle and failure regressions.}
+
+requirements:
+  - id: R1
+    text: RuntimeSettings validation and adapter construction happen before sandbox, tool or Worker creation; partial construction rolls back in reverse order.
+  - id: R2
+    text: Adapter flush failure never changes semantic Worker result, Stage termination candidate or release eligibility.
+  - id: R3
+    text: A slot cannot return idle while an adapter client, secret setting or temporary trust file remains reachable from allocation state.
+  - id: R4
+    text: Metrics accept only expected adapter refs and expose safe allowlisted codes, never exception messages or endpoints.
+
+acceptance_criteria:
+  - id: A1
+    given: Two selected fake adapters and a failure constructing the second.
+    when: prepare runs.
+    then: The first closes, no sandbox/Worker survives, secrets are erased and the bounded preparation error is retryable only when classified transient.
+  - id: A2
+    given: An active allocation whose telemetry flush hangs beyond its deadline.
+    when: finalize or abort executes.
+    then: Runtime returns the final report, records flush failure and proceeds to release within the lifecycle bound.
+  - id: A3
+    given: Confirmed control lease loss during model/tool work.
+    when: self-termination drains the Worker.
+    then: The same bounded adapter teardown executes and the slot remains fenced rather than becoming reusable.
+  - id: A4
+    given: Repeated finalize/abort/release/confirm-release requests.
+    when: They replay.
+    then: Adapter close/flush has idempotent bounded behavior and no secret or client is resurrected.
+
+tests:
+  - {name: lifecycle, command: "cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "make test-runtime-hardening", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

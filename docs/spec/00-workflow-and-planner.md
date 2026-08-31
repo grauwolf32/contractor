@@ -165,33 +165,62 @@ resolves both the base configuration and every declared escalation variant;
 the later Scheduler decision selects one already pinned variant rather than
 performing configuration lookup.
 
-Every `adk@1` Worker must resolve one compatible ModelPolicy and one
-LLMGatewayConfig and zero or one matching credential. Every `streamline@1` or
-`router@1` Planner must independently resolve one compatible ModelPolicy, one
-LLMGatewayConfig and zero or one matching credential. `passthrough@1` has no
-model client, so a Planner model/Gateway/credential selection for that Stage is
-invalid. The consumer-specific ModelPolicy requirements are defined in
-[01](01-agent-template.md).
+This order is authoritative for ModelPolicy, budgets and Planner model access.
+For a Worker's physical `llmGateway`/`credential` leaves, Server also retains
+the normalized Workflow baseline, Run override and escalation patch separately
+so [07](07-runtime-labels-and-infrastructure-config.md) can insert pinned Run
+infrastructure labels between Workflow defaults and Run overrides, then apply
+the selected Runtime Agent label layer last. The final effective refs remain
+fully provenance-attributed; no browser state is used to reconstruct layers.
 
-Run initialization resolves complete ModelPolicy and LLMGatewayConfig bodies,
-their exact digest-bearing refs, and the non-secret credential ref.
-It stores the fully expanded base and escalation-variant per-Stage/per-binding
-`ResolvedExecutionConfig` values with the immutable WorkflowRun snapshot. That
-snapshot, rather than later configuration edits or UI state, is authoritative
-for every attempt. Secret bytes are never stored in the Run snapshot; Control
-Plane resolves the pinned credential only when constructing RuntimeSettings or
-the Planner model client.
+Every `adk@1` Worker must resolve one compatible ModelPolicy. Its Worker LLM
+route starts as either one explicit LLMGatewayConfig plus zero or one matching
+credential from executionConfig, or deliberate absence. The label-driven
+allocation resolver may complete or explicitly override those physical route
+leaves under [07](07-runtime-labels-and-infrastructure-config.md).
+Every `streamline@1` or `router@1` Planner must independently resolve one
+compatible ModelPolicy, one LLMGatewayConfig and zero or one matching
+credential at Run initialization. `passthrough@1` has no model client, so a
+Planner model/Gateway/credential selection for that Stage is invalid. Runtime
+labels never select a Planner model or budget. The consumer-specific
+ModelPolicy requirements are defined in [01](01-agent-template.md).
+
+Run initialization resolves every selected ModelPolicy and LLMGatewayConfig
+body, its exact digest-bearing ref, and the non-secret credential ref. An
+intentionally omitted Worker route remains explicit absence rather than an
+environment default. Server stores the normalized base and escalation-variant
+per-Stage/per-binding `ResolvedExecutionConfig` values with the immutable
+WorkflowRun snapshot. That snapshot, rather than later configuration edits or
+UI state, is authoritative for every selected executionConfig value; pinned
+Run labels and allocation-time Agent labels may complete or override only the
+physical Worker route/adapters under the explicit precedence in [07]. They
+cannot reinterpret ModelPolicy, budgets or Planner access. Secret bytes are
+never stored in the Run snapshot; Control Plane resolves the pinned credential
+only when constructing RuntimeSettings or the Planner model client.
 
 The canonical idempotency digest for `POST /v1/runs` includes the supplied
-executionConfig selectors. An already committed `(owner, idempotency key)` is
-looked up and its digest compared before resolving mutable Workflow
-dependencies such as a managed credential; an exact replay therefore returns
-the existing Run even if such a dependency was later deleted. Metrics and audit records identify the effective
+executionConfig selectors and sorted Run labels. An already committed
+`(owner, idempotency key)` is looked up and its digest compared before resolving
+mutable Workflow dependencies such as a managed credential; an exact replay
+therefore returns the existing Run even if such a dependency was later deleted.
+Metrics and audit records identify the effective
 ModelPolicy, LLMGatewayConfig and credential refs, allowing consumption to be
 grouped without exposing a token. A caller may select only published
 configurations it is authorized to use; the single-owner first UI slice exposes
 all active published configurations, while multi-tenant policy remains
 deferred.
+
+### Run labels
+
+`POST /v1/runs` accepts an optional sorted set of Runtime labels in addition to
+parameters, inputs and executionConfig. A Workflow does not declare labels.
+Server always pins the reserved default RuntimeConfig, then resolves and pins
+each selected label's exact immutable version in the Run-creation transaction;
+rebinding either affects only later Runs. At allocation, the selected Runtime
+Agent's label layer has higher infrastructure-setting precedence than the
+pinned Run layer. The complete identity, conflict, merge, credential and
+RuntimeSettings contract is owned by
+[07](07-runtime-labels-and-infrastructure-config.md).
 
 The first schema is an explicit state-machine graph with a versioned document
 envelope, one entry Stage, a mapping of stable Stage names and Stage-local typed
@@ -746,8 +775,10 @@ StageExecution path:
 
 1. resolve and durably pin the StageContext artifact snapshot;
 2. load and verify every exact AgentTemplate dependency of the selected Stage;
-3. ask Control Plane to capability-match and atomically prepare all required
-   Worker allocations from current live Runtime Agent registrations;
+3. ask Control Plane to resolve pinned Run labels plus candidate Agent labels,
+   capability-match the resulting adapter requirements and atomically prepare
+   all required Worker allocations from current live Runtime Agent
+   registrations;
 4. construct one Planner through the selected `PlannerFactory`;
 5. invoke the Planner once with the fixed prepared Worker set;
 6. validate and durably record the candidate `StageResult` plus exact referenced
@@ -820,8 +851,8 @@ class WorkflowRunCancellation(BaseModel):
 same immutable WorkflowRunCancellation recorded by the winning cancel request.
 
 - `initializing`: the validated Workflow snapshot, immutable Run parameters,
-  fully resolved executionConfig and exact input forks are being committed; no
-  Stage may start;
+  normalized executionConfig, pinned default/Run-label configurations and
+  exact input forks are being committed; no Stage may start;
 - `running`: Workflow Scheduler may select and create StageExecutions;
 - `cancelling`: cancellation intent is durable, no new StageExecution or
   Workflow-output mapping is allowed, and active executions are stopped through
@@ -834,14 +865,15 @@ compare-and-set. Repeating cancellation is idempotent; cancellation of any
 terminal Run returns that existing terminal state without mutation.
 
 Public `POST /v1/runs` requires exactly one bounded `Idempotency-Key`. The
-validated request includes Workflow selector, parameters, input refs and the
-optional reference-only executionConfig override. Server binds the key to the
-authenticated owner and a canonical digest of that request in the same
-transaction as Run creation, execution-config resolution and exact input
-forks. A retry with the same owner, key and digest returns the existing Run and
-does not repeat input forks or Scheduler notification. Reusing the key with a
-different digest is a conflict. Thus losing the successful HTTP response cannot
-create a second WorkflowRun or semantic execution.
+validated request includes Workflow selector, parameters, input refs, sorted
+Run labels and the optional reference-only executionConfig override. Server
+binds the key to the authenticated owner and a canonical digest of that request
+in the same transaction as Run creation, execution-config resolution,
+Run-label pinning and exact input forks. A retry with the same owner, key and
+digest returns the existing Run and does not repeat label resolution, input
+forks or Scheduler notification. Reusing the key with a different digest is a
+conflict. Thus losing the successful HTTP response cannot create a second
+WorkflowRun or semantic execution.
 
 Run success is committed only when all of the following are true:
 

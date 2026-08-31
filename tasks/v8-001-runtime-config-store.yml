@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V8-001
+title: Persist immutable RuntimeConfig versions and revisioned label bindings
+milestone: label-driven-runtime-configuration
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V7-004]
+languages: [go, sql]
+
+goal: >-
+  Add the typed, durable configuration foundation that maps short Runtime
+  labels to immutable infrastructure settings while preserving an always
+  available default configuration.
+
+context:
+  current_state: >-
+    The repository publishes YAML ModelPolicy and LLMGatewayConfig objects but
+    has no database-backed RuntimeConfig or label binding. PostgreSQL migrations
+    currently end at 000014.
+  contract: >-
+    RuntimeConfig is API-managed, immutable and non-secret. It may patch Worker
+    LLM Gateway/credential leaves and atomically set or clear Worker telemetry,
+    Worker HTTP proxy and Planner telemetry blocks. A label points to one exact
+    name/version/digest with a uint64 revision. The reserved default binding
+    always exists and cannot be deleted.
+  normalization: >-
+    Reject duplicate keys and unknown fields; materialize captureContent=false
+    and flushTimeoutSeconds=3; sort proxy targets; enforce the documented URL,
+    PEM, selector and 128 KiB document bounds; compute lowercase sha256 over RFC
+    8785 JCS. Explicit null is a patch operation distinct from omission.
+
+scope:
+  in:
+    - Add migration 000015_runtime_configuration.sql for immutable versions, publication idempotency records, label bindings and binding audit fields/indexes.
+    - Add internal/runtimeconfig domain types, strict validation, normalization, JCS digesting and explicit merge-unit representations.
+    - Resolve compact LLMGatewayConfig selectors to exact digest-bearing refs before normalized RuntimeConfig digest/persistence, with replay lookup before mutable catalog resolution.
+    - Seed contractor-empty@1 with the exact fixed digest and create default revision 1 idempotently during migration.
+    - Implement PostgreSQL create/list/get version operations and create/rebind/remove label CAS operations with lexical row locking.
+    - Reject user publication of an empty spec or the reserved built-in identity; allow explicit-null patches and forbid deleting default.
+    - Expose repository/service interfaces that later tasks can use inside a caller-owned transaction.
+  out:
+    - Public HTTP endpoints, encrypted secret values, Run pinning, Runtime Agent principals, placement or Runtime adapters.
+
+deliverables:
+  - {path: internal/persistence/migrations/000015_runtime_configuration.sql, description: Immutable config and revisioned binding schema plus exact default bootstrap.}
+  - {path: internal/runtimeconfig, description: Strict schema, normalization, digest, merge primitives and PostgreSQL repository.}
+  - {path: internal/persistence/postgres/migrate_test.go, description: Bootstrap and migration regressions.}
+  - {path: Makefile, description: Focused runtime-configuration PostgreSQL test target.}
+
+requirements:
+  - id: R1
+    text: The exact built-in JCS bytes hash to sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f and repeated migration does not change default revision.
+  - id: R2
+    text: A published identity and normalized body are immutable; same idempotency key and body replay the original result, while a changed body conflicts.
+  - id: R3
+    text: Binding revision starts at 1, increments once per semantic CAS mutation, and does not advance on replay, stale precondition or rejected conflict.
+  - id: R4
+    text: Same-layer merge reports deterministic safe field paths and config refs; it never chooses a winner from label order.
+  - id: R5
+    text: RuntimeConfig rows contain only credential IDs and never secret headers, tokens, passwords or private keys.
+  - id: R6
+    text: Immutable RuntimeConfig reads return the exact Gateway ref pinned at publication and never re-resolve the current YAML/managed catalog.
+
+acceptance_criteria:
+  - id: A1
+    given: A fresh or already migrated PostgreSQL database.
+    when: Migrations run.
+    then: Exactly one immutable contractor-empty@1 version and one default revision-1 binding with the fixed digest exist.
+  - id: A2
+    given: Semantically equivalent JSON documents with omitted versus explicit defaults and differently ordered proxy targets.
+    when: They are normalized.
+    then: Their canonical documents and digests are identical.
+  - id: A3
+    given: Concurrent binding writers using the same revision.
+    when: They point one label to different exact configs.
+    then: One commits, one receives a stale-precondition result, and no partial ref is observable.
+  - id: A4
+    given: An unknown field, malformed endpoint, private-key PEM, duplicate key, oversized body or conflicting same-layer block.
+    when: It is validated.
+    then: Validation fails with a bounded non-secret error and persists nothing.
+  - id: A5
+    given: A RuntimeConfig publication whose compact Gateway selector resolved successfully before its response was lost.
+    when: The Gateway catalog later changes and the exact idempotency request is replayed.
+    then: The original expanded Gateway ref/digest is returned without resolving the changed catalog.
+
+tests:
+  - {name: unit, command: "go test ./internal/runtimeconfig/...", covers: [A2, A4, A5]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-config-postgres", covers: [A1, A3, A4, A5]}
+  - {name: race, command: "go test -race ./internal/runtimeconfig/...", covers: [A2, A3, A5]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

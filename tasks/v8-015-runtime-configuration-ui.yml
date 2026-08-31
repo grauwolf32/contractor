@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V8-015
+title: Add Runtime configuration and label workflows to the React UI
+milestone: label-driven-runtime-configuration
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-009, V8-013, V8-014]
+languages: [typescript, html, css]
+
+goal: >-
+  Let an operator publish infrastructure configs, bind labels, assign Agent
+  labels and select Run labels from the separately deployed frontend without
+  exposing secrets or implying that active allocations mutate.
+
+context:
+  deployment: >-
+    ui is a frontend-only Node-built React application that calls the Go public
+    API; Server does not embed its assets. Reuse generated OpenAPI types,
+    existing session/CSRF handling and current Operations/Run route structure.
+  surfaces: >-
+    Operations needs RuntimeConfig versions, label bindings/default, write-only
+    runtime credentials and durable Runtime Agent principals. Run creation
+    selects zero or more explicit labels. Run/Stage detail shows safe pinned
+    layers and final Agent overrides after allocation.
+  explanation_rules: >-
+    Show default separately, never as a checkbox. Show one authoritative Agent
+    label set rather than declared/effective/source variants. Make CAS revision
+    and future-allocation semantics visible. Never render or persist resolved
+    headers, tokens, passwords, proxy auth or RuntimeSettings.
+
+scope:
+  in:
+    - Add Operations routes/forms/detail pages for immutable RuntimeConfigs, default/label bindings and write-only runtime credentials.
+    - Extend Runtime Agent Operations pages with principal identity, offline state, adapter capabilities, authoritative labels/revision and future-allocation warnings.
+    - Add sorted Runtime label selection to Run creation with safe config preview and canonical idempotent draft behavior.
+    - Extend Run/Stage detail with pinned default/Run refs, final Agent-label overrides, adapter refs/status and safe conflict/capacity diagnostics.
+    - Implement ETag-aware binding/Agent-label mutations, explicit stale reload flows and secret-input clearing after submit/navigation/error.
+    - Consume WebSocket notifications only as refetch hints; perform every mutation over authenticated REST.
+    - Add responsive accessible components, unit tests and Playwright coverage using the production API client.
+  out:
+    - Raw YAML/JSON editor, disabled toggles, inline Workflow labels, live secret reads, dynamic adapter installation or graph-editor work.
+
+deliverables:
+  - {path: ui/src/routes/operations/runtime-configs, description: Version, binding and credential management UI.}
+  - {path: ui/src/routes/operations/runtime-agents, description: Durable principal labels and adapter capability UI.}
+  - {path: ui/src/routes/workflows/run-form.tsx, description: Concrete Run label selection and preview.}
+  - {path: ui/src/routes/runs, description: Pinned/final safe provenance and adapter status.}
+  - {path: ui/e2e, description: Browser flows for config, labels, Run creation and CAS conflicts.}
+
+requirements:
+  - id: R1
+    text: Secret form values are never placed in URL, local/session storage, query cache, error text, clipboard helpers or read-model state.
+  - id: R2
+    text: Rebinding and Agent-label edits clearly state that active allocations retain their snapshot and future boundaries receive the change.
+  - id: R3
+    text: Run labels are normalized as a set; duplicate/default selection is impossible and an empty selection still previews default.
+  - id: R4
+    text: UI validates API responses defensively and fails closed rather than rendering unexpected secret-like fields.
+
+acceptance_criteria:
+  - id: A1
+    given: An authenticated operator.
+    when: They create a runtime credential/config and bind debug.
+    then: Only safe metadata remains after submit and refresh; the secret input is erased and cannot be read back.
+  - id: A2
+    given: Two browser views of one label or Agent revision.
+    when: Both mutate it.
+    then: The stale view receives an explicit conflict/reload state and never overwrites the winning mutation.
+  - id: A3
+    given: A new Run with no explicit labels and another with debug/caido.
+    when: Forms and details render before and after allocation.
+    then: Default is separate, labels are sorted, and final Agent overrides appear only after their allocation provenance exists.
+  - id: A4
+    given: An offline principal and a live adapter-incompatible principal.
+    when: Operations is viewed.
+    then: Durable labels remain visible and liveness/capability eligibility are explained as distinct facts.
+
+tests:
+  - {name: unit, command: "npm --prefix ui test -- --run", covers: [A1, A2, A3, A4]}
+  - {name: static, command: "make ui-verify", covers: [A1, A2, A3, A4]}
+  - {name: browser, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-ui-stack", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
