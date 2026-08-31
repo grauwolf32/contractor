@@ -72,6 +72,15 @@ class WorkerBudgetExceeded(RuntimeError):
         super().__init__(f"Worker invocation budget exhausted ({dimension})")
 
 
+@dataclass(frozen=True, slots=True)
+class _ResultCandidateIssue:
+    code: str
+    summary: str
+    retryable: bool
+    classification: str | None
+    recoverable: bool
+
+
 @dataclass(slots=True)
 class _InvocationBudget:
     max_model_calls: int
@@ -215,6 +224,7 @@ class AdkWorkerRuntime:
         self._metrics = context.state.metrics
         self._session_service = InMemorySessionService()
         self._session_id = context.allocation_id
+        self._finalizer_session_id = f"{context.allocation_id}-result-finalizer"
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
         self._accepting = True
@@ -265,6 +275,7 @@ class AdkWorkerRuntime:
                 "shorten, or alter a revision."
             ),
             tools=[],
+            output_schema=StageContentResult,
             generate_content_config=generation.model_copy(deep=True),
             before_model_callback=self._before_model,
             after_model_callback=self._after_model,
@@ -295,6 +306,20 @@ class AdkWorkerRuntime:
             session_id=self._session_id,
             state={"metrics": self._metrics.snapshot()},
         )
+        try:
+            await self._session_service.create_session(
+                app_name=self._app_name,
+                user_id=self._user_id,
+                session_id=self._finalizer_session_id,
+                state={},
+            )
+        except Exception:
+            await self._session_service.delete_session(
+                app_name=self._app_name,
+                user_id=self._user_id,
+                session_id=self._session_id,
+            )
+            raise
 
     @property
     def agent_card(self) -> Mapping[str, Any]:
@@ -379,6 +404,8 @@ class AdkWorkerRuntime:
             '"retryable":true}}. Return exactly one StageContentResult JSON object.'
         )
         candidate: str | None = None
+        result: StageContentResult | None = None
+        issue: _ResultCandidateIssue | None = None
         try:
             async for event in runner.run_async(
                 user_id=self._user_id,
@@ -389,13 +416,15 @@ class AdkWorkerRuntime:
                 text = _candidate_text(event)
                 if text is not None:
                     candidate = text
-            if candidate is None:
+            result, issue = self._decode_result_candidate(candidate)
+            if issue is not None and issue.recoverable:
                 try:
-                    candidate = await self._recover_missing_candidate(request_json)
+                    candidate = await self._recover_result_candidate(request_json, issue)
                 except WorkerBudgetExceeded:
                     self._metrics.record_worker_result_recovery(succeeded=False)
                     raise
-                self._metrics.record_worker_result_recovery(succeeded=candidate is not None)
+                result, issue = self._decode_result_candidate(candidate)
+                self._metrics.record_worker_result_recovery(succeeded=result is not None)
         except WorkerBudgetExceeded as error:
             self._metrics.record_worker_budget_exhausted(error.dimension)
             return _failure(
@@ -403,18 +432,40 @@ class AdkWorkerRuntime:
                 f"Worker invocation budget exhausted ({error.dimension})",
                 True,
             )
+        if result is not None:
+            return result
+        assert issue is not None
+        if issue.classification is not None:
+            self._metrics.record_worker_result_error(issue.classification)
+        return _failure(issue.code, issue.summary, issue.retryable)
+
+    def _decode_result_candidate(
+        self, candidate: str | None
+    ) -> tuple[StageContentResult | None, _ResultCandidateIssue | None]:
         if candidate is None:
-            self._metrics.record_worker_result_error("missing")
-            return _failure("invalid_worker_result", "Worker returned no bounded JSON result", True)
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker returned no bounded JSON result",
+                retryable=True,
+                classification="missing",
+                recoverable=True,
+            )
         if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
-            self._metrics.record_worker_result_error("oversized")
-            return _failure(
-                "invalid_worker_result", "Worker returned an oversized StageContentResult", True
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker returned an oversized StageContentResult",
+                retryable=True,
+                classification="oversized",
+                recoverable=False,
             )
         gateway_token = self._context.runtime_settings.llm_gateway_token.get_secret_value()
         if gateway_token and gateway_token in candidate:
-            return _failure(
-                "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
+            return None, _ResultCandidateIssue(
+                code="unsafe_worker_result",
+                summary="Worker returned content blocked by Runtime policy",
+                retryable=False,
+                classification=None,
+                recoverable=False,
             )
         try:
             result = StageContentResult.model_validate_json(_unwrap_json_fence(candidate))
@@ -430,28 +481,42 @@ class AdkWorkerRuntime:
                 }
             )
             classification = "schema_" + "_".join(error_types[:8])
-            self._metrics.record_worker_result_error(classification)
-            return _failure(
-                "invalid_worker_result", "Worker returned an invalid StageContentResult", True
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker returned an invalid StageContentResult",
+                retryable=True,
+                classification=classification,
+                recoverable=True,
             )
         if (
             len(result.summary) > MAX_RESULT_SUMMARY_CHARS
             or len(result.artifacts) > MAX_RESULT_ARTIFACTS
         ):
-            return _failure(
-                "invalid_worker_result", "Worker returned an oversized StageContentResult", False
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker returned an oversized StageContentResult",
+                retryable=False,
+                classification="oversized",
+                recoverable=False,
             )
         known = _known_exact_refs(self._context.tools)
         if any(_ref_key(ref) not in known for ref in result.artifacts.values()):
-            return _failure(
-                "unverified_artifact_ref",
-                "Worker result contains an artifact revision not observed through ArtifactClient",
-                True,
+            return None, _ResultCandidateIssue(
+                code="unverified_artifact_ref",
+                summary=(
+                    "Worker result contains an artifact revision not observed "
+                    "through ArtifactClient"
+                ),
+                retryable=True,
+                classification=None,
+                recoverable=False,
             )
-        return result
+        return result, None
 
-    async def _recover_missing_candidate(self, request_json: str) -> str | None:
-        """Request one tool-free envelope after a tool loop ends without text."""
+    async def _recover_result_candidate(
+        self, request_json: str, issue: _ResultCandidateIssue
+    ) -> str | None:
+        """Request one isolated structured envelope after missing or invalid final text."""
 
         runner = self._finalizer_runner
         if runner is None:
@@ -461,8 +526,9 @@ class AdkWorkerRuntime:
             for ref in _latest_known_exact_refs(self._context.tools)
         ]
         prompt = (
-            "The Worker tool phase ended without a model-visible final response. Do not perform "
-            "more analysis. Serialize its result now.\nStageContentRequest:\n"
+            "The Worker tool phase completed, but its final result envelope was rejected as "
+            + (issue.classification or "invalid")
+            + ". Do not perform more analysis. Serialize its result now.\nStageContentRequest:\n"
             + request_json
             + "\nLatest exact ArtifactRefs observed through trusted tools:\n"
             + json.dumps(exact_refs, ensure_ascii=False, separators=(",", ":"))
@@ -477,7 +543,7 @@ class AdkWorkerRuntime:
         candidate: str | None = None
         async for event in runner.run_async(
             user_id=self._user_id,
-            session_id=self._session_id,
+            session_id=self._finalizer_session_id,
             invocation_id=f"worker-finalizer-{uuid.uuid4().hex}",
             new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
         ):
@@ -508,6 +574,11 @@ class AdkWorkerRuntime:
                 await finalizer_runner.close()
             await self._session_service.delete_session(
                 app_name=self._app_name, user_id=self._user_id, session_id=self._session_id
+            )
+            await self._session_service.delete_session(
+                app_name=self._app_name,
+                user_id=self._user_id,
+                session_id=self._finalizer_session_id,
             )
         finally:
             model = self._model

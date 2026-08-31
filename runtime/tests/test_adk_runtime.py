@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fakes.model import json_result, scripted_model, thought_result, tool_call
+from fakes.model import json_result, scripted_model, text_result, thought_result, tool_call
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 
@@ -32,6 +32,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     SandboxProfileRef,
     StageContentRequest,
+    StageContentResult,
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
@@ -85,6 +86,8 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         runtime = await create_runtime(tmp_path, state, tools, model)
         assert runtime._agent is not None
         assert runtime._agent.output_schema is None
+        assert runtime._finalizer_agent is not None
+        assert runtime._finalizer_agent.output_schema is StageContentResult
 
         result = await runtime.invoke(stage_request())
 
@@ -148,7 +151,16 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
                         "artifacts": {},
                         "invented": True,
                     }
-                )
+                ),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Still invalid",
+                        "artifacts": {},
+                        "invented": True,
+                    }
+                ),
             ]
         )
         invalid_state = WorkerState()
@@ -158,6 +170,8 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
         assert invalid_result.error.code == "invalid_worker_result"
         assert invalid_result.error.retryable is True
         assert invalid_state.metrics.errors[-1].code == "worker_result_schema_extra_forbidden"
+        assert invalid_state.metrics.counters["worker_result_recovery_attempts"] == 1
+        assert invalid_state.metrics.counters["worker_result_recovery.failed"] == 1
         await first.abort(datetime.now(UTC) + timedelta(seconds=1))
 
         invented = scripted_model(
@@ -205,6 +219,83 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
         assert SECRET not in secret_result.model_dump_json(by_alias=True)
         assert SECRET not in repr(secret_state.metrics.snapshot())
         await third.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_recovers_invalid_json_with_structured_finalizer(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_artifact",
+                    {
+                        "namespace": "builder",
+                        "name": "report",
+                        "media_type": "application/json",
+                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "expected_revision": None,
+                    },
+                    call_id="write-before-invalid-result",
+                ),
+                text_result('{"apiVersion":"contractor/v1alpha1","outcome":'),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Recovered exact report",
+                        "artifacts": {
+                            "report": {
+                                "namespace": "builder",
+                                "name": "report",
+                                "revision": "write-r1",
+                            }
+                        },
+                    }
+                ),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert result.artifacts["report"].revision == "write-r1"
+        assert len(model.requests) == 3
+        assert model.requests[1]["hasResponseSchema"] is False
+        assert model.requests[2]["toolNames"] == []
+        assert model.requests[2]["hasResponseSchema"] is True
+        assert model.requests[2]["responseMimeType"] == "application/json"
+        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
+        assert state.metrics.counters["worker_result_recovery.succeeded"] == 1
+        assert not any(
+            error.code.startswith("worker_result_schema") for error in state.metrics.errors
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_invalid_json_recovery_obeys_model_call_budget(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([text_result("not-json")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_model_calls=1)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.error is not None
+        assert result.error.code == "worker_budget_exhausted"
+        assert len(model.requests) == 1
+        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
+        assert state.metrics.counters["worker_result_recovery.failed"] == 1
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.exhausted == "model_calls"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 

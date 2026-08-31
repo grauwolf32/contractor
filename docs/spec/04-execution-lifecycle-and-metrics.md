@@ -295,6 +295,38 @@ RuntimeSettings secrets supplied by Control Plane are held outside ADK Session,
 State, events and model-visible instruction/context. They configure clients
 such as the LLM Gateway adapter and are never a telemetry source.
 
+### Worker result envelope recovery
+
+The tool-using ADK Worker loop does not apply an output schema to model turns.
+Those turns must remain able to select function tools on OpenAI-compatible
+Gateways. Runtime instead validates the last non-thought model text as a strict
+`StageContentResult` after the tool loop ends.
+
+If that text is absent or fails the `StageContentResult` schema, Runtime may
+make exactly one recovery call through a separate, tool-free ADK agent and
+Session. The recovery call:
+
+- uses `StageContentResult` as its structured output schema;
+- receives only the immutable `StageContentRequest`, a bounded safe failure
+  classification, and the latest exact `ArtifactRef` values observed through
+  trusted Artifact tools;
+- does not receive the rejected candidate, the tool transcript, secrets, or
+  another tool capability; and
+- consumes the same invocation-wide `maxModelCalls` and `maxTotalTokens`
+  budgets as the preceding Worker loop.
+
+Runtime subjects the recovered candidate to the ordinary strict schema, size,
+secret and observed-revision checks. A second invalid candidate fails closed;
+there is no further recovery. Oversized, secret-bearing, or unverified-revision
+candidates are not recoverable. A normal valid candidate never incurs the
+additional model call. Structured generation is therefore a bounded envelope
+aid, not a replacement for Runtime validation, and raw rejected candidates are
+not retained in State, reports, logs, or durable storage.
+
+This result-envelope recovery happens inside the active Worker invocation. It
+is distinct from allocation drain/finalization, which still performs no
+model/tool calls.
+
 ## Execution reports
 
 Planner and the in-process Worker runtime use the same framework-neutral report

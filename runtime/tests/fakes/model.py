@@ -41,6 +41,8 @@ class ScriptedLlm(BaseLlm):
                 "model": llm_request.model,
                 "maxOutputTokens": llm_request.config.max_output_tokens,
                 "temperature": llm_request.config.temperature,
+                "responseMimeType": llm_request.config.response_mime_type,
+                "hasResponseSchema": llm_request.config.response_schema is not None,
                 "toolNames": sorted(
                     declaration.name
                     for tool in llm_request.config.tools or []
@@ -84,6 +86,14 @@ def json_result(value: dict[str, Any]) -> LlmResponse:
                 role="model",
                 parts=[types.Part(text=json.dumps(value, separators=(",", ":")))],
             )
+        )
+    )
+
+
+def text_result(text: str) -> LlmResponse:
+    return _with_usage(
+        LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text=text)]),
         )
     )
 
