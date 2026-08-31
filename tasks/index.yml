@@ -106,18 +106,16 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-008
-  next_task: V4-009
+  completed_through: V4-009
+  next_task: V4-009A
   summary: >-
-    The repository now has an independently built React/Vite UI with committed
-    generated OpenAPI types, direct cookie/CSRF transport, guarded owner routes,
-    explicit public-API compatibility checks and a WebSocket adapter skeleton.
-    A dependency-free Node service exposes only static files, health and closed
-    non-secret runtime config with explicit fallback/cache/security behavior;
-    its exact Node 24.20 container builds without rebuilding Go Server. V4-009
-    next replaces the Artifact placeholder with the exact-version UserScope
-    library required by the separately planned Workflow/Run-create and live
-    Run-inspection slices V4-009A and V4-009B.
+    The independent React UI now includes a paginated UserScope Artifact
+    library with exact revision history and lineage, create/CAS update,
+    authoritative conflict reconciliation, bounded escaped text preview and
+    exact-byte download. Binary transport remains fenced to the configured Go
+    Server and reuses browser session, CSRF, API-version and bounded-error
+    policy. V4-009A next adds exact Workflow selection and idempotent Run
+    creation on top of these immutable Artifact refs.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
