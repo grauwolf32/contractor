@@ -22,7 +22,15 @@ export default tseslint.config(
     rules: {
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true, allowExportNames: ["useSession"] },
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            "formatBytes",
+            "formatTimestamp",
+            "usePublicAPI",
+            "useSession",
+          ],
+        },
       ],
     },
   },

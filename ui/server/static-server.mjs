@@ -11,6 +11,9 @@ const CLIENT_ROUTES = new Set([
   "/runs",
   "/operations",
 ]);
+const CLIENT_ROUTE_PATTERNS = [
+  /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
+];
 const API_PREFIXES = ["/v1", "/api", "/private"];
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;
 const ASSET_PATH = /^\/assets\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9._-]+$/;
@@ -209,7 +212,10 @@ export async function createStaticServer({ distDir, runtimeConfig }) {
         );
         return;
       }
-      if (CLIENT_ROUTES.has(path)) {
+      if (
+        CLIENT_ROUTES.has(path) ||
+        CLIENT_ROUTE_PATTERNS.some((pattern) => pattern.test(path))
+      ) {
         send(
           request,
           response,

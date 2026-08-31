@@ -70,6 +70,7 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/login",
     "/workflows",
     "/artifacts",
+    "/artifacts/projects/source",
     "/runs",
     "/operations",
   ]) {

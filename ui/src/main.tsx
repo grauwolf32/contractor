@@ -34,7 +34,7 @@ async function bootstrap(): Promise<void> {
     const router = createApplicationRouter();
     createRoot(root).render(
       <StrictMode>
-        <Application api={api} router={router} />
+        <Application api={api} publicAPI={api} router={router} />
       </StrictMode>,
     );
   } catch (error) {

@@ -156,4 +156,48 @@ describe("PublicAPI", () => {
       message: "Public API request failed",
     });
   });
+
+  it("fences direct binary requests and attaches the current CSRF", async () => {
+    let captured: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        captured = input instanceof Request ? input : new Request(input);
+        return apiResponse(
+          {
+            artifact: {
+              namespace: "projects",
+              name: "source",
+              revision: "revision-1",
+            },
+            mediaType: "application/zip",
+            size: 3,
+          },
+          201,
+        );
+      }),
+    );
+    api.csrf.replace(session.csrfToken);
+    const response = await api.fetch("/v1/artifacts/projects/source", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/zip",
+        "If-None-Match": "*",
+      },
+      body: new Blob(["zip"]),
+    });
+    expect(response.status).toBe(201);
+    expect(captured?.credentials).toBe("include");
+    expect(captured?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(captured?.headers.get("If-None-Match")).toBe("*");
+
+    await expect(
+      api.fetch("https://attacker.invalid/v1/artifacts/x/y"),
+    ).rejects.toMatchObject({ code: "invalid_client_request" });
+    await expect(
+      api.fetch("/v1/artifacts/x/y", {
+        headers: { Authorization: "Bearer forbidden" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid_client_request" });
+  });
 });

@@ -40,3 +40,10 @@ The generated file at `src/api/generated/public.ts` comes only from
 `api/openapi/contractor-public-v1.yaml`. Run `make ui-generate`; never edit the
 file by hand. `make ui-generate-check` regenerates it and fails on a tracked
 diff.
+
+The `/artifacts` route manages UserScope Workflow inputs. Uploads are limited
+to 16 MiB and use explicit create/CAS preconditions; the UI never retries a
+PUT after a conflict or lost response. Version and lineage views retain exact
+revisions. Inline preview is opt-in, capped at 256 KiB, restricted to a small
+text media-type allowlist, and rendered as escaped text. Other payloads remain
+available only through exact-revision download.

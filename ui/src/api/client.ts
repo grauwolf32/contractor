@@ -24,6 +24,8 @@ export interface MutationHeaders {
   ifNoneMatch?: string;
 }
 
+export type DirectRequestInit = Omit<RequestInit, "credentials">;
+
 export class CSRFMemoryStore {
   #value: string | undefined;
 
@@ -99,6 +101,8 @@ function exactHeaderValue(name: string, value: string): string {
 
 export class PublicAPI {
   readonly #client: Client<paths>;
+  readonly #fetch: (request: Request) => Promise<Response>;
+  readonly #apiOrigin: string;
   readonly csrf = new CSRFMemoryStore();
 
   constructor(
@@ -112,6 +116,7 @@ export class PublicAPI {
       throw new APICompatibilityError();
     }
     const apiOrigin = validateAPIBaseURL(runtimeConfig.apiBaseUrl);
+    this.#apiOrigin = apiOrigin;
     const checkedFetch = async (request: Request): Promise<Response> => {
       const requestURL = new URL(request.url);
       if (
@@ -160,6 +165,7 @@ export class PublicAPI {
       }
       return boundedErrorResponse(response);
     };
+    this.#fetch = checkedFetch;
     this.#client = createClient<paths>({
       baseUrl: apiOrigin,
       credentials: "include",
@@ -171,8 +177,54 @@ export class PublicAPI {
   async request<T>(
     operation: (client: Client<paths>) => Promise<T>,
   ): Promise<T> {
+    return this.#safeRequest(() => operation(this.#client));
+  }
+
+  async fetch(path: string, init: DirectRequestInit = {}): Promise<Response> {
+    if (!path.startsWith("/v1/") || path.startsWith("//")) {
+      throw publicAPIError(0, {
+        code: "invalid_client_request",
+        message: "Direct API path must be repository-relative public /v1",
+        retryable: false,
+      });
+    }
+    const url = new URL(path, this.#apiOrigin);
+    if (url.origin !== this.#apiOrigin || url.hash !== "") {
+      throw publicAPIError(0, {
+        code: "invalid_client_request",
+        message: "Direct API request escaped the configured Server boundary",
+        retryable: false,
+      });
+    }
+    const headers = new Headers(init.headers);
+    if (headers.has("Authorization") || headers.has("Cookie")) {
+      throw publicAPIError(0, {
+        code: "invalid_client_request",
+        message: "Browser API requests cannot supply credential headers",
+        retryable: false,
+      });
+    }
+    const request = new Request(url, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+    return this.#safeRequest(() => this.#fetch(request));
+  }
+
+  async error(response: Response): Promise<PublicAPIError> {
+    let value: unknown;
     try {
-      return await operation(this.#client);
+      value = await response.json();
+    } catch {
+      value = undefined;
+    }
+    return publicAPIError(response.status, value);
+  }
+
+  async #safeRequest<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
     } catch (error) {
       if (error instanceof PublicAPIError) {
         throw error;

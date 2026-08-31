@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
 
 import { AuthenticatedRoute } from "../routes/guard";
 import { LoginRoute } from "../routes/login";
+import { ArtifactDetailRoute } from "../routes/artifacts/detail";
+import { ArtifactListRoute } from "../routes/artifacts/list";
 import { NotFoundRoute, PlaceholderRoute } from "../routes/placeholders";
 import { ApplicationShell } from "./shell";
 
@@ -21,7 +23,11 @@ export function applicationRoutes(): RouteObject[] {
             },
             {
               path: "/artifacts",
-              element: <PlaceholderRoute kind="artifacts" />,
+              element: <ArtifactListRoute />,
+            },
+            {
+              path: "/artifacts/:namespace/:name",
+              element: <ArtifactDetailRoute />,
             },
             { path: "/runs", element: <PlaceholderRoute kind="runs" /> },
             {
