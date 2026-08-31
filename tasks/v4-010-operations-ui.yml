@@ -3,8 +3,8 @@ id: V4-010
 title: Implement Operations and LLM configuration UI
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 754832dec9201b3675447351bb114c2db782f972
 depends_on: [V4-005, V4-008]
 languages: [typescript, css]
 
