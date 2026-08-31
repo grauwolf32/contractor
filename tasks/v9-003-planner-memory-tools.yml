@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V9-003
+title: Mirror selected MemoryTools into Streamline and Router Planners
+milestone: shared-memory-tools
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V9-002]
+languages: [go]
+
+goal: >-
+  Let each model-backed Planner use the same current Memory Namespace as its
+  corresponding logical Worker, deriving an exact non-widening function schema
+  from immutable prepared AgentTemplate selections.
+
+context:
+  streamline: >-
+    Streamline has one logical Worker. It receives exactly that Worker's
+    selected memory-tools@1 subset with the same logical signatures as Worker;
+    no worker_name argument is present.
+  router: >-
+    Router exposes an operation only when at least one logical Worker selected
+    it. Every exposed MemoryTools function adds required worker_name, whose JSON
+    Schema enum contains exactly the immutable logical binding names that
+    selected that operation. The adapter resolves the name to its Run/Agent
+    Namespace and never exposes physical Runtime identity.
+  storage: >-
+    Planner calls a bound Run ArtifactStore view directly through internal
+    memory helpers. It uses the same canonical note contract, timestamps,
+    serial 128-note/max-ordinal rule and hidden CAS as Worker. It creates no
+    HTTP call, Memory service or persistence table. Passthrough has no model
+    tool loop and receives no Planner MemoryTools.
+
+scope:
+  in:
+    - Add Go logical list/read/write/append/search/tag operations over a bound ArtifactStore view using the V9-001 codec and existing CAS response-loss contract.
+    - Derive Streamline and per-operation Router schemas from exact resolved AgentTemplate Toolset selections after all Workers are prepared.
+    - Reject unknown/stale worker_name and impossible operations before Artifact side effects; do not synthesize a function whose allowed Worker enum is empty.
+    - Keep Planner execution dispatch, add_subtask/list_subtasks/finish surfaces unchanged and detect any final model-visible name collision at construction.
+    - Count Planner memory calls through ordinary function-call accounting and one finite maxModelCalls turn each; retain only content-free diagnostics.
+    - Reduce durable Planner facts/WebSocket events to operation, logical Worker, note name, byte sizes and stable outcome; strip content, description, tags and hidden revisions.
+    - Cancel the bound tool context with Planner invocation and ensure a call completes before candidate/finalizing transition.
+  out:
+    - Mirroring run-artifacts@1 or any other domain Toolset, Passthrough model tools, concurrent tool execution, new Workflow YAML or dynamic Worker expansion.
+
+deliverables:
+  - {path: internal/memory, description: Go Artifact-backed logical operations shared by Planner adapters.}
+  - {path: internal/planner/streamline, description: Exact single-Worker MemoryTools derivation.}
+  - {path: internal/planner/router, description: Per-operation logical worker_name schemas and routing.}
+  - {path: internal/planner/session, description: Memory-call redaction and bounded fact projection.}
+
+requirements:
+  - id: R1
+    text: Planner can access only (run_id, namespace) pairs already present in the immutable Stage binding map and only operations selected for that logical Worker.
+  - id: R2
+    text: Memory tools do not change typed subtask state, current dispatch, StageContext or the global objective and cannot select escalation.
+  - id: R3
+    text: Planner never receives a Worker ArtifactClient credential, allocation address, ArtifactRef or revision.
+  - id: R4
+    text: Passthrough remains deterministic and unchanged even when its sole Worker selects memory-tools@1.
+
+acceptance_criteria:
+  - id: A1
+    given: A Streamline Worker selecting list/read/write but not append/search/tags.
+    when: Planner is constructed.
+    then: Exactly list/read/write memory functions are added with Worker signatures and no worker_name or storage argument.
+  - id: A2
+    given: Router builder selects all operations while reviewer selects only list/read/search.
+    when: Function schemas are generated.
+    then: write/append worker_name enum is builder only, read/list/search includes both, unselected functions are absent and enum ordering is deterministic.
+  - id: A3
+    given: Planner writes a note and then dispatches the corresponding Worker, or Worker updates it and returns.
+    when: The next side reads memory.
+    then: Both observe the same current logical note and no Artifact revision appears in either model transcript.
+  - id: A4
+    given: A stale/unknown Worker, hidden CAS conflict, budget exhaustion or finalizing transition.
+    when: Planner invokes MemoryTools.
+    then: It fails before an unauthorized mutation with a bounded stable error and durable facts contain no note body/description/tags.
+
+tests:
+  - {name: planner-memory, command: "go test ./internal/memory/... ./internal/planner/...", covers: [A1, A2, A3, A4]}
+  - {name: sessions, command: "go test ./internal/planner/session/... ./internal/runstore/...", covers: [A4]}
+  - {name: races, command: "go test -race ./internal/memory/... ./internal/planner/...", covers: [A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

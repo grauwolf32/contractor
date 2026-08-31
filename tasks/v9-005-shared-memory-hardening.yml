@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V9-005
+title: Harden MemoryTools response loss bounds fencing and redaction
+milestone: shared-memory-tools
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-016, V9-004]
+languages: [go, python]
+
+goal: >-
+  Turn the MemoryTools MVP into a deterministic release gate covering stale
+  CAS, lost Artifact responses, quota edges, terminal fencing and every
+  retained content-leak surface without introducing Memory-specific transport
+  or persistence.
+
+context:
+  concurrency_boundary: >-
+    v1 guarantees one active Planner tool call, one active Worker dispatch, no
+    concurrent Tasks in an allocation and no concurrent StageExecutions in a
+    Run. Test same-binding external CAS interference, but do not claim support
+    for concurrent different-name creates. Any future such support requires a
+    generic ArtifactStore atomic batch/CAS primitive before scheduling changes.
+  leak_boundary: >-
+    Content, description and tags are model data and must be absent from
+    ExecutionReports, Planner facts, WebSocket events, logs, errors and OTLP.
+    Safe diagnostics may retain operation, logical Worker, note name, sizes,
+    outcome and duration.
+
+scope:
+  in:
+    - Inject response loss before/after private Artifact PUT commit for create, replacement and append and assert canonical same-precondition reconciliation.
+    - Inject a newer same-binding Artifact revision between MemoryTools read and write and assert memory_changed without overwrite or semantic merge.
+    - Exercise serial notes 0 through 127, the rejected 129th create, existing-note update at capacity, exact ordering and malformed stored memory payloads.
+    - Race Worker mutation against the durable finalizing/aborting fence and prove the existing Artifact mutation/fence linearization remains authoritative.
+    - Verify run-artifacts@1 prefix filtering cannot be bypassed through encoded names, explicit revision, list filters or tool argument aliases.
+    - Scan PostgreSQL text/JSON, reports, Planner sessions/events, HTTP errors, logs and OTLP for unique content/description/tag canaries.
+    - Assert migration/schema and route inventories contain no Memory-only table, replay record, endpoint or credential and include the gate in release verification.
+  out:
+    - Unsupported parallel different-name Memory creates, performance/load benchmarks, cross-Run retrieval, UI, delete/eviction or external vector databases.
+
+deliverables:
+  - {path: tests/e2e, description: Response-loss CAS quota fence and leak fault matrix.}
+  - {path: internal/memory, description: Focused property/fuzz tests for canonical reconciliation and bounds.}
+  - {path: runtime/tests, description: Prefix bypass malformed payload and telemetry redaction regressions.}
+  - {path: Makefile, description: Bounded MemoryTools hardening release gate.}
+  - {path: docs/development.md, description: Supported serialized boundary and future generic batch-CAS note.}
+
+requirements:
+  - id: R1
+    text: Every injected fault has a finite deadline and leaves the note at one complete old-or-new canonical Artifact version.
+  - id: R2
+    text: A response-loss retry never changes expected_revision or recomputes append from a newly read body.
+  - id: R3
+    text: Tests use production Artifact grant/fence and PostgreSQL code, not a Memory-specific fake transaction layer.
+  - id: R4
+    text: Redaction scans use unique canaries and fail on exact, JSON-escaped or URL-encoded retention.
+
+acceptance_criteria:
+  - id: A1
+    given: Lost responses at every create/update commit boundary.
+    when: Worker reconciliation executes.
+    then: Each logical mutation occurs at most once, exact intended current bytes return success and any newer differing bytes return memory_changed.
+  - id: A2
+    given: A stale write, capacity boundary and terminal fence race.
+    when: Faults are released in both possible orders.
+    then: CAS/fence winner is authoritative, count/order remain valid under serialized creation and no late memory Artifact commits after the fence.
+  - id: A3
+    given: An AgentTemplate selecting both generic Artifact and Memory tools.
+    when: Every memory-prefix bypass form is attempted.
+    then: No generic model-visible tool reaches those bindings and generic model output never contains their refs or revisions; the trusted low-level Artifact client remains unchanged.
+  - id: A4
+    given: Unique note canaries and a completed hardening run.
+    when: All durable/external diagnostic surfaces are scanned.
+    then: Content/description/tags are absent, allowed safe dimensions remain useful and both Runtime slots execute a subsequent clean Run.
+
+tests:
+  - {name: hardening-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-hardening", covers: [A1, A2, A3, A4]}
+  - {name: go-race, command: "go test -race ./internal/memory/... ./internal/artifacts/... ./internal/planner/...", covers: [A1, A2]}
+  - {name: python, command: "cd runtime && uv run pytest tests/test_memory.py tests/test_memory_toolset.py tests/test_run_artifacts_toolset.py", covers: [A1, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

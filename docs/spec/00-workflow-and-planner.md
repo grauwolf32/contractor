@@ -941,6 +941,14 @@ contract is deliberately different:
 - the Router function schema constrains `worker_name` to the exact Stage
   binding keys from the immutable Run snapshot.
 
+Those are the exact Worker-dispatch functions, not necessarily the Planner's
+entire tool surface. When a prepared Worker explicitly selects
+`memory-tools@1`, the model-backed Planner receives the corresponding shared
+MemoryTools subset under [08](08-memory-tools.md). Streamline uses its sole
+Worker's signatures. Router adds a required, per-operation constrained
+`worker_name`; it never receives one undifferentiated memory bag. No other
+Worker Toolset is mirrored implicitly.
+
 The shared first-version plan exposes exactly two plan-management operations in
 addition to the Planner-specific execution function and `finish`:
 
@@ -1013,7 +1021,10 @@ neither can:
 - access a Worker sandbox directly.
 
 Cross-Stage state passes through explicit Workflow context, Stage results or
-artifacts, never through an implicitly shared Planner instance.
+artifacts, never through an implicitly shared Planner instance. A later Stage
+may deliberately continue an Agent Namespace's artifact-backed notes through
+the explicit MemoryTools contract in [08](08-memory-tools.md); that remains
+Run-scoped artifact state rather than Planner-session inheritance.
 
 ### Completion semantics
 

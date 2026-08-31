@@ -92,7 +92,8 @@ An AgentTemplate may explicitly select two kinds of model-visible tools:
 
 1. the exact domain tools selected from AgentTemplate Toolsets and fixed to its
    resolved Namespace, for example selected members of
-   `openapi_tools(namespace)` or `memory_tools(namespace)`;
+   `openapi_tools(namespace)` or the purpose-specific `memory-tools@1`
+   wrapper defined by [08](08-memory-tools.md);
 2. selected members of the built-in `run-artifacts@1` Toolset, which exports
    `list_artifacts`, `read_artifact` and `write_artifact` for explicit
    current-Run refs.
@@ -102,6 +103,15 @@ only `list_artifacts` and `read_artifact` exposes a model-visible read-only
 interface; one that omits `run-artifacts@1` exposes none of those generic
 operations. A domain tool may still use the allocation-bound private Artifact
 client internally as part of its registered implementation.
+
+The `memory.` artifact-name prefix in non-reserved RunScope Namespaces is
+reserved at the model-visible Toolset layer. `run-artifacts@1` rejects those
+refs and filters them from its lists, even when the same AgentTemplate selects
+both Toolsets. The lower-level private Artifact API stays domain-neutral, so
+the trusted MemoryTools implementation uses it without another endpoint or
+grant kind. [08](08-memory-tools.md) owns the mapping, bounds, hidden CAS and
+response-loss reconciliation. Authenticated Run-owner/operator inspection may
+still observe the underlying Artifact metadata and revisions.
 
 Namespace is not a model-selected argument of domain tools. The generic tools
 deliberately have broader read authority inside the current Run. The baseline
@@ -161,10 +171,14 @@ class ArtifactPayload(BaseModel):
 class ArtifactReadResult(BaseModel):
     ref: ArtifactRef  # revision is always present
     payload: ArtifactPayload
+    binding_created_at: datetime
+    revision_created_at: datetime
 
 
 class ArtifactWriteResult(BaseModel):
     ref: ArtifactRef  # revision is always present
+    binding_created_at: datetime
+    revision_created_at: datetime
 ```
 
 Scope comes from authenticated API, Run/Stage or allocation context and is not
@@ -177,6 +191,20 @@ artifact version as a lowercase `type/subtype` without parameters. Invalid or
 parameterized values are rejected by the first-slice API. Workflow input,
 Stage-result and Workflow-output slot validation uses this stored value and the
 strict matching rules defined in [00](00-workflow-and-planner.md).
+
+ArtifactStore assigns both timestamps from its authoritative database clock.
+`binding_created_at` is fixed when the logical `(scope, namespace, name)`
+binding is first created. `revision_created_at` identifies when the exact
+returned binding revision was committed and advances on update. They are
+metadata, not part of ArtifactRef identity or caller-supplied payload. The raw
+private GET returns strict RFC 3339 UTC values in
+`X-Contractor-Binding-Created-At` and
+`X-Contractor-Revision-Created-At`; private PUT returns those same two headers.
+Both use RFC 3339 with nanosecond-capable precision and canonical UTC `Z`.
+Existing JSON bodies and ETags do not change; the trusted client assembles the
+conceptual result metadata from headers. This allows purpose-specific wrappers
+such as MemoryTools to project stable creation/update order without trusting a
+Runtime Agent clock or adding another endpoint.
 
 The scope-bound operations are conceptually:
 
@@ -214,10 +242,11 @@ version. The caller reconciles through a current or exact read; the Server does
 not guess whether a different payload under the same stale precondition was an
 intended replay.
 
-ArtifactReadResult and ArtifactWriteResult always contain a versioned ref. An
-old revision remains resolvable to its immutable internal version for as long
-as Run input provenance, a StageContext snapshot, a StageResult, a Run output
-or retention policy keeps that version alive.
+ArtifactReadResult and ArtifactWriteResult always contain a versioned ref plus
+the binding/revision timestamps. An old revision remains resolvable to its
+immutable internal version for as long as Run input provenance, a StageContext
+snapshot, a StageResult, a Run output or retention policy keeps that version
+alive.
 
 One resolved, versioned ref identifies one payload with one media type.
 Contractor has no compound artifact/`parts[]` contract. Multi-file output is an
@@ -518,3 +547,7 @@ version.
 17. Every present StageContext artifact is pinned to an exact retained revision
     before allocation; missing optional bindings are recorded as absent, while
     a missing required binding prevents Planner creation.
+18. RunScope names beginning `memory.` are purpose-specific MemoryTools
+    bindings: `run-artifacts@1` cannot list, read or mutate them, while the
+    lower-level private client, their bytes and immutable revisions remain
+    ordinary ArtifactStore behavior.

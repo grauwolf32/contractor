@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V9-001
+title: Add Memory note codec and Artifact metadata support
+milestone: shared-memory-tools
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V8-013]
+languages: [go, python]
+
+goal: >-
+  Establish one cross-language logical note contract and expose authoritative
+  binding/revision timestamps through the existing ArtifactStore client so
+  Planner and Worker wrappers can implement MemoryTools without another
+  service, endpoint, table or credential.
+
+context:
+  storage: >-
+    A note named n is RFC 8785 canonical JSON at RunScope ArtifactRef(namespace
+    = resolved Agent Namespace, name = memory.n), media type
+    application/vnd.contractor.memory-note+json. Stored fields are exactly
+    schemaVersion=contractor.memory-note/v1, name, content, description, sorted
+    unique tags and uint64 ordinal. Timestamps are Artifact metadata rather than
+    payload bytes: created_at is binding_created_at and updated_at is the
+    current revision_created_at from the Server database clock.
+  validation: >-
+    Name is lowercase snake_case ASCII and at most 128 bytes; content is
+    non-empty UTF-8; description is at most 512 UTF-8 bytes; zero to three
+    unique lowercase tags match [a-z][a-z0-9_-]* and are at most 64 bytes each.
+    The complete canonical payload is at most 32 KiB. Model-facing projections
+    never contain ArtifactRef or revision.
+  boundary: >-
+    Do not create a Memory API, MemoryStore database, operation replay table or
+    migration. Go Planner code will use ArtifactStore directly and Python
+    Worker code will use the existing private allocation-bound Artifact API.
+
+scope:
+  in:
+    - Extend Artifact repository read/write results with immutable binding_created_at and exact revision_created_at from existing artifact_bindings/artifact_binding_revisions rows.
+    - Add X-Contractor-Binding-Created-At and X-Contractor-Revision-Created-At to existing private Artifact GET/PUT responses as strict nanosecond-capable RFC 3339 UTC-Z headers, and make Python ArtifactClient assemble both logical result fields; JSON bodies and routes do not change.
+    - Preserve all current Artifact CAS, ETag, mTLS, allocation grant, write-fence and response-body behavior.
+    - Add internal/memory Go models/codecs and runtime memory-domain Python models/codecs with the exact same validation, tag normalization, JCS bytes and full/preview projections.
+    - Add helpers for the reserved memory. artifact-name mapping and strict decode that verifies payload name matches the binding suffix.
+    - Add shared canonical valid/invalid fixtures including UTF-8 byte bounds, duplicate tags, maximum payload and malformed/corrupt stored notes.
+  out:
+    - Toolset factories, Planner tools, note listing/mutation behavior, quota orchestration, private endpoints, SQL migrations, deletion, links, skills/inbox or semantic search.
+
+deliverables:
+  - {path: internal/artifacts, description: Binding/revision timestamp projection on existing read/write operations.}
+  - {path: internal/httpapi/privateartifacts, description: Timestamp metadata on existing private GET/PUT responses only.}
+  - {path: internal/memory, description: Go canonical note codec and logical projections.}
+  - {path: runtime/src/contractor_runtime/memory.py, description: Python parity codec and projections independent of ADK.}
+  - {path: testdata/memory, description: Cross-language canonical and malformed fixtures.}
+  - {path: Makefile, description: Cross-language memory-contract parity target.}
+
+requirements:
+  - id: R1
+    text: ArtifactRef identity and write preconditions do not change; timestamps are Server-owned response metadata and can never be supplied on write.
+  - id: R2
+    text: Existing private Artifact routes remain the only Worker storage boundary and continue to serialize writes atomically with the allocation write fence.
+  - id: R3
+    text: Equivalent valid logical notes encode to identical canonical bytes in Go and Python, including lexical tag normalization.
+  - id: R4
+    text: Codecs never log or include content, description or tags in validation errors.
+
+acceptance_criteria:
+  - id: A1
+    given: A binding with multiple immutable revisions.
+    when: Current, exact historical and successful write results are read through Go and Python clients.
+    then: binding_created_at remains fixed, revision_created_at identifies the returned revision, ETag behavior is unchanged and both clocks originate in PostgreSQL.
+  - id: A2
+    given: Equivalent note input with reordered/duplicate tags.
+    when: Go and Python normalize and encode it.
+    then: Both produce byte-identical RFC 8785 JSON with no timestamps or revision fields.
+  - id: A3
+    given: Invalid names/tags/UTF-8, mismatched binding suffix or a payload over 32 KiB.
+    when: Either codec validates it.
+    then: It fails with the same bounded reason class before any Artifact write and leaks none of the supplied note text.
+  - id: A4
+    given: Existing Artifact API and cross-language fixtures.
+    when: The change is applied.
+    then: All old read/write/list/CAS/fence tests still pass and no Memory-specific route or persistence object exists.
+
+tests:
+  - {name: go-memory-codec, command: "go test ./internal/memory/... ./internal/artifacts/... ./internal/httpapi/privateartifacts/...", covers: [A1, A2, A3, A4]}
+  - {name: python-memory-codec, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_memory.py", covers: [A1, A2, A3, A4]}
+  - {name: parity, command: "make test-memory-contracts", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

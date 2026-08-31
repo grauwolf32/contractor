@@ -12,7 +12,8 @@ The current working agreement is split across the documents indexed in
 - [Execution lifecycle and metrics](04-execution-lifecycle-and-metrics.md);
 - [First slice and open decisions](05-first-slice-and-open-decisions.md);
 - [Server UI and Operations](06-server-ui-and-operations.md);
-- [Runtime labels and infrastructure configuration](07-runtime-labels-and-infrastructure-config.md).
+- [Runtime labels and infrastructure configuration](07-runtime-labels-and-infrastructure-config.md);
+- [Shared MemoryTools](08-memory-tools.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

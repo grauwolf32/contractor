@@ -255,6 +255,12 @@ is never copied from model output. No raw ADK State snapshot, prompt, hidden
 reasoning, arbitrary tool payload or physical Runtime Agent identity belongs in
 this projection.
 
+Planner MemoryTools calls use the StageExecution-bound capability defined in
+[08](08-memory-tools.md). A durable reduced fact may name the allowlisted
+operation, logical Worker, note name, byte sizes and stable outcome, but never
+note content, description, tags or Artifact revision. Memory is neither copied
+into the typed plan projection nor restored as ADK conversation state.
+
 Each committed reduced fact has a monotonically increasing sequence within its
 Planner session and also participates in the owning WorkflowRun's durable event
 sequence. The public Planner timeline uses only fixed fact kinds such as
@@ -452,6 +458,9 @@ RuntimeSettings remain absent. The owning pinning and merge contract is
 - Tool arguments are recursively redacted before leaving Worker and again at
   the Server persistence boundary. They are bounded and carry an explicit
   truncation marker.
+- MemoryTools applies a stricter projection: content, description and tags are
+  always dropped rather than merely truncated. Only operation, logical Worker
+  when applicable, note name, byte sizes, outcome and duration may remain.
 - RuntimeSettings tokens and other known deployment secrets are always removed,
   even if a tool argument or error accidentally contains them.
 - Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by
@@ -641,3 +650,7 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
     inside RuntimeSettings under [07], holds it in memory and erases it during
     release.
 11. Allocations are released only after StageExecution is terminal.
+12. Worker MemoryTools mutations use the ordinary Artifact write fence;
+    Planner memory calls finish synchronously before candidate transition.
+    Neither side's memory content enters durable session facts or execution
+    telemetry.

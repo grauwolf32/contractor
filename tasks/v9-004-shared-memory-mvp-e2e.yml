@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V9-004
+title: Prove shared Planner and Worker memory in a process MVP
+milestone: shared-memory-tools
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V9-003]
+languages: [go, python, yaml]
+
+goal: >-
+  Run real Streamline and Router workflows through Go Server, PostgreSQL and
+  Python Runtime Agents and prove that explicitly selected artifact-backed
+  notes coordinate Planner and logical Workers without leaking storage details.
+
+context:
+  topology: >-
+    Use the production Go Scheduler/Planner/ArtifactStore/private Artifact API,
+    PostgreSQL and two real single-slot Python Runtime Agent processes. A local
+    deterministic OpenAI-compatible fake may replace only the external LLM.
+  scripted_behavior: >-
+    Streamline Planner writes a note, dispatches its Worker, the Worker reads
+    and appends it, then Planner reads the update and finishes. Router uses two
+    distinct Agent Namespaces and per-operation allowlists, dispatching both
+    logical Workers without either seeing the other's notes unless Planner
+    explicitly selects that worker_name view.
+
+scope:
+  in:
+    - Add immutable demo/test AgentTemplates and instructions selecting exact memory-tools@1 subsets; do not mutate existing config identities in place.
+    - Add a bounded test Workflow that reuses one Agent Namespace in a later Stage to prove intentional same-Run continuation.
+    - Script valid ADK Planner/Worker tool calls through the existing fake Gateway and real A2A/private Artifact transports.
+    - Assert Run retry or configured escalation retains the same namespace notes while a second Run starts empty.
+    - Inspect underlying Run artifacts to prove one note per memory.<name>, immutable revisions and Server timestamp metadata while every model-visible result omits refs/revisions.
+    - Add the deterministic process scenario to the standard non-live-model verification target.
+  out:
+    - Browser note editor, user-scoped memory, real external model quality, parallel Stage execution, delete/eviction, links or semantic search.
+
+deliverables:
+  - {path: configs/agent-templates, description: New immutable memory-enabled demo AgentTemplates.}
+  - {path: configs/workflows, description: New bounded shared-memory demo Workflow.}
+  - {path: configs/instructions, description: Planner/Worker guidance for deliberate note usage.}
+  - {path: tests/e2e, description: Real process Streamline Router retry Namespace and cross-Run memory scenario.}
+  - {path: Makefile, description: Deterministic shared-memory MVP gate.}
+
+requirements:
+  - id: R1
+    text: The scenario may fake the LLM only; it may not replace Planner construction, Toolset selection, Runtime capability matching, A2A, private Artifact API, CAS or PostgreSQL.
+  - id: R2
+    text: Every scripted model call uses only its actual advertised JSON Schema and all budgets/deadlines remain finite.
+  - id: R3
+    text: Existing OpenAPI/LikeC4 Workflow identities and AgentTemplates remain byte/digest stable.
+
+acceptance_criteria:
+  - id: A1
+    given: The Streamline scenario.
+    when: Planner and Worker alternate memory calls around one real A2A dispatch.
+    then: They observe one shared note with stable ordinal/created_at, updated content/updated_at and no model-visible Artifact revision.
+  - id: A2
+    given: Router Workers with different exact operation subsets and Namespaces.
+    when: Planner builds schemas and routes memory calls/dispatches.
+    then: Each operation accepts only allowed logical worker_name values, notes remain separated and no physical Runtime identity enters model context.
+  - id: A3
+    given: A same-Run later Stage/retry and a newly created Run.
+    when: Each lists the logical namespace.
+    then: Intentional same-Run reuse sees existing notes while the new Run has an empty Memory Namespace.
+  - id: A4
+    given: Both workflows finish and allocations release.
+    when: PostgreSQL artifacts, reports, Planner events and fake-Gateway transcripts are inspected.
+    then: Note artifacts/revisions are correct, model outputs contain no refs/revisions and retained telemetry contains no content/description/tags.
+
+tests:
+  - {name: process-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-e2e", covers: [A1, A2, A3, A4]}
+  - {name: config, command: "go test ./internal/config/... ./internal/workflow/...", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

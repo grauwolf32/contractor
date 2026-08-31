@@ -367,6 +367,15 @@ to see. For example, selecting only `list_artifacts` and `read_artifact`
 creates a model-visible read-only artifact interface; omitting
 `run-artifacts@1` exposes no generic Artifact tools.
 
+`memory-tools@1` is the built-in shared-note Toolset. It exports exactly
+`list_memories`, `read_memory`, `write_memory`, `append_memory`,
+`search_memory` and `list_memory_tags`. An AgentTemplate selects any exact
+non-empty subset in the same way as every other Toolset. Its Worker tools are
+bound to the allocation's resolved Agent Namespace; its model receives no Run,
+Namespace, ArtifactRef or revision argument. Model-backed Planner mirroring,
+the Router `worker_name` schema, note limits and the artifact wrapper are owned
+solely by [08](08-memory-tools.md).
+
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
 Server-side grant, bypass the `outputs` Namespace reservation or cross the

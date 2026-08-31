@@ -405,8 +405,9 @@ container, filesystem-permission or network security boundary.
 
 Control Plane includes a resolved `RuntimeSettings` snapshot in every
 AllocationSpec. It may contain the selected LLM Gateway URL and optional token,
-the Server Artifact API endpoint, timeouts, limits and typed telemetry/HTTP
-proxy adapter settings. Gateway values come either from the WorkflowRun's
+the Server private Artifact API endpoint, timeouts, limits and typed
+telemetry/HTTP proxy adapter settings. Gateway values come either from the
+WorkflowRun's
 immutable `ResolvedExecutionConfig` or from a higher-precedence Run/Agent label
 layer that completes or overrides its physical Worker route. Runtime Agent does
 not resolve these values from AgentTemplate, label strings, local Worker
@@ -429,7 +430,8 @@ error path; silently replacing the active settings snapshot is not allowed.
 Runtime Agent applies Worker proxy and telemetry settings only through
 allocation-owned adapter objects. It does not mutate process-global proxy
 environment or trust stores, and registration, heartbeat, control, A2A and
-Artifact API traffic always bypasses the Worker proxy. Finalization/abort closes
+Artifact API traffic always bypasses the Worker proxy. MemoryTools uses that
+same Artifact client and adds no proxied endpoint. Finalization/abort closes
 adapters after a bounded best-effort telemetry flush; release idempotently
 ensures they remain closed and erases their retained settings secrets.
 

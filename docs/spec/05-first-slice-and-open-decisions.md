@@ -5,7 +5,8 @@ Status: **Working agreement**
 Depends on: [00](00-workflow-and-planner.md) through
 [04](04-execution-lifecycle-and-metrics.md),
 [06](06-server-ui-and-operations.md) and
-[07](07-runtime-labels-and-infrastructure-config.md)
+[07](07-runtime-labels-and-infrastructure-config.md), plus the later
+shared-memory increment in [08](08-memory-tools.md)
 
 ## First implementation slice
 
@@ -188,9 +189,11 @@ This slice must demonstrate:
 - `streamline@1` and `router@1` pin Google ADK Go v1.6.0 behind the existing
   Planner interface and share the bounded subtask-plan and validated
   `finish(StageResult)` operation;
-- Streamline exposes exactly `execute_current_subtask(subtask_id)`, while Router
-  exposes exactly `execute_current_subtask(subtask_id, worker_name)` with
-  `worker_name` constrained to the immutable Stage binding keys;
+- Streamline's dispatch function is exactly
+  `execute_current_subtask(subtask_id)`, while Router's is exactly
+  `execute_current_subtask(subtask_id, worker_name)` with `worker_name`
+  constrained to the immutable Stage binding keys; explicitly selected
+  MemoryTools may add only the surface derived by [08](08-memory-tools.md);
 - Router's system instruction is deterministically augmented with every logical
   binding's name and purpose from the resolved immutable
   `AgentTemplate.description`, never placement or credential information;
@@ -325,6 +328,30 @@ Workflow graph, Planner/Worker or artifact semantics. It must demonstrate:
   adapter placement, secret redaction, bounded exporter failure and complete
   release/slot reuse.
 
+## Shared-memory increment
+
+The shared-memory increment adds a bounded artifact-backed notebook without
+changing Stage or Planner ownership. It must demonstrate:
+
+- `memory-tools@1` is selected through an AgentTemplate's exact operation
+  allowlist and Runtime capability placement like any other Toolset;
+- one logical note is one canonical RunScope artifact under the reserved
+  `memory.` prefix, while generic model-visible Artifact tools cannot observe
+  or mutate that prefix;
+- Streamline Planner and its Worker share one `(Run, Agent Namespace)` view;
+  Router receives per-operation `worker_name` enums and cannot access an
+  unselected Worker's operation;
+- retry, escalation and an intentional later-Stage Namespace reuse observe the
+  same Run notes, while another Run observes none;
+- the serialized `v1` call model enforces the 128-note count and unique creation
+  ordinal, hidden Artifact CAS reports `memory_changed`, and canonical-payload
+  reconciliation cannot duplicate an append after response loss;
+- the durable Artifact fence rejects late Worker mutations, Planner call
+  ordering prevents a late Planner mutation, and all retained reports, events,
+  logs and telemetry exclude content, description and tags;
+- a process-level test covers one Streamline Worker, two Router Workers,
+  response loss, same-binding CAS conflict, quota and terminal release.
+
 ## Deliberately deferred
 
 The following decisions remain open; no legacy document defines them
@@ -335,7 +362,8 @@ implicitly:
 - exact count, name-length, value-length and total-size limits for string Run
   parameters;
 - exact maximum size for a resolved UTF-8 instruction resource;
-- Planner artifact authority and whether it receives domain toolsets;
+- Planner authority for generic artifacts and domain Toolsets other than the
+  explicitly specified MemoryTools mirror;
 - optional incremental Worker metric delivery for retaining detail across a
   hard process crash;
 - S3 blob backend, streaming uploads, and longer-term Artifact retention;
@@ -365,7 +393,9 @@ slice implementation needs it.
 - concurrent Tasks inside one Worker allocation;
 - resuming a Planner invocation from its persisted ADK Session or private plan;
 - artifact change subscriptions or semantic merge service;
-- dynamic or concurrent Streamline/Router Worker expansion.
+- dynamic or concurrent Streamline/Router Worker expansion;
+- cross-Run/user-scoped memory, automatic note injection, semantic retrieval,
+  deletion or automatic eviction.
 
 ## Exit question
 
@@ -380,3 +410,9 @@ Agent labels executes a `debug`/`caido` Run from typed pinned settings, an
 Agent-specific label overrides the next allocation without changing semantic
 policy, a live allocation keeps its old snapshot across rebind, and all
 adapters release without exposing or retaining secrets.
+
+The shared-memory increment is successful when Planner and corresponding
+Worker coordinate through bounded notes without seeing revisions, Router
+cannot cross a logical Worker's selected surface, Artifact CAS reconciliation
+cannot duplicate an append, and a new Run starts with an empty Memory
+Namespace.

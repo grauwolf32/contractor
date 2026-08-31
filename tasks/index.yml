@@ -55,6 +55,13 @@ fixed_decisions:
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
+  memory:
+    scope: One Run plus one resolved Agent Namespace
+    storage: One canonical memory.<name> RunScope artifact per logical note
+    transport: Existing ArtifactStore service and private allocation Artifact API only
+    toolset: >-
+      memory-tools@1 exports exactly list, read, write, append, any-tag search
+      and tag-list operations selected through each AgentTemplate allowlist.
   deployment:
     topology: >-
       One VM, one Server process, PostgreSQL, and one or more single-slot
@@ -142,6 +149,13 @@ milestones:
       into exact allocation-scoped LLM, OTLP and HTTP-proxy settings; complete
       capability placement, APIs/UI, Planner telemetry, mTLS principal binding
       and deterministic failure-path gates preserve secrets and slot reuse.
+  - id: shared-memory-tools
+    exit_task: V9-005
+    outcome: >-
+      Streamline and Router Planners coordinate with their corresponding
+      logical Workers through explicitly selected bounded Run-scoped notes over
+      the existing ArtifactStore, with hidden revisions, safe response-loss
+      reconciliation, exact routing schemas and content-free telemetry.
 
 current_checkpoint:
   completed_through: V8-002
@@ -211,6 +225,57 @@ current_planning_review:
       The first implementation remains one active Control Plane and uses labels
       neither for RBAC nor arbitrary scheduling affinity. HTTP proxy injection
       covers declared model/tool channels, not a general network sandbox.
+
+memory_tools_planning_review:
+  reviewed_on: "2026-09-01"
+  verdict: ready_after_label_runtime_p0
+  checks:
+    - >-
+      The design adds no Memory service, endpoint, credential, SQL table or
+      replay log. Planner uses a bound ArtifactStore view and Worker uses the
+      existing allocation-bound private Artifact API with its current mTLS,
+      Run isolation, ETag CAS and atomic write fence.
+    - >-
+      One note remains one canonical memory.<name> artifact. Binding/revision
+      timestamps are a small generic Artifact response enhancement; logical
+      models and tool schemas never expose ArtifactRef or revision.
+    - >-
+      V9-001 starts after the label-runtime P0 process gate V8-013, so the
+      MemoryTools MVP does not wait for label UI/Planner-telemetry hardening.
+      V9-005 joins V8-016 before the final adversarial release gate.
+    - >-
+      V9-001 owns only cross-language codec and Artifact metadata, V9-002 owns
+      Worker tools, V9-003 owns Planner mirroring, V9-004 is the first process
+      MVP and V9-005 owns response-loss/fence/redaction hardening.
+    - >-
+      The 128-note/max-ordinal rule relies only on already normative v1
+      serialization: one Planner tool call, at most one active dispatch, one
+      Runtime task and no concurrent Run Stages. Future different-name create
+      concurrency is explicitly gated on a generic Artifact batch-CAS feature.
+    - >-
+      Lost create/update/append responses reuse the exact bytes and stale
+      precondition, then compare current canonical payload. This is the existing
+      Artifact CAS contract and cannot duplicate append without a replay table.
+    - >-
+      Exact per-operation Router worker_name enums are derived from immutable
+      AgentTemplate selections, while Passthrough remains unchanged and no
+      unrelated Worker Toolset is mirrored into Planner.
+    - >-
+      Every task is self-contained, keeps implementation_commit null until its
+      implementation commit, and has focused deterministic tests plus an
+      aggregate verification gate.
+  accepted_risks:
+    - >-
+      There is no pagination because a Memory Namespace is capped at 128 notes;
+      list/search may read all bounded note payloads to build ordered previews.
+    - >-
+      Authenticated Run owners and operator diagnostics may inspect underlying
+      memory artifacts and revisions. The abstraction boundary is model-visible
+      tools, not an attempt to hide a user's own Run data from the user.
+    - >-
+      Concurrent different-name creates in one Memory Namespace are outside v1
+      scheduling. Enabling them requires generic ArtifactStore atomic batch/CAS
+      before changing Scheduler or Planner concurrency.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -375,3 +440,8 @@ tasks:
   - {id: V8-014, file: v8-014-planner-otlp-telemetry.yml}
   - {id: V8-015, file: v8-015-runtime-configuration-ui.yml}
   - {id: V8-016, file: v8-016-runtime-configuration-hardening-e2e.yml}
+  - {id: V9-001, file: v9-001-memory-codec-artifact-metadata.yml}
+  - {id: V9-002, file: v9-002-worker-memory-toolset.yml}
+  - {id: V9-003, file: v9-003-planner-memory-tools.yml}
+  - {id: V9-004, file: v9-004-shared-memory-mvp-e2e.yml}
+  - {id: V9-005, file: v9-005-shared-memory-hardening.yml}

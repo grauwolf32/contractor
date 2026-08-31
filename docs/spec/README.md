@@ -35,6 +35,7 @@ YAML document identity comes from
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
 | [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
 | [07](07-runtime-labels-and-infrastructure-config.md) | Run/Agent labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
+| [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -50,6 +51,7 @@ Workflow
   -> Control Plane resolves pinned default/Run labels plus Agent labels and prepares compatible Worker allocations
   -> PlannerFactory creates the selected Stage-local Planner
   -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
+  -> explicitly selected MemoryTools let Planner and each logical Worker share that Worker's Run-scoped notes
   -> all participants exchange durable data through RunArtifactSpace
   -> Planner returns one candidate StageResult
   -> Workflow Scheduler persists finalizing, drains Workers and collects reports
@@ -79,6 +81,7 @@ The boundaries are deliberately narrow:
 | Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |
 | Runtime adapter | Allocation-scoped Runtime code configured by Control Plane without adding model-visible tools |
 | ArtifactStore | One physical artifact service, registry and blob boundary |
+| MemoryTools | Thin Planner/Worker wrapper over reserved RunScope note artifacts; hidden CAS and logical note projection |
 | UserScope | Authenticated user's durable artifact library |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 

@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V9-002
+title: Implement the Worker memory-tools@1 Toolset
+milestone: shared-memory-tools
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V9-001]
+languages: [go, python]
+
+goal: >-
+  Give an allocated Python Worker the six explicitly selected MemoryTools over
+  its existing ArtifactClient while keeping scope, ArtifactRef and revision out
+  of every model schema.
+
+context:
+  tool_surface: >-
+    memory-tools@1 exports exactly list_memories(), read_memory(name),
+    write_memory(name, content, description="", tags=[]), append_memory(name,
+    content), search_memory(tags) and list_memory_tags(). List/search return
+    previews without content; read/write/append return full notes. Search is an
+    OR over one to three tags. List/search order is updated_at DESC then ordinal
+    DESC and tag list is unique lexical order.
+  persistence: >-
+    The factory receives the allocation-fixed Agent Namespace and existing
+    private ArtifactClient. It reads/writes memory.<name> canonical artifacts
+    with hidden ETag CAS. It adds no Memory endpoint, token, database or
+    RuntimeSettings field. Create scans current memory artifacts: limit is 128,
+    first ordinal is 0 and later ordinal is max+1. There is no delete/eviction.
+  response_loss: >-
+    A mutation computes one canonical next payload and retries only those same
+    bytes with the same precondition. On conflict after transport uncertainty,
+    exact current-payload equality means success; any other current value
+    returns memory_changed. append_memory must never append its fragment twice.
+
+scope:
+  in:
+    - Register the exact memory-tools@1 descriptor and six exported names in the Go AgentTemplate catalog and Python ToolsetFactory registry.
+    - Probe the local factory without network I/O and advertise the exact usable operation set in the immutable Runtime capability snapshot.
+    - Build only the AgentTemplate-selected subset and bind it to allocation Run/Namespace through the existing ArtifactClient.
+    - Implement strict logical operations, preview/full results, timestamp projection, 32-KiB payload and 128-note bounds using the V9-001 codec.
+    - Serialize MemoryTools calls within one Worker allocation and use hidden If-None-Match/If-Match CAS plus canonical response-loss reconciliation.
+    - Make run-artifacts@1 filter memory.* from list and reject direct model reads/writes of that prefix without changing the lower-level Artifact API.
+    - Emit bounded content-free metrics containing only operation, note name, sizes, outcome and duration; never retain content, description or tags.
+  out:
+    - Planner tools, Router worker_name, new HTTP routes, SQL migrations, cross-Run memory, delete, links, skills/inbox, pagination or embedding search.
+
+deliverables:
+  - {path: internal/config, description: Exact Server Toolset descriptor and selection validation.}
+  - {path: runtime/src/contractor_runtime/toolsets/memory.py, description: Six ADK-compatible bound Worker tools.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Model-layer memory-prefix exclusion.}
+  - {path: runtime/src/contractor_runtime/capabilities.py, description: Probe and immutable memory-tools@1 capability advertisement.}
+  - {path: runtime/tests/test_memory_toolset.py, description: Tool schemas behavior CAS replay quota ordering and redaction tests.}
+
+requirements:
+  - id: R1
+    text: A model schema contains only the documented logical arguments; framework context, Run, Namespace, ArtifactRef, revision and expected_revision are adapter-owned.
+  - id: R2
+    text: Tool selection controls construction exactly; an unselected operation is absent and an allocation on a Runtime lacking it fails placement/preparation normally.
+  - id: R3
+    text: Low-level Artifact calls retain ordinary allocation mTLS/grant/fence behavior and always bypass Runtime HTTP proxy settings.
+  - id: R4
+    text: Memory content, description and tags are absent from Runtime State metrics, reports, logs and exception strings.
+
+acceptance_criteria:
+  - id: A1
+    given: An AgentTemplate selects only list_memories, read_memory and search_memory.
+    when: Runtime constructs the Worker.
+    then: Exactly those three model tools exist with no hidden storage argument and capability placement requires only those operations.
+  - id: A2
+    given: A sequence of writes, replacement, append and tag searches in one allocation.
+    when: The tools execute.
+    then: Full/preview shapes, stable created_at/ordinal, advancing updated_at, sorted results and replacement/append metadata semantics are exact.
+  - id: A3
+    given: A successful create or append whose private Artifact response is lost.
+    when: ArtifactClient retries/reconciles.
+    then: One immutable semantic mutation exists, the append fragment occurs once and a different newer current payload returns memory_changed.
+  - id: A4
+    given: 128 notes plus an attempted new note and an update to an existing note.
+    when: Both operations execute serially.
+    then: Create returns memory_namespace_full without eviction while the existing update succeeds and ordering remains deterministic.
+  - id: A5
+    given: run-artifacts@1 and memory-tools@1 are both selected.
+    when: The model lists or addresses memory.repo_overview through generic tools.
+    then: Generic list hides it and generic read/write rejects it, while MemoryTools can access it through the same low-level client.
+
+tests:
+  - {name: server-descriptor, command: "go test ./internal/config/... ./internal/controlplane/...", covers: [A1]}
+  - {name: runtime-tools, command: "cd runtime && uv run pytest tests/test_memory.py tests/test_memory_toolset.py tests/test_run_artifacts_toolset.py tests/test_capabilities.py", covers: [A1, A2, A3, A4, A5]}
+  - {name: runtime-race, command: "cd runtime && uv run pytest tests/test_memory_toolset.py -k 'response_loss or serialized'", covers: [A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}
