@@ -106,17 +106,17 @@ milestones:
       Planner progress and manage active LLM configuration and credentials.
 
 current_checkpoint:
-  completed_through: V4-009A
-  next_task: V4-009B
+  completed_through: V4-009B
+  next_task: V4-010
   summary: >-
-    The independent React UI now lists exact published Workflow versions,
-    renders their immutable Stage and escalation contracts, binds declared
-    string parameters and exact UserScope Artifact revisions, and selects only
-    published execution overrides. Run creation uses a canonical draft-bound
-    idempotency key, performs no optimistic insertion, and navigates only after
-    the Go Server returns an authoritative 202 and Run ID. V4-009B next adds
-    authoritative Run list/detail, cancellation, reconnecting live events and
-    typed Planner progress.
+    The independent React UI now provides paginated authoritative Run history,
+    exact Run detail and cancellation, ordered Stage attempts and Scheduler
+    decisions, resolved configuration, safe metrics, frozen outputs, and
+    RunScope Artifact inspection. One multiplexed contractor.events.v1 socket
+    advances only closed typed Planner projections in exact cursor order;
+    lifecycle changes and every continuity failure reconcile through REST.
+    V4-010 next adds observational Runtime Agent/allocation Operations views
+    and create-only LLM configuration and credential management.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

@@ -3,8 +3,8 @@ id: V4-009B
 title: Implement authoritative live Run inspection UI
 milestone: server-ui-and-operations
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 8d0cd58fb8f4673ac289b53eed108ec115017d9e
 depends_on: [V4-007, V4-009A]
 languages: [typescript, css]
 
