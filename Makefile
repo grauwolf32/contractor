@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-runtime-wire-v2 test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -22,6 +22,10 @@ test-runtime-hardening:
 test-contracts:
 	go test ./internal/contracts/...
 	cd runtime && uv run pytest tests/test_contracts.py
+
+test-runtime-wire-v2:
+	go test ./internal/contracts/... ./internal/controlplane/...
+	cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py tests/test_settings.py tests/test_state.py
 
 test-config:
 	go test ./internal/config/...

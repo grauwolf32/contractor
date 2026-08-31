@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import math
 import re
+import ssl
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from urllib.parse import urlsplit
 
+import jcs
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
     SecretStr,
+    ValidationError,
     field_serializer,
     field_validator,
     model_validator,
@@ -775,3 +780,407 @@ def _validate_media_type(value: str) -> None:
         or any(char in value for char in "; ")
     ):
         raise ValueError("mediaType must be lowercase type/subtype without parameters")
+
+
+# Private Runtime protocol v2 is intentionally separate from the active v1
+# DTOs above. V8-004 switches both peers atomically after durable principal
+# state exists; importing these models alone cannot activate v2 behavior.
+PRIVATE_PROTOCOL_VERSION_V2 = 2
+RUNTIME_ADAPTER_REFS = frozenset({"http-proxy@1", "otlp-http@1"})
+RUNTIME_CREDENTIAL_KINDS = frozenset(
+    {"http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"}
+)
+PROXY_TARGETS = frozenset({"llm-gateway", "tool-http", "tool-subprocess"})
+_RUNTIME_AGENT_ID_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_RUNTIME_ADAPTER_ERROR_CODES = frozenset(
+    {
+        "close_failed",
+        "delivery_failed",
+        "flush_failed",
+        "flush_timeout",
+        "queue_overflow",
+        "request_failed",
+    }
+)
+_CERTIFICATE_PATTERN = re.compile(
+    r"-----BEGIN CERTIFICATE-----\s+.+?\s+-----END CERTIFICATE-----", re.DOTALL
+)
+_FORBIDDEN_RUNTIME_HEADERS = frozenset(
+    {
+        "connection",
+        "content-length",
+        "host",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    }
+)
+
+
+class PrivateProtocolDecodeError(ValueError):
+    """Bounded private-wire failure whose rendering never includes input."""
+
+    def __init__(self, reason: Literal["version", "duplicate_key", "schema", "invariant"]):
+        self.reason = reason
+        super().__init__(f"private protocol v2 {reason} error")
+
+
+def _require_runtime_adapter_ref(value: str) -> str:
+    if value not in RUNTIME_ADAPTER_REFS:
+        raise ValueError("unknown RuntimeAdapter ref")
+    return value
+
+
+RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]
+RuntimeCredentialKind = Literal["http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"]
+HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
+
+
+def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> None:
+    if len(values) > maximum or values != sorted(set(values)):
+        raise ValueError(f"{field} must be sorted, unique, and contain at most {maximum} items")
+
+
+def _require_runtime_label(field: str, value: str) -> str:
+    if (
+        len(value.encode("ascii", errors="ignore")) != len(value)
+        or not 1 <= len(value) <= 63
+        or ID_PATTERN.fullmatch(value) is None
+        or value == "default"
+    ):
+        raise ValueError(f"{field} contains an invalid Runtime label")
+    return value
+
+
+def _require_runtime_endpoint(field: str, value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        value != value.strip()
+        or not 1 <= len(value.encode("utf-8")) <= 2048
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or "?" in value
+        or "#" in value
+    ):
+        raise ValueError(
+            f"{field} must be a bounded absolute HTTP(S) URL without userinfo, query, or fragment"
+        )
+    return value
+
+
+class AgentRegistrationV2(AgentRegistration):
+    private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
+    initial_labels: list[str] = Field(max_length=32)
+    supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
+
+    @model_validator(mode="after")
+    def validate_v2_registration(self) -> Self:
+        if len(self.supported_runtimes) > 128 or len(self.supported_toolsets) > 128:
+            raise ValueError("Runtime capability collection exceeds its bound")
+        if len(self.supported_sandbox_profiles) > 128:
+            raise ValueError("Runtime capability collection exceeds its bound")
+        for label in self.initial_labels:
+            _require_runtime_label("initialLabels", label)
+        _require_sorted_unique("initialLabels", self.initial_labels, maximum=32)
+        _require_sorted_unique(
+            "supportedRuntimeAdapters", self.supported_runtime_adapters, maximum=64
+        )
+        return self
+
+
+class AgentRegistrationResponseV2(AgentRegistrationResponse):
+    private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
+    runtime_agent_id: str = Field(pattern=_RUNTIME_AGENT_ID_PATTERN.pattern)
+    labels: list[str] = Field(max_length=32)
+    label_revision: int = Field(gt=0, le=2**64 - 1)
+
+    @model_validator(mode="after")
+    def validate_v2_response(self) -> Self:
+        for label in self.labels:
+            _require_runtime_label("labels", label)
+        _require_sorted_unique("labels", self.labels, maximum=32)
+        return self
+
+
+class TelemetrySettingsV2(WireModel):
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    headers: dict[str, SecretStr]
+    capture_content: bool
+    flush_timeout_seconds: int = Field(ge=1, le=10)
+
+    @model_validator(mode="after")
+    def validate_telemetry(self) -> Self:
+        if self.adapter != "otlp-http@1":
+            raise ValueError("telemetry adapter must be otlp-http@1")
+        _require_runtime_endpoint("telemetry.endpoint", self.endpoint)
+        if len(self.headers) > 32:
+            raise ValueError("telemetry headers exceed 32 entries")
+        total = 0
+        for name, wrapped in self.headers.items():
+            value = wrapped.get_secret_value()
+            if (
+                not 1 <= len(name) <= 64
+                or _HEADER_NAME_PATTERN.fullmatch(name) is None
+                or name.lower() in _FORBIDDEN_RUNTIME_HEADERS
+                or "\r" in name
+                or "\n" in name
+            ):
+                raise ValueError("telemetry header name is invalid")
+            if not 1 <= len(value.encode("utf-8")) <= 4096 or "\r" in value or "\n" in value:
+                raise ValueError("telemetry header value is invalid")
+            total += len(value.encode("utf-8"))
+        if total > 16 * 1024:
+            raise ValueError("telemetry header values exceed 16 KiB")
+        if self.capture_content:
+            raise ValueError("telemetry captureContent must be false")
+        return self
+
+    @field_serializer("headers", when_used="json")
+    def serialize_headers(self, value: dict[str, SecretStr]) -> dict[str, str]:
+        return {name: secret.get_secret_value() for name, secret in value.items()}
+
+
+class HTTPProxyBasicAuthV2(WireModel):
+    username: SecretStr
+    password: SecretStr
+
+    @model_validator(mode="after")
+    def validate_auth(self) -> Self:
+        username = self.username.get_secret_value()
+        password = self.password.get_secret_value()
+        if not 1 <= len(username.encode("utf-8")) <= 256:
+            raise ValueError("HTTP proxy username is outside its size bound")
+        if not 1 <= len(password.encode("utf-8")) <= 8192:
+            raise ValueError("HTTP proxy password is outside its size bound")
+        return self
+
+    @field_serializer("username", "password", when_used="json")
+    def serialize_secret(self, value: SecretStr) -> str:
+        return value.get_secret_value()
+
+
+class HTTPProxySettingsV2(WireModel):
+    adapter: RuntimeAdapterRef
+    proxy_url: str
+    basic_auth: HTTPProxyBasicAuthV2 | None = None
+    bearer_token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    targets: list[HTTPProxyTarget] = Field(min_length=1, max_length=3)
+
+    @model_validator(mode="after")
+    def validate_proxy(self) -> Self:
+        if self.adapter != "http-proxy@1":
+            raise ValueError("HTTP proxy adapter must be http-proxy@1")
+        _require_runtime_endpoint("httpProxy.proxyUrl", self.proxy_url)
+        if self.basic_auth is not None and self.bearer_token is not None:
+            raise ValueError("HTTP proxy basicAuth and bearerToken are mutually exclusive")
+        if self.bearer_token is not None:
+            token = self.bearer_token.get_secret_value()
+            if not 1 <= len(token.encode("utf-8")) <= 8192:
+                raise ValueError("HTTP proxy bearerToken is outside its size bound")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle(self.ca_bundle_pem)
+        _require_sorted_unique("httpProxy.targets", self.targets, maximum=3)
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class RuntimeSettingsV2(WireModel):
+    llm_gateway_url: str
+    llm_gateway_token: SecretStr | None = None
+    artifact_api_url: str
+    telemetry: TelemetrySettingsV2 | None = None
+    http_proxy: HTTPProxySettingsV2 | None = None
+    request_timeout_seconds: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_settings(self) -> Self:
+        _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
+        if len(self.artifact_api_url.encode("utf-8")) > 2048:
+            raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
+        _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)
+        return self
+
+    @field_serializer("llm_gateway_token", when_used="json")
+    def serialize_token(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class RuntimeConfigRefV2(WireModel):
+    name: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        if not 1 <= len(self.name) <= 63:
+            raise ValueError("RuntimeConfig ref name is invalid")
+        _require_selector("RuntimeConfig ref", f"{self.name}@{self.version}")
+        if len(self.version) > 128:
+            raise ValueError("RuntimeConfig ref version is invalid")
+        _require_digest("RuntimeConfig ref digest", self.digest)
+        return self
+
+
+class RuntimeLabelBindingProvenanceV2(WireModel):
+    label: str
+    binding_revision: int = Field(gt=0, le=2**64 - 1)
+    config: RuntimeConfigRefV2
+
+
+class RuntimeCredentialRefV2(WireModel):
+    credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
+    kind: RuntimeCredentialKind
+
+
+class LLMCredentialRefV2(WireModel):
+    credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
+
+
+class ResolvedRuntimeConfigProvenanceV2(WireModel):
+    default: RuntimeLabelBindingProvenanceV2
+    run_labels: list[RuntimeLabelBindingProvenanceV2] = Field(max_length=32)
+    agent_labels: list[RuntimeLabelBindingProvenanceV2] = Field(max_length=32)
+    runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
+    llm_gateway_config: LLMGatewayConfigRef | None = None
+    llm_credential: LLMCredentialRefV2 | None = None
+    runtime_credential_refs: list[RuntimeCredentialRefV2] = Field(max_length=64)
+
+    @model_validator(mode="after")
+    def validate_provenance(self) -> Self:
+        if self.default.label != "default":
+            raise ValueError("provenance default binding is invalid")
+        for field, values in (
+            ("runLabels", self.run_labels),
+            ("agentLabels", self.agent_labels),
+        ):
+            for value in values:
+                _require_runtime_label(field, value.label)
+            _require_sorted_unique(field, [value.label for value in values], maximum=32)
+        _require_sorted_unique("runtimeAdapters", self.runtime_adapters, maximum=64)
+        if self.llm_credential is not None and self.llm_gateway_config is None:
+            raise ValueError("LLM credential provenance requires a Gateway config ref")
+        credential_keys = [
+            f"{value.kind}\0{value.credential_id}" for value in self.runtime_credential_refs
+        ]
+        _require_sorted_unique("runtimeCredentialRefs", credential_keys, maximum=64)
+        return self
+
+
+class AllocationSpecV2(AllocationSpec):
+    runtime_settings: RuntimeSettingsV2
+    resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenanceV2
+
+
+class RuntimeAdapterMetricsV2(WireModel):
+    operations: int = Field(ge=0, le=2**64 - 1)
+    failed_operations: int = Field(ge=0, le=2**64 - 1)
+    flush_attempted: bool | None = None
+    flush_succeeded: bool | None = None
+    last_error_code: str | None = None
+
+    @model_validator(mode="after")
+    def validate_metrics(self) -> Self:
+        if self.failed_operations > self.operations:
+            raise ValueError("Runtime adapter failures exceed operations")
+        if (self.flush_attempted is None) != (self.flush_succeeded is None):
+            raise ValueError("Runtime adapter flush fields must be present together")
+        if self.flush_attempted is False and self.flush_succeeded:
+            raise ValueError("Runtime adapter flush cannot succeed when not attempted")
+        if (
+            self.last_error_code is not None
+            and self.last_error_code not in _RUNTIME_ADAPTER_ERROR_CODES
+        ):
+            raise ValueError("Runtime adapter lastErrorCode is invalid")
+        return self
+
+
+class RuntimeReportV2(RuntimeReport):
+    adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]
+
+    @field_validator("adapters")
+    @classmethod
+    def validate_adapters(
+        cls, value: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]
+    ) -> dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]:
+        if len(value) > 64:
+            raise ValueError("Runtime adapter metrics exceed 64 entries")
+        return value
+
+
+def decode_private_v2[PrivateModelT: WireModel](
+    model: type[PrivateModelT], raw: str | bytes
+) -> PrivateModelT:
+    """Decode one secret-bearing v2 document without reflecting input in errors."""
+
+    try:
+        value = json.loads(raw, object_pairs_hook=_unique_object)
+    except _DuplicateJSONKey:
+        raise PrivateProtocolDecodeError("duplicate_key") from None
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        raise PrivateProtocolDecodeError("schema") from None
+    if not isinstance(value, dict):
+        raise PrivateProtocolDecodeError("schema")
+    if (
+        issubclass(model, (AgentRegistrationV2, AgentRegistrationResponseV2))
+        and value.get("privateProtocolVersion") != PRIVATE_PROTOCOL_VERSION_V2
+    ):
+        raise PrivateProtocolDecodeError("version")
+    try:
+        # Keep Pydantic's strict JSON conversions (notably RFC 3339 strings to
+        # aware datetimes) after the duplicate-key pre-scan above.
+        return model.model_validate_json(raw)
+    except ValidationError as error:
+        reason: Literal["schema", "invariant"] = "invariant"
+        if any(item["type"] != "value_error" for item in error.errors(include_input=False)):
+            reason = "schema"
+        raise PrivateProtocolDecodeError(reason) from None
+
+
+def encode_private_v2(value: WireModel) -> bytes:
+    """Return RFC 8785 canonical private JSON; callers must not log it."""
+
+    dumped = value.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return jcs.canonicalize(dumped)
+
+
+class _DuplicateJSONKey(ValueError):
+    pass
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateJSONKey
+        result[key] = value
+    return result
+
+
+def _validate_ca_bundle(value: str) -> None:
+    if not 1 <= len(value.encode("utf-8")) <= 64 * 1024 or "PRIVATE KEY" in value:
+        raise ValueError("HTTP proxy CA bundle is invalid")
+    certificates = _CERTIFICATE_PATTERN.findall(value)
+    remainder = _CERTIFICATE_PATTERN.sub("", value)
+    if not 1 <= len(certificates) <= 8 or remainder.strip():
+        raise ValueError("HTTP proxy CA bundle is invalid")
+    try:
+        for certificate in certificates:
+            ssl.PEM_cert_to_DER_cert(certificate)
+    except ValueError:
+        raise ValueError("HTTP proxy CA bundle is invalid") from None

@@ -52,6 +52,35 @@ def test_idle_is_committed_only_after_registration_ack(
     asyncio.run(scenario())
 
 
+def test_v2_startup_inputs_remain_inert_until_protocol_activation() -> None:
+    async def scenario() -> None:
+        capabilities = CapabilitySnapshot.create(
+            runtimes=["adk@1"],
+            toolsets={},
+            sandbox_profiles=["local-workdir@1"],
+            runtime_adapters=["otlp-http@1"],
+        )
+        settings = make_settings()
+        settings = Settings(
+            control_plane_url=settings.control_plane_url,
+            advertised_control_url=settings.advertised_control_url,
+            advertised_a2a_url=settings.advertised_a2a_url,
+            ca_file=settings.ca_file,
+            certificate_file=settings.certificate_file,
+            private_key_file=settings.private_key_file,
+            initial_labels=("debug",),
+        )
+        registration = await RuntimeState(
+            instance_id="runtime-v1-until-v8-004", capabilities=capabilities
+        ).registration(settings)
+        wire = registration.model_dump(mode="json", by_alias=True)
+        assert "privateProtocolVersion" not in wire
+        assert "initialLabels" not in wire
+        assert "supportedRuntimeAdapters" not in wire
+
+    asyncio.run(scenario())
+
+
 def make_settings() -> Settings:
     placeholder = Path("/tmp/contractor-test-placeholder")
     return Settings(

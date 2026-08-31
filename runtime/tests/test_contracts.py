@@ -14,21 +14,54 @@ from contractor_runtime.contracts import (
     AgentHeartbeat,
     AgentRegistration,
     AgentRegistrationResponse,
+    AgentRegistrationResponseV2,
+    AgentRegistrationV2,
     AllocationFinalResponse,
     AllocationSpec,
+    AllocationSpecV2,
     ArtifactListResult,
     ArtifactReadResult,
     FinalizeAllocationRequest,
     HeartbeatResponse,
+    PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
     ResolvedLLMGatewayConfig,
+    ResolvedRuntimeConfigProvenanceV2,
+    RuntimeReportV2,
     RuntimeSettings,
+    RuntimeSettingsV2,
     StageContentRequest,
     StageContentResult,
+    decode_private_v2,
+    encode_private_v2,
 )
 from contractor_runtime.digests import GatewayDigestMismatch, verify_gateway_config_digest
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
+PRIVATE_V2_FIXTURES = Path(__file__).parents[2] / "testdata" / "contracts" / "private-v2"
+
+PRIVATE_V2_VALID_MODELS: dict[str, type[BaseModel]] = {
+    "agent-registration.json": AgentRegistrationV2,
+    "agent-registration-response.json": AgentRegistrationResponseV2,
+    "runtime-settings-empty.json": RuntimeSettingsV2,
+    "runtime-settings-telemetry.json": RuntimeSettingsV2,
+    "runtime-settings-proxy.json": RuntimeSettingsV2,
+    "runtime-settings-combined.json": RuntimeSettingsV2,
+    "runtime-provenance.json": ResolvedRuntimeConfigProvenanceV2,
+    "runtime-report.json": RuntimeReportV2,
+}
+
+PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
+    "registration-versionless.json": (AgentRegistrationV2, "version"),
+    "registration-v1.json": (AgentRegistrationV2, "version"),
+    "registration-unsorted-labels.json": (AgentRegistrationV2, "invariant"),
+    "registration-unsorted-adapters.json": (AgentRegistrationV2, "invariant"),
+    "runtime-settings-duplicate-key.json": (RuntimeSettingsV2, "duplicate_key"),
+    "runtime-settings-unknown-adapter.json": (RuntimeSettingsV2, "invariant"),
+    "runtime-settings-two-proxy-auth.json": (RuntimeSettingsV2, "invariant"),
+    "runtime-settings-secret-error.json": (RuntimeSettingsV2, "invariant"),
+    "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenanceV2, "schema"),
+}
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration.json": AgentRegistration,
@@ -103,6 +136,52 @@ def test_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel
     raw = (FIXTURES / "invalid" / filename).read_text(encoding="utf-8")
     with pytest.raises(ValidationError):
         model.model_validate_json(raw)
+
+
+@pytest.mark.parametrize(("filename", "model"), PRIVATE_V2_VALID_MODELS.items())
+def test_private_v2_valid_fixture_is_shared_canonical_json(
+    filename: str, model: type[BaseModel]
+) -> None:
+    raw = (PRIVATE_V2_FIXTURES / "valid" / filename).read_bytes().strip()
+    value = decode_private_v2(model, raw)
+    assert encode_private_v2(value) == raw
+
+
+@pytest.mark.parametrize(("filename", "case"), PRIVATE_V2_INVALID_MODELS.items())
+def test_private_v2_invalid_fixture_has_safe_reason(
+    filename: str, case: tuple[type[BaseModel], str]
+) -> None:
+    model, reason = case
+    raw = (PRIVATE_V2_FIXTURES / "invalid" / filename).read_bytes()
+    with pytest.raises(PrivateProtocolDecodeError) as failure:
+        decode_private_v2(model, raw)
+    assert failure.value.reason == reason
+    rendered = f"{failure.value!s} {failure.value!r}"
+    for canary in (
+        "recognizable-secret-canary",
+        "recognizable-provenance-secret",
+        "proxy-password-canary",
+        "proxy-bearer-canary",
+        "unknown-secret-adapter",
+    ):
+        assert canary not in rendered
+
+
+def test_private_v2_allocation_composes_and_redacts_settings() -> None:
+    value = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    value["runtimeSettings"] = json.loads(
+        (PRIVATE_V2_FIXTURES / "valid" / "runtime-settings-combined.json").read_text()
+    )
+    value["resolvedRuntimeConfigProvenance"] = json.loads(
+        (PRIVATE_V2_FIXTURES / "valid" / "runtime-provenance.json").read_text()
+    )
+    allocation = decode_private_v2(AllocationSpecV2, json.dumps(value))
+    canonical = encode_private_v2(allocation)
+    decode_private_v2(AllocationSpecV2, canonical)
+    rendered = f"{allocation.runtime_settings!s} {allocation.runtime_settings!r}"
+    for secret in ("gateway-secret", "telemetry-secret", "proxy-bearer-secret"):
+        assert secret not in rendered
+        assert secret.encode() in canonical
 
 
 def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:

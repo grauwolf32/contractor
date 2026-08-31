@@ -88,16 +88,26 @@ class SandboxFactory(Protocol):
     async def cleanup(self, workspace: AllocationWorkspace) -> None: ...
 
 
+class RuntimeAdapterFactory(Protocol):
+    """Startup descriptor for one allocation-scoped infrastructure adapter."""
+
+    ref: str
+
+    async def probe(self) -> bool: ...
+
+
 @dataclass(frozen=True, slots=True)
 class FactoryRegistry:
     worker_runtimes: Mapping[str, WorkerRuntimeFactory]
     toolsets: Mapping[str, ToolsetFactory]
     sandbox_profiles: Mapping[str, SandboxFactory]
+    runtime_adapters: Mapping[str, RuntimeAdapterFactory] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
         _validate_registry("Toolset", self.toolsets)
         _validate_registry("SandboxProfile", self.sandbox_profiles)
+        _validate_registry("RuntimeAdapter", self.runtime_adapters, allow_empty=True)
 
 
 def built_in_factories(
@@ -122,6 +132,7 @@ def built_in_factories(
             text_toolset.ref: text_toolset,
         },
         sandbox_profiles={sandbox.ref: sandbox},
+        runtime_adapters={},
     )
 
 
@@ -166,8 +177,8 @@ class StubWorkerRuntime:
         self.stopped = True
 
 
-def _validate_registry(kind: str, entries: Mapping[str, Any]) -> None:
-    if not entries:
+def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bool = False) -> None:
+    if not entries and not allow_empty:
         raise ValueError(f"{kind} registry must not be empty")
     for ref, factory in entries.items():
         if ref != factory.ref:

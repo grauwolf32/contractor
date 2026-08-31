@@ -7,7 +7,7 @@ import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-from contractor_runtime.contracts import ToolsetCapability
+from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ class CapabilitySnapshot:
     runtimes: tuple[str, ...]
     toolsets: tuple[ToolsetCapabilitySnapshot, ...]
     sandbox_profiles: tuple[str, ...]
+    runtime_adapters: tuple[str, ...] = ()
 
     @classmethod
     def create(
@@ -41,9 +42,15 @@ class CapabilitySnapshot:
         runtimes: Iterable[str],
         toolsets: Mapping[str, Iterable[str]],
         sandbox_profiles: Iterable[str],
+        runtime_adapters: Iterable[str] = (),
     ) -> CapabilitySnapshot:
         normalized_runtimes = tuple(sorted(set(runtimes)))
         normalized_sandboxes = tuple(sorted(set(sandbox_profiles)))
+        normalized_adapters = tuple(sorted(set(runtime_adapters)))
+        if len(normalized_adapters) > 64 or any(
+            ref not in RUNTIME_ADAPTER_REFS for ref in normalized_adapters
+        ):
+            raise CapabilityDiscoveryError("invalid RuntimeAdapter capability snapshot")
         if not normalized_runtimes:
             raise CapabilityDiscoveryError("no usable WorkerRuntime capability")
         if not normalized_sandboxes:
@@ -57,6 +64,7 @@ class CapabilitySnapshot:
             runtimes=normalized_runtimes,
             toolsets=tuple(normalized_toolsets),
             sandbox_profiles=normalized_sandboxes,
+            runtime_adapters=normalized_adapters,
         )
 
     def wire_toolsets(self) -> list[ToolsetCapability]:
@@ -96,6 +104,7 @@ async def discover_capabilities(
     runtimes: list[str] = []
     toolsets: dict[str, frozenset[str]] = {}
     sandboxes: list[str] = []
+    runtime_adapters: list[str] = []
     loop = asyncio.get_running_loop()
     deadline = loop.time() + total_timeout_seconds
 
@@ -126,10 +135,18 @@ async def discover_capabilities(
             continue
         toolsets[ref] = available
 
+    for ref, factory in sorted(factories.runtime_adapters.items()):
+        result = await _probe_one(
+            "runtime_adapter", ref, factory.probe, deadline, per_factory_timeout_seconds
+        )
+        if result is True:
+            runtime_adapters.append(ref)
+
     return CapabilitySnapshot.create(
         runtimes=runtimes,
         toolsets=toolsets,
         sandbox_profiles=sandboxes,
+        runtime_adapters=runtime_adapters,
     )
 
 

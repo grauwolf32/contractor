@@ -1,0 +1,1 @@
+{"adapters":{"http-proxy@1":{"failedOperations":1,"lastErrorCode":"request_failed","operations":4},"otlp-http@1":{"failedOperations":1,"flushAttempted":true,"flushSucceeded":false,"lastErrorCode":"flush_timeout","operations":8}},"complete":true,"durationMs":1200,"stopReason":"finalized"}

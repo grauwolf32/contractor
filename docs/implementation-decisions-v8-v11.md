@@ -146,3 +146,23 @@ reason is appended here.
 Append entries here as `D012`, `D013`, and so on. Each entry should name the
 owning task, alternatives considered, chosen behavior, compatibility impact and
 tests that make the choice observable.
+
+### D012 — Private protocol v2 lands inert and errors are opaque
+
+- Applies to: V8-003 and V8-004.
+- Decision: v2 has separate Go/Python DTO names and codecs while production
+  registration remains v1 for all of V8-003. V8-004 must switch both peers and
+  durable principal handling atomically. A v2 decode failure exposes only one
+  of `version`, `duplicate_key`, `schema` or `invariant`; the original parser or
+  validator exception is deliberately not unwrap-able.
+- Provenance shape: default, Run-label and Agent-label bindings carry only
+  revisions plus exact RuntimeConfig refs; adapter refs, exact Gateway/LLM
+  credential refs and runtime credential ID/kind pairs are separate safe
+  fields. Endpoint and secret-bearing settings cannot fit this closed model.
+- Reason: activating request fields before the authoritative response and
+  principal store exist creates an unsafe half-protocol. Retaining detailed
+  secret-bearing validation causes is unnecessary once cross-language reason
+  classes are test fixtures.
+- Observable tests: `make test-runtime-wire-v2` proves v1 remains emitted,
+  canonical fixture parity, duplicate rejection, error-class parity, redacted
+  formatting, immutable adapter discovery and detached Operations projection.

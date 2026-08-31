@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +20,7 @@ class Settings:
     ca_file: Path
     certificate_file: Path
     private_key_file: Path = field(repr=False)
+    initial_labels: tuple[str, ...] = ()
     host: str = "127.0.0.1"
     port: int = 9443
     heartbeat_interval_seconds: float = 10.0
@@ -47,6 +49,7 @@ def parse_settings(
     parser.add_argument("--ca-file", default=values.get("CONTRACTOR_CA_FILE"))
     parser.add_argument("--certificate-file", default=values.get("CONTRACTOR_CERTIFICATE_FILE"))
     parser.add_argument("--private-key-file", default=values.get("CONTRACTOR_PRIVATE_KEY_FILE"))
+    parser.add_argument("--initial-label", action="append", default=None)
     parser.add_argument(
         "--listen",
         default=values.get("CONTRACTOR_RUNTIME_LISTEN", "127.0.0.1:9443"),
@@ -115,6 +118,7 @@ def parse_settings(
     work_root = Path(args.work_root).expanduser().resolve()
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
+    initial_labels = _initial_labels(parser, args.initial_label, values)
 
     return Settings(
         control_plane_url=control_plane_url,
@@ -123,6 +127,7 @@ def parse_settings(
         ca_file=ca_file,
         certificate_file=certificate_file,
         private_key_file=private_key_file,
+        initial_labels=initial_labels,
         host=host,
         port=port,
         heartbeat_interval_seconds=heartbeat,
@@ -178,3 +183,30 @@ def _positive(parser: argparse.ArgumentParser, option: str, value: float) -> flo
     if value <= 0 or not math.isfinite(value):
         parser.error(f"{option} must be positive")
     return value
+
+
+_RUNTIME_LABEL_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+
+
+def _initial_labels(
+    parser: argparse.ArgumentParser,
+    cli_values: list[str] | None,
+    environ: Mapping[str, str],
+) -> tuple[str, ...]:
+    if cli_values is None:
+        raw = environ.get("CONTRACTOR_INITIAL_LABELS", "")
+        candidates = [] if raw == "" else raw.split(",")
+    else:
+        candidates = cli_values
+    if len(candidates) > 32:
+        parser.error("at most 32 --initial-label values are allowed")
+    if len(candidates) != len(set(candidates)):
+        parser.error("--initial-label values must be unique")
+    for value in candidates:
+        if (
+            not 1 <= len(value) <= 63
+            or _RUNTIME_LABEL_PATTERN.fullmatch(value) is None
+            or value == "default"
+        ):
+            parser.error("--initial-label must match [a-z][a-z0-9_-]* and not be default")
+    return tuple(sorted(candidates))

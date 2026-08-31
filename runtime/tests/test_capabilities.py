@@ -41,6 +41,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
 
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
+        assert snapshot.runtime_adapters == ()
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]
@@ -74,6 +75,10 @@ def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
             "failed@1": FailedToolset(secret, local_path),
             "hanging@1": HangingToolset(),
         },
+        runtime_adapters={
+            "http-proxy@1": PassingAdapter("http-proxy@1"),
+            "otlp-http@1": FailedAdapter("otlp-http@1", secret),
+        },
     )
 
     async def scenario() -> None:
@@ -86,6 +91,7 @@ def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
         assert snapshot.toolsets == ()
+        assert snapshot.runtime_adapters == ("http-proxy@1",)
 
     asyncio.run(scenario())
     rendered = "\n".join(record.getMessage() for record in caplog.records)
@@ -115,20 +121,42 @@ def test_missing_core_capability_stops_registration_with_safe_error(tmp_path: Pa
     asyncio.run(scenario())
 
 
+def test_runtime_adapter_probe_timeout_is_omitted(tmp_path: Path) -> None:
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
+        toolsets={"empty@1": EmptyToolset()},
+        runtime_adapters={"http-proxy@1": HangingAdapter("http-proxy@1")},
+    )
+
+    async def scenario() -> None:
+        snapshot = await discover_capabilities(
+            factories,
+            per_factory_timeout_seconds=0.01,
+            total_timeout_seconds=1,
+        )
+        assert snapshot.runtime_adapters == ()
+
+    asyncio.run(scenario())
+
+
 def test_snapshot_normalizes_and_rejects_replacement_for_one_instance() -> None:
     async def scenario() -> None:
         original = CapabilitySnapshot.create(
             runtimes=["adk@1", "adk@1"],
             toolsets={"tools@1": ["write", "read", "write"], "empty@1": []},
             sandbox_profiles=["local@1", "local@1"],
+            runtime_adapters=["otlp-http@1", "http-proxy@1", "otlp-http@1"],
         )
         replacement = CapabilitySnapshot.create(
             runtimes=["other@1"],
             toolsets={},
             sandbox_profiles=["local@1"],
+            runtime_adapters=[],
         )
         assert original.runtimes == ("adk@1",)
         assert original.toolsets[0].tools == ("read", "write")
+        assert original.runtime_adapters == ("http-proxy@1", "otlp-http@1")
 
         state = RuntimeState(instance_id="immutable-runtime")
         await state.install_capabilities(original)
@@ -191,6 +219,32 @@ class FailedSandbox:
 
     async def cleanup(self, workspace: object) -> None:
         del workspace
+
+
+class PassingAdapter:
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+
+    async def probe(self) -> bool:
+        return True
+
+
+class FailedAdapter:
+    def __init__(self, ref: str, secret: str) -> None:
+        self.ref = ref
+        self._secret = secret
+
+    async def probe(self) -> bool:
+        raise RuntimeError(self._secret)
+
+
+class HangingAdapter:
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+
+    async def probe(self) -> bool:
+        await asyncio.Event().wait()
+        return True
 
 
 def make_settings(tmp_path: Path) -> Settings:
