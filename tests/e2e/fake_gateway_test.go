@@ -13,8 +13,9 @@ import (
 )
 
 type fakeGateway struct {
-	server *httptest.Server
-	token  string
+	server    *httptest.Server
+	token     string
+	copyTools []string
 
 	mu       sync.Mutex
 	calls    int
@@ -22,7 +23,18 @@ type fakeGateway struct {
 }
 
 func newFakeGateway(token string) *fakeGateway {
-	gateway := &fakeGateway{token: token}
+	return newFakeGatewayWithCopyTools(token, []string{"read_artifact", "write_artifact"})
+}
+
+func newCapabilityGateway(token string) *fakeGateway {
+	return newFakeGatewayWithCopyTools(
+		token,
+		[]string{"read_artifact", "validate_likec4", "write_artifact"},
+	)
+}
+
+func newFakeGatewayWithCopyTools(token string, tools []string) *fakeGateway {
+	gateway := &fakeGateway{token: token, copyTools: append([]string(nil), tools...)}
 	gateway.server = httptest.NewServer(http.HandlerFunc(gateway.serveHTTP))
 	return gateway
 }
@@ -63,7 +75,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	nextCall := g.calls + 1
 	g.mu.Unlock()
-	expectedTools := []string{"read_artifact", "write_artifact"}
+	expectedTools := append([]string(nil), g.copyTools...)
 	if nextCall > 3 {
 		expectedTools = []string{"read_artifact"}
 	}

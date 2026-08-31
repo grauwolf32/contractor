@@ -340,6 +340,10 @@ func installDomainValidators(t *testing.T, root string) (string, string) {
 	logPath := filepath.Join(root, "validator-invocations.log")
 	quotedLog := shellSingleQuote(logPath)
 	vacuum := `#!/bin/sh
+if [ "$1" = "version" ]; then
+  printf 'vacuum fixture version\n'
+  exit 0
+fi
 if [ "$1" != "spectral-report" ] || [ "$2" != "-i" ] || [ "$3" != "-o" ]; then
   exit 2
 fi
@@ -352,6 +356,10 @@ printf 'vacuum\n' >> ` + quotedLog + `
 printf '[]\n'
 `
 	likeC4 := `#!/bin/sh
+if [ "$1" = "version" ]; then
+  printf 'likec4 fixture version\n'
+  exit 0
+fi
 if [ "$1" != "validate" ] || [ "$2" != "--json" ] || [ "$3" != "--no-layout" ] || [ "$4" != "--file" ]; then
   exit 2
 fi

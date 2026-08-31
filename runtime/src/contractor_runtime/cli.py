@@ -91,7 +91,7 @@ async def serve(
     stop_task = asyncio.create_task(stop.wait(), name="runtime-stop-signal")
     try:
         await _wait_until_listening(server, server_task, settings.request_timeout_seconds)
-        logger.info("runtime agent private listener is accepting on %s", settings.listen_address)
+        logger.info("runtime agent private listener is accepting")
         capabilities = await discover_capabilities(factories)
         await runtime_state.install_capabilities(capabilities)
         registration_task = asyncio.create_task(

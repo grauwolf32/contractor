@@ -1,0 +1,54 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: capability-copy
+  version: "1"
+
+spec:
+  parameters: {}
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the source artifact byte-for-byte into the declared result artifact
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: capability_copy_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          copied:
+            required: true
+            mediaTypes: [text/plain]
+      workflowOutputs:
+        result: copied
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

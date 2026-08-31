@@ -45,17 +45,27 @@ type artifactRef struct {
 }
 
 type runStatus struct {
-	RunID       string                 `json:"runId"`
-	Workflow    string                 `json:"workflow"`
-	State       string                 `json:"state"`
-	Attempts    []runAttempt           `json:"attempts"`
-	Transitions []json.RawMessage      `json:"transitions"`
-	Outputs     map[string]artifactRef `json:"outputs"`
+	RunID                  string                 `json:"runId"`
+	Workflow               string                 `json:"workflow"`
+	State                  string                 `json:"state"`
+	Cancellation           json.RawMessage        `json:"cancellation,omitempty"`
+	Parameters             map[string]string      `json:"parameters,omitempty"`
+	Inputs                 map[string]artifactRef `json:"inputs,omitempty"`
+	Attempts               []runAttempt           `json:"attempts"`
+	Transitions            []json.RawMessage      `json:"transitions"`
+	Outputs                map[string]artifactRef `json:"outputs"`
+	EventCursor            json.RawMessage        `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID *string                `json:"activeStageExecutionId,omitempty"`
+	CreatedAt              time.Time              `json:"createdAt,omitempty"`
+	UpdatedAt              time.Time              `json:"updatedAt,omitempty"`
+	StartedAt              *time.Time             `json:"startedAt,omitempty"`
+	FinishedAt             *time.Time             `json:"finishedAt,omitempty"`
 }
 
 type runAttempt struct {
 	StageExecutionID    string             `json:"stageExecutionId"`
 	Stage               string             `json:"stage"`
+	Objective           string             `json:"objective,omitempty"`
 	Attempt             int                `json:"attempt"`
 	PreviousExecutionID *string            `json:"previousExecutionId,omitempty"`
 	ExecutionConfig     json.RawMessage    `json:"executionConfig"`
@@ -63,6 +73,12 @@ type runAttempt struct {
 	Result              json.RawMessage    `json:"result,omitempty"`
 	Termination         json.RawMessage    `json:"termination,omitempty"`
 	Metrics             *telemetry.Summary `json:"metrics,omitempty"`
+	Diagnostics         json.RawMessage    `json:"diagnostics,omitempty"`
+	Plan                json.RawMessage    `json:"plan,omitempty"`
+	CreatedAt           time.Time          `json:"createdAt,omitempty"`
+	UpdatedAt           time.Time          `json:"updatedAt,omitempty"`
+	PlannerStartedAt    *time.Time         `json:"plannerStartedAt,omitempty"`
+	TerminalAt          *time.Time         `json:"terminalAt,omitempty"`
 }
 
 func TestLocalGoToPythonArtifactCopy(t *testing.T) {

@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-31, implementation tasks through `V4-011` are complete. The
+As of 2026-08-31, implementation tasks through `V7-004` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -60,6 +60,9 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - a deterministic Chromium gate that drives the separate Node UI and Go API
   through local HTTPS while PostgreSQL, Scheduler, Control Plane and the real
   Python Runtime Agent execute streamline and OpenAPI workflows.
+- immutable Runtime startup capability probes, complete heterogeneous
+  specialist/generalist placement, positive capability visibility in
+  Operations, and a real two-environment capacity-waiting gate.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -145,11 +148,55 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
   make test-e2e
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-capability-e2e
+
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-project-workflows
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-ui-stack
 ```
+
+## Environment-specific Runtime Agent capabilities
+
+A Runtime Agent probes its enabled WorkerRuntime, Toolset/tool and
+SandboxProfile factories once, after its private listener starts and before it
+registers. The resulting positive snapshot is fixed for that `instanceId`.
+Keep each process environment fixed: in particular, give it an explicit
+executable search path containing only the validators and tools intended for
+that deployment.
+
+For example, two otherwise identical processes may be started by the service
+manager with different fixed environments:
+
+```shell
+env PATH=/opt/contractor/source-tools/bin:/usr/bin \
+  runtime/.venv/bin/python -m contractor_runtime [normal Runtime flags...]
+
+env PATH=/opt/contractor/architecture-tools/bin:/usr/bin \
+  runtime/.venv/bin/python -m contractor_runtime [normal Runtime flags...]
+```
+
+The second directory might contain a directly invokable `likec4`, while the
+first does not. Both processes still advertise independent LikeC4 editing
+tools; only the process whose startup probe succeeds advertises
+`validate_likec4`. Do not install or replace executables underneath a running
+process. Stop it, change the environment, and start a new process so it gets a
+new `instanceId` and a newly probed immutable snapshot.
+
+Verify the accepted positive snapshots in the UI at
+`/operations/runtime-agents`, or through the read-only
+`GET /v1/operations/runtime-agents` endpoint. The view intentionally contains
+only exact runtime refs, SandboxProfile refs and Toolset/tool names. It does
+not expose failed probe output, executable paths, environment values or a
+remote re-probe control.
+
+`make test-capability-e2e` proves this boundary with two production Python
+Runtime Agent processes. One receives an isolated empty executable path and
+remains idle while a Stage requiring `validate_likec4` waits in its first
+`StageExecution`; a later process receives a deterministic fake LikeC4 CLI,
+is selected without a retry, and completes normal prepare, A2A, finalization,
+release and Operations reconciliation.
 
 ## Complete browser stack gate
 

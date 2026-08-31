@@ -1,0 +1,22 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: capability_copy_builder
+  version: "1"
+
+spec:
+  description: Copies one artifact in an environment with LikeC4 validation capability
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools:
+        - read_artifact
+        - write_artifact
+    - ref: likec4@1
+      tools:
+        - validate_likec4
+  sandboxProfile: local-workdir@1

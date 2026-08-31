@@ -27,3 +27,8 @@ def configure_logging(level: str) -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.upper())
+    # Third-party INFO records include complete request/listener URLs. Runtime
+    # Agent emits its own bounded lifecycle events, so keep dependency logs at
+    # warning or above rather than publishing private endpoints incidentally.
+    for dependency_logger in ("httpx", "httpcore", "uvicorn", "uvicorn.error"):
+        logging.getLogger(dependency_logger).setLevel(logging.WARNING)

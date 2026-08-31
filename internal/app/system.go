@@ -49,7 +49,6 @@ func ServeSystem(
 	logger.Info(
 		"contractor server listening",
 		"public_address", publicListener.Addr().String(),
-		"private_address", privateListener.Addr().String(),
 	)
 
 	var firstErr error
