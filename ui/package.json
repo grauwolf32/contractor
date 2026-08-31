@@ -15,9 +15,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . && prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
     "test": "vitest",
     "test:server": "node --test server/*.test.mjs",
+    "playwright": "playwright",
+    "test:e2e": "playwright test",
     "build": "vite build"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.6",
+    "@playwright/test": "1.62.1",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",

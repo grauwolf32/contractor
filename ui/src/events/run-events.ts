@@ -869,8 +869,11 @@ export class RunEventsManager {
     this.#webSocketImplementation =
       options.WebSocketImplementation ?? globalThis.WebSocket;
     this.#random = options.random ?? Math.random;
-    this.#schedule = options.schedule ?? globalThis.setTimeout;
-    this.#cancelSchedule = options.cancelSchedule ?? globalThis.clearTimeout;
+    this.#schedule =
+      options.schedule ??
+      ((callback, delay) => globalThis.setTimeout(callback, delay));
+    this.#cancelSchedule =
+      options.cancelSchedule ?? ((handle) => globalThis.clearTimeout(handle));
   }
 
   subscribeRun(

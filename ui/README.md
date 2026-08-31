@@ -11,6 +11,7 @@ verify it from the repository root:
 ```shell
 npm install --global corepack@0.36.0
 make ui-verify
+make ui-browser-install
 ```
 
 For frontend development, Vite serves source files on loopback. Supply a
@@ -87,3 +88,16 @@ credential is active; replacement uses a new ID, and deletion remains blocked
 with safe Run links while a non-terminal Run pins the old ID. Configuration and
 credential mutations retain one in-memory idempotency key for an unchanged
 canonical draft and always reconcile through Server reads.
+
+The real browser gate is orchestrated from the repository root because it also
+starts Go Server, PostgreSQL-backed Scheduler and Python Runtime Agent:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-ui-stack
+```
+
+`corepack pnpm --dir ui test:e2e` alone intentionally skips the real-stack
+scenario unless the harness supplies its isolated URLs, credentials, source
+fixture and evidence paths. The pinned baseline is Chromium; broader browser
+and visual-regression matrices are deferred.

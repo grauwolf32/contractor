@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-31, implementation tasks through `V4-008` are complete. The
+As of 2026-08-31, implementation tasks through `V4-011` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -56,7 +56,10 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   sessions, and bounded resumable Run/Operations WebSocket streams;
 - an independently built React UI foundation with generated OpenAPI types,
   direct cookie/CSRF transport, guarded routes, explicit API compatibility,
-  and a dependency-free Node static service that never acts as a BFF or proxy.
+  and a dependency-free Node static service that never acts as a BFF or proxy;
+- a deterministic Chromium gate that drives the separate Node UI and Go API
+  through local HTTPS while PostgreSQL, Scheduler, Control Plane and the real
+  Python Runtime Agent execute streamline and OpenAPI workflows.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -77,6 +80,8 @@ The public/browser foundation and its completion evidence are recorded in
 [`v4-001-public-openapi-contract.yml`](../tasks/v4-001-public-openapi-contract.yml),
 [`v4-007-run-event-websocket.yml`](../tasks/v4-007-run-event-websocket.yml), and
 [`v4-008-react-ui-foundation.yml`](../tasks/v4-008-react-ui-foundation.yml).
+The complete browser-stack proof is recorded in
+[`v4-011-browser-e2e.yml`](../tasks/v4-011-browser-e2e.yml).
 
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
@@ -117,6 +122,7 @@ Install the pinned UI package manager and dependencies once:
 ```shell
 npm install --global corepack@0.36.0
 make ui-install
+make ui-browser-install
 ```
 
 Build and run the static UI service independently of Server:
@@ -140,7 +146,56 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-project-workflows
+
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-ui-stack
 ```
+
+## Complete browser stack gate
+
+`make test-ui-stack` builds and starts the production Go Server, production
+Node static service and production Python Runtime Agent entry points. It uses
+an isolated PostgreSQL schema, temporary deployment CA, deterministic
+OpenAI-compatible model fixture and deterministic LiteLLM management fixture.
+The browser connects directly to the Go API; Node is started from a clean
+environment that contains no Server bearer token, model token, credential
+manager key, password or CSRF value.
+
+The harness exposes local `https://ui.contractor.test:<port>` and
+`https://api.contractor.test:<port>` origins through temporary TLS reverse
+proxies. Chromium receives an explicit process-local mapping of both reserved
+`.test` hosts to loopback, so no host configuration or external DNS is used.
+They are same-site for the Server's `SameSite=Lax` session cookie but have
+different host-only cookie scopes. No paid model or container runtime is used.
+PostgreSQL is caller-owned and must permit creation and deletion of an isolated
+schema.
+
+The Chromium flow covers login, reload recovery and logout; exact-origin CORS,
+preflight and CSRF rejection without side effects; Artifact upload/download;
+live Streamline planning, WebSocket interruption/reconnect and metrics;
+four-stage OpenAPI execution and frozen output download; immutable
+ModelPolicy publication; fake-manager credential creation/deletion; independent
+Node restart; Server restart, session loss and Operations generation change;
+and incompatible public-API configuration. It scans bounded HTTP bodies,
+WebSocket frames, browser storage, DOM text, process logs, database-safe
+columns, Playwright trace and screenshot bytes for seeded secret canaries.
+Screenshot OCR is additionally used when a working Tesseract language pack is
+installed.
+
+The first run downloads the pinned Chromium build. If browser startup fails,
+rerun `make ui-browser-install` and install the host libraries reported by
+Playwright. A failure includes bounded, canary-redacted child-process output;
+the most common setup failures are an unavailable PostgreSQL URL, missing
+`runtime/.venv` (fixed by `uv sync --locked`), or missing Chromium. The test
+always releases held model calls, terminates child processes, removes temporary
+keys/certificates/workspaces and drops its isolated schema.
+
+To verify independent releases outside the harness, keep Server running while
+rebuilding/restarting only the service documented in
+[`deploy/ui/README.md`](../deploy/ui/README.md). A compatible UI reload must
+retain the Server session and any active Run; restarting Server intentionally
+invalidates the in-memory browser session and changes the Operations event
+generation.
 
 ## Hardening gates
 

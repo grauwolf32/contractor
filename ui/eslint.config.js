@@ -6,7 +6,14 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/", "node_modules/", "coverage/", "src/api/generated/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "coverage/",
+      "playwright-report/",
+      "test-results/",
+      "src/api/generated/",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -36,6 +43,12 @@ export default tseslint.config(
   },
   {
     files: ["server/**/*.mjs", "eslint.config.js"],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["e2e/**/*.ts", "playwright.config.ts"],
     languageOptions: {
       globals: globals.node,
     },

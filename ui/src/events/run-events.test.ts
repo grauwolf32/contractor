@@ -407,6 +407,41 @@ describe("RunEventsManager", () => {
     expect(JSON.parse(reconnected?.sent[0] ?? "{}").after).toEqual(cursor("2"));
   });
 
+  it("invokes the browser reconnect timer with the global receiver", () => {
+    FakeWebSocket.instances = [];
+    let scheduled: (() => void) | undefined;
+    vi.stubGlobal(
+      "setTimeout",
+      function receiverSensitiveTimer(
+        this: unknown,
+        callback: () => void,
+      ): ReturnType<typeof setTimeout> {
+        if (this !== globalThis) {
+          throw new TypeError("setTimeout receiver is not the global object");
+        }
+        scheduled = callback;
+        return 1 as unknown as ReturnType<typeof setTimeout>;
+      },
+    );
+    try {
+      const current = callbacks();
+      const manager = new RunEventsManager("http://127.0.0.1:8080", {
+        WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+      });
+      manager.subscribeRun("run-1", cursor("1"), current.value);
+      const first = FakeWebSocket.instances[0];
+      first?.open();
+      first?.message(subscribed("run-ui-1", "run-1", "1"));
+      first?.serverClose(1013);
+
+      expect(scheduled).toBeTypeOf("function");
+      scheduled?.();
+      expect(FakeWebSocket.instances).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("requires an authoritative baseline when a projection cannot advance", () => {
     FakeWebSocket.instances = [];
     const current = callbacks();

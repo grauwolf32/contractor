@@ -222,6 +222,8 @@ cython_debug/
 /ui/node_modules/
 /ui/dist/
 /ui/coverage/
+/ui/playwright-report/
+/ui/test-results/
 
 # Marimo
 marimo/_static/

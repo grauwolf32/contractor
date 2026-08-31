@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing ui-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-config verify-public-api test-postgres test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -84,8 +84,18 @@ test-live-routing:
 	@test -n "$$CONTRACTOR_LIVE_LLM_MODEL" || (echo "CONTRACTOR_LIVE_LLM_MODEL is required" >&2; exit 1)
 	go test -v -count=1 -timeout=3m ./tests/integration/streamline -run '^TestLiveRouterWorkflow$$'
 
+test-ui-stack:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	$(MAKE) ui-install
+	$(MAKE) ui-browser-install
+	go test -tags=e2e -count=1 -timeout=6m ./tests/ui-stack
+
 ui-install:
 	cd ui && corepack pnpm install --frozen-lockfile
+
+ui-browser-install:
+	cd ui && corepack pnpm exec playwright install chromium
 
 ui-generate:
 	cd ui && corepack pnpm generate
