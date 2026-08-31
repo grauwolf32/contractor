@@ -128,6 +128,15 @@ This slice must demonstrate:
   allowlist of exported tool names within each group; wildcard/all defaults,
   duplicate refs/names, unknown tools and cross-group name collisions are
   rejected, and unselected tools are not constructed;
+- before first registration, Runtime Agent probes every enabled local runtime,
+  Toolset and sandbox factory under bounded startup time and freezes the
+  normalized positive result for that process `instance_id`; a Toolset may
+  advertise only the subset of exported tools whose complete prerequisites
+  passed, while probe failures remain local redacted diagnostics;
+- the registered environment and capability snapshot are immutable for the
+  process lifetime; changing dependencies or enabled factories requires a
+  Runtime Agent restart and new `instance_id`, and heartbeat never carries a
+  capability mutation;
 - the built-in `run-artifacts@1` Toolset exports exactly `list_artifacts`,
   `read_artifact` and `write_artifact`; no generic Artifact tool is implicit,
   read-only selection is possible, and selecting a tool never expands the
@@ -138,8 +147,9 @@ This slice must demonstrate:
   semantic or instruction-byte changes alter it;
 - Runtime Agent verifies the instruction and AgentTemplate digests before
   Worker creation and fails preparation on a mismatch;
-- every Runtime Agent runs the same code and can instantiate the
-  AgentTemplate's `runtime: adk@1` in-process;
+- every first-slice Runtime Agent runs the same Contractor code but advertises
+  `adk@1` only after its local runtime probe passes; two processes may advertise
+  different Toolset/tool subsets because their immutable environments differ;
 - Workflow defaults plus reference-only Run overrides resolve exact
   ModelPolicy, LLMGatewayConfig and non-secret credential refs for every modeled
   Planner/Worker consumer; Control Plane supplies the resulting allocation URL
@@ -240,6 +250,10 @@ This slice must demonstrate:
 - Control Plane reserves the complete Stage Worker set atomically and returns
   either every ready WorkerHandle or no handles; preparation is idempotent for
   `stage_execution_id`;
+- placement tests cover exact runtime and sandbox matching, per-Toolset tool-set
+  containment, partial Toolset availability and a specialist/generalist
+  multi-binding case where a complete matching exists but first-fit greedy
+  assignment would report false insufficient capacity;
 - one ArtifactStore binds public calls to UserScope and Worker calls to
   RunScope;
 - input fork records an exact source version and lineage without requiring a

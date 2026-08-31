@@ -376,13 +376,29 @@ AgentTemplate selects it. Domain Toolset implementations may use the private
 Artifact client internally within their own contract without exposing the
 generic `run-artifacts@1` operations.
 
-The homogeneous deployment provides a lightweight Toolset descriptor registry
-to Server and the matching ToolsetFactory implementations to Runtime Agent.
+Server has a lightweight Toolset descriptor registry for authoring-time
+validation. Each Runtime Agent has its own installed and enabled
+ToolsetFactory registry, then derives a positive capability snapshot from that
+registry through the startup probes defined by [02](02-runtime-and-a2a.md).
+Installed code alone is not a capability: the Runtime Agent advertises a
+Toolset ref only when at least one exported tool can honor its complete
+contract in that process environment.
+
+A Toolset capability contains the exact ref and the subset of its exported
+tools whose prerequisites passed. This deliberately has the same granularity
+as `ToolsetSelection`. For example, an environment without the LikeC4
+executable may advertise the editing operations of `likec4@1` but omit
+`validate_likec4` when only that operation depends on the executable. A
+template that selects `validate_likec4` cannot be placed there, while a
+template selecting only the advertised editing operations can.
+
 AgentTemplateCatalog rejects unknown refs, unknown selected tool names and
-cross-Toolset collisions in final model-visible tool names. Runtime Agent
-revalidates the same facts, then asks each factory to construct only the
-selected tools with the allocation's Namespace, Artifact client, sandbox and
-safe RuntimeSettings. Unselected tools are neither constructed nor exposed.
+cross-Toolset collisions in final model-visible tool names independently of
+the currently connected fleet. Runtime Agent validates every AllocationSpec
+against its immutable startup capability snapshot, then asks each factory to
+construct only the selected tools with the allocation's Namespace, Artifact
+client, sandbox and safe RuntimeSettings. Unselected tools are neither
+constructed nor exposed.
 
 Toolset refs identify registered code; Workflow and AgentTemplate cannot name a
 Python module, callable, executable or shell command. Internal helpers used by
@@ -502,8 +518,11 @@ Workers. Resolving a Stage never concatenates those fields into or mutates the
 stored AgentTemplate.
 
 The template selects an in-process Worker runtime by stable ref but does not
-contain host-specific process details. Every Runtime Agent in the initial
-homogeneous fleet runs the same code and supports the same runtime refs.
+contain host-specific process details. Runtime Agents may run the same
+Contractor code in different immutable process environments and therefore
+advertise different runtime, Toolset/tool and SandboxProfile capability
+snapshots. AgentTemplate expresses semantic requirements only; it never names
+an environment or physical process.
 
 ## Stage binding
 

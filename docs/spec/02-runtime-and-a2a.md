@@ -17,8 +17,10 @@ A2A Task semantics.
 
 Server and Runtime Agents form one deployment-owned trust domain rooted in a
 single CA. The private control protocol uses mutual TLS. All Runtime Agents are
-equally trusted and have the same control-protocol capabilities; the certificate
-does not encode per-agent roles or an authorization policy.
+equally trusted and have the same control-protocol privileges; the certificate
+does not encode per-agent roles or an authorization policy. They may still
+advertise different execution capabilities because their immutable process
+environments contain different runtime, tool or sandbox dependencies.
 
 Control Plane accepts any otherwise-valid Runtime Agent certificate that chains
 to this CA. A Runtime Agent accepts a Control Plane peer only when both of the
@@ -66,7 +68,7 @@ RuntimeAgentRegistration
   started_at
   control endpoint
   A2A endpoint
-  supported WorkerRuntime, Toolset/tool and SandboxProfile capabilities
+  frozen startup WorkerRuntime, Toolset/tool and SandboxProfile capabilities
   observed_state
   allocation_id?
   private protocol version
@@ -98,6 +100,81 @@ or fail the Run.
 This first model deliberately has no stable `AgentId`, incarnation nonce,
 registration generation, Server epoch, rotated fleet token or cross-process
 Worker continuation protocol.
+
+## Startup capability discovery
+
+An installed factory and a usable capability are different facts. Before its
+first registration, each Runtime Agent builds its enabled local FactoryRegistry
+and runs bounded capability probes against the process environment. The result
+is one immutable `CapabilitySnapshot`:
+
+```text
+CapabilitySnapshot
+  supported_runtimes: sorted set of exact WorkerRuntime refs
+  supported_toolsets: sorted map of exact Toolset ref -> sorted non-empty tool set
+  supported_sandbox_profiles: sorted set of exact SandboxProfile refs
+```
+
+The snapshot maps directly to the existing registration fields; there is no
+second capability document or Server-side environment catalog. Only positive
+capabilities are registered. Probe failures remain bounded, redacted Runtime
+Agent startup diagnostics and are not sent as placement facts. A Toolset with
+no usable exported tool is omitted. If no WorkerRuntime or no SandboxProfile
+passes, the process fails startup readiness and does not register an `idle`
+slot. An empty Toolset list is valid and can serve templates that select no
+tools.
+
+Every enabled factory owns its local probe semantics:
+
+- a WorkerRuntime probe verifies that the adapter and its Runtime-owned local
+  prerequisites can construct that exact runtime contract;
+- a Toolset probe returns the exact subset of `exported_tools` that can honor
+  their complete contracts, including required local executables, libraries
+  and compatible versions;
+- a SandboxProfile probe proves that the profile can prepare and clean an
+  isolated probe resource under its operator-owned root. A cleanup failure is
+  a failed probe.
+
+One factory probe has a five-second timeout and the complete startup probe
+phase has a thirty-second timeout. Timeout, cancellation or an unexpected
+exception means that factory or affected tool is unavailable; an optional
+failure does not prevent unrelated capabilities from being advertised. Probes
+must not use Workflow/User artifacts, make an LLM call or perform domain work.
+They may create only uniquely named, bounded resources below a Runtime-owned
+probe/work root and must remove them before reporting success. External
+programs are invoked directly without a shell, with closed stdin, bounded
+output and the same effective executable search/configuration that the real
+tool will use.
+
+A positive Toolset capability means more than “the function can be called”. If
+an operation requires an external validator to fulfill its declared behavior,
+returning `validator unavailable` is not that operation's successful startup
+capability. The factory omits that tool while retaining independent tools that
+passed their own prerequisites.
+
+Capability probes cover only Runtime-owned prerequisites available before an
+allocation. They do not probe an LLM Gateway URL/token, Artifact API grant or
+other RuntimeSettings supplied later in AllocationSpec. Availability of those
+per-allocation dependencies follows the ordinary bounded preparation or
+execution failure path and is not a physical-agent placement capability.
+
+The computed snapshot is frozen for the lifetime of `instance_id` and reused
+byte-for-byte across registration retries and Control Plane reconnects.
+Control Plane rejects a registration retry that reuses the `instance_id` with
+a different snapshot. Heartbeats carry no capability update. The deployment
+contract requires the process environment, enabled factory set, executable
+resolution and local dependency configuration to remain unchanged after
+registration. Applying an environment change requires restarting Runtime
+Agent, which creates a new `instance_id`, probes again and registers a new
+snapshot. Dynamic re-probing, capability withdrawal and in-place
+re-registration are outside the first slice.
+
+The `v1alpha1` registration shape treats the three capability dimensions as
+composable sets. A Runtime Agent must therefore advertise only runtimes,
+Toolsets/tools and sandboxes that can be combined safely within that process.
+An environment with combination-specific incompatibilities must expose their
+common safe subset or run separate Runtime Agent processes with compatible
+registries; capability-profile expressions are deferred.
 
 ## Heartbeat and confirmed control lease
 
@@ -247,8 +324,9 @@ instance, not another service, daemon, subprocess or container.
 
 For one allocation the Runtime Agent:
 
-1. reserves its only slot and validates `AllocationSpec`, including the exact
-   registered SandboxProfile ref and effective digest-bearing ModelPolicy;
+1. reserves its only slot and validates `AllocationSpec` against its frozen
+   startup runtime, Toolset/tool and SandboxProfile capability snapshot,
+   including the effective digest-bearing ModelPolicy;
 2. asks that profile to prepare the allocation-local workspace;
 3. prepares allocation-local State and selected tools, then creates one
    in-process Worker runtime from the complete AgentTemplate plus the effective
@@ -357,7 +435,8 @@ It also contains no LLM Gateway token or other RuntimeSettings secret.
 
 ```text
 Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
-  -> Control Plane checks runtime refs and selects free Runtime Agents
+  -> Control Plane matches every template requirement against frozen capability snapshots
+  -> Control Plane atomically selects a complete set of free Runtime Agents
   -> Runtime Agents reserve their slots and accept AllocationSpecs
   -> each Runtime Agent creates one in-process Worker instance
   -> each Runtime Agent publishes its allocation-scoped Agent Card
@@ -374,6 +453,46 @@ Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
 Infrastructure preparation completes before Planner starts. If any required
 Worker fails preparation, Workflow Scheduler receives no partial Planner
 subagent set.
+
+### Capability-aware placement
+
+The currently connected fleet is deliberately not consulted while loading a
+Workflow, resolving an AgentTemplate or creating a WorkflowRun. Those steps
+validate exact refs and tool names against Server descriptors. Physical
+availability is ephemeral and is evaluated only when each StageExecution is in
+`preparing`, so an eligible Runtime Agent may connect after the Run was
+created.
+
+For one resolved Stage Agent binding, the placement requirement is exactly:
+
+```text
+required runtime = AgentTemplate.runtime
+required sandbox = AgentTemplate.sandboxProfile
+required tools   = each AgentTemplate.toolsets[ref].tools
+```
+
+A Runtime Agent is a candidate only when it is `idle`, has a confirmed control
+lease, is otherwise placement-eligible, advertises the exact runtime and
+sandbox refs, and its advertised tool set is a superset of every selected tool
+for each exact Toolset ref. Extra capabilities neither change Worker behavior
+nor become model-visible.
+
+For a multi-Agent Stage, Control Plane must find a complete injective matching
+between logical bindings and eligible single-slot Runtime Agents before
+reserving anything. It must not greedily consume a broadly capable agent when
+that would hide an existing complete assignment. For example, if agent A can
+perform source analysis and LikeC4 validation while agent B can perform only
+source analysis, a Stage needing one source-only Worker and one LikeC4
+validator is placeable as source-only -> B and validator -> A. A deterministic
+maximum bipartite matching or an equivalent complete algorithm satisfies this
+contract; the particular equally valid assignment is not Workflow semantics.
+
+If no complete matching currently exists, Control Plane returns temporary
+insufficient compatible capacity. StageExecution remains `preparing`, no slot
+is reserved and the existing bounded capacity backoff applies. This covers
+both busy compatible agents and an environment capability that is not yet
+represented in the live fleet; the Stage deadline or Run cancellation remains
+the bound. Planner never chooses, observes or changes physical placement.
 
 ### Atomic Stage reservation
 
@@ -583,3 +702,12 @@ managed AgentTemplate service are not prerequisites.
     generation exists in the first model.
 17. Capacity for one Stage is reserved all-or-nothing; Planner never receives a
     partial WorkerHandle map.
+18. Runtime Agent advertises only capabilities proven before first
+    registration; that normalized snapshot is immutable for its process-scoped
+    `instance_id` and is never changed by heartbeat.
+19. Capability-aware placement requires set containment for each binding and a
+    complete injective matching for the whole Stage; extra advertised tools are
+    never exposed implicitly.
+20. Runtime Agent's process environment is immutable after registration.
+    Changing dependencies, executable resolution or enabled factories requires
+    a process restart, new `instance_id` and new startup probes.

@@ -245,7 +245,7 @@ model {
     stagePlanner -> telemetry 'Planner ExecutionReport'
   }
 
-  runtimeAgent = system 'Runtime Agent — N identical single-slot processes' {
+  runtimeAgent = system 'Runtime Agent — N environment-specific single-slot processes' {
     #contractor
 
     controlEndpoint = component 'Private Control Endpoint' {
@@ -253,6 +253,10 @@ model {
     }
 
     registryClient = component 'Registration / Heartbeat Client' {
+      #contractor
+    }
+
+    capabilityProbe = component 'Bounded startup probes / immutable capability snapshot' {
       #contractor
     }
 
@@ -298,6 +302,7 @@ model {
     }
 
     controlEndpoint -> slotManager 'Reserve / configure / finalize / abort / release the only slot'
+    capabilityProbe -> registryClient 'Publish exact usable runtime / Toolset tools / sandbox refs once per instance'
     slotManager -> workerRuntime 'Create / destroy one in-process Worker instance'
     slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
     slotManager -> workerState 'Create / destroy allocation-local Session and State'

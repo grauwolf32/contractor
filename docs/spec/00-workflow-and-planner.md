@@ -746,7 +746,8 @@ StageExecution path:
 
 1. resolve and durably pin the StageContext artifact snapshot;
 2. load and verify every exact AgentTemplate dependency of the selected Stage;
-3. ask Control Plane to prepare all required Worker allocations;
+3. ask Control Plane to capability-match and atomically prepare all required
+   Worker allocations from current live Runtime Agent registrations;
 4. construct one Planner through the selected `PlannerFactory`;
 5. invoke the Planner once with the fixed prepared Worker set;
 6. validate and durably record the candidate `StageResult` plus exact referenced

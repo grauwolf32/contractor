@@ -152,6 +152,8 @@ read-only for execution state and shows at least:
 
 - Runtime Agent instance ID, software version, observed state, last accepted
   heartbeat, confirmed lease horizon and current allocation ID;
+- the Runtime Agent's frozen positive capability snapshot: exact runtime and
+  SandboxProfile refs plus each exact Toolset ref and its available tool names;
 - `idle`, `reserved`, `busy`, `draining` and `fenced` slot state using the
   authoritative/observed reconciliation vocabulary from [02];
 - allocation ID, WorkflowRun, StageExecution, logical Worker binding,
