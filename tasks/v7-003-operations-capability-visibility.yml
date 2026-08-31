@@ -3,7 +3,8 @@ id: V7-003
 title: Show frozen Runtime Agent capabilities in Operations
 milestone: runtime-capability-placement
 priority: P0
-status: planned
+status: completed
+implementation_commit: 7be96d3724b607ceca5cf27ce8394d96172887b3
 depends_on: [V7-001]
 languages: [go, typescript, yaml]
 

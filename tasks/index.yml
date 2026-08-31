@@ -129,14 +129,15 @@ milestones:
       process test proves capacity waiting plus later execution.
 
 current_checkpoint:
-  completed_through: V7-002
-  next_task: V7-003
+  completed_through: V7-003
+  next_task: V7-004
   summary: >-
     Runtime Agents now probe and freeze their usable runtime, sandbox, and
     per-tool capabilities before registration. Control Plane now finds a full
-    deterministic capability-compatible assignment instead of failing on a
-    greedy specialist/generalist choice. Next, expose accepted capabilities in
-    Operations and prove the flow across real processes.
+    deterministic capability-compatible assignment, and Operations API/UI
+    exposes each accepted positive snapshot without probe diagnostics. Next,
+    prove capacity waiting and later execution across heterogeneous real
+    Runtime Agent processes.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
