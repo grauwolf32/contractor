@@ -3,8 +3,8 @@ id: V9-001
 title: Add Memory note codec and Artifact metadata support
 milestone: shared-memory-tools
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 9e4a1469d6cad91f3eda53f0c6684ff6fd59d290
 depends_on: [V8-013]
 languages: [go, python]
 

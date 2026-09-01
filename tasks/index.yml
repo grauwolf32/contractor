@@ -240,15 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-016
-  next_task: V9-001
+  completed_through: V9-001
+  next_task: V9-002
   summary: >-
-    Label-driven Runtime configuration is complete through its deterministic
-    hardening gate: response-loss replay, CAS/pinning races, certificate/SPKI
-    identity attacks, Planner/Worker telemetry separation, required proxy
-    failure, secret-retention scans, browser operation and reuse of two
-    disjoint specialist Runtime slots all pass. Next, implement the shared
-    artifact-backed Memory note codec and metadata contract.
+    The shared Go/Python Memory note codec and existing Artifact metadata
+    extension are complete. Canonical fixtures cover exact field/UTF-8/payload
+    bounds and corruption, PostgreSQL projects stable binding plus exact
+    revision clocks, and private GET/PUT expose them without changing JSON or
+    ETag behavior. Next, implement the selected Worker memory-tools@1 Toolset.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
