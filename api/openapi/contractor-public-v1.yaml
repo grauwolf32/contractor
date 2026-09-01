@@ -2790,6 +2790,28 @@ components:
           maxItems: 256
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+    WorkspaceLimits:
+      type: object
+      additionalProperties: false
+      required: [maxFiles, maxExpandedBytes, maxManagedTextBytes, maxFileBytes]
+      properties:
+        maxFiles: {type: integer, minimum: 1}
+        maxExpandedBytes: {type: integer, format: int64, minimum: 1}
+        maxManagedTextBytes: {type: integer, format: int64, minimum: 1}
+        maxFileBytes: {type: integer, format: int64, minimum: 1}
+    WorkspaceCapabilities:
+      type: object
+      additionalProperties: false
+      required: [storage, modes, limits]
+      properties:
+        storage: {enum: [local, memory]}
+        modes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {enum: [direct, overlay]}
+        limits: {$ref: '#/components/schemas/WorkspaceLimits'}
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
@@ -2818,6 +2840,7 @@ components:
           maxItems: 128
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        workspaceCapabilities: {$ref: '#/components/schemas/WorkspaceCapabilities'}
         observedState: {enum: [idle, allocated, draining, fenced]}
         slotState: {enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}

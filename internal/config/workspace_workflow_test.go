@@ -86,6 +86,19 @@ func TestWorkspaceContextRejectsAliasesTargetsAndModeMismatch(t *testing.T) {
 			}
 		})
 	}
+	optional := false
+	optionalArtifacts := map[string]contextArtifactSource{
+		"source": {Namespace: "inputs", Name: "source", Required: &optional},
+	}
+	_, err := resolveStageContext(&stageContextSource{
+		Artifacts: &optionalArtifacts,
+		Workspace: &workspaceContextSource{
+			Mode: "direct", Sources: []workspaceSource{{Artifact: "source", Target: ""}},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "required context artifact") {
+		t.Fatalf("optional source error = %v", err)
+	}
 }
 
 func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {

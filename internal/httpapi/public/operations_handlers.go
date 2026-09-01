@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
@@ -152,6 +153,11 @@ func cloneRuntimeAgentObservation(
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]string{}, source.SupportedRuntimeAdapters...)
+	if source.WorkspaceCapabilities != nil {
+		capabilities := *source.WorkspaceCapabilities
+		capabilities.Modes = append([]contracts.WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		result.WorkspaceCapabilities = &capabilities
+	}
 	result.SupportedToolsets = make(
 		[]controlplane.RuntimeToolsetCapability,
 		len(source.SupportedToolsets),

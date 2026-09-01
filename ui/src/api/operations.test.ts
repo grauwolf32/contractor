@@ -120,6 +120,16 @@ describe("Operations API", () => {
               ],
               supportedSandboxProfiles: ["remote@1", "local-workdir@1"],
               supportedRuntimeAdapters: ["otlp-http@1"],
+              workspaceCapabilities: {
+                storage: "local",
+                modes: ["overlay", "direct"],
+                limits: {
+                  maxFiles: 100,
+                  maxExpandedBytes: 4096,
+                  maxManagedTextBytes: 2048,
+                  maxFileBytes: 1024,
+                },
+              },
               observedState: "idle",
               slotState: "idle",
             },
@@ -149,6 +159,10 @@ describe("Operations API", () => {
       "search_source",
     ]);
     expect(result.runtimeAgents[1]?.supportedToolsets).toEqual([]);
+    expect(result.runtimeAgents[0]?.workspaceCapabilities?.modes).toEqual([
+      "direct",
+      "overlay",
+    ]);
     const unexpected = new PublicAPI(
       runtimeConfig,
       vi.fn(async () =>

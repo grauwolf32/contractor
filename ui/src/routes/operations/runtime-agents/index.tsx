@@ -145,6 +145,18 @@ function PrincipalCard({
             </dd>
           </div>
         )}
+        {principal.live?.workspaceCapabilities === undefined ? null : (
+          <div>
+            <dt>Frozen workspace capability</dt>
+            <dd>
+              <code>{principal.live.workspaceCapabilities.storage}</code>
+              {" · "}
+              {principal.live.workspaceCapabilities.modes.map((mode) => (
+                <code key={mode}>{mode}</code>
+              ))}
+            </dd>
+          </div>
+        )}
       </dl>
       <fieldset className="runtime-principal-labels">
         <legend>Authoritative Agent labels</legend>
@@ -363,6 +375,33 @@ export function RuntimeAgentListRoute() {
                                       </li>
                                     ))}
                                   </ul>
+                                )}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Workspace</dt>
+                              <dd>
+                                {agent.workspaceCapabilities === undefined ? (
+                                  <span className="muted-copy">
+                                    Not configured
+                                  </span>
+                                ) : (
+                                  <>
+                                    <code>
+                                      {agent.workspaceCapabilities.storage}
+                                    </code>
+                                    {" · "}
+                                    {agent.workspaceCapabilities.modes.map(
+                                      (mode) => (
+                                        <code key={mode}>{mode}</code>
+                                      ),
+                                    )}
+                                    {" · "}
+                                    {agent.workspaceCapabilities.limits.maxFiles.toLocaleString()}{" "}
+                                    files /{" "}
+                                    {agent.workspaceCapabilities.limits.maxExpandedBytes.toLocaleString()}{" "}
+                                    bytes expanded
+                                  </>
                                 )}
                               </dd>
                             </div>

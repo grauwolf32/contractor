@@ -452,6 +452,7 @@ func (r *InMemoryRegistry) reserveAll(
 			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			Workspace:                 contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 		}
@@ -593,7 +594,7 @@ func completeCapabilityAssignmentWithEdges(
 	candidates := make([][]int, len(bindings))
 	for bindingIndex, binding := range bindings {
 		for agentIndex, entry := range available {
-			if !isCompatible(entry.registration, binding.AgentTemplate) {
+			if !isCompatible(entry.registration, binding.AgentTemplate, binding.Workspace) {
 				continue
 			}
 			if edges != nil {
@@ -1001,7 +1002,11 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
-func isCompatible(registration contracts.AgentRegistrationV2, template contracts.ResolvedAgentTemplate) bool {
+func isCompatible(
+	registration contracts.AgentRegistrationV2,
+	template contracts.ResolvedAgentTemplate,
+	workspace *contracts.AllocationWorkspaceSpecV2,
+) bool {
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
 	if !contains(registration.SupportedRuntimes, runtime) {
 		return false
@@ -1030,7 +1035,25 @@ func isCompatible(registration contracts.AgentRegistrationV2, template contracts
 			}
 		}
 	}
+	if workspace != nil && !supportsWorkspaceMode(registration.WorkspaceCapabilities, workspace.Mode) {
+		return false
+	}
 	return true
+}
+
+func supportsWorkspaceMode(
+	capabilities *contracts.WorkspaceCapabilitiesV2,
+	mode contracts.WorkspaceModeV2,
+) bool {
+	if capabilities == nil {
+		return false
+	}
+	for _, supported := range capabilities.Modes {
+		if supported == mode {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeReservationRequest(request ReservationRequest) (string, []BindingRequirement, error) {
@@ -1064,6 +1087,11 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.ExecutionConfig.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid execution config for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		if binding.Workspace != nil {
+			if err := binding.Workspace.Validate(); err != nil {
+				return "", nil, fmt.Errorf("%w: invalid workspace for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
+			}
+		}
 		if (request.RuntimeConfig == nil) != (binding.RuntimeSelection == nil) {
 			return "", nil, fmt.Errorf("%w: candidate Runtime selection is incomplete", ErrInvalidRequest)
 		}
@@ -1082,6 +1110,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			ResolvedSkills:   contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:  cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeSelection: cloneRuntimeSelection(binding.RuntimeSelection),
+			Workspace:        contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
@@ -1326,6 +1355,11 @@ func cloneRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegi
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	if source.WorkspaceCapabilities != nil {
+		capabilities := *source.WorkspaceCapabilities
+		capabilities.Modes = append([]contracts.WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		result.WorkspaceCapabilities = &capabilities
+	}
 	result.SupportedToolsets = make([]contracts.ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
@@ -1382,6 +1416,7 @@ func cloneReservation(source Reservation) Reservation {
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
+	result.Workspace = contracts.CloneAllocationWorkspaceSpecV2(source.Workspace)
 	if source.ResolvedRuntimeConfig != nil {
 		resolved := source.ResolvedRuntimeConfig.Clone()
 		result.ResolvedRuntimeConfig = &resolved

@@ -93,6 +93,7 @@ func (c *RuntimeControlClient) Prepare(
 		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),
 		ModelPolicy:    cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
+		Workspace:                       contracts.CloneAllocationWorkspaceSpecV2(reservation.Workspace),
 	}
 	request := contracts.PrepareAllocationRequestV2{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {

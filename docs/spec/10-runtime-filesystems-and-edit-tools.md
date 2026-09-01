@@ -107,7 +107,9 @@ WorkspaceExport
 Rules:
 
 1. Every source alias and optional state alias exists in
-   `context.artifacts`. Requiredness is inherited from that artifact entry.
+   `context.artifacts`. Source aliases must be required. State requiredness is
+   inherited from its artifact entry, so an optional absent state stays absent
+   from AllocationSpec.
 2. Source targets are UTF-8 NFC relative POSIX directories. They contain no
    empty, `.`, `..`, backslash, NUL/control, URI, Windows drive or UNC
    component; at most 32 components and 1024 UTF-8 bytes are allowed.
@@ -236,6 +238,11 @@ The capability snapshot is positive and frozen after registration. `storage`
 is operational diagnostics; placement requires the requested mode and exact
 Toolset/tool capabilities. Scheduler does not prefer local over memory.
 Runtime repeats the compatibility check during prepare.
+
+Operations exposes this frozen positive capability (storage, supported modes
+and limits), but never workspace refs, paths or content. It therefore makes a
+temporary workspace-mode placement wait diagnosable without weakening
+allocation isolation.
 
 ## Secure hydration
 

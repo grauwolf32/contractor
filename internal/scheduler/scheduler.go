@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -1313,7 +1314,7 @@ func (s *Scheduler) liveOrNewReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) ([]controlplane.Reservation, bool, error) {
-	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot)
+	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot, execution.StageContext)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1411,6 +1412,10 @@ func verifyReservations(
 	recorded []runstore.StageAllocation,
 	reservations []controlplane.Reservation,
 ) error {
+	expectedWorkspace, err := projectAllocationWorkspace(workflow.stage.Context.Workspace, execution.StageContext)
+	if err != nil {
+		return err
+	}
 	if len(reservations) != len(workflow.stage.Agents) {
 		return fmt.Errorf("Control Plane returned an incomplete allocation set")
 	}
@@ -1424,7 +1429,8 @@ func verifyReservations(
 		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
 			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
-			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() {
+			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
+			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
 		if reservation.ResolvedRuntimeConfig == nil {
@@ -2202,7 +2208,7 @@ func (s *Scheduler) existingLiveReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) []controlplane.Reservation {
-	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot)
+	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot, execution.StageContext)
 	if err != nil {
 		return nil
 	}

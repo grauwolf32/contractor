@@ -133,19 +133,20 @@ func (c OperationsCursor) MarshalJSON() ([]byte, error) {
 }
 
 type RuntimeAgentObservation struct {
-	InstanceID                string                       `json:"instanceId"`
-	SoftwareVersion           string                       `json:"softwareVersion"`
-	SupportedRuntimes         []string                     `json:"supportedRuntimes"`
-	SupportedToolsets         []RuntimeToolsetCapability   `json:"supportedToolsets"`
-	SupportedSandboxProfiles  []string                     `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters  []string                     `json:"supportedRuntimeAdapters"`
-	ObservedState             contracts.AgentObservedState `json:"observedState"`
-	SlotState                 SlotState                    `json:"slotState"`
-	LastAcceptedHeartbeat     *time.Time                   `json:"lastAcceptedHeartbeat,omitempty"`
-	ConfirmedLeaseUntil       *time.Time                   `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationID       *string                      `json:"currentAllocationId,omitempty"`
-	AuthoritativeAllocationID *string                      `json:"authoritativeAllocationId,omitempty"`
-	ReconciliationReason      *SafeReason                  `json:"reconciliationReason,omitempty"`
+	InstanceID                string                             `json:"instanceId"`
+	SoftwareVersion           string                             `json:"softwareVersion"`
+	SupportedRuntimes         []string                           `json:"supportedRuntimes"`
+	SupportedToolsets         []RuntimeToolsetCapability         `json:"supportedToolsets"`
+	SupportedSandboxProfiles  []string                           `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters  []string                           `json:"supportedRuntimeAdapters"`
+	WorkspaceCapabilities     *contracts.WorkspaceCapabilitiesV2 `json:"workspaceCapabilities,omitempty"`
+	ObservedState             contracts.AgentObservedState       `json:"observedState"`
+	SlotState                 SlotState                          `json:"slotState"`
+	LastAcceptedHeartbeat     *time.Time                         `json:"lastAcceptedHeartbeat,omitempty"`
+	ConfirmedLeaseUntil       *time.Time                         `json:"confirmedLeaseUntil,omitempty"`
+	CurrentAllocationID       *string                            `json:"currentAllocationId,omitempty"`
+	AuthoritativeAllocationID *string                            `json:"authoritativeAllocationId,omitempty"`
+	ReconciliationReason      *SafeReason                        `json:"reconciliationReason,omitempty"`
 }
 
 type RuntimeToolsetCapability struct {
@@ -245,6 +246,9 @@ func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 		!validUniqueCapabilityRefs(observation.SupportedSandboxProfiles) ||
 		!validUniqueCapabilityRefs(observation.SupportedRuntimeAdapters) {
 		return fmt.Errorf("invalid or duplicate Runtime Agent capability ref")
+	}
+	if observation.WorkspaceCapabilities != nil && observation.WorkspaceCapabilities.Validate() != nil {
+		return fmt.Errorf("invalid Runtime Agent workspace capability")
 	}
 	seenToolsets := make(map[string]struct{}, len(observation.SupportedToolsets))
 	for _, capability := range observation.SupportedToolsets {
@@ -525,6 +529,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
 		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
 		SupportedRuntimeAdapters:  contracts.RuntimeAdapterCapabilityProjectionV2(entry.registration),
+		WorkspaceCapabilities:     cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
 		CurrentAllocationID:       cloneString(entry.registration.AllocationID),
@@ -560,6 +565,17 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		result.ReconciliationReason = &SafeReason{Code: code, Retryable: true}
 	}
 	return result
+}
+
+func cloneWorkspaceCapabilities(
+	source *contracts.WorkspaceCapabilitiesV2,
+) *contracts.WorkspaceCapabilitiesV2 {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.Modes = append([]contracts.WorkspaceModeV2{}, source.Modes...)
+	return &result
 }
 
 func allocationObservation(

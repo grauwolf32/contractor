@@ -149,6 +149,16 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		},
 		PackageDigest: "sha256:" + strings.Repeat("e", 64),
 	}}
+	workspaceRevision := "source-revision-1"
+	reservation.Workspace = &contracts.AllocationWorkspaceSpecV2{
+		Mode: contracts.WorkspaceModeOverlay,
+		Sources: []contracts.AllocationWorkspaceSourceV2{{
+			Artifact: contracts.ArtifactRef{
+				Namespace: "inputs", Name: "source", Revision: &workspaceRevision,
+			},
+			Target: "project",
+		}},
+	}
 	client, err := NewRuntimeControlClient(server.Client())
 	if err != nil {
 		t.Fatal(err)
@@ -175,6 +185,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||
 		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
 		received.Spec.ModelPolicy.Model != effectivePolicy.Model ||
+		received.Spec.Workspace == nil || len(received.Spec.Workspace.Sources) != 1 ||
+		received.Spec.Workspace.Sources[0].Artifact.Revision == nil ||
+		*received.Spec.Workspace.Sources[0].Artifact.Revision != workspaceRevision ||
 		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {
 		t.Fatalf("prepare request lost resolved inputs: %+v", received.Spec)
 	}

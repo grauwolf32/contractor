@@ -123,6 +123,94 @@ func TestReserveAllFindsCompleteSpecialistGeneralistAssignment(t *testing.T) {
 	}
 }
 
+func TestWorkspaceModeParticipatesInCompleteCompatibility(t *testing.T) {
+	t.Parallel()
+	template := testTemplate(t)
+	registration := testRegistrationV2("workspace-agent")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+		Storage: contracts.WorkspaceStorageLocal,
+		Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
+		Limits: contracts.WorkspaceLimitsV2{
+			MaxFiles: 100, MaxExpandedBytes: 1024, MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
+		},
+	}
+	direct := &contracts.AllocationWorkspaceSpecV2{
+		Mode: contracts.WorkspaceModeDirect,
+		Sources: []contracts.AllocationWorkspaceSourceV2{{
+			Artifact: exactWorkspaceRef("source", "r1"), Target: "",
+		}},
+	}
+	overlay := contracts.CloneAllocationWorkspaceSpecV2(direct)
+	overlay.Mode = contracts.WorkspaceModeOverlay
+	if !isCompatible(registration, template, direct) {
+		t.Fatal("direct-capable Runtime Agent rejected a direct workspace")
+	}
+	if isCompatible(registration, template, overlay) {
+		t.Fatal("direct-only Runtime Agent accepted an overlay workspace")
+	}
+	if isCompatible(testRegistrationV2("no-workspace-agent"), template, direct) {
+		t.Fatal("Runtime Agent without workspace capability accepted a workspace")
+	}
+}
+
+func TestWorkspaceReservationReplayPinsExactProjection(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registration := testRegistrationV2("workspace-replay-agent")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+		Storage: contracts.WorkspaceStorageLocal,
+		Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
+		Limits: contracts.WorkspaceLimitsV2{
+			MaxFiles: 100, MaxExpandedBytes: 1024,
+			MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
+		},
+	}
+	principal := legacyPrincipal(registration.InstanceID)
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatal(err)
+	}
+	for _, beat := range []contracts.AgentHeartbeat{
+		heartbeat(registration.InstanceID, 1, 0), heartbeat(registration.InstanceID, 2, 1),
+	} {
+		if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, beat); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binding := testBinding(t, "builder", "builder", testTemplate(t))
+	binding.Workspace = &contracts.AllocationWorkspaceSpecV2{
+		Mode: contracts.WorkspaceModeDirect,
+		Sources: []contracts.AllocationWorkspaceSourceV2{{
+			Artifact: exactWorkspaceRef("source", "revision-1"), Target: "",
+		}},
+	}
+	request := ReservationRequest{
+		RunID: "run-workspace", StageExecutionID: "stage-workspace",
+		Bindings: []BindingRequirement{binding},
+	}
+	first, err := registry.ReserveAll(request)
+	if err != nil || len(first) != 1 || first[0].Workspace == nil ||
+		*first[0].Workspace.Sources[0].Artifact.Revision != "revision-1" {
+		t.Fatalf("workspace reservation = (%+v, %v)", first, err)
+	}
+	first[0].Workspace.Sources[0].Target = "mutated-by-caller"
+	replayed, err := registry.ReserveAll(request)
+	if err != nil || replayed[0].Workspace.Sources[0].Target != "" {
+		t.Fatalf("workspace replay = (%+v, %v)", replayed, err)
+	}
+	changed := request
+	changed.Bindings = append([]BindingRequirement(nil), request.Bindings...)
+	changed.Bindings[0].Workspace = contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace)
+	revision := "revision-2"
+	changed.Bindings[0].Workspace.Sources[0].Artifact.Revision = &revision
+	if _, err := registry.ReserveAll(changed); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("changed workspace replay error = %v", err)
+	}
+}
+
+func exactWorkspaceRef(name, revision string) contracts.ArtifactRef {
+	return contracts.ArtifactRef{Namespace: "inputs", Name: name, Revision: &revision}
+}
+
 func TestReserveCandidateEdgesFindsCompleteNonGreedyAssignment(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)

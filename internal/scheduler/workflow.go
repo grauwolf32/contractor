@@ -182,7 +182,12 @@ func stageSnapshot(stage workflowconfig.ResolvedStage) (json.RawMessage, error) 
 func bindingRequirements(
 	stage workflowconfig.ResolvedStage,
 	snapshot []contracts.RunSkillSnapshot,
+	context runstore.StageContextSnapshot,
 ) ([]controlplane.BindingRequirement, error) {
+	workspace, err := projectAllocationWorkspace(stage.Context.Workspace, context)
+	if err != nil {
+		return nil, err
+	}
 	resolvedByName := make(map[string]contracts.ResolvedSkill, len(snapshot))
 	for _, skill := range snapshot {
 		if err := skill.Validate(); err != nil || !skill.Initialized() {
@@ -225,7 +230,50 @@ func bindingRequirements(
 			ResolvedSkills:   resolvedSkills,
 			ExecutionConfig:  allocationExecutionConfig(stage, name),
 			RuntimeSelection: &selection,
+			Workspace:        contracts.CloneAllocationWorkspaceSpecV2(workspace),
 		})
+	}
+	return result, nil
+}
+
+func projectAllocationWorkspace(
+	workspace *workflowconfig.WorkspaceContext,
+	context runstore.StageContextSnapshot,
+) (*contracts.AllocationWorkspaceSpecV2, error) {
+	if workspace == nil {
+		return nil, nil
+	}
+	result := &contracts.AllocationWorkspaceSpecV2{
+		Mode:    workspace.Mode,
+		Sources: make([]contracts.AllocationWorkspaceSourceV2, 0, len(workspace.Sources)),
+	}
+	for _, source := range workspace.Sources {
+		pinned, exists := context.Artifacts[source.Artifact]
+		if !exists || pinned.Artifact == nil {
+			return nil, fmt.Errorf("workspace source %q has no exact StageContext pin", source.Artifact)
+		}
+		result.Sources = append(result.Sources, contracts.AllocationWorkspaceSourceV2{
+			Artifact: cloneArtifactRef(*pinned.Artifact), Target: source.Target,
+		})
+	}
+	if workspace.State != nil {
+		pinned, exists := context.Artifacts[workspace.State.Artifact]
+		if !exists {
+			return nil, fmt.Errorf("workspace state %q is absent from StageContext", workspace.State.Artifact)
+		}
+		if pinned.Artifact != nil {
+			result.State = &contracts.AllocationWorkspaceStateV2{
+				Artifact: cloneArtifactRef(*pinned.Artifact),
+			}
+		}
+	}
+	if workspace.Export != nil {
+		result.Export = &contracts.AllocationWorkspaceExportV2{
+			State: workspace.Export.State, Diff: workspace.Export.Diff,
+		}
+	}
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("project allocation workspace: %w", err)
 	}
 	return result, nil
 }

@@ -255,6 +255,39 @@ type AllocationWorkspaceSpecV2 struct {
 	Export  *AllocationWorkspaceExportV2  `json:"export,omitempty"`
 }
 
+// CloneAllocationWorkspaceSpecV2 returns a detached copy suitable for crossing
+// ownership boundaries between Scheduler, Control Plane and Runtime clients.
+func CloneAllocationWorkspaceSpecV2(source *AllocationWorkspaceSpecV2) *AllocationWorkspaceSpecV2 {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.Sources = make([]AllocationWorkspaceSourceV2, len(source.Sources))
+	for index, item := range source.Sources {
+		result.Sources[index] = item
+		result.Sources[index].Artifact = cloneWorkspaceArtifactRef(item.Artifact)
+	}
+	if source.State != nil {
+		state := *source.State
+		state.Artifact = cloneWorkspaceArtifactRef(source.State.Artifact)
+		result.State = &state
+	}
+	if source.Export != nil {
+		export := *source.Export
+		result.Export = &export
+	}
+	return &result
+}
+
+func cloneWorkspaceArtifactRef(source ArtifactRef) ArtifactRef {
+	result := source
+	if source.Revision != nil {
+		revision := *source.Revision
+		result.Revision = &revision
+	}
+	return result
+}
+
 func (s AllocationWorkspaceSpecV2) Validate() error {
 	if err := s.Mode.Validate(); err != nil {
 		return err

@@ -93,7 +93,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
 		for _, candidate := range candidates {
-			if !isCompatible(candidate.Registration, binding.AgentTemplate) {
+			if !isCompatible(candidate.Registration, binding.AgentTemplate, binding.Workspace) {
 				continue
 			}
 			resolved, err := a.resolveCandidate(ctx, a.pool, request, binding, candidate.Principal)
@@ -231,6 +231,7 @@ func (a *PlacementAllocator) pinReservations(
 			reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
 		)]
 		if !ok || !sameResolvedRuntimeConfig(observed, resolved) ||
+			!isCompatible(candidate.Registration, binding.AgentTemplate, binding.Workspace) ||
 			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
 			return errPlacementRevisionChanged
 		}

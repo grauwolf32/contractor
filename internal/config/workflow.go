@@ -324,8 +324,12 @@ func resolveWorkspaceContext(
 		if err := validateMapKey("context.workspace.sources artifact alias", candidate.Artifact); err != nil {
 			return nil, err
 		}
-		if _, exists := artifacts[candidate.Artifact]; !exists {
+		artifact, exists := artifacts[candidate.Artifact]
+		if !exists {
 			return nil, fmt.Errorf("context.workspace.sources[%d].artifact names unknown context artifact %q", index, candidate.Artifact)
+		}
+		if !artifact.Required {
+			return nil, fmt.Errorf("context.workspace.sources[%d].artifact must name a required context artifact", index)
 		}
 		if err := validateWorkspaceTarget(candidate.Target); err != nil {
 			return nil, fmt.Errorf("context.workspace.sources[%d].target: %w", index, err)

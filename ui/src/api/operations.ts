@@ -39,6 +39,8 @@ export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
 export type OperationsCursor = components["schemas"]["SnapshotCursor"];
 export type RuntimeAgentObservation =
   components["schemas"]["RuntimeAgentObservation"];
+export type WorkspaceCapabilities =
+  components["schemas"]["WorkspaceCapabilities"];
 export type AllocationObservation =
   components["schemas"]["AllocationObservation"];
 export type RuntimeAgentPage = components["schemas"]["RuntimeAgentPage"];
@@ -440,6 +442,44 @@ function safeReason(value: { code: string; retryable: boolean } | undefined) {
     : { code: value.code, retryable: value.retryable };
 }
 
+function safeWorkspaceCapabilities(
+  value: WorkspaceCapabilities | undefined,
+): WorkspaceCapabilities | undefined {
+  if (value === undefined) return undefined;
+  requireExactRuntimeKeys(value, ["storage", "modes", "limits"]);
+  requireExactRuntimeKeys(value.limits, [
+    "maxFiles",
+    "maxExpandedBytes",
+    "maxManagedTextBytes",
+    "maxFileBytes",
+  ]);
+  const limits = value.limits;
+  const numbers = [
+    limits.maxFiles,
+    limits.maxExpandedBytes,
+    limits.maxManagedTextBytes,
+    limits.maxFileBytes,
+  ];
+  if (
+    (value.storage !== "local" && value.storage !== "memory") ||
+    !Array.isArray(value.modes) ||
+    value.modes.length === 0 ||
+    value.modes.length > 2 ||
+    value.modes.some((mode) => mode !== "direct" && mode !== "overlay") ||
+    new Set(value.modes).size !== value.modes.length ||
+    numbers.some((number) => !Number.isSafeInteger(number) || number <= 0) ||
+    limits.maxFileBytes > limits.maxExpandedBytes ||
+    limits.maxManagedTextBytes > limits.maxExpandedBytes
+  ) {
+    throw new TypeError("Runtime Agent workspace capability is invalid");
+  }
+  return {
+    storage: value.storage,
+    modes: [...value.modes].sort(),
+    limits: { ...limits },
+  };
+}
+
 function safeRuntimeAgent(
   value: RuntimeAgentObservation,
 ): RuntimeAgentObservation {
@@ -461,12 +501,16 @@ function safeRuntimeAgent(
       "currentAllocationId",
       "authoritativeAllocationId",
       "reconciliationReason",
+      "workspaceCapabilities",
     ],
   );
   const reason = safeReason(value.reconciliationReason);
   const runtimes = safeCapabilityRefs(value.supportedRuntimes, true);
   const sandboxes = safeCapabilityRefs(value.supportedSandboxProfiles, true);
   const adapters = safeCapabilityRefs(value.supportedRuntimeAdapters, false);
+  const workspaceCapabilities = safeWorkspaceCapabilities(
+    value.workspaceCapabilities,
+  );
   if (
     !Array.isArray(value.supportedToolsets) ||
     value.supportedToolsets.length > MAX_RUNTIME_TOOLSETS
@@ -511,6 +555,7 @@ function safeRuntimeAgent(
     supportedToolsets: toolsets,
     supportedSandboxProfiles: sandboxes,
     supportedRuntimeAdapters: adapters,
+    ...(workspaceCapabilities === undefined ? {} : { workspaceCapabilities }),
     observedState: value.observedState,
     slotState: value.slotState,
     ...(value.lastAcceptedHeartbeat === undefined

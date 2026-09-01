@@ -275,7 +275,15 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
-			ObservedState:            contracts.AgentIdle, SlotState: SlotIdle,
+			WorkspaceCapabilities: &contracts.WorkspaceCapabilitiesV2{
+				Storage: contracts.WorkspaceStorageLocal,
+				Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
+				Limits: contracts.WorkspaceLimitsV2{
+					MaxFiles: 100, MaxExpandedBytes: 1024,
+					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
+				},
+			},
+			ObservedState: contracts.AgentIdle, SlotState: SlotIdle,
 		}
 	}
 	tests := []struct {
@@ -303,6 +311,9 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 				agent.SupportedToolsets[0].Tools[index] = fmt.Sprintf("tool_%d", index)
 			}
 		}},
+		{"invalid-workspace-mode", func(agent *RuntimeAgentObservation) {
+			agent.WorkspaceCapabilities.Modes = []contracts.WorkspaceModeV2{"unsupported"}
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -313,6 +324,46 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 				t.Fatalf("invalid capability validation error = %v", err)
 			}
 		})
+	}
+}
+
+func TestOperationsExposeDetachedFrozenWorkspaceCapabilities(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registration := testRegistrationV2("workspace-operations")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+		Storage: contracts.WorkspaceStorageMemory,
+		Modes: []contracts.WorkspaceModeV2{
+			contracts.WorkspaceModeDirect, contracts.WorkspaceModeOverlay,
+		},
+		Limits: contracts.WorkspaceLimitsV2{
+			MaxFiles: 100, MaxExpandedBytes: 4096,
+			MaxManagedTextBytes: 2048, MaxFileBytes: 1024,
+		},
+	}
+	principal := legacyPrincipal(registration.InstanceID)
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(registration.InstanceID, 1, 0),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(registration.InstanceID, 2, 1),
+	); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := registry.SnapshotOperations()
+	if len(snapshot.RuntimeAgents) != 1 || snapshot.RuntimeAgents[0].WorkspaceCapabilities == nil ||
+		snapshot.RuntimeAgents[0].WorkspaceCapabilities.Storage != contracts.WorkspaceStorageMemory ||
+		len(snapshot.RuntimeAgents[0].WorkspaceCapabilities.Modes) != 2 {
+		t.Fatalf("workspace Operations projection = %+v", snapshot)
+	}
+	snapshot.RuntimeAgents[0].WorkspaceCapabilities.Modes[0] = contracts.WorkspaceModeOverlay
+	again := registry.SnapshotOperations()
+	if again.RuntimeAgents[0].WorkspaceCapabilities.Modes[0] != contracts.WorkspaceModeDirect {
+		t.Fatal("Operations workspace capability aliases Registry state")
 	}
 }
 

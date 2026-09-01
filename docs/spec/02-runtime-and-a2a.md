@@ -539,6 +539,7 @@ required runtime = AgentTemplate.runtime
 required sandbox = AgentTemplate.sandboxProfile
 required tools   = each AgentTemplate.toolsets[ref].tools
 required adapters = RuntimeAdapters referenced by resolved Run + Agent label settings
+required workspace mode = Stage context.workspace.mode, when workspace exists
 ```
 
 A Runtime Agent is a candidate only when it is `idle`, has a confirmed control

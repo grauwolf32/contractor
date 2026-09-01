@@ -178,7 +178,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 		},
 	}
 
-	requirements, err := bindingRequirements(stage, runSkills)
+	requirements, err := bindingRequirements(stage, runSkills, runstore.StageContextSnapshot{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,9 +193,82 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 		t.Fatalf("builder did not receive exact review pin: %+v", requirements[0])
 	}
 
-	_, err = bindingRequirements(stage, runSkills[1:])
+	_, err = bindingRequirements(stage, runSkills[1:], runstore.StageContextSnapshot{})
 	if err == nil || !strings.Contains(err.Error(), "analysis2") {
 		t.Fatalf("missing immutable Run Skill was not rejected: %v", err)
+	}
+}
+
+func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+		"source": {Namespace: "inputs", Name: "source", Required: true},
+		"state":  {Namespace: "builder", Name: "workspace_state", Required: false},
+	}
+	stage.Context.Workspace = &workflowconfig.WorkspaceContext{
+		Mode:    contracts.WorkspaceModeOverlay,
+		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: "project"}},
+		State:   &workflowconfig.WorkspaceStateInput{Artifact: "state"},
+		Export:  &workflowconfig.WorkspaceExport{State: "next_state", Diff: "changes"},
+	}
+	second := stage.Agents["builder"]
+	second.Namespace = "reviewer"
+	stage.Agents["reviewer"] = second
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	sourceRevision := "source-revision-7"
+	context := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
+		"source": {
+			Required: true,
+			Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &sourceRevision},
+		},
+		"state": {Required: false},
+	}}
+
+	requirements, err := bindingRequirements(stage, []contracts.RunSkillSnapshot{}, context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requirements) != 2 || requirements[0].Workspace == nil || requirements[1].Workspace == nil {
+		t.Fatalf("workspace requirements = %+v", requirements)
+	}
+	for _, requirement := range requirements {
+		workspace := requirement.Workspace
+		if workspace.Mode != contracts.WorkspaceModeOverlay || len(workspace.Sources) != 1 ||
+			workspace.Sources[0].Target != "project" || workspace.Sources[0].Artifact.Revision == nil ||
+			*workspace.Sources[0].Artifact.Revision != sourceRevision || workspace.State != nil ||
+			workspace.Export == nil || workspace.Export.State != "next_state" || workspace.Export.Diff != "changes" {
+			t.Fatalf("projected workspace = %+v", workspace)
+		}
+	}
+	mutated := "mutated"
+	requirements[0].Workspace.Sources[0].Artifact.Revision = &mutated
+	if *requirements[1].Workspace.Sources[0].Artifact.Revision != sourceRevision ||
+		*context.Artifacts["source"].Artifact.Revision != sourceRevision {
+		t.Fatal("Router workspace projections alias each other or persisted StageContext")
+	}
+}
+
+func TestProjectAllocationWorkspaceRejectsMissingRequiredSource(t *testing.T) {
+	t.Parallel()
+	workspace := &workflowconfig.WorkspaceContext{
+		Mode:    contracts.WorkspaceModeDirect,
+		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: ""}},
+	}
+	_, err := projectAllocationWorkspace(workspace, runstore.StageContextSnapshot{
+		Artifacts: map[string]runstore.PinnedContextArtifact{"source": {Required: true}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no exact StageContext pin") {
+		t.Fatalf("missing source error = %v", err)
 	}
 }
 

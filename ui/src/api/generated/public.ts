@@ -1589,6 +1589,21 @@ export interface components {
             ref: components["schemas"]["RuntimeCapabilityRef"];
             tools: components["schemas"]["ConfigId"][];
         };
+        WorkspaceLimits: {
+            maxFiles: number;
+            /** Format: int64 */
+            maxExpandedBytes: number;
+            /** Format: int64 */
+            maxManagedTextBytes: number;
+            /** Format: int64 */
+            maxFileBytes: number;
+        };
+        WorkspaceCapabilities: {
+            /** @enum {unknown} */
+            storage: "local" | "memory";
+            modes: ("direct" | "overlay")[];
+            limits: components["schemas"]["WorkspaceLimits"];
+        };
         RuntimeAgentObservation: {
             instanceId: components["schemas"]["ResourceId"];
             softwareVersion: string;
@@ -1596,6 +1611,7 @@ export interface components {
             supportedToolsets: components["schemas"]["RuntimeToolsetCapability"][];
             supportedSandboxProfiles: components["schemas"]["RuntimeCapabilityRef"][];
             supportedRuntimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
+            workspaceCapabilities?: components["schemas"]["WorkspaceCapabilities"];
             /** @enum {unknown} */
             observedState: "idle" | "allocated" | "draining" | "fenced";
             /** @enum {unknown} */
