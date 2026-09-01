@@ -242,15 +242,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-003
-  next_task: V9-004
+  completed_through: V9-004
+  next_task: V9-005
   summary: >-
-    Streamline and Router now mirror each prepared Worker's exact selected
-    Memory operations over Stage-bound Planner Artifact views. Per-operation
-    logical routing, closed argument errors, shared Planner/Worker notes,
-    bounded diagnostics and Run-then-Stage terminal serialization are covered;
-    Passthrough remains deterministic. Next, prove the functional contract
-    through real Server/PostgreSQL/Python Runtime processes.
+    The process MVP now proves Streamline retry and later-Stage namespace
+    continuity, Router per-operation routing and namespace isolation, and a
+    fresh second Run through the production Server, PostgreSQL, A2A, private
+    Artifact API and two real Python Runtime Agents. Next, close the audited
+    semantic and model-boundary gaps before fault injection.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -400,6 +399,7 @@ memory_tools_implementation_review:
     V9-001: 9e4a1469d6cad91f3eda53f0c6684ff6fd59d290
     V9-002: 8e8fad0e9a651d34553d80fc4e6da29a1e40fdf2
     V9-003: acf1c0f2a436cf82ce10d26ef9db5e26c606d557
+    V9-004: e11f45b6661732ab9a30a7b11f126f7700ae23e8
   confirmed:
     - >-
       Go and Python canonical codecs agree on exact bytes, UTF-8/size bounds,
@@ -420,6 +420,12 @@ memory_tools_implementation_review:
       audit reproduced a real Stage-to-Run trigger deadlock in the former abort
       path; V9-003 now enters abort through atomic Run-then-Stage Scheduler
       persistence, matching Planner Memory lock order.
+    - >-
+      A production process scenario proves one failed Streamline attempt can
+      preserve a note for its bounded retry and a later Stage, while a second
+      Run starts empty. Router exposes exact per-operation worker_name enums,
+      keeps same-named notes in two logical namespaces and dispatches both
+      Workers without placing physical Runtime identity in model context.
   release_blockers_assigned:
     - >-
       V9-005 owns strict Worker raw ADK argument validation, closed internal
@@ -440,7 +446,9 @@ memory_tools_implementation_review:
     - Focused Worker/Artifact Python tests pass.
     - go test -race ./internal/memory/... ./internal/planner/... ./internal/scheduler/... passes.
     - PostgreSQL Planner Memory finalizing/aborting tests pass five repeated runs.
+    - make test-shared-memory-e2e passes against PostgreSQL with two real Python Runtime Agent processes.
     - make verify passes with 251 Python tests, 1 skipped and 108 UI tests.
+    - release-verify passes with the Runtime configuration, browser-stack and shared-Memory process gates composed.
     - All 112 indexed task YAML files parse and their dependency graph is acyclic.
 
 agent_skill_port:
