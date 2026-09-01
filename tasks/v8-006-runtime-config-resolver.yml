@@ -3,8 +3,8 @@ id: V8-006
 title: Implement deterministic Runtime configuration precedence and conflicts
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 428e6b9f12278d235e9487cf605fd0cc924e006c
 depends_on: [V8-001, V8-003, V8-005]
 languages: [go]
 

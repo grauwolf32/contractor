@@ -240,15 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-005
-  next_task: V8-006
+  completed_through: V8-006
+  next_task: V8-007
   summary: >-
-    Every Run now atomically pins the current default plus canonical explicit
-    Runtime labels, exact binding revisions and immutable RuntimeConfig refs.
-    Replay bypasses removed mutable dependencies, credential deletion observes
-    non-terminal snapshots, and only the Worker physical Gateway may remain
-    absent for candidate placement. Next, implement the pure precedence and
-    conflict resolver shared by allocation-time planning and audit projection.
+    The pure RuntimeConfig resolver now applies all six precedence layers,
+    deterministic same-layer conflict rules, explicit clears, independent
+    Planner telemetry, adapter requirements and exact Gateway/credential policy
+    checks without I/O or secrets. It returns field origins plus protocol-v2
+    provenance. Next, integrate it with candidate matching, revision locking,
+    durable allocation pinning and just-in-time secret delivery.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
