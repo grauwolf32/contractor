@@ -3,8 +3,8 @@ id: V11-002
 title: Parse and validate Stage workspace declarations
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 3a34f481b3a1e0b2e05977d3e30bcf3c5e9ed3a5
 depends_on: [V11-001]
 languages: [go]
 

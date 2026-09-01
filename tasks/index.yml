@@ -260,13 +260,14 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V11-001
-  next_task: V11-002
+  completed_through: V11-002
+  next_task: V11-003
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
     rewritten after user synchronization. V11-001 strict cross-language
-    workspace wire contracts are complete; V11-002 is next.
+    workspace wire contracts and strict Workflow workspace publication are
+    complete; V11-003 is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
