@@ -120,6 +120,57 @@ with media type `application/vnd.contractor.agent-skill+zip` and the current
 revision precondition. Future Runs use that new binding; existing Runs keep
 their pinned revision.
 
+Inspect the current binding and immutable version history, then use the current
+revision as the compare-and-swap precondition for an operator-authored update:
+
+```shell
+SKILL_NAME=likec4
+SKILL_BASE="http://127.0.0.1:8080/v1/artifacts/skills/$SKILL_NAME"
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "$SKILL_BASE/metadata" | jq .
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "$SKILL_BASE/versions?limit=100" | jq .
+
+CURRENT_REVISION="$(curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  "$SKILL_BASE/metadata" | jq -r .artifact.revision)"
+go run ./cmd/contractor-skill validate "configs/skills/$SKILL_NAME"
+go run ./cmd/contractor-skill package \
+  "configs/skills/$SKILL_NAME" "/tmp/$SKILL_NAME.zip"
+curl --fail --silent --show-error -X PUT \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  -H 'Content-Type: application/vnd.contractor.agent-skill+zip' \
+  -H "If-Match: \"$CURRENT_REVISION\"" \
+  --data-binary "@/tmp/$SKILL_NAME.zip" "$SKILL_BASE" | jq .
+```
+
+Create a Run through the ordinary Workflow API after uploading exact `source`
+and optional `existing_likec4` inputs as described below. Version 3 assigns the
+bundled LikeC4 skill to its builder and validator AgentTemplates:
+
+```shell
+jq -n --argjson source "$SOURCE_REF" --arg objective 'Model the architecture' \
+  '{workflow:"likec4-from-source@3",parameters:{objective:$objective},artifacts:{source:$source}}' | \
+  curl --fail --silent --show-error \
+    -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+    -H "Idempotency-Key: likec4-skilled-$(date +%s)" \
+    -H 'Content-Type: application/json' --data-binary @- \
+    http://127.0.0.1:8080/v1/runs | jq .
+```
+
+The bounded real-process proof covers startup seeding, restart idempotency,
+native ADK disclosure tools, an Artifact CAS update between source selection
+and Run initialization, retry pinning, release cleanup, and empty-skill slot
+reuse:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-agent-skills-mvp
+```
+
 `resolvedSkills` is a mandatory private allocation field. Even an
 AgentTemplate without skills is sent as `"resolvedSkills": []`; a non-empty
 value contains only exact RunScope `skills/<name>` revisions and package

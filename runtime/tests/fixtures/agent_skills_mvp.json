@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "skillName": "likec4",
+  "resourcePath": "references/cli.md",
+  "packageACanary": "CONTRACTOR_AGENT_SKILL_PACKAGE_A_7C621E",
+  "packageBCanary": "CONTRACTOR_AGENT_SKILL_PACKAGE_B_94D038",
+  "nativeToolSequence": [
+    "list_skills",
+    "load_skill",
+    "load_skill_resource"
+  ]
+}

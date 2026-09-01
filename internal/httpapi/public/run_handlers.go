@@ -267,21 +267,11 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		}
 		created = false
 	}
-	if created && len(skillRefs) > 0 {
-		initialized, initializeErr := h.dependencies.RunSkills.InitializeRunSkills(
-			r.Context(), storedRun.RunID,
-		)
-		if initialized.RunID != "" {
-			storedRun = initialized
-		}
-		if initializeErr != nil {
-			h.dependencies.Logger.Warn(
-				"WorkflowRun Skill initialization deferred",
-				"run_id", storedRun.RunID,
-				"error", initializeErr,
-			)
-		}
-	}
+	// Skill package validation and RunScope forking are intentionally deferred
+	// to Scheduler recovery. The creation transaction above has already pinned
+	// one complete exact owner-source outcome, so returning the initializing Run
+	// neither holds the HTTP request on bounded archive work nor permits a later
+	// owner binding update to change what recovery will read.
 	if created && h.dependencies.RunNotifier != nil {
 		h.dependencies.RunNotifier.Wake()
 	}

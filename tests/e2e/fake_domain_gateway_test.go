@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,6 +85,11 @@ type domainGateway struct {
 	calls        int
 	failures     []string
 	observations []domainGatewayObservation
+
+	blockNext  bool
+	blocked    chan struct{}
+	release    chan struct{}
+	releaseOne sync.Once
 }
 
 type domainGatewayStage struct {
@@ -95,8 +101,12 @@ type domainGatewayStage struct {
 type domainGatewayStep struct {
 	tool      string
 	arguments func(map[string]any) (map[string]any, error)
+	validate  func(map[string]any) error
 	summary   string
 	artifacts map[string]domainArtifactBinding
+	outcome   string
+	errorCode string
+	retryable bool
 }
 
 type domainArtifactBinding struct {
@@ -117,7 +127,10 @@ func newDomainGateway(token string) *domainGateway {
 	return gateway
 }
 
-func (g *domainGateway) close() { g.server.Close() }
+func (g *domainGateway) close() {
+	g.releaseBlockedRequest()
+	g.server.Close()
+}
 
 func (g *domainGateway) URL() string { return g.server.URL + "/v1" }
 
@@ -150,6 +163,23 @@ func (g *domainGateway) CompletedStages() int {
 	return g.stageIndex
 }
 
+func newBlockedDomainGateway(token string, stages []domainGatewayStage) *domainGateway {
+	gateway := &domainGateway{
+		token: token, stages: stages, blockNext: true,
+		blocked: make(chan struct{}), release: make(chan struct{}),
+	}
+	gateway.server = httptest.NewServer(http.HandlerFunc(gateway.serveHTTP))
+	return gateway
+}
+
+func (g *domainGateway) blockedRequest() <-chan struct{} { return g.blocked }
+
+func (g *domainGateway) releaseBlockedRequest() {
+	if g.release != nil {
+		g.releaseOne.Do(func() { close(g.release) })
+	}
+}
+
 func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
 		g.writeFailure(w, http.StatusNotFound, "unsupported fake gateway endpoint")
@@ -165,6 +195,9 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var request map[string]any
 	if err := decoder.Decode(&request); err != nil {
 		g.writeFailure(w, http.StatusBadRequest, "invalid OpenAI request")
+		return
+	}
+	if !g.awaitInitialRelease(r.Context()) {
 		return
 	}
 
@@ -186,6 +219,24 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"prompt_tokens": 11, "completion_tokens": 5, "total_tokens": 16,
 		},
 	})
+}
+
+func (g *domainGateway) awaitInitialRelease(ctx context.Context) bool {
+	g.mu.Lock()
+	if !g.blockNext {
+		g.mu.Unlock()
+		return true
+	}
+	g.blockNext = false
+	blocked, release := g.blocked, g.release
+	g.mu.Unlock()
+	close(blocked)
+	select {
+	case <-release:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func (g *domainGateway) next(request map[string]any) (map[string]any, string, int, error) {
@@ -210,6 +261,11 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 
 	stepNumber := g.stepIndex + 1
 	step := stage.steps[g.stepIndex]
+	if step.validate != nil {
+		if validateErr := step.validate(request); validateErr != nil {
+			return nil, "", 0, fmt.Errorf("%s step %d: %w", stage.name, stepNumber, validateErr)
+		}
+	}
 	var message map[string]any
 	finishReason := "tool_calls"
 	if step.tool != "" {
@@ -231,12 +287,23 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 			}
 			artifacts[slot] = artifact
 		}
-		result, marshalErr := json.Marshal(map[string]any{
+		outcome := step.outcome
+		if outcome == "" {
+			outcome = "succeeded"
+		}
+		resultBody := map[string]any{
 			"apiVersion": "contractor/v1alpha1",
-			"outcome":    "succeeded",
+			"outcome":    outcome,
 			"summary":    step.summary,
 			"artifacts":  artifacts,
-		})
+		}
+		if step.errorCode != "" {
+			resultBody["error"] = map[string]any{
+				"code": step.errorCode, "message": "deterministic retry request",
+				"retryable": step.retryable,
+			}
+		}
+		result, marshalErr := json.Marshal(resultBody)
 		if marshalErr != nil {
 			return nil, "", 0, marshalErr
 		}
