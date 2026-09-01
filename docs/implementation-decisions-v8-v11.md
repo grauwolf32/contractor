@@ -256,3 +256,55 @@ tests that make the choice observable.
   identical result/error, explicit clears retain their winning origin, Agent
   Planner input cannot win, and route/kind/policy failures expose only stable
   codes plus typed paths.
+
+### D016 — Candidate placement is provisional until provenance commits
+
+- Applies to: V8-007.
+- Decision: candidate-specific resolution reads detached live snapshots and
+  immutable catalogs outside the Registry mutex, passes only compact compatible
+  edges into complete matching, and creates a provisional all-or-nothing slot
+  batch. The SQL transaction then locks referenced Agent-label bindings in
+  lexical order and principals by sorted SPKI fingerprint, re-resolves the
+  selected edges, locks the `preparing` StageExecution and persists every exact
+  non-secret allocation snapshot. Only after commit does Registry expose the
+  batch to Scheduler. A changed revision/catalog observation discards the
+  never-prepared batch and is ordinary temporary capacity for the same
+  StageExecution.
+- Failure classification: typed candidate policy/reference/kind failures remove
+  only that edge. Opaque database/provider errors remain visible Scheduler
+  errors; they are not converted to insufficient capacity. Static process-local
+  development LLM credentials are explicitly `unrestricted`, while managed
+  credentials contribute their immutable effective ModelPolicy/model allowlist.
+  Both still require the exact selected Gateway ref.
+- Secret boundary: allocation rows retain only ModelPolicy ref, typed field
+  origins and protocol-v2 safe provenance. The Scheduler decrypts selected
+  tokens/headers/passwords only after commit, supplies them in
+  `PrepareAllocationRequestV2`, rejects a WorkerHandle containing any supplied
+  value, and clears all reachable request-setting references immediately after
+  the bounded prepare call. Credential deletion shares one reader/writer fence
+  with allocation commit and remains blocked until durable release completion.
+- Upgrade behavior: migration 000019 leaves pre-V8 allocation rows as an
+  all-null legacy provenance tuple rather than fabricating a principal or
+  historical label selection. Every new application write requires the full
+  v2 tuple. Readers accept old rows for release/report recovery; new placement
+  never emits them.
+- Deadline correction discovered by review: the documented Stage/Planner
+  deadline had previously begun only after capacity was found. V8-007 now
+  derives one deadline from immutable `StageExecution.created_at` plus the
+  configured `planner-timeout`, so capacity waits and revision churn consume
+  the same finite budget as preparation and Planner execution. Expiry before a
+  Planner exists records retryable preparing termination
+  `stage_deadline_exceeded`. Revision churn before that deadline creates neither
+  a Planner nor an attempt; once the shared deadline itself expires, normal
+  Workflow retry policy decides whether a later StageExecution is created.
+- Alternatives rejected: holding the Registry mutex across SQL/decryption
+  would couple fleet liveness to external latency; persisting endpoints or
+  secrets would broaden compromise and deletion surfaces; exposing provisional
+  reservations would allow prepare before audit commit; backfilling guessed
+  historical principals would produce false provenance.
+- Observable tests: PostgreSQL placement tests cover an unlabeled adapter
+  candidate, post-match principal revision mutation and exact durable pinning;
+  Registry tests cover non-greedy injective matching; credential lifecycle
+  tests cover live allocation fences; Scheduler tests cover the immutable
+  capacity deadline; Go/Python protocol tests cover v2 delivery and secret-free
+  returned handles.

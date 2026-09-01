@@ -268,6 +268,29 @@ func TestSchedulerLeavesPreparingStageDeferredWhenCapacityIsUnavailable(t *testi
 	}
 }
 
+func TestSchedulerCapacityWaitStopsAtImmutableStageDeadline(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.allocator.reserveError = controlplane.ErrInsufficientCapacity
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) || len(harness.store.stages) != 1 {
+		t.Fatalf("initial capacity wait = (%v, %v), stages=%d", worked, err, len(harness.store.stages))
+	}
+	harness.store.stages[0].CreatedAt = harness.clock.now.Add(-31 * time.Second)
+
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("expired capacity wait = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "stage_deadline_exceeded" ||
+		execution.Termination.Phase != runstore.TerminationPreparing ||
+		!execution.Termination.Retryable || harness.planners.createCalls != 0 {
+		t.Fatalf("expired capacity lifecycle = %+v", execution)
+	}
+}
+
 func TestSchedulerPreparationFailureInterruptsWithoutPlanner(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.workers.prepareError = &controlplane.RuntimeAPIError{
@@ -1683,17 +1706,25 @@ func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([
 func (a *memoryAllocator) reservationForRequest(request controlplane.ReservationRequest) controlplane.Reservation {
 	a.allocationSequence++
 	binding := request.Bindings[0]
-	return controlplane.Reservation{
+	reservation := controlplane.Reservation{
 		Grant: controlplane.AllocationGrant{
-			AllocationID: fmt.Sprintf("allocation-%d", a.allocationSequence), RuntimeInstanceID: "runtime-1",
+			AllocationID:   fmt.Sprintf("allocation-%d", a.allocationSequence),
+			RuntimeAgentID: strings.Repeat("1", 64), RuntimeInstanceID: "runtime-1",
 			RunID: request.RunID, StageExecutionID: request.StageExecutionID,
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
 		AgentTemplate: binding.AgentTemplate, ExecutionConfig: binding.ExecutionConfig,
-		LeaseExpiresAt: a.clock.now.Add(time.Minute),
+		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 	}
+	if binding.RuntimeSelection != nil && request.RuntimeConfig != nil {
+		resolved, err := fallbackResolvedWorkerConfig(*binding.RuntimeSelection)
+		if err == nil {
+			reservation.ResolvedRuntimeConfig = &resolved
+		}
+	}
+	return reservation
 }
 
 func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Reservation {
@@ -1767,7 +1798,7 @@ type memoryWorkers struct {
 	finalizeCalls    int
 	abortCalls       int
 	releaseCalls     int
-	preparedSettings []map[string]contracts.WorkerExecutionSettings
+	preparedSettings []map[string]contracts.WorkerExecutionSettingsV2
 	prepareError     error
 	abortError       error
 	releaseError     error
@@ -1777,7 +1808,7 @@ type memoryWorkers struct {
 
 func (w *memoryWorkers) PrepareAll(
 	_ context.Context, reservations []controlplane.Reservation,
-	settings map[string]contracts.WorkerExecutionSettings,
+	settings map[string]contracts.WorkerExecutionSettingsV2,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.preparedSettings = append(w.preparedSettings, settings)

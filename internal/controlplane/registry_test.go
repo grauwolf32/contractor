@@ -123,6 +123,83 @@ func TestReserveAllFindsCompleteSpecialistGeneralistAssignment(t *testing.T) {
 	}
 }
 
+func TestReserveCandidateEdgesFindsCompleteNonGreedyAssignment(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-a")
+	registerReady(t, registry, "agent-b")
+	firstAgent, _ := registry.GetAgent("agent-a")
+	secondAgent, _ := registry.GetAgent("agent-b")
+	template := testTemplate(t)
+	request := ReservationRequest{
+		RunID: "run-candidate", StageExecutionID: "stage-candidate",
+		Bindings: []BindingRequirement{
+			testBinding(t, "first", "first", template),
+			testBinding(t, "second", "second", template),
+		},
+	}
+	edge := func(logical string, candidate AgentSnapshot) CandidateEdge {
+		return CandidateEdge{
+			LogicalAgentName: logical, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
+			RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
+			RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
+			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+		}
+	}
+	reservations, err := registry.ReserveCandidateEdges(request, []CandidateEdge{
+		edge("first", firstAgent), edge("first", secondAgent), edge("second", firstAgent),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned := map[string]string{}
+	for _, reservation := range reservations {
+		assigned[reservation.Grant.LogicalAgentName] = reservation.Grant.RuntimeInstanceID
+	}
+	if assigned["first"] != "agent-b" || assigned["second"] != "agent-a" {
+		t.Fatalf("candidate assignment = %v", assigned)
+	}
+	if _, err := registry.GetStageReservations(request.StageExecutionID); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("provisional reservation visibility error = %v", err)
+	}
+	if err := registry.DiscardCandidateReservations(request.StageExecutionID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReserveCandidateEdgesLeavesEverySlotFreeWithoutCompleteMatching(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-a")
+	registerReady(t, registry, "agent-b")
+	firstAgent, _ := registry.GetAgent("agent-a")
+	template := testTemplate(t)
+	request := ReservationRequest{
+		RunID: "run-incomplete-candidate", StageExecutionID: "stage-incomplete-candidate",
+		Bindings: []BindingRequirement{
+			testBinding(t, "first", "first", template),
+			testBinding(t, "second", "second", template),
+		},
+	}
+	edge := func(logical string) CandidateEdge {
+		return CandidateEdge{
+			LogicalAgentName: logical, RuntimeAgentID: firstAgent.Principal.RuntimeAgentID,
+			RuntimeAgentInstanceID:    firstAgent.Registration.InstanceID,
+			RuntimeAgentLabelRevision: firstAgent.Principal.LabelRevision,
+			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+		}
+	}
+	if _, err := registry.ReserveCandidateEdges(request, []CandidateEdge{edge("first"), edge("second")}); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("incomplete candidate matching error = %v", err)
+	}
+	for _, instanceID := range []string{"agent-a", "agent-b"} {
+		agent, err := registry.GetAgent(instanceID)
+		if err != nil || agent.AuthoritativeAllocationID != nil {
+			t.Fatalf("failed matching mutated %s: (%+v, %v)", instanceID, agent, err)
+		}
+	}
+}
+
 func TestReserveAllRejectsRunReservedAgentNamespace(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	_, err := registry.ReserveAll(ReservationRequest{

@@ -247,8 +247,12 @@ func createTelemetryStage(
 		AgentTemplateRef: contracts.AgentTemplateRef{
 			TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 		},
-		WorkerRuntimeRef:       contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
-		RuntimeAgentInstanceID: "runtime-1",
+		WorkerRuntimeRef:                  contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:                    strings.Repeat("1", 64),
+		RuntimeAgentInstanceID:            "runtime-1",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              telemetryAllocationRuntimeConfiguration(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -277,6 +281,33 @@ func createTelemetryStage(
 		t.Fatal(err)
 	}
 	return stageExecutionID
+}
+
+func telemetryAllocationRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
+	gateway := contracts.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return &runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
+			Default: contracts.RuntimeLabelBindingProvenanceV2{
+				Label: "default", BindingRevision: 1,
+				Config: contracts.RuntimeConfigRefV2{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels:       []contracts.RuntimeLabelBindingProvenanceV2{},
+			AgentLabels:     []contracts.RuntimeLabelBindingProvenanceV2{},
+			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+		},
+	}
 }
 
 func finishTelemetryStage(

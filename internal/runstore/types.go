@@ -382,16 +382,32 @@ type WorkflowRunEventCursor struct {
 }
 
 type StageAllocation struct {
-	AllocationID           string
-	StageExecutionID       string
-	LogicalAgentName       string
-	Namespace              string
-	AgentTemplateRef       contracts.AgentTemplateRef
-	WorkerRuntimeRef       contracts.WorkerRuntimeRef
-	RuntimeAgentInstanceID string
-	CreatedAt              time.Time
-	ReleaseAttemptedAt     *time.Time
-	ReleaseCompletedAt     *time.Time
+	AllocationID                      string
+	StageExecutionID                  string
+	LogicalAgentName                  string
+	Namespace                         string
+	AgentTemplateRef                  contracts.AgentTemplateRef
+	WorkerRuntimeRef                  contracts.WorkerRuntimeRef
+	RuntimeAgentID                    string
+	RuntimeAgentInstanceID            string
+	RuntimeAgentLabelRevision         uint64
+	RuntimeConfigurationSchemaVersion string
+	RuntimeConfiguration              *AllocationRuntimeConfiguration
+	CreatedAt                         time.Time
+	ReleaseAttemptedAt                *time.Time
+	ReleaseCompletedAt                *time.Time
+}
+
+const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-provenance/v2"
+
+// AllocationRuntimeConfiguration is the exact durable, non-secret subset of
+// one candidate resolution. Endpoint and secret-bearing RuntimeSettings stay
+// outside PostgreSQL; immutable refs, origins and adapter requirements remain
+// available for audit and report attribution.
+type AllocationRuntimeConfiguration struct {
+	ModelPolicy contracts.ModelPolicyRef                    `json:"modelPolicy"`
+	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins  `json:"origins"`
+	Provenance  contracts.ResolvedRuntimeConfigProvenanceV2 `json:"provenance"`
 }
 
 // StageExecutionReport is the trusted Server envelope around one bounded

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -220,6 +221,32 @@ func (s *RuntimeCredentialService) Use(
 			return errors.New("Runtime credential consumer failed")
 		}
 		return nil
+	})
+}
+
+// UsePlaintext is the allocation-bound adapter over Use. It exposes contract
+// kinds so Scheduler need not depend on credential storage types, while the
+// canonical plaintext remains inside the same synchronous lifecycle fence.
+func (s *RuntimeCredentialService) UsePlaintext(
+	ctx context.Context,
+	credentialID string,
+	allowedKinds []contracts.RuntimeCredentialKind,
+	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+) error {
+	if consumer == nil {
+		return runtimeInvalid("Runtime credential consumer is invalid")
+	}
+	allowed := make([]string, len(allowedKinds))
+	for index, kind := range allowedKinds {
+		if err := kind.Validate(); err != nil {
+			return runtimeInvalid("Runtime credential kind is invalid")
+		}
+		allowed[index] = string(kind)
+	}
+	return s.Use(ctx, credentialID, allowed, func(material *RuntimeCredentialMaterial) error {
+		return material.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
+			return consumer(contracts.RuntimeCredentialKind(kind), plaintext)
+		})
 	})
 }
 

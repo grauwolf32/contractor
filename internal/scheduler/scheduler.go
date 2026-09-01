@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -21,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 const (
@@ -657,8 +659,12 @@ func (s *Scheduler) prepareAndPlan(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) error {
+	stageDeadline := s.stageDeadline(execution)
 	reservations, fresh, err := s.liveOrNewReservations(ctx, run, workflow, execution)
 	if errors.Is(err, controlplane.ErrInsufficientCapacity) {
+		if !s.options.Clock.Now().Before(stageDeadline) {
+			return s.beginAbort(ctx, run, workflow, execution, nil, stageDeadlineFailure())
+		}
 		return ErrDeferred
 	}
 	if errors.Is(err, errControlPlaneStateLost) {
@@ -674,6 +680,9 @@ func (s *Scheduler) prepareAndPlan(
 	if err != nil {
 		return err
 	}
+	if !s.options.Clock.Now().Before(stageDeadline) {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
+	}
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return cause
 	}
@@ -686,7 +695,7 @@ func (s *Scheduler) prepareAndPlan(
 		}
 	}
 
-	workerSettings, err := s.workerExecutionSettings(ctx, workflow.stage)
+	workerSettings, err := s.workerExecutionSettings(ctx, workflow.stage, reservations)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
 			Code: "worker_execution_config_unavailable", Message: "Worker execution configuration is unavailable", Retryable: false,
@@ -695,12 +704,16 @@ func (s *Scheduler) prepareAndPlan(
 	prepareContext, cancelPrepare := context.WithTimeout(ctx, s.options.OperationTimeout)
 	handles, err := s.workers.PrepareAll(prepareContext, reservations, workerSettings)
 	cancelPrepare()
+	clearWorkerExecutionSettings(workerSettings)
 	if err != nil {
 		failure := infrastructureFailure("allocation_preparation_failed", "Worker allocation preparation failed", err)
 		return s.beginAbort(ctx, run, workflow, execution, nil, failure)
 	}
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return cause
+	}
+	if !s.options.Clock.Now().Before(stageDeadline) {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
 	}
 
 	modelAccess, err := s.plannerModelAccess(ctx, workflow.stage)
@@ -716,7 +729,7 @@ func (s *Scheduler) prepareAndPlan(
 		Context:          plannerContext(execution.StageContext),
 		Workers:          handles,
 		ModelAccess:      modelAccess,
-		Deadline:         s.options.Clock.Now().Add(s.options.PlannerTimeout),
+		Deadline:         stageDeadline,
 	}
 	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
 	instance, err := s.planners.Create(plannerRef, invocation)
@@ -775,27 +788,236 @@ func (s *Scheduler) prepareAndPlan(
 	return s.resumeFinalizing(ctx, run, workflow, execution, reservations)
 }
 
+func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
+	startedAt := execution.CreatedAt
+	if startedAt.IsZero() {
+		// Legacy embeddings and focused in-memory stores created before the
+		// durable timestamp contract receive one finite budget from observation.
+		// PostgreSQL StageExecutions always use their immutable database time.
+		startedAt = s.options.Clock.Now()
+	}
+	return startedAt.Add(s.options.PlannerTimeout)
+}
+
+func stageDeadlineFailure() planner.Failure {
+	return planner.Failure{
+		Code:      "stage_deadline_exceeded",
+		Message:   "Stage execution deadline expired before Planner completion",
+		Retryable: true,
+	}
+}
+
 func (s *Scheduler) workerExecutionSettings(
 	ctx context.Context,
 	stage workflowconfig.ResolvedStage,
-) (map[string]contracts.WorkerExecutionSettings, error) {
-	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
-	for logicalName, selection := range stage.ExecutionConfig.Agents {
-		if selection.LLMGateway == nil {
-			return nil, fmt.Errorf("Worker %q has no complete LLM Gateway route", logicalName)
+	reservationSets ...[]controlplane.Reservation,
+) (map[string]contracts.WorkerExecutionSettingsV2, error) {
+	reservations := make(map[string]controlplane.Reservation)
+	if len(reservationSets) > 1 {
+		return nil, fmt.Errorf("Worker execution settings accept at most one reservation set")
+	}
+	if len(reservationSets) == 1 {
+		for _, reservation := range reservationSets[0] {
+			reservations[reservation.Grant.LogicalAgentName] = reservation
 		}
-		token, err := s.resolveCredential(ctx, selection)
+	}
+	result := make(map[string]contracts.WorkerExecutionSettingsV2, len(stage.ExecutionConfig.Agents))
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		resolved, err := fallbackResolvedWorkerConfig(selection)
+		if reservation, ok := reservations[logicalName]; ok {
+			if reservation.ResolvedRuntimeConfig != nil {
+				resolved = reservation.ResolvedRuntimeConfig.Clone()
+			}
+		}
+		if err != nil || resolved.Validate() != nil {
+			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
+		}
+		runtimeSettings, err := s.materializeRuntimeSettings(ctx, resolved)
 		if err != nil {
 			return nil, err
 		}
-		runtimeSettings := s.options.RuntimeSettings
-		runtimeSettings.LLMGatewayURL = selection.LLMGateway.URL
-		runtimeSettings.LLMGatewayToken = token
-		result[logicalName] = contracts.WorkerExecutionSettings{
-			ModelPolicy: cloneModelPolicy(selection.ModelPolicy), RuntimeSettings: runtimeSettings,
+		result[logicalName] = contracts.WorkerExecutionSettingsV2{
+			ModelPolicy: cloneModelPolicy(resolved.ModelPolicy), RuntimeSettings: runtimeSettings,
+			ResolvedRuntimeConfigProvenance: resolved.Provenance,
 		}
 	}
+	if len(reservations) != 0 && len(reservations) != len(result) {
+		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
+	}
 	return result, nil
+}
+
+func fallbackResolvedWorkerConfig(
+	selection workflowconfig.ResolvedConsumerExecutionConfig,
+) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	if selection.LLMGateway == nil {
+		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker has no complete LLM Gateway route")
+	}
+	gatewayRef := selection.LLMGateway.Ref
+	provenance := contracts.ResolvedRuntimeConfigProvenanceV2{
+		Default: contracts.RuntimeLabelBindingProvenanceV2{
+			Label: "default", BindingRevision: 1,
+			Config: contracts.RuntimeConfigRefV2{
+				Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+				Digest: runtimeconfig.BuiltInDigest,
+			},
+		},
+		RunLabels:        []contracts.RuntimeLabelBindingProvenanceV2{},
+		AgentLabels:      []contracts.RuntimeLabelBindingProvenanceV2{},
+		RuntimeAdapters:  []contracts.RuntimeAdapterRef{},
+		LLMGatewayConfig: &gatewayRef, LLMCredential: cloneCredentialRef(selection.Credential),
+		RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+	}
+	return runtimeconfig.ResolvedRuntimeConfig{
+		ModelPolicy: cloneModelPolicy(selection.ModelPolicy), LLMGateway: *selection.LLMGateway,
+		LLMCredential:           cloneCredentialRef(selection.Credential),
+		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{}, Provenance: provenance,
+	}, nil
+}
+
+func (s *Scheduler) materializeRuntimeSettings(
+	ctx context.Context,
+	resolved runtimeconfig.ResolvedRuntimeConfig,
+) (contracts.RuntimeSettingsV2, error) {
+	result := contracts.RuntimeSettingsV2{
+		LLMGatewayURL:         resolved.LLMGateway.URL,
+		ArtifactAPIURL:        s.options.RuntimeSettings.ArtifactAPIURL,
+		RequestTimeoutSeconds: s.options.RuntimeSettings.RequestTimeoutSeconds,
+	}
+	if resolved.LLMCredential != nil {
+		if s.options.Credentials == nil {
+			return contracts.RuntimeSettingsV2{}, fmt.Errorf("selected LLM credential is unavailable")
+		}
+		token, err := s.options.Credentials.ResolveLLMCredential(
+			ctx, *resolved.LLMCredential, resolved.LLMGateway.Ref,
+		)
+		if err != nil || token.Reveal() == "" {
+			return contracts.RuntimeSettingsV2{}, fmt.Errorf("selected LLM credential is unavailable")
+		}
+		result.LLMGatewayToken = &token
+	}
+	if resolved.WorkerTelemetry != nil {
+		telemetry := &contracts.TelemetrySettingsV2{
+			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: resolved.WorkerTelemetry.Endpoint,
+			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
+			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
+		}
+		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},
+				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Headers map[string]string `json:"headers"`
+					}
+					if kind != contracts.RuntimeCredentialOTLPHeaders || decodeRuntimeCredential(plaintext, &material) != nil {
+						return errors.New("invalid OTLP credential material")
+					}
+					for name, value := range material.Headers {
+						telemetry.Headers[name] = contracts.NewSecretString(value)
+					}
+					return nil
+				},
+			); err != nil {
+				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker telemetry credential is unavailable")
+			}
+		}
+		result.Telemetry = telemetry
+	}
+	if resolved.HTTPProxy != nil {
+		proxy := &contracts.HTTPProxySettingsV2{
+			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: resolved.HTTPProxy.ProxyURL,
+			Targets: make([]contracts.HTTPProxyTarget, len(resolved.HTTPProxy.Targets)),
+		}
+		for index, target := range resolved.HTTPProxy.Targets {
+			proxy.Targets[index] = contracts.HTTPProxyTarget(target)
+		}
+		if resolved.HTTPProxy.CABundlePEM != "" {
+			bundle := resolved.HTTPProxy.CABundlePEM
+			proxy.CABundlePEM = &bundle
+		}
+		if credentialID := resolved.HTTPProxy.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID,
+				[]contracts.RuntimeCredentialKind{
+					contracts.RuntimeCredentialProxyBasic, contracts.RuntimeCredentialProxyBearer,
+				},
+				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+					switch kind {
+					case contracts.RuntimeCredentialProxyBasic:
+						var material struct {
+							Password string `json:"password"`
+							Username string `json:"username"`
+						}
+						if decodeRuntimeCredential(plaintext, &material) != nil {
+							return errors.New("invalid proxy basic credential material")
+						}
+						proxy.BasicAuth = &contracts.HTTPProxyBasicAuthV2{
+							Username: contracts.NewSecretString(material.Username),
+							Password: contracts.NewSecretString(material.Password),
+						}
+					case contracts.RuntimeCredentialProxyBearer:
+						var material struct {
+							Token string `json:"token"`
+						}
+						if decodeRuntimeCredential(plaintext, &material) != nil {
+							return errors.New("invalid proxy bearer credential material")
+						}
+						token := contracts.NewSecretString(material.Token)
+						proxy.BearerToken = &token
+					default:
+						return errors.New("invalid proxy credential kind")
+					}
+					return nil
+				},
+			); err != nil {
+				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker HTTP proxy credential is unavailable")
+			}
+		}
+		result.HTTPProxy = proxy
+	}
+	if err := result.Validate(); err != nil {
+		return contracts.RuntimeSettingsV2{}, fmt.Errorf("materialized Runtime settings are invalid")
+	}
+	return result, nil
+}
+
+func (s *Scheduler) useRuntimeCredential(
+	ctx context.Context,
+	credentialID string,
+	allowed []contracts.RuntimeCredentialKind,
+	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+) error {
+	if s.options.RuntimeCredentials == nil {
+		return errors.New("Runtime credential service is unavailable")
+	}
+	return s.options.RuntimeCredentials.UsePlaintext(ctx, credentialID, allowed, consumer)
+}
+
+func decodeRuntimeCredential(data []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return errors.New("Runtime credential has trailing data")
+	}
+	return nil
+}
+
+func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionSettingsV2) {
+	for name, value := range settings {
+		value.RuntimeSettings.LLMGatewayToken = nil
+		if value.RuntimeSettings.Telemetry != nil {
+			value.RuntimeSettings.Telemetry.Headers = nil
+		}
+		if value.RuntimeSettings.HTTPProxy != nil {
+			value.RuntimeSettings.HTTPProxy.BasicAuth = nil
+			value.RuntimeSettings.HTTPProxy.BearerToken = nil
+		}
+		settings[name] = value
+	}
 }
 
 func (s *Scheduler) plannerModelAccess(
@@ -875,9 +1097,9 @@ func (s *Scheduler) liveOrNewReservations(
 			lost = lost || grant.Lost
 		}
 		if lost {
-			reservations, reserveErr := s.allocator.ReserveAll(controlplane.ReservationRequest{
+			reservations, reserveErr := s.reserveAll(ctx, controlplane.ReservationRequest{
 				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-				Bindings: bindingRequirements(workflow.stage),
+				Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
 			})
 			if reserveErr != nil {
 				return nil, false, errControlPlaneAllocationLost
@@ -885,9 +1107,9 @@ func (s *Scheduler) liveOrNewReservations(
 			return reservations, false, errControlPlaneAllocationLost
 		}
 	}
-	reservations, err := s.allocator.ReserveAll(controlplane.ReservationRequest{
+	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: bindingRequirements(workflow.stage),
+		Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil {
 		return nil, false, err
@@ -909,16 +1131,26 @@ func (s *Scheduler) recordReservations(
 	reservations []controlplane.Reservation,
 ) error {
 	for _, reservation := range reservations {
+		allocation := runstore.StageAllocation{
+			AllocationID: reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
+			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
+			AgentTemplateRef:          reservation.AgentTemplate.Ref,
+			WorkerRuntimeRef:          reservation.AgentTemplate.Runtime,
+			RuntimeAgentID:            reservation.Grant.RuntimeAgentID,
+			RuntimeAgentInstanceID:    reservation.Grant.RuntimeInstanceID,
+			RuntimeAgentLabelRevision: reservation.RuntimeAgentLabelRevision,
+		}
+		if reservation.ResolvedRuntimeConfig != nil {
+			resolved := reservation.ResolvedRuntimeConfig
+			allocation.RuntimeConfigurationSchemaVersion = runstore.AllocationRuntimeConfigurationSchemaVersion
+			allocation.RuntimeConfiguration = &runstore.AllocationRuntimeConfiguration{
+				ModelPolicy: resolved.ModelPolicy.Ref,
+				Origins:     resolved.Origins,
+				Provenance:  resolved.Provenance,
+			}
+		}
 		operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-		err := s.store.RecordStageAllocation(operationContext, runstore.StageAllocation{
-			AllocationID:           reservation.Grant.AllocationID,
-			StageExecutionID:       stageExecutionID,
-			LogicalAgentName:       reservation.Grant.LogicalAgentName,
-			Namespace:              reservation.Grant.Namespace,
-			AgentTemplateRef:       reservation.AgentTemplate.Ref,
-			WorkerRuntimeRef:       reservation.AgentTemplate.Runtime,
-			RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
-		})
+		err := s.store.RecordStageAllocation(operationContext, allocation)
 		cancel()
 		if err != nil {
 			return err
@@ -955,12 +1187,27 @@ func verifyReservations(
 		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
 			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
-			!sameAllocationExecutionConfig(
-				reservation.ExecutionConfig,
-				allocationExecutionConfig(workflow.stage, grant.LogicalAgentName),
-			) ||
 			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
+		}
+		if reservation.ResolvedRuntimeConfig == nil {
+			if !sameAllocationExecutionConfig(
+				reservation.ExecutionConfig,
+				allocationExecutionConfig(workflow.stage, grant.LogicalAgentName),
+			) {
+				return fmt.Errorf("Control Plane returned an allocation for different execution config")
+			}
+		} else {
+			resolved := reservation.ResolvedRuntimeConfig
+			selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
+			if resolved.Validate() != nil || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+				reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
+				!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
+					ModelPolicy: resolved.ModelPolicy.Ref, LLMGateway: resolved.LLMGateway.Ref,
+					Credential: resolved.LLMCredential,
+				}) {
+				return fmt.Errorf("Control Plane returned invalid candidate Runtime provenance")
+			}
 		}
 		if _, duplicate := seen[grant.LogicalAgentName]; duplicate {
 			return fmt.Errorf("Control Plane returned duplicate logical Agent allocations")
@@ -970,7 +1217,12 @@ func verifyReservations(
 			(persisted.AllocationID != grant.AllocationID ||
 				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
 				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
-				persisted.WorkerRuntimeRef != binding.Template.Runtime) {
+				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
+				reservation.ResolvedRuntimeConfig != nil &&
+					(persisted.RuntimeAgentID != grant.RuntimeAgentID ||
+						persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
+						persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
+						!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig))) {
 			return fmt.Errorf("live Control Plane allocation differs from durable provenance")
 		}
 	}
@@ -978,6 +1230,21 @@ func verifyReservations(
 		return fmt.Errorf("durable allocation set is incomplete")
 	}
 	return nil
+}
+
+func samePersistedRuntimeConfiguration(
+	persisted *runstore.AllocationRuntimeConfiguration,
+	resolved *runtimeconfig.ResolvedRuntimeConfig,
+) bool {
+	if persisted == nil || resolved == nil {
+		return persisted == nil && resolved == nil
+	}
+	want := runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
+	}
+	left, leftErr := json.Marshal(persisted)
+	right, rightErr := json.Marshal(want)
+	return leftErr == nil && rightErr == nil && string(left) == string(right)
 }
 
 func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext {
@@ -1673,14 +1940,28 @@ func (s *Scheduler) existingLiveReservations(
 			return nil
 		}
 	}
-	reservations, err := s.allocator.ReserveAll(controlplane.ReservationRequest{
+	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: bindingRequirements(workflow.stage),
+		Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
 		return nil
 	}
 	return reservations
+}
+
+type contextAllocator interface {
+	ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error)
+}
+
+func (s *Scheduler) reserveAll(
+	ctx context.Context,
+	request controlplane.ReservationRequest,
+) ([]controlplane.Reservation, error) {
+	if allocator, ok := s.allocator.(contextAllocator); ok {
+		return allocator.ReserveAllContext(ctx, request)
+	}
+	return s.allocator.ReserveAll(request)
 }
 
 func (s *Scheduler) releaseTerminal(
@@ -1872,6 +2153,14 @@ func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
 		result.Revision = &revision
 	}
 	return result
+}
+
+func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	return &result
 }
 
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {

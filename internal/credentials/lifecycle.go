@@ -156,6 +156,14 @@ func (s *Service) WithRunCreation(ctx context.Context, fn func() error) error {
 	})
 }
 
+// WithAllocationReferences uses the same recovery-aware shared fence as Run
+// creation. Placement invokes it around the transaction that introduces live
+// allocation references, so a managed key deletion cannot pass between
+// authorization revalidation and commit.
+func (s *Service) WithAllocationReferences(ctx context.Context, fn func() error) error {
+	return s.WithRunCreation(ctx, fn)
+}
+
 func (s *Service) Recover(ctx context.Context) error {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()

@@ -89,6 +89,9 @@ class CapabilitySnapshot:
                 return selected <= set(capability.tools)
         return False
 
+    def supports_runtime_adapters(self, refs: Iterable[str]) -> bool:
+        return set(refs) <= set(self.runtime_adapters)
+
 
 async def discover_capabilities(
     factories: FactoryRegistry,

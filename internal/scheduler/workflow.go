@@ -187,11 +187,13 @@ func bindingRequirements(stage workflowconfig.ResolvedStage) []controlplane.Bind
 	result := make([]controlplane.BindingRequirement, 0, len(names))
 	for _, name := range names {
 		binding := stage.Agents[name]
+		selection := stage.ExecutionConfig.Agents[name]
 		result = append(result, controlplane.BindingRequirement{
 			LogicalAgentName: name,
 			Namespace:        binding.Namespace,
 			AgentTemplate:    binding.Template,
 			ExecutionConfig:  allocationExecutionConfig(stage, name),
+			RuntimeSelection: &selection,
 		})
 	}
 	return result

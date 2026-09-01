@@ -296,6 +296,28 @@ LIMIT $2`, credentialID, limit)
 	if runRows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
 	}
+	allocationRows, err := r.db.Query(ctx, `
+SELECT allocation_id
+FROM stage_allocations
+WHERE release_completed_at IS NULL
+  AND runtime_configuration->'provenance'->'runtimeCredentialRefs'
+      @> jsonb_build_array(jsonb_build_object('credentialId', $1::text))
+ORDER BY created_at, allocation_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential allocation snapshots")
+	}
+	defer allocationRows.Close()
+	for allocationRows.Next() {
+		var allocationID string
+		if err := allocationRows.Scan(&allocationID); err != nil {
+			return RuntimeCredentialUsage{}, errors.New("read Runtime credential allocation snapshot")
+		}
+		usage.AllocationIDs = append(usage.AllocationIDs, allocationID)
+	}
+	if allocationRows.Err() != nil {
+		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential allocation snapshots")
+	}
 	return usage, nil
 }
 

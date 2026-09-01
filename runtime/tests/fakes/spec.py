@@ -7,12 +7,16 @@ from datetime import UTC, datetime, timedelta
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
-    AllocationSpec,
+    AllocationSpecV2,
+    LLMGatewayConfigRef,
     ModelPolicyRef,
     ResolvedAgentTemplate,
     ResolvedInstructions,
     ResolvedModelPolicy,
-    RuntimeSettings,
+    ResolvedRuntimeConfigProvenanceV2,
+    RuntimeConfigRefV2,
+    RuntimeLabelBindingProvenanceV2,
+    RuntimeSettingsV2,
     SandboxProfileRef,
     ToolsetRef,
     ToolsetSelection,
@@ -30,7 +34,7 @@ def allocation_spec(
     allocation_id: str = "allocation-1",
     secret: str = "recognizable-a2a-test-token",
     tools: list[str] | None = None,
-) -> AllocationSpec:
+) -> AllocationSpecV2:
     instructions = "Use only the selected tools and return a strict result."
     policy = ResolvedModelPolicy(
         ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "0" * 64),
@@ -63,7 +67,7 @@ def allocation_spec(
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
     )
     template.ref.digest = _agent_template_digest(template)
-    return AllocationSpec(
+    return AllocationSpecV2(
         apiVersion=API_VERSION,
         allocationId=allocation_id,
         runId="run-1",
@@ -73,10 +77,30 @@ def allocation_spec(
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,
         modelPolicy=policy.model_copy(deep=True),
-        runtimeSettings=RuntimeSettings(
+        runtimeSettings=RuntimeSettingsV2(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=secret,
             artifactApiUrl="https://control.example/private/v1",
             requestTimeoutSeconds=30,
+        ),
+        resolvedRuntimeConfigProvenance=ResolvedRuntimeConfigProvenanceV2(
+            default=RuntimeLabelBindingProvenanceV2(
+                label="default",
+                bindingRevision=1,
+                config=RuntimeConfigRefV2(
+                    name="contractor-empty",
+                    version="1",
+                    digest="sha256:" + "a" * 64,
+                ),
+            ),
+            runLabels=[],
+            agentLabels=[],
+            runtimeAdapters=[],
+            llmGatewayConfig=LLMGatewayConfigRef(
+                gatewayId="local-litellm",
+                version="1",
+                digest="sha256:" + "b" * 64,
+            ),
+            runtimeCredentialRefs=[],
         ),
     )

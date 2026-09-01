@@ -61,6 +61,52 @@ type ResolvedRuntimeConfigOrigins struct {
 	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
 }
 
+func (o ResolvedRuntimeConfigOrigins) Validate() error {
+	fields := []struct {
+		path   string
+		origin *RuntimeFieldOrigin
+	}{
+		{path: "worker.llmGateway.gateway", origin: o.LLMGateway},
+		{path: "worker.llmGateway.credential", origin: o.LLMCredential},
+		{path: "worker.telemetry", origin: o.WorkerTelemetry},
+		{path: "worker.httpProxy", origin: o.HTTPProxy},
+		{path: "planner.telemetry", origin: o.PlannerTelemetry},
+	}
+	for _, field := range fields {
+		origin := field.origin
+		if origin == nil {
+			continue
+		}
+		if err := origin.validate(); err != nil {
+			return resolutionError(ResolutionInvalid, field.path, ErrInvalid)
+		}
+	}
+	return nil
+}
+
+func (o RuntimeFieldOrigin) validate() error {
+	switch o.Layer {
+	case LayerDefault, LayerRunLabels, LayerAgentLabels:
+		if len(o.Configs) == 0 || len(o.Configs) > MaximumRunLabels {
+			return ErrInvalid
+		}
+	case LayerWorkflow, LayerRunOverride, LayerEscalation:
+		if len(o.Configs) != 0 {
+			return ErrInvalid
+		}
+	default:
+		return ErrInvalid
+	}
+	previous := ""
+	for _, ref := range o.Configs {
+		if validateRef(ref) != nil || ref.String() <= previous {
+			return ErrInvalid
+		}
+		previous = ref.String()
+	}
+	return nil
+}
+
 // PinnedRuntimeConfig is one exact binding observation and its immutable body.
 // Run values come from WorkflowRun.RuntimeConfig; Agent values are read and
 // locked at allocation time by the caller.
@@ -87,6 +133,7 @@ type LLMCredentialAuthorization struct {
 	LLMGateway    contracts.LLMGatewayConfigRef
 	ModelPolicies []contracts.ModelPolicyRef
 	Models        []string
+	Unrestricted  bool
 }
 
 type ResolveRuntimeConfigInput struct {
@@ -115,6 +162,27 @@ type ResolvedRuntimeConfig struct {
 	RequiredRuntimeAdapters  []contracts.RuntimeAdapterRef               `json:"requiredRuntimeAdapters"`
 	Origins                  ResolvedRuntimeConfigOrigins                `json:"origins"`
 	Provenance               contracts.ResolvedRuntimeConfigProvenanceV2 `json:"provenance"`
+}
+
+func (r ResolvedRuntimeConfig) Validate() error {
+	if err := r.ModelPolicy.Validate(); err != nil {
+		return resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+	}
+	if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != contracts.OpenAICompatibleProtocol {
+		return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+	}
+	if err := r.Origins.Validate(); err != nil {
+		return err
+	}
+	if err := r.Provenance.Validate(); err != nil {
+		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
+	}
+	if r.Provenance.LLMGatewayConfig == nil || *r.Provenance.LLMGatewayConfig != r.LLMGateway.Ref ||
+		!sameCredentialRef(r.Provenance.LLMCredential, r.LLMCredential) ||
+		!sameRuntimeAdapters(r.Provenance.RuntimeAdapters, r.RequiredRuntimeAdapters) {
+		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
+	}
+	return nil
 }
 
 type effectiveRuntimeConfig struct {
@@ -216,6 +284,9 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		RequiredRuntimeAdapters:  append([]contracts.RuntimeAdapterRef{}, adapters...),
 		Origins:                  cloneOrigins(effective.origins),
 		Provenance:               provenance,
+	}
+	if err := result.Origins.Validate(); err != nil {
+		return ResolvedRuntimeConfig{}, err
 	}
 	return result, nil
 }
@@ -367,8 +438,9 @@ func validateLLMRoute(
 			ResolutionGatewayMismatch, "worker.llmGateway.credential", ErrInvalid,
 		)
 	}
-	if !containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
-		!containsString(authorization.Models, input.ModelPolicy.Model) {
+	if !authorization.Unrestricted &&
+		(!containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
+			!containsString(authorization.Models, input.ModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
@@ -614,6 +686,23 @@ func cloneCredentialRef(value *contracts.LLMCredentialRef) *contracts.LLMCredent
 	return &result
 }
 
+func sameCredentialRef(left, right *contracts.LLMCredentialRef) bool {
+	return left == nil && right == nil ||
+		left != nil && right != nil && *left == *right
+}
+
+func sameRuntimeAdapters(left, right []contracts.RuntimeAdapterRef) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func cloneTelemetry(value *TelemetryConfig) *TelemetryConfig {
 	if value == nil {
 		return nil
@@ -648,6 +737,40 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 		HTTPProxy:        cloneOrigin(value.HTTPProxy),
 		PlannerTelemetry: cloneOrigin(value.PlannerTelemetry),
 	}
+}
+
+// Clone returns a detached safe resolution snapshot. It is intentionally
+// explicit so Registry copies cannot share mutable provenance slices with a
+// placement caller.
+func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
+	result := r
+	result.ModelPolicy = cloneResolvedModelPolicy(r.ModelPolicy)
+	result.LLMGateway = cloneResolvedGateway(r.LLMGateway)
+	result.LLMCredential = cloneCredentialRef(r.LLMCredential)
+	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
+	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
+	result.PlannerTelemetry = cloneTelemetry(r.PlannerTelemetry)
+	if r.PlannerRuntimeCredential != nil {
+		credential := *r.PlannerRuntimeCredential
+		result.PlannerRuntimeCredential = &credential
+	}
+	result.RequiredRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, r.RequiredRuntimeAdapters...)
+	result.Origins = cloneOrigins(r.Origins)
+	result.Provenance.RunLabels = append(
+		[]contracts.RuntimeLabelBindingProvenanceV2{}, r.Provenance.RunLabels...,
+	)
+	result.Provenance.AgentLabels = append(
+		[]contracts.RuntimeLabelBindingProvenanceV2{}, r.Provenance.AgentLabels...,
+	)
+	result.Provenance.RuntimeAdapters = append(
+		[]contracts.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
+	)
+	result.Provenance.LLMGatewayConfig = cloneGatewayRef(r.Provenance.LLMGatewayConfig)
+	result.Provenance.LLMCredential = cloneCredentialRef(r.Provenance.LLMCredential)
+	result.Provenance.RuntimeCredentialRefs = append(
+		[]contracts.RuntimeCredentialRefV2{}, r.Provenance.RuntimeCredentialRefs...,
+	)
+	return result
 }
 
 func (r ResolvedRuntimeConfig) String() string {

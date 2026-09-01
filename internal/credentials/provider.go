@@ -51,6 +51,7 @@ func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {
 		if _, exists := result.entries[id]; exists {
 			return nil, fmt.Errorf("duplicate development credential %q", id)
 		}
+		entry.Metadata = cloneCredentialMetadata(entry.Metadata)
 		result.entries[id] = entry
 	}
 	return result, nil
@@ -69,7 +70,14 @@ func (p *StaticProvider) LookupLLMCredential(
 	if !ok {
 		return config.CredentialMetadata{}, ErrNotFound
 	}
-	return entry.Metadata, nil
+	return cloneCredentialMetadata(entry.Metadata), nil
+}
+
+func cloneCredentialMetadata(source config.CredentialMetadata) config.CredentialMetadata {
+	result := source
+	result.ModelPolicies = append([]contracts.ModelPolicyRef(nil), source.ModelPolicies...)
+	result.Models = append([]string(nil), source.Models...)
+	return result
 }
 
 func (p *StaticProvider) ResolveLLMCredential(

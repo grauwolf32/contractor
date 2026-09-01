@@ -75,18 +75,29 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 		return nil, invalidf("credential Run-reference limit must be between 1 and 128")
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT run_id
-FROM workflow_runs
-WHERE state IN ('initializing', 'running', 'cancelling')
-  AND (
-      jsonb_path_exists(
-          workflow_snapshot,
-          '$.**.credentialId ? (@ == $credential)',
-          jsonb_build_object('credential', to_jsonb($1::text)),
-          true
+WITH credential_runs AS (
+    SELECT run_id, created_at
+    FROM workflow_runs
+    WHERE state IN ('initializing', 'running', 'cancelling')
+      AND (
+          jsonb_path_exists(
+              workflow_snapshot,
+              '$.**.credentialId ? (@ == $credential)',
+              jsonb_build_object('credential', to_jsonb($1::text)),
+              true
+          )
+          OR (runtime_config_snapshot->'llmCredentialIds') ? $1
       )
-      OR (runtime_config_snapshot->'llmCredentialIds') ? $1
-  )
+    UNION
+    SELECT e.run_id, r.created_at
+    FROM stage_allocations a
+    JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
+    JOIN workflow_runs r ON r.run_id = e.run_id
+    WHERE a.release_completed_at IS NULL
+      AND a.runtime_configuration #>> '{provenance,llmCredential,credentialId}' = $1
+)
+SELECT run_id
+FROM credential_runs
 ORDER BY created_at, run_id
 LIMIT $2`, credentialID, limit)
 	if err != nil {

@@ -376,6 +376,100 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		t.Fatalf("delete Runtime credential after Run terminal: %v", err)
 	}
 
+	createCredential("allocation-debug")
+	allocationRef := publishConfig("allocation-debug", "allocation-debug")
+	allocationStore := runstore.NewPostgresStore(pool)
+	allocationRun, err := allocationStore.CreateRun(ctx, runstore.CreateRunParams{
+		RunID: "run-allocation-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.TransitionRun(
+		ctx, allocationRun.RunID, runstore.RunInitializing, runstore.RunRunning,
+		runstore.Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	allocationStage, err := allocationStore.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: "stage-allocation-credential", RunID: allocationRun.RunID,
+		StageName: "allocation", Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := contracts.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	allocationConfig := &runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+			WorkerTelemetry: &runtimeconfig.RuntimeFieldOrigin{
+				Layer: runtimeconfig.LayerAgentLabels, Configs: []runtimeconfig.Ref{allocationRef},
+			},
+		},
+		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
+			Default: contracts.RuntimeLabelBindingProvenanceV2{
+				Label: "default", BindingRevision: 1,
+				Config: contracts.RuntimeConfigRefV2{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels: []contracts.RuntimeLabelBindingProvenanceV2{},
+			AgentLabels: []contracts.RuntimeLabelBindingProvenanceV2{{
+				Label: "allocation-debug", BindingRevision: 1,
+				Config: contracts.RuntimeConfigRefV2{
+					Name: allocationRef.Name, Version: allocationRef.Version, Digest: allocationRef.Digest,
+				},
+			}},
+			RuntimeAdapters:  []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+			LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{{
+				CredentialID: "allocation-debug", Kind: contracts.RuntimeCredentialOTLPHeaders,
+			}},
+		},
+	}
+	if err := allocationStore.RecordStageAllocation(ctx, runstore.StageAllocation{
+		AllocationID: "allocation-runtime-credential", StageExecutionID: allocationStage.StageExecutionID,
+		LogicalAgentName: "worker", Namespace: "worker",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("d", 64),
+		},
+		WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:   strings.Repeat("e", 64), RuntimeAgentInstanceID: "runtime-allocation-credential",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              allocationConfig,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, "allocation-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+		t.Fatalf("delete credential pinned only by live allocation error = %v", err)
+	} else {
+		var inUse *RuntimeCredentialInUseError
+		if !errors.As(err, &inUse) || len(inUse.Usage.AllocationIDs) != 1 ||
+			inUse.Usage.AllocationIDs[0] != "allocation-runtime-credential" {
+			t.Fatalf("allocation credential usage = %+v", inUse)
+		}
+	}
+	if err := allocationStore.MarkStageAllocationReleased(ctx, "allocation-runtime-credential"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, "allocation-debug", "operator"); err != nil {
+		t.Fatalf("delete Runtime credential after allocation release: %v", err)
+	}
+
 	createCredential("race-debug")
 	raceRef := publishConfig("race-debug", "race-debug")
 	start := make(chan struct{})

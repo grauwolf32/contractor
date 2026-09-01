@@ -18,6 +18,7 @@ from contractor_runtime.contracts import (
     AllocationFinalReport,
     AllocationFinalResponse,
     AllocationSpec,
+    AllocationSpecV2,
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
@@ -430,6 +431,21 @@ class AllocationService:
                 raise AllocationError(
                     "unsupported_tool",
                     "AgentTemplate selects an unavailable tool",
+                    retryable=False,
+                    status_code=422,
+                )
+
+        if isinstance(spec, AllocationSpecV2):
+            required = set(spec.resolved_runtime_config_provenance.runtime_adapters)
+            configured: set[str] = set()
+            if spec.runtime_settings.telemetry is not None:
+                configured.add(spec.runtime_settings.telemetry.adapter)
+            if spec.runtime_settings.http_proxy is not None:
+                configured.add(spec.runtime_settings.http_proxy.adapter)
+            if required != configured or not capabilities.supports_runtime_adapters(required):
+                raise AllocationError(
+                    "unsupported_runtime_adapter",
+                    "allocation Runtime adapter settings do not match frozen capabilities",
                     retryable=False,
                     status_code=422,
                 )

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -25,8 +26,17 @@ func TestEncryptedProviderReturnsSafeMetadataAndDecryptsExactBinding(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metadata.Ref.CredentialID != record.CredentialID || metadata.LLMGateway != record.LLMGateway {
+	if metadata.Ref.CredentialID != record.CredentialID || metadata.LLMGateway != record.LLMGateway ||
+		metadata.Unrestricted ||
+		!reflect.DeepEqual(metadata.ModelPolicies, record.EffectivePolicy.ModelPolicies) ||
+		!reflect.DeepEqual(metadata.Models, record.EffectivePolicy.Models) {
 		t.Fatalf("metadata = %+v", metadata)
+	}
+	metadata.ModelPolicies[0].PolicyID = "mutated"
+	metadata.Models[0] = "mutated"
+	if record.EffectivePolicy.ModelPolicies[0].PolicyID == "mutated" ||
+		record.EffectivePolicy.Models[0] == "mutated" {
+		t.Fatal("safe credential metadata aliases the durable effective policy")
 	}
 	resolved, err := provider.ResolveLLMCredential(
 		t.Context(), contracts.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,

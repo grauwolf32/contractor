@@ -38,8 +38,10 @@ func (p *EncryptedProvider) LookupLLMCredential(
 		return config.CredentialMetadata{}, errors.New("lookup encrypted credential metadata")
 	}
 	return config.CredentialMetadata{
-		Ref:        contracts.LLMCredentialRef{CredentialID: record.CredentialID},
-		LLMGateway: record.LLMGateway,
+		Ref:           contracts.LLMCredentialRef{CredentialID: record.CredentialID},
+		LLMGateway:    record.LLMGateway,
+		ModelPolicies: append([]contracts.ModelPolicyRef(nil), record.EffectivePolicy.ModelPolicies...),
+		Models:        append([]string(nil), record.EffectivePolicy.Models...),
 	}, nil
 }
 

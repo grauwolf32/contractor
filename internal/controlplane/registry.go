@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 const (
@@ -114,6 +116,7 @@ type agentEntry struct {
 type stageReservation struct {
 	fingerprint   string
 	allocationIDs []string
+	committed     bool
 	released      bool
 }
 
@@ -324,9 +327,59 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 }
 
 func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation, error) {
+	return r.reserveAll(request, nil, false)
+}
+
+// PlacementCandidates returns detached snapshots of the slots that are
+// eligible at this instant. The caller may perform database work after this
+// method returns; reserveAll rechecks every selected edge under the Registry
+// mutex, so the snapshot itself grants no capacity.
+func (r *InMemoryRegistry) PlacementCandidates() []AgentSnapshot {
+	monotonicNow := r.monotonicNow()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := make([]AgentSnapshot, 0, len(r.agents))
+	for _, entry := range r.agents {
+		r.expireEntry(entry, monotonicNow)
+		if isPlacementEligible(entry, monotonicNow) {
+			result = append(result, snapshotAgent(entry))
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		left, right := r.agents[result[i].Registration.InstanceID], r.agents[result[j].Registration.InstanceID]
+		if left.orderKey == right.orderKey {
+			return result[i].Registration.InstanceID < result[j].Registration.InstanceID
+		}
+		return left.orderKey < right.orderKey
+	})
+	return result
+}
+
+// ReserveCandidateEdges installs a complete provisional batch using only the
+// candidate-specific edges produced outside the Registry lock. The batch must
+// be durably pinned and committed before it may be prepared.
+func (r *InMemoryRegistry) ReserveCandidateEdges(
+	request ReservationRequest,
+	edges []CandidateEdge,
+) ([]Reservation, error) {
+	return r.reserveAll(request, edges, true)
+}
+
+func (r *InMemoryRegistry) reserveAll(
+	request ReservationRequest,
+	edges []CandidateEdge,
+	provisional bool,
+) ([]Reservation, error) {
 	fingerprint, normalizedBindings, err := normalizeReservationRequest(request)
 	if err != nil {
 		return nil, err
+	}
+	if provisional {
+		if err := validateCandidateEdges(normalizedBindings, edges); err != nil {
+			return nil, err
+		}
+	} else if edges != nil {
+		return nil, fmt.Errorf("%w: candidate edges require provisional reservation", ErrInvalidRequest)
 	}
 	allocationIDs := make([]string, len(normalizedBindings))
 	seenIDs := make(map[string]struct{}, len(normalizedBindings))
@@ -355,6 +408,9 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		if existing.released {
 			return nil, ErrReservationReleased
 		}
+		if !existing.committed {
+			return nil, ErrReservationConflict
+		}
 		return r.existingReservations(existing)
 	}
 	for _, allocationID := range allocationIDs {
@@ -375,7 +431,7 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		}
 		return available[i].orderKey < available[j].orderKey
 	})
-	selected, complete := completeCapabilityAssignment(available, normalizedBindings)
+	selected, complete := completeCapabilityAssignmentWithEdges(available, normalizedBindings, edges)
 	if !complete {
 		return nil, ErrInsufficientCapacity
 	}
@@ -393,9 +449,10 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		}
 		reservation := Reservation{
 			Grant: grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
-			AgentTemplate:   cloneAgentTemplate(binding.AgentTemplate),
-			ExecutionConfig: cloneAllocationExecutionConfig(binding.ExecutionConfig),
-			LeaseExpiresAt:  entry.confirmedLeaseExpiresAt,
+			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
+			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
+			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 		}
 		entry.authoritativeAllocationID = cloneString(&allocationID)
 		entry.allocationActivated = false
@@ -406,9 +463,107 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 	}
 	r.stageReservations[request.StageExecutionID] = stageReservation{
 		fingerprint: fingerprint, allocationIDs: append([]string(nil), allocationIDs...),
+		committed: !provisional,
 	}
 	r.recordOperationsChangeLocked(OperationsAllocation, "")
 	return reservations, nil
+}
+
+// GetStageReservations returns only a fully pinned batch. Provisional
+// reservations are deliberately invisible to Scheduler replay.
+func (r *InMemoryRegistry) GetStageReservations(stageExecutionID string) ([]Reservation, error) {
+	if strings.TrimSpace(stageExecutionID) == "" {
+		return nil, ErrAllocationNotFound
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing, ok := r.stageReservations[stageExecutionID]
+	if !ok {
+		return nil, ErrAllocationNotFound
+	}
+	if existing.released {
+		return nil, ErrReservationReleased
+	}
+	if !existing.committed {
+		return nil, ErrReservationConflict
+	}
+	return r.existingReservations(existing)
+}
+
+// CommitCandidateReservations attaches the detached safe resolution after its
+// exact provenance is durable. All checks happen before mutating any stored
+// reservation, making a caller retry/discard deterministic.
+func (r *InMemoryRegistry) CommitCandidateReservations(
+	stageExecutionID string,
+	configurations map[string]PinnedReservationConfig,
+) ([]Reservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing, ok := r.stageReservations[stageExecutionID]
+	if !ok || existing.released || existing.committed || len(configurations) != len(existing.allocationIDs) {
+		return nil, ErrReservationConflict
+	}
+	for _, allocationID := range existing.allocationIDs {
+		stored, present := r.allocations[allocationID]
+		configuration, configured := configurations[allocationID]
+		if !present || !configured || configuration.RuntimeAgentLabelRevision == 0 ||
+			configuration.RuntimeAgentLabelRevision != stored.reservation.RuntimeAgentLabelRevision ||
+			configuration.Resolved.Validate() != nil {
+			return nil, ErrReservationConflict
+		}
+	}
+	for _, allocationID := range existing.allocationIDs {
+		stored := r.allocations[allocationID]
+		resolved := configurations[allocationID].Resolved.Clone()
+		stored.reservation.ExecutionConfig = AllocationExecutionConfig{
+			ModelPolicy: resolved.ModelPolicy.Ref,
+			LLMGateway:  resolved.LLMGateway.Ref,
+			Credential:  cloneCredentialRef(resolved.LLMCredential),
+		}
+		stored.reservation.ResolvedRuntimeConfig = &resolved
+		r.allocations[allocationID] = stored
+	}
+	existing.committed = true
+	r.stageReservations[stageExecutionID] = existing
+	return r.existingReservations(existing)
+}
+
+// DiscardCandidateReservations releases a batch that was never exposed to a
+// Runtime Agent. Unlike normal Release it does not require a reconciliation
+// heartbeat because the Runtime never observed these allocation IDs.
+func (r *InMemoryRegistry) DiscardCandidateReservations(stageExecutionID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing, ok := r.stageReservations[stageExecutionID]
+	if !ok {
+		return nil
+	}
+	if existing.committed || existing.released {
+		return ErrReservationConflict
+	}
+	for _, allocationID := range existing.allocationIDs {
+		stored, present := r.allocations[allocationID]
+		if !present {
+			return ErrReservationConflict
+		}
+		entry, present := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+		if !present || entry.authoritativeAllocationID == nil ||
+			*entry.authoritativeAllocationID != allocationID || entry.allocationActivated {
+			return ErrReservationConflict
+		}
+	}
+	for _, allocationID := range existing.allocationIDs {
+		stored := r.allocations[allocationID]
+		entry := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+		entry.authoritativeAllocationID = nil
+		entry.allocationLost = false
+		entry.allocationActivated = false
+		delete(r.allocations, allocationID)
+		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+	}
+	delete(r.stageReservations, stageExecutionID)
+	return nil
 }
 
 // completeCapabilityAssignment finds a complete injective binding-to-slot
@@ -419,15 +574,36 @@ func completeCapabilityAssignment(
 	available []*agentEntry,
 	bindings []BindingRequirement,
 ) ([]*agentEntry, bool) {
+	return completeCapabilityAssignmentWithEdges(available, bindings, nil)
+}
+
+func completeCapabilityAssignmentWithEdges(
+	available []*agentEntry,
+	bindings []BindingRequirement,
+	edges []CandidateEdge,
+) ([]*agentEntry, bool) {
 	if len(bindings) > len(available) {
 		return nil, false
+	}
+	edgeSet := make(map[string]CandidateEdge, len(edges))
+	for _, edge := range edges {
+		edgeSet[edge.LogicalAgentName+"\x00"+edge.RuntimeAgentInstanceID] = edge
 	}
 	candidates := make([][]int, len(bindings))
 	for bindingIndex, binding := range bindings {
 		for agentIndex, entry := range available {
-			if isCompatible(entry.registration, binding.AgentTemplate) {
-				candidates[bindingIndex] = append(candidates[bindingIndex], agentIndex)
+			if !isCompatible(entry.registration, binding.AgentTemplate) {
+				continue
 			}
+			if edges != nil {
+				edge, ok := edgeSet[binding.LogicalAgentName+"\x00"+entry.registration.InstanceID]
+				if !ok || edge.RuntimeAgentID != entry.principal.RuntimeAgentID ||
+					edge.RuntimeAgentLabelRevision != entry.principal.LabelRevision ||
+					!containsRuntimeAdapters(entry.registration.SupportedRuntimeAdapters, edge.RequiredRuntimeAdapters) {
+					continue
+				}
+			}
+			candidates[bindingIndex] = append(candidates[bindingIndex], agentIndex)
 		}
 		if len(candidates[bindingIndex]) == 0 {
 			return nil, false
@@ -485,6 +661,56 @@ func completeCapabilityAssignment(
 		selected[bindingIndex] = available[agentIndex]
 	}
 	return selected, true
+}
+
+func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge) error {
+	if edges == nil || len(edges) > len(bindings)*maximumOperationsItems {
+		return fmt.Errorf("%w: candidate edge set is invalid", ErrInvalidRequest)
+	}
+	bindingsByName := make(map[string]struct{}, len(bindings))
+	for _, binding := range bindings {
+		bindingsByName[binding.LogicalAgentName] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(edges))
+	for _, edge := range edges {
+		if _, ok := bindingsByName[edge.LogicalAgentName]; !ok ||
+			strings.TrimSpace(edge.RuntimeAgentInstanceID) == "" ||
+			validateAuthenticatedPrincipal(AuthenticatedPrincipal{
+				RuntimeAgentID: edge.RuntimeAgentID, Labels: []string{},
+				LabelRevision: edge.RuntimeAgentLabelRevision,
+			}) != nil {
+			return fmt.Errorf("%w: candidate edge identity is invalid", ErrInvalidRequest)
+		}
+		key := edge.LogicalAgentName + "\x00" + edge.RuntimeAgentInstanceID
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("%w: candidate edge is duplicated", ErrInvalidRequest)
+		}
+		seen[key] = struct{}{}
+		previous := contracts.RuntimeAdapterRef("")
+		for _, adapter := range edge.RequiredRuntimeAdapters {
+			if adapter.Validate() != nil || adapter <= previous {
+				return fmt.Errorf("%w: candidate adapter requirements are invalid", ErrInvalidRequest)
+			}
+			previous = adapter
+		}
+	}
+	return nil
+}
+
+func containsRuntimeAdapters(
+	available []contracts.RuntimeAdapterRef,
+	required []contracts.RuntimeAdapterRef,
+) bool {
+	availableIndex := 0
+	for _, expected := range required {
+		for availableIndex < len(available) && available[availableIndex] < expected {
+			availableIndex++
+		}
+		if availableIndex == len(available) || available[availableIndex] != expected {
+			return false
+		}
+	}
+	return true
 }
 
 func integersFilled(length int, value int) []int {
@@ -810,6 +1036,11 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	if strings.TrimSpace(request.RunID) == "" || strings.TrimSpace(request.StageExecutionID) == "" || len(request.Bindings) == 0 {
 		return "", nil, fmt.Errorf("%w: run, StageExecution, and bindings are required", ErrInvalidRequest)
 	}
+	if request.RuntimeConfig != nil {
+		if err := request.RuntimeConfig.Validate(); err != nil {
+			return "", nil, fmt.Errorf("%w: Run RuntimeConfig snapshot is invalid", ErrInvalidRequest)
+		}
+	}
 	bindings := make([]BindingRequirement, len(request.Bindings))
 	seen := make(map[string]struct{}, len(request.Bindings))
 	for index, binding := range request.Bindings {
@@ -825,14 +1056,23 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.ExecutionConfig.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid execution config for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		if (request.RuntimeConfig == nil) != (binding.RuntimeSelection == nil) {
+			return "", nil, fmt.Errorf("%w: candidate Runtime selection is incomplete", ErrInvalidRequest)
+		}
+		if binding.RuntimeSelection != nil {
+			if err := validateRuntimeSelection(*binding.RuntimeSelection); err != nil {
+				return "", nil, fmt.Errorf("%w: invalid Runtime selection for %q", ErrInvalidRequest, binding.LogicalAgentName)
+			}
+		}
 		if _, duplicate := seen[binding.LogicalAgentName]; duplicate {
 			return "", nil, fmt.Errorf("%w: duplicate logical Agent name", ErrInvalidRequest)
 		}
 		seen[binding.LogicalAgentName] = struct{}{}
 		bindings[index] = BindingRequirement{
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
-			AgentTemplate:   cloneAgentTemplate(binding.AgentTemplate),
-			ExecutionConfig: cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			AgentTemplate:    cloneAgentTemplate(binding.AgentTemplate),
+			ExecutionConfig:  cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			RuntimeSelection: cloneRuntimeSelection(binding.RuntimeSelection),
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
@@ -840,7 +1080,8 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		RunID            string
 		StageExecutionID string
 		Bindings         []BindingRequirement
-	}{request.RunID, request.StageExecutionID, bindings})
+		RuntimeConfig    *runtimeconfig.RunSnapshot
+	}{request.RunID, request.StageExecutionID, bindings, cloneRunSnapshot(request.RuntimeConfig)})
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)
 	}
@@ -1058,7 +1299,59 @@ func cloneReservation(source Reservation) Reservation {
 	result := source
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
+	if source.ResolvedRuntimeConfig != nil {
+		resolved := source.ResolvedRuntimeConfig.Clone()
+		result.ResolvedRuntimeConfig = &resolved
+	}
 	return result
+}
+
+func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConfig) error {
+	if err := value.ModelPolicy.Validate(); err != nil || strings.TrimSpace(value.Origins.ModelPolicy) == "" {
+		return ErrInvalidRequest
+	}
+	if value.LLMGateway != nil {
+		if err := value.LLMGateway.Validate(); err != nil || strings.TrimSpace(value.Origins.LLMGateway) == "" {
+			return ErrInvalidRequest
+		}
+	}
+	if value.Credential != nil {
+		if err := value.Credential.Validate(); err != nil || strings.TrimSpace(value.Origins.Credential) == "" {
+			return ErrInvalidRequest
+		}
+	}
+	return nil
+}
+
+func cloneRuntimeSelection(
+	source *workflowconfig.ResolvedConsumerExecutionConfig,
+) *workflowconfig.ResolvedConsumerExecutionConfig {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	if source.LLMGateway != nil {
+		gateway := *source.LLMGateway
+		if source.LLMGateway.CredentialManager != nil {
+			manager := *source.LLMGateway.CredentialManager
+			gateway.CredentialManager = &manager
+		}
+		result.LLMGateway = &gateway
+	}
+	if source.Credential != nil {
+		credential := *source.Credential
+		result.Credential = &credential
+	}
+	return &result
+}
+
+func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnapshot {
+	if source == nil {
+		return nil
+	}
+	result := source.Clone()
+	return &result
 }
 
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
@@ -1082,6 +1375,14 @@ func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedMo
 }
 
 func cloneString(source *string) *string {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	return &result
+}
+
+func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
 	if source == nil {
 		return nil
 	}

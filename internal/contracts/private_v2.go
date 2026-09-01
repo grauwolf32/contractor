@@ -302,6 +302,14 @@ type RuntimeSettingsV2 struct {
 	RequestTimeoutSeconds int                  `json:"requestTimeoutSeconds"`
 }
 
+// WorkerExecutionSettingsV2 is the in-process secret-bearing value delivered
+// only after allocation provenance is durable.
+type WorkerExecutionSettingsV2 struct {
+	ModelPolicy                     ResolvedModelPolicy
+	RuntimeSettings                 RuntimeSettingsV2
+	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenanceV2
+}
+
 func (s RuntimeSettingsV2) Validate() error {
 	if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 		return err
@@ -454,6 +462,18 @@ func (s AllocationSpecV2) Validate() error {
 		return err
 	}
 	return s.ResolvedRuntimeConfigProvenance.Validate()
+}
+
+type PrepareAllocationRequestV2 struct {
+	APIVersion string           `json:"apiVersion"`
+	Spec       AllocationSpecV2 `json:"spec"`
+}
+
+func (r PrepareAllocationRequestV2) Validate() error {
+	if err := validateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	return r.Spec.Validate()
 }
 
 type RuntimeAdapterMetricsV2 struct {

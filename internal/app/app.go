@@ -93,6 +93,7 @@ func developmentCredentials(
 		entries = append(entries, credentials.StaticEntry{
 			Metadata: workflowconfig.CredentialMetadata{
 				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+				Unrestricted: true,
 			},
 			Token: token,
 		})
@@ -240,6 +241,15 @@ func RunCLI(
 	if err := credentialLifecycle.Recover(ctx); err != nil {
 		return fmt.Errorf("recover LLM credential operations: %w", err)
 	}
+	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
+		credentials.RuntimeCredentialServiceOptions{
+			Pool: pool, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
+			Barrier: credentialBarrier,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("configure Runtime credential lifecycle: %w", err)
+	}
 	files := mtls.Files{
 		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,
 	}
@@ -256,6 +266,14 @@ func RunCLI(
 	})
 	if err != nil {
 		return fmt.Errorf("configure Runtime Agent principals: %w", err)
+	}
+	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
+		Pool: pool, Registry: registry, Gateways: configurationManager,
+		LLMCredentials: credentialProvider, RuntimeCredentials: runtimeCredentialLifecycle,
+		CredentialGuard: credentialLifecycle,
+	})
+	if err != nil {
+		return fmt.Errorf("configure candidate Runtime placement: %w", err)
 	}
 	runtimeClient, err := controlplane.NewMTLSRuntimeControlClient(files, cfg.RuntimeRequestTimeout)
 	if err != nil {
@@ -326,14 +344,15 @@ func RunCLI(
 		runstore.NewPostgresStore(pool),
 		transactions,
 		artifactResolver,
-		registry,
+		placementAllocator,
 		workers,
 		plannerRegistry,
 		scheduler.Options{
-			OperationTimeout: cfg.RuntimeRequestTimeout,
-			PlannerTimeout:   cfg.PlannerTimeout,
-			RuntimeSettings:  runtimeSettings,
-			Credentials:      credentialProvider,
+			OperationTimeout:   cfg.RuntimeRequestTimeout,
+			PlannerTimeout:     cfg.PlannerTimeout,
+			RuntimeSettings:    runtimeSettings,
+			Credentials:        credentialProvider,
+			RuntimeCredentials: runtimeCredentialLifecycle,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),

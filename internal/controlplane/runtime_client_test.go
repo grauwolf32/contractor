@@ -110,7 +110,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	effectivePolicy.MaxModelCalls++
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
-	var received contracts.PrepareAllocationRequest
+	var received contracts.PrepareAllocationRequestV2
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
@@ -146,7 +146,10 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 
 	handle, err := client.Prepare(
 		requestid.With(context.Background(), "scheduler-request-1"), reservation,
-		contracts.WorkerExecutionSettings{ModelPolicy: effectivePolicy, RuntimeSettings: settings},
+		contracts.WorkerExecutionSettingsV2{
+			ModelPolicy: effectivePolicy, RuntimeSettings: settings,
+			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
+		},
 	)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -186,8 +189,9 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	client, _ := NewRuntimeControlClient(server.Client())
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 
-	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{
+	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettingsV2{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: settings,
+		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	})
 	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
 		t.Fatalf("secret-bearing WorkerHandle error = %v", err)
@@ -329,7 +333,7 @@ type recordingRuntime struct {
 }
 
 func (r *recordingRuntime) Prepare(
-	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettings,
+	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettingsV2,
 ) (contracts.WorkerHandle, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -426,25 +430,45 @@ func testReservation(
 	}
 }
 
-func testRuntimeSettings() contracts.RuntimeSettings {
-	return contracts.RuntimeSettings{
-		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: contracts.NewSecretString("recognizable-runtime-secret"),
+func testRuntimeSettings() contracts.RuntimeSettingsV2 {
+	token := contracts.NewSecretString("recognizable-runtime-secret")
+	return contracts.RuntimeSettingsV2{
+		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: &token,
 		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
 	}
 }
 
 func testWorkerExecutionSettings(
 	template contracts.ResolvedAgentTemplate,
-	runtime contracts.RuntimeSettings,
+	runtime contracts.RuntimeSettingsV2,
 	logicalNames ...string,
-) map[string]contracts.WorkerExecutionSettings {
-	result := make(map[string]contracts.WorkerExecutionSettings, len(logicalNames))
+) map[string]contracts.WorkerExecutionSettingsV2 {
+	result := make(map[string]contracts.WorkerExecutionSettingsV2, len(logicalNames))
 	for _, name := range logicalNames {
-		result[name] = contracts.WorkerExecutionSettings{
+		result[name] = contracts.WorkerExecutionSettingsV2{
 			ModelPolicy: template.ModelPolicy, RuntimeSettings: runtime,
+			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		}
 	}
 	return result
+}
+
+func testRuntimeProvenance() contracts.ResolvedRuntimeConfigProvenanceV2 {
+	gateway := contracts.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return contracts.ResolvedRuntimeConfigProvenanceV2{
+		Default: contracts.RuntimeLabelBindingProvenanceV2{
+			Label: "default", BindingRevision: 1,
+			Config: contracts.RuntimeConfigRefV2{
+				Name: "contractor-empty", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+			},
+		},
+		RunLabels:       []contracts.RuntimeLabelBindingProvenanceV2{},
+		AgentLabels:     []contracts.RuntimeLabelBindingProvenanceV2{},
+		RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+		RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+	}
 }
 
 func testExecutionReport(allocationID string) contracts.AllocationFinalReport {

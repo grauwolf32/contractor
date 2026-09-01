@@ -67,8 +67,12 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		AgentTemplateRef: contracts.AgentTemplateRef{
 			TemplateID: "artifact_builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 		},
-		WorkerRuntimeRef:       contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
-		RuntimeAgentInstanceID: "runtime-agent-1",
+		WorkerRuntimeRef:                  contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:                    strings.Repeat("1", 64),
+		RuntimeAgentInstanceID:            "runtime-agent-1",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              testAllocationRuntimeConfiguration(),
 	}
 	err = store.RecordStageAllocation(ctx, allocation)
 	if err != nil {
@@ -85,6 +89,13 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" {
 		t.Fatalf("allocations = (%+v, %v)", allocations, err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE stage_allocations
+SET runtime_agent_label_revision = runtime_agent_label_revision + 1
+WHERE allocation_id = 'allocation-1'`)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("allocation Runtime provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	reportFinished := time.Now().UTC()
 	modelCalls := int64(3)
@@ -325,6 +336,33 @@ SET candidate_stage_result = jsonb_set(candidate_stage_result, '{summary}', '"re
 WHERE stage_execution_id = 'stage-lifecycle'`)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("candidate rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+}
+
+func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
+	gateway := contracts.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return &AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
+			Default: contracts.RuntimeLabelBindingProvenanceV2{
+				Label: "default", BindingRevision: 1,
+				Config: contracts.RuntimeConfigRefV2{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels:       []contracts.RuntimeLabelBindingProvenanceV2{},
+			AgentLabels:     []contracts.RuntimeLabelBindingProvenanceV2{},
+			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+		},
 	}
 }
 
@@ -697,6 +735,56 @@ func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *test
 	runs, err = store.ListNonTerminalRunIDsByCredential(ctx, "runtime-route", 10)
 	if err != nil || len(runs) != 0 {
 		t.Fatalf("terminal RuntimeConfig LLM credential usage = (%v, %v)", runs, err)
+	}
+}
+
+func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	run := createTestRun(t, ctx, store, "run-live-allocation-credential")
+	if _, err := store.TransitionRun(
+		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		StageExecutionID: "stage-live-allocation-credential", RunID: run.RunID,
+		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
+		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration := testAllocationRuntimeConfiguration()
+	credential := contracts.LLMCredentialRef{CredentialID: "allocation-only-key"}
+	configuration.Provenance.LLMCredential = &credential
+	if err := store.RecordStageAllocation(ctx, StageAllocation{
+		AllocationID: "allocation-live-credential", StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+		},
+		WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:   strings.Repeat("2", 64), RuntimeAgentInstanceID: "runtime-live",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              configuration,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runIDs, err := store.ListNonTerminalRunIDsByCredential(ctx, credential.CredentialID, 10)
+	if err != nil || len(runIDs) != 1 || runIDs[0] != run.RunID {
+		t.Fatalf("live allocation credential Runs = (%v, %v)", runIDs, err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, "allocation-live-credential"); err != nil {
+		t.Fatal(err)
+	}
+	runIDs, err = store.ListNonTerminalRunIDsByCredential(ctx, credential.CredentialID, 10)
+	if err != nil || len(runIDs) != 0 {
+		t.Fatalf("released allocation credential Runs = (%v, %v)", runIDs, err)
 	}
 }
 

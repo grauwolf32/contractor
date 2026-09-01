@@ -19,8 +19,14 @@ const (
 // CredentialMetadata is the safe lookup result used while a Run is resolved.
 // It deliberately contains no token or provider response.
 type CredentialMetadata struct {
-	Ref        contracts.LLMCredentialRef
-	LLMGateway contracts.LLMGatewayConfigRef
+	Ref           contracts.LLMCredentialRef
+	LLMGateway    contracts.LLMGatewayConfigRef
+	ModelPolicies []contracts.ModelPolicyRef
+	Models        []string
+	// Unrestricted is reserved for explicit process-local development
+	// credentials. Managed credentials always carry their immutable effective
+	// policy above.
+	Unrestricted bool
 }
 
 type CredentialLookup interface {

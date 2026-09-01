@@ -16,6 +16,10 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 		Metadata: config.CredentialMetadata{
 			Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway,
+			ModelPolicies: []contracts.ModelPolicyRef{{
+				PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+			}},
+			Models: []string{"qwen/test"},
 		},
 		Token: contracts.NewSecretString(secret),
 	}})
@@ -26,6 +30,12 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 	metadata, err := provider.LookupLLMCredential(t.Context(), "development-worker")
 	if err != nil || metadata.Ref.CredentialID != "development-worker" || metadata.LLMGateway != gateway {
 		t.Fatalf("LookupLLMCredential = (%+v, %v)", metadata, err)
+	}
+	metadata.ModelPolicies[0].PolicyID = "mutated"
+	metadata.Models[0] = "mutated"
+	again, err := provider.LookupLLMCredential(t.Context(), "development-worker")
+	if err != nil || again.ModelPolicies[0].PolicyID != "worker" || again.Models[0] != "qwen/test" {
+		t.Fatalf("LookupLLMCredential returned aliased policy metadata: (%+v, %v)", again, err)
 	}
 	token, err := provider.ResolveLLMCredential(t.Context(), metadata.Ref, gateway)
 	if err != nil || token.Reveal() != secret {

@@ -1087,6 +1087,10 @@ class AllocationSpecV2(AllocationSpec):
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenanceV2
 
 
+class PrepareAllocationRequestV2(VersionedWireModel):
+    spec: AllocationSpecV2
+
+
 class RuntimeAdapterMetricsV2(WireModel):
     operations: int = Field(ge=0, le=2**64 - 1)
     failed_operations: int = Field(ge=0, le=2**64 - 1)

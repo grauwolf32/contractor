@@ -6,18 +6,23 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
-var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var (
+	digestPattern                = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	runtimeAgentPrincipalPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
 
 func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation StageAllocation) error {
 	for field, value := range map[string]string{
 		"allocationID":           allocation.AllocationID,
 		"stageExecutionID":       allocation.StageExecutionID,
 		"logicalAgentName":       allocation.LogicalAgentName,
+		"runtimeAgentID":         allocation.RuntimeAgentID,
 		"runtimeAgentInstanceID": allocation.RuntimeAgentInstanceID,
 	} {
 		if err := validateOpaque(field, value); err != nil {
@@ -26,6 +31,14 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	}
 	if err := validateNamespace(allocation.Namespace); err != nil {
 		return err
+	}
+	if !runtimeAgentPrincipalPattern.MatchString(allocation.RuntimeAgentID) ||
+		allocation.RuntimeAgentLabelRevision == 0 || allocation.RuntimeConfiguration == nil ||
+		allocation.RuntimeConfigurationSchemaVersion != AllocationRuntimeConfigurationSchemaVersion {
+		return invalidf("Runtime Agent principal and configuration are required")
+	}
+	if err := allocation.RuntimeConfiguration.Validate(); err != nil {
+		return invalidf("allocation Runtime configuration is invalid: %v", err)
 	}
 	if err := validateOpaque("AgentTemplate templateID", allocation.AgentTemplateRef.TemplateID); err != nil {
 		return err
@@ -50,16 +63,25 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err != nil {
 		return fmt.Errorf("record Stage allocation: encode WorkerRuntime ref: %w", err)
 	}
+	runtimeConfiguration, err := json.Marshal(allocation.RuntimeConfiguration)
+	if err != nil {
+		return fmt.Errorf("record Stage allocation: encode Runtime configuration: %w", err)
+	}
 	var insertedID string
 	err = s.db.QueryRow(ctx, `
 INSERT INTO stage_allocations (
     allocation_id, stage_execution_id, logical_agent_name, namespace,
-    agent_template_ref, worker_runtime_ref, runtime_agent_instance_id
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)
+    agent_template_ref, worker_runtime_ref,
+    runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision,
+    runtime_configuration_schema_version, runtime_configuration
+) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb)
 ON CONFLICT DO NOTHING
 RETURNING allocation_id`,
 		allocation.AllocationID, allocation.StageExecutionID, allocation.LogicalAgentName,
-		allocation.Namespace, templateRef, runtimeRef, allocation.RuntimeAgentInstanceID,
+		allocation.Namespace, templateRef, runtimeRef,
+		allocation.RuntimeAgentID, allocation.RuntimeAgentInstanceID,
+		strconv.FormatUint(allocation.RuntimeAgentLabelRevision, 10),
+		allocation.RuntimeConfigurationSchemaVersion, runtimeConfiguration,
 	).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, loadErr := s.ListStageAllocations(ctx, allocation.StageExecutionID)
@@ -98,7 +120,11 @@ func sameStageAllocation(left, right StageAllocation) bool {
 		left.Namespace == right.Namespace &&
 		left.AgentTemplateRef == right.AgentTemplateRef &&
 		left.WorkerRuntimeRef == right.WorkerRuntimeRef &&
-		left.RuntimeAgentInstanceID == right.RuntimeAgentInstanceID
+		left.RuntimeAgentID == right.RuntimeAgentID &&
+		left.RuntimeAgentInstanceID == right.RuntimeAgentInstanceID &&
+		left.RuntimeAgentLabelRevision == right.RuntimeAgentLabelRevision &&
+		left.RuntimeConfigurationSchemaVersion == right.RuntimeConfigurationSchemaVersion &&
+		sameAllocationRuntimeConfiguration(left.RuntimeConfiguration, right.RuntimeConfiguration)
 }
 
 func (s *PostgresStore) ListStageAllocations(
@@ -110,7 +136,9 @@ func (s *PostgresStore) ListStageAllocations(
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
-       agent_template_ref, worker_runtime_ref, runtime_agent_instance_id, created_at,
+       agent_template_ref, worker_runtime_ref,
+       runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision::text,
+       runtime_configuration_schema_version, runtime_configuration, created_at,
        release_attempted_at, release_completed_at
 FROM stage_allocations
 WHERE stage_execution_id = $1
@@ -124,10 +152,14 @@ ORDER BY logical_agent_name`, stageExecutionID)
 		var allocation StageAllocation
 		var templateRef []byte
 		var runtimeRef []byte
+		var runtimeAgentID, runtimeAgentLabelRevision, runtimeConfigurationVersion *string
+		var runtimeConfiguration []byte
 		if err := rows.Scan(
 			&allocation.AllocationID, &allocation.StageExecutionID,
 			&allocation.LogicalAgentName, &allocation.Namespace,
-			&templateRef, &runtimeRef, &allocation.RuntimeAgentInstanceID, &allocation.CreatedAt,
+			&templateRef, &runtimeRef,
+			&runtimeAgentID, &allocation.RuntimeAgentInstanceID, &runtimeAgentLabelRevision,
+			&runtimeConfigurationVersion, &runtimeConfiguration, &allocation.CreatedAt,
 			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan allocation for StageExecution %q: %w", stageExecutionID, err)
@@ -137,6 +169,23 @@ ORDER BY logical_agent_name`, stageExecutionID)
 		}
 		if err := json.Unmarshal(runtimeRef, &allocation.WorkerRuntimeRef); err != nil {
 			return nil, fmt.Errorf("decode persisted WorkerRuntime ref: %w", err)
+		}
+		if runtimeAgentID != nil || runtimeAgentLabelRevision != nil || runtimeConfigurationVersion != nil || runtimeConfiguration != nil {
+			if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
+				return nil, fmt.Errorf("decode persisted allocation Runtime configuration: incomplete legacy projection")
+			}
+			revision, parseErr := strconv.ParseUint(*runtimeAgentLabelRevision, 10, 64)
+			if parseErr != nil {
+				return nil, fmt.Errorf("decode persisted Runtime Agent label revision")
+			}
+			var configuration AllocationRuntimeConfiguration
+			if err := json.Unmarshal(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
+				return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
+			}
+			allocation.RuntimeAgentID = *runtimeAgentID
+			allocation.RuntimeAgentLabelRevision = revision
+			allocation.RuntimeConfigurationSchemaVersion = *runtimeConfigurationVersion
+			allocation.RuntimeConfiguration = &configuration
 		}
 		result = append(result, allocation)
 	}
@@ -156,6 +205,25 @@ ORDER BY logical_agent_name`, stageExecutionID)
 		}
 	}
 	return result, nil
+}
+
+func (c AllocationRuntimeConfiguration) Validate() error {
+	if err := c.ModelPolicy.ValidateRef(); err != nil {
+		return err
+	}
+	if err := c.Origins.Validate(); err != nil {
+		return err
+	}
+	return c.Provenance.Validate()
+}
+
+func sameAllocationRuntimeConfiguration(left, right *AllocationRuntimeConfiguration) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	return leftErr == nil && rightErr == nil && string(leftJSON) == string(rightJSON)
 }
 
 func (s *PostgresStore) MarkStageAllocationReleaseAttempt(

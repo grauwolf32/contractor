@@ -39,7 +39,7 @@ scope:
     - Revalidate revisions and adapter capability containment after reservation; release an unprepared batch and retry the same StageExecution on change.
     - Persist exact provenance, resolve only selected secrets and construct protocol-v2 AllocationSpec after transaction commit.
     - Extend credential deletion fences to live allocation snapshots and prohibit new references once StageExecution enters finalizing or aborting.
-    - Attribute final reports to Server-owned config provenance and discard unknown adapter metric keys without blocking terminalization.
+    - Attribute existing final reports to Server-owned allocation provenance and reserve the exact expected adapter set; RuntimeReportV2 adapter-key filtering activates with the adapter host in V8-010 as recorded by decision D013.
     - Drain every reservation on preparation failure using existing non-blocking terminal release recovery.
   out:
     - Concrete Runtime adapter behavior, Planner telemetry, public management APIs or UI.

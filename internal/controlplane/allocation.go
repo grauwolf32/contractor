@@ -3,7 +3,9 @@ package controlplane
 import (
 	"time"
 
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type ArtifactReadPolicy string
@@ -19,12 +21,37 @@ type BindingRequirement struct {
 	Namespace        string
 	AgentTemplate    contracts.ResolvedAgentTemplate
 	ExecutionConfig  AllocationExecutionConfig
+	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
+	// Candidate Agent labels are deliberately resolved later by placement.
+	RuntimeSelection *workflowconfig.ResolvedConsumerExecutionConfig
 }
 
 type ReservationRequest struct {
 	RunID            string
 	StageExecutionID string
 	Bindings         []BindingRequirement
+	// RuntimeConfig is nil only for the legacy in-process Registry surface used
+	// by focused capacity tests. Production placement always supplies the
+	// immutable Run snapshot.
+	RuntimeConfig *runtimeconfig.RunSnapshot
+}
+
+// CandidateEdge is one already-resolved, non-secret compatibility edge. The
+// Registry still rechecks its frozen capability snapshot under the live-state
+// mutex before installing any allocation IDs.
+type CandidateEdge struct {
+	LogicalAgentName          string
+	RuntimeAgentID            string
+	RuntimeAgentInstanceID    string
+	RuntimeAgentLabelRevision uint64
+	RequiredRuntimeAdapters   []contracts.RuntimeAdapterRef
+}
+
+// PinnedReservationConfig is attached only after durable allocation
+// provenance commits. It never contains RuntimeSettings or secret material.
+type PinnedReservationConfig struct {
+	RuntimeAgentLabelRevision uint64
+	Resolved                  runtimeconfig.ResolvedRuntimeConfig
 }
 
 type AllocationGrant struct {
@@ -62,10 +89,12 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
-	Grant           AllocationGrant
-	ControlURL      string
-	A2AURL          string
-	AgentTemplate   contracts.ResolvedAgentTemplate
-	ExecutionConfig AllocationExecutionConfig
-	LeaseExpiresAt  time.Time
+	Grant                     AllocationGrant
+	ControlURL                string
+	A2AURL                    string
+	AgentTemplate             contracts.ResolvedAgentTemplate
+	ExecutionConfig           AllocationExecutionConfig
+	RuntimeAgentLabelRevision uint64
+	ResolvedRuntimeConfig     *runtimeconfig.ResolvedRuntimeConfig
+	LeaseExpiresAt            time.Time
 }

@@ -243,6 +243,27 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 	})
 }
 
+func TestResolverAllowsExplicitUnrestrictedDevelopmentCredentialOnlyOnExactGateway(t *testing.T) {
+	input := resolverInput()
+	input.Default.Spec.Worker.LLMGateway.Credential = credentialField("development-key")
+	input.LLMCredentials["development-key"] = LLMCredentialAuthorization{
+		Ref:        contracts.LLMCredentialRef{CredentialID: "development-key"},
+		LLMGateway: testGatewayRef("primary", "1"), Unrestricted: true,
+	}
+	result, err := ResolveRuntimeConfig(input)
+	if err != nil || result.LLMCredential == nil ||
+		result.LLMCredential.CredentialID != "development-key" {
+		t.Fatalf("unrestricted development resolution = (%+v, %v)", result, err)
+	}
+
+	input.LLMCredentials["development-key"] = LLMCredentialAuthorization{
+		Ref:        contracts.LLMCredentialRef{CredentialID: "development-key"},
+		LLMGateway: testGatewayRef("secondary", "2"), Unrestricted: true,
+	}
+	_, err = ResolveRuntimeConfig(input)
+	assertResolutionError(t, err, ResolutionGatewayMismatch, "worker.llmGateway.credential")
+}
+
 func TestResolverReturnsCallerOwnedValuesAndPreservesModelPolicy(t *testing.T) {
 	input := resolverInput()
 	input.RunLabels = []PinnedRuntimeConfig{testPin("caido", "3", Spec{Worker: WorkerPatch{

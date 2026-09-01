@@ -5,7 +5,7 @@ import pytest
 from fakes.spec import allocation_spec
 from starlette.testclient import TestClient
 
-from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequest
+from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequestV2
 from contractor_runtime.server import create_app
 from contractor_runtime.state import RuntimeState
 
@@ -52,6 +52,39 @@ def test_unconfigured_lifecycle_service_is_typed_and_records_dispatch() -> None:
     assert asyncio.run(state.snapshot()).route_dispatches == 1
 
 
+def test_prepare_rejects_legacy_request_before_lifecycle_dispatch() -> None:
+    class NoDispatchAllocationService:
+        async def prepare(self, _: object) -> object:
+            raise AssertionError("legacy request reached allocation preparation")
+
+        async def active_a2a_application(self, _: str) -> object:
+            raise AssertionError("unexpected A2A dispatch")
+
+    request = PrepareAllocationRequestV2(
+        apiVersion=API_VERSION,
+        spec=allocation_spec(),
+    ).model_dump(mode="json", by_alias=True)
+    del request["spec"]["resolvedRuntimeConfigProvenance"]
+    with TestClient(
+        create_app(
+            allocation_service=NoDispatchAllocationService(),  # type: ignore[arg-type]
+            require_verified_peer=False,
+        )
+    ) as client:
+        response = client.post(
+            "/private/v1/allocations/allocation-1/prepare",
+            json=request,
+            headers={"X-Request-ID": "legacy-prepare-request"},
+        )
+    assert response.status_code == 422
+    assert response.json() == {
+        "code": "invalid_request",
+        "message": "request does not match the allocation lifecycle contract",
+        "retryable": False,
+        "requestId": "legacy-prepare-request",
+    }
+
+
 def test_internal_failure_is_correlated_and_does_not_log_injected_secret(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -64,7 +97,7 @@ def test_internal_failure_is_correlated_and_does_not_log_injected_secret(
         async def active_a2a_application(self, _: str) -> object:
             raise RuntimeError(injected_secret)
 
-    request = PrepareAllocationRequest(
+    request = PrepareAllocationRequestV2(
         apiVersion=API_VERSION,
         spec=allocation_spec(allocation_id=injected_secret),
     )

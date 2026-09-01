@@ -145,7 +145,7 @@ type WorkerController interface {
 	PrepareAll(
 		context.Context,
 		[]controlplane.Reservation,
-		map[string]contracts.WorkerExecutionSettings,
+		map[string]contracts.WorkerExecutionSettingsV2,
 	) (map[string]contracts.WorkerHandle, error)
 	FinalizeAll(
 		context.Context,
@@ -169,6 +169,15 @@ type CredentialResolver interface {
 		contracts.LLMCredentialRef,
 		contracts.LLMGatewayConfigRef,
 	) (contracts.SecretString, error)
+}
+
+type RuntimeCredentialResolver interface {
+	UsePlaintext(
+		context.Context,
+		string,
+		[]contracts.RuntimeCredentialKind,
+		func(contracts.RuntimeCredentialKind, []byte) error,
+	) error
 }
 
 type PlannerRegistry interface {
@@ -195,6 +204,7 @@ type Options struct {
 	LeaseScanInterval      time.Duration
 	RuntimeSettings        contracts.RuntimeSettings
 	Credentials            CredentialResolver
+	RuntimeCredentials     RuntimeCredentialResolver
 	TelemetrySecrets       []string
 	MetricsCleanupInterval time.Duration
 	MetricsCleanupBatch    int

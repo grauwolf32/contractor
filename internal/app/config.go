@@ -141,7 +141,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.StringVar(&caFile, "ca-file", caFile, "deployment CA certificate")
 	flags.StringVar(&certificateFile, "certificate-file", certificateFile, "Control Plane certificate")
 	flags.StringVar(&privateKeyFile, "private-key-file", privateKeyFile, "Control Plane private key")
-	flags.DurationVar(&plannerTimeout, "planner-timeout", plannerTimeout, "maximum Planner wall time")
+	flags.DurationVar(&plannerTimeout, "planner-timeout", plannerTimeout, "maximum Stage preparation and Planner wall time")
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse serve flags: %w", err)
 	}

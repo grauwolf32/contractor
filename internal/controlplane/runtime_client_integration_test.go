@@ -115,8 +115,9 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := contracts.WorkerExecutionSettings{
+	settings := contracts.WorkerExecutionSettingsV2{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
+		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

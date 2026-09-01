@@ -27,7 +27,7 @@ const maxRuntimeResponseBytes = 1 << 20
 var runtimePathIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type RuntimeLifecycle interface {
-	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error)
+	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettingsV2) (contracts.WorkerHandle, error)
 	Finalize(context.Context, Reservation, string, time.Time) (contracts.AllocationFinalReport, error)
 	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
@@ -79,16 +79,17 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,
-	settings contracts.WorkerExecutionSettings,
+	settings contracts.WorkerExecutionSettingsV2,
 ) (contracts.WorkerHandle, error) {
-	spec := contracts.AllocationSpec{
+	spec := contracts.AllocationSpecV2{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 		LeaseExpiresAt: wireTime(reservation.LeaseExpiresAt), AgentTemplate: cloneAgentTemplate(reservation.AgentTemplate),
 		ModelPolicy: cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
+		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 	}
-	request := contracts.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
+	request := contracts.PrepareAllocationRequestV2{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
@@ -99,7 +100,7 @@ func (c *RuntimeControlClient) Prepare(
 	); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
+	if err := validateWorkerHandleV2(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
@@ -210,6 +211,7 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return fmt.Errorf("encode Runtime Agent request: %w", err)
 	}
+	defer clear(body)
 	httpResponse, err := c.do(ctx, target, body, runtimeAgentID)
 	if err != nil {
 		return err
@@ -295,10 +297,10 @@ func (c *RuntimeControlClient) endpoint(baseURL, allocationID, operation string)
 	return parsed.String(), nil
 }
 
-func validateWorkerHandle(
+func validateWorkerHandleV2(
 	handle contracts.WorkerHandle,
 	reservation Reservation,
-	settings contracts.RuntimeSettings,
+	settings contracts.RuntimeSettingsV2,
 ) error {
 	if handle.AllocationID != reservation.Grant.AllocationID ||
 		handle.AgentTemplateRef != reservation.AgentTemplate.Ref ||
@@ -310,9 +312,10 @@ func validateWorkerHandle(
 	if err != nil {
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
-	secret := settings.LLMGatewayToken.Reveal()
-	if secret != "" && bytes.Contains(encoded, []byte(secret)) {
-		return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
+	for _, secret := range runtimeSettingSecrets(settings) {
+		if secret != "" && bytes.Contains(encoded, []byte(secret)) {
+			return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
+		}
 	}
 	if err := validateA2AAgentCard(
 		handle.AgentCard, reservation.Grant.AllocationID, reservation.A2AURL,
@@ -320,6 +323,30 @@ func validateWorkerHandle(
 		return err
 	}
 	return nil
+}
+
+func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {
+	result := make([]string, 0, 36)
+	if settings.LLMGatewayToken != nil {
+		result = append(result, settings.LLMGatewayToken.Reveal())
+	}
+	if settings.Telemetry != nil {
+		for _, value := range settings.Telemetry.Headers {
+			result = append(result, value.Reveal())
+		}
+	}
+	if settings.HTTPProxy != nil {
+		if settings.HTTPProxy.BasicAuth != nil {
+			result = append(result,
+				settings.HTTPProxy.BasicAuth.Username.Reveal(),
+				settings.HTTPProxy.BasicAuth.Password.Reveal(),
+			)
+		}
+		if settings.HTTPProxy.BearerToken != nil {
+			result = append(result, settings.HTTPProxy.BearerToken.Reveal())
+		}
+	}
+	return result
 }
 
 const stageContentMediaType = "application/vnd.contractor.stage-content+json"
@@ -507,7 +534,7 @@ func NewRuntimeBatchController(
 func (c *RuntimeBatchController) PrepareAll(
 	ctx context.Context,
 	reservations []Reservation,
-	settings map[string]contracts.WorkerExecutionSettings,
+	settings map[string]contracts.WorkerExecutionSettingsV2,
 ) (map[string]contracts.WorkerHandle, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
