@@ -260,8 +260,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V12-002
-  next_task: V12-003
+  completed_through: V12-003
+  next_task: V12-004
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -277,7 +277,10 @@ current_checkpoint:
     bearer credentials, private settings/provenance and placement inputs.
     V12-002 added the static-operation Caido GraphQL client, typed private
     handle, capability discovery, mandatory tool-to-adapter placement and
-    bounded lifecycle cleanup. V12-003 generic HTTP tools are next.
+    bounded lifecycle cleanup. V12-003 added allocation-scoped direct or
+    mandatory-proxy HTTP tools, bounded exact body artifacts, redacted
+    memory-only sessions, safe retries and teardown. V12-004 Caido read tools
+    are next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

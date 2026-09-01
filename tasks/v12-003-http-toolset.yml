@@ -3,8 +3,8 @@ id: V12-003
 title: Port bounded allocation-scoped http-tools@1
 milestone: http-caido-tools-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 5041d1cbd92cbf7f2ebe8a8561c219d5db79bb96
 depends_on: [V12-002]
 languages: [go, python]
 
