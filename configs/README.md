@@ -2,8 +2,22 @@
 
 This directory contains the executable default configuration. It includes the
 small artifact-copy fixture and the four-Stage `openapi-from-source@1` and
-`likec4-from-source@1` project workflows. The original LikeC4 identity remains
-available for reproducibility. New project-sized variants are:
+`likec4-from-source@1` project workflows. Those IDs retain their archive-local
+`source-analysis@1` behavior. Explicit workspace-backed variants are:
+
+- `openapi-from-workspace@1`;
+- `likec4-from-workspace@1`.
+
+Each workspace variant hydrates the exact `inputs/source` ZIP below the private
+workspace root for every Stage, uses only bounded `filesystem@1` reads, and
+exports exact cumulative `workspace_state` plus checkpoint `workspace_diff`
+results. A later Stage imports the exact prior state revision; no allocation
+workspace is shared or synchronized implicitly. The domain outputs are the same
+as the corresponding source workflow and both workspace results are additionally
+frozen as Workflow outputs.
+
+The original LikeC4 identity remains available for reproducibility. Other
+project-sized variants are:
 
 - `likec4-from-source@2`: the same deterministic `passthrough@1` graph with
   `project_worker@1` (48 model calls, 256 tool calls, 1,000,000 cumulative

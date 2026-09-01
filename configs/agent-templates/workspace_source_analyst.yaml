@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_source_analyst
+  version: "1"
+
+spec:
+  description: Inspects a hydrated project workspace and publishes evidenced Markdown analysis
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-source-analyst-worker.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff, rollback_changes]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+  sandboxProfile: local-workdir@1

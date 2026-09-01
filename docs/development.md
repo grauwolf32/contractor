@@ -993,6 +993,37 @@ when the final `validate_openapi` call reports a structurally clean document and
 no serious Vacuum findings. Missing Vacuum is an explicit failed validation,
 never an implicit pass.
 
+### Workspace-backed OpenAPI variant
+
+Use `openapi-from-workspace@1` when the Worker should inspect the hydrated tree
+through `filesystem@1` rather than open the ZIP through `source-analysis@1`.
+The Run request is otherwise identical. Every Stage receives a new isolated
+workspace reconstructed from the exact source ref and, after the first Stage,
+the exact cumulative state exported by its predecessor. The final Run freezes
+`openapi`, `validation_report`, `workspace_state`, and `workspace_diff`.
+
+Workspace support is an immutable Runtime startup capability. Enable exactly
+one backend when starting an agent:
+
+```shell
+# Disposable files below a dedicated local root; binary ZIP members are retained.
+contractor-runtime \
+  --workspace-storage local \
+  --workspace-work-root /var/lib/contractor/project-workspaces \
+  ...
+
+# Isolated in-process fsspec storage; binary ZIP members are intentionally skipped.
+contractor-runtime --workspace-storage memory ...
+```
+
+The optional `--workspace-max-files`, `--workspace-max-expanded-bytes`,
+`--workspace-max-managed-text-bytes`, and `--workspace-max-file-bytes` flags
+replace backend defaults. They are probed and advertised at registration and
+cannot change for the lifetime of that Runtime process. Physical workspace
+paths never cross the private Runtime boundary. Direct-mode edits affect only
+the disposable hydrated copy; overlay-mode changes become durable only through
+the Workflow-declared state/diff Artifact slots.
+
 ## LikeC4 from a source archive
 
 `likec4-from-source@1` reuses the same dependency- and project-discovery
@@ -1000,6 +1031,12 @@ contracts as the OpenAPI workflow, then builds and repair-validates one
 single-file architecture model. Reports and the model cross Stage boundaries as
 exact artifact revisions; no Worker relies on another allocation's memory or
 workspace.
+
+`likec4-from-workspace@1` is the explicit workspace-backed equivalent. It keeps
+the same four semantic Stages and domain outputs, selects the workspace-aware
+AgentTemplates, carries cumulative overlay state by exact Artifact revision, and
+also freezes `workspace_state` and `workspace_diff`. Existing
+`likec4-from-source@*` IDs are unchanged.
 
 Install the LikeC4 CLI directly on every Runtime Agent host and make it visible
 on `PATH`. The Runtime never invokes `npx` or downloads a validator while a Run

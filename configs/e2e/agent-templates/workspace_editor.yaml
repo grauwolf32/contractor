@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_editor
+  version: "1"
+
+spec:
+  description: Deterministically edits and exports one hydrated workspace fixture
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-editor.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [read_file]
+    - ref: edit-files@1
+      tools: [edit]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff]
+  sandboxProfile: local-workdir@1

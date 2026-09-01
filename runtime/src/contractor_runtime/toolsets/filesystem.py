@@ -391,9 +391,14 @@ class _FilesystemSession:
 
 
 class _BaseFilesystemTool:
+    name: str
+    description: str
+
     def __init__(self, session: _FilesystemSession, metrics: ToolMetrics) -> None:
         self._session = session
         self._metrics = metrics
+        self.__name__ = self.name
+        self.__doc__ = self.description
 
     async def close(self) -> None:
         await self._session.close()
