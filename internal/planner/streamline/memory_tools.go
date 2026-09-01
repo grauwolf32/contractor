@@ -2,7 +2,6 @@ package streamline
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -168,12 +167,14 @@ func (p *streamlinePlanner) callMemoryTool(
 		memories, err = binding.memory.ListMemories(ctx)
 		if err == nil {
 			output = memoryListResult(memories)
+			safeArguments["resultCount"] = len(memories)
 		}
 	case plannermemory.ToolReadMemory:
 		var note plannermemory.Note
 		note, err = binding.memory.ReadMemory(ctx, args.Name)
 		if err == nil {
 			output = memoryNoteResult(note)
+			addMemoryResultMetrics(safeArguments, note)
 		}
 	case plannermemory.ToolWriteMemory:
 		var note plannermemory.Note
@@ -182,24 +183,28 @@ func (p *streamlinePlanner) callMemoryTool(
 		)
 		if err == nil {
 			output = memoryNoteResult(note)
+			addMemoryResultMetrics(safeArguments, note)
 		}
 	case plannermemory.ToolAppendMemory:
 		var note plannermemory.Note
 		note, err = binding.memory.AppendMemory(ctx, args.Name, args.Content)
 		if err == nil {
 			output = memoryNoteResult(note)
+			addMemoryResultMetrics(safeArguments, note)
 		}
 	case plannermemory.ToolSearchMemory:
 		var memories []plannermemory.Preview
 		memories, err = binding.memory.SearchMemory(ctx, args.Tags)
 		if err == nil {
 			output = memoryListResult(memories)
+			safeArguments["resultCount"] = len(memories)
 		}
 	case plannermemory.ToolListMemoryTags:
 		var tags []string
 		tags, err = binding.memory.ListMemoryTags(ctx)
 		if err == nil {
 			output = map[string]any{"result": tags}
+			safeArguments["resultCount"] = len(tags)
 		}
 	default:
 		err = &plannermemory.ToolError{Code: plannermemory.CodeForbidden}
@@ -354,10 +359,7 @@ func (p *streamlinePlanner) resolveMemoryBinding(
 }
 
 func memoryFailure(err error) planner.Failure {
-	var bounded *plannermemory.ToolError
-	if !errors.As(err, &bounded) {
-		bounded = &plannermemory.ToolError{Code: plannermemory.CodeUnavailable, Retryable: true}
-	}
+	bounded := plannermemory.NormalizeToolError(err)
 	return planner.Failure{
 		Code: bounded.Code, Message: "Memory operation failed (" + bounded.Code + ")",
 		Retryable: bounded.Retryable,
@@ -390,6 +392,12 @@ func memoryMetricArguments(
 		result["tagCount"] = len(args.Tags)
 	}
 	return result
+}
+
+func addMemoryResultMetrics(result map[string]any, note plannermemory.Note) {
+	result["resultContentBytes"] = len([]byte(note.Content))
+	result["resultDescriptionBytes"] = len([]byte(note.Description))
+	result["resultTagCount"] = len(note.Tags)
 }
 
 func safeMemoryName(value string) string {

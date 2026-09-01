@@ -653,3 +653,35 @@ tests that make the choice observable.
   before the handler runs, and a Stage-first abort update deadlocks with the
   Planner's required Run-first authority check. Both details are adapter and
   persistence mechanics, not additions to the public Memory contract.
+
+### D029 — Memory hardening uses namespace-aware visibility and pre-binding validation
+
+- Applies to: V9-005 and every later artifact-backed Runtime Toolset.
+- Decision: one dependency-neutral Artifact policy defines a Memory binding as
+  `memory.*` only outside `inputs`, `outputs` and `skills`. Generic, text,
+  source-analysis, OpenAPI and LikeC4 tools apply it to source and target names
+  before I/O and to every accumulated exact-ref projection. Runtime Worker,
+  Planner and Scheduler independently reject such a ref as a Stage result, and
+  Workflow loading rejects it as StageContext. The three purpose Namespaces
+  retain their separate rules.
+- ADK boundary: Memory callables expose a trusted raw-argument validator that
+  runs inside the ordinary budgeted Worker tool wrapper before ADK filters
+  unknown fields or emits its own missing-parameter text. Invalid shape records
+  one content-free failed call and returns the closed `memory_invalid` result;
+  advertised function declarations remain unchanged.
+- Integrity boundary: global views require the exact ordinal set
+  `0..count-1`, append validates only its real fragment and final canonical
+  note, exact reads require the requested ETag, timestamps project as UTC-Z,
+  and internal errors are reduced to the fixed code/retryability table.
+  Targeted reads and existing-note mutations remain available when unrelated
+  ordinal state is corrupt so repair and diagnosis do not require 128 reads on
+  every call.
+- Telemetry boundary: content, description, tags and revisions are still
+  absent, while validated names, counts and non-negative derived byte sizes are
+  retained. The generic sanitizer accepts those size fields only when their
+  values are integers, so renaming a sensitive payload key cannot bypass
+  redaction.
+- Alternatives rejected: filtering by artifact name alone incorrectly hid
+  ordinary `inputs/memory.*`; relying on ADK schema binding leaked framework
+  errors and silently discarded extra fields; relying only on exact-ref
+  provenance left alternate Toolsets and recovery prompts as bypasses.

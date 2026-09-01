@@ -40,14 +40,28 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 MAXIMUM_NOTES = 128
 
+_MEMORY_ERROR_RETRYABILITY = MappingProxyType(
+    {
+        "memory_invalid": False,
+        "memory_not_found": False,
+        "memory_too_large": False,
+        "memory_namespace_full": False,
+        "memory_changed": True,
+        "memory_forbidden": False,
+        "memory_unavailable": True,
+    }
+)
+
 
 class MemoryToolError(RuntimeError):
     """Bounded model-facing failure with no note body, description or tags."""
 
     def __init__(self, code: str, *, retryable: bool = False) -> None:
-        self.code = code
-        self.retryable = retryable
-        super().__init__(f"Memory operation failed ({code})")
+        del retryable
+        normalized = code if code in _MEMORY_ERROR_RETRYABILITY else "memory_unavailable"
+        self.code = normalized
+        self.retryable = _MEMORY_ERROR_RETRYABILITY[normalized]
+        super().__init__(f"Memory operation failed ({normalized})")
 
 
 class MemoryToolsetFactory:
@@ -215,6 +229,8 @@ class _MemorySession:
             except (ArtifactTransportError, ArtifactAPIError) as error:
                 raise _mapped_client_error(error) from None
             result.append(_decode_value(self._namespace, ref.name, value))
+        if not _valid_ordinal_set(result):
+            raise MemoryToolError("memory_unavailable")
         return result
 
     async def _read_optional(self, binding_name: str) -> _LoadedNote | None:
@@ -293,12 +309,25 @@ class _BaseMemoryTool:
     async def close(self) -> None:
         return None
 
+    def contractor_raw_argument_error(self, args: object) -> MemoryToolError | None:
+        """Validate original ADK arguments before FunctionTool filters them."""
+
+        if _valid_raw_arguments(self.name, args):
+            return None
+        error = MemoryToolError("memory_invalid")
+        self._failure(_raw_argument_metric(self.name, args), error, time.perf_counter_ns())
+        return error
+
     def _success(
         self, arguments: Mapping[str, Any], result: Mapping[str, Any], started_ns: int
     ) -> None:
+        diagnostics = dict(arguments)
+        for name in ("count", "content_bytes", "description_bytes", "tag_count"):
+            if name in result:
+                diagnostics[f"result_{name}"] = result[name]
         self._metrics.record_tool_call(
             self.name,
-            arguments=arguments,
+            arguments=diagnostics,
             result=result,
             duration_ms=_elapsed_ms(started_ns),
         )
@@ -479,9 +508,12 @@ def _validated_artifact_name(name: str) -> str:
 
 
 def _validate_append_content(content: str) -> None:
-    # A dummy valid note reuses the exact codec UTF-8/non-empty validation
-    # without duplicating caller text in an exception.
-    _encode_input("append_validation", content, "", (), 0)
+    if type(content) is not str or not content:
+        raise MemoryToolError("memory_invalid")
+    try:
+        content.encode("utf-8")
+    except UnicodeEncodeError:
+        raise MemoryToolError("memory_invalid") from None
 
 
 def _validate_search_tags(tags: Sequence[str]) -> set[str]:
@@ -509,11 +541,72 @@ def _validate_search_tags(tags: Sequence[str]) -> set[str]:
 
 
 def _ordered(notes: Sequence[_LoadedNote]) -> list[_LoadedNote]:
-    return sorted(
-        notes,
-        key=lambda item: (item.revision_created_at, item.note.ordinal),
-        reverse=True,
-    )
+    # Stable sorts express the exact mixed-direction total order without
+    # converting server timestamps to lossy numeric values.
+    result = sorted(notes, key=lambda item: item.note.name)
+    result.sort(key=lambda item: item.note.ordinal, reverse=True)
+    result.sort(key=lambda item: item.revision_created_at, reverse=True)
+    return result
+
+
+def _valid_ordinal_set(notes: Sequence[_LoadedNote]) -> bool:
+    return {item.note.ordinal for item in notes} == set(range(len(notes)))
+
+
+_RAW_ARGUMENT_FIELDS = MappingProxyType(
+    {
+        "list_memories": ({}, {}),
+        "read_memory": ({"name": "string"}, {}),
+        "write_memory": (
+            {"name": "string", "content": "string"},
+            {"description": "string", "tags": "string_list"},
+        ),
+        "append_memory": ({"name": "string", "content": "string"}, {}),
+        "search_memory": ({"tags": "string_list"}, {}),
+        "list_memory_tags": ({}, {}),
+    }
+)
+
+
+def _valid_raw_arguments(tool_name: str, args: object) -> bool:
+    if type(args) is not dict or tool_name not in _RAW_ARGUMENT_FIELDS:
+        return False
+    required, optional = _RAW_ARGUMENT_FIELDS[tool_name]
+    if not set(required).issubset(args) or set(args) - set(required) - set(optional):
+        return False
+    fields = dict(required)
+    fields.update(optional)
+    for name, value in args.items():
+        expected = fields[name]
+        if expected == "string" and type(value) is not str:
+            return False
+        if expected == "string_list" and (
+            type(value) is not list or any(type(item) is not str for item in value)
+        ):
+            return False
+    return True
+
+
+def _raw_argument_metric(tool_name: str, args: object) -> dict[str, Any]:
+    raw = args if isinstance(args, Mapping) else {}
+    if tool_name == "write_memory":
+        return _mutation_metric(
+            raw.get("name"),
+            raw.get("content"),
+            raw.get("description"),
+            raw.get("tags"),
+        )
+    if tool_name == "append_memory":
+        return {
+            "name": _safe_metric_name(raw.get("name")),
+            "content_bytes": _utf8_size(raw.get("content")),
+        }
+    if tool_name == "read_memory":
+        return {"name": _safe_metric_name(raw.get("name"))}
+    if tool_name == "search_memory":
+        tags = raw.get("tags")
+        return {"tag_count": len(tags) if isinstance(tags, list | tuple) else 0}
+    return {}
 
 
 def _full(note: _LoadedNote) -> dict[str, Any]:

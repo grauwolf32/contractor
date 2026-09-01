@@ -104,7 +104,7 @@ func FullProjection(note StoredNote, createdAt, updatedAt time.Time) Note {
 	return Note{
 		Name: note.Name, Content: note.Content, Description: note.Description,
 		Tags: append([]string(nil), note.Tags...), Ordinal: note.Ordinal,
-		CreatedAt: createdAt, UpdatedAt: updatedAt,
+		CreatedAt: createdAt.UTC(), UpdatedAt: updatedAt.UTC(),
 	}
 }
 
@@ -112,7 +112,7 @@ func PreviewProjection(note StoredNote, createdAt, updatedAt time.Time) Preview 
 	return Preview{
 		Name: note.Name, Description: note.Description,
 		Tags: append([]string(nil), note.Tags...), Ordinal: note.Ordinal,
-		CreatedAt: createdAt, UpdatedAt: updatedAt,
+		CreatedAt: createdAt.UTC(), UpdatedAt: updatedAt.UTC(),
 	}
 }
 
@@ -143,7 +143,7 @@ func Normalize(note StoredNote) (StoredNote, error) {
 	if err := validateName(note.Name); err != nil {
 		return StoredNote{}, err
 	}
-	if note.Content == "" || !utf8.ValidString(note.Content) {
+	if err := validateContent(note.Content); err != nil {
 		return StoredNote{}, invalid(ReasonContent)
 	}
 	if !utf8.ValidString(note.Description) || len([]byte(note.Description)) > MaximumDescription {
@@ -225,7 +225,7 @@ func Decode(artifactName string, payload []byte) (StoredNote, error) {
 	if err := validateName(note.Name); err != nil {
 		return StoredNote{}, err
 	}
-	if note.Content == "" || !utf8.ValidString(note.Content) {
+	if err := validateContent(note.Content); err != nil {
 		return StoredNote{}, invalid(ReasonContent)
 	}
 	if !utf8.ValidString(note.Description) || len([]byte(note.Description)) > MaximumDescription {
@@ -258,6 +258,13 @@ func Decode(artifactName string, payload []byte) (StoredNote, error) {
 func validateName(name string) error {
 	if !utf8.ValidString(name) || len(name) == 0 || len([]byte(name)) > MaximumNameBytes || !namePattern.MatchString(name) {
 		return invalid(ReasonName)
+	}
+	return nil
+}
+
+func validateContent(content string) error {
+	if content == "" || !utf8.ValidString(content) {
+		return invalid(ReasonContent)
 	}
 	return nil
 }

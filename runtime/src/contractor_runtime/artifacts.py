@@ -144,6 +144,10 @@ class ArtifactClient:
         self._raise_for_status(response)
         media_type = _response_media_type(response.headers)
         revision = _strong_etag(response.headers)
+        if ref.revision is not None and revision != ref.revision:
+            raise ArtifactTransportError(
+                "Artifact API exact-read ETag does not match the requested revision"
+            )
         binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
         exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision=revision)
         try:

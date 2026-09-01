@@ -49,6 +49,14 @@ SENSITIVE_METRIC_KEYS = frozenset(
         "token",
     }
 )
+SAFE_DERIVED_SIZE_METRIC_KEYS = frozenset(
+    {
+        "content_bytes",
+        "description_bytes",
+        "result_content_bytes",
+        "result_description_bytes",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -325,6 +333,13 @@ def _sanitize_metric_value(
     key: str | None = None,
     depth: int = 0,
 ) -> tuple[Any, bool]:
+    if (
+        key is not None
+        and _metric_identifier(key) in SAFE_DERIVED_SIZE_METRIC_KEYS
+        and type(value) is int
+        and value >= 0
+    ):
+        return value, False
     if key is not None and _is_sensitive_metric_key(key):
         return {"redacted": True, "size": _value_size(value)}, False
     if depth >= MAX_METRIC_DEPTH:

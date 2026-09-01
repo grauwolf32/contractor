@@ -135,6 +135,21 @@ func TestSharedCodecFixtures(t *testing.T) {
 	}
 }
 
+func TestModelProjectionsNormalizeServerTimestampsToUTC(t *testing.T) {
+	location := time.FixedZone("configured-local", 3*60*60)
+	created := time.Date(2026, 9, 1, 10, 11, 12, 0, location)
+	updated := created.Add(time.Second)
+	note := StoredNote{SchemaVersion: SchemaVersion, Name: "note", Content: "body", Tags: []string{}}
+	full := FullProjection(note, created, updated)
+	preview := PreviewProjection(note, created, updated)
+	if full.CreatedAt.Location() != time.UTC || full.UpdatedAt.Location() != time.UTC ||
+		preview.CreatedAt.Location() != time.UTC || preview.UpdatedAt.Location() != time.UTC ||
+		full.CreatedAt.Format(time.RFC3339) != "2026-09-01T07:11:12Z" ||
+		preview.UpdatedAt.Format(time.RFC3339) != "2026-09-01T07:11:13Z" {
+		t.Fatalf("UTC projections = full:%+v preview:%+v", full, preview)
+	}
+}
+
 func TestCodecRejectsOversizedAndInvalidUTF8StoredPayloads(t *testing.T) {
 	_, err := Decode("memory.note", []byte(strings.Repeat("x", MaximumPayloadBytes+1)))
 	assertReason(t, err, ReasonPayloadTooLarge)

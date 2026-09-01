@@ -143,6 +143,39 @@ def test_text_content_and_secrets_are_redacted_from_metrics(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
+def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        hidden = client.seed("worker-space", "memory.hidden", "text/plain", b"hidden")
+        allowed = client.seed("inputs", "memory.workflow_input", "text/plain", b"allowed")
+        tools = await make_tools(tmp_path, client, WorkerState())
+
+        calls_before = (client.read_calls, client.write_calls)
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["read_text_artifact"](hidden.namespace, hidden.name, hidden.revision)
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_text_artifact"](
+                hidden.name,
+                "must not replace",
+                "text/plain",
+                hidden.revision,
+            )
+        assert (client.read_calls, client.write_calls) == calls_before
+        assert client.bindings[(hidden.namespace, hidden.name)].data == b"hidden"
+
+        visible = await tools["read_text_artifact"](
+            allowed.namespace, allowed.name, allowed.revision
+        )
+        assert visible["text"] == "allowed"
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert (hidden.namespace, hidden.name) not in observed
+        assert (allowed.namespace, allowed.name) in observed
+
+    asyncio.run(scenario())
+
+
 def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Path) -> None:
     async def scenario() -> None:
         factory = TextArtifactsToolsetFactory(lambda _allocation, _settings: MemoryArtifactClient())
@@ -205,6 +238,8 @@ class MemoryArtifactClient:
         self.history: dict[tuple[str, str, str], StoredArtifact] = {}
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
         self._next_revision = 1
+        self.read_calls = 0
+        self.write_calls = 0
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -214,6 +249,7 @@ class MemoryArtifactClient:
         return self._store(namespace, name, media_type, data)
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        self.read_calls += 1
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:
@@ -240,6 +276,7 @@ class MemoryArtifactClient:
         media_type: str,
         expected_revision: str | None,
     ) -> ArtifactWriteResult:
+        self.write_calls += 1
         key = (target.namespace, target.name)
         current = self.bindings.get(key)
         if expected_revision is None:

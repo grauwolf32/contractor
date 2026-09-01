@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -18,11 +18,22 @@ from contractor_runtime.artifacts import (
     ArtifactWriteValue,
 )
 from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
-from contractor_runtime.memory import MEDIA_TYPE, SCHEMA_VERSION, StoredMemoryNote, encode_note
+from contractor_runtime.memory import (
+    MAXIMUM_NAME_BYTES,
+    MAXIMUM_PAYLOAD_BYTES,
+    MEDIA_TYPE,
+    SCHEMA_VERSION,
+    StoredMemoryNote,
+    encode_note,
+)
 from contractor_runtime.toolsets.memory import (
     MAXIMUM_NOTES,
     MemoryToolError,
     MemoryToolsetFactory,
+    _full,
+    _LoadedNote,
+    _ordered,
+    _preview,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -149,6 +160,13 @@ def test_write_replace_append_list_search_and_tag_semantics() -> None:
             }
             for note in (first, second, replaced, appended, read)
         )
+        calls_by_tool = {call.tool: call for call in state.metrics.tool_calls}
+        assert calls_by_tool["list_memories"].arguments["result_count"] == 2
+        assert calls_by_tool["search_memory"].arguments["result_count"] == 2
+        assert calls_by_tool["list_memory_tags"].arguments["result_count"] == 3
+        assert calls_by_tool["read_memory"].arguments["result_content_bytes"] == len(
+            appended["content"].encode()
+        )
         assert "artifact" not in repr((first, second, replaced, appended, read, listed))
         assert "revision" not in repr((first, second, replaced, appended, read, listed))
 
@@ -248,6 +266,129 @@ def test_namespace_quota_rejects_new_note_but_allows_existing_update() -> None:
         assert len(await tools["list_memories"]()) == MAXIMUM_NOTES
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("ordinals", [(0, 0), (0, 2)], ids=["duplicate", "gap"])
+def test_impossible_ordinals_fail_only_global_views_and_create(
+    ordinals: tuple[int, int],
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        client.seed_note("builder", "first", "first body", ordinal=ordinals[0])
+        client.seed_note("builder", "second", "second body", ordinal=ordinals[1])
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: client),
+            WorkerState(),
+            [
+                "read_memory",
+                "write_memory",
+                "list_memories",
+                "search_memory",
+                "list_memory_tags",
+            ],
+        )
+
+        assert (await tools["read_memory"]("first"))["content"] == "first body"
+        updated = await tools["write_memory"]("first", "updated")
+        assert updated["content"] == "updated"
+        assert updated["ordinal"] == ordinals[0]
+
+        operations = (
+            lambda: tools["list_memories"](),
+            lambda: tools["search_memory"](["tag"]),
+            lambda: tools["list_memory_tags"](),
+            lambda: tools["write_memory"]("third", "body"),
+        )
+        for operation in operations:
+            with pytest.raises(MemoryToolError) as raised:
+                await operation()
+            assert raised.value.code == "memory_unavailable"
+            assert raised.value.retryable
+
+    asyncio.run(scenario())
+
+
+def test_append_uses_only_the_real_final_payload_bound() -> None:
+    async def scenario() -> None:
+        existing = "x"
+        fragment = _maximum_fitting_append_fragment("a", existing)
+        assert len(fragment) > MAXIMUM_PAYLOAD_BYTES // 2
+
+        short_client = FakeArtifactClient()
+        short_tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: short_client),
+            WorkerState(),
+            ["write_memory", "append_memory"],
+        )
+        await short_tools["write_memory"]("a", existing)
+        appended = await short_tools["append_memory"]("a", fragment)
+        assert appended["content"] == existing + "\n" + fragment
+
+        long_name = "a" + "b" * (MAXIMUM_NAME_BYTES - 1)
+        long_client = FakeArtifactClient()
+        long_tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: long_client),
+            WorkerState(),
+            ["write_memory", "append_memory"],
+        )
+        await long_tools["write_memory"](long_name, existing)
+        with pytest.raises(MemoryToolError) as too_large:
+            await long_tools["append_memory"](long_name, fragment)
+        assert too_large.value.code == "memory_too_large"
+        assert not too_large.value.retryable
+
+        for invalid in ("", "\ud800"):
+            with pytest.raises(MemoryToolError) as malformed:
+                await short_tools["append_memory"]("a", invalid)
+            assert malformed.value.code == "memory_invalid"
+            assert not malformed.value.retryable
+
+    asyncio.run(scenario())
+
+
+def test_memory_order_is_updated_desc_ordinal_desc_name_asc() -> None:
+    timestamp = EPOCH
+
+    def loaded(name: str, ordinal: int, updated_at: datetime) -> _LoadedNote:
+        note = StoredMemoryNote(SCHEMA_VERSION, name, "body", "", (), ordinal)
+        return _LoadedNote(note, EPOCH, updated_at, "revision", encode_note(note))
+
+    notes = [
+        loaded("zeta", 1, timestamp),
+        loaded("beta", 2, timestamp),
+        loaded("alpha", 2, timestamp),
+        loaded("newest", 0, timestamp + timedelta(seconds=1)),
+    ]
+    assert [item.note.name for item in _ordered(notes)] == [
+        "newest",
+        "alpha",
+        "beta",
+        "zeta",
+    ]
+
+
+def test_memory_model_timestamps_are_normalized_to_utc_z() -> None:
+    local = timezone(timedelta(hours=3))
+    created = datetime(2026, 9, 1, 10, 11, 12, tzinfo=local)
+    updated = created + timedelta(seconds=1)
+    note = StoredMemoryNote(SCHEMA_VERSION, "note", "body", "", (), 0)
+    loaded = _LoadedNote(note, created, updated, "revision", encode_note(note))
+
+    assert _full(loaded)["created_at"] == "2026-09-01T07:11:12Z"
+    assert _preview(loaded)["updated_at"] == "2026-09-01T07:11:13Z"
+
+
+def test_memory_errors_use_the_closed_code_and_retryability_table() -> None:
+    for code, supplied_retryable, expected_code, expected_retryable in (
+        ("memory_invalid", True, "memory_invalid", False),
+        ("memory_changed", False, "memory_changed", True),
+        ("memory_forbidden", True, "memory_forbidden", False),
+        ("internal_arbitrary", False, "memory_unavailable", True),
+    ):
+        error = MemoryToolError(code, retryable=supplied_retryable)
+        assert error.code == expected_code
+        assert error.retryable is expected_retryable
+        assert code not in str(error) or code == expected_code
 
 
 def test_not_found_invalid_search_and_corrupt_payload_errors_are_bounded() -> None:
@@ -351,11 +492,25 @@ def test_calls_are_serialized_and_metrics_retain_only_safe_dimensions() -> None:
                 "content_bytes",
                 "description_bytes",
                 "tag_count",
+                "result_content_bytes",
+                "result_description_bytes",
+                "result_tag_count",
             }
         rendered = repr(state.metrics)
         assert CONTENT_CANARY not in rendered
         assert DESCRIPTION_CANARY not in rendered
         assert TAG_CANARY not in rendered
+        by_name = {call.arguments["name"]: call for call in state.metrics.tool_calls}
+        assert by_name["first_note"].arguments == {
+            "name": "first_note",
+            "content_bytes": len(CONTENT_CANARY.encode()),
+            "description_bytes": len(DESCRIPTION_CANARY.encode()),
+            "tag_count": 1,
+            "result_content_bytes": len(CONTENT_CANARY.encode()),
+            "result_description_bytes": len(DESCRIPTION_CANARY.encode()),
+            "result_tag_count": 1,
+        }
+        assert by_name["second_note"].arguments["content_bytes"] == len(b"second body")
 
     asyncio.run(scenario())
 
@@ -584,3 +739,16 @@ def encoded_note(name: str, content: str, *, ordinal: int) -> bytes:
             ordinal=ordinal,
         )
     )
+
+
+def _maximum_fitting_append_fragment(name: str, existing: str) -> str:
+    low, high = 1, MAXIMUM_PAYLOAD_BYTES
+    while low < high:
+        middle = low + (high - low + 1) // 2
+        try:
+            encoded_note(name, existing + "\n" + "x" * middle, ordinal=0)
+        except Exception:
+            high = middle - 1
+        else:
+            low = middle
+    return "x" * low

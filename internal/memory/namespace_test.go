@@ -182,6 +182,143 @@ func TestNamespaceSerializesConcurrentCalls(t *testing.T) {
 	}
 }
 
+func TestNamespaceRejectsImpossibleOrdinalSetsOnlyForGlobalViewsAndCreates(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		ordinals []uint64
+	}{
+		{name: "duplicate", ordinals: []uint64{0, 0}},
+		{name: "gap", ordinals: []uint64{0, 2}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := newMemoryArtifactStore()
+			store.seed(t, "analysis", "first", "first body", test.ordinals[0])
+			store.seed(t, "analysis", "second", "second body", test.ordinals[1])
+			namespace := mustNamespace(t, store)
+
+			read, err := namespace.ReadMemory(t.Context(), "first")
+			if err != nil || read.Content != "first body" {
+				t.Fatalf("targeted read = (%+v, %v)", read, err)
+			}
+			updated, err := namespace.WriteMemory(t.Context(), "first", "updated", "", nil)
+			if err != nil || updated.Content != "updated" || updated.Ordinal != test.ordinals[0] {
+				t.Fatalf("targeted update = (%+v, %v)", updated, err)
+			}
+			for operation, invoke := range map[string]func() error{
+				"list": func() error {
+					_, err := namespace.ListMemories(t.Context())
+					return err
+				},
+				"search": func() error {
+					_, err := namespace.SearchMemory(t.Context(), []string{"tag"})
+					return err
+				},
+				"tags": func() error {
+					_, err := namespace.ListMemoryTags(t.Context())
+					return err
+				},
+				"create": func() error {
+					_, err := namespace.WriteMemory(t.Context(), "third", "body", "", nil)
+					return err
+				},
+			} {
+				t.Run(operation, func(t *testing.T) {
+					assertToolError(t, invoke(), CodeUnavailable, true)
+				})
+			}
+		})
+	}
+}
+
+func TestNamespaceAppendUsesOnlyTheRealFinalPayloadBound(t *testing.T) {
+	shortName := "a"
+	existing := "x"
+	fragment := maximumFittingAppendFragment(t, shortName, existing)
+	if len(fragment) < MaximumPayloadBytes/2 {
+		t.Fatalf("boundary fragment is unexpectedly short: %d", len(fragment))
+	}
+	shortStore := newMemoryArtifactStore()
+	shortNamespace := mustNamespace(t, shortStore)
+	if _, err := shortNamespace.WriteMemory(t.Context(), shortName, existing, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	appended, err := shortNamespace.AppendMemory(t.Context(), shortName, fragment)
+	if err != nil || appended.Content != existing+"\n"+fragment {
+		t.Fatalf("short-name boundary append = (bytes=%d, %v)", len(fragment), err)
+	}
+
+	longName := "a" + strings.Repeat("b", MaximumNameBytes-1)
+	longStore := newMemoryArtifactStore()
+	longNamespace := mustNamespace(t, longStore)
+	if _, err := longNamespace.WriteMemory(t.Context(), longName, existing, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err = longNamespace.AppendMemory(t.Context(), longName, fragment)
+	assertToolError(t, err, CodeTooLarge, false)
+	for _, invalid := range []string{"", string([]byte{0xff})} {
+		_, err = shortNamespace.AppendMemory(t.Context(), shortName, invalid)
+		assertToolError(t, err, CodeInvalid, false)
+	}
+}
+
+func TestOrderedNotesUsesUpdatedOrdinalAndNameTotalOrder(t *testing.T) {
+	timestamp := testEpoch
+	notes := []loadedNote{
+		{note: StoredNote{Name: "zeta", Ordinal: 1}, revisionCreatedAt: timestamp},
+		{note: StoredNote{Name: "beta", Ordinal: 2}, revisionCreatedAt: timestamp},
+		{note: StoredNote{Name: "alpha", Ordinal: 2}, revisionCreatedAt: timestamp},
+		{note: StoredNote{Name: "newest", Ordinal: 0}, revisionCreatedAt: timestamp.Add(time.Second)},
+	}
+	orderedNotes(notes)
+	got := make([]string, len(notes))
+	for index := range notes {
+		got[index] = notes[index].note.Name
+	}
+	if want := []string{"newest", "alpha", "beta", "zeta"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("total order = %v, want %v", got, want)
+	}
+}
+
+func TestMemoryToolErrorsNormalizeToClosedRetryabilityTable(t *testing.T) {
+	for _, test := range []struct {
+		inputCode      string
+		inputRetryable bool
+		wantCode       string
+		wantRetryable  bool
+	}{
+		{CodeInvalid, true, CodeInvalid, false},
+		{CodeChanged, false, CodeChanged, true},
+		{CodeForbidden, true, CodeForbidden, false},
+		{"internal_arbitrary", false, CodeUnavailable, true},
+	} {
+		bounded := mapStoreError(&ToolError{Code: test.inputCode, Retryable: test.inputRetryable})
+		assertToolError(t, bounded, test.wantCode, test.wantRetryable)
+		direct := NormalizeToolError(&ToolError{
+			Code: test.inputCode, Retryable: test.inputRetryable,
+		})
+		assertToolError(t, direct, test.wantCode, test.wantRetryable)
+	}
+	assertToolError(t, NormalizeToolError(errors.New("arbitrary internal failure")), CodeUnavailable, true)
+}
+
+func maximumFittingAppendFragment(t *testing.T, name, existing string) string {
+	t.Helper()
+	low, high := 1, MaximumPayloadBytes
+	for low < high {
+		middle := low + (high-low+1)/2
+		_, err := Encode(StoredNote{
+			SchemaVersion: SchemaVersion, Name: name,
+			Content: existing + "\n" + strings.Repeat("x", middle), Tags: []string{},
+		})
+		if err == nil {
+			low = middle
+		} else {
+			high = middle - 1
+		}
+	}
+	return strings.Repeat("x", low)
+}
+
 func mustNamespace(t *testing.T, store Store) *Namespace {
 	t.Helper()
 	result, err := NewNamespace(store, Binding{

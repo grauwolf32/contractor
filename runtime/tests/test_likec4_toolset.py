@@ -178,6 +178,52 @@ def test_exact_seed_is_copied_and_later_stage_resumes(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_likec4_tools_enforce_shared_memory_source_target_and_ref_visibility(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        hidden = client.seed("analysis", "memory.hidden", "text/vnd.likec4", BASE_DOCUMENT.encode())
+        allowed = client.seed(
+            "inputs",
+            "memory.workflow_input",
+            "text/vnd.likec4",
+            BASE_DOCUMENT.encode(),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        session = tools["load_likec4"]._session
+        calls_before = (client.read_count, client.write_count)
+
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_likec4"](
+                hidden.namespace,
+                hidden.name,
+                hidden.revision,
+                target_name="safe_target",
+            )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_likec4"](
+                allowed.namespace,
+                allowed.name,
+                allowed.revision,
+                target_name="memory.hidden_target",
+            )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_likec4"](BASE_DOCUMENT, target_name="memory.hidden_target")
+        assert (client.read_count, client.write_count) == calls_before
+        assert session._content is None and session._target_name is None
+
+        copied = await tools["load_likec4"](allowed.namespace, allowed.name, allowed.revision)
+        assert copied["artifact"]["namespace"] == "architecture"
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert (hidden.namespace, hidden.name) not in observed
+        assert (allowed.namespace, allowed.name) in observed
+
+    asyncio.run(scenario())
+
+
 def test_plain_text_seed_is_canonicalized_on_copy(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
@@ -491,6 +537,7 @@ class MemoryArtifactClient:
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
         self._next_revision = 1
         self.write_count = 0
+        self.read_count = 0
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -500,6 +547,7 @@ class MemoryArtifactClient:
         return self._store(namespace, name, media_type, data)
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        self.read_count += 1
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:

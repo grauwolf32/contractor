@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -1514,6 +1515,9 @@ func (s *Scheduler) validateCandidate(
 	names := sortedArtifactNames(result.Artifacts)
 	for _, name := range names {
 		ref := result.Artifacts[name]
+		if artifactpolicy.IsReservedMemoryBinding(ref.Namespace, ref.Name) {
+			return fmt.Errorf("Stage result artifact %q identifies a reserved Memory binding", name)
+		}
 		resolved, err := s.artifacts.Resolve(ctx, runID, ref)
 		if err != nil {
 			return fmt.Errorf("verify Stage result artifact %q: %w", name, err)

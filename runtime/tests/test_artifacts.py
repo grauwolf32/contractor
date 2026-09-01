@@ -150,6 +150,36 @@ def test_exact_read_and_cas_update_use_unambiguous_revision_channels() -> None:
     asyncio.run(scenario())
 
 
+def test_exact_read_rejects_a_response_for_a_different_revision() -> None:
+    async def scenario() -> None:
+        client = ArtifactClient(
+            "allocation-1",
+            FakeTransport(
+                [
+                    ArtifactHTTPResponse(
+                        200,
+                        {
+                            "content-type": "application/json",
+                            "etag": '"revision-other"',
+                            **TIMESTAMP_HEADERS,
+                        },
+                        b"{}",
+                    )
+                ]
+            ),
+        )
+        with pytest.raises(ArtifactTransportError, match="requested revision"):
+            await client.read_artifact(
+                ArtifactRef(
+                    namespace="analysis",
+                    name="report",
+                    revision="revision-requested",
+                )
+            )
+
+    asyncio.run(scenario())
+
+
 def test_api_error_is_typed_and_does_not_echo_server_message() -> None:
     async def scenario() -> None:
         recognizable = "server-message-must-not-escape"

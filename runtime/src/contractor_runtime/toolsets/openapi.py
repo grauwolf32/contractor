@@ -24,6 +24,10 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.toolsets.artifact_visibility import (
+    model_visible_exact_refs,
+    require_model_visible_binding,
+)
 from contractor_runtime.toolsets.openapi_models import (
     PathItem,
     RequestBody,
@@ -197,6 +201,8 @@ class _OpenAPISession:
         expected_revision: str | None,
     ) -> dict[str, Any]:
         _validate_target_name(target_name)
+        require_model_visible_binding(namespace, name)
+        require_model_visible_binding(self._namespace, target_name)
         if namespace != self._namespace and revision is None:
             raise ValueError(
                 "an OpenAPI seed outside the Worker namespace requires an exact revision"
@@ -519,6 +525,7 @@ class _OpenAPISession:
         expected_revision: str | None,
     ) -> Any:
         _validate_document(document, require_provenance=False)
+        require_model_visible_binding(self._namespace, target_name)
         data = _dump_document(document)
         return await self._client.write_artifact(
             ArtifactRef(namespace=self._namespace, name=target_name),
@@ -592,7 +599,7 @@ class _BaseOpenAPITool:
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return tuple(getattr(self._client, "known_exact_refs", ()))
+        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
 
     async def close(self) -> None:
         await self._session.close()

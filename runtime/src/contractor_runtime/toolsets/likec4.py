@@ -20,6 +20,10 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.toolsets.artifact_visibility import (
+    model_visible_exact_refs,
+    require_model_visible_binding,
+)
 from contractor_runtime.toolsets.run_artifacts import (
     ArtifactClientFactory,
     ToolMetrics,
@@ -131,6 +135,8 @@ class _LikeC4Session:
         expected_revision: str | None,
     ) -> dict[str, Any]:
         _validate_target_name(target_name)
+        require_model_visible_binding(namespace, name)
+        require_model_visible_binding(self._namespace, target_name)
         if namespace != self._namespace and revision is None:
             raise ValueError(
                 "a LikeC4 seed outside the Worker namespace requires an exact revision"
@@ -333,6 +339,7 @@ class _LikeC4Session:
         expected_revision: str | None,
     ) -> Any:
         data = _validate_document(content)
+        require_model_visible_binding(self._namespace, target_name)
         return await self._client.write_artifact(
             ArtifactRef(namespace=self._namespace, name=target_name),
             data=data,
@@ -370,7 +377,7 @@ class _BaseLikeC4Tool:
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return tuple(getattr(self._client, "known_exact_refs", ()))
+        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
 
     async def close(self) -> None:
         await self._session.close()

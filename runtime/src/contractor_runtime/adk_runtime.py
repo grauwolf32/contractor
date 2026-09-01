@@ -40,6 +40,7 @@ from contractor_runtime.model_client import (
     clear_gateway_client_options,
     gateway_client_options,
 )
+from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
 
 if TYPE_CHECKING:
     from google.adk.agents.callback_context import CallbackContext
@@ -166,6 +167,11 @@ class WorkerFunctionTool(FunctionTool):
             {"operation.kind": "tool", "tool.name": self.name},
         )
         try:
+            raw_argument_error = getattr(self.func, "contractor_raw_argument_error", None)
+            if callable(raw_argument_error):
+                rejection = raw_argument_error(args)
+                if rejection is not None:
+                    raise rejection
             result = await super().run_async(args=args, tool_context=tool_context)
         except asyncio.CancelledError:
             _end_span(span, outcome="cancelled")
@@ -561,6 +567,16 @@ class AdkWorkerRuntime:
                 classification="oversized",
                 recoverable=False,
             )
+        if any(
+            is_reserved_memory_binding(ref.namespace, ref.name) for ref in result.artifacts.values()
+        ):
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker result contains a reserved Memory binding",
+                retryable=False,
+                classification="reserved_memory_artifact",
+                recoverable=False,
+            )
         known = _known_exact_refs(self._context.tools)
         if any(_ref_key(ref) not in known for ref in result.artifacts.values()):
             return None, _ResultCandidateIssue(
@@ -747,7 +763,8 @@ def _known_exact_refs(tools: Mapping[str, Any]) -> set[tuple[str, str, str]]:
     result: set[tuple[str, str, str]] = set()
     for tool in tools.values():
         for ref in getattr(tool, "known_exact_refs", ()):
-            result.add(_ref_key(ref))
+            if not is_reserved_memory_binding(ref.namespace, ref.name):
+                result.add(_ref_key(ref))
     return result
 
 
@@ -756,6 +773,8 @@ def _latest_known_exact_refs(tools: Mapping[str, Any]) -> list[ArtifactRef]:
     for tool in tools.values():
         for ref in getattr(tool, "known_exact_refs", ()):
             exact = ref.require_exact()
+            if is_reserved_memory_binding(exact.namespace, exact.name):
+                continue
             latest[(exact.namespace, exact.name)] = exact
     return [latest[key] for key in sorted(latest)]
 

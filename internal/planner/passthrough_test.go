@@ -184,6 +184,18 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 			},
 			wantCode: "result_contract_violation",
 		},
+		{
+			name: "reserved Memory binding",
+			mutate: func(result *contracts.StageContentResult) {
+				ref := result.Artifacts["report"]
+				ref.Name = "memory.report"
+				result.Artifacts["report"] = ref
+			},
+			mediaTypes: map[string]string{
+				"builder/memory.report/result-r1": "application/json",
+			},
+			wantCode: "result_contract_violation",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

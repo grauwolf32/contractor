@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -51,6 +52,14 @@ func validateCandidate(
 		}
 	}
 	for name, ref := range result.Artifacts {
+		if artifactpolicy.IsReservedMemoryBinding(ref.Namespace, ref.Name) {
+			return NewError(
+				"result_contract_violation",
+				fmt.Sprintf("Result artifact %q identifies a reserved Memory binding", name),
+				false,
+				nil,
+			)
+		}
 		metadata, err := inspector.Inspect(ctx, runID, cloneArtifactRef(ref))
 		if err != nil {
 			return NewError(

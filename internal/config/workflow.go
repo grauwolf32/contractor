@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 )
 
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
@@ -211,6 +213,11 @@ func resolveStageContext(source *stageContextSource) (StageContext, error) {
 		}
 		if err := validateArtifactComponent("context.artifacts."+localName+".name", artifact.Name); err != nil {
 			return StageContext{}, err
+		}
+		if artifactpolicy.IsReservedMemoryBinding(artifact.Namespace, artifact.Name) {
+			return StageContext{}, fmt.Errorf(
+				"context.artifacts.%s identifies a reserved Memory binding", localName,
+			)
 		}
 		if artifact.Required == nil {
 			return StageContext{}, fmt.Errorf("context.artifacts.%s.required is required", localName)

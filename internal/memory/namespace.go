@@ -231,8 +231,8 @@ func (n *Namespace) AppendMemory(ctx context.Context, name, content string) (Not
 	if err != nil {
 		return Note{}, err
 	}
-	if _, _, err := encodeInput("append_validation", content, "", nil, 0); err != nil {
-		return Note{}, err
+	if err := validateContent(content); err != nil {
+		return Note{}, toolError(CodeInvalid, false)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -366,7 +366,21 @@ func (n *Namespace) loadAll(ctx context.Context) ([]loadedNote, error) {
 		}
 		result = append(result, *loaded)
 	}
+	if !validOrdinalSet(result) {
+		return nil, toolError(CodeUnavailable, true)
+	}
 	return result, nil
+}
+
+func validOrdinalSet(notes []loadedNote) bool {
+	seen := make([]bool, len(notes))
+	for _, item := range notes {
+		if item.note.Ordinal >= uint64(len(notes)) || seen[item.note.Ordinal] {
+			return false
+		}
+		seen[item.note.Ordinal] = true
+	}
+	return true
 }
 
 func (n *Namespace) readOptional(ctx context.Context, bindingName string) (*loadedNote, error) {
@@ -539,7 +553,7 @@ func activeContext(ctx context.Context) error {
 func mapStoreError(err error) error {
 	var bounded *ToolError
 	if errors.As(err, &bounded) {
-		return bounded
+		return NormalizeToolError(bounded)
 	}
 	switch {
 	case errors.Is(err, ErrAccessForbidden), errors.Is(err, artifacts.ErrArtifactFrozen),
@@ -552,8 +566,30 @@ func mapStoreError(err error) error {
 	}
 }
 
+// NormalizeToolError reduces any internal failure to the closed model-facing
+// Memory error and retryability table without retaining its cause.
+func NormalizeToolError(err error) *ToolError {
+	var bounded *ToolError
+	if errors.As(err, &bounded) {
+		return toolError(bounded.Code, bounded.Retryable)
+	}
+	return toolError(CodeUnavailable, true)
+}
+
 func toolError(code string, retryable bool) *ToolError {
-	return &ToolError{Code: code, Retryable: retryable}
+	normalized, normalizedRetryable := normalizeToolError(code, retryable)
+	return &ToolError{Code: normalized, Retryable: normalizedRetryable}
+}
+
+func normalizeToolError(code string, retryable bool) (string, bool) {
+	switch code {
+	case CodeInvalid, CodeNotFound, CodeTooLarge, CodeNamespaceFull, CodeForbidden:
+		return code, false
+	case CodeChanged, CodeUnavailable:
+		return code, true
+	default:
+		return CodeUnavailable, true
+	}
 }
 
 func validBinding(binding Binding) bool {

@@ -11,6 +11,10 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.artifact_visibility import (
+    model_visible_exact_refs,
+    require_model_visible_binding,
+)
 from contractor_runtime.toolsets.run_artifacts import (
     ArtifactClientFactory,
     ToolMetrics,
@@ -85,7 +89,7 @@ class _BaseTextTool:
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return tuple(getattr(self._client, "known_exact_refs", ()))
+        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
 
     async def close(self) -> None:
         self._secrets = ()
@@ -135,6 +139,7 @@ class ReadTextArtifactTool(_BaseTextTool):
             "max_lines": max_lines,
         }
         try:
+            require_model_visible_binding(namespace, name)
             _validate_line_window(start_line, max_lines)
             value = await self._client.read_artifact(
                 ArtifactRef(namespace=namespace, name=name, revision=revision)
@@ -230,6 +235,7 @@ class WriteTextArtifactTool(_BaseTextTool):
             "utf8_size": len(data),
         }
         try:
+            require_model_visible_binding(self._namespace, name)
             if len(data) > MAX_TEXT_WRITE_BYTES:
                 raise ValueError("UTF-8 artifact text exceeds the 1 MiB tool limit")
             result = await self._client.write_artifact(

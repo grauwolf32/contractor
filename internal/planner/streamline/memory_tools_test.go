@@ -326,9 +326,40 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	if metric.Calls == nil || *metric.Calls != 1 || metric.Succeeded == nil || *metric.Succeeded != 1 {
 		t.Fatalf("Memory metrics = %+v", metric)
 	}
+	if len(report.ToolCalls) != 1 ||
+		report.ToolCalls[0].Arguments["workerName"] != "builder" ||
+		report.ToolCalls[0].Arguments["noteName"] != "budget_note" ||
+		report.ToolCalls[0].Arguments["contentBytes"] != len([]byte(bodyCanary)) ||
+		report.ToolCalls[0].Arguments["descriptionBytes"] != 0 ||
+		report.ToolCalls[0].Arguments["tagCount"] != 0 ||
+		report.ToolCalls[0].Arguments["resultContentBytes"] != len([]byte(bodyCanary)) ||
+		report.ToolCalls[0].Arguments["resultDescriptionBytes"] != 0 ||
+		report.ToolCalls[0].Arguments["resultTagCount"] != 0 {
+		t.Fatalf("Memory safe tool detail = %+v", report.ToolCalls)
+	}
 	encoded, _ := json.Marshal(report)
 	if strings.Contains(string(encoded), bodyCanary) {
 		t.Fatalf("Planner report retained Memory body: %s", encoded)
+	}
+}
+
+func TestPlannerMemoryFailureNormalizesArbitraryTypedAttributes(t *testing.T) {
+	for _, test := range []struct {
+		inputCode      string
+		inputRetryable bool
+		wantCode       string
+		wantRetryable  bool
+	}{
+		{plannermemory.CodeInvalid, true, plannermemory.CodeInvalid, false},
+		{plannermemory.CodeChanged, false, plannermemory.CodeChanged, true},
+		{"arbitrary_internal", false, plannermemory.CodeUnavailable, true},
+	} {
+		failure := memoryFailure(&plannermemory.ToolError{
+			Code: test.inputCode, Retryable: test.inputRetryable,
+		})
+		if failure.Code != test.wantCode || failure.Retryable != test.wantRetryable {
+			t.Fatalf("memoryFailure(%q, %t) = %+v", test.inputCode, test.inputRetryable, failure)
+		}
 	}
 }
 

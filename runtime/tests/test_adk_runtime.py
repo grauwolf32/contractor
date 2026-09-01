@@ -44,6 +44,7 @@ from contractor_runtime.contracts import (
     WorkerRuntimeRef,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -302,6 +303,62 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
     asyncio.run(scenario())
 
 
+def test_adk_worker_rejects_reserved_memory_results_but_not_purpose_namespace_names(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        hidden = ArtifactRef(namespace="builder", name="memory.hidden", revision="memory-r1")
+        hidden_model = scripted_model(
+            [
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Attempted to return notebook state",
+                        "artifacts": {"report": hidden.model_dump(mode="json", by_alias=True)},
+                    }
+                )
+            ]
+        )
+        first = await create_runtime(
+            tmp_path / "hidden",
+            WorkerState(),
+            {"ref_probe": RefExposingTool(hidden)},
+            hidden_model,
+        )
+        rejected = await first.invoke(stage_request())
+        assert rejected.error is not None
+        assert rejected.error.code == "invalid_worker_result"
+        assert rejected.error.retryable is False
+        await first.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+        allowed = ArtifactRef(namespace="inputs", name="memory.workflow_input", revision="input-r1")
+        allowed_model = scripted_model(
+            [
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Purpose namespace artifact remains ordinary",
+                        "artifacts": {"report": allowed.model_dump(mode="json", by_alias=True)},
+                    }
+                )
+            ]
+        )
+        second = await create_runtime(
+            tmp_path / "allowed",
+            WorkerState(),
+            {"ref_probe": RefExposingTool(allowed)},
+            allowed_model,
+        )
+        accepted = await second.invoke(stage_request())
+        assert accepted.outcome.value == "succeeded"
+        assert accepted.artifacts["report"] == allowed
+        await second.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_recovers_invalid_json_with_structured_finalizer(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
@@ -419,6 +476,88 @@ def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> No
         assert session is not None
         assert SECRET not in repr(session.events)
         assert "load_optional failed (MissingArtifact)" in repr(session.events)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "raw_arguments",
+    [
+        {"content": "body"},
+        {
+            "name": "safe_note",
+            "content": "body",
+            "unexpected": "recognizable-raw-argument-canary",
+        },
+        {"name": 7, "content": "body"},
+    ],
+    ids=["missing", "extra", "wrong-type"],
+)
+def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
+    tmp_path: Path,
+    raw_arguments: dict[str, object],
+) -> None:
+    async def scenario() -> None:
+        client = NoArtifactAccessClient()
+        state = WorkerState()
+        tools = await selected_memory_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call("write_memory", raw_arguments, call_id="malformed-memory"),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Handled bounded memory failure",
+                        "artifacts": {},
+                    }
+                ),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert client.calls == []
+        assert state.metrics.counters["tool_calls"] == 1
+        assert state.metrics.counters["tool_errors"] == 1
+        assert len(state.metrics.tool_calls) == 1
+        call = state.metrics.tool_calls[0]
+        assert call.error is not None
+        assert call.error.code == "memory_invalid"
+        assert call.error.retryable is False
+        assert call.arguments is not None
+        assert set(call.arguments) == {
+            "name",
+            "content_bytes",
+            "description_bytes",
+            "tag_count",
+        }
+        assert call.arguments["content_bytes"] in {0, 4}
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None and budget.observed_tool_calls == 1
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=runtime._session_id,
+        )
+        assert session is not None
+        function_responses = [
+            part.function_response.response
+            for event in session.events
+            for part in (event.content.parts if event.content is not None else [])
+            if part.function_response is not None
+        ]
+        rendered_response = repr(function_responses)
+        rendered_metrics = repr(state.metrics.snapshot())
+        assert "memory_invalid" in rendered_response
+        assert "mandatory input parameters" not in rendered_response
+        assert "recognizable-raw-argument-canary" not in rendered_response
+        assert "recognizable-raw-argument-canary" not in rendered_metrics
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -774,6 +913,22 @@ async def selected_tools(
     return dict(result)
 
 
+async def selected_memory_tools(
+    tmp_path: Path, client: object, state: WorkerState
+) -> dict[str, object]:
+    factory = MemoryToolsetFactory(lambda _allocation, _settings: client)  # type: ignore[arg-type,return-value]
+    result = await factory.create_selected(
+        selected=["write_memory"],
+        allocation_id="allocation-1",
+        run_id="run-1",
+        namespace="builder",
+        runtime_settings=runtime_settings(),
+        workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+        state=state,
+    )
+    return dict(result)
+
+
 def build_context(
     tmp_path: Path, state: WorkerState, tools: dict[str, object]
 ) -> WorkerBuildContext:
@@ -923,3 +1078,37 @@ class FakeArtifactClient:
     def _remember(self, ref: ArtifactRef) -> None:
         assert ref.revision is not None
         self._known[(ref.namespace, ref.name, ref.revision)] = ref
+
+
+class NoArtifactAccessClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+        del namespace
+        self.calls.append("list_artifacts")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        del ref
+        self.calls.append("read_artifact")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+    async def write_artifact(self, *args: object, **kwargs: object) -> ArtifactWriteResult:
+        del args, kwargs
+        self.calls.append("write_artifact")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+
+class RefExposingTool:
+    def __init__(self, ref: ArtifactRef) -> None:
+        self.__name__ = "ref_probe"
+        self.__doc__ = "Expose trusted test provenance."
+        self._ref = ref
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return (self._ref,)
+
+    async def __call__(self) -> dict[str, bool]:
+        return {"ok": True}

@@ -17,10 +17,18 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.metrics import MAX_METRIC_TOOL_CALLS
+from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-tool-secret"
+
+
+def test_memory_prefix_policy_is_namespace_aware() -> None:
+    assert is_reserved_memory_binding("analysis", "memory.note")
+    assert not is_reserved_memory_binding("analysis", "report")
+    for namespace in ("inputs", "outputs", "skills"):
+        assert not is_reserved_memory_binding(namespace, "memory.note")
 
 
 def test_factory_constructs_only_explicitly_selected_tools(
@@ -40,7 +48,10 @@ def test_factory_constructs_only_explicitly_selected_tools(
         assert "write_artifact" not in tools
 
         listed = await tools["list_artifacts"]("inputs")
-        assert listed == [{"namespace": "inputs", "name": "source"}]
+        assert listed == [
+            {"namespace": "inputs", "name": "source"},
+            {"namespace": "inputs", "name": "memory.allowed_input"},
+        ]
         read = await tools["read_artifact"]("inputs", "source")
         assert read["artifact"]["revision"] == "revision-read"
         assert base64.b64decode(read["dataBase64"]) == b"payload"
@@ -135,25 +146,25 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
             factory, state, ["list_artifacts", "read_artifact", "write_artifact"]
         )
 
-        assert await tools["list_artifacts"]("inputs") == [
-            {"namespace": "inputs", "name": "source"}
+        assert await tools["list_artifacts"]("analysis") == [
+            {"namespace": "analysis", "name": "report"}
         ]
         calls_before = (client.read_calls, client.write_calls)
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"]("inputs", "memory.hidden", "revision-hidden")
+            await tools["read_artifact"]("analysis", "memory.hidden", "revision-hidden")
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_artifact"](
-                "inputs",
+                "analysis",
                 "memory.hidden",
                 "application/json",
                 base64.b64encode(b"hidden").decode(),
             )
         assert (client.read_calls, client.write_calls) == calls_before
-        assert all(
-            not ref.name.startswith("memory.")
-            for tool in tools.values()
-            for ref in tool.known_exact_refs
-        )
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert ("analysis", "memory.hidden") not in observed
+        assert ("inputs", "memory.allowed_input") in observed
 
     asyncio.run(scenario())
 
@@ -193,15 +204,23 @@ class FakeArtifactClient:
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return (
             ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
-            ArtifactRef(namespace="inputs", name="memory.hidden", revision="revision-hidden"),
+            ArtifactRef(namespace="inputs", name="memory.allowed_input", revision="revision-input"),
+            ArtifactRef(namespace="analysis", name="report", revision="revision-report"),
+            ArtifactRef(namespace="analysis", name="memory.hidden", revision="revision-hidden"),
         )
 
     async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
-        assert namespace == "inputs"
-        return [
-            ArtifactRef(namespace="inputs", name="source"),
-            ArtifactRef(namespace="inputs", name="memory.hidden"),
-        ]
+        if namespace == "inputs":
+            return [
+                ArtifactRef(namespace="inputs", name="source"),
+                ArtifactRef(namespace="inputs", name="memory.allowed_input"),
+            ]
+        if namespace == "analysis":
+            return [
+                ArtifactRef(namespace="analysis", name="report"),
+                ArtifactRef(namespace="analysis", name="memory.hidden"),
+            ]
+        raise AssertionError(f"unexpected namespace {namespace!r}")
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.read_calls += 1

@@ -23,6 +23,10 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.artifact_visibility import (
+    model_visible_exact_refs,
+    require_model_visible_binding,
+)
 from contractor_runtime.toolsets.run_artifacts import (
     ArtifactClientFactory,
     ToolMetrics,
@@ -185,6 +189,7 @@ class _SourceArchiveSession:
         self._files: dict[str, _SourceFile] = {}
 
     async def open(self, ref: ArtifactRef) -> _OpenSummary:
+        require_model_visible_binding(ref.namespace, ref.name)
         exact = ref.require_exact()
         async with self._lock:
             if (
@@ -414,7 +419,7 @@ class _BaseSourceTool:
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return tuple(getattr(self._client, "known_exact_refs", ()))
+        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
 
     async def close(self) -> None:
         await self._session.close()

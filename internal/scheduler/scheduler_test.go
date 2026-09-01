@@ -494,6 +494,33 @@ func TestSchedulerInvalidCandidateAbortsWithoutPublishingOutput(t *testing.T) {
 	}
 }
 
+func TestSchedulerRejectsReservedMemoryCandidateBeforeFinalizing(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.result.Artifacts["copied"] = exactRef(
+		"builder", "memory.hidden", "memory-result-r1",
+	)
+	harness.artifacts.values["run-1/builder/memory.hidden/memory-result-r1"] = ResolvedArtifact{
+		Ref:       exactRef("builder", "memory.hidden", "memory-result-r1"),
+		MediaType: "text/plain",
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "result_contract_violation" || execution.Termination.Retryable {
+		t.Fatalf("reserved Memory candidate termination = %+v", execution)
+	}
+	if len(harness.persistence.outputs) != 0 {
+		t.Fatalf("reserved Memory candidate published outputs: %+v", harness.persistence.outputs)
+	}
+	if _, found := eventIndex(harness.events.values, "enter_finalizing"); found {
+		t.Fatal("reserved Memory candidate entered finalizing")
+	}
+}
+
 func TestSchedulerPlannerBudgetFailureUsesBoundedRunningAbort(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.planners.runErrors = []error{planner.NewError(

@@ -217,6 +217,48 @@ def test_exact_seed_is_copied_and_later_stage_resumes_same_binding(
     asyncio.run(scenario())
 
 
+def test_openapi_tools_enforce_shared_memory_source_target_and_ref_visibility(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        payload = yaml.safe_dump(minimal_document("Seed API")).encode()
+        hidden = client.seed("analysis", "memory.hidden", "application/yaml", payload)
+        allowed = client.seed("inputs", "memory.workflow_input", "application/yaml", payload)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        session = tools["load_openapi"]._session
+        calls_before = (client.read_count, client.write_count)
+
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_openapi"](
+                hidden.namespace,
+                hidden.name,
+                hidden.revision,
+                target_name="safe_target",
+            )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_openapi"](
+                allowed.namespace,
+                allowed.name,
+                allowed.revision,
+                target_name="memory.hidden_target",
+            )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["initialize_openapi"]("Blocked", target_name="memory.hidden_target")
+        assert (client.read_count, client.write_count) == calls_before
+        assert session._document is None and session._target_name is None
+
+        copied = await tools["load_openapi"](allowed.namespace, allowed.name, allowed.revision)
+        assert copied["artifact"]["namespace"] == "openapi"
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert (hidden.namespace, hidden.name) not in observed
+        assert (allowed.namespace, allowed.name) in observed
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -639,6 +681,7 @@ class MemoryArtifactClient:
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
         self._next_revision = 1
         self.write_count = 0
+        self.read_count = 0
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -648,6 +691,7 @@ class MemoryArtifactClient:
         return self._store(namespace, name, media_type, data)
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        self.read_count += 1
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:

@@ -195,6 +195,42 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_source_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        hidden = client.seed(
+            "analysis", "memory.hidden", "application/zip", make_zip({"hidden.py": "x"})
+        )
+        allowed = client.seed(
+            "inputs",
+            "memory.workflow_input",
+            "application/zip",
+            make_zip({"main.py": "print('ok')\n"}),
+        )
+        # Simulate provenance accumulated by another trusted wrapper sharing
+        # this allocation client.
+        await client.read_artifact(hidden)
+        tools = await make_tools(tmp_path, client, WorkerState())
+        calls_before = client.read_calls
+
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["open_source_archive"](hidden.namespace, hidden.name, hidden.revision)
+        assert client.read_calls == calls_before
+        assert not (tmp_path / "source").exists()
+
+        opened = await tools["open_source_archive"](
+            allowed.namespace, allowed.name, allowed.revision
+        )
+        assert opened["fileCount"] == 1
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert (hidden.namespace, hidden.name) not in observed
+        assert (allowed.namespace, allowed.name) in observed
+
+    asyncio.run(scenario())
+
+
 def test_entry_resource_limits_are_rejected_before_extraction() -> None:
     too_many = [zipfile.ZipInfo(f"f-{index}.txt") for index in range(MAX_ARCHIVE_ENTRIES + 1)]
     with pytest.raises(ValueError, match="entry limit"):
