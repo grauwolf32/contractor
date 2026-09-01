@@ -3,8 +3,8 @@ id: V11-006
 title: Implement cumulative text overlay and state codec
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 1e7bdf0a135c60767fbaa23dbf4660e7dd00eb2a
 depends_on: [V11-005]
 languages: [python]
 
