@@ -3,8 +3,8 @@ id: V8-015
 title: Add Runtime configuration and label workflows to the React UI
 milestone: label-driven-runtime-configuration
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: ef7c4ae9b9d338fac613f30c71c396442e930be8
 depends_on: [V8-009, V8-013, V8-014]
 languages: [go, typescript, html, css, yaml]
 

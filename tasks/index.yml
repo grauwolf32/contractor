@@ -240,14 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-014
-  next_task: V8-015
+  completed_through: V8-015
+  next_task: V8-016
   summary: >-
-    Server Planners now resolve only pinned default and Run telemetry, export a
-    closed content-free OTLP span vocabulary through an invocation-local client,
-    and record bounded safe delivery outcomes without changing Stage semantics
-    or allocation release. Agent labels remain outside the Planner boundary.
-    Next, expose RuntimeConfig labels, configs and provenance in the UI.
+    The separate React/Node UI now publishes immutable RuntimeConfigs, manages
+    write-only Runtime credentials and revisioned label bindings, edits durable
+    Runtime Agent labels, selects sorted Run labels, and displays only closed
+    pinned allocation provenance. Production browser coverage exercises the
+    real API, static route allowlist and heterogeneous capability probes. Next,
+    add the adversarial cross-process runtime-configuration hardening gate.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
