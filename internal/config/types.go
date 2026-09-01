@@ -53,6 +53,28 @@ type ContextArtifact struct {
 
 type StageContext struct {
 	Artifacts map[string]ContextArtifact `json:"artifacts"`
+	Workspace *WorkspaceContext          `json:"workspace,omitempty"`
+}
+
+type WorkspaceSource struct {
+	Artifact string `json:"artifact"`
+	Target   string `json:"target"`
+}
+
+type WorkspaceStateInput struct {
+	Artifact string `json:"artifact"`
+}
+
+type WorkspaceExport struct {
+	State string `json:"state"`
+	Diff  string `json:"diff"`
+}
+
+type WorkspaceContext struct {
+	Mode    contracts.WorkspaceModeV2 `json:"mode"`
+	Sources []WorkspaceSource         `json:"sources"`
+	State   *WorkspaceStateInput      `json:"state,omitempty"`
+	Export  *WorkspaceExport          `json:"export,omitempty"`
 }
 
 type StageResultContract struct {
@@ -349,6 +371,28 @@ type agentBindingSource struct {
 
 type stageContextSource struct {
 	Artifacts *map[string]contextArtifactSource `yaml:"artifacts"`
+	Workspace *workspaceContextSource           `yaml:"workspace,omitempty"`
+}
+
+type workspaceContextSource struct {
+	Mode    string               `yaml:"mode"`
+	Sources []workspaceSource    `yaml:"sources"`
+	State   *workspaceStateInput `yaml:"state,omitempty"`
+	Export  *workspaceExport     `yaml:"export,omitempty"`
+}
+
+type workspaceSource struct {
+	Artifact string `yaml:"artifact"`
+	Target   string `yaml:"target"`
+}
+
+type workspaceStateInput struct {
+	Artifact string `yaml:"artifact"`
+}
+
+type workspaceExport struct {
+	State string `yaml:"state"`
+	Diff  string `yaml:"diff"`
 }
 
 type contextArtifactSource struct {

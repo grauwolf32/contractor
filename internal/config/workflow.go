@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"golang.org/x/text/unicode/norm"
 )
 
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
@@ -205,6 +206,9 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, err
 	}
+	if err := validateStageWorkspace(context, result, agents); err != nil {
+		return ResolvedStage{}, err
+	}
 	mappings, err := resolveWorkflowOutputMappings(stageName, source.WorkflowOutputs, workflowOutputs, result.Artifacts)
 	if err != nil {
 		return ResolvedStage{}, err
@@ -293,7 +297,145 @@ func resolveStageContext(source *stageContextSource) (StageContext, error) {
 			Required:  *artifact.Required,
 		}
 	}
+	workspace, err := resolveWorkspaceContext(source.Workspace, result.Artifacts)
+	if err != nil {
+		return StageContext{}, err
+	}
+	result.Workspace = workspace
 	return result, nil
+}
+
+func resolveWorkspaceContext(
+	source *workspaceContextSource,
+	artifacts map[string]ContextArtifact,
+) (*WorkspaceContext, error) {
+	if source == nil {
+		return nil, nil
+	}
+	mode := contracts.WorkspaceModeV2(source.Mode)
+	if err := mode.Validate(); err != nil {
+		return nil, fmt.Errorf("context.workspace.mode must be direct or overlay")
+	}
+	if len(source.Sources) == 0 || len(source.Sources) > 32 {
+		return nil, fmt.Errorf("context.workspace.sources must contain from 1 through 32 entries")
+	}
+	result := &WorkspaceContext{Mode: mode, Sources: make([]WorkspaceSource, len(source.Sources))}
+	for index, candidate := range source.Sources {
+		if err := validateMapKey("context.workspace.sources artifact alias", candidate.Artifact); err != nil {
+			return nil, err
+		}
+		if _, exists := artifacts[candidate.Artifact]; !exists {
+			return nil, fmt.Errorf("context.workspace.sources[%d].artifact names unknown context artifact %q", index, candidate.Artifact)
+		}
+		if err := validateWorkspaceTarget(candidate.Target); err != nil {
+			return nil, fmt.Errorf("context.workspace.sources[%d].target: %w", index, err)
+		}
+		result.Sources[index] = WorkspaceSource{Artifact: candidate.Artifact, Target: candidate.Target}
+	}
+	for index, candidate := range result.Sources {
+		for otherIndex, other := range result.Sources {
+			if index == otherIndex {
+				continue
+			}
+			if candidate.Target == other.Target || candidate.Target == "" || strings.HasPrefix(other.Target, candidate.Target+"/") {
+				return nil, fmt.Errorf("context.workspace source targets must be unique and non-overlapping")
+			}
+		}
+	}
+	if source.State != nil {
+		if err := validateMapKey("context.workspace.state.artifact", source.State.Artifact); err != nil {
+			return nil, err
+		}
+		if _, exists := artifacts[source.State.Artifact]; !exists {
+			return nil, fmt.Errorf("context.workspace.state.artifact names unknown context artifact %q", source.State.Artifact)
+		}
+		result.State = &WorkspaceStateInput{Artifact: source.State.Artifact}
+	}
+	if source.Export != nil {
+		if mode != contracts.WorkspaceModeOverlay {
+			return nil, fmt.Errorf("context.workspace.export requires overlay mode")
+		}
+		if err := validateMapKey("context.workspace.export.state", source.Export.State); err != nil {
+			return nil, err
+		}
+		if err := validateMapKey("context.workspace.export.diff", source.Export.Diff); err != nil {
+			return nil, err
+		}
+		if source.Export.State == source.Export.Diff {
+			return nil, fmt.Errorf("context.workspace export slots must be distinct")
+		}
+		result.Export = &WorkspaceExport{State: source.Export.State, Diff: source.Export.Diff}
+	}
+	return result, nil
+}
+
+func validateWorkspaceTarget(value string) error {
+	if value == "" {
+		return nil
+	}
+	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
+		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
+		return fmt.Errorf("must be a normalized relative POSIX directory")
+	}
+	parts := strings.Split(value, "/")
+	if len(parts) > 32 {
+		return fmt.Errorf("must contain at most 32 components")
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return fmt.Errorf("contains an invalid component")
+		}
+		for _, character := range part {
+			if character < 0x20 || character == 0x7f {
+				return fmt.Errorf("contains a control character")
+			}
+		}
+	}
+	first := parts[0]
+	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
+		return fmt.Errorf("must not use Windows drive syntax")
+	}
+	return nil
+}
+
+func validateStageWorkspace(
+	context StageContext,
+	result StageResultContract,
+	agents map[string]ResolvedAgentBinding,
+) error {
+	workspaceToolsets := false
+	changesToolset := false
+	for _, agent := range agents {
+		for _, selection := range agent.Template.Toolsets {
+			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+			switch ref {
+			case "filesystem@1", "edit-files@1":
+				workspaceToolsets = true
+			case "workspace-changes@1":
+				workspaceToolsets = true
+				changesToolset = true
+			}
+		}
+	}
+	if workspaceToolsets && context.Workspace == nil {
+		return fmt.Errorf("filesystem Toolsets require context.workspace")
+	}
+	if changesToolset && context.Workspace != nil && context.Workspace.Mode != contracts.WorkspaceModeOverlay {
+		return fmt.Errorf("workspace-changes@1 requires context.workspace.mode overlay")
+	}
+	if context.Workspace == nil || context.Workspace.Export == nil {
+		return nil
+	}
+	export := context.Workspace.Export
+	state, stateExists := result.Artifacts[export.State]
+	diff, diffExists := result.Artifacts[export.Diff]
+	if !stateExists || len(state.MediaTypes) != 1 || state.MediaTypes[0] != "application/vnd.contractor.workspace-overlay+json" {
+		return fmt.Errorf("context.workspace.export.state must name a result slot with exact workspace overlay media type")
+	}
+	if !diffExists || len(diff.MediaTypes) != 1 || diff.MediaTypes[0] != "text/x-diff" {
+		return fmt.Errorf("context.workspace.export.diff must name a result slot with exact text/x-diff media type")
+	}
+	return nil
 }
 
 func resolveStageResult(source *stageResultSource) (StageResultContract, error) {

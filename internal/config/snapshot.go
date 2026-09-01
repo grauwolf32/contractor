@@ -258,6 +258,19 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 	for name, artifact := range source.Context.Artifacts {
 		result.Context.Artifacts[name] = artifact
 	}
+	if source.Context.Workspace != nil {
+		workspace := *source.Context.Workspace
+		workspace.Sources = append([]WorkspaceSource(nil), source.Context.Workspace.Sources...)
+		if source.Context.Workspace.State != nil {
+			state := *source.Context.Workspace.State
+			workspace.State = &state
+		}
+		if source.Context.Workspace.Export != nil {
+			export := *source.Context.Workspace.Export
+			workspace.Export = &export
+		}
+		result.Context.Workspace = &workspace
+	}
 	result.Result.Artifacts = cloneArtifactSlots(source.Result.Artifacts)
 	result.WorkflowOutputs = make(map[string]string, len(source.WorkflowOutputs))
 	for output, artifact := range source.WorkflowOutputs {
