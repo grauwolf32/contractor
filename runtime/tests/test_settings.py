@@ -19,6 +19,7 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
         "CONTRACTOR_RUNTIME_LISTEN": "127.0.0.1:9000",
         "CONTRACTOR_WORK_ROOT": str(tmp_path / "work"),
         "CONTRACTOR_INITIAL_LABELS": "debug,caido",
+        "CONTRACTOR_RUNTIME_ADAPTERS": "otlp-http@1,http-proxy@1",
     }
     settings = parse_settings(
         [
@@ -28,6 +29,8 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
             "debug",
             "--initial-label",
             "site_proxy",
+            "--runtime-adapter",
+            "otlp-http@1",
         ],
         environment,
     )
@@ -35,6 +38,7 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
     assert settings.log_level == "debug"
     assert settings.control_plane_url == "https://control.example:8443"
     assert settings.initial_labels == ("site_proxy",)
+    assert settings.enabled_runtime_adapters == ("otlp-http@1",)
     assert str(files[2]) not in repr(settings)
 
 
@@ -43,6 +47,28 @@ def test_initial_labels_are_sorted_and_environment_is_used_without_cli(tmp_path:
         base_arguments(tmp_path), {"CONTRACTOR_INITIAL_LABELS": "debug,caido"}
     )
     assert settings.initial_labels == ("caido", "debug")
+
+
+def test_runtime_adapter_environment_is_sorted_and_unset_means_all(tmp_path: Path) -> None:
+    configured = parse_settings(
+        base_arguments(tmp_path),
+        {"CONTRACTOR_RUNTIME_ADAPTERS": "otlp-http@1,http-proxy@1"},
+    )
+    defaulted = parse_settings(base_arguments(tmp_path), {})
+    assert configured.enabled_runtime_adapters == ("http-proxy@1", "otlp-http@1")
+    assert defaulted.enabled_runtime_adapters is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "unknown@1", "otlp-http@1,otlp-http@1", "otlp-http@1,"],
+)
+def test_invalid_runtime_adapter_allowlist_is_rejected(tmp_path: Path, value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_settings(
+            base_arguments(tmp_path),
+            {"CONTRACTOR_RUNTIME_ADAPTERS": value},
+        )
 
 
 @pytest.mark.parametrize(

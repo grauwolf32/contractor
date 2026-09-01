@@ -487,3 +487,23 @@ tests that make the choice observable.
   misuse and subprocess bounds become content-free `request_failed` adapter
   metrics plus bounded model/tool errors. There is no direct retry path.
   Transport/launcher close remains under V8-010's confirmed-erasure fence.
+
+### D022 — Adapter availability may be narrowed only at immutable startup
+
+- Applies to: V8-013.
+- Decision: Runtime enables all built-in adapter factories when no selector is
+  supplied. A repeated `--runtime-adapter` option, or its comma-separated
+  environment equivalent, may select a strict non-empty subset before probes
+  and registration. Unknown and duplicate refs fail startup. The resulting
+  registry is frozen with the rest of the process capability snapshot; labels
+  and allocations cannot mutate it.
+- Reason: deployments can intentionally package or expose different local
+  infrastructure integrations even when they share one Python environment.
+  Treating this as immutable factory enablement makes heterogeneous placement
+  testable without a test-only probe hook and without claiming that a label
+  creates capability. A configured factory must still pass its real probe.
+- Alternatives rejected: dynamically enabling adapters after registration
+  would invalidate Scheduler's positive snapshot; inferring availability from
+  labels would conflate desired infrastructure with installed code; requiring
+  a separate virtualenv for each subset would hide an operator-level boundary
+  behind packaging mechanics and make a one-VM deployment unnecessarily hard.

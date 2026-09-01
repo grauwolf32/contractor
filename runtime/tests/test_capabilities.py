@@ -83,6 +83,23 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
     asyncio.run(scenario())
 
 
+def test_builtin_runtime_adapter_subset_is_the_only_probed_capability(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        factories = built_in_factories(
+            tmp_path / "work", enabled_runtime_adapters=("http-proxy@1",)
+        )
+        snapshot = await discover_capabilities(factories)
+        assert tuple(factories.runtime_adapters) == ("http-proxy@1",)
+        assert snapshot.runtime_adapters == ("http-proxy@1",)
+
+    asyncio.run(scenario())
+
+
+def test_builtin_runtime_adapter_subset_rejects_unknown_ref(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not built in"):
+        built_in_factories(tmp_path, enabled_runtime_adapters=("unknown@1",))
+
+
 def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,

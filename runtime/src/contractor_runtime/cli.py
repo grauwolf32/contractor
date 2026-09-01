@@ -60,6 +60,7 @@ async def serve(
                 runtime_state.instance_id,
             ),
         ),
+        enabled_runtime_adapters=settings.enabled_runtime_adapters,
     )
     allocation_service = AllocationService(
         runtime_state,

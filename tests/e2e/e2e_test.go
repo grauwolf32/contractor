@@ -48,6 +48,8 @@ type runStatus struct {
 	RunID                  string                 `json:"runId"`
 	Workflow               string                 `json:"workflow"`
 	State                  string                 `json:"state"`
+	Labels                 []string               `json:"labels"`
+	RuntimeConfiguration   json.RawMessage        `json:"runtimeConfiguration"`
 	Cancellation           json.RawMessage        `json:"cancellation,omitempty"`
 	Parameters             map[string]string      `json:"parameters,omitempty"`
 	Inputs                 map[string]artifactRef `json:"inputs,omitempty"`
@@ -315,8 +317,10 @@ func createWorkflowRunWithParameters(
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
 	var payload struct {
-		RunID string `json:"runId"`
-		State string `json:"state"`
+		RunID                string          `json:"runId"`
+		State                string          `json:"state"`
+		Labels               []string        `json:"labels"`
+		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
 	}
 	decodeResponse(t, response, &payload)
 	if payload.RunID == "" || payload.State != "running" {

@@ -21,6 +21,7 @@ class Settings:
     certificate_file: Path
     private_key_file: Path = field(repr=False)
     initial_labels: tuple[str, ...] = ()
+    enabled_runtime_adapters: tuple[str, ...] | None = None
     host: str = "127.0.0.1"
     port: int = 9443
     heartbeat_interval_seconds: float = 10.0
@@ -50,6 +51,7 @@ def parse_settings(
     parser.add_argument("--certificate-file", default=values.get("CONTRACTOR_CERTIFICATE_FILE"))
     parser.add_argument("--private-key-file", default=values.get("CONTRACTOR_PRIVATE_KEY_FILE"))
     parser.add_argument("--initial-label", action="append", default=None)
+    parser.add_argument("--runtime-adapter", action="append", default=None)
     parser.add_argument(
         "--listen",
         default=values.get("CONTRACTOR_RUNTIME_LISTEN", "127.0.0.1:9443"),
@@ -119,6 +121,7 @@ def parse_settings(
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
     initial_labels = _initial_labels(parser, args.initial_label, values)
+    enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
 
     return Settings(
         control_plane_url=control_plane_url,
@@ -128,6 +131,7 @@ def parse_settings(
         certificate_file=certificate_file,
         private_key_file=private_key_file,
         initial_labels=initial_labels,
+        enabled_runtime_adapters=enabled_runtime_adapters,
         host=host,
         port=port,
         heartbeat_interval_seconds=heartbeat,
@@ -209,4 +213,31 @@ def _initial_labels(
             or value == "default"
         ):
             parser.error("--initial-label must match [a-z][a-z0-9_-]* and not be default")
+    return tuple(sorted(candidates))
+
+
+_KNOWN_RUNTIME_ADAPTERS = frozenset({"http-proxy@1", "otlp-http@1"})
+
+
+def _runtime_adapters(
+    parser: argparse.ArgumentParser,
+    cli_values: list[str] | None,
+    environ: Mapping[str, str],
+) -> tuple[str, ...] | None:
+    """Return the immutable enabled factory set, or None for every built-in."""
+
+    if cli_values is None:
+        raw = environ.get("CONTRACTOR_RUNTIME_ADAPTERS")
+        if raw is None:
+            return None
+        candidates = raw.split(",")
+    else:
+        candidates = cli_values
+    if not candidates or any(not value for value in candidates):
+        parser.error("--runtime-adapter requires a non-empty adapter ref")
+    if len(candidates) != len(set(candidates)):
+        parser.error("--runtime-adapter values must be unique")
+    unknown = sorted(set(candidates) - _KNOWN_RUNTIME_ADAPTERS)
+    if unknown:
+        parser.error("--runtime-adapter must name a supported built-in adapter")
     return tuple(sorted(candidates))

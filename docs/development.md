@@ -151,6 +151,9 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
   make test-capability-e2e
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-runtime-labels-e2e
+
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-project-workflows
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
@@ -197,6 +200,68 @@ remains idle while a Stage requiring `validate_likec4` waits in its first
 `StageExecution`; a later process receives a deterministic fake LikeC4 CLI,
 is selected without a retry, and completes normal prepare, A2A, finalization,
 release and Operations reconciliation.
+
+## Label-driven Runtime infrastructure
+
+Runtime labels select physical Worker infrastructure without changing a
+Workflow's ModelPolicy, budgets, Planner or tool allowlist. The checked-in
+[deployment examples](../deploy/runtime-labels/README.md) show secret-free OTLP
+and proxy documents. Publish credential material through the write-only
+Operations mutation, publish each immutable RuntimeConfig, and then bind its
+short label. A missing label always means only the pinned `default` binding;
+the bootstrap `contractor-empty@1` default preserves authored executionConfig.
+
+Every concurrently connected process must have a unique CA-signed identity:
+
+```shell
+go run ./cmd/contractor-pki issue-agent --name agent-proxy
+go run ./cmd/contractor-pki issue-agent --name agent-telemetry
+```
+
+After binding an optional startup label such as `site-proxy`, start the first
+process with its own certificate and an immutable adapter subset:
+
+```shell
+cd runtime
+uv run contractor-runtime \
+  --control-plane-url https://127.0.0.1:8443 \
+  --advertised-control-url https://127.0.0.1:9443 \
+  --advertised-a2a-url https://127.0.0.1:9443 \
+  --ca-file ../.local/pki/ca.crt \
+  --certificate-file ../.local/pki/agents/agent-proxy.crt \
+  --private-key-file ../.local/pki/agents/agent-proxy.key \
+  --listen 127.0.0.1:9443 \
+  --work-root ../.local/runtime/agent-proxy \
+  --initial-label site-proxy \
+  --runtime-adapter http-proxy@1
+```
+
+Start the second process on another listen/advertised port with
+`agent-telemetry.{crt,key}`. Omit `--runtime-adapter` to probe all built-ins, or
+repeat it for an explicit subset. Startup labels seed only a previously unseen
+certificate principal; subsequent assignments use CAS on
+`PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels`.
+
+Inspect certificate identity, authoritative labels and safe adapter capability
+without receiving an endpoint or credential value:
+
+```shell
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/runtime-agent-principals?limit=50' | jq .
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/runtime-labels?limit=50' | jq .
+```
+
+A Run label such as `debug` may require `otlp-http@1` even when neither Agent
+is named or labeled `debug`; placement selects any capable idle candidate. An
+Agent label is the highest physical Worker layer and can replace that Run's
+endpoint/credential on its next allocation. Rebinding a label while work is
+active changes only future Runs (for Run labels) or future allocations (for
+Agent labels). `make test-runtime-labels-e2e` proves these rules with real
+Server, PostgreSQL, two uniquely certified Runtime processes, OTLP protobuf,
+authenticated proxying, exporter failure and complete slot reuse.
 
 ## Complete browser stack gate
 

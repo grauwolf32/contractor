@@ -36,6 +36,7 @@ type observedRuntimeAgent struct {
 	SupportedRuntimes         []string                    `json:"supportedRuntimes"`
 	SupportedToolsets         []observedRuntimeCapability `json:"supportedToolsets"`
 	SupportedSandboxProfiles  []string                    `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters  []string                    `json:"supportedRuntimeAdapters"`
 	ObservedState             string                      `json:"observedState"`
 	SlotState                 string                      `json:"slotState"`
 	ConfirmedLeaseUntil       *time.Time                  `json:"confirmedLeaseUntil,omitempty"`

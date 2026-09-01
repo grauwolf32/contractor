@@ -125,6 +125,7 @@ def built_in_factories(
     work_root: Path,
     artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = None,
     model_factory: ModelFactory | None = None,
+    enabled_runtime_adapters: Sequence[str] | None = None,
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory)
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
@@ -135,6 +136,15 @@ def built_in_factories(
     sandbox = LocalWorkdirFactory(work_root)
     telemetry = OTLPHTTPAdapterFactory()
     proxy = HTTPProxyAdapterFactory()
+    runtime_adapters = {proxy.ref: proxy, telemetry.ref: telemetry}
+    if enabled_runtime_adapters is not None:
+        enabled = frozenset(enabled_runtime_adapters)
+        unknown = enabled - runtime_adapters.keys()
+        if unknown:
+            raise ValueError("enabled Runtime adapter is not built in")
+        runtime_adapters = {
+            ref: factory for ref, factory in runtime_adapters.items() if ref in enabled
+        }
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
@@ -145,7 +155,7 @@ def built_in_factories(
             text_toolset.ref: text_toolset,
         },
         sandbox_profiles={sandbox.ref: sandbox},
-        runtime_adapters={proxy.ref: proxy, telemetry.ref: telemetry},
+        runtime_adapters=runtime_adapters,
     )
 
 

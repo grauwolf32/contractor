@@ -1,0 +1,44 @@
+# Publish each YAML document through POST /v1/operations/runtime-configs after
+# replacing the deployment-local endpoints and credential IDs. Secret material
+# is intentionally absent from this repository file.
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: debug-run
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: https://langfuse.example/v1/traces
+      credential: otel-debug
+      captureContent: false
+      flushTimeoutSeconds: 3
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: debug-agent-local
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: https://langfuse-local.example/v1/traces
+      credential: otel-agent-local
+      captureContent: false
+      flushTimeoutSeconds: 3
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: caido-local
+  version: "1"
+spec:
+  worker:
+    httpProxy:
+      adapter: http-proxy@1
+      proxyUrl: https://caido.example
+      credential: caido-local
+      targets: [llm-gateway]

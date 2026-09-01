@@ -348,6 +348,15 @@ mandatory integer `privateProtocolVersion: 2`; the shared document
 `apiVersion: contractor/v1alpha1` remains unchanged. An older peer fails version
 negotiation rather than silently treating missing arrays as defaults.
 
+Runtime enables every installed built-in adapter by default. An immutable
+startup allowlist may narrow that installed surface with repeated
+`--runtime-adapter <ref>` flags or the comma-separated
+`CONTRACTOR_RUNTIME_ADAPTERS` environment value. Only factories in that set are
+probed and only successful probes are advertised. The allowlist cannot add an
+implementation, manufacture a positive capability, or change after
+registration; changing it means starting a new process incarnation. This is an
+environment/deployment boundary, not a label or allocation setting.
+
 Operations may replace the complete agent label set with compare-and-set. A
 change while a Worker is allocated affects only a later allocation. The active
 Worker retains its immutable RuntimeSettings snapshot. The Runtime Agent does

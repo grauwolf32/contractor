@@ -49,6 +49,12 @@ func (g *fakeGateway) Calls() int {
 	return g.calls
 }
 
+func (g *fakeGateway) ResetScenario() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.calls = 0
+}
+
 func (g *fakeGateway) Failures() []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
