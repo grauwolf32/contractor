@@ -71,6 +71,33 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 }
 
+func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "operator")
+	if err := os.CopyFS(root, os.DirFS(repositoryConfigRoot)); err != nil {
+		t.Fatal(err)
+	}
+	skillDirectory := filepath.Join(root, "skills", "review")
+	if err := os.MkdirAll(skillDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	valid := []byte("---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	if err := os.WriteFile(filepath.Join(skillDirectory, "SKILL.md"), valid, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(root, MVPDescriptors()); err != nil {
+		t.Fatalf("valid bundled skill rejected: %v", err)
+	}
+
+	secret := "PRIVATE-SKILL-INSTRUCTION"
+	if err := os.WriteFile(filepath.Join(skillDirectory, "SKILL.md"), []byte(secret), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(root, MVPDescriptors())
+	if err == nil || strings.Contains(err.Error(), root) || strings.Contains(err.Error(), secret) || !strings.Contains(err.Error(), "skill_manifest_invalid") {
+		t.Fatalf("unsafe bundled skill validation error: %v", err)
+	}
+}
+
 func TestTextArtifactToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 

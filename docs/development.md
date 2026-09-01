@@ -99,6 +99,27 @@ The public/browser foundation and its completion evidence are recorded in
 The complete browser-stack proof is recorded in
 [`v4-011-browser-e2e.yml`](../tasks/v4-011-browser-e2e.yml).
 
+## Bundled Agent Skills
+
+Reviewable built-in Agent Skill sources live only below
+`configs/skills/<name>`. Validate a source tree and create its deterministic,
+script-free package with:
+
+```shell
+go run ./cmd/contractor-skill validate configs/skills/<name>
+go run ./cmd/contractor-skill package configs/skills/<name> /tmp/<name>.zip
+```
+
+At startup the Server validates the complete bundled set before writing any
+artifact, then creates only missing `skills/<name>` bindings in the configured
+local user's UserScope. A restart never treats the filesystem as desired state:
+an existing artifact with different bytes or media type is reported as
+`seed_drift` and remains current. To adopt an edited bundled source, package it
+explicitly and upload the resulting ZIP through the ordinary user Artifact PUT
+with media type `application/vnd.contractor.agent-skill+zip` and the current
+revision precondition. Future Runs use that new binding; existing Runs keep
+their pinned revision.
+
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
 creates a temporary deployment CA, uses an isolated PostgreSQL schema, and

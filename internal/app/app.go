@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -318,6 +319,27 @@ func RunCLI(
 		return fmt.Errorf("configure Runtime Agent lifecycle: %w", err)
 	}
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	skillCatalog, err := agentskills.NewCatalog(artifactService)
+	if err != nil {
+		return fmt.Errorf("configure SkillCatalog: %w", err)
+	}
+	skillSeedPlan, err := agentskills.DiscoverBundled(cfg.OperatorConfigRoot)
+	if err != nil {
+		return fmt.Errorf("discover bundled skills: %w", err)
+	}
+	skillSeedOutcomes, err := skillCatalog.Initialize(ctx, bootstrap.Principal.UserID, skillSeedPlan)
+	if err != nil {
+		return fmt.Errorf("initialize bundled skills: %w", err)
+	}
+	for _, outcome := range skillSeedOutcomes {
+		logger.Info(
+			"bundled skill initialization",
+			"skill", outcome.Name,
+			"outcome", outcome.Status,
+			"bundled_digest", outcome.BundledDigest,
+			"current_digest", outcome.CurrentDigest,
+		)
+	}
 	artifactInspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {
 		return err

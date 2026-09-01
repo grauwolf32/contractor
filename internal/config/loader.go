@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
@@ -80,6 +81,14 @@ func loadConfigurationRoots(
 			return nil, fmt.Errorf("%s root: %w", root.source, resolveErr)
 		}
 		resolvedRoots = append(resolvedRoots, configurationRoot{path: resolved, source: root.source})
+	}
+	for _, root := range resolvedRoots {
+		if root.source != ConfigurationSourceOperator {
+			continue
+		}
+		if _, err := agentskills.DiscoverBundled(root.path); err != nil {
+			return nil, fmt.Errorf("bundled skills: %w", err)
+		}
 	}
 
 	current := &loader{
