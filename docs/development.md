@@ -110,6 +110,12 @@ go run ./cmd/contractor-skill validate configs/skills/<name>
 go run ./cmd/contractor-skill package configs/skills/<name> /tmp/<name>.zip
 ```
 
+`AgentTemplate` is a Server-side configuration term, not Worker guidance.
+Never refer to it from bundled `SKILL.md` or reference content. Conditional
+guidance says that an operation must be visible in the current Worker
+invocation and states what to do when it is absent. The aggregate package gate
+enforces this boundary for all nine bundled packages.
+
 At startup the Server validates the complete bundled set before writing any
 artifact, then creates only missing `skills/<name>` bindings in the configured
 local user's UserScope. A restart never treats the filesystem as desired state:
@@ -170,6 +176,40 @@ reuse:
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-agent-skills-mvp
 ```
+
+Before publishing any bundled-package or Runtime Skill change, run the complete
+bounded gate. It validates the shared adversarial corpus in independent Go and
+Python implementations, packages all nine sources twice, checks the exact
+server-side selection topology, exercises PostgreSQL/CAS and write-fence races,
+and finishes with the real-process proof:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-agent-skills-hardening
+```
+
+The executable ownership map is
+[`tests/e2e/agent_skills_matrix.yml`](../tests/e2e/agent_skills_matrix.yml).
+Keep a new fault or invariant in that matrix and give it one concrete test
+owner; a prose-only hardening claim is not a release gate.
+
+Operational recovery is deliberately Artifact-first:
+
+- `seed_drift` means the database current binding won. Inspect its metadata and
+  immutable versions; never restart repeatedly expecting filesystem content to
+  overwrite it. Publish the intended package with an ordinary `If-Match` CAS.
+- A Run in `initializing` with reason `skill_initialization_pending` is not
+  schedulable. Retryable Artifact failures are recovered by Scheduler using the
+  already selected exact source. Invalid media, digest, archive or missing
+  source terminates only that Run with a bounded `skill_*` code and logical
+  `skills/<name>`; package content and parser text must not appear in logs.
+- A CAS conflict during operator update means current changed independently.
+  Re-read metadata and decide from the new exact revision; do not replay an
+  update without a fresh precondition.
+- `worker_stop_unconfirmed`, `allocation_cleanup_failed`, or a fenced Runtime
+  after Skill extraction cleanup is a process-isolation event. Do not return
+  that slot to service. Replace the Runtime process and inspect/remove its
+  allocation work directory before reusing the same work root.
 
 `resolvedSkills` is a mandatory private allocation field. Even an
 AgentTemplate without skills is sent as `"resolvedSkills": []`; a non-empty

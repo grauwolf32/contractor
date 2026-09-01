@@ -162,6 +162,55 @@ func TestCatalogConcurrentCreateCASReconcilesLoser(t *testing.T) {
 	}
 }
 
+func TestCatalogInitializationRacingOwnerCreateNeverOverwritesCurrent(t *testing.T) {
+	plan := bundledPlan(t, map[string]string{"alpha": "Bundled Alpha."})
+	repository := newMemoryArtifactRepository()
+	barrier := &missingReadBarrier{arrived: make(chan struct{}, 1), release: make(chan struct{})}
+	repository.missingBarrier = barrier
+	service := artifacts.NewService(repository)
+	catalog, _ := NewCatalog(service)
+
+	type initializationResult struct {
+		outcomes []SeedOutcome
+		err      error
+	}
+	initialized := make(chan initializationResult, 1)
+	go func() {
+		outcomes, err := catalog.Initialize(context.Background(), "owner", plan)
+		initialized <- initializationResult{outcomes: outcomes, err: err}
+	}()
+	<-barrier.arrived
+
+	operatorPayload := []byte("operator package B")
+	owner, _ := service.User("owner")
+	created, err := owner.Write(
+		context.Background(),
+		artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "alpha"},
+		artifacts.Payload{MediaType: "application/zip", Data: operatorPayload},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(barrier.release)
+	result := <-initialized
+	if result.err != nil || len(result.outcomes) != 1 ||
+		result.outcomes[0].Status != SeedDrift {
+		t.Fatalf("racing initialization = (%+v, %v)", result.outcomes, result.err)
+	}
+	current, err := owner.Read(
+		context.Background(), artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "alpha"},
+	)
+	if err != nil || current.Ref.Revision == nil || created.Ref.Revision == nil ||
+		*current.Ref.Revision != *created.Ref.Revision ||
+		!bytes.Equal(current.Payload.Data, operatorPayload) {
+		t.Fatalf("catalog overwrote racing owner current: (%+v, %v)", current, err)
+	}
+	if repository.successfulWrites != 1 || repository.revisions != 1 {
+		t.Fatalf("racing create produced %d writes and %d revisions", repository.successfulWrites, repository.revisions)
+	}
+}
+
 func TestBundledDiscoveryIsAllOrNothingAndBounded(t *testing.T) {
 	root := t.TempDir()
 	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {

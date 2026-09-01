@@ -83,6 +83,16 @@ The distinction between instructions and skills is strict:
 - there is no `requiredSkills`, activation mode, Workflow/Stage/Run override or
   Planner-selected skill in this version.
 
+`AgentTemplate` is a Server-side selection and provenance abstraction. Its
+name, ref and catalog mechanics are not part of Worker-facing Skill guidance.
+Contractor-provided `SKILL.md` files and resources therefore never tell the
+model that a Skill or operation was selected by an AgentTemplate. When guidance
+depends on another capability, it refers only to an operation visible in the
+current Worker invocation and defines the behavior when that operation is
+absent. Server configuration, migration documents and selection tests may use
+the AgentTemplate term because they describe the control-plane side of this
+boundary.
+
 AgentTemplate configuration loading validates ref syntax, uniqueness and
 limits but does not read ArtifactStore. Run initialization fails before
 scheduling if the owner has no valid current artifact for any declared ref.

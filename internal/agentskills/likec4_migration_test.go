@@ -74,7 +74,7 @@ func assertLikeC4ReferencesResolve(t *testing.T, skill *Package) {
 
 	legacyTokens := []string{
 		"skills_read", "skills_list", "index is always in memory",
-		"/home/ruslan/", "validate_likec4(path=",
+		"AgentTemplate", "/home/ruslan/", "validate_likec4(path=",
 	}
 	for memberPath, data := range members {
 		text := string(data)

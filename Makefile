@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-mvp test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -39,10 +39,29 @@ test-agent-skill-contract:
 	go test -race ./internal/agentskills/... ./cmd/contractor-skill/...
 	cd runtime && uv run pytest tests/test_agent_skill_package.py
 
+test-agent-skills-matrix:
+	go test -count=1 ./tests/e2e -run '^TestAgentSkills(HardeningMatrixIsComplete|UseOnlyArtifactPlaneInventories)$$'
+
+test-agent-skills-runtime-hardening:
+	cd runtime && uv run pytest -W error tests/test_agent_skill_package.py tests/test_agent_skill_toolset.py tests/test_agent_skill_lifecycle.py tests/test_run_artifacts_toolset.py
+
+test-agent-skills-races:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	go test -race -count=1 -timeout=4m ./internal/agentskills/... ./internal/artifacts/... ./internal/app/... ./internal/httpapi/privateartifacts/... ./internal/httpapi/public/... ./internal/runstore/... ./internal/scheduler/...
+
 test-agent-skills-mvp:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
 	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestAgentSkillsMVPProcesses$$'
+
+test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract test-migrated-agent-skills test-agent-skills-runtime-hardening
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	$(MAKE) test-agent-skills-races
+	$(MAKE) test-agent-skills-mvp
+
+test-migrated-agent-skills: test-migrated-agent-skills-analysis test-migrated-agent-skills-live
+	go test -count=1 ./internal/agentskills/... -run '^(TestRepositoryLikeC4SkillMigrationIsCompleteAndDeterministic|TestMigratedAgentSkillsAreDeterministicAndWorkerFacing)$$'
+	go test -count=1 ./internal/config/... -run '^(TestRepositoryLikeC4SkillTemplateVersionBoundary|TestRepositoryLiveSkillCompatibilityBoundary)$$'
 
 test-migrated-agent-skills-analysis:
 	go test -count=1 ./internal/agentskills/... -run '^TestMigratedAnalysisSkill'
@@ -229,4 +248,4 @@ build:
 
 verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix
 
-release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening
+release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening

@@ -32,7 +32,7 @@ type packageFixture struct {
 
 func TestSharedPackageCorpus(t *testing.T) {
 	fixtures := loadPackageFixtures(t)
-	if fixtures.SchemaVersion != "1.0" || len(fixtures.Cases) < 20 {
+	if fixtures.SchemaVersion != "1.0" || len(fixtures.Cases) < 30 {
 		t.Fatalf("unexpected shared corpus: %#v", fixtures)
 	}
 	for _, fixture := range fixtures.Cases {
@@ -180,8 +180,24 @@ func TestEntryCountAndExpandedAggregateLimits(t *testing.T) {
 func TestManifestAndPathBoundaries(t *testing.T) {
 	exactDescription := strings.Repeat("d", MaximumDescriptionBytes)
 	exactName := strings.Repeat("a", 64)
+	exactLicense := strings.Repeat("l", MaximumLicenseBytes)
+	exactCompatibility := strings.Repeat("c", MaximumCompatibilityBytes)
+	exactMetadataKey := strings.Repeat("k", 64)
+	exactMetadataValue := strings.Repeat("v", MaximumMetadataValueBytes)
 	frontmatterPrefix := "name: boundary\ndescription: Boundary.\n"
 	exactFrontmatter := frontmatterPrefix + "#" + strings.Repeat("x", MaximumFrontmatterBytes-len(frontmatterPrefix)-1)
+	metadataEntries := func(count int) string {
+		var result strings.Builder
+		result.WriteString("metadata:\n")
+		for index := range count {
+			fmt.Fprintf(&result, "  key%02d: value\n", index)
+		}
+		return result.String()
+	}
+	nodeHeavy := strings.Builder{}
+	for index := range 63 {
+		fmt.Fprintf(&nodeHeavy, "unknown%02d: value\n", index)
+	}
 	tests := []struct {
 		name     string
 		manifest []byte
@@ -191,6 +207,18 @@ func TestManifestAndPathBoundaries(t *testing.T) {
 		{name: "name over", manifest: skillDocument(strings.Repeat("a", 65), "Over.", ""), code: CodeLimitExceeded},
 		{name: "description exact", manifest: skillDocument("boundary", exactDescription, "")},
 		{name: "description over", manifest: skillDocument("boundary", exactDescription+"d", ""), code: CodeLimitExceeded},
+		{name: "license exact", manifest: skillDocument("boundary", "Boundary.", "license: "+exactLicense+"\n")},
+		{name: "license over", manifest: skillDocument("boundary", "Boundary.", "license: "+exactLicense+"l\n"), code: CodeLimitExceeded},
+		{name: "compatibility exact", manifest: skillDocument("boundary", "Boundary.", "compatibility: "+exactCompatibility+"\n")},
+		{name: "compatibility over", manifest: skillDocument("boundary", "Boundary.", "compatibility: "+exactCompatibility+"c\n"), code: CodeLimitExceeded},
+		{name: "metadata entries exact", manifest: skillDocument("boundary", "Boundary.", metadataEntries(MaximumMetadataEntries))},
+		{name: "metadata entries over", manifest: skillDocument("boundary", "Boundary.", metadataEntries(MaximumMetadataEntries+1)), code: CodeLimitExceeded},
+		{name: "metadata key exact", manifest: skillDocument("boundary", "Boundary.", "metadata:\n  "+exactMetadataKey+": value\n")},
+		{name: "metadata key over", manifest: skillDocument("boundary", "Boundary.", "metadata:\n  "+exactMetadataKey+"k: value\n"), code: CodeLimitExceeded},
+		{name: "metadata value exact", manifest: skillDocument("boundary", "Boundary.", "metadata:\n  key: "+exactMetadataValue+"\n")},
+		{name: "metadata value over", manifest: skillDocument("boundary", "Boundary.", "metadata:\n  key: "+exactMetadataValue+"v\n"), code: CodeLimitExceeded},
+		{name: "YAML node overflow", manifest: skillDocument("boundary", "Boundary.", nodeHeavy.String()), code: CodeLimitExceeded},
+		{name: "YAML depth overflow", manifest: skillDocument("boundary", "Boundary.", "metadata:\n  key:\n    nested: value\n"), code: CodeLimitExceeded},
 		{name: "frontmatter exact", manifest: []byte("---\n" + exactFrontmatter + "\n---\n# Body\n")},
 		{name: "frontmatter over", manifest: []byte("---\n" + exactFrontmatter + "#\n---\n# Body\n"), code: CodeLimitExceeded},
 	}
@@ -225,6 +253,20 @@ func TestManifestAndPathBoundaries(t *testing.T) {
 	}
 	if _, err := Validate(makeTestZIP(t, zip.Store, []testEntry{{"SKILL.md", base, 0}, {path + "d", nil, 0}}), "boundary"); ErrorCode(err) != CodePathInvalid {
 		t.Fatalf("path overflow error = %v", err)
+	}
+	exactComponent := "assets/" + strings.Repeat("a", 128)
+	if _, err := Validate(makeTestZIP(t, zip.Store, []testEntry{{"SKILL.md", base, 0}, {exactComponent, nil, 0}}), "boundary"); err != nil {
+		t.Fatalf("exact component boundary rejected: %v", err)
+	}
+	if _, err := Validate(makeTestZIP(t, zip.Store, []testEntry{{"SKILL.md", base, 0}, {exactComponent + "a", nil, 0}}), "boundary"); ErrorCode(err) != CodePathInvalid {
+		t.Fatalf("component overflow error = %v", err)
+	}
+	exactComponents := "assets/a/b/c/d/e/f/g"
+	if _, err := Validate(makeTestZIP(t, zip.Store, []testEntry{{"SKILL.md", base, 0}, {exactComponents, nil, 0}}), "boundary"); err != nil {
+		t.Fatalf("exact path component count rejected: %v", err)
+	}
+	if _, err := Validate(makeTestZIP(t, zip.Store, []testEntry{{"SKILL.md", base, 0}, {exactComponents + "/h", nil, 0}}), "boundary"); ErrorCode(err) != CodePathInvalid {
+		t.Fatalf("path component count overflow error = %v", err)
 	}
 }
 

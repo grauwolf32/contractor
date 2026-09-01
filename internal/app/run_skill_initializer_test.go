@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,7 +83,8 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	initialized, err := (&runSkillInitializer{pool: pool}).InitializeRunSkills(ctx, "run-skill-init")
+	initializer := &runSkillInitializer{pool: pool}
+	initialized, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
 	if err != nil || initialized.State != runstore.RunRunning ||
 		len(initialized.SkillSnapshot) != 1 || initialized.SkillSnapshot[0].Artifact == nil ||
 		initialized.SkillSnapshot[0].Source == nil ||
@@ -101,9 +103,78 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		*lineage[0].Source.Revision != *created.Ref.Revision {
 		t.Fatalf("Run Skill lineage = (%+v, %v)", lineage, err)
 	}
+	replayed, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
+	if err != nil || replayed.State != runstore.RunRunning ||
+		replayed.SkillSnapshot[0].Artifact == nil ||
+		*replayed.SkillSnapshot[0].Artifact.Revision != *initialized.SkillSnapshot[0].Artifact.Revision ||
+		*replayed.SkillSnapshot[0].Source.Revision != *created.Ref.Revision {
+		t.Fatalf("post-commit response-loss replay = (%+v, %v)", replayed, err)
+	}
+}
+
+func TestPostgresRunSkillInitializerRollsBackInvalidSetAndDoesNotBlockAnotherRun(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAppPool(t, ctx)
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	owner, _ := service.User("owner-1")
+	validPayload := appSkillPackageForName(t, "alpha", "Valid package.")
+	valid, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "alpha"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: validPayload},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidCanary := "invalid-skill-content-recognizable-canary"
+	if _, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "omega-invalid"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: []byte(invalidCanary)},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidWorkflow := appSkillWorkflowWithNames(t, "alpha", "omega-invalid")
+	createAppSkillRunSelection(t, ctx, pool, invalidWorkflow, "run-invalid-skills")
+	initializer := &runSkillInitializer{pool: pool}
+	failed, err := initializer.InitializeRunSkills(ctx, "run-invalid-skills")
+	if err != nil || failed.State != runstore.RunFailed ||
+		failed.StateReason.Code != agentskills.CodeArchiveInvalid ||
+		failed.StateReason.Message != "skills/omega-invalid" ||
+		strings.Contains(failed.StateReason.Message, invalidCanary) {
+		t.Fatalf("invalid Skill Run termination = (%+v, %v)", failed, err)
+	}
+	var partialForks int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*)
+FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = 'run-invalid-skills'
+  AND namespace = 'skills'`).Scan(&partialForks); err != nil {
+		t.Fatal(err)
+	}
+	if partialForks != 0 {
+		t.Fatalf("invalid package set committed %d partial Run Skill forks", partialForks)
+	}
+
+	validWorkflow := appSkillWorkflowWithNames(t, "alpha")
+	createAppSkillRunSelection(t, ctx, pool, validWorkflow, "run-valid-after-invalid")
+	running, err := initializer.InitializeRunSkills(ctx, "run-valid-after-invalid")
+	if err != nil || running.State != runstore.RunRunning ||
+		len(running.SkillSnapshot) != 1 || running.SkillSnapshot[0].Source == nil ||
+		valid.Ref.Revision == nil || *running.SkillSnapshot[0].Source.Revision != *valid.Ref.Revision {
+		t.Fatalf("unrelated valid Run after invalid package = (%+v, %v)", running, err)
+	}
 }
 
 func appSkillWorkflow(t *testing.T) config.ResolvedWorkflow {
+	return appSkillWorkflowWithNames(t, "review")
+}
+
+func appSkillWorkflowWithNames(t *testing.T, names ...string) config.ResolvedWorkflow {
 	t.Helper()
 	root := copyAppConfigTree(t)
 	path := filepath.Join(root, "agent-templates", "artifact_builder.yaml")
@@ -111,10 +182,18 @@ func appSkillWorkflow(t *testing.T) config.ResolvedWorkflow {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var selection strings.Builder
+	selection.WriteString("  skills:\n")
+	for _, name := range names {
+		selection.WriteString("    - {namespace: skills, name: ")
+		selection.WriteString(name)
+		selection.WriteString("}\n")
+	}
+	selection.WriteString("  sandboxProfile: local-workdir@1\n")
 	data = bytes.Replace(
 		data,
 		[]byte("  sandboxProfile: local-workdir@1\n"),
-		[]byte("  skills: [{namespace: skills, name: review}]\n  sandboxProfile: local-workdir@1\n"),
+		[]byte(selection.String()),
 		1,
 	)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
@@ -132,12 +211,16 @@ func appSkillWorkflow(t *testing.T) config.ResolvedWorkflow {
 }
 
 func appSkillPackage(t *testing.T, description string) []byte {
+	return appSkillPackageForName(t, "review", description)
+}
+
+func appSkillPackageForName(t *testing.T, name, description string) []byte {
 	t.Helper()
-	directory := filepath.Join(t.TempDir(), "review")
+	directory := filepath.Join(t.TempDir(), name)
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	document := "---\nname: review\ndescription: " + description + "\n---\n# Review\n"
+	document := "---\nname: " + name + "\ndescription: " + description + "\n---\n# Review\n"
 	if err := os.WriteFile(filepath.Join(directory, "SKILL.md"), []byte(document), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -146,6 +229,52 @@ func appSkillPackage(t *testing.T, description string) []byte {
 		t.Fatal(err)
 	}
 	return payload
+}
+
+func createAppSkillRunSelection(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	workflow config.ResolvedWorkflow,
+	runID string,
+) {
+	t.Helper()
+	workflowSnapshot, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresStore(tx)
+		catalog, err := agentskills.NewCatalog(
+			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+		)
+		if err != nil {
+			return err
+		}
+		refs, err := config.WorkflowSkillRefs(workflow)
+		if err != nil {
+			return err
+		}
+		selected, err := catalog.SelectRunSources(ctx, "owner-1", refs)
+		if err != nil {
+			return err
+		}
+		if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+			RunID: runID, OwnerID: "owner-1",
+			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		}); err != nil {
+			return err
+		}
+		if err := store.SetRunSkillSelections(ctx, runID, selected); err != nil {
+			return err
+		}
+		return catalog.PinRunSources(ctx, "owner-1", runID, selected)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func copyAppConfigTree(t *testing.T) string {

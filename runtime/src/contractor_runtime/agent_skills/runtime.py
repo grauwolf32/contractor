@@ -360,17 +360,6 @@ class ContractorSkillTool(BaseTool):
                     native_code = _native_error_code(result)
                     if native_code is not None:
                         error = SkillToolError(native_code)
-                    if (
-                        error is None
-                        and self.name == "load_skill_resource"
-                        and isinstance(result, Mapping)
-                        and isinstance(result.get("status"), str)
-                    ):
-                        owner.authorize_binary(
-                            tool_context.invocation_id,
-                            skill_name,
-                            file_path,
-                        )
                     binary = (
                         owner.binary_resources.get((skill_name, file_path))
                         if error is None
@@ -390,6 +379,16 @@ class ContractorSkillTool(BaseTool):
                             "Agent Skill result was suppressed by Runtime policy.",
                         )
                         visible_bytes = _json_bytes(result)
+                    elif binary is not None:
+                        # Authorization is created only after the complete
+                        # model-visible result passed the conservative size
+                        # check. A suppressed or failed native response must
+                        # not leave a consumable binary capability behind.
+                        owner.authorize_binary(
+                            tool_context.invocation_id,
+                            skill_name,
+                            file_path,
+                        )
 
         if visible_bytes == 0:
             visible_bytes = _json_bytes(result)

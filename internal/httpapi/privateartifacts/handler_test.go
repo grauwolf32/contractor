@@ -55,6 +55,30 @@ func TestPrivateArtifactReadDerivesRunScopeOnlyFromAllocation(t *testing.T) {
 	assertArtifactTimestampHeaders(t, response.Header(), artifactTestEpoch, artifactTestEpoch)
 }
 
+func TestPrivateArtifactSkillReadRequiresTheLiveAllocationGrant(t *testing.T) {
+	repository := newMemoryRepository()
+	canary := []byte("selected-skill-body-canary")
+	repository.seed("run-a", "skills", "likec4", "revision-skill", canary)
+	registry := &fakeRegistry{grant: testGrant("run-a")}
+	handler := newTestHandler(t, registry, repository)
+	target := "/private/v1/allocations/allocation-1/artifacts/skills/likec4?revision=revision-skill"
+
+	live := httptest.NewRecorder()
+	handler.ServeHTTP(live, trustedRequest(http.MethodGet, target, nil))
+	if live.Code != http.StatusOK || !bytes.Equal(live.Body.Bytes(), canary) {
+		t.Fatalf("live exact Skill read = %d %q", live.Code, live.Body.Bytes())
+	}
+
+	registry.mu.Lock()
+	registry.grant = controlplane.AllocationGrant{}
+	registry.mu.Unlock()
+	stale := httptest.NewRecorder()
+	handler.ServeHTTP(stale, trustedRequest(http.MethodGet, target, nil))
+	if stale.Code != http.StatusNotFound || bytes.Contains(stale.Body.Bytes(), canary) {
+		t.Fatalf("released allocation Skill read = %d %s", stale.Code, stale.Body.String())
+	}
+}
+
 func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	repository := newMemoryRepository()
 	registry := &fakeRegistry{grant: testGrant("run-a")}
@@ -100,6 +124,14 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	}
 	if _, exists := repository.current("run-a", "outputs", "result"); exists {
 		t.Fatal("reserved output write reached the repository")
+	}
+
+	skill := putArtifact(t, handler, "skills", "likec4", "*", []byte("forbidden package"))
+	if skill.Code != http.StatusForbidden {
+		t.Fatalf("Skill write = %d %s", skill.Code, skill.Body.String())
+	}
+	if _, exists := repository.current("run-a", "skills", "likec4"); exists {
+		t.Fatal("reserved Skill write reached the repository")
 	}
 }
 

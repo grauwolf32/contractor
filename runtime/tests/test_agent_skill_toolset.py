@@ -90,7 +90,13 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
             assert "load_skill" in instruction
             assert all(
                 forbidden not in instruction
-                for forbidden in ("run_skill_script", "search_skills", "scripts/")
+                for forbidden in (
+                    "run_skill_script",
+                    "search_skills",
+                    "scripts/",
+                    "AgentTemplate",
+                    "agent template",
+                )
             )
         assert state.metrics.counters["tool_calls"] == 3
         assert [call.tool for call in state.metrics.tool_calls] == list(EXACT_SKILL_TOOL_NAMES)
@@ -247,7 +253,64 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
     asyncio.run(scenario())
 
 
-def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path) -> None:
+def test_concurrent_disclosure_reservations_stop_at_the_exact_allocation_limit(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        payload = skill_package()
+        selected, value = resolved_value(payload)
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="allocation-1",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None
+        charge = prepared.charge_for("list_skills")
+        prepared.disclosure = DisclosureBudget(
+            used=MAXIMUM_DISCLOSURE_BYTES - 3 * charge,
+        )
+        state = WorkerState()
+        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+        results = await asyncio.gather(
+            *(
+                tools["list_skills"].run_async(
+                    args={},
+                    tool_context=FakeToolContext(f"invocation-{index}"),  # type: ignore[arg-type]
+                )
+                for index in range(12)
+            )
+        )
+        rejected = [
+            result
+            for result in results
+            if isinstance(result, dict) and result.get("error_code") == "SKILL_DISCLOSURE_LIMIT"
+        ]
+        assert len(rejected) == 9
+        assert prepared.disclosure.used == MAXIMUM_DISCLOSURE_BYTES
+        assert state.metrics.counters["tool_calls"] == 12
+        assert state.metrics.counters["tool_errors"] == 9
+        await prepared.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "../../recognizable-private-path",
+        "references/../recognizable-private-path",
+        "references/%2e%2e/recognizable-private-path",
+        "references//recognizable-private-path",
+        r"references\recognizable-private-path",
+        "/references/recognizable-private-path",
+        "references/приватный-path",
+        "references/recognizable-private-path\x00",
+    ],
+)
+def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path, raw: str) -> None:
     async def scenario() -> None:
         payload = skill_package()
         selected, value = resolved_value(payload)
@@ -262,7 +325,6 @@ def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path) 
         state = WorkerState()
         adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
-        raw = "../../recognizable-private-path"
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": raw},
             tool_context=FakeToolContext(),  # type: ignore[arg-type]
@@ -272,6 +334,73 @@ def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path) 
         assert raw not in snapshot
         assert state.metrics.tool_calls[0].arguments == {"arguments_valid": False}
         assert prepared.disclosure.used == 0
+        await prepared.close()
+
+    asyncio.run(scenario())
+
+
+def test_binary_resource_authorization_is_single_use_and_invocation_local(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        payload = skill_package()
+        selected, value = resolved_value(payload)
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="allocation-1",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None
+        state = WorkerState()
+        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+        context = FakeToolContext("invocation-binary")
+        result = await tools["load_skill_resource"].run_async(
+            args={"skill_name": "demo", "file_path": "assets/pixel.bin"},
+            tool_context=context,  # type: ignore[arg-type]
+        )
+        assert isinstance(result, dict) and isinstance(result.get("status"), str)
+        assert prepared.consume_binary("invocation-foreign", "demo", "assets/pixel.bin") is None
+        assert (
+            prepared.consume_binary("invocation-binary", "demo", "assets/pixel.bin")
+            == b"\xff\x00\xfe"
+        )
+        assert prepared.consume_binary("invocation-binary", "demo", "assets/pixel.bin") is None
+        await prepared.close()
+
+    asyncio.run(scenario())
+
+
+def test_oversized_native_result_is_suppressed_without_binary_authorization(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        payload = skill_package()
+        selected, value = resolved_value(payload)
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="allocation-1",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None
+        state = WorkerState()
+        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+        charge = prepared.charge_for("load_skill_resource", "demo", "assets/pixel.bin")
+        tools["load_skill_resource"]._native = OversizedBinaryNativeTool(charge)  # type: ignore[attr-defined]
+        context = FakeToolContext("invocation-oversized")
+        result = await tools["load_skill_resource"].run_async(
+            args={"skill_name": "demo", "file_path": "assets/pixel.bin"},
+            tool_context=context,  # type: ignore[arg-type]
+        )
+        assert result["error_code"] == "SKILL_DISCLOSURE_ESTIMATE_INVALID"
+        assert prepared.consume_binary("invocation-oversized", "demo", "assets/pixel.bin") is None
+        retained = json.dumps(state.metrics.snapshot(), sort_keys=True)
+        assert "oversized-native-result-canary" not in retained
         await prepared.close()
 
     asyncio.run(scenario())
@@ -292,10 +421,10 @@ class FakeSkillClient:
 
 
 class FakeToolContext:
-    invocation_id = "invocation-1"
     agent_name = "contractor_worker"
 
-    def __init__(self) -> None:
+    def __init__(self, invocation_id: str = "invocation-1") -> None:
+        self.invocation_id = invocation_id
         self.state: dict[str, Any] = {}
 
 
@@ -308,6 +437,20 @@ class ExplodingNativeTool(BaseTool):
         del args, tool_context
         self.calls += 1
         raise RuntimeError("private native failure")
+
+
+class OversizedBinaryNativeTool(BaseTool):
+    def __init__(self, charge: int) -> None:
+        super().__init__(name="load_skill_resource", description="oversized")
+        self._charge = charge
+
+    async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
+        del args, tool_context
+        return {
+            "skill_name": "demo",
+            "file_path": "assets/pixel.bin",
+            "status": "oversized-native-result-canary" + "x" * self._charge,
+        }
 
 
 def skill_package() -> bytes:

@@ -1,0 +1,99 @@
+schema_version: "1.0"
+
+policy:
+  worker_content: >-
+    AgentTemplate is a Server-side selection abstraction. Bundled SKILL.md and
+    resources describe only the current Worker invocation and visible
+    operations; no template identity or catalog mechanism enters model context.
+  authority: >-
+    Skills add guidance only. Exact RunScope packages are immutable, hidden
+    from generic model Artifact tools and readable by native loading only while
+    the mTLS principal, Runtime instance and allocation grant all match.
+  retention: >-
+    Package bodies and resource bytes may exist in Artifact blobs and transient
+    LLM conversation content, but reports, lifecycle events, errors, logs and
+    telemetry retain only bounded names, paths, counts, outcomes and codes.
+
+cases:
+  - id: dual_validator_corpus
+    covers: [A1]
+    faults: [F01]
+    expected: Independent Go and Python validators consume the same safe and adversarial exact ZIP bytes with identical outcomes.
+    test: {source: internal/agentskills/validate_test.go, symbol: TestSharedPackageCorpus}
+  - id: exact_package_bounds
+    covers: [A1]
+    faults: [F02]
+    expected: Stored, expanded, entry, member, manifest, frontmatter and path boundaries accept the exact limit and reject one byte or entry more.
+    test: {source: internal/agentskills/validate_test.go, symbol: TestPackageLimitsAreStreamedAndExact}
+  - id: migrated_inventory_and_worker_boundary
+    covers: [A5]
+    faults: [F03]
+    expected: All nine packages are deterministic and no model-visible Markdown exposes AgentTemplate vocabulary.
+    test: {source: internal/agentskills/hardening_test.go, symbol: TestMigratedAgentSkillsAreDeterministicAndWorkerFacing}
+  - id: create_only_catalog_race
+    covers: [A2]
+    faults: [F04]
+    expected: An owner create winning after the seed missing-read remains current and the create-only catalog reports drift without another revision.
+    test: {source: internal/agentskills/catalog_test.go, symbol: TestCatalogInitializationRacingOwnerCreateNeverOverwritesCurrent}
+  - id: exact_run_selection_and_response_loss
+    covers: [A2]
+    faults: [F05]
+    expected: Owner current may advance after selection while initialization and post-commit replay keep the same exact source and Run fork.
+    test: {source: internal/app/run_skill_initializer_test.go, symbol: TestPostgresRunSkillInitializerUsesCommittedExactSelection}
+  - id: invalid_set_transaction_rollback
+    covers: [A2, A4]
+    faults: [F06]
+    expected: One invalid package fails its Run with a bounded code, commits no partial fork and does not prevent another valid Run from initializing.
+    test: {source: internal/app/run_skill_initializer_test.go, symbol: TestPostgresRunSkillInitializerRollsBackInvalidSetAndDoesNotBlockAnotherRun}
+  - id: generic_model_visibility
+    covers: [A3]
+    faults: [F07]
+    expected: Generic list, read, write and cached exact-ref surfaces reject skills before calling the private Artifact client.
+    test: {source: runtime/tests/test_run_artifacts_toolset.py, symbol: test_reserved_skills_namespace_is_hidden_before_generic_client_access}
+  - id: allocation_grant_lifetime
+    covers: [A3]
+    faults: [F08]
+    expected: Exact native package reads work only while the principal-bound allocation grant is live and disclose nothing after release.
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactSkillReadRequiresTheLiveAllocationGrant}
+  - id: public_owner_isolation
+    covers: [A3]
+    expected: The authenticated Run owner can inspect exact Artifact history and lineage while a foreign owner receives not-found before repository disclosure.
+    test: {source: internal/httpapi/public/query_handlers_test.go, symbol: TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership}
+  - id: terminal_write_fence
+    covers: [A3]
+    faults: [F09]
+    expected: A production allocation write racing a terminal fence has one linearized winner and no late mutation.
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactProductionGrantFenceWinsWhileBodyArrives}
+  - id: disclosure_estimate_and_binary_capability
+    covers: [A1, A4]
+    faults: [F10]
+    expected: An oversized native result is suppressed content-free and leaves no single-use binary authorization.
+    test: {source: runtime/tests/test_agent_skill_toolset.py, symbol: test_oversized_native_result_is_suppressed_without_binary_authorization}
+  - id: cleanup_failure_fences_process
+    covers: [A4]
+    faults: [F11]
+    expected: Extraction deletion failure clears in-memory Skill state, fences the Runtime and requests process exit instead of returning the slot idle.
+    test: {source: runtime/tests/test_agent_skill_lifecycle.py, symbol: test_skill_deletion_failure_fences_and_forces_process_exit}
+  - id: real_process_pin_cleanup_and_redaction
+    covers: [A2, A3, A4, A5]
+    faults: [F12]
+    expected: Real Server and Runtime processes prove A/B pinning, native calls, cleanup, empty-Skill reuse, content-free reports/WebSocket/OTLP/logs and no Skill-specific route/table.
+    test: {source: tests/e2e/agent_skills_test.go, symbol: TestAgentSkillsMVPProcesses}
+  - id: exact_server_selection_topology
+    covers: [A5]
+    expected: Exactly likec4_builder@2 and likec4_validator@2 select skills/likec4; every other current server template remains unskilled.
+    test: {source: internal/config/likec4_skill_versions_test.go, symbol: TestRepositoryLikeC4SkillTemplateVersionBoundary}
+  - id: artifact_plane_only_inventory
+    covers: [A5]
+    expected: Static public/private routes and migrations contain no Skill-specific endpoint, table or SystemScope.
+    test: {source: tests/e2e/agent_skills_matrix_test.go, symbol: TestAgentSkillsUseOnlyArtifactPlaneInventories}
+
+gates:
+  - {id: matrix, command: make test-agent-skills-matrix}
+  - {id: corpus, command: make test-agent-skill-contract}
+  - {id: packages, command: make test-migrated-agent-skills}
+  - {id: runtime, command: make test-agent-skills-runtime-hardening}
+  - {id: races, command: make test-agent-skills-races}
+  - {id: process, command: make test-agent-skills-mvp}
+  - {id: hardening, command: make test-agent-skills-hardening}
+  - {id: release, command: make release-verify}

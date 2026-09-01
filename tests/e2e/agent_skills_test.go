@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -19,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,6 +38,11 @@ type agentSkillPackageVariant struct {
 type agentSkillRunEvidence struct {
 	lastAllocationID  string
 	runtimeInstanceID string
+}
+
+var bundledAgentSkillNames = []string{
+	"auth", "caido", "code-exec", "exploit", "likec4",
+	"stride", "trace", "vuln-scan", "vulns",
 }
 
 func TestAgentSkillsMVPProcesses(t *testing.T) {
@@ -92,6 +100,11 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	runtimeBaseURL := "https://" + runtimeAddress
 	userID := "agent-skills-e2e-user-" + randomHex(t, 8)
 	localAuthFile := writeE2ELocalAuth(t, temporaryRoot, userID)
+	masterKeyFile := filepath.Join(temporaryRoot, "credential-master-key")
+	masterKey := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x6b}, 32))
+	if err := os.WriteFile(masterKeyFile, []byte(masterKey), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	startServer := func(name string) *childProcess {
 		return startProcess(t, name, repositoryRoot, map[string]string{
 			"CONTRACTOR_DATABASE_URL":            isolateURL,
@@ -107,10 +120,13 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 			"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
 			"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
 			"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
-		}, serverBinary, "serve")
+		}, serverBinary, "serve", "--credential-master-key-file", masterKeyFile)
 	}
 
 	publicClient := &http.Client{Timeout: 8 * time.Second}
+	otlpCredentialCanary := "AGENT_SKILLS_OTLP_CREDENTIAL_CANARY"
+	otlpCollector := newFakeOTLPCollector(otlpCredentialCanary)
+	t.Cleanup(otlpCollector.close)
 	firstServer := startServer("Go Server initial Skill seed")
 	waitForHTTP(t, ctx, firstServer, publicClient, publicBaseURL+"/readyz", http.StatusOK)
 	seedA := assertAgentSkillCatalogAPI(
@@ -162,10 +178,24 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		"--work-root", workRoot,
 		"--request-timeout-seconds", "12",
 		"--shutdown-grace-seconds", "5",
+		"--runtime-adapter", "otlp-http@1",
 	)
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
+	operations := &runtimeOperations{t: t, client: publicClient, baseURL: publicBaseURL}
+	operations.createRuntimeCredential(
+		"agent-skills-otel", "otlp-headers@1",
+		map[string]any{"headers": map[string]string{"x-contractor-token": otlpCredentialCanary}},
+	)
+	skillTelemetry := operations.publishRuntimeConfig("agent-skills-debug", "1", map[string]any{
+		"worker": map[string]any{"telemetry": map[string]any{
+			"adapter": "otlp-http@1", "endpoint": otlpCollector.URL(),
+			"credential": "agent-skills-otel", "captureContent": false,
+			"flushTimeoutSeconds": 2,
+		}},
+	})
+	operations.createRuntimeLabel("agent-skills-debug", skillTelemetry)
 
 	blockerInput := uploadInput(t, publicClient, publicBaseURL)
 	blockerRunID := createRun(t, publicClient, publicBaseURL, blockerInput)
@@ -186,6 +216,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	inputs := map[string]artifactRef{"source": source, "existing_likec4": seed}
 	oldRunID := createAgentSkillWorkflowRun(
 		t, publicClient, publicBaseURL, "agent-skills-old-a", inputs,
+		[]string{"agent-skills-debug"},
 	)
 	store := runstore.NewPostgresStore(pool)
 	assertPendingAgentSkillSelection(
@@ -208,6 +239,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 
 	newRunID := createAgentSkillWorkflowRun(
 		t, publicClient, publicBaseURL, "agent-skills-new-b", inputs,
+		[]string{"agent-skills-debug"},
 	)
 	assertPendingAgentSkillSelection(
 		t, ctx, store, newRunID, *updatedB.Revision, packageB,
@@ -241,6 +273,16 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		t.Fatalf("A/B Runs used different Runtime slots: %q != %q",
 			oldEvidence.runtimeInstanceID, newEvidence.runtimeInstanceID)
 	}
+	assertAgentSkillDiagnosticsRedacted(t, ctx, pool, oldRunID, fixture)
+	assertAgentSkillDiagnosticsRedacted(t, ctx, pool, newRunID, fixture)
+	assertAgentSkillWebSocketReplayRedacted(
+		t, publicClient, publicBaseURL, oldRunID,
+		mustAgentSkillRunCursor(t, ctx, store, oldRunID), fixture,
+	)
+	assertAgentSkillWebSocketReplayRedacted(
+		t, publicClient, publicBaseURL, newRunID,
+		mustAgentSkillRunCursor(t, ctx, store, newRunID), fixture,
+	)
 
 	reuseRunID := createWorkflowRun(
 		t, publicClient, publicBaseURL, "artifact-copy@1", "agent-skills-empty-reuse", blockerInput,
@@ -267,6 +309,16 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
 		reuseEvidence.lastAllocationID, workRoot,
 	)
+	assertOTLPPayloadSafe(
+		t, otlpCollector.payloads(), otlpCredentialCanary,
+		fixture.PackageACanary, fixture.PackageBCanary,
+	)
+	if failures := otlpCollector.failuresSnapshot(); len(failures) != 0 {
+		t.Fatalf("Agent Skill OTLP collector failures: %v", failures)
+	}
+	for _, payload := range otlpCollector.payloads() {
+		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
+	}
 
 	if gateway.CompletedStages() != 11 || gateway.Calls() != 82 || len(gateway.Failures()) != 0 {
 		t.Fatalf("Agent Skill gateway stages/calls/failures = %d/%d/%v, want 11/82/none",
@@ -282,7 +334,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		string(mustJSON(t, oldStatus)), string(mustJSON(t, newStatus)),
 		strings.Join(gateway.Failures(), "\n"),
 	)
-	for _, secret := range []string{publicToken, llmGatewayToken} {
+	for _, secret := range []string{publicToken, llmGatewayToken, otlpCredentialCanary} {
 		if strings.Contains(firstServer.logs.redacted(), secret) ||
 			strings.Contains(server.logs.redacted(), secret) ||
 			strings.Contains(runtimeProcess.logs.redacted(), secret) {
@@ -389,16 +441,28 @@ func assertAgentSkillCatalogAPI(
 		Page  json.RawMessage      `json:"page"`
 	}
 	getAuthenticatedJSON(t, client, baseURL+"/v1/artifacts?namespace=skills", &page)
-	if len(page.Items) != 1 || page.Items[0].Ref.Namespace != "skills" ||
-		page.Items[0].Ref.Name != name || page.Items[0].Ref.Revision == nil ||
-		page.Items[0].MediaType != agentskills.MediaType || !page.Items[0].Current {
+	if len(page.Items) != len(bundledAgentSkillNames) {
 		t.Fatalf("bundled Skill Artifact list = %+v", page.Items)
+	}
+	var selected *artifacts.Metadata
+	for index := range page.Items {
+		item := &page.Items[index]
+		if item.Ref.Namespace != "skills" || item.Ref.Name != bundledAgentSkillNames[index] ||
+			item.Ref.Revision == nil || item.MediaType != agentskills.MediaType || !item.Current {
+			t.Fatalf("bundled Skill Artifact %d = %+v", index, item)
+		}
+		if item.Ref.Name == name {
+			selected = item
+		}
+	}
+	if selected == nil {
+		t.Fatalf("bundled Skill Artifact list omits %q", name)
 	}
 	var metadata artifacts.Metadata
 	getAuthenticatedJSON(
 		t, client, baseURL+"/v1/artifacts/skills/"+url.PathEscape(name)+"/metadata", &metadata,
 	)
-	if !sameAgentSkillArtifactRef(metadata.Ref, page.Items[0].Ref) ||
+	if !sameAgentSkillArtifactRef(metadata.Ref, selected.Ref) ||
 		metadata.MediaType != agentskills.MediaType ||
 		metadata.Size != int64(len(want.payload)) || !metadata.Current || metadata.Frozen {
 		t.Fatalf("bundled Skill metadata = %+v", metadata)
@@ -477,15 +541,20 @@ func createAgentSkillWorkflowRun(
 	client *http.Client,
 	baseURL, idempotencyKey string,
 	inputs map[string]artifactRef,
+	labels []string,
 ) string {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{
+	requestBody := map[string]any{
 		"workflow": "likec4-from-source@3",
 		"parameters": map[string]string{
 			"objective": "Model the implemented API and architecture boundaries",
 		},
 		"artifacts": inputs,
-	})
+	}
+	if labels != nil {
+		requestBody["labels"] = labels
+	}
+	body, err := json.Marshal(requestBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -771,12 +840,183 @@ func assertAgentSkillCanariesAbsent(
 	values ...string,
 ) {
 	t.Helper()
+	canaries := []string{fixture.PackageACanary, fixture.PackageBCanary}
 	for _, value := range values {
-		if strings.Contains(value, fixture.PackageACanary) ||
-			strings.Contains(value, fixture.PackageBCanary) {
-			t.Fatal("Agent Skill content canary escaped a model response or test assertion")
+		for _, canary := range canaries {
+			for _, form := range agentSkillCanaryForms(canary) {
+				if strings.Contains(value, form) {
+					t.Fatalf("Agent Skill content canary form %q escaped a retained surface", form)
+				}
+			}
 		}
 	}
+}
+
+func agentSkillCanaryForms(canary string) []string {
+	encodedJSON, _ := json.Marshal(canary)
+	candidates := []string{
+		canary,
+		string(encodedJSON),
+		strings.TrimSuffix(strings.TrimPrefix(string(encodedJSON), `"`), `"`),
+		url.QueryEscape(canary),
+		url.PathEscape(canary),
+		base64.StdEncoding.EncodeToString([]byte(canary)),
+		base64.RawURLEncoding.EncodeToString([]byte(canary)),
+	}
+	result := make([]string, 0, len(candidates))
+	seen := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		if candidate != "" && !seen[candidate] {
+			seen[candidate] = true
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func assertAgentSkillDiagnosticsRedacted(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runID string,
+	fixture agentSkillMVPFixture,
+) {
+	t.Helper()
+	queries := []string{
+		`SELECT COALESCE(skill_snapshot::text || state_reason_code || state_reason_message, '')
+FROM workflow_runs WHERE run_id = $1`,
+		`SELECT COALESCE(string_agg(event::text, E'\n'), '')
+FROM planner_events WHERE run_id = $1`,
+		`SELECT COALESCE(string_agg(data::text, E'\n'), '')
+FROM workflow_run_events WHERE run_id = $1`,
+		`SELECT COALESCE(string_agg(session.state::text, E'\n'), '')
+FROM planner_sessions AS session
+JOIN stage_executions AS execution ON execution.stage_execution_id = session.stage_execution_id
+WHERE execution.run_id = $1`,
+		`SELECT COALESCE(string_agg(report.report::text, E'\n'), '')
+FROM planner_execution_reports AS report
+JOIN stage_executions AS execution ON execution.stage_execution_id = report.stage_execution_id
+WHERE execution.run_id = $1`,
+		`SELECT COALESCE(string_agg(report.report::text, E'\n'), '')
+FROM allocation_execution_reports AS report
+JOIN stage_executions AS execution ON execution.stage_execution_id = report.stage_execution_id
+WHERE execution.run_id = $1`,
+		`SELECT COALESCE(string_agg(metrics.metrics::text || metrics.summary::text, E'\n'), '')
+FROM stage_metrics AS metrics
+JOIN stage_executions AS execution ON execution.stage_execution_id = metrics.stage_execution_id
+WHERE execution.run_id = $1`,
+	}
+	for _, query := range queries {
+		var retained string
+		if err := pool.QueryRow(ctx, query, runID).Scan(&retained); err != nil {
+			t.Fatalf("read retained Agent Skill diagnostics: %v", err)
+		}
+		assertAgentSkillCanariesAbsent(t, fixture, retained)
+	}
+}
+
+func mustAgentSkillRunCursor(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	runID string,
+) runstore.WorkflowRunEventCursor {
+	t.Helper()
+	cursor, err := store.GetRunEventCursor(ctx, runID)
+	if err != nil || cursor.Generation == "" || cursor.Sequence <= 0 {
+		t.Fatalf("read terminal Agent Skill event cursor = (%+v, %v)", cursor, err)
+	}
+	return cursor
+}
+
+func assertAgentSkillWebSocketReplayRedacted(
+	t *testing.T,
+	client *http.Client,
+	publicBaseURL, runID string,
+	terminal runstore.WorkflowRunEventCursor,
+	fixture agentSkillMVPFixture,
+) {
+	t.Helper()
+	const browserOrigin = "https://ui.contractor.invalid"
+	loginRequest, err := http.NewRequest(
+		http.MethodPost,
+		publicBaseURL+"/v1/auth/login",
+		bytes.NewBufferString(`{"username":"admin","password":"contractor e2e local password"}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRequest.Header.Set("Origin", browserOrigin)
+	loginResponse := do(t, client, loginRequest, http.StatusOK)
+	cookies := loginResponse.Cookies()
+	loginResponse.Body.Close()
+	if len(cookies) != 1 {
+		t.Fatalf("Agent Skill WebSocket login cookies = %v", cookies)
+	}
+
+	dialer := websocket.Dialer{
+		Subprotocols:     []string{publicevents.ProtocolVersion},
+		HandshakeTimeout: 5 * time.Second,
+	}
+	header := http.Header{"Origin": []string{browserOrigin}}
+	header.Set("Cookie", cookies[0].Name+"="+cookies[0].Value)
+	target := "ws" + strings.TrimPrefix(publicBaseURL, "http") + "/v1/events/ws"
+	connection, response, err := dialer.Dial(target, header)
+	if err != nil {
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+			response.Body.Close()
+		}
+		t.Fatalf("connect Agent Skill WebSocket status=%d: %v", status, err)
+	}
+	defer connection.Close()
+	if connection.Subprotocol() != publicevents.ProtocolVersion {
+		t.Fatalf("Agent Skill WebSocket subprotocol = %q", connection.Subprotocol())
+	}
+
+	subscriptionID := "agent-skills-" + runID
+	if err := connection.WriteJSON(map[string]any{
+		"version": publicevents.ProtocolVersion,
+		"type":    "subscribe", "subscriptionId": subscriptionID,
+		"stream": map[string]any{"kind": "run", "id": runID},
+		"after":  map[string]string{"generation": terminal.Generation, "sequence": "0"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := connection.SetReadDeadline(time.Now().Add(8 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	wantSequence := strconv.FormatInt(terminal.Sequence, 10)
+	for frames := 0; frames <= int(terminal.Sequence)+2; frames++ {
+		_, payload, err := connection.ReadMessage()
+		if err != nil {
+			t.Fatalf("read Agent Skill WebSocket replay at frame %d: %v", frames, err)
+		}
+		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
+		var frame struct {
+			Version        string `json:"version"`
+			Type           string `json:"type"`
+			SubscriptionID string `json:"subscriptionId"`
+			Code           string `json:"code"`
+			Reason         string `json:"reason"`
+			Cursor         struct {
+				Sequence string `json:"sequence"`
+			} `json:"cursor"`
+		}
+		if err := json.Unmarshal(payload, &frame); err != nil ||
+			frame.Version != publicevents.ProtocolVersion || frame.SubscriptionID != subscriptionID {
+			t.Fatalf("invalid Agent Skill WebSocket frame: %s error=%v", payload, err)
+		}
+		if frame.Type == "error" || frame.Type == "resync_required" {
+			t.Fatalf("Agent Skill WebSocket replay failed: %s", payload)
+		}
+		if frame.Type == "event" && frame.Cursor.Sequence == wantSequence {
+			return
+		}
+	}
+	t.Fatalf("Agent Skill WebSocket replay did not reach terminal cursor %+v", terminal)
 }
 
 func assertNoSkillSpecificSurface(
