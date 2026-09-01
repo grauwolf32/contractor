@@ -3,8 +3,8 @@ id: V10-004
 title: Add resolvedSkills to the private allocation contract
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 323f18bf3b9fb806fa820846cc3db009c4162a41
 depends_on: [V10-003]
 languages: [go, python, json]
 
