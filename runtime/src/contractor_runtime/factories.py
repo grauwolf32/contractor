@@ -169,7 +169,7 @@ def built_in_factories(
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
     http_toolset = HTTPToolsetFactory(artifact_client_factory)
-    caido_toolset = CaidoToolsetFactory()
+    caido_toolset = CaidoToolsetFactory(artifact_client_factory)
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)

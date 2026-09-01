@@ -34,7 +34,17 @@ _TRANSIENT_STATUS_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 type JSONScalar = str | int | float | bool | None
 type JSONValue = JSONScalar | list[JSONValue] | dict[str, JSONValue]
-CaidoOperationID = Literal["scopes"]
+CaidoOperationID = Literal[
+    "automate_entry_requests",
+    "automate_session",
+    "findings_by_offset",
+    "request_detail",
+    "requests_by_offset",
+    "scopes",
+    "sitemap_descendants",
+    "sitemap_root",
+    "workflows",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,9 +57,73 @@ class _StaticOperation:
 # document, and adding another operation requires a reviewed source change.
 _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
     {
+        "automate_entry_requests": _StaticOperation(
+            operation_name="AutomateEntryRequests",
+            document=(
+                "query AutomateEntryRequests($id: ID!, $limit: Int, $offset: Int, "
+                "$order: AutomateEntryRequestOrderInput) { automateEntry(id: $id) { id name "
+                "requestsByOffset(limit: $limit, offset: $offset, order: $order) { count { "
+                "value } nodes { sequenceId error payloads { position raw } request { id method "
+                "host path query response { statusCode length roundtripTime } } } } } }"
+            ),
+        ),
+        "automate_session": _StaticOperation(
+            operation_name="AutomateSession",
+            document=(
+                "query AutomateSession($id: ID!) { automateSession(id: $id) { id name entries { "
+                "id name createdAt } settings { strategy placeholders { start end } } } }"
+            ),
+        ),
+        "findings_by_offset": _StaticOperation(
+            operation_name="FindingsByOffset",
+            document=(
+                "query FindingsByOffset($limit: Int, $offset: Int, $order: FindingOrderInput) { "
+                "findingsByOffset(limit: $limit, offset: $offset, order: $order) { count { value } "
+                "nodes { id title description host path reporter createdAt request { id method "
+                "host path } } } }"
+            ),
+        ),
+        "request_detail": _StaticOperation(
+            operation_name="RequestDetail",
+            document=(
+                "query RequestDetail($id: ID!) { request(id: $id) { id method host path port query "
+                "isTls raw createdAt source response { id statusCode length roundtripTime raw } } }"
+            ),
+        ),
+        "requests_by_offset": _StaticOperation(
+            operation_name="RequestsByOffset",
+            document=(
+                "query RequestsByOffset($limit: Int, $offset: Int, $filter: HTTPQL, "
+                "$order: RequestResponseOrderInput) { requestsByOffset(limit: $limit, offset: "
+                "$offset, filter: $filter, order: $order) { count { value } nodes { id method host "
+                "path port query isTls source createdAt response { statusCode length roundtripTime "
+                "} } } }"
+            ),
+        ),
         "scopes": _StaticOperation(
             operation_name="Scopes",
             document=("query Scopes { scopes { id name allowlist denylist } }"),
+        ),
+        "sitemap_descendants": _StaticOperation(
+            operation_name="SitemapDescendants",
+            document=(
+                "query SitemapDescendants($parentId: ID!, $depth: SitemapDescendantsDepth!) { "
+                "sitemapDescendantEntries(parentId: $parentId, depth: $depth) { nodes { id label "
+                "kind hasDescendants parentId metadata { ... on SitemapEntryMetadataDomain { isTls "
+                "port } } } } }"
+            ),
+        ),
+        "sitemap_root": _StaticOperation(
+            operation_name="SitemapRoot",
+            document=(
+                "query SitemapRoot($scopeId: ID) { sitemapRootEntries(scopeId: $scopeId) { nodes { "
+                "id label kind hasDescendants metadata { ... on SitemapEntryMetadataDomain { isTls "
+                "port } } } } }"
+            ),
+        ),
+        "workflows": _StaticOperation(
+            operation_name="Workflows",
+            document="query Workflows { workflows { id name kind enabled global } }",
         ),
     }
 )

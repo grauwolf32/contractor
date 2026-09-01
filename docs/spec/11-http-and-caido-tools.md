@@ -211,6 +211,16 @@ same allocation Artifact client using reserved collision-resistant bindings;
 tool results contain previews and exact refs. The old behavior of returning an
 unbounded raw exchange inline is deliberately removed.
 
+For request detail, the first implementation validates and decodes both Caido
+Blobs before one mutation, then stores request plus response in a single
+`application/vnd.contractor.caido-exchange+json` artifact. One atomic exchange
+binding avoids a half-published pair if the second write were to fail. Text is
+UTF-8 and arbitrary bytes are base64 inside the envelope; each returned preview
+is at most 8192 characters (or 6144 binary bytes encoded as base64). A missing
+request/session is an explicit bounded `not_found` domain result, while a
+malformed partial response is `caido_response_invalid` and produces no selected
+artifact.
+
 Replay requests receive an opaque allocation-derived `X-Request-Id` tag. HTTP
 tool and Caido replay counters use distinct infixes so proxy history can
 correlate traffic without exposing Run/Stage IDs. Tags are safe observability
