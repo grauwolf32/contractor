@@ -1328,6 +1328,192 @@ code {
   margin-top: 1rem;
 }
 
+.runtime-principal-grid,
+.runtime-config-detail-grid,
+.runtime-provenance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.runtime-principal-card h4 {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.runtime-principal-labels,
+.runtime-config-block {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  margin: 1rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 1rem;
+}
+
+.runtime-principal-labels legend,
+.runtime-config-block legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+}
+
+.runtime-binding-list,
+.runtime-secret-rows {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.runtime-binding-card {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.6fr) minmax(16rem, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #0c1016aa;
+  padding: 0.9rem;
+}
+
+.runtime-binding-card > div:first-child,
+.runtime-label-preview {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.runtime-default-binding,
+.runtime-default-preview,
+.runtime-default-pin {
+  border-color: #7a8b45 !important;
+  background: #17200e !important;
+}
+
+.runtime-binding-card select,
+.runtime-label-create select,
+.runtime-label-create input,
+.runtime-config-block select,
+.runtime-config-block input,
+.runtime-config-block textarea,
+.runtime-credential-form input,
+.runtime-credential-form select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #080b0f;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.runtime-binding-actions,
+.runtime-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.runtime-label-create {
+  margin-top: 1rem;
+}
+
+.runtime-label-create label,
+.runtime-secret-row label,
+.runtime-credential-form > label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.runtime-secret-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.6fr) minmax(14rem, 1fr) auto;
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.runtime-ca-field {
+  grid-column: 1 / -1;
+}
+
+.runtime-ca-field textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.runtime-config-inspector {
+  min-width: 0;
+}
+
+.run-runtime-configuration {
+  margin-top: 1rem;
+}
+
+.runtime-provenance-grid > article,
+.runtime-default-preview {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #0c1016aa;
+  padding: 0.9rem;
+}
+
+.runtime-label-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.runtime-label-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+}
+
+.runtime-label-option > span {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.stage-runtime-allocation-list,
+.runtime-agent-pin,
+.runtime-origin-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.stage-runtime-allocation-list > article {
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: #090d13;
+  padding: 0.8rem;
+}
+
+.runtime-agent-pin {
+  border-left: 2px solid #7a8b45;
+  padding-left: 0.65rem;
+}
+
+.runtime-origin-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runtime-origin-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.runtime-agent-override {
+  color: #ffe9a4;
+}
+
 .operations-library .section-heading > span {
   color: var(--muted);
   font-size: 0.78rem;
@@ -1558,7 +1744,13 @@ code {
   .operations-overview-grid,
   .allocation-card-body,
   .configuration-body,
-  .credential-policy-grid {
+  .credential-policy-grid,
+  .runtime-principal-grid,
+  .runtime-config-detail-grid,
+  .runtime-provenance-grid,
+  .runtime-label-options,
+  .runtime-binding-card,
+  .runtime-secret-row {
     grid-template-columns: 1fr;
   }
 

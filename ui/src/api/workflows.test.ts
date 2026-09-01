@@ -86,7 +86,26 @@ describe("Workflow API", () => {
       runtimeConfig,
       vi.fn(async (input) => {
         captured = input instanceof Request ? input : new Request(input);
-        return response({ runId: "run_example", state: "running" }, 202);
+        return response(
+          {
+            runId: "run_example",
+            state: "running",
+            labels: [],
+            runtimeConfiguration: {
+              default: {
+                label: "default",
+                bindingRevision: "1",
+                config: {
+                  name: "contractor-empty",
+                  version: "1",
+                  digest: `sha256:${"0".repeat(64)}`,
+                },
+              },
+              labels: [],
+            },
+          },
+          202,
+        );
       }),
     );
     api.csrf.replace("a".repeat(43));
@@ -104,6 +123,19 @@ describe("Workflow API", () => {
     await expect(createRun(api, request, "draft-exact-1")).resolves.toEqual({
       runId: "run_example",
       state: "running",
+      labels: [],
+      runtimeConfiguration: {
+        default: {
+          label: "default",
+          bindingRevision: "1",
+          config: {
+            name: "contractor-empty",
+            version: "1",
+            digest: `sha256:${"0".repeat(64)}`,
+          },
+        },
+        labels: [],
+      },
     });
     expect(captured?.method).toBe("POST");
     expect(captured?.headers.get("Idempotency-Key")).toBe("draft-exact-1");

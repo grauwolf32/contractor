@@ -29,6 +29,7 @@ type RunReader interface {
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	ListRunEvents(context.Context, string, int64, int) ([]runstore.WorkflowRunEvent, error)
@@ -252,22 +253,35 @@ type runRuntimeConfigResponse struct {
 }
 
 type stageAttemptResponse struct {
-	StageExecutionID    string                         `json:"stageExecutionId"`
-	Stage               string                         `json:"stage"`
-	Objective           string                         `json:"objective,omitempty"`
-	Attempt             int                            `json:"attempt"`
-	PreviousExecutionID *string                        `json:"previousExecutionId,omitempty"`
-	ExecutionConfig     stageExecutionConfigResponse   `json:"executionConfig"`
-	State               runstore.StageExecutionState   `json:"state"`
-	Result              *contracts.StageContentResult  `json:"result,omitempty"`
-	Termination         *runstore.StageTermination     `json:"termination,omitempty"`
-	Metrics             *telemetry.Summary             `json:"metrics,omitempty"`
-	Diagnostics         *telemetry.AttemptDiagnostics  `json:"diagnostics,omitempty"`
-	Plan                *planner.PlannerPlanProjection `json:"plan,omitempty"`
-	CreatedAt           time.Time                      `json:"createdAt,omitempty"`
-	UpdatedAt           time.Time                      `json:"updatedAt,omitempty"`
-	PlannerStartedAt    *time.Time                     `json:"plannerStartedAt,omitempty"`
-	TerminalAt          *time.Time                     `json:"terminalAt,omitempty"`
+	StageExecutionID     string                             `json:"stageExecutionId"`
+	Stage                string                             `json:"stage"`
+	Objective            string                             `json:"objective,omitempty"`
+	Attempt              int                                `json:"attempt"`
+	PreviousExecutionID  *string                            `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      stageExecutionConfigResponse       `json:"executionConfig"`
+	State                runstore.StageExecutionState       `json:"state"`
+	Result               *contracts.StageContentResult      `json:"result,omitempty"`
+	Termination          *runstore.StageTermination         `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary                 `json:"metrics,omitempty"`
+	Diagnostics          *telemetry.AttemptDiagnostics      `json:"diagnostics,omitempty"`
+	Plan                 *planner.PlannerPlanProjection     `json:"plan,omitempty"`
+	RuntimeConfiguration *stageRuntimeConfigurationResponse `json:"runtimeConfiguration,omitempty"`
+	CreatedAt            time.Time                          `json:"createdAt,omitempty"`
+	UpdatedAt            time.Time                          `json:"updatedAt,omitempty"`
+	PlannerStartedAt     *time.Time                         `json:"plannerStartedAt,omitempty"`
+	TerminalAt           *time.Time                         `json:"terminalAt,omitempty"`
+}
+
+type stageRuntimeConfigurationResponse struct {
+	Allocations []stageRuntimeAllocationResponse `json:"allocations"`
+}
+
+type stageRuntimeAllocationResponse struct {
+	LogicalAgent    string                                     `json:"logicalAgent"`
+	AgentLabels     []pinnedRuntimeConfigResponse              `json:"agentLabels"`
+	RuntimeAdapters []contracts.RuntimeAdapterRef              `json:"runtimeAdapters"`
+	Origins         runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
+	Status          string                                     `json:"status"`
 }
 
 type eventCursorResponse struct {

@@ -12,6 +12,10 @@ import {
 import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
+import {
+  safeRunRuntimeConfiguration,
+  safeStageRuntimeConfiguration,
+} from "./runtime-configuration";
 
 export const RUN_PAGE_SIZE = 50;
 export const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -138,7 +142,49 @@ export async function getRun(
   if (run.runId !== runId || !RUN_STATES.includes(run.state)) {
     throw invalidRunResponse(result.response.status);
   }
-  return run;
+  if (
+    !Array.isArray(run.labels) ||
+    run.labels.some(
+      (label, index) =>
+        typeof label !== "string" ||
+        label === "default" ||
+        (index > 0 && run.labels[index - 1]! >= label),
+    )
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  return {
+    runId: run.runId,
+    workflow: run.workflow,
+    state: run.state,
+    labels: [...run.labels],
+    runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),
+    ...(run.cancellation === undefined
+      ? {}
+      : { cancellation: run.cancellation }),
+    ...(run.parameters === undefined ? {} : { parameters: run.parameters }),
+    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
+    attempts: run.attempts.map((attempt) => ({
+      ...attempt,
+      ...(attempt.runtimeConfiguration === undefined
+        ? {}
+        : {
+            runtimeConfiguration: safeStageRuntimeConfiguration(
+              attempt.runtimeConfiguration,
+            ),
+          }),
+    })),
+    transitions: [...run.transitions],
+    outputs: { ...run.outputs },
+    ...(run.eventCursor === undefined ? {} : { eventCursor: run.eventCursor }),
+    ...(run.activeStageExecutionId === undefined
+      ? {}
+      : { activeStageExecutionId: run.activeStageExecutionId }),
+    ...(run.createdAt === undefined ? {} : { createdAt: run.createdAt }),
+    ...(run.updatedAt === undefined ? {} : { updatedAt: run.updatedAt }),
+    ...(run.startedAt === undefined ? {} : { startedAt: run.startedAt }),
+    ...(run.finishedAt === undefined ? {} : { finishedAt: run.finishedAt }),
+  };
 }
 
 export async function cancelRun(

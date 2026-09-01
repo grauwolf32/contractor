@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,12 +27,17 @@ const session = {
   absoluteExpiresAt: "2026-09-01T12:00:00Z",
 };
 
-function apiResponse(value: unknown, status = 200): Response {
+function apiResponse(
+  value: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+): Response {
   return new Response(value === undefined ? undefined : JSON.stringify(value), {
     status,
     headers: {
       "content-type": "application/json",
       "X-Contractor-API-Version": "contractor.public.v1",
+      ...extraHeaders,
     },
   });
 }
@@ -146,7 +151,6 @@ describe("Operations routes", () => {
                   code: "lease_confirmation_lost",
                   retryable: true,
                 },
-                probeDiagnostic: "LOCAL_PROBE_SECRET_CANARY /private/path",
               },
               {
                 instanceId: "runtime-vm-minimal",
@@ -492,6 +496,284 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("active", { selector: ".state-badge" }),
+    ).toBeInTheDocument();
+  });
+
+  it("publishes typed Runtime configuration, erases secrets, and exposes stale binding CAS", async () => {
+    const secret = "Bearer runtime-secret-canary";
+    const baseResource = {
+      ref: { name: "contractor-empty", version: "1", digest },
+      document: {
+        apiVersion: "contractor/v1alpha1",
+        kind: "RuntimeConfig",
+        metadata: { name: "contractor-empty", version: "1" },
+        spec: {},
+      },
+      builtIn: true,
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+    };
+    const defaultBinding = {
+      label: "default",
+      config: baseResource.ref,
+      revision: "1",
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "system",
+      updatedAt: "2026-08-31T12:00:00Z",
+    };
+    let publishedResource: typeof baseResource | undefined;
+    let debugBinding: typeof defaultBinding | undefined;
+    let runtimeCredentialBody: unknown;
+    let bindingWrites = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+        if (path === "/v1/configurations/llm-gateways") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        if (path === "/v1/operations/runtime-configs") {
+          if (request.method === "POST") {
+            const document = (await request
+              .clone()
+              .json()) as typeof baseResource.document;
+            publishedResource = {
+              ref: {
+                name: document.metadata.name,
+                version: document.metadata.version,
+                digest: secondDigest,
+              },
+              document,
+              builtIn: false,
+              createdBy: "user_local",
+              createdAt: "2026-08-31T12:01:00Z",
+            };
+            return apiResponse(publishedResource, 201);
+          }
+          return apiResponse({
+            items: [
+              baseResource,
+              ...(publishedResource === undefined ? [] : [publishedResource]),
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (path === "/v1/operations/runtime-labels") {
+          return apiResponse({
+            items: [
+              defaultBinding,
+              ...(debugBinding === undefined ? [] : [debugBinding]),
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (path === "/v1/operations/runtime-labels/debug") {
+          bindingWrites += 1;
+          if (bindingWrites > 1) {
+            return apiResponse(
+              {
+                code: "precondition_failed",
+                message: "Runtime label revision changed",
+                retryable: false,
+              },
+              412,
+            );
+          }
+          debugBinding = {
+            label: "debug",
+            config: publishedResource!.ref,
+            revision: "1",
+            createdBy: "user_local",
+            createdAt: "2026-08-31T12:02:00Z",
+            updatedBy: "user_local",
+            updatedAt: "2026-08-31T12:02:00Z",
+          };
+          expect(request.headers.get("If-None-Match")).toBe("*");
+          return apiResponse(debugBinding, 201, { ETag: '"1"' });
+        }
+        if (path === "/v1/operations/runtime-credentials") {
+          if (request.method === "POST") {
+            runtimeCredentialBody = await request.clone().json();
+            return apiResponse(
+              {
+                credentialId: "otel-debug",
+                kind: "otlp-headers@1",
+                createdBy: "user_local",
+                createdAt: "2026-08-31T12:00:30Z",
+              },
+              201,
+            );
+          }
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    const view = renderOperations(api, "/operations/runtime-configs");
+    expect(
+      await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+
+    const credentialForm = view.container.querySelector(
+      "form.runtime-credential-form",
+    ) as HTMLFormElement;
+    await user.type(
+      within(credentialForm).getByLabelText("Runtime credential ID"),
+      "otel-debug",
+    );
+    await user.type(
+      within(credentialForm).getByLabelText(/Header value/),
+      secret,
+    );
+    await user.click(
+      within(credentialForm).getByRole("button", {
+        name: "Create active Runtime credential",
+      }),
+    );
+    expect(
+      await within(credentialForm).findByText(/Created safe metadata/),
+    ).toBeInTheDocument();
+    expect(within(credentialForm).getByLabelText(/Header value/)).toHaveValue(
+      "",
+    );
+    expect(view.container.textContent).not.toContain(secret);
+    expect(runtimeCredentialBody).toEqual({
+      credentialId: "otel-debug",
+      kind: "otlp-headers@1",
+      material: { headers: { Authorization: secret } },
+    });
+
+    await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
+    const telemetryGroup = screen.getByRole("group", {
+      name: /Worker telemetry/,
+    });
+    await user.click(within(telemetryGroup).getByRole("checkbox"));
+    await user.type(
+      within(telemetryGroup).getByLabelText("OTLP traces endpoint"),
+      "https://otel.example/v1/traces",
+    );
+    await user.type(
+      within(telemetryGroup).getByLabelText("Runtime credential ID (optional)"),
+      "otel-debug",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Publish immutable RuntimeConfig",
+      }),
+    );
+    expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
+
+    const labelForm = view.container.querySelector(
+      "form.runtime-label-create",
+    ) as HTMLFormElement;
+    await user.type(within(labelForm).getByLabelText("New label"), "debug");
+    await user.selectOptions(
+      within(labelForm).getByLabelText("Exact RuntimeConfig"),
+      `${publishedResource!.ref.name}@${publishedResource!.ref.version}:${publishedResource!.ref.digest}`,
+    );
+    await user.click(
+      within(labelForm).getByRole("button", { name: "Create binding" }),
+    );
+    const debugCard = (
+      await screen.findByText("debug", { selector: "strong" })
+    ).closest("article") as HTMLElement;
+    expect(within(debugCard).getByText(/revision 1/)).toBeInTheDocument();
+    await user.click(
+      within(debugCard).getByRole("button", {
+        name: "Rebind with current revision",
+      }),
+    );
+    expect(
+      await within(debugCard).findByText("Binding changed in another view."),
+    ).toBeInTheDocument();
+    expect(
+      within(debugCard).getByRole("button", {
+        name: "Reload authoritative binding",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows durable offline and adapter-incompatible principals as separate facts", async () => {
+    const principalBase = {
+      labels: ["debug"],
+      revision: "2",
+      requiredRuntimeAdapters: ["otlp-http@1"],
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "user_local",
+      updatedAt: "2026-08-31T12:01:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+        if (path === "/v1/operations/runtime-labels") {
+          return apiResponse({
+            items: [
+              {
+                label: "debug",
+                config: { name: "debug", version: "1", digest },
+                revision: "1",
+                createdBy: "user_local",
+                createdAt: "2026-08-31T12:00:00Z",
+                updatedBy: "user_local",
+                updatedAt: "2026-08-31T12:00:00Z",
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (path === "/v1/operations/runtime-agent-principals") {
+          return apiResponse({
+            items: [
+              {
+                ...principalBase,
+                runtimeAgentId: "a".repeat(64),
+                availability: "offline",
+                missingRuntimeAdapters: [],
+              },
+              {
+                ...principalBase,
+                runtimeAgentId: "b".repeat(64),
+                availability: "adapter_capability_mismatch",
+                missingRuntimeAdapters: ["otlp-http@1"],
+                live: {
+                  instanceId: "runtime-incompatible",
+                  softwareVersion: "0.1.0",
+                  supportedRuntimes: ["adk@1"],
+                  supportedToolsets: [],
+                  supportedSandboxProfiles: ["none@1"],
+                  supportedRuntimeAdapters: [],
+                  observedState: "idle",
+                  slotState: "idle",
+                },
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    expect(
+      await screen.findByText("offline · durable labels retained"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/cannot receive matching work/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("live as runtime-incompatible"),
     ).toBeInTheDocument();
   });
 });

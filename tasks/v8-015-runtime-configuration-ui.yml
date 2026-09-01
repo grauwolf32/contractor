@@ -6,7 +6,7 @@ priority: P1
 status: planned
 implementation_commit: null
 depends_on: [V8-009, V8-013, V8-014]
-languages: [typescript, html, css]
+languages: [go, typescript, html, css, yaml]
 
 goal: >-
   Let an operator publish infrastructure configs, bind labels, assign Agent
@@ -35,6 +35,7 @@ scope:
     - Extend Runtime Agent Operations pages with principal identity, offline state, adapter capabilities, authoritative labels/revision and future-allocation warnings.
     - Add sorted Runtime label selection to Run creation with safe config preview and canonical idempotent draft behavior.
     - Extend Run/Stage detail with pinned default/Run refs, final Agent-label overrides, adapter refs/status and safe conflict/capacity diagnostics.
+    - Project already durable Stage allocation provenance through the public API because no previous Run read model exposed the final Agent layer.
     - Implement ETag-aware binding/Agent-label mutations, explicit stale reload flows and secret-input clearing after submit/navigation/error.
     - Consume WebSocket notifications only as refetch hints; perform every mutation over authenticated REST.
     - Add responsive accessible components, unit tests and Playwright coverage using the production API client.
@@ -46,6 +47,8 @@ deliverables:
   - {path: ui/src/routes/operations/runtime-agents, description: Durable principal labels and adapter capability UI.}
   - {path: ui/src/routes/workflows/run-form.tsx, description: Concrete Run label selection and preview.}
   - {path: ui/src/routes/runs, description: Pinned/final safe provenance and adapter status.}
+  - {path: internal/httpapi/public, description: Secret-free historical Stage allocation provenance projection.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Closed public Stage Runtime provenance schema.}
   - {path: ui/e2e, description: Browser flows for config, labels, Run creation and CAS conflicts.}
 
 requirements:

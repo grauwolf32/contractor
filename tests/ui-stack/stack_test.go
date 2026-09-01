@@ -591,6 +591,21 @@ func (s *uiStack) assertSecretBoundaries(evidencePath, tracePath, screenshotPath
 }
 
 func (s *uiStack) close() {
+	if s.t.Failed() {
+		s.processMu.Lock()
+		processes := append([]*childProcess(nil), s.processes...)
+		s.processMu.Unlock()
+		for _, process := range processes {
+			exited, processErr := process.exited()
+			s.t.Logf(
+				"%s failure diagnostics (exited=%t err=%v):\n%s",
+				process.name,
+				exited,
+				processErr,
+				process.logs.redacted(s.secrets...),
+			)
+		}
+	}
 	s.modelGateway.release()
 	_ = s.interruptEvents()
 	if s.controlServer != nil {
@@ -741,6 +756,10 @@ func installValidators(t *testing.T, root string) (string, string) {
 	logPath := filepath.Join(root, "validator-invocations.log")
 	quotedLog := shellSingleQuote(logPath)
 	vacuum := `#!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = "version" ]; then
+  printf 'vacuum fixture 1\n'
+  exit 0
+fi
 if [ "$1" != "spectral-report" ] || [ "$2" != "-i" ] || [ "$3" != "-o" ]; then exit 2; fi
 payload=$(cat)
 case "$payload" in *'/widgets/{widget_id}'*) ;; *) exit 2 ;; esac
@@ -748,6 +767,10 @@ printf 'vacuum\n' >> ` + quotedLog + `
 printf '[]\n'
 `
 	likeC4 := `#!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = "version" ]; then
+  printf 'likec4 fixture 1\n'
+  exit 0
+fi
 if [ "$1" != "validate" ] || [ "$2" != "--json" ] || [ "$3" != "--no-layout" ] || [ "$4" != "--file" ]; then exit 2; fi
 grep -Fq 'specification {' "$5" || exit 2
 printf 'likec4\n' >> ` + quotedLog + `

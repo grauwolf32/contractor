@@ -114,5 +114,42 @@ export const queryKeys = {
   operations: {
     all: ["operations"] as const,
     snapshot: ["operations", "snapshot"] as const,
+    runtimeConfigs: {
+      all: ["operations", "runtime-configs"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-configs", "list", cursor ?? null] as const,
+      detail: (name: string, version: string) =>
+        ["operations", "runtime-configs", "detail", name, version] as const,
+    },
+    runtimeLabels: {
+      all: ["operations", "runtime-labels"] as const,
+      picker: ["operations", "runtime-labels", "picker"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-labels", "list", cursor ?? null] as const,
+      detail: (label: string) =>
+        ["operations", "runtime-labels", "detail", label] as const,
+    },
+    runtimeCredentials: {
+      all: ["operations", "runtime-credentials"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-credentials", "list", cursor ?? null] as const,
+    },
+    runtimeAgentPrincipals: {
+      all: ["operations", "runtime-agent-principals"] as const,
+      list: (cursor?: string) =>
+        [
+          "operations",
+          "runtime-agent-principals",
+          "list",
+          cursor ?? null,
+        ] as const,
+      detail: (runtimeAgentId: string) =>
+        [
+          "operations",
+          "runtime-agent-principals",
+          "detail",
+          runtimeAgentId,
+        ] as const,
+    },
   },
 };

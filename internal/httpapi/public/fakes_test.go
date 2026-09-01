@@ -456,6 +456,7 @@ func fakeLineageLess(left, right artifacts.LineageEdge) bool {
 type fakeRunStore struct {
 	runs              map[string]runstore.WorkflowRun
 	executions        map[string][]runstore.StageExecution
+	allocations       map[string][]runstore.StageAllocation
 	decisions         map[string][]runstore.StageTransitionDecision
 	idempotencyClaims map[string]fakeIdempotencyClaim
 	eventCursors      map[string]runstore.WorkflowRunEventCursor
@@ -498,6 +499,7 @@ type fakeIdempotencyClaim struct {
 func newFakeRunStore() *fakeRunStore {
 	return &fakeRunStore{
 		runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution),
+		allocations:       make(map[string][]runstore.StageAllocation),
 		decisions:         make(map[string][]runstore.StageTransitionDecision),
 		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
 		eventCursors:      make(map[string]runstore.WorkflowRunEventCursor),
@@ -635,6 +637,12 @@ func (f *fakeRunStore) RequestRunCancellation(
 
 func (f *fakeRunStore) ListStageExecutions(_ context.Context, runID string) ([]runstore.StageExecution, error) {
 	return append([]runstore.StageExecution(nil), f.executions[runID]...), nil
+}
+
+func (f *fakeRunStore) ListStageAllocations(
+	_ context.Context, stageExecutionID string,
+) ([]runstore.StageAllocation, error) {
+	return append([]runstore.StageAllocation(nil), f.allocations[stageExecutionID]...), nil
 }
 
 func (f *fakeRunStore) ListStageTransitionDecisions(

@@ -464,27 +464,36 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 				plan = &value
 			}
 		}
+		allocations, allocationErr := h.dependencies.Runs.ListStageAllocations(
+			r.Context(), execution.StageExecutionID,
+		)
+		if allocationErr != nil {
+			h.handleError(w, allocationErr)
+			return
+		}
+		runtimeConfiguration := stageRuntimeConfigurationReadModel(allocations)
 		if !terminalStageState(execution.State) {
 			value := execution.StageExecutionID
 			activeExecutionID = &value
 		}
 		attempts = append(attempts, stageAttemptResponse{
-			StageExecutionID:    execution.StageExecutionID,
-			Stage:               execution.StageName,
-			Objective:           stage.Objective,
-			Attempt:             execution.Attempt,
-			PreviousExecutionID: execution.PreviousExecutionID,
-			ExecutionConfig:     executionConfig,
-			State:               execution.State,
-			Result:              execution.AcceptedResult,
-			Termination:         execution.Termination,
-			Metrics:             metrics,
-			Diagnostics:         diagnostics,
-			Plan:                plan,
-			CreatedAt:           execution.CreatedAt,
-			UpdatedAt:           execution.UpdatedAt,
-			PlannerStartedAt:    execution.PlannerStartedAt,
-			TerminalAt:          execution.TerminalAt,
+			StageExecutionID:     execution.StageExecutionID,
+			Stage:                execution.StageName,
+			Objective:            stage.Objective,
+			Attempt:              execution.Attempt,
+			PreviousExecutionID:  execution.PreviousExecutionID,
+			ExecutionConfig:      executionConfig,
+			State:                execution.State,
+			Result:               execution.AcceptedResult,
+			Termination:          execution.Termination,
+			Metrics:              metrics,
+			Diagnostics:          diagnostics,
+			Plan:                 plan,
+			RuntimeConfiguration: runtimeConfiguration,
+			CreatedAt:            execution.CreatedAt,
+			UpdatedAt:            execution.UpdatedAt,
+			PlannerStartedAt:     execution.PlannerStartedAt,
+			TerminalAt:           execution.TerminalAt,
 		})
 	}
 	transitions := make([]stageTransitionResponse, 0, len(decisions))
@@ -511,6 +520,49 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
 		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 	})
+}
+
+func stageRuntimeConfigurationReadModel(
+	allocations []runstore.StageAllocation,
+) *stageRuntimeConfigurationResponse {
+	projected := make([]stageRuntimeAllocationResponse, 0, len(allocations))
+	for _, allocation := range allocations {
+		configuration := allocation.RuntimeConfiguration
+		if configuration == nil {
+			continue
+		}
+		agentLabels := make([]pinnedRuntimeConfigResponse, len(configuration.Provenance.AgentLabels))
+		for index, pin := range configuration.Provenance.AgentLabels {
+			agentLabels[index] = pinnedRuntimeConfigResponse{
+				Label:           pin.Label,
+				BindingRevision: strconv.FormatUint(pin.BindingRevision, 10),
+				Config: runtimeconfig.Ref{
+					Name: pin.Config.Name, Version: pin.Config.Version, Digest: pin.Config.Digest,
+				},
+			}
+		}
+		status := "pinned"
+		if allocation.ReleaseCompletedAt != nil {
+			status = "released"
+		} else if allocation.ReleaseAttemptedAt != nil {
+			status = "release_pending"
+		}
+		projected = append(projected, stageRuntimeAllocationResponse{
+			LogicalAgent: allocation.LogicalAgentName,
+			AgentLabels:  agentLabels,
+			RuntimeAdapters: append([]contracts.RuntimeAdapterRef{},
+				configuration.Provenance.RuntimeAdapters...),
+			Origins: configuration.Origins,
+			Status:  status,
+		})
+	}
+	if len(projected) == 0 {
+		return nil
+	}
+	sort.Slice(projected, func(left, right int) bool {
+		return projected[left].LogicalAgent < projected[right].LogicalAgent
+	})
+	return &stageRuntimeConfigurationResponse{Allocations: projected}
 }
 
 func runtimeConfigReadModel(snapshot runtimeconfig.RunSnapshot) runRuntimeConfigResponse {

@@ -2039,6 +2039,53 @@ components:
           type: array
           maxItems: 32
           items: {$ref: '#/components/schemas/PinnedRuntimeConfig'}
+    RuntimeFieldOrigin:
+      type: object
+      additionalProperties: false
+      required: [layer]
+      properties:
+        layer:
+          enum: [default, workflow_execution_config, run_labels, run_execution_config, escalation_execution_config, agent_labels]
+        configs:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/RuntimeConfigRef'}
+    StageRuntimeOrigins:
+      type: object
+      additionalProperties: false
+      properties:
+        llmGateway: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
+        llmCredential: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
+        workerTelemetry: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
+        httpProxy: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
+        plannerTelemetry: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
+    StageRuntimeAllocation:
+      type: object
+      additionalProperties: false
+      required: [logicalAgent, agentLabels, runtimeAdapters, origins, status]
+      properties:
+        logicalAgent: {$ref: '#/components/schemas/ConfigId'}
+        agentLabels:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/PinnedRuntimeConfig'}
+        runtimeAdapters:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        origins: {$ref: '#/components/schemas/StageRuntimeOrigins'}
+        status: {enum: [pinned, release_pending, released]}
+    StageRuntimeConfiguration:
+      type: object
+      additionalProperties: false
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: {$ref: '#/components/schemas/StageRuntimeAllocation'}
     AgentTemplateRef:
       type: object
       additionalProperties: false
@@ -2117,6 +2164,7 @@ components:
         metrics: {$ref: '#/components/schemas/MetricsSummary'}
         diagnostics: {$ref: '#/components/schemas/AttemptDiagnostics'}
         plan: {$ref: '#/components/schemas/PlannerPlan'}
+        runtimeConfiguration: {$ref: '#/components/schemas/StageRuntimeConfiguration'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         plannerStartedAt: {type: string, format: date-time}

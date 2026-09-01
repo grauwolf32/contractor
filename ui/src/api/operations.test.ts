@@ -116,14 +116,12 @@ describe("Operations API", () => {
                 {
                   ref: "source-analysis@1",
                   tools: ["search_source", "read_source"],
-                  probeOutput: "PROBE_SECRET_CANARY",
                 },
               ],
               supportedSandboxProfiles: ["remote@1", "local-workdir@1"],
               supportedRuntimeAdapters: ["otlp-http@1"],
               observedState: "idle",
               slotState: "idle",
-              localPath: "/private/runtime/path",
             },
             {
               instanceId: "runtime-minimal",
@@ -151,8 +149,30 @@ describe("Operations API", () => {
       "search_source",
     ]);
     expect(result.runtimeAgents[1]?.supportedToolsets).toEqual([]);
-    expect(JSON.stringify(result)).not.toMatch(
-      /PROBE_SECRET_CANARY|private\/runtime\/path|probeOutput|localPath/,
+    const unexpected = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-capable",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+              localPath: "/private/runtime/path",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+    await expect(getOperationsSnapshot(unexpected)).rejects.toThrow(
+      "response shape",
     );
   });
 
@@ -301,7 +321,7 @@ describe("Operations API", () => {
     ).rejects.toThrow("read-only");
   });
 
-  it("manages durable Runtime Agent principals without retaining unknown fields", async () => {
+  it("manages durable Runtime Agent principals and rejects unknown fields", async () => {
     const runtimeAgentId = "a".repeat(64);
     const requests: Request[] = [];
     const principal = {
@@ -325,7 +345,6 @@ describe("Operations API", () => {
       createdAt: "2026-09-01T00:00:00Z",
       updatedBy: "user-1",
       updatedAt: "2026-09-01T00:01:00Z",
-      certificatePem: "SERVER_CERTIFICATE_CANARY",
     };
     const api = new PublicAPI(
       runtimeConfig,
@@ -364,12 +383,25 @@ describe("Operations API", () => {
       "principal-delete-1",
     );
 
-    expect(JSON.stringify(values)).not.toMatch(
-      /CERTIFICATE_CANARY|certificatePem/,
-    );
+    expect(JSON.stringify(values)).not.toMatch(/certificate|privateKey/i);
     expect(await requests[2]?.clone().json()).toEqual({ labels: ["debug"] });
     expect(requests[2]?.headers.get("If-Match")).toBe('"1"');
     expect(requests[3]?.headers.get("If-Match")).toBe('"2"');
+
+    const unexpected = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            { ...principal, certificatePem: "SERVER_CERTIFICATE_CANARY" },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toThrow(
+      "response shape",
+    );
   });
 
   it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {
@@ -391,14 +423,10 @@ describe("Operations API", () => {
     };
     const resource = {
       ref: { name: "debug", version: "1", digest: runtimeDigest },
-      document: {
-        ...document,
-        leakedToken: "SERVER_RESPONSE_SECRET_CANARY",
-      },
+      document,
       builtIn: false,
       createdBy: "user-1",
       createdAt: "2026-09-01T00:00:00Z",
-      ciphertext: "SERVER_RESPONSE_CIPHERTEXT_CANARY",
     };
     const binding = {
       label: "debug",
@@ -408,14 +436,12 @@ describe("Operations API", () => {
       createdAt: "2026-09-01T00:00:00Z",
       updatedBy: "user-1",
       updatedAt: "2026-09-01T00:00:00Z",
-      secret: "SERVER_RESPONSE_BINDING_CANARY",
     };
     const metadata = {
       credentialId: "otel-debug",
       kind: "otlp-headers@1" as const,
       createdBy: "user-1",
       createdAt: "2026-09-01T00:00:00Z",
-      token: "SERVER_RESPONSE_CREDENTIAL_CANARY",
     };
     const requests: Request[] = [];
     const api = new PublicAPI(
@@ -487,14 +513,30 @@ describe("Operations API", () => {
       "runtime-credential-delete-1",
     );
 
-    expect(JSON.stringify(values)).not.toMatch(
-      /SERVER_RESPONSE_SECRET|SERVER_RESPONSE_CIPHER|SERVER_RESPONSE_BINDING|SERVER_RESPONSE_CREDENTIAL|leakedToken|ciphertext/,
-    );
+    expect(JSON.stringify(values)).not.toMatch(/WRITE_ONLY_CANARY/);
     expect(
       requests.some((request) => request.headers.get("If-None-Match") === "*"),
     ).toBe(true);
     expect(
       requests.some((request) => request.headers.get("If-Match") === '"1"'),
     ).toBe(true);
+
+    const malformedAPI = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              ...resource,
+              document: { ...document, leakedToken: "MUST_FAIL_CLOSED" },
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listRuntimeConfigs(malformedAPI)).rejects.toThrow(
+      "response shape",
+    );
   });
 });

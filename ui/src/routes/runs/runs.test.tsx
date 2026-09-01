@@ -581,6 +581,29 @@ describe("Run routes", () => {
             ],
             truncated: false,
           },
+          runtimeConfiguration: {
+            allocations: [
+              {
+                logicalAgent: "reviewer",
+                agentLabels: [
+                  {
+                    label: "debug",
+                    bindingRevision: "7",
+                    config: { name: "debug", version: "1", digest },
+                  },
+                ],
+                runtimeAdapters: ["otlp-http@1"],
+                origins: {
+                  workerTelemetry: {
+                    layer: "agent_labels",
+                    configs: [{ name: "debug", version: "1", digest }],
+                  },
+                  llmGateway: { layer: "run_execution_config" },
+                },
+                status: "released",
+              },
+            ],
+          },
           createdAt: "2026-08-31T12:02:01Z",
           updatedAt: "2026-08-31T12:05:00Z",
           terminalAt: "2026-08-31T12:05:00Z",
@@ -657,7 +680,12 @@ describe("Run routes", () => {
     expect(
       screen.getByText("worker_result_schema_json_invalid"),
     ).toBeInTheDocument();
-    expect(screen.getByText("reviewer")).toBeInTheDocument();
+    expect(screen.getAllByText("reviewer").length).toBeGreaterThan(0);
+    expect(screen.getByText("Final Agent labels")).toBeInTheDocument();
+    expect(screen.getByText("otlp-http@1")).toBeInTheDocument();
+    expect(
+      view.container.querySelector(".runtime-agent-override"),
+    ).toHaveTextContent("workerTelemetry: agent_labels");
     expect(
       screen.getByText("Worker result did not match StageContentResult."),
     ).toBeInTheDocument();

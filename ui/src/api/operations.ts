@@ -102,6 +102,21 @@ function invalidResponse(status: number, message: string): PublicAPIError {
   });
 }
 
+function requireExactRuntimeKeys(
+  value: object,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): void {
+  const keys = Object.keys(value);
+  const allowed = new Set([...required, ...optional]);
+  if (
+    required.some((key) => !keys.includes(key)) ||
+    keys.some((key) => !allowed.has(key))
+  ) {
+    throw new TypeError("Runtime configuration API response shape is invalid");
+  }
+}
+
 function requireResourceID(label: string, value: string): void {
   if (!RESOURCE_ID_PATTERN.test(value)) {
     throw new TypeError(`${label} is invalid`);
@@ -155,6 +170,7 @@ function requireRuntimeAgentId(value: string): void {
 function safeRuntimeRef(
   ref: components["schemas"]["RuntimeConfigRef"],
 ): components["schemas"]["RuntimeConfigRef"] {
+  requireExactRuntimeKeys(ref, ["name", "version", "digest"]);
   requireRuntimeIdentity(ref.name, ref.version);
   if (!DIGEST_PATTERN.test(ref.digest)) {
     throw new TypeError("RuntimeConfig ref is invalid");
@@ -165,6 +181,11 @@ function safeRuntimeRef(
 function safeRuntimeTelemetry(
   value: components["schemas"]["RuntimeTelemetryConfig"],
 ): components["schemas"]["RuntimeTelemetryConfig"] {
+  requireExactRuntimeKeys(
+    value,
+    ["adapter", "endpoint"],
+    ["credential", "captureContent", "flushTimeoutSeconds"],
+  );
   const endpoint = new URL(value.endpoint);
   if (
     !["http:", "https:"].includes(endpoint.protocol) ||
@@ -191,9 +212,42 @@ function safeRuntimeTelemetry(
 function safeRuntimeDocument(
   value: RuntimeConfigDocument,
 ): RuntimeConfigDocument {
+  requireExactRuntimeKeys(value, ["apiVersion", "kind", "metadata", "spec"]);
+  requireExactRuntimeKeys(value.metadata, ["name", "version"]);
+  requireExactRuntimeKeys(value.spec, [], ["worker", "planner"]);
   requireRuntimeIdentity(value.metadata.name, value.metadata.version);
   const worker = value.spec.worker;
   const planner = value.spec.planner;
+  if (worker !== undefined) {
+    requireExactRuntimeKeys(
+      worker,
+      [],
+      ["llmGateway", "telemetry", "httpProxy"],
+    );
+    if (worker.llmGateway !== undefined && worker.llmGateway !== null) {
+      requireExactRuntimeKeys(worker.llmGateway, [], ["gateway", "credential"]);
+      if (
+        typeof worker.llmGateway.gateway === "object" &&
+        worker.llmGateway.gateway !== null
+      ) {
+        requireExactRuntimeKeys(worker.llmGateway.gateway, [
+          "gatewayId",
+          "version",
+          "digest",
+        ]);
+      }
+    }
+    if (worker.httpProxy !== undefined && worker.httpProxy !== null) {
+      requireExactRuntimeKeys(
+        worker.httpProxy,
+        ["adapter", "proxyUrl", "targets"],
+        ["credential", "caBundlePem"],
+      );
+    }
+  }
+  if (planner !== undefined) {
+    requireExactRuntimeKeys(planner, [], ["telemetry"]);
+  }
   return {
     apiVersion: value.apiVersion,
     kind: value.kind,
@@ -288,6 +342,13 @@ function safeRuntimeDocument(
 function safeRuntimeConfigResource(
   value: RuntimeConfigResource,
 ): RuntimeConfigResource {
+  requireExactRuntimeKeys(value, [
+    "ref",
+    "document",
+    "builtIn",
+    "createdBy",
+    "createdAt",
+  ]);
   const ref = safeRuntimeRef(value.ref);
   const document = safeRuntimeDocument(value.document);
   if (
@@ -306,6 +367,15 @@ function safeRuntimeConfigResource(
 }
 
 function safeRuntimeLabel(value: RuntimeLabelBinding): RuntimeLabelBinding {
+  requireExactRuntimeKeys(value, [
+    "label",
+    "config",
+    "revision",
+    "createdBy",
+    "createdAt",
+    "updatedBy",
+    "updatedAt",
+  ]);
   requireRuntimeIdentity(value.label);
   if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
     throw new TypeError("Runtime label revision is invalid");
@@ -324,6 +394,12 @@ function safeRuntimeLabel(value: RuntimeLabelBinding): RuntimeLabelBinding {
 function safeRuntimeCredential(
   value: RuntimeCredentialMetadata,
 ): RuntimeCredentialMetadata {
+  requireExactRuntimeKeys(value, [
+    "credentialId",
+    "kind",
+    "createdBy",
+    "createdAt",
+  ]);
   requireRuntimeCredentialId(value.credentialId);
   if (
     !["otlp-headers@1", "http-proxy-basic@1", "http-proxy-bearer@1"].includes(
@@ -367,6 +443,26 @@ function safeReason(value: { code: string; retryable: boolean } | undefined) {
 function safeRuntimeAgent(
   value: RuntimeAgentObservation,
 ): RuntimeAgentObservation {
+  requireExactRuntimeKeys(
+    value,
+    [
+      "instanceId",
+      "softwareVersion",
+      "supportedRuntimes",
+      "supportedToolsets",
+      "supportedSandboxProfiles",
+      "supportedRuntimeAdapters",
+      "observedState",
+      "slotState",
+    ],
+    [
+      "lastAcceptedHeartbeat",
+      "confirmedLeaseUntil",
+      "currentAllocationId",
+      "authoritativeAllocationId",
+      "reconciliationReason",
+    ],
+  );
   const reason = safeReason(value.reconciliationReason);
   const runtimes = safeCapabilityRefs(value.supportedRuntimes, true);
   const sandboxes = safeCapabilityRefs(value.supportedSandboxProfiles, true);
@@ -379,6 +475,9 @@ function safeRuntimeAgent(
   }
   const seenToolsets = new Set<string>();
   const toolsets = value.supportedToolsets.map((capability) => {
+    if (capability !== null && typeof capability === "object") {
+      requireExactRuntimeKeys(capability, ["ref", "tools"]);
+    }
     if (
       capability === null ||
       typeof capability !== "object" ||
@@ -433,6 +532,22 @@ function safeRuntimeAgent(
 function safeRuntimeAgentPrincipal(
   value: RuntimeAgentPrincipal,
 ): RuntimeAgentPrincipal {
+  requireExactRuntimeKeys(
+    value,
+    [
+      "runtimeAgentId",
+      "labels",
+      "revision",
+      "availability",
+      "requiredRuntimeAdapters",
+      "missingRuntimeAdapters",
+      "createdBy",
+      "createdAt",
+      "updatedBy",
+      "updatedAt",
+    ],
+    ["live"],
+  );
   requireRuntimeAgentId(value.runtimeAgentId);
   if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
     throw new TypeError("Runtime Agent principal revision is invalid");

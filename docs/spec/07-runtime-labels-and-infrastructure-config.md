@@ -841,7 +841,13 @@ MAC is never returned, logged or used as a credential.
 `POST /v1/runs` adds `labels`, a sorted-unique array in the canonical request;
 responses expose both explicit labels and the pinned default/label config refs.
 Run detail exposes final Agent-label/config provenance only after an allocation
-snapshot commits. Stable errors include `runtime_label_unknown`,
+snapshot commits. The public `StageAttempt.runtimeConfiguration` is omitted
+before that boundary. Once present, its per-logical-Worker entries contain
+only the sorted Agent-label pins, required RuntimeAdapter refs, closed field
+origins and `pinned | release_pending | released` cleanup status. It omits
+allocation IDs, physical Runtime Agent IDs, endpoints, credentials and the
+complete `RuntimeSettings`; current Operations state is never joined into
+historical Run detail. Stable errors include `runtime_label_unknown`,
 `runtime_config_conflict`, `runtime_config_invalid`,
 `runtime_credential_in_use`, `runtime_label_in_use`,
 `runtime_agent_label_not_applicable` and the existing precondition/idempotency

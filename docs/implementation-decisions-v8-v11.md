@@ -536,3 +536,25 @@ tests that make the choice observable.
   closed no-content projection and exact Run-only provenance, cap the queue,
   bound a hanging collector, and show rejected delivery leaves Run success and
   slot release unchanged while producing only the safe durable export outcome.
+
+### D024 — Run detail projects committed allocation provenance, not live Operations
+
+- Applies to: V8-015.
+- Decision: `StageAttempt.runtimeConfiguration` is absent until at least one
+  allocation has committed durable Runtime provenance. It then projects one
+  entry per logical Worker with Agent-label pins, exact adapter refs, closed
+  field origins and release status. The projection is read from immutable
+  `stage_allocations`; it never joins the current principal label set or live
+  Registry snapshot.
+- Safety boundary: the public shape has no representation for allocation IDs,
+  certificate principals, physical Runtime instance IDs, endpoint URLs,
+  RuntimeSettings, headers, tokens or proxy authentication. Frontend parsing
+  also rejects unknown fields before storing this nested projection in query
+  state.
+- Reason: the V8 API already persisted the required provenance but the Run
+  response exposed only creation-time default/Run pins. Without this small
+  public projection, V8-015 could only guess a final Agent override from
+  mutable Operations state, which is both historically wrong and contrary to
+  the spec. Returning the full private provenance was rejected because it
+  would couple owner-facing Run views to physical deployment and credential
+  metadata.

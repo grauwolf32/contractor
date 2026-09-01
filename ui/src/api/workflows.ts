@@ -2,6 +2,7 @@ import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
+import { safeRunRuntimeConfiguration } from "./runtime-configuration";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -148,5 +149,23 @@ export async function createRun(
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  return response;
+  if (
+    !Array.isArray(response.labels) ||
+    response.labels.some(
+      (label, index) =>
+        !CONFIG_ID_PATTERN.test(label) ||
+        label === "default" ||
+        (index > 0 && response.labels[index - 1]! >= label),
+    )
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  return {
+    runId: response.runId,
+    state: response.state,
+    labels: [...response.labels],
+    runtimeConfiguration: safeRunRuntimeConfiguration(
+      response.runtimeConfiguration,
+    ),
+  };
 }

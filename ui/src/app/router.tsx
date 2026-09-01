@@ -15,6 +15,8 @@ import { OperationsOverviewRoute } from "../routes/operations/overview";
 import { ConfigurationDetailRoute } from "../routes/operations/llm-configurations/detail";
 import { ConfigurationListRoute } from "../routes/operations/llm-configurations";
 import { RuntimeAgentListRoute } from "../routes/operations/runtime-agents";
+import { RuntimeConfigDetailRoute } from "../routes/operations/runtime-configs/detail";
+import { RuntimeConfigurationRoute } from "../routes/operations/runtime-configs";
 import { WorkflowDetailRoute } from "../routes/workflows/detail";
 import { WorkflowListRoute } from "../routes/workflows/list";
 import { NotFoundRoute } from "../routes/placeholders";
@@ -60,6 +62,14 @@ export function applicationRoutes(): RouteObject[] {
                 {
                   path: "runtime-agents",
                   element: <RuntimeAgentListRoute />,
+                },
+                {
+                  path: "runtime-configs",
+                  element: <RuntimeConfigurationRoute />,
+                },
+                {
+                  path: "runtime-configs/:name/:version",
+                  element: <RuntimeConfigDetailRoute />,
                 },
                 {
                   path: "allocations",

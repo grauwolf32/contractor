@@ -16,6 +16,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const digest = `sha256:${"1".repeat(64)}`;
+const secondDigest = `sha256:${"2".repeat(64)}`;
 const session = {
   principal: {
     userId: "user_local",
@@ -102,6 +103,31 @@ const sourceArtifact = {
   createdAt: "2026-08-31T12:00:00Z",
 };
 
+const pinnedRuntimeConfiguration = {
+  default: {
+    label: "default",
+    bindingRevision: "1",
+    config: { name: "contractor-empty", version: "1", digest },
+  },
+  labels: [],
+};
+
+const labeledRuntimeConfiguration = {
+  default: pinnedRuntimeConfiguration.default,
+  labels: [
+    {
+      label: "caido",
+      bindingRevision: "4",
+      config: { name: "caido", version: "1", digest: secondDigest },
+    },
+    {
+      label: "debug",
+      bindingRevision: "7",
+      config: { name: "debug", version: "2", digest },
+    },
+  ],
+};
+
 function apiResponse(value: unknown, options: ResponseInit = {}): Response {
   const headers = new Headers(options.headers);
   headers.set("content-type", "application/json");
@@ -167,6 +193,40 @@ function inventoryResponse(path: string): Response | undefined {
             ],
             models: ["strong-model"],
           },
+        },
+      ],
+      page: { hasMore: false },
+    });
+  }
+  if (path === "/v1/operations/runtime-labels") {
+    return apiResponse({
+      items: [
+        {
+          label: "default",
+          config: pinnedRuntimeConfiguration.default.config,
+          revision: "1",
+          createdBy: "system",
+          createdAt: "2026-08-31T12:00:00Z",
+          updatedBy: "system",
+          updatedAt: "2026-08-31T12:00:00Z",
+        },
+        {
+          label: "caido",
+          config: labeledRuntimeConfiguration.labels[0]!.config,
+          revision: "4",
+          createdBy: "user_local",
+          createdAt: "2026-08-31T12:00:00Z",
+          updatedBy: "user_local",
+          updatedAt: "2026-08-31T12:00:00Z",
+        },
+        {
+          label: "debug",
+          config: labeledRuntimeConfiguration.labels[1]!.config,
+          revision: "7",
+          createdBy: "user_local",
+          createdAt: "2026-08-31T12:00:00Z",
+          updatedBy: "user_local",
+          updatedAt: "2026-08-31T12:00:00Z",
         },
       ],
       page: { hasMore: false },
@@ -246,7 +306,12 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/runs" && request.method === "POST") {
           posts.push({ request, body: await request.clone().json() });
           return apiResponse(
-            { runId: "run_openapi", state: "running" },
+            {
+              runId: "run_openapi",
+              state: "running",
+              labels: ["caido", "debug"],
+              runtimeConfiguration: labeledRuntimeConfiguration,
+            },
             { status: 202 },
           );
         }
@@ -255,6 +320,8 @@ describe("Workflow routes", () => {
             runId: "run_openapi",
             workflow: "openapi-from-source@1",
             state: "running",
+            labels: ["caido", "debug"],
+            runtimeConfiguration: labeledRuntimeConfiguration,
             attempts: [],
             transitions: [],
             outputs: {},
@@ -290,6 +357,11 @@ describe("Workflow routes", () => {
     ).not.toBeInTheDocument();
 
     const user = userEvent.setup();
+    expect(
+      await screen.findByText("Default · always applied"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /debug/ }));
+    await user.click(screen.getByRole("checkbox", { name: /caido/ }));
     await user.type(screen.getByLabelText(/^objective/i), "Build public API");
     await screen.findByRole("option", {
       name: /projects\/source@revision-7/,
@@ -331,6 +403,7 @@ describe("Workflow routes", () => {
     );
     expect(posts[0]?.body).toEqual({
       workflow: "openapi-from-source@1",
+      labels: ["caido", "debug"],
       parameters: { objective: "Build public API" },
       artifacts: {
         source: {
@@ -351,6 +424,7 @@ describe("Workflow routes", () => {
       await screen.findByRole("heading", { name: "run_openapi" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Authoritative aggregate")).toBeInTheDocument();
+    expect(screen.getByText("binding revision 7")).toBeInTheDocument();
   });
 
   it("blocks a mutation while required declared fields are missing", async () => {
@@ -434,7 +508,12 @@ describe("Workflow routes", () => {
             throw new TypeError("response lost");
           }
           return apiResponse(
-            { runId: "run_changed", state: "running" },
+            {
+              runId: "run_changed",
+              state: "running",
+              labels: [],
+              runtimeConfiguration: pinnedRuntimeConfiguration,
+            },
             { status: 202 },
           );
         }

@@ -21,6 +21,7 @@ import type { OperationsOutletContext } from "./context";
 const navigation = [
   { to: "/operations", label: "Overview", end: true },
   { to: "/operations/runtime-agents", label: "Runtime Agents" },
+  { to: "/operations/runtime-configs", label: "Runtime configuration" },
   { to: "/operations/allocations", label: "Allocations" },
   { to: "/operations/configurations", label: "LLM configurations" },
   { to: "/operations/credentials", label: "Credentials" },
@@ -50,10 +51,24 @@ function OperationsLiveSubscription({
         void queryClient.invalidateQueries({
           queryKey: queryKeys.configurations.all,
         });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.runtimeConfigs.all,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.runtimeLabels.all,
+        });
       }
       if (resource === "credential") {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.credentials.all,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.runtimeCredentials.all,
+        });
+      }
+      if (resource === "runtimeAgent") {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
         });
       }
       void invalidateSnapshot();

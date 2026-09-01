@@ -131,6 +131,94 @@ function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
   );
 }
 
+function RuntimeConfigurationView({ attempt }: { attempt: StageAttempt }) {
+  const configuration = attempt.runtimeConfiguration;
+  if (configuration === undefined) {
+    return null;
+  }
+  return (
+    <div className="attempt-block stage-runtime-configuration">
+      <h4>Allocation-pinned Runtime configuration</h4>
+      <p className="compact-copy">
+        This historical projection appears only after placement commits. It
+        contains safe refs and origins, never RuntimeSettings or physical Agent
+        identity.
+      </p>
+      <div className="stage-runtime-allocation-list">
+        {configuration.allocations.map((allocation) => (
+          <article key={allocation.logicalAgent}>
+            <div className="section-heading">
+              <strong>Logical Worker {allocation.logicalAgent}</strong>
+              <StateBadge state={allocation.status} />
+            </div>
+            <dl className="key-value-list">
+              <div>
+                <dt>Final Agent labels</dt>
+                <dd>
+                  {allocation.agentLabels.length === 0
+                    ? "none"
+                    : allocation.agentLabels.map((pin) => (
+                        <span className="runtime-agent-pin" key={pin.label}>
+                          <strong>{pin.label}</strong>
+                          <code>
+                            {pin.config.name}@{pin.config.version}
+                          </code>
+                          <small>binding revision {pin.bindingRevision}</small>
+                          <code title={pin.config.digest}>
+                            {compactDigest(pin.config.digest)}
+                          </code>
+                        </span>
+                      ))}
+                </dd>
+              </div>
+              <div>
+                <dt>Required adapters</dt>
+                <dd>
+                  {allocation.runtimeAdapters.length === 0
+                    ? "none"
+                    : allocation.runtimeAdapters.map((adapter) => (
+                        <code key={adapter}>{adapter}</code>
+                      ))}
+                </dd>
+              </div>
+              <div>
+                <dt>Final safe origins</dt>
+                <dd>
+                  {Object.entries(allocation.origins).length === 0 ? (
+                    "none"
+                  ) : (
+                    <ul className="runtime-origin-list">
+                      {Object.entries(allocation.origins).map(
+                        ([field, origin]) => (
+                          <li
+                            className={
+                              origin.layer === "agent_labels"
+                                ? "runtime-agent-override"
+                                : undefined
+                            }
+                            key={field}
+                          >
+                            <strong>{field}</strong>: {origin.layer}
+                            {origin.configs?.map((ref) => (
+                              <code key={`${ref.name}@${ref.version}`}>
+                                {ref.name}@{ref.version}
+                              </code>
+                            ))}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PlannerPlanView({ projection }: { projection: PlannerProjection }) {
   const plan = projection.plan;
   if (plan === undefined) {
@@ -406,6 +494,7 @@ export function StageAttemptView({
         </div>
         <PlannerPlanView projection={projection} />
         <ExecutionConfigView attempt={attempt} />
+        <RuntimeConfigurationView attempt={attempt} />
         {attempt.metrics === undefined ? null : (
           <MetricsView metrics={attempt.metrics} />
         )}

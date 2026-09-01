@@ -1017,6 +1017,29 @@ export interface components {
             default: components["schemas"]["PinnedRuntimeConfig"];
             labels: components["schemas"]["PinnedRuntimeConfig"][];
         };
+        RuntimeFieldOrigin: {
+            /** @enum {unknown} */
+            layer: "default" | "workflow_execution_config" | "run_labels" | "run_execution_config" | "escalation_execution_config" | "agent_labels";
+            configs?: components["schemas"]["RuntimeConfigRef"][];
+        };
+        StageRuntimeOrigins: {
+            llmGateway?: components["schemas"]["RuntimeFieldOrigin"];
+            llmCredential?: components["schemas"]["RuntimeFieldOrigin"];
+            workerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
+            httpProxy?: components["schemas"]["RuntimeFieldOrigin"];
+            plannerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
+        };
+        StageRuntimeAllocation: {
+            logicalAgent: components["schemas"]["ConfigId"];
+            agentLabels: components["schemas"]["PinnedRuntimeConfig"][];
+            runtimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
+            origins: components["schemas"]["StageRuntimeOrigins"];
+            /** @enum {unknown} */
+            status: "pinned" | "release_pending" | "released";
+        };
+        StageRuntimeConfiguration: {
+            allocations: components["schemas"]["StageRuntimeAllocation"][];
+        };
         AgentTemplateRef: {
             templateId: components["schemas"]["ConfigId"];
             version: components["schemas"]["ConfigVersion"];
@@ -1069,6 +1092,7 @@ export interface components {
             metrics?: components["schemas"]["MetricsSummary"];
             diagnostics?: components["schemas"]["AttemptDiagnostics"];
             plan?: components["schemas"]["PlannerPlan"];
+            runtimeConfiguration?: components["schemas"]["StageRuntimeConfiguration"];
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */

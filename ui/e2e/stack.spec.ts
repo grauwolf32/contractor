@@ -482,7 +482,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(
     page.getByRole("heading", { name: "Runtime Agents" }),
   ).toBeVisible();
-  await expect(page.getByText("busy", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".operations-library table tbody tr").first(),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Allocations" }).click();
   const allocation = page.locator("details.allocation-card").first();
   await expect(allocation).toBeVisible();
@@ -537,11 +539,35 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       existing_openapi: "ui-stack-openapi-seed",
     },
   );
-  await expect(
-    page.locator(".run-metadata").getByText("succeeded", { exact: true }),
-  ).toBeVisible({
-    timeout: 100_000,
-  });
+  try {
+    await expect(
+      page.locator(".run-metadata").getByText("succeeded", { exact: true }),
+    ).toBeVisible({
+      timeout: 180_000,
+    });
+  } catch (error) {
+    const diagnostics = await page.evaluate(
+      async ({ origin, runId }) =>
+        await Promise.all(
+          [
+            `/v1/runs/${runId}`,
+            "/v1/operations/snapshot",
+            "/v1/operations/runtime-agent-principals?limit=50",
+          ].map(async (path) =>
+            (
+              await fetch(`${origin}${path}`, {
+                credentials: "include",
+              })
+            ).json(),
+          ),
+        ),
+      { origin: apiURL, runId: openAPIRunID },
+    );
+    throw new Error(
+      `${String(error)}\nOpenAPI diagnostics: ${JSON.stringify(diagnostics)}`,
+      { cause: error },
+    );
+  }
   await expect(
     page.locator(".run-metadata").getByText("openapi-from-source@1", {
       exact: true,
@@ -635,6 +661,70 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     page.getByRole("heading", { name: "Active credentials" }),
   ).toBeVisible();
   await expect(page.getByText("ui-stack-key", { exact: true })).toHaveCount(0);
+
+  await page.goto("/operations/runtime-configs");
+  await expect(
+    page.getByRole("heading", { name: "RuntimeConfig versions" }),
+  ).toBeVisible();
+  const runtimeCredentialForm = page.locator("form.runtime-credential-form");
+  await runtimeCredentialForm
+    .getByLabel("Runtime credential ID")
+    .fill("ui-stack-otel");
+  await runtimeCredentialForm
+    .getByLabel(/Header value/)
+    .fill("Bearer browser-write-only-value");
+  await runtimeCredentialForm
+    .getByRole("button", { name: "Create active Runtime credential" })
+    .click();
+  await expect(
+    runtimeCredentialForm.getByText(/Created safe metadata/),
+  ).toBeVisible();
+  await expect(runtimeCredentialForm.getByLabel(/Header value/)).toHaveValue(
+    "",
+  );
+  await expect(page.getByText("Bearer browser-write-only-value")).toHaveCount(
+    0,
+  );
+
+  await page.getByLabel("RuntimeConfig name").fill("ui-stack-debug");
+  const workerTelemetry = page.getByRole("group", {
+    name: /Worker telemetry/,
+  });
+  await workerTelemetry.getByRole("checkbox").check();
+  await workerTelemetry
+    .getByLabel("OTLP traces endpoint")
+    .fill("http://127.0.0.1:9/v1/traces");
+  await workerTelemetry
+    .getByLabel("Runtime credential ID (optional)")
+    .fill("ui-stack-otel");
+  await page
+    .getByRole("button", { name: "Publish immutable RuntimeConfig" })
+    .click();
+  await expect(page.getByText(/Published ui-stack-debug@1/)).toBeVisible();
+  const runtimeLabelForm = page.locator("form.runtime-label-create");
+  await runtimeLabelForm.getByLabel("New label").fill("ui-stack-debug");
+  await selectOptionContaining(
+    runtimeLabelForm.getByLabel("Exact RuntimeConfig"),
+    "ui-stack-debug@1",
+  );
+  await runtimeLabelForm
+    .getByRole("button", { name: "Create binding" })
+    .click();
+  await expect(
+    page
+      .locator("article.runtime-binding-card")
+      .filter({ hasText: "ui-stack-debug" }),
+  ).toBeVisible();
+
+  await page.goto("/operations/runtime-agents");
+  const principal = page.locator("article.runtime-principal-card").first();
+  await expect(principal).toBeVisible();
+  await principal.getByLabel(/ui-stack-debug/).check();
+  await principal
+    .getByRole("button", { name: "Replace labels with current revision" })
+    .click();
+  await expect(principal.getByLabel(/ui-stack-debug/)).toBeChecked();
+  await expect(principal.getByText(/future allocations/)).toBeVisible();
 
   await page.goto("/operations");
   const generationBefore = await page

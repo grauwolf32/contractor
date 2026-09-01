@@ -54,6 +54,19 @@ describe("Run API", () => {
             runId: "run-1",
             workflow: "workflow@1",
             state: "running",
+            labels: [],
+            runtimeConfiguration: {
+              default: {
+                label: "default",
+                bindingRevision: "1",
+                config: {
+                  name: "contractor-empty",
+                  version: "1",
+                  digest: `sha256:${"0".repeat(64)}`,
+                },
+              },
+              labels: [],
+            },
             attempts: [],
             transitions: [],
             outputs: {},

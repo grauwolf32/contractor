@@ -9,6 +9,10 @@ import { Link, useNavigate } from "react-router";
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
+import {
+  listRuntimeLabels,
+  type RuntimeLabelBinding,
+} from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
 import {
   createRun,
@@ -43,6 +47,20 @@ function configurationSelector(resource: ConfigurationResource): string {
 
 function artifactLabel(metadata: ArtifactMetadata): string {
   return `${artifactOptionKey(metadata.artifact)} · ${metadata.mediaType} · ${formatBytes(metadata.size)}`;
+}
+
+function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
+  return (
+    <small className="runtime-label-preview">
+      <code>
+        {binding.config.name}@{binding.config.version}
+      </code>
+      <span>binding revision {binding.revision}</span>
+      <code title={binding.config.digest}>
+        {binding.config.digest.slice(0, 18)}…
+      </code>
+    </small>
+  );
 }
 
 function updateRecord(
@@ -153,6 +171,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   const [parameters, setParameters] = useState<
     Record<string, string | undefined>
   >({});
+  const [labels, setLabels] = useState<string[]>([]);
   const [artifactSelections, setArtifactSelections] = useState<
     Record<string, string>
   >({});
@@ -199,6 +218,13 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
       listCredentials(api, pageParam === null ? {} : { cursor: pageParam }),
     getNextPageParam: nextCursor,
   });
+  const runtimeLabelInventory = useInfiniteQuery({
+    queryKey: queryKeys.operations.runtimeLabels.picker,
+    initialPageParam: INITIAL_CURSOR as string | null,
+    queryFn: ({ pageParam }) =>
+      listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
+    getNextPageParam: nextCursor,
+  });
 
   const artifacts = useMemo(
     () => artifactInventory.data?.pages.flatMap((page) => page.items) ?? [],
@@ -226,9 +252,23 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     () => credentialInventory.data?.pages.flatMap((page) => page.items) ?? [],
     [credentialInventory.data],
   );
+  const runtimeLabels = useMemo(
+    () =>
+      (runtimeLabelInventory.data?.pages.flatMap((page) => page.items) ?? [])
+        .filter((binding) => binding.label !== "default")
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    [runtimeLabelInventory.data],
+  );
+  const defaultRuntimeConfig = useMemo(
+    () =>
+      runtimeLabelInventory.data?.pages
+        .flatMap((page) => page.items)
+        .find((binding) => binding.label === "default"),
+    [runtimeLabelInventory.data],
+  );
   const currentValidation = validateRunDraft(
     workflow,
-    { parameters, artifacts: artifactSelections, overrides },
+    { labels, parameters, artifacts: artifactSelections, overrides },
     artifactMap,
   );
   const mutation = useMutation({
@@ -272,7 +312,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     mutation.reset();
     const validation = validateRunDraft(
       workflow,
-      { parameters, artifacts: artifactSelections, overrides },
+      { labels, parameters, artifacts: artifactSelections, overrides },
       artifactMap,
     );
     setValidationErrors(validation.errors);
@@ -297,6 +337,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     modelPolicyInventory.error,
     gatewayInventory.error,
     credentialInventory.error,
+    runtimeLabelInventory.error,
   ].filter((error) => error !== null);
 
   return (
@@ -310,6 +351,70 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
           {workflow.ref.name}@{workflow.ref.version}
         </code>
       </div>
+
+      <fieldset className="run-draft-section runtime-label-picker">
+        <legend>Runtime infrastructure labels</legend>
+        <p className="muted-copy">
+          Default is always pinned and is not selectable. Explicit labels are a
+          sorted immutable set for this Run; they configure infrastructure, not
+          Workflow behavior or model budgets.
+        </p>
+        {runtimeLabelInventory.error === null ? null : (
+          <ErrorNotice error={runtimeLabelInventory.error} />
+        )}
+        <div className="runtime-default-preview">
+          <strong>Default · always applied</strong>
+          {defaultRuntimeConfig === undefined ? (
+            <span className="muted-copy">Loading exact binding…</span>
+          ) : (
+            <RuntimeLabelPreview binding={defaultRuntimeConfig} />
+          )}
+        </div>
+        {runtimeLabels.length === 0 && !runtimeLabelInventory.isPending ? (
+          <p className="compact-empty">No explicit Runtime labels are bound.</p>
+        ) : (
+          <div className="runtime-label-options">
+            {runtimeLabels.map((binding) => (
+              <label className="runtime-label-option" key={binding.label}>
+                <input
+                  type="checkbox"
+                  checked={labels.includes(binding.label)}
+                  onChange={(event) => {
+                    setLabels((current) =>
+                      (event.target.checked
+                        ? [...current, binding.label]
+                        : current.filter((label) => label !== binding.label)
+                      ).sort(),
+                    );
+                    clearError("labels");
+                  }}
+                />
+                <span>
+                  <strong>{binding.label}</strong>
+                  <RuntimeLabelPreview binding={binding} />
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+        {validationErrors.labels === undefined ? null : (
+          <p className="field-error" role="alert">
+            {validationErrors.labels}
+          </p>
+        )}
+        {runtimeLabelInventory.hasNextPage ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={runtimeLabelInventory.isFetchingNextPage}
+            onClick={() => void runtimeLabelInventory.fetchNextPage()}
+          >
+            {runtimeLabelInventory.isFetchingNextPage
+              ? "Loading Runtime labels…"
+              : "Load more Runtime labels"}
+          </button>
+        ) : null}
+      </fieldset>
 
       <fieldset className="run-draft-section">
         <legend>String parameters</legend>

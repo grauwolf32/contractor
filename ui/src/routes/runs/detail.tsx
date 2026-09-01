@@ -209,6 +209,55 @@ function RunBindings({ run }: { run: RunStatus }) {
   );
 }
 
+function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
+  const entries = [
+    run.runtimeConfiguration.default,
+    ...run.runtimeConfiguration.labels,
+  ];
+  return (
+    <section className="panel run-runtime-configuration">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Pinned at Run creation</p>
+          <h3>Runtime infrastructure configuration</h3>
+          <p className="muted-copy">
+            Default and explicit Run labels below are immutable for this Run.
+            Later label rebinding cannot change these exact refs.
+          </p>
+        </div>
+        <span>{run.labels.length} explicit labels</span>
+      </div>
+      <div className="runtime-provenance-grid">
+        {entries.map((pin) => (
+          <article
+            className={
+              pin.label === "default" ? "runtime-default-pin" : undefined
+            }
+            key={`${pin.label}:${pin.bindingRevision}`}
+          >
+            <strong>
+              {pin.label}
+              {pin.label === "default" ? " · always applied" : ""}
+            </strong>
+            <span>binding revision {pin.bindingRevision}</span>
+            <code>
+              {pin.config.name}@{pin.config.version}
+            </code>
+            <code title={pin.config.digest}>
+              {pin.config.digest.slice(0, 18)}…
+            </code>
+          </article>
+        ))}
+      </div>
+      <p className="muted-copy">
+        Agent-label overrides become knowable only after Scheduler commits an
+        allocation snapshot; they are never inferred from current Operations
+        state.
+      </p>
+    </section>
+  );
+}
+
 function LiveAttempts({ run }: { run: RunStatus }) {
   const live = useLiveRunProjection(run);
   return (
@@ -286,6 +335,7 @@ function LoadedRunDetail({
           )}
         </div>
       )}
+      <RunRuntimeConfiguration run={run} />
       <RunBindings run={run} />
       <LiveAttempts key={`${liveKey}:${snapshotVersion}`} run={run} />
 
