@@ -3,8 +3,8 @@ id: V8-011
 title: Implement bounded content-free Worker OTLP telemetry
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 9b684356774c679cce8762f7bef757744a4d79d0
 depends_on: [V8-002, V8-007, V8-010]
 languages: [python]
 

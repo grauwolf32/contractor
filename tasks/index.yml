@@ -240,15 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-010
-  next_task: V8-011
+  completed_through: V8-011
+  next_task: V8-012
   summary: >-
-    Runtime now owns typed allocation-scoped adapter handles before sandbox and
-    Worker construction, uses bounded flush/close on every terminal and lease
-    path, erases settings before idle reuse, and reports safe adapter metrics.
-    Control Plane filters those metrics against pinned provenance without
-    allowing optional telemetry damage to block terminalization or release.
-    Next, implement the concrete allocation-scoped OTLP HTTP adapter.
+    Runtime now exports allocation-owned, content-free OTLP/HTTP protobuf spans
+    for Worker model, tool, A2A and error activity through a bounded in-memory
+    queue. Exporter failures and timeouts remain metrics-only, while close still
+    enforces secret erasure before slot reuse. Next, implement the concrete
+    target-scoped HTTP proxy adapter.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
