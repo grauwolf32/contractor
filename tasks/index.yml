@@ -240,15 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-004
-  next_task: V8-005
+  completed_through: V8-005
+  next_task: V8-006
   summary: >-
-    Private protocol v2 is active for registration, and every Runtime Agent is
-    bound to a durable certificate-SPKI principal with authoritative label CAS.
-    Allocation grants, private Artifact access and outbound Control/A2A TLS now
-    require the same principal plus process instance, while concurrent reuse of
-    one key is rejected. Next, persist and pin the default plus explicit Runtime
-    labels on each Run before mutable configuration is resolved.
+    Every Run now atomically pins the current default plus canonical explicit
+    Runtime labels, exact binding revisions and immutable RuntimeConfig refs.
+    Replay bypasses removed mutable dependencies, credential deletion observes
+    non-terminal snapshots, and only the Worker physical Gateway may remain
+    absent for candidate placement. Next, implement the pure precedence and
+    conflict resolver shared by allocation-time planning and audit projection.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

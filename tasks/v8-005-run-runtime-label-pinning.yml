@@ -3,8 +3,8 @@ id: V8-005
 title: Pin default and explicit Runtime labels during Run creation
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 61dd24c5d9191e96296db6cd7b6b8d7833712d6b
 depends_on: [V8-001, V8-002, V8-004]
 languages: [go, sql, yaml]
 
