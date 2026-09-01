@@ -240,16 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-003
-  next_task: V8-004
+  completed_through: V8-004
+  next_task: V8-005
   summary: >-
-    The inactive private Runtime protocol v2 now has strict parity DTOs and
-    canonical Go/Python fixtures for labels, adapter capabilities, typed secret
-    settings, safe resolution provenance and adapter metrics. Startup freezes
-    bounded adapter capabilities and parses inert initial labels while the
-    production path deliberately remains v1. Next, bind registration and
-    allocations to durable certificate-key principals and activate v2 on both
-    peers atomically.
+    Private protocol v2 is active for registration, and every Runtime Agent is
+    bound to a durable certificate-SPKI principal with authoritative label CAS.
+    Allocation grants, private Artifact access and outbound Control/A2A TLS now
+    require the same principal plus process instance, while concurrent reuse of
+    one key is rejected. Next, persist and pin the default plus explicit Runtime
+    labels on each Run before mutable configuration is resolved.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

@@ -3,8 +3,8 @@ id: V8-004
 title: Bind durable Runtime Agent labels and allocations to mTLS principals
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 3e359fb9b4c1463e325bd660b2cfe2422e78b8b1
 depends_on: [V8-001, V8-002, V8-003]
 languages: [go, python, sql]
 
