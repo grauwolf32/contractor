@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -15,6 +16,9 @@ from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.projectfs.storage import (
     DirectWorkspaceSession,
     ManagedWorkspaceTree,
+    WorkspaceChange,
+    WorkspaceChanges,
+    WorkspaceChangesView,
     WorkspaceDiff,
     WorkspaceSnapshot,
     WorkspaceStorageError,
@@ -147,23 +151,48 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             return encode_workspace_state(self._source, self._tree)
 
     async def changed_paths(self, path: str = "") -> tuple[str, ...]:
+        return tuple(entry.path for entry in await self.change_entries(path))
+
+    async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]:
         normalized = normalize_project_path(path, allow_root=True)
         async with self._lock:
             self._require_open()
             return tuple(
-                candidate
+                WorkspaceChange(
+                    path=candidate,
+                    change=_change_kind(self._checkpoint, self._tree, candidate),
+                    token=_change_token(self._checkpoint, self._tree, candidate),
+                )
                 for candidate in sorted(self._checkpoint.paths() | self._tree.paths())
                 if _within(candidate, normalized)
                 and _path_value(self._checkpoint, candidate) != _path_value(self._tree, candidate)
             )
 
-    async def diff(self, path: str = "", *, max_bytes: int = 65536) -> WorkspaceDiff:
+    async def diff(
+        self,
+        path: str = "",
+        *,
+        max_bytes: int = 65536,
+        offset_bytes: int = 0,
+    ) -> WorkspaceDiff:
         normalized = normalize_project_path(path, allow_root=True)
-        if max_bytes <= 0 or max_bytes > MAX_DIFF_BYTES:
+        if (
+            max_bytes <= 0
+            or max_bytes > MAX_DIFF_BYTES
+            or not isinstance(offset_bytes, int)
+            or isinstance(offset_bytes, bool)
+            or offset_bytes < 0
+        ):
             raise WorkspaceStorageError("workspace_limit_exceeded")
         async with self._lock:
             self._require_open()
-            return _workspace_diff(self._checkpoint, self._tree, normalized, max_bytes)
+            return _workspace_diff(
+                self._checkpoint, self._tree, normalized, max_bytes, offset_bytes
+            )
+
+    def changes_view(self) -> WorkspaceChanges:
+        self._require_open()
+        return WorkspaceChangesView(self)
 
     async def rollback_changes(self, path: str = "") -> None:
         normalized = normalize_project_path(path, allow_root=True)
@@ -444,6 +473,26 @@ def _path_value(tree: ManagedWorkspaceTree, path: str) -> tuple[str | None, str 
     return kind, tree.text_files.get(path) if kind == "text" else None
 
 
+def _change_kind(before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, path: str) -> str:
+    before_kind = before.kind(path)
+    after_kind = after.kind(path)
+    if before_kind is None:
+        return "created"
+    if after_kind is None:
+        return "deleted"
+    if before_kind != after_kind:
+        return "type_changed"
+    return "modified"
+
+
+def _change_token(before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, path: str) -> str:
+    document = {
+        "before": _path_value(before, path),
+        "after": _path_value(after, path),
+    }
+    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+
+
 def _tree_projection(tree: ManagedWorkspaceTree) -> tuple[set[str], dict[str, str], set[str]]:
     return tree.directories, tree.text_files, tree.binary_paths
 
@@ -453,6 +502,7 @@ def _workspace_diff(
     after: ManagedWorkspaceTree,
     root: str,
     maximum: int,
+    offset: int,
 ) -> WorkspaceDiff:
     changed = [
         path
@@ -461,6 +511,7 @@ def _workspace_diff(
     ]
     chunks: list[str] = []
     used = 0
+    remaining_skip = offset
     truncated = False
     for path in changed:
         lines = _path_diff(before, after, path)
@@ -468,17 +519,37 @@ def _workspace_diff(
             if not line.endswith("\n"):
                 line += "\n"
             encoded = line.encode("utf-8")
+            if remaining_skip:
+                if remaining_skip >= len(encoded):
+                    remaining_skip -= len(encoded)
+                    continue
+                encoded = encoded[remaining_skip:]
+                try:
+                    encoded.decode("utf-8")
+                except UnicodeError:
+                    raise WorkspaceStorageError("workspace_cursor_invalid") from None
+                remaining_skip = 0
             remaining = maximum - used
             if len(encoded) > remaining:
                 chunks.append(encoded[:remaining].decode("utf-8", errors="ignore"))
                 used += len(chunks[-1].encode("utf-8"))
+                if used == 0:
+                    raise WorkspaceStorageError("workspace_limit_exceeded")
                 truncated = True
                 break
-            chunks.append(line)
+            chunks.append(encoded.decode("utf-8"))
             used += len(encoded)
         if truncated:
             break
-    return WorkspaceDiff(text="".join(chunks), returned_bytes=used, truncated=truncated)
+    if remaining_skip:
+        raise WorkspaceStorageError("workspace_cursor_invalid")
+    return WorkspaceDiff(
+        text="".join(chunks),
+        returned_bytes=used,
+        truncated=truncated,
+        offset_bytes=offset,
+        next_offset=offset + used if truncated else None,
+    )
 
 
 def _path_diff(

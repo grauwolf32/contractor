@@ -44,6 +44,15 @@ class WorkspaceDiff:
     text: str = field(repr=False)
     returned_bytes: int
     truncated: bool
+    offset_bytes: int = 0
+    next_offset: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceChange:
+    path: str
+    change: str
+    token: str = field(repr=False)
 
 
 class WorkspaceReader(Protocol):
@@ -66,6 +75,16 @@ class WorkspaceWriter(WorkspaceReader, Protocol):
     async def move_path(self, source: str, destination: str) -> None: ...
 
     async def update_text(self, path: str, transform: Callable[[str], str]) -> None: ...
+
+
+class WorkspaceChanges(Protocol):
+    async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]: ...
+
+    async def diff(
+        self, path: str = "", *, max_bytes: int = 65536, offset_bytes: int = 0
+    ) -> WorkspaceDiff: ...
+
+    async def rollback_changes(self, path: str = "") -> None: ...
 
 
 class WorkspaceReaderView:
@@ -114,6 +133,26 @@ class WorkspaceWriterView:
 
     async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
         await self.__writer.update_text(path, transform)
+
+
+class WorkspaceChangesView:
+    """Narrow invocation-delta view without cumulative state or checkpoint commit."""
+
+    __slots__ = ("__changes",)
+
+    def __init__(self, changes: WorkspaceChanges) -> None:
+        self.__changes = changes
+
+    async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]:
+        return await self.__changes.change_entries(path)
+
+    async def diff(
+        self, path: str = "", *, max_bytes: int = 65536, offset_bytes: int = 0
+    ) -> WorkspaceDiff:
+        return await self.__changes.diff(path, max_bytes=max_bytes, offset_bytes=offset_bytes)
+
+    async def rollback_changes(self, path: str = "") -> None:
+        await self.__changes.rollback_changes(path)
 
 
 @dataclass(slots=True)
@@ -194,6 +233,9 @@ class DirectWorkspaceSession:
     def writer_view(self) -> WorkspaceWriter:
         self._require_open()
         return WorkspaceWriterView(self)
+
+    def changes_view(self) -> WorkspaceChanges:
+        raise WorkspaceStorageError("workspace_mode_unsupported")
 
     async def snapshot(self) -> WorkspaceSnapshot:
         async with self._lock:

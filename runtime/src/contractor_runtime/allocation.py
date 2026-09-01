@@ -53,6 +53,7 @@ from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
     WorkspacePreparationError,
+    WorkspaceStorageError,
     hydrate_workspace,
 )
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -599,6 +600,18 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
+            if (
+                toolset_ref == "workspace-changes@1"
+                and isinstance(spec, AllocationSpecV2)
+                and spec.workspace is not None
+                and spec.workspace.mode != "overlay"
+            ):
+                raise AllocationError(
+                    "workspace_mode_unsupported",
+                    "selected Toolset requires overlay workspace mode",
+                    retryable=False,
+                    status_code=422,
+                )
 
         if isinstance(spec, AllocationSpecV2):
             if spec.workspace is not None:
@@ -741,6 +754,16 @@ class AllocationService:
             return workspace.reader_view()
         if access == "write":
             return workspace.writer_view()
+        if access == "changes":
+            try:
+                return workspace.changes_view()
+            except WorkspaceStorageError:
+                raise AllocationError(
+                    "workspace_mode_unsupported",
+                    "selected Toolset requires overlay workspace mode",
+                    retryable=False,
+                    status_code=422,
+                ) from None
         if access is not None:
             raise AllocationError(
                 "invalid_toolset_factory",

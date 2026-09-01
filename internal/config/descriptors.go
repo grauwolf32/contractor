@@ -88,6 +88,9 @@ func MVPDescriptors() Descriptors {
 			"text-artifacts@1": {
 				Tools: []string{"read_text_artifact", "write_text_artifact"},
 			},
+			"workspace-changes@1": {
+				Tools: []string{"changed_paths", "diff", "rollback_changes"},
+			},
 		},
 		SandboxProfiles: map[string]struct{}{
 			"local-workdir@1": {},

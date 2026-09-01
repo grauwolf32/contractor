@@ -33,11 +33,16 @@ from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.source_analysis import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.text_artifacts import TextArtifactsToolsetFactory
+from contractor_runtime.toolsets.workspace_changes import WorkspaceChangesToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 if TYPE_CHECKING:
     from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
-    from contractor_runtime.projectfs.storage import WorkspaceReader, WorkspaceWriter
+    from contractor_runtime.projectfs.storage import (
+        WorkspaceChanges,
+        WorkspaceReader,
+        WorkspaceWriter,
+    )
 
 
 class WorkerRuntime(Protocol):
@@ -106,7 +111,7 @@ class ToolsetFactory(Protocol):
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
-        project_workspace: WorkspaceReader | WorkspaceWriter | None = None,
+        project_workspace: WorkspaceReader | WorkspaceWriter | WorkspaceChanges | None = None,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -154,6 +159,7 @@ def built_in_factories(
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
     edit_files_toolset = EditFilesToolsetFactory()
+    workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
@@ -183,6 +189,7 @@ def built_in_factories(
             openapi_toolset.ref: openapi_toolset,
             source_toolset.ref: source_toolset,
             text_toolset.ref: text_toolset,
+            workspace_changes_toolset.ref: workspace_changes_toolset,
         },
         sandbox_profiles={sandbox.ref: sandbox},
         runtime_adapters=runtime_adapters,

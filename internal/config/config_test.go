@@ -144,6 +144,22 @@ func TestEditFilesToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestWorkspaceChangesToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["workspace-changes@1"]
+	if !ok {
+		t.Fatal("workspace-changes@1 descriptor is missing")
+	}
+	want := []string{"changed_paths", "diff", "rollback_changes"}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("workspace-changes@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf("workspace-changes@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
+	}
+}
+
 func TestMemoryToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 
