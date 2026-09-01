@@ -3,8 +3,8 @@ id: V10-002
 title: Add the artifact-backed SkillCatalog and bundled initialization
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 809e08bc25785394b691dd99561ee635f9b659c1
 depends_on: [V10-001]
 languages: [go]
 
