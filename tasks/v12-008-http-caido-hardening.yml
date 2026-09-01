@@ -3,8 +3,8 @@ id: V12-008
 title: Harden HTTP and Caido limits redaction and teardown
 milestone: http-caido-tools-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: b66263101cbc644f9d1d9a4d1a0ead80958e6cb9
 depends_on: [V12-007]
 languages: [go, python]
 

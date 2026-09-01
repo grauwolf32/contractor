@@ -93,6 +93,11 @@ fixed_decisions:
       caido@1 requires the separate caido-graphql@1 label-driven adapter with
       optional caido-bearer@1 credential. AgentTemplate grants exact tools;
       labels configure infrastructure only.
+    boundary: >-
+      URL/origin checks do not claim DNS or private-network isolation; closed
+      egress belongs to the mandatory proxy/network policy. Caido compatibility
+      is the reviewed static GraphQL operation/shape set, without introspection
+      or generated-query fallback.
   deployment:
     topology: >-
       One VM, one Server process, PostgreSQL, and one or more single-slot
@@ -225,7 +230,7 @@ milestones:
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
-  verdict: ready_to_implement
+  verdict: implemented_and_release_verified
   blocking_findings: []
   corrections_applied:
     - >-
@@ -255,13 +260,14 @@ v8_v12_spec_review:
   verification:
     - All indexed task YAML parses and the dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
-    - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 482 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - LikeC4 1.56.0 validates the one source model under docs/spec.
+    - make verify passes with 495 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make release-verify passes against PostgreSQL with every Runtime/configuration, browser, Memory, Skill and HTTP/Caido process gate.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V12-007
-  next_task: V12-008
+  completed_through: V12-008
+  next_task: null
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -292,7 +298,11 @@ current_checkpoint:
     artifacts, Caido read/mutation pinning across an Agent-label rebind,
     non-blocking release recovery, slot reuse and retained-surface redaction;
     the gate also found and fixed cleanup through a terminally detached HTTP
-    adapter. V12-008 adversarial hardening is next.
+    adapter. V12-008 closed aggregate header/cookie state, cancellation and
+    response-cookie cleanup; added adversarial URL/redirect/response/GraphQL,
+    concurrency and retained-secret suites plus a strict executable matrix;
+    and documented the explicit DNS/egress and Caido schema-compatibility
+    boundaries. Every planned V8 through V12 task is complete.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -714,6 +724,54 @@ http_caido_planning_review:
       Caido GraphQL compatibility is pinned to the migrated static operations;
       a future Caido schema change may remove the adapter/tool capability until
       code and fixtures are updated.
+
+http_caido_implementation_review:
+  reviewed_on: "2026-09-01"
+  verdict: complete
+  completed_implementation_commits:
+    V12-001: 82ff8ffbcec5393c7b2a94d5e943509033367713
+    V12-002: 40ca63c42157a97ba8565dac33d508168cbb17b3
+    V12-003: 5041d1cbd92cbf7f2ebe8a8561c219d5db79bb96
+    V12-004: e37ba6fb7c301dfbb5fa7435e19f66d98efd7b7b
+    V12-005: 48ec3bd3324f2d63b78f3d01346b484c906f395e
+    V12-006: 04eedd9ebc92df55ccc560c12d4693ccfa688210
+    V12-007: 5a8b6bc405cc8e72f0302d1624d340b9f36bf45e
+    V12-008: b66263101cbc644f9d1d9a4d1a0ead80958e6cb9
+  confirmed:
+    - >-
+      Label resolution, encrypted caido-bearer credentials, typed private
+      Runtime settings and complete adapter-aware placement pin one immutable
+      infrastructure snapshot without widening AgentTemplate tool authority.
+    - >-
+      Generic HTTP uses one allocation-owned direct or mandatory-proxy session,
+      bounded exact body artifacts, monotonic opaque IDs, safe retries and
+      redacted memory-only auth/cookies. Aggregate header/cookie updates are
+      atomic and cancelled transport-cookie state cannot affect slot reuse.
+    - >-
+      Caido exposes only reviewed static GraphQL operations with bounded
+      variables/responses, exact normalized shapes, no mutation retry after an
+      ambiguous send and artifact-backed raw exchanges.
+    - >-
+      The migrated Caido Skill, explicit AgentTemplates and security Workflow
+      contain no endpoint or credential; a repository gate keeps Skill names,
+      exact selected tools and package digests compatible.
+    - >-
+      Allocation-boundary and PostgreSQL/mTLS/two-process tests prove
+      heterogeneous placement, Agent-label rebind pinning, target/proxy/Caido
+      traffic, body artifacts, release response loss, unrelated Run progress
+      and clean reuse of both specialist slots.
+    - >-
+      The final strict matrix maps all acceptance requirements and thirteen
+      fault classes to named owners. Adversarial tests close URL/header/query,
+      redirect, proxy, response-bomb, GraphQL, concurrency, cancellation,
+      teardown and retained-canary boundaries.
+  verification:
+    - make test-http-caido-runtime passes 60 focused Python tests with warnings treated as errors.
+    - make test-http-caido-architecture validates one LikeC4 source model.
+    - make test-http-caido-hardening passes against PostgreSQL and two real Python Runtime Agent processes.
+    - make verify passes with 495 Python tests, 1 skipped, all Go/UI/Node/build and executable matrix gates.
+    - make release-verify passes the complete PostgreSQL race, browser, Memory, Skill and HTTP/Caido process aggregate.
+  decisions: [D011, D032]
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
