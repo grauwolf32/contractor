@@ -35,6 +35,7 @@ from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactor
 
 if TYPE_CHECKING:
     from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
+    from contractor_runtime.projectfs.storage import WorkspaceReader
 
 
 class WorkerRuntime(Protocol):
@@ -73,6 +74,7 @@ class WorkerBuildContext:
     )
     resolved_skills: tuple[ResolvedSkill, ...] = ()
     agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
+    project_workspace: WorkspaceReader | None = field(default=None, repr=False)
 
 
 class WorkerRuntimeFactory(Protocol):
@@ -126,6 +128,9 @@ class FactoryRegistry:
     sandbox_profiles: Mapping[str, SandboxFactory]
     runtime_adapters: Mapping[str, RuntimeAdapterFactory] = field(default_factory=dict)
     workspace_provider: WorkspaceProvider | None = field(default=None, repr=False)
+    artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = field(
+        default=None, repr=False
+    )
 
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
@@ -175,6 +180,7 @@ def built_in_factories(
         sandbox_profiles={sandbox.ref: sandbox},
         runtime_adapters=runtime_adapters,
         workspace_provider=build_workspace_provider(workspace_settings),
+        artifact_client_factory=artifact_client_factory,
     )
 
 

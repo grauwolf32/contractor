@@ -50,6 +50,11 @@ from contractor_runtime.factories import (
     WorkerRuntimeFactory,
 )
 from contractor_runtime.metrics import MetricsState
+from contractor_runtime.projectfs import (
+    DirectWorkspaceSession,
+    WorkspacePreparationError,
+    hydrate_workspace,
+)
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -85,6 +90,7 @@ class AllocationSnapshot:
     has_runtime_settings: bool
     has_worker: bool
     runtime_adapter_refs: tuple[str, ...]
+    has_project_workspace: bool
 
 
 @dataclass(slots=True)
@@ -98,6 +104,7 @@ class _AllocationContext:
     started_at: datetime
     workspace: AllocationWorkspace
     sandbox: SandboxFactory
+    project_workspace: DirectWorkspaceSession | None = field(repr=False)
     adapter_host: AllocationAdapterHost = field(repr=False)
     tools: dict[str, ToolInstance]
     worker_state: WorkerState | None
@@ -154,6 +161,7 @@ class AllocationService:
                 has_runtime_settings=context.runtime_settings is not None,
                 has_worker=context.worker is not None,
                 runtime_adapter_refs=context.adapter_host.refs,
+                has_project_workspace=context.project_workspace is not None,
             )
 
     async def active_a2a_application(self, allocation_id: str) -> Any | None:
@@ -194,6 +202,7 @@ class AllocationService:
             runtime_factory = self._runtime_factory(spec)
             adapter_host: AllocationAdapterHost | None = None
             workspace: AllocationWorkspace | None = None
+            project_workspace: DirectWorkspaceSession | None = None
             tools: dict[str, ToolInstance] = {}
             worker_state: WorkerState | None = None
             worker: WorkerRuntime | None = None
@@ -213,6 +222,23 @@ class AllocationService:
                 else:
                     adapter_host = AllocationAdapterHost.empty()
                 workspace = await sandbox.prepare()
+                if isinstance(spec, AllocationSpecV2) and spec.workspace is not None:
+                    assert self._factories.workspace_provider is not None
+                    assert self._factories.artifact_client_factory is not None
+                    artifact_reader = self._factories.artifact_client_factory(
+                        spec.allocation_id, spec.runtime_settings
+                    )
+                    remaining = min(
+                        spec.runtime_settings.request_timeout_seconds,
+                        max(0.0, (spec.lease_expires_at - self._now()).total_seconds()),
+                    )
+                    project_workspace = await hydrate_workspace(
+                        provider=self._factories.workspace_provider,
+                        spec=spec.workspace,
+                        artifact_reader=artifact_reader,
+                        allocation_id=spec.allocation_id,
+                        timeout_seconds=remaining,
+                    )
                 worker_state = WorkerState()
                 tools = await self._create_tools(
                     spec,
@@ -236,6 +262,7 @@ class AllocationService:
                         runtime_settings=spec.runtime_settings,
                         adapter_handles=adapter_host.handles.for_worker(),
                         resolved_skills=tuple(spec.resolved_skills),
+                        project_workspace=project_workspace,
                     )
                 )
                 handle = WorkerHandle(
@@ -260,6 +287,7 @@ class AllocationService:
                     started_at=self._now(),
                     workspace=workspace,
                     sandbox=sandbox,
+                    project_workspace=project_workspace,
                     adapter_host=adapter_host,
                     tools=tools,
                     worker_state=worker_state,
@@ -276,6 +304,7 @@ class AllocationService:
                     spec,
                     sandbox,
                     workspace,
+                    project_workspace,
                     tools,
                     worker,
                     adapter_host,
@@ -294,6 +323,7 @@ class AllocationService:
                     spec,
                     sandbox,
                     workspace,
+                    project_workspace,
                     tools,
                     worker,
                     adapter_host,
@@ -304,11 +334,31 @@ class AllocationService:
                     retryable=error.retryable,
                     status_code=error.status_code,
                 ) from None
+            except WorkspacePreparationError as error:
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    project_workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
+                if not error.cleanup_confirmed:
+                    await self._state.fence_allocation(spec.allocation_id)
+                    self._force_exit(70)
+                raise AllocationError(
+                    error.code,
+                    f"allocation workspace preparation failed ({error.code})",
+                    retryable=error.retryable,
+                    status_code=error.status_code,
+                ) from None
             except AllocationError:
                 await self._rollback_prepare(
                     spec,
                     sandbox,
                     workspace,
+                    project_workspace,
                     tools,
                     worker,
                     adapter_host,
@@ -319,6 +369,7 @@ class AllocationService:
                     spec,
                     sandbox,
                     workspace,
+                    project_workspace,
                     tools,
                     worker,
                     adapter_host,
@@ -329,6 +380,7 @@ class AllocationService:
                     spec,
                     sandbox,
                     workspace,
+                    project_workspace,
                     tools,
                     worker,
                     adapter_host,
@@ -410,6 +462,10 @@ class AllocationService:
         deadline = self._now() + timedelta(seconds=timeout_seconds)
         try:
             await _close_tools(context.tools)
+            if context.project_workspace is not None:
+                await context.project_workspace.close()
+                assert self._factories.workspace_provider is not None
+                await self._factories.workspace_provider.cleanup(context.project_workspace.storage)
             await context.sandbox.cleanup(context.workspace)
             await context.adapter_host.rollback(deadline=deadline, now=self._now)
         except asyncio.CancelledError:
@@ -424,6 +480,7 @@ class AllocationService:
             ) from None
 
         context.tools.clear()
+        context.project_workspace = None
         context.worker_state = None
         context.runtime_settings = None
         context.prepare_response = None
@@ -533,6 +590,27 @@ class AllocationService:
                 )
 
         if isinstance(spec, AllocationSpecV2):
+            if spec.workspace is not None:
+                provider = self._factories.workspace_provider
+                if (
+                    provider is None
+                    or capabilities.workspace is None
+                    or capabilities.workspace != provider.capability
+                    or not capabilities.supports_workspace_mode(spec.workspace.mode)
+                ):
+                    raise AllocationError(
+                        "workspace_mode_unsupported",
+                        "allocation workspace mode is not available on this Runtime Agent",
+                        retryable=False,
+                        status_code=422,
+                    )
+                if self._factories.artifact_client_factory is None:
+                    raise AllocationError(
+                        "workspace_source_unavailable",
+                        "allocation workspace Artifact client is unavailable",
+                        retryable=True,
+                        status_code=503,
+                    )
             required = set(spec.resolved_runtime_config_provenance.runtime_adapters)
             configured: set[str] = set()
             if spec.runtime_settings.telemetry is not None:
@@ -802,6 +880,7 @@ class AllocationService:
         spec: AllocationSpec,
         sandbox: SandboxFactory,
         workspace: AllocationWorkspace | None,
+        project_workspace: DirectWorkspaceSession | None,
         tools: Mapping[str, ToolInstance],
         worker: WorkerRuntime | None,
         adapter_host: AllocationAdapterHost | None,
@@ -823,6 +902,13 @@ class AllocationService:
             await _close_tools(tools)
         except Exception:
             failed = True
+        if project_workspace is not None:
+            try:
+                await project_workspace.close()
+                assert self._factories.workspace_provider is not None
+                await self._factories.workspace_provider.cleanup(project_workspace.storage)
+            except Exception:
+                failed = True
         if workspace is not None:
             try:
                 await sandbox.cleanup(workspace)
