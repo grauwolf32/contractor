@@ -3,8 +3,8 @@ id: V11-004
 title: Add immutable Runtime workspace storage configuration
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: b342810518c0b8402f2db8b32821aa572fd05cec
 depends_on: [V11-001]
 languages: [python]
 
