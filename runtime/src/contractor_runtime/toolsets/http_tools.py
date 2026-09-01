@@ -602,7 +602,12 @@ class _HTTPSession:
         async with self._lock:
             if self._closed:
                 return
-            self._clear_mutable_session()
+            # Runtime adapters are deliberately terminated before the later
+            # release cleanup closes model tools.  At that point a proxy
+            # handle is detached and must not be dereferenced merely to erase
+            # allocation-local state.  The adapter already closed its client;
+            # clear the session-owned copy independently here.
+            self._clear_local_session()
             self._bodies.clear()
             self._nonce = ""
             self._secrets_for_metrics = ()
@@ -630,14 +635,17 @@ class _HTTPSession:
         }
 
     def _clear_mutable_session(self) -> None:
-        self._default_headers.clear()
-        self._cookies.clear()
-        self._history.clear()
-        self._erase_auth()
+        self._clear_local_session()
         if self._proxy is not None:
             self._proxy.clear_cookies()
         if self._direct_client is not None:
             self._direct_client.cookies.clear()
+
+    def _clear_local_session(self) -> None:
+        self._default_headers.clear()
+        self._cookies.clear()
+        self._history.clear()
+        self._erase_auth()
 
     def _erase_auth(self) -> None:
         self._auth_kind = "none"

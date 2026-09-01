@@ -41,6 +41,7 @@ acceptance_criteria:
   - {id: A3, given: Terminal/release response loss and slot reuse, when: Recovery completes, then: No duplicate mutation, live handle, session secret or blocked unrelated Run remains.}
 
 tests:
-  - {name: process-e2e, command: "cd runtime && uv run pytest tests/test_http_caido_process_e2e.py", covers: [A1, A2, A3]}
+  - {name: allocation-boundary, command: "cd runtime && uv run pytest tests/test_http_caido_process_e2e.py tests/test_http_toolset_lifecycle.py", covers: [A1, A3]}
+  - {name: process-e2e, command: "make test-http-caido-e2e", covers: [A1, A2, A3]}
   - {name: go-e2e, command: "go test ./internal/scheduler ./internal/controlplane ./internal/httpapi/public", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
