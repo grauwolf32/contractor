@@ -34,6 +34,13 @@ class WorkspaceSnapshot:
     digest: str
 
 
+@dataclass(frozen=True, slots=True)
+class WorkspaceDiff:
+    text: str = field(repr=False)
+    returned_bytes: int
+    truncated: bool
+
+
 class WorkspaceReader(Protocol):
     async def snapshot(self) -> WorkspaceSnapshot: ...
 
@@ -42,6 +49,41 @@ class WorkspaceReader(Protocol):
 
 class WorkspaceWriter(Protocol):
     async def write_text(self, path: str, text: str) -> None: ...
+
+    async def make_directory(self, path: str, *, parents: bool = False) -> None: ...
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None: ...
+
+
+@dataclass(slots=True)
+class ManagedWorkspaceTree:
+    directories: set[str] = field(default_factory=set)
+    text_files: dict[str, str] = field(default_factory=dict, repr=False)
+    binary_paths: set[str] = field(default_factory=set)
+    stored_binary_paths: set[str] = field(default_factory=set)
+
+    def clone(self) -> ManagedWorkspaceTree:
+        return ManagedWorkspaceTree(
+            directories=set(self.directories),
+            text_files=dict(self.text_files),
+            binary_paths=set(self.binary_paths),
+            stored_binary_paths=set(self.stored_binary_paths),
+        )
+
+    def snapshot(self) -> WorkspaceSnapshot:
+        return _snapshot(self.directories, self.text_files, self.binary_paths)
+
+    def kind(self, path: str) -> str | None:
+        if path in self.directories:
+            return "directory"
+        if path in self.text_files:
+            return "text"
+        if path in self.binary_paths:
+            return "binary"
+        return None
+
+    def paths(self) -> set[str]:
+        return self.directories | self.text_files.keys() | self.binary_paths
 
 
 class DirectWorkspaceSession:
@@ -63,10 +105,12 @@ class DirectWorkspaceSession:
         self._storage = storage
         self._content_root = content_root
         self._limits = limits
-        self._directories = set(directories)
-        self._text_files = dict(text_files)
-        self._binary_paths = set(binary_paths)
-        self._stored_binary_paths = set(stored_binary_paths)
+        self._tree = ManagedWorkspaceTree(
+            directories=set(directories),
+            text_files=dict(text_files),
+            binary_paths=set(binary_paths),
+            stored_binary_paths=set(stored_binary_paths),
+        )
         self._lock = asyncio.Lock()
         self._closed = False
 
@@ -85,16 +129,16 @@ class DirectWorkspaceSession:
     async def snapshot(self) -> WorkspaceSnapshot:
         async with self._lock:
             self._require_open()
-            return _snapshot(self._directories, self._text_files, self._binary_paths)
+            return self._tree.snapshot()
 
     async def read_text(self, path: str) -> str:
         normalized = normalize_project_path(path, allow_root=False)
         async with self._lock:
             self._require_open()
-            if normalized in self._binary_paths:
+            if normalized in self._tree.binary_paths:
                 raise WorkspaceStorageError("binary_file_unsupported")
             try:
-                return self._text_files[normalized]
+                return self._tree.text_files[normalized]
             except KeyError:
                 raise WorkspaceStorageError("workspace_not_found") from None
 
@@ -102,13 +146,25 @@ class DirectWorkspaceSession:
         del path, text
         raise WorkspaceStorageError("workspace_operation_unsupported")
 
+    async def make_directory(self, path: str, *, parents: bool = False) -> None:
+        del path, parents
+        raise WorkspaceStorageError("workspace_operation_unsupported")
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
+        del path, recursive
+        raise WorkspaceStorageError("workspace_operation_unsupported")
+
     async def close(self) -> None:
         async with self._lock:
             self._closed = True
-            self._directories.clear()
-            self._text_files.clear()
-            self._binary_paths.clear()
-            self._stored_binary_paths.clear()
+            self._tree.directories.clear()
+            self._tree.text_files.clear()
+            self._tree.binary_paths.clear()
+            self._tree.stored_binary_paths.clear()
+
+    def _source_tree(self) -> ManagedWorkspaceTree:
+        self._require_open()
+        return self._tree.clone()
 
     def _require_open(self) -> None:
         if self._closed:

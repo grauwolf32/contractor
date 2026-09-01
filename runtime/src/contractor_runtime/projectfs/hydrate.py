@@ -15,6 +15,13 @@ from typing import Protocol
 
 from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
 from contractor_runtime.contracts import AllocationWorkspaceSpecV2, ArtifactRef
+from contractor_runtime.projectfs.overlay import (
+    WORKSPACE_OVERLAY_MEDIA_TYPE,
+    OverlayWorkspaceSession,
+    WorkspaceStateError,
+    canonical_overlay_operations,
+    decode_workspace_state,
+)
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     join_project_path,
@@ -22,7 +29,11 @@ from contractor_runtime.projectfs.paths import (
     parent_paths,
 )
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage, WorkspaceProvider
-from contractor_runtime.projectfs.storage import DirectWorkspaceSession
+from contractor_runtime.projectfs.storage import (
+    DirectWorkspaceSession,
+    ManagedWorkspaceTree,
+    WorkspaceStorageError,
+)
 
 WORKSPACE_SOURCE_MEDIA_TYPE = "application/zip"
 _CHUNK_BYTES = 64 * 1024
@@ -106,20 +117,7 @@ async def hydrate_workspace(
         for source in spec.sources:
             if time.monotonic() >= deadline:
                 raise _capacity()
-            try:
-                value = await artifact_reader.read_artifact(source.artifact)
-            except asyncio.CancelledError:
-                raise
-            except ArtifactClientError as error:
-                raise WorkspacePreparationError(
-                    "workspace_source_unavailable",
-                    retryable=bool(getattr(error, "retryable", True)),
-                    status_code=503,
-                ) from None
-            except Exception:
-                raise WorkspacePreparationError(
-                    "workspace_source_unavailable", retryable=True, status_code=503
-                ) from None
+            value = await _read_artifact(artifact_reader, source.artifact, deadline)
             if value.artifact != source.artifact or value.media_type != WORKSPACE_SOURCE_MEDIA_TYPE:
                 raise _invalid_source()
             await _blocking_cancellation_safe(
@@ -127,8 +125,7 @@ async def hydrate_workspace(
                     value.data, target, accumulator, deadline
                 )
             )
-        return DirectWorkspaceSession(
-            mode=spec.mode,
+        arguments = dict(
             storage=storage,
             content_root=content_root,
             limits=limits,
@@ -137,6 +134,42 @@ async def hydrate_workspace(
             binary_paths=accumulator.binary_paths,
             stored_binary_paths=accumulator.stored_binary_paths,
         )
+        if spec.mode == "overlay":
+            overlay = OverlayWorkspaceSession(**arguments)
+            if spec.state is not None:
+                value = await _read_artifact(artifact_reader, spec.state.artifact, deadline)
+                if (
+                    value.artifact != spec.state.artifact
+                    or value.media_type != WORKSPACE_OVERLAY_MEDIA_TYPE
+                ):
+                    raise _invalid_state()
+                try:
+                    await overlay.import_state(value.data)
+                except (WorkspaceStateError, WorkspaceStorageError):
+                    raise _invalid_state() from None
+            return overlay
+
+        session = DirectWorkspaceSession(mode="direct", **arguments)
+        if spec.state is not None:
+            value = await _read_artifact(artifact_reader, spec.state.artifact, deadline)
+            if (
+                value.artifact != spec.state.artifact
+                or value.media_type != WORKSPACE_OVERLAY_MEDIA_TYPE
+            ):
+                raise _invalid_state()
+            source_tree = session._source_tree()
+            try:
+                result_tree = decode_workspace_state(value.data, source_tree, limits)
+                try:
+                    await _blocking_cancellation_safe(
+                        lambda: _materialize_state(storage, content_root, source_tree, result_tree)
+                    )
+                except OSError:
+                    raise _capacity() from None
+            except (WorkspaceStateError, WorkspaceStorageError):
+                raise _invalid_state() from None
+            session._tree = result_tree
+        return session
     except BaseException:
         try:
             await provider.cleanup(storage)
@@ -158,6 +191,32 @@ async def _blocking_cancellation_safe(operation: Callable[[], None]) -> None:
         with suppress(Exception):
             await task
         raise
+
+
+async def _read_artifact(
+    reader: ArtifactReader, ref: ArtifactRef, deadline: float
+) -> ArtifactValue:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise _capacity()
+    try:
+        async with asyncio.timeout(remaining):
+            value = await reader.read_artifact(ref)
+    except asyncio.CancelledError:
+        raise
+    except TimeoutError:
+        raise _capacity() from None
+    except ArtifactClientError as error:
+        raise WorkspacePreparationError(
+            "workspace_source_unavailable",
+            retryable=bool(getattr(error, "retryable", True)),
+            status_code=503,
+        ) from None
+    except Exception:
+        raise WorkspacePreparationError(
+            "workspace_source_unavailable", retryable=True, status_code=503
+        ) from None
+    return value
 
 
 def _extract_archive(
@@ -337,6 +396,26 @@ def _backend_path(root: str, relative: str) -> str:
     return f"{root.rstrip('/')}/{relative}"
 
 
+def _materialize_state(
+    storage: ProjectWorkspaceStorage,
+    content_root: str,
+    source: ManagedWorkspaceTree,
+    result: ManagedWorkspaceTree,
+) -> None:
+    filesystem = storage.filesystem
+    for operation in canonical_overlay_operations(source, result):
+        target = _backend_path(content_root, operation.path)
+        if operation.op == "delete_path":
+            if filesystem.exists(target):
+                filesystem.rm(target, recursive=True)
+        elif operation.op == "create_directory":
+            filesystem.makedirs(target, exist_ok=False)
+        else:
+            assert operation.text is not None
+            with filesystem.open(target, mode="wb") as destination:
+                destination.write(operation.text.encode("utf-8"))
+
+
 def _check_deadline(deadline: float) -> None:
     if time.monotonic() >= deadline:
         raise _capacity()
@@ -348,3 +427,7 @@ def _invalid_source() -> WorkspacePreparationError:
 
 def _capacity() -> WorkspacePreparationError:
     return WorkspacePreparationError("workspace_capacity_exceeded", retryable=True, status_code=503)
+
+
+def _invalid_state() -> WorkspacePreparationError:
+    return WorkspacePreparationError("workspace_state_invalid", retryable=False, status_code=422)
