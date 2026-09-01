@@ -312,6 +312,11 @@ def _preflight_path(path: str, kind: str, tree: _TreeAccumulator) -> None:
     if existing == "file" and kind == "file":
         raise _invalid_source()
     tree.path_types[path] = kind
+    # maxFiles bounds the complete managed tree, including implicit parent
+    # directories. Counting only ZIP members permits a deeply nested archive to
+    # hydrate a tree much larger than the capability advertised at registration.
+    if len(tree.path_types) > tree.max_files:
+        raise _capacity()
 
 
 def _declare_target(target: str, tree: _TreeAccumulator) -> None:
@@ -324,6 +329,8 @@ def _declare_target(target: str, tree: _TreeAccumulator) -> None:
 def _make_directory(path: str, tree: _TreeAccumulator) -> None:
     tree.directories.add(path)
     tree.path_types[path] = "directory"
+    if len(tree.path_types) > tree.max_files:
+        raise _capacity()
     tree.storage.filesystem.makedirs(_backend_path(tree.content_root, path), exist_ok=True)
 
 

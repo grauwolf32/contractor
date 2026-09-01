@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
+import secrets
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -402,7 +405,11 @@ class DirectWorkspaceSession:
                 filesystem.makedirs(self._backend_path(path), exist_ok=True)
         for path, text in sorted(candidate.text_files.items()):
             if current.text_files.get(path) != text or current.kind(path) != "text":
-                filesystem.pipe(self._backend_path(path), text.encode("utf-8"))
+                encoded = text.encode("utf-8")
+                if self._storage.storage == "local":
+                    _atomic_local_text_write(self._content_root, path, encoded)
+                else:
+                    filesystem.pipe(self._backend_path(path), encoded)
 
     def _backend_path(self, path: str) -> str:
         return f"{self._content_root.rstrip('/')}/{path}"
@@ -531,3 +538,51 @@ def _copy_tree(
 
 def _raise_workspace_unavailable() -> None:
     raise WorkspaceStorageError("workspace_unavailable")
+
+
+def _atomic_local_text_write(content_root: str, relative: str, data: bytes) -> None:
+    """Replace one local file without following a swapped final symlink.
+
+    Each parent is opened relative to an already verified directory descriptor,
+    so a path component changed into a symlink causes a safe failure instead of
+    redirecting a direct-mode write outside the private workspace.
+    """
+
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptors: list[int] = []
+    temporary = f".contractor-write-{secrets.token_hex(16)}"
+    temporary_created = False
+    try:
+        current = os.open(content_root, flags)
+        descriptors.append(current)
+        parts = relative.split("/")
+        for component in parts[:-1]:
+            current = os.open(component, flags, dir_fd=current)
+            descriptors.append(current)
+        write_flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        output = os.open(temporary, write_flags, 0o600, dir_fd=current)
+        temporary_created = True
+        try:
+            view = memoryview(data)
+            while view:
+                written = os.write(output, view)
+                if written <= 0:
+                    raise OSError("short workspace write")
+                view = view[written:]
+            os.fsync(output)
+        finally:
+            os.close(output)
+        os.replace(temporary, parts[-1], src_dir_fd=current, dst_dir_fd=current)
+        temporary_created = False
+    finally:
+        if descriptors and temporary_created:
+            with suppress(FileNotFoundError):
+                os.unlink(temporary, dir_fd=descriptors[-1])
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)

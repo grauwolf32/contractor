@@ -268,6 +268,11 @@ ZIP hydration rejects the whole allocation for:
 - declared/observed size mismatch, compression bomb, file/count/depth/expanded
   byte bound, or deadline exhaustion.
 
+`maxFiles` bounds the complete normalized managed tree: regular files,
+explicit directories and directories implied by nested member names all count.
+This keeps a one-member archive with an extremely deep path from expanding
+beyond the capability advertised by the Runtime.
+
 Local storage retains ordinary binary regular files. Memory storage skips
 binary files and counts their bytes toward expanded input but not managed text.
 A managed text file is strict UTF-8 with no NUL. In overlay mode only the text
@@ -285,6 +290,13 @@ memory means an isolated fsspec tree. Changes are visible to future subprocesses
 inside the same allocation but disappear on release. Direct mode has no
 automatic diff, rollback or export. A Worker that needs persistence must write
 an ordinary Run artifact explicitly.
+
+For local direct mode, text replacement is an atomic rename relative to opened
+directory descriptors. Parent traversal does not follow symlinks, a replaced
+final symlink is itself replaced rather than followed, and a failed commit
+removes its private temporary file. This is defense in depth for filesystem
+races; another same-UID process with write access to Runtime `workRoot` is
+inside the Runtime host trust boundary and must be excluded operationally.
 
 ### Overlay
 

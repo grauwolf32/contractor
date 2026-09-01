@@ -1024,6 +1024,14 @@ paths never cross the private Runtime boundary. Direct-mode edits affect only
 the disposable hydrated copy; overlay-mode changes become durable only through
 the Workflow-declared state/diff Artifact slots.
 
+Workspace v1 intentionally has three sharp boundaries. Text tools cannot read,
+modify or encode binary files; a future binary patch is a separate artifact
+type. No shell/subprocess tool or automatic temporary-checkout adapter exists.
+Finally, allocations—including Router siblings—never share a live workspace;
+coordination happens only through exact exported artifacts in a later
+allocation. Keep the local `workRoot` private to the Runtime OS identity: a
+same-UID process with write access is part of that host's trust boundary.
+
 ## LikeC4 from a source archive
 
 `likec4-from-source@1` reuses the same dependency- and project-discovery

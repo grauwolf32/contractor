@@ -686,3 +686,21 @@ tests that make the choice observable.
   visibility, leak an unbounded error vocabulary, and misclassify lost
   authority as a semantic CAS conflict. The former absolute telemetry sentence
   also promised a property no prompt-only implementation can prove.
+
+### D031 — Workspace hardening preserves behavior, not legacy escape hatches
+
+- Applies to: V11-012 and later workspace implementations.
+- Decision: retain the useful contractor-old read, Edit, newline and overlay
+  behavior behind the narrow allocation-scoped handles. Do not restore raw
+  fsspec delegation, materialize, fork/merge, implicit host roots or shared
+  global memory state. `maxFiles` counts the complete managed tree, including
+  implicit directories.
+- Local defense in depth: direct text writes use descriptor-relative,
+  no-follow traversal and atomic replacement. A swapped final symlink is
+  replaced and a swapped parent fails closed without changing outside bytes;
+  failed replacements remove their private temporary files. Runtime `workRoot`
+  remains private to the Runtime OS identity because same-UID filesystem
+  mutation is inside the host trust boundary.
+- Verification: the retained backend matrix is accompanied by adversarial ZIP,
+  Unicode/path, replacement, concurrency, cancellation and stale-export tests.
+  Tool telemetry is asserted not to retain fixture paths, patterns or contents.
