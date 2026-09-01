@@ -65,7 +65,7 @@ func validSkillName(value string) bool {
 			continue
 		}
 		previousHyphen = false
-		if char < 'a' || char > 'z' && (char < '0' || char > '9') {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') {
 			return false
 		}
 	}

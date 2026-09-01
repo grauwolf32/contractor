@@ -1,0 +1,35 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: likec4_validator
+  version: "2"
+
+spec:
+  description: Validates and minimally repairs one candidate LikeC4 model against source evidence
+  runtime: adk@1
+  instructions:
+    ref: instructions/likec4-validator-worker-v2.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: source-analysis@1
+      tools:
+        - open_source_archive
+        - search_source
+        - read_source
+    - ref: text-artifacts@1
+      tools:
+        - read_text_artifact
+        - write_text_artifact
+    - ref: likec4@1
+      tools:
+        - load_likec4
+        - write_likec4
+        - read_likec4
+        - append_likec4
+        - replace_likec4
+        - validate_likec4
+  skills:
+    - namespace: skills
+      name: likec4
+  sandboxProfile: local-workdir@1

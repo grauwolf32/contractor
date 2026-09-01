@@ -70,6 +70,15 @@ func TestSharedPackageCorpus(t *testing.T) {
 	}
 }
 
+func TestSkillNameAcceptsDigitsAfterTheFirstCharacter(t *testing.T) {
+	payload := makeTestZIP(t, zip.Store, []testEntry{{
+		"SKILL.md", skillDocument("likec4", "LikeC4.", ""), 0,
+	}})
+	if _, err := Validate(payload, "likec4"); err != nil {
+		t.Fatalf("digit-bearing skill name rejected: %v", err)
+	}
+}
+
 func TestPackageLimitsAreStreamedAndExact(t *testing.T) {
 	manifest := []byte("---\nname: limits\ndescription: Limits.\n---\n# Limits\n")
 	tests := []struct {

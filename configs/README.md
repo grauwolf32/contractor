@@ -14,6 +14,26 @@ available for reproducibility. New project-sized variants are:
   tokens, and 8,192 output tokens per response) and the same project Worker
   policy.
 
+The LikeC4 Agent Skill is an additive compatibility boundary:
+
+- `likec4_builder@1` and `likec4_validator@1` keep their original, self-contained
+  instruction files and declare no Skill;
+- `likec4_builder@2` and `likec4_validator@2` keep the mandatory artifact,
+  evidence, validation, and completion procedure in always-on instructions and
+  select the versionless logical artifact `skills/likec4` for detailed DSL
+  guidance;
+- `likec4-from-source@1`, `likec4-from-source@2`,
+  `likec4-from-source-streamline@1`, and `likec4-from-analysis@1` remain legacy
+  selectors using the @1 templates;
+- `likec4-from-source@3`, `likec4-from-source-streamline@2`, and
+  `likec4-from-analysis@2` preserve their predecessor graphs and select only the
+  @2 LikeC4 templates in build and validation Stages.
+
+The package source is `skills/likec4/SKILL.md` plus fourteen on-demand
+references. It is packaged and published into the owner-scoped `skills/likec4`
+artifact by the Skill Catalog path; configuration refers to the logical binding,
+not a checked-in digest.
+
 All limits remain finite and are enforced per Planner or Worker invocation.
 Select the passthrough variant when one Worker can follow the complete Stage
 contract directly; select Streamline when the Planner should decompose that
