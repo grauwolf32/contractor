@@ -420,9 +420,11 @@ class AllocationService:
     async def release(self, request: ReleaseAllocationRequest) -> None:
         async with self._lock:
             if self._context is None:
-                if self._released_allocation_id == request.allocation_id:
-                    return
-                raise _not_found()
+                # Release is an idempotent cleanup command.  A restarted
+                # process cannot distinguish an allocation it already cleaned
+                # from one that belonged to its predecessor, but in either
+                # case there is no local allocation state left to remove.
+                return
             context = self._require_context(request.allocation_id)
             state = await self._state.snapshot()
             if state.process_state not in {ProcessState.DRAINING, ProcessState.FENCED}:

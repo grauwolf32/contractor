@@ -164,7 +164,7 @@ func (i *Invoker) Invoke(
 		Message: message,
 		Config: &sdk.SendMessageConfig{
 			AcceptedOutputModes: []string{stageContentMediaType},
-			ReturnImmediately:   false,
+			ReturnImmediately:   true,
 		},
 	})
 	if sendErr != nil {

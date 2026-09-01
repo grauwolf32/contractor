@@ -241,6 +241,30 @@ def test_finalize_report_and_release_erase_context_and_workspace(
     asyncio.run(scenario())
 
 
+def test_release_of_unknown_allocation_is_idempotent_only_when_slot_is_empty(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        unknown = ReleaseAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId="allocation-from-previous-process",
+        )
+
+        await service.release(unknown)
+
+        active = make_spec()
+        await service.prepare(active)
+        with pytest.raises(AllocationError) as conflict:
+            await service.release(unknown)
+        assert conflict.value.code == "allocation_not_found"
+        snapshot = await service.snapshot()
+        assert snapshot is not None
+        assert snapshot.allocation_id == active.allocation_id
+
+    asyncio.run(scenario())
+
+
 def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:

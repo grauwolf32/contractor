@@ -47,7 +47,8 @@ func TestInvokerHandlesImmediateMessageAndTerminalTaskEqually(t *testing.T) {
 			}
 			if client.sendCalls != 1 || client.getCalls != 0 ||
 				client.request.Tenant != "allocation-1" || client.request.Message.Role != sdk.MessageRoleUser ||
-				len(client.request.Message.Parts) != 1 {
+				len(client.request.Message.Parts) != 1 || client.request.Config == nil ||
+				!client.request.Config.ReturnImmediately {
 				t.Fatalf("SDK request/calls = (%+v, %d, %d)", client.request, client.sendCalls, client.getCalls)
 			}
 			part := client.request.Message.Parts[0]

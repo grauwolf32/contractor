@@ -7,7 +7,16 @@ from pathlib import Path
 import httpx
 import pytest
 from a2a.client import ClientConfig, ClientFactory
-from a2a.types import AgentCard, Message, Part, Role, SendMessageRequest
+from a2a.types import (
+    AgentCard,
+    GetTaskRequest,
+    Message,
+    Part,
+    Role,
+    SendMessageConfiguration,
+    SendMessageRequest,
+    TaskState,
+)
 from a2a.utils.constants import TransportProtocol
 from fakes.model import json_result, scripted_model
 from fakes.spec import allocation_spec
@@ -155,6 +164,51 @@ def test_concurrent_a2a_message_receives_worker_busy(
     asyncio.run(scenario())
 
 
+def test_return_immediately_exposes_working_task_while_worker_continues(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([json_result(success_payload("done"))], block=True)
+        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
+        spec = allocation_spec(secret=SECRET)
+        prepared = await service.prepare(spec)
+        card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
+        application = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application),
+            base_url="https://runtime.example",
+        ) as http_client:
+            client = ClientFactory(
+                ClientConfig(
+                    streaming=False,
+                    httpx_client=http_client,
+                    supported_protocol_bindings=[TransportProtocol.JSONRPC],
+                )
+            ).create(card)
+            request = data_request(spec.allocation_id)
+            request.configuration.CopyFrom(SendMessageConfiguration(return_immediately=True))
+            responses = []
+            async for response in client.send_message(request):
+                responses.append(response)
+            assert len(responses) == 1 and responses[0].HasField("task")
+            task = responses[0].task
+            assert task.status.state == TaskState.TASK_STATE_WORKING
+            assert model.started.is_set()
+
+            model.release()
+            for _ in range(100):
+                task = await client.get_task(GetTaskRequest(tenant=spec.allocation_id, id=task.id))
+                if task.status.state == TaskState.TASK_STATE_COMPLETED:
+                    break
+                await asyncio.sleep(0.01)
+            assert task.status.state == TaskState.TASK_STATE_COMPLETED
+            result = result_from_message(task.status.message)
+            assert result["summary"] == "done"
+            await client.close()
+
+    asyncio.run(scenario())
+
+
 async def allocation_service(
     tmp_path: Path, model: object, capabilities: CapabilitySnapshot
 ) -> tuple[RuntimeState, AllocationService]:
@@ -178,8 +232,16 @@ async def send(client: object, request: SendMessageRequest) -> dict[str, object]
     async for response in client.send_message(request):  # type: ignore[attr-defined]
         responses.append(response)
     assert len(responses) == 1
-    assert responses[0].HasField("message")
-    message = responses[0].message
+    response = responses[0]
+    if response.HasField("message"):
+        message = response.message
+    else:
+        assert response.HasField("task") and response.task.status.HasField("message")
+        message = response.task.status.message
+    return result_from_message(message)
+
+
+def result_from_message(message: Message) -> dict[str, object]:
     assert len(message.parts) == 1 and message.parts[0].HasField("data")
     value = MessageToDict(message.parts[0].data)
     assert isinstance(value, dict)

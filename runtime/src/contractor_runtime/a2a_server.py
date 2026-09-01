@@ -10,7 +10,7 @@ from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
-from a2a.server.tasks import InMemoryTaskStore
+from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
@@ -23,6 +23,9 @@ from a2a.types import (
     SecurityRequirement,
     SecurityScheme,
     StringList,
+    Task,
+    TaskState,
+    TaskStatus,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Value
@@ -126,6 +129,20 @@ class ContractorAgentExecutor(AgentExecutor):
         self._worker = worker
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        if not context.task_id or not context.context_id:
+            raise ValueError("A2A task and context identities are required")
+        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
+        if context.current_task is None:
+            initial = Task(
+                id=context.task_id,
+                context_id=context.context_id,
+                status=TaskStatus(state=TaskState.TASK_STATE_WORKING),
+            )
+            if context.message is not None:
+                initial.history.append(context.message)
+            await event_queue.enqueue_event(initial)
+        else:
+            await updater.start_work()
         if context.call_context.tenant != self._worker.allocation_id:
             result = _failed_result(
                 "allocation_route_mismatch", "A2A tenant does not name the active allocation"
@@ -139,7 +156,11 @@ class ContractorAgentExecutor(AgentExecutor):
                 )
             else:
                 result = await self._worker.invoke(request)
-        await event_queue.enqueue_event(_result_message(result, context))
+        message = _result_message(result, context)
+        if result.outcome is StageOutcome.FAILED:
+            await updater.failed(message)
+        else:
+            await updater.complete(message)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         del event_queue
