@@ -3,8 +3,8 @@ id: V10-007
 title: Prove Agent Skills end to end through ordinary Artifacts
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 668665649f9c334a3aac2ece8791ec95c594b8ca
 depends_on: [V10-002, V10-005, V10-006]
 languages: [go, python]
 
