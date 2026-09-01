@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ucarion/jcs"
+	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -99,20 +100,21 @@ func (k RuntimeCredentialKind) Validate() error {
 }
 
 type AgentRegistrationV2 struct {
-	APIVersion               string              `json:"apiVersion"`
-	PrivateProtocolVersion   int                 `json:"privateProtocolVersion"`
-	InstanceID               string              `json:"instanceId"`
-	SoftwareVersion          string              `json:"softwareVersion"`
-	StartedAt                time.Time           `json:"startedAt"`
-	ControlURL               string              `json:"controlUrl"`
-	A2AURL                   string              `json:"a2aUrl"`
-	InitialLabels            []string            `json:"initialLabels"`
-	SupportedRuntimes        []string            `json:"supportedRuntimes"`
-	SupportedToolsets        []ToolsetCapability `json:"supportedToolsets"`
-	SupportedSandboxProfiles []string            `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters []RuntimeAdapterRef `json:"supportedRuntimeAdapters"`
-	ObservedState            AgentObservedState  `json:"observedState"`
-	AllocationID             *string             `json:"allocationId,omitempty"`
+	APIVersion               string                   `json:"apiVersion"`
+	PrivateProtocolVersion   int                      `json:"privateProtocolVersion"`
+	InstanceID               string                   `json:"instanceId"`
+	SoftwareVersion          string                   `json:"softwareVersion"`
+	StartedAt                time.Time                `json:"startedAt"`
+	ControlURL               string                   `json:"controlUrl"`
+	A2AURL                   string                   `json:"a2aUrl"`
+	InitialLabels            []string                 `json:"initialLabels"`
+	SupportedRuntimes        []string                 `json:"supportedRuntimes"`
+	SupportedToolsets        []ToolsetCapability      `json:"supportedToolsets"`
+	SupportedSandboxProfiles []string                 `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters []RuntimeAdapterRef      `json:"supportedRuntimeAdapters"`
+	WorkspaceCapabilities    *WorkspaceCapabilitiesV2 `json:"workspaceCapabilities,omitempty"`
+	ObservedState            AgentObservedState       `json:"observedState"`
+	AllocationID             *string                  `json:"allocationId,omitempty"`
 }
 
 func (r AgentRegistrationV2) Validate() error {
@@ -151,7 +153,176 @@ func (r AgentRegistrationV2) Validate() error {
 	if err := validateSortedRuntimeAdapters(r.SupportedRuntimeAdapters); err != nil {
 		return err
 	}
+	if r.WorkspaceCapabilities != nil {
+		if err := r.WorkspaceCapabilities.Validate(); err != nil {
+			return err
+		}
+	}
 	return validateObservedAllocation(r.ObservedState, r.AllocationID)
+}
+
+type WorkspaceModeV2 string
+
+const (
+	WorkspaceModeDirect  WorkspaceModeV2 = "direct"
+	WorkspaceModeOverlay WorkspaceModeV2 = "overlay"
+)
+
+func (m WorkspaceModeV2) Validate() error {
+	switch m {
+	case WorkspaceModeDirect, WorkspaceModeOverlay:
+		return nil
+	default:
+		return invalidf("workspace mode is invalid")
+	}
+}
+
+type WorkspaceStorageV2 string
+
+const (
+	WorkspaceStorageLocal  WorkspaceStorageV2 = "local"
+	WorkspaceStorageMemory WorkspaceStorageV2 = "memory"
+)
+
+func (s WorkspaceStorageV2) Validate() error {
+	switch s {
+	case WorkspaceStorageLocal, WorkspaceStorageMemory:
+		return nil
+	default:
+		return invalidf("workspace storage is invalid")
+	}
+}
+
+type WorkspaceLimitsV2 struct {
+	MaxFiles            int   `json:"maxFiles"`
+	MaxExpandedBytes    int64 `json:"maxExpandedBytes"`
+	MaxManagedTextBytes int64 `json:"maxManagedTextBytes"`
+	MaxFileBytes        int64 `json:"maxFileBytes"`
+}
+
+func (l WorkspaceLimitsV2) Validate() error {
+	if l.MaxFiles <= 0 || l.MaxExpandedBytes <= 0 || l.MaxManagedTextBytes <= 0 || l.MaxFileBytes <= 0 ||
+		l.MaxFileBytes > l.MaxExpandedBytes || l.MaxManagedTextBytes > l.MaxExpandedBytes {
+		return invalidf("workspace limits are invalid")
+	}
+	return nil
+}
+
+type WorkspaceCapabilitiesV2 struct {
+	Storage WorkspaceStorageV2 `json:"storage"`
+	Modes   []WorkspaceModeV2  `json:"modes"`
+	Limits  WorkspaceLimitsV2  `json:"limits"`
+}
+
+func (c WorkspaceCapabilitiesV2) Validate() error {
+	if err := c.Storage.Validate(); err != nil {
+		return err
+	}
+	if len(c.Modes) == 0 || len(c.Modes) > 2 {
+		return invalidf("workspace capability modes must be a non-empty bounded array")
+	}
+	previous := ""
+	for _, mode := range c.Modes {
+		if err := mode.Validate(); err != nil {
+			return err
+		}
+		if string(mode) <= previous {
+			return invalidf("workspace capability modes must be sorted and unique")
+		}
+		previous = string(mode)
+	}
+	return c.Limits.Validate()
+}
+
+type AllocationWorkspaceSourceV2 struct {
+	Artifact ArtifactRef `json:"artifact"`
+	Target   string      `json:"target"`
+}
+
+type AllocationWorkspaceStateV2 struct {
+	Artifact ArtifactRef `json:"artifact"`
+}
+
+type AllocationWorkspaceExportV2 struct {
+	State string `json:"state"`
+	Diff  string `json:"diff"`
+}
+
+type AllocationWorkspaceSpecV2 struct {
+	Mode    WorkspaceModeV2               `json:"mode"`
+	Sources []AllocationWorkspaceSourceV2 `json:"sources"`
+	State   *AllocationWorkspaceStateV2   `json:"state,omitempty"`
+	Export  *AllocationWorkspaceExportV2  `json:"export,omitempty"`
+}
+
+func (s AllocationWorkspaceSpecV2) Validate() error {
+	if err := s.Mode.Validate(); err != nil {
+		return err
+	}
+	if len(s.Sources) == 0 || len(s.Sources) > 32 {
+		return invalidf("workspace sources must be a non-empty bounded array")
+	}
+	targets := make([]string, 0, len(s.Sources))
+	for _, source := range s.Sources {
+		if err := source.Artifact.ValidateExact(); err != nil {
+			return err
+		}
+		if err := validateWorkspaceTarget(source.Target); err != nil {
+			return err
+		}
+		targets = append(targets, source.Target)
+	}
+	for index, target := range targets {
+		for otherIndex, other := range targets {
+			if index == otherIndex {
+				continue
+			}
+			if target == other || target == "" || strings.HasPrefix(other, target+"/") {
+				return invalidf("workspace source targets must be unique and non-overlapping")
+			}
+		}
+	}
+	if s.State != nil {
+		if err := s.State.Artifact.ValidateExact(); err != nil {
+			return err
+		}
+	}
+	if s.Export != nil {
+		if s.Mode != WorkspaceModeOverlay || s.Export.State == s.Export.Diff ||
+			!idPattern.MatchString(s.Export.State) || !idPattern.MatchString(s.Export.Diff) {
+			return invalidf("workspace export slots are invalid")
+		}
+	}
+	return nil
+}
+
+func validateWorkspaceTarget(value string) error {
+	if value == "" {
+		return nil
+	}
+	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
+		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
+		return invalidf("workspace target is invalid")
+	}
+	parts := strings.Split(value, "/")
+	if len(parts) > 32 {
+		return invalidf("workspace target is invalid")
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\r\n\t") {
+			return invalidf("workspace target is invalid")
+		}
+		for _, character := range part {
+			if character < 0x20 || character == 0x7f {
+				return invalidf("workspace target is invalid")
+			}
+		}
+	}
+	first := parts[0]
+	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
+		return invalidf("workspace target is invalid")
+	}
+	return nil
 }
 
 type AgentRegistrationResponseV2 struct {
@@ -435,6 +606,7 @@ type AllocationSpecV2 struct {
 	ModelPolicy                     ResolvedModelPolicy               `json:"modelPolicy"`
 	RuntimeSettings                 RuntimeSettingsV2                 `json:"runtimeSettings"`
 	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenanceV2 `json:"resolvedRuntimeConfigProvenance"`
+	Workspace                       *AllocationWorkspaceSpecV2        `json:"workspace,omitempty"`
 }
 
 func (s AllocationSpecV2) Validate() error {
@@ -464,6 +636,11 @@ func (s AllocationSpecV2) Validate() error {
 	}
 	if err := s.RuntimeSettings.Validate(); err != nil {
 		return err
+	}
+	if s.Workspace != nil {
+		if err := s.Workspace.Validate(); err != nil {
+			return err
+		}
 	}
 	return s.ResolvedRuntimeConfigProvenance.Validate()
 }
@@ -543,6 +720,11 @@ func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	if source.WorkspaceCapabilities != nil {
+		capabilities := *source.WorkspaceCapabilities
+		capabilities.Modes = append([]WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		result.WorkspaceCapabilities = &capabilities
+	}
 	result.SupportedToolsets = make([]ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability

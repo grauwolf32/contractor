@@ -19,6 +19,7 @@ from contractor_runtime.contracts import (
     AllocationFinalResponse,
     AllocationSpec,
     AllocationSpecV2,
+    AllocationWorkspaceSpecV2,
     ArtifactListResult,
     ArtifactReadResult,
     FinalizeAllocationRequest,
@@ -33,6 +34,7 @@ from contractor_runtime.contracts import (
     RuntimeSettingsV2,
     StageContentRequest,
     StageContentResult,
+    WorkspaceCapabilitiesV2,
     decode_private_v2,
     encode_private_v2,
 )
@@ -54,6 +56,8 @@ PRIVATE_V2_VALID_MODELS: dict[str, type[BaseModel]] = {
     "runtime-settings-combined.json": RuntimeSettingsV2,
     "runtime-provenance.json": ResolvedRuntimeConfigProvenanceV2,
     "runtime-report.json": RuntimeReportV2,
+    "workspace-capabilities.json": WorkspaceCapabilitiesV2,
+    "allocation-workspace-overlay.json": AllocationWorkspaceSpecV2,
 }
 
 PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
@@ -66,6 +70,14 @@ PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
     "runtime-settings-two-proxy-auth.json": (RuntimeSettingsV2, "invariant"),
     "runtime-settings-secret-error.json": (RuntimeSettingsV2, "invariant"),
     "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenanceV2, "schema"),
+    "workspace-capabilities-unsorted-modes.json": (
+        WorkspaceCapabilitiesV2,
+        "invariant",
+    ),
+    "allocation-workspace-versionless-source.json": (
+        AllocationWorkspaceSpecV2,
+        "invariant",
+    ),
 }
 
 VALID_MODELS: dict[str, type[BaseModel]] = {

@@ -14,14 +14,16 @@ func TestPrivateV2ValidCanonicalFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) ([]byte, error){
-		"agent-registration.json":          privateRoundTrip[AgentRegistrationV2],
-		"agent-registration-response.json": privateRoundTrip[AgentRegistrationResponseV2],
-		"runtime-settings-empty.json":      privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-telemetry.json":  privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-proxy.json":      privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-combined.json":   privateRoundTrip[RuntimeSettingsV2],
-		"runtime-provenance.json":          privateRoundTrip[ResolvedRuntimeConfigProvenanceV2],
-		"runtime-report.json":              privateRoundTrip[RuntimeReportV2],
+		"agent-registration.json":           privateRoundTrip[AgentRegistrationV2],
+		"agent-registration-response.json":  privateRoundTrip[AgentRegistrationResponseV2],
+		"runtime-settings-empty.json":       privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-telemetry.json":   privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-proxy.json":       privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-combined.json":    privateRoundTrip[RuntimeSettingsV2],
+		"runtime-provenance.json":           privateRoundTrip[ResolvedRuntimeConfigProvenanceV2],
+		"runtime-report.json":               privateRoundTrip[RuntimeReportV2],
+		"workspace-capabilities.json":       privateRoundTrip[WorkspaceCapabilitiesV2],
+		"allocation-workspace-overlay.json": privateRoundTrip[AllocationWorkspaceSpecV2],
 	}
 	for filename, roundTrip := range cases {
 		filename, roundTrip := filename, roundTrip
@@ -56,6 +58,8 @@ func TestPrivateV2InvalidFixturesHaveSafeReasonClasses(t *testing.T) {
 		{"runtime-settings-two-proxy-auth.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
 		{"runtime-settings-secret-error.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
 		{"runtime-provenance-secret-field.json", PrivateProtocolErrorSchema, privateReject[ResolvedRuntimeConfigProvenanceV2]},
+		{"workspace-capabilities-unsorted-modes.json", PrivateProtocolErrorInvariant, privateReject[WorkspaceCapabilitiesV2]},
+		{"allocation-workspace-versionless-source.json", PrivateProtocolErrorInvariant, privateReject[AllocationWorkspaceSpecV2]},
 	}
 	for _, test := range cases {
 		test := test
@@ -169,6 +173,26 @@ func TestPrivateV2RegistrationNormalizationFingerprintAndProjection(t *testing.T
 	projection[0] = "mutated@1"
 	if registration.SupportedRuntimeAdapters[0] != RuntimeAdapterHTTPProxy {
 		t.Fatal("Operations projection aliases private registration memory")
+	}
+
+	capabilities, err := DecodePrivateV2Strict[WorkspaceCapabilitiesV2](
+		readPrivateFixture(t, "valid", "workspace-capabilities.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration.WorkspaceCapabilities = &capabilities
+	withWorkspace, err := AgentRegistrationFingerprintV2(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withWorkspace == first {
+		t.Fatal("workspace capability did not change the immutable registration fingerprint")
+	}
+	normalized := NormalizeAgentRegistrationV2(registration)
+	normalized.WorkspaceCapabilities.Modes[0] = WorkspaceModeOverlay
+	if registration.WorkspaceCapabilities.Modes[0] != WorkspaceModeDirect {
+		t.Fatal("normalized workspace capability aliases registration memory")
 	}
 }
 

@@ -14,6 +14,7 @@ require (
 	golang.org/x/crypto v0.51.0
 	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.43.0
+	golang.org/x/text v0.39.0
 	google.golang.org/adk v1.6.0
 	google.golang.org/genai v1.57.0
 	google.golang.org/protobuf v1.36.11
@@ -52,7 +53,6 @@ require (
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
 	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260427160629-7cedc36a6bc4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect

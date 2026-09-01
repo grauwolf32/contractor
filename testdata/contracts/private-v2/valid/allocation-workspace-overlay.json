@@ -1,0 +1,1 @@
+{"export":{"diff":"workspace_diff","state":"workspace_state"},"mode":"overlay","sources":[{"artifact":{"name":"backend","namespace":"inputs","revision":"rev_backend"},"target":"backend"},{"artifact":{"name":"frontend","namespace":"inputs","revision":"rev_frontend"},"target":"frontend"}],"state":{"artifact":{"name":"workspace_state","namespace":"analysis","revision":"rev_state"}}}

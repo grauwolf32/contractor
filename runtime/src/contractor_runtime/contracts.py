@@ -7,6 +7,7 @@ import json
 import math
 import re
 import ssl
+import unicodedata
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self
@@ -885,6 +886,8 @@ def _require_runtime_adapter_ref(value: str) -> str:
 RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]
 RuntimeCredentialKind = Literal["http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"]
 HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
+WorkspaceModeV2 = Literal["direct", "overlay"]
+WorkspaceStorageV2 = Literal["local", "memory"]
 
 
 def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> None:
@@ -924,10 +927,114 @@ def _require_runtime_endpoint(field: str, value: str) -> str:
     return value
 
 
+def _require_workspace_target(value: str) -> str:
+    if value == "":
+        return value
+    if (
+        value != unicodedata.normalize("NFC", value)
+        or len(value.encode("utf-8")) > 1024
+        or value.startswith("/")
+        or "\\" in value
+        or "\x00" in value
+        or "://" in value
+    ):
+        raise ValueError("workspace target is invalid")
+    parts = value.split("/")
+    if len(parts) > 32:
+        raise ValueError("workspace target is invalid")
+    for part in parts:
+        if part in {"", ".", ".."} or any(
+            ord(character) < 0x20 or ord(character) == 0x7F for character in part
+        ):
+            raise ValueError("workspace target is invalid")
+    if len(parts[0]) >= 2 and parts[0][0].isalpha() and parts[0][1] == ":":
+        raise ValueError("workspace target is invalid")
+    return value
+
+
+class WorkspaceLimitsV2(WireModel):
+    max_files: int = Field(gt=0)
+    max_expanded_bytes: int = Field(gt=0)
+    max_managed_text_bytes: int = Field(gt=0)
+    max_file_bytes: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_limits(self) -> Self:
+        if (
+            self.max_file_bytes > self.max_expanded_bytes
+            or self.max_managed_text_bytes > self.max_expanded_bytes
+        ):
+            raise ValueError("workspace limits are invalid")
+        return self
+
+
+class WorkspaceCapabilitiesV2(WireModel):
+    storage: WorkspaceStorageV2
+    modes: list[WorkspaceModeV2] = Field(min_length=1, max_length=2)
+    limits: WorkspaceLimitsV2
+
+    @model_validator(mode="after")
+    def validate_capabilities(self) -> Self:
+        _require_sorted_unique("workspace capability modes", self.modes, maximum=2)
+        return self
+
+
+class AllocationWorkspaceSourceV2(WireModel):
+    artifact: ArtifactRef
+    target: str
+
+    @model_validator(mode="after")
+    def validate_source(self) -> Self:
+        self.artifact.require_exact()
+        _require_workspace_target(self.target)
+        return self
+
+
+class AllocationWorkspaceStateV2(WireModel):
+    artifact: ArtifactRef
+
+    @model_validator(mode="after")
+    def validate_state(self) -> Self:
+        self.artifact.require_exact()
+        return self
+
+
+class AllocationWorkspaceExportV2(WireModel):
+    state: str = Field(pattern=ID_PATTERN.pattern)
+    diff: str = Field(pattern=ID_PATTERN.pattern)
+
+    @model_validator(mode="after")
+    def validate_export(self) -> Self:
+        if self.state == self.diff:
+            raise ValueError("workspace export slots must be distinct")
+        return self
+
+
+class AllocationWorkspaceSpecV2(WireModel):
+    mode: WorkspaceModeV2
+    sources: list[AllocationWorkspaceSourceV2] = Field(min_length=1, max_length=32)
+    state: AllocationWorkspaceStateV2 | None = None
+    export: AllocationWorkspaceExportV2 | None = None
+
+    @model_validator(mode="after")
+    def validate_workspace(self) -> Self:
+        targets = [source.target for source in self.sources]
+        for index, target in enumerate(targets):
+            for other_index, other in enumerate(targets):
+                if index == other_index:
+                    continue
+                if target == other or target == "" or other.startswith(f"{target}/"):
+                    raise ValueError("workspace source targets must be unique and non-overlapping")
+        if self.export is not None and self.mode != "overlay":
+            raise ValueError("workspace export requires overlay mode")
+        return self
+
+
 class AgentRegistrationV2(AgentRegistration):
     private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
     initial_labels: list[str] = Field(max_length=32)
     supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
+    workspace_capabilities: WorkspaceCapabilitiesV2 | None = None
 
     @model_validator(mode="after")
     def validate_v2_registration(self) -> Self:
@@ -1130,6 +1237,7 @@ class ResolvedRuntimeConfigProvenanceV2(WireModel):
 class AllocationSpecV2(AllocationSpec):
     runtime_settings: RuntimeSettingsV2
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenanceV2
+    workspace: AllocationWorkspaceSpecV2 | None = None
 
 
 class PrepareAllocationRequestV2(VersionedWireModel):
