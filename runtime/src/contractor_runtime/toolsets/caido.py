@@ -344,7 +344,7 @@ class _CaidoSession:
                 }
 
             request_tag = self._next_request_tag()
-            tagged = _inject_request_tag(raw_bytes, request_tag)
+            tagged, _ = _inject_request_tag(raw_bytes, request_tag)
             raw_blob = base64.b64encode(tagged).decode("ascii")
             if "raw" in source:
                 source["raw"]["raw"] = raw_blob
@@ -466,8 +466,10 @@ class _CaidoSession:
                 "isTLS": detail["is_tls"],
             }
             request_tag = self._next_request_tag()
-            tagged = _inject_request_tag(raw_bytes, request_tag)
-            placeholders = _placeholder_offsets(tagged, selected_targets)
+            tagged, request_tag_span = _inject_request_tag(raw_bytes, request_tag)
+            placeholders = _placeholder_offsets(
+                tagged, selected_targets, excluded=(request_tag_span,)
+            )
             raw_blob = base64.b64encode(tagged).decode("ascii")
 
             created = await self._execute_mutation(
@@ -1342,7 +1344,7 @@ def _active_workflow_result(data: object, expected_workflow_id: str) -> dict[str
     return {"task_id": _identifier(task["id"]), "error_code": None}
 
 
-def _inject_request_tag(raw: bytes, tag: str) -> bytes:
+def _inject_request_tag(raw: bytes, tag: str) -> tuple[bytes, tuple[int, int]]:
     if not raw or len(raw) > MAX_RAW_REQUEST_BYTES:
         raise CaidoToolError("caido_request_invalid")
     if b"\r\n\r\n" in raw:
@@ -1362,7 +1364,8 @@ def _inject_request_tag(raw: bytes, tag: str) -> bytes:
         or any(not line or b":" not in line for line in lines[1:])
     ):
         raise CaidoToolError("caido_request_invalid")
-    selected: list[bytes] = [lines[0], REQUEST_TAG_HEADER + b": " + tag.encode("ascii")]
+    tag_line = REQUEST_TAG_HEADER + b": " + tag.encode("ascii")
+    selected: list[bytes] = [lines[0], tag_line]
     for line in lines[1:]:
         name, _value = line.split(b":", 1)
         if name.lower() == REQUEST_TAG_HEADER.lower():
@@ -1371,14 +1374,28 @@ def _inject_request_tag(raw: bytes, tag: str) -> bytes:
     result = separator.join(selected) + separator + separator + body
     if len(result) > MAX_RAW_REQUEST_BYTES:
         raise CaidoToolError("caido_request_invalid")
-    return result
+    tag_start = len(lines[0]) + len(separator)
+    return result, (tag_start, tag_start + len(tag_line))
 
 
-def _placeholder_offsets(raw: bytes, targets: Sequence[str]) -> list[dict[str, int]]:
+def _placeholder_offsets(
+    raw: bytes,
+    targets: Sequence[str],
+    *,
+    excluded: Sequence[tuple[int, int]] = (),
+) -> list[dict[str, int]]:
     result: list[dict[str, int]] = []
     for target in targets:
         encoded = target.encode()
         start = raw.find(encoded)
+        while start >= 0:
+            end = start + len(encoded)
+            if not any(
+                start < excluded_end and excluded_start < end
+                for excluded_start, excluded_end in excluded
+            ):
+                break
+            start = raw.find(encoded, start + 1)
         if start < 0:
             raise CaidoToolError("caido_request_invalid")
         result.append({"start": start, "end": start + len(encoded)})

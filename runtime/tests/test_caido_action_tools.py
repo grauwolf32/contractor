@@ -15,6 +15,7 @@ from test_caido_read_tools import (
     request_detail,
 )
 
+import contractor_runtime.toolsets.caido as caido_module
 from contractor_runtime.toolsets.caido import (
     CAIDO_OUTPUT_ARTIFACT_PREFIX,
     CAIDO_TOOL_NAMES,
@@ -401,7 +402,9 @@ def test_replay_polling_timeout_and_cancellation_are_bounded(tmp_path: Path) -> 
 
 def test_automate_rejects_limits_and_overlapping_targets_before_mutation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(caido_module.secrets, "token_hex", lambda _length: "bc00000000000000")
     raw = b"POST / HTTP/1.1\r\nHost: target.example\r\n\r\nabcdef"
     observed: list[str] = []
 
