@@ -50,13 +50,50 @@ func (s ScopedStore) Write(
 			return WriteResult{}, err
 		}
 	}
-	if s.scope.kind == ScopeRun && target.Namespace == "outputs" {
+	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills") {
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if err := validatePayload(payload); err != nil {
 		return WriteResult{}, err
 	}
 	return s.service.repository.Write(ctx, s.scope, target, payload, expectedRevision)
+}
+
+type skillForkRepository interface {
+	ForkSkill(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
+}
+
+// ForkSkill is a trusted Run-initialization operation. Generic ScopedStore
+// writes remain unable to create or advance the reserved skills Namespace.
+func (s *Service) ForkSkill(
+	ctx context.Context,
+	userID string,
+	source ArtifactRef,
+	runID string,
+	name string,
+) (ForkResult, error) {
+	user, err := UserScope(userID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	if source.Namespace != "skills" || source.Name != name {
+		return ForkResult{}, ErrInvalidName
+	}
+	if _, err := exactRevision(source); err != nil {
+		return ForkResult{}, err
+	}
+	if err := validateComponent(name); err != nil {
+		return ForkResult{}, err
+	}
+	repository, ok := s.repository.(skillForkRepository)
+	if !ok {
+		return ForkResult{}, ErrQueryUnsupported
+	}
+	return repository.ForkSkill(ctx, user, source, run, name)
 }
 
 func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, error) {

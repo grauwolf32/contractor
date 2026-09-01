@@ -29,6 +29,8 @@ API_VERSION = "contractor/v1alpha1"
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+NATIVE_SKILL_TOOL_NAMES = frozenset({"list_skills", "load_skill", "load_skill_resource"})
 
 
 def _to_camel(value: str) -> str:
@@ -291,6 +293,27 @@ class SandboxProfileRef(WireModel):
         return self
 
 
+class ArtifactRef(WireModel):
+    namespace: str
+    name: str
+    revision: str | None = None
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        if not self.namespace.strip() or "/" in self.namespace:
+            raise ValueError("namespace must be non-empty and contain no slash")
+        if not self.name.strip() or "/" in self.name:
+            raise ValueError("name must be non-empty and contain no slash")
+        if self.revision is not None:
+            _require_text("revision", self.revision)
+        return self
+
+    def require_exact(self) -> Self:
+        if self.revision is None:
+            raise ValueError("artifact revision is required")
+        return self
+
+
 class ResolvedInstructions(WireModel):
     ref: str
     digest: str
@@ -375,6 +398,9 @@ class ResolvedAgentTemplate(WireModel):
     instructions: ResolvedInstructions
     model_policy: ResolvedModelPolicy
     toolsets: list[ToolsetSelection]
+    skills: list[ArtifactRef] = Field(
+        default_factory=list, max_length=32, exclude_if=lambda value: not value
+    )
     sandbox_profile: SandboxProfileRef
 
     @model_validator(mode="after")
@@ -386,7 +412,21 @@ class ResolvedAgentTemplate(WireModel):
         visible = [tool for selection in self.toolsets for tool in selection.tools]
         if len(visible) != len(set(visible)):
             raise ValueError("model-visible tool names must be unique across Toolsets")
-        _require_worker_policy(self.model_policy, has_tools=bool(visible))
+        skill_names: list[str] = []
+        for skill in self.skills:
+            if (
+                skill.namespace != "skills"
+                or skill.revision is not None
+                or SKILL_NAME_PATTERN.fullmatch(skill.name) is None
+                or len(skill.name) > 64
+            ):
+                raise ValueError("skills must be sorted versionless skills/<portable-name> refs")
+            skill_names.append(skill.name)
+        if skill_names != sorted(set(skill_names)):
+            raise ValueError("skills must be sorted and unique")
+        if self.skills and NATIVE_SKILL_TOOL_NAMES.intersection(visible):
+            raise ValueError("model-visible tool name is reserved by Agent Skills")
+        _require_worker_policy(self.model_policy, has_tools=bool(visible or self.skills))
         return self
 
 
@@ -647,27 +687,6 @@ class AllocationFinalReport(WireModel):
 
 class AllocationFinalResponse(VersionedWireModel):
     report: AllocationFinalReport
-
-
-class ArtifactRef(WireModel):
-    namespace: str
-    name: str
-    revision: str | None = None
-
-    @model_validator(mode="after")
-    def validate_ref(self) -> Self:
-        if not self.namespace.strip() or "/" in self.namespace:
-            raise ValueError("namespace must be non-empty and contain no slash")
-        if not self.name.strip() or "/" in self.name:
-            raise ValueError("name must be non-empty and contain no slash")
-        if self.revision is not None:
-            _require_text("revision", self.revision)
-        return self
-
-    def require_exact(self) -> Self:
-        if self.revision is None:
-            raise ValueError("artifact revision is required")
-        return self
 
 
 class ArtifactReadResult(VersionedWireModel):

@@ -274,7 +274,14 @@ type agentTemplateSpecSource struct {
 	Instructions   *instructionsRefSource    `yaml:"instructions"`
 	ModelPolicy    string                    `yaml:"modelPolicy"`
 	Toolsets       *[]toolsetSelectionSource `yaml:"toolsets"`
+	Skills         *[]artifactRefSource      `yaml:"skills,omitempty"`
 	SandboxProfile string                    `yaml:"sandboxProfile"`
+}
+
+type artifactRefSource struct {
+	Namespace string  `yaml:"namespace"`
+	Name      string  `yaml:"name"`
+	Revision  *string `yaml:"revision,omitempty"`
 }
 
 type toolsetSelectionSource struct {

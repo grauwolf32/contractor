@@ -193,6 +193,10 @@ type PlannerTelemetryRegistry interface {
 	Create(string, telemetry.PlannerAdapterSettings) (telemetry.PlannerTelemetry, error)
 }
 
+type RunSkillInitializer interface {
+	InitializeRunSkills(context.Context, string) (runstore.WorkflowRun, error)
+}
+
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
@@ -215,6 +219,7 @@ type Options struct {
 	Credentials            CredentialResolver
 	RuntimeCredentials     RuntimeCredentialResolver
 	PlannerTelemetry       PlannerTelemetryRegistry
+	RunSkills              RunSkillInitializer
 	TelemetrySecrets       []string
 	MetricsCleanupInterval time.Duration
 	MetricsCleanupBatch    int

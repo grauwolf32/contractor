@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -47,6 +48,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 	if dependencies.Now == nil {
 		dependencies.Now = time.Now
+	}
+	if dependencies.Logger == nil {
+		dependencies.Logger = slog.Default()
 	}
 	tokenDigest := sha256.Sum256([]byte(bearerToken))
 	bearerToken = ""

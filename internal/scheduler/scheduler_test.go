@@ -1229,6 +1229,25 @@ func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
 	}
 }
 
+func TestSchedulerRecoversPendingRunSkillInitializationBeforeStageCreation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.State = runstore.RunInitializing
+	harness.store.run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+	initializer := &memoryRunSkillInitializer{store: harness.store, transientFailures: 1}
+	harness.scheduler.options.RunSkills = initializer
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || err == nil || len(harness.store.stages) != 0 ||
+		harness.store.run.State != runstore.RunInitializing {
+		t.Fatalf("transient initialization = worked %t, error %v, run %s, stages %d", worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if !worked || err != nil || initializer.calls != 2 ||
+		harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 1 {
+		t.Fatalf("recovered initialization = worked %t, error %v, calls %d, run %s, stages %d", worked, err, initializer.calls, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
 func configureRetryWorkflow(t *testing.T, harness *schedulerHarness, maxAttempts int) {
 	t.Helper()
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
@@ -1518,11 +1537,36 @@ type memorySchedulerStore struct {
 	events         *eventRecorder
 }
 
+type memoryRunSkillInitializer struct {
+	store             *memorySchedulerStore
+	calls             int
+	transientFailures int
+}
+
+func (i *memoryRunSkillInitializer) InitializeRunSkills(
+	_ context.Context,
+	runID string,
+) (runstore.WorkflowRun, error) {
+	i.calls++
+	if runID != i.store.run.RunID {
+		return runstore.WorkflowRun{}, runstore.ErrNotFound
+	}
+	if i.transientFailures > 0 {
+		i.transientFailures--
+		return i.store.run, errors.New("transient Skill fork failure")
+	}
+	i.store.run.State = runstore.RunRunning
+	i.store.run.StateReason = runstore.Reason{Code: "initialized"}
+	return i.store.run, nil
+}
+
 func (s *memorySchedulerStore) ClaimRunnableRun(
 	_ context.Context, claimID string, duration time.Duration,
 ) (runstore.WorkflowRun, error) {
 	s.claimCalls++
-	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunCancelling ||
+	pendingSkills := s.run.State == runstore.RunInitializing &&
+		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
+	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunCancelling && !pendingSkills ||
 		s.claimID != "" || duration <= 0 {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}

@@ -94,6 +94,15 @@ const (
 	MaxWorkerTotalTokens  = 100_000_000
 )
 
+var nativeSkillToolNames = map[string]struct{}{
+	"list_skills": {}, "load_skill": {}, "load_skill_resource": {},
+}
+
+func IsNativeSkillToolName(name string) bool {
+	_, exists := nativeSkillToolNames[name]
+	return exists
+}
+
 type ToolsetSelection struct {
 	Ref   ToolsetRef `json:"ref"`
 	Tools []string   `json:"tools"`
@@ -106,6 +115,7 @@ type ResolvedAgentTemplate struct {
 	Instructions   ResolvedInstructions `json:"instructions"`
 	ModelPolicy    ResolvedModelPolicy  `json:"modelPolicy"`
 	Toolsets       []ToolsetSelection   `json:"toolsets"`
+	Skills         []ArtifactRef        `json:"skills,omitempty"`
 	SandboxProfile SandboxProfileRef    `json:"sandboxProfile"`
 }
 
@@ -161,7 +171,7 @@ func (s AllocationSpec) Validate() error {
 	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
 		return err
 	}
-	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0); err != nil {
+	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
 		return err
 	}
 	return validateRuntimeSettings(s.RuntimeSettings)
@@ -286,7 +296,7 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	if err := validateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
 		return err
 	}
-	if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0); err != nil {
+	if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
 		return err
 	}
 	seenToolsets := make(map[string]struct{})
@@ -310,8 +320,24 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 			if _, exists := seenTools[tool]; exists {
 				return invalidf("duplicate model-visible tool name %q", tool)
 			}
+			if len(template.Skills) > 0 && IsNativeSkillToolName(tool) {
+				return invalidf("model-visible tool name %q is reserved by Agent Skills", tool)
+			}
 			seenTools[tool] = struct{}{}
 		}
+	}
+	if len(template.Skills) > MaxAgentTemplateSkills {
+		return invalidf("AgentTemplate may select at most %d skills", MaxAgentTemplateSkills)
+	}
+	previousSkill := ""
+	for _, skill := range template.Skills {
+		if err := skill.ValidateAgentSkillRef(); err != nil {
+			return err
+		}
+		if previousSkill != "" && skill.Name <= previousSkill {
+			return invalidf("AgentTemplate skills must be sorted and unique")
+		}
+		previousSkill = skill.Name
 	}
 	return validateSelector(
 		"agentTemplate.sandboxProfile",

@@ -24,6 +24,8 @@ type Repository interface {
 	PinRuntimeLabels(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
+	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
+	CompleteRunSkillInitialization(context.Context, string, []contracts.RunSkillSnapshot) error
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
@@ -494,9 +496,10 @@ func (s *PostgresStore) ClaimRunnableRun(
 WITH candidate AS (
     SELECT run_id
     FROM workflow_runs
-    WHERE state IN ('running', 'cancelling')
+    WHERE (state IN ('running', 'cancelling')
+       OR (state = 'initializing' AND state_reason_code = 'skill_initialization_pending'))
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
-    ORDER BY created_at, run_id
+    ORDER BY CASE WHEN state = 'initializing' THEN 1 ELSE 0 END, created_at, run_id
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
@@ -560,7 +563,7 @@ func (s *PostgresStore) RenewRunClaim(
 UPDATE workflow_runs
 SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond'),
     updated_at = clock_timestamp()
-WHERE run_id = $1 AND state IN ('running', 'cancelling') AND scheduler_claim_id = $2`,
+WHERE run_id = $1 AND state IN ('initializing', 'running', 'cancelling') AND scheduler_claim_id = $2`,
 		runID, claimID, duration.Microseconds())
 	if err != nil {
 		return fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)

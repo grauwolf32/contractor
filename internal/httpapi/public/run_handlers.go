@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -11,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -148,6 +151,8 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 
 	created := false
 	storedRun = runstore.WorkflowRun{}
+	var skillRefs []contracts.ArtifactRef
+	var templateSkillSets [][]string
 	err = h.dependencies.ManagedCredentials.WithRunCreation(r.Context(), func() error {
 		workflow, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
 			r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
@@ -158,16 +163,38 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		if err := validateRunInputs(workflow, request); err != nil {
 			return err
 		}
+		skillRefs, resolveErr = config.WorkflowSkillRefs(workflow)
+		if resolveErr != nil {
+			return fmt.Errorf("%w: invalid Workflow Skill selection: %v", errInvalidRequest, resolveErr)
+		}
+		templateSkillSets = config.WorkflowSkillSets(workflow)
+		if len(skillRefs) > 0 && h.dependencies.RunSkills == nil {
+			return fmt.Errorf("Run Skill initializer is not configured")
+		}
 		workflowSnapshot, err := json.Marshal(workflow)
 		if err != nil {
 			return fmt.Errorf("encode resolved Workflow: %w", err)
 		}
 		return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
+			skillCatalog, catalogErr := agentskills.NewCatalog(artifactService)
+			if catalogErr != nil {
+				return catalogErr
+			}
 			runtimeConfig, pinErr := runs.PinRuntimeLabels(
 				r.Context(), []string(request.Labels), h.dependencies.Credentials,
 			)
 			if pinErr != nil {
 				return pinErr
+			}
+			var selectedSkills []contracts.RunSkillSnapshot
+			if len(skillRefs) > 0 {
+				selectedSkills, catalogErr = skillCatalog.SelectRunSources(r.Context(), ownerID, skillRefs)
+				if catalogErr != nil {
+					return catalogErr
+				}
+				if catalogErr = agentskills.ValidateSelectedLimits(selectedSkills, templateSkillSets); catalogErr != nil {
+					return catalogErr
+				}
 			}
 			var createErr error
 			storedRun, created, createErr = runs.CreateRunIdempotent(
@@ -190,6 +217,14 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 			if !created {
 				return nil
 			}
+			if len(selectedSkills) > 0 {
+				if err := runs.SetRunSkillSelections(r.Context(), runID, selectedSkills); err != nil {
+					return err
+				}
+				if err := skillCatalog.PinRunSources(r.Context(), ownerID, runID, selectedSkills); err != nil {
+					return err
+				}
+			}
 
 			slots := sortedArtifactSlots(request.Artifacts)
 			for _, slot := range slots {
@@ -203,16 +238,49 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 					return fmt.Errorf("%w: input %q has unsupported media type", errInvalidRequest, slot)
 				}
 			}
-			storedRun, err = runs.TransitionRun(
-				r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
-				runstore.Reason{Code: "initialized"},
-			)
-			return err
+			if len(selectedSkills) == 0 {
+				storedRun, err = runs.TransitionRun(
+					r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
+					runstore.Reason{Code: "initialized"},
+				)
+				return err
+			}
+			storedRun.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), selectedSkills...)
+			storedRun.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+			return nil
 		})
 	})
 	if err != nil {
-		h.handleError(w, err)
-		return
+		if !errors.Is(err, runstore.ErrConflict) && persistencepostgres.SQLState(err) != "40001" {
+			h.handleError(w, err)
+			return
+		}
+		// A concurrent idempotency winner may commit after the REPEATABLE READ
+		// snapshot began. Re-read after rollback before returning a conflict.
+		var recovered bool
+		storedRun, recovered, _ = h.dependencies.Runs.LookupRunIdempotency(
+			r.Context(), ownerID, idempotencyKey, requestDigest,
+		)
+		if !recovered {
+			h.handleError(w, err)
+			return
+		}
+		created = false
+	}
+	if created && len(skillRefs) > 0 {
+		initialized, initializeErr := h.dependencies.RunSkills.InitializeRunSkills(
+			r.Context(), storedRun.RunID,
+		)
+		if initialized.RunID != "" {
+			storedRun = initialized
+		}
+		if initializeErr != nil {
+			h.dependencies.Logger.Warn(
+				"WorkflowRun Skill initialization deferred",
+				"run_id", storedRun.RunID,
+				"error", initializeErr,
+			)
+		}
 	}
 	if created && h.dependencies.RunNotifier != nil {
 		h.dependencies.RunNotifier.Wake()

@@ -49,6 +49,7 @@ type RunWriter interface {
 		context.Context,
 		runstore.CreateRunIdempotentParams,
 	) (runstore.WorkflowRun, bool, error)
+	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
 	TransitionRun(
 		context.Context,
 		string,
@@ -78,6 +79,10 @@ type UnitOfWork interface {
 
 type RunNotifier interface {
 	Wake()
+}
+
+type RunSkillInitializer interface {
+	InitializeRunSkills(context.Context, string) (runstore.WorkflowRun, error)
 }
 
 type RunCancellationNotifier interface {
@@ -160,6 +165,7 @@ type Dependencies struct {
 	NewID                  func(string) (string, error)
 	NewRequestID           func() (string, error)
 	RunNotifier            RunNotifier
+	RunSkills              RunSkillInitializer
 	Now                    func() time.Time
 	Logger                 *slog.Logger
 }

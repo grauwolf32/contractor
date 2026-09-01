@@ -367,6 +367,16 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 		return err
 	}
 	run = current
+	if run.State == runstore.RunInitializing &&
+		run.StateReason.Code == runstore.SkillInitializationPendingReason {
+		if s.options.RunSkills == nil {
+			return fmt.Errorf("Run Skill initializer is not configured")
+		}
+		run, err = s.options.RunSkills.InitializeRunSkills(ctx, run.RunID)
+		if err != nil {
+			return err
+		}
+	}
 	if run.State == runstore.RunCancelling {
 		return s.executeCancelling(ctx, run)
 	}

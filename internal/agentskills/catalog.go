@@ -71,19 +71,24 @@ type SeedOutcome struct {
 type ownerArtifactStore interface {
 	Read(context.Context, artifacts.ArtifactRef) (artifacts.ReadResult, error)
 	Write(context.Context, artifacts.ArtifactRef, artifacts.Payload, *string) (artifacts.WriteResult, error)
+	Metadata(context.Context, artifacts.ArtifactRef) (artifacts.Metadata, error)
 }
 
 type Catalog struct {
 	ownerStore func(string) (ownerArtifactStore, error)
+	service    *artifacts.Service
 }
 
 func NewCatalog(service *artifacts.Service) (*Catalog, error) {
 	if service == nil {
 		return nil, errors.New("ArtifactService is required")
 	}
-	return &Catalog{ownerStore: func(ownerID string) (ownerArtifactStore, error) {
-		return service.User(ownerID)
-	}}, nil
+	return &Catalog{
+		ownerStore: func(ownerID string) (ownerArtifactStore, error) {
+			return service.User(ownerID)
+		},
+		service: service,
+	}, nil
 }
 
 // DiscoverBundled packages only immediate skill directories below

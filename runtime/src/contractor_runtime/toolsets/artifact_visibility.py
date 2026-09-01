@@ -29,10 +29,16 @@ def is_reserved_memory_binding(namespace: object, name: object) -> bool:
     )
 
 
+def is_model_hidden_binding(namespace: object, name: object) -> bool:
+    """Return whether generic model tools must not disclose this binding."""
+
+    return namespace == "skills" or is_reserved_memory_binding(namespace, name)
+
+
 def require_model_visible_binding(namespace: object, name: object) -> None:
-    if is_reserved_memory_binding(namespace, name):
+    if is_model_hidden_binding(namespace, name):
         raise ModelArtifactAccessError
 
 
 def model_visible_exact_refs(refs: Iterable[ArtifactRef]) -> tuple[ArtifactRef, ...]:
-    return tuple(ref for ref in refs if not is_reserved_memory_binding(ref.namespace, ref.name))
+    return tuple(ref for ref in refs if not is_model_hidden_binding(ref.namespace, ref.name))

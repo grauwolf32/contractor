@@ -55,6 +55,7 @@ type WorkflowRun struct {
 	Parameters                map[string]string
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
+	SkillSnapshot             []contracts.RunSkillSnapshot
 	State                     WorkflowRunState
 	StateReason               Reason
 	CancellationSchemaVersion *string

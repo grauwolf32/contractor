@@ -1,4 +1,4 @@
-package artifacts
+package artifacts_test
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/grauwolf32/contractor/internal/artifacts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -309,6 +310,63 @@ WHERE scope_kind = 'run' AND scope_id = 'run-empty-freeze'`).Scan(&scopes); err 
 	}
 	if scopes != 0 {
 		t.Fatalf("empty freeze created an unnecessary Artifact scope: %d", scopes)
+	}
+}
+
+func TestPostgresIntegrationSkillForkUsesExactSourceAndReservedTarget(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	createArtifactRun(t, ctx, pool, "run-skill-fork", false)
+	service := NewService(NewPostgresRepository(pool))
+	user, _ := service.User("user-1")
+	first, err := user.Write(
+		ctx,
+		ArtifactRef{Namespace: "skills", Name: "review"},
+		Payload{MediaType: "application/vnd.contractor.agent-skill+zip", Data: []byte("package-a")},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := user.Write(
+		ctx,
+		ArtifactRef{Namespace: "skills", Name: "review"},
+		Payload{MediaType: "application/vnd.contractor.agent-skill+zip", Data: []byte("package-b")},
+		first.Ref.Revision,
+	); err != nil {
+		t.Fatal(err)
+	}
+	fork, err := service.ForkSkill(ctx, "user-1", first.Ref, "run-skill-fork", "review")
+	if err != nil {
+		t.Fatalf("fork exact Skill source: %v", err)
+	}
+	if fork.SourceRef.Revision == nil || *fork.SourceRef.Revision != *first.Ref.Revision ||
+		fork.TargetRef.Namespace != "skills" || fork.TargetRef.Revision == nil {
+		t.Fatalf("Skill fork = %+v", fork)
+	}
+	run, _ := service.Run("run-skill-fork")
+	read, err := run.Read(ctx, fork.TargetRef)
+	if err != nil || !bytes.Equal(read.Payload.Data, []byte("package-a")) {
+		t.Fatalf("read exact Run Skill = (%+v, %v)", read, err)
+	}
+	if _, err := run.Write(
+		ctx,
+		ArtifactRef{Namespace: "skills", Name: "review"},
+		Payload{MediaType: "application/octet-stream", Data: []byte("mutation")},
+		fork.TargetRef.Revision,
+	); !errors.Is(err, ErrReservedNamespace) {
+		t.Fatalf("reserved Skill write error = %v", err)
+	}
+	replayed, err := service.ForkSkill(ctx, "user-1", first.Ref, "run-skill-fork", "review")
+	if err != nil || replayed.TargetRef.Revision == nil ||
+		*replayed.TargetRef.Revision != *fork.TargetRef.Revision {
+		t.Fatalf("idempotent Skill fork = (%+v, %v)", replayed, err)
+	}
+	lineage, err := run.ListLineage(ctx, fork.TargetRef, LineagePageQuery{Limit: 10})
+	if err != nil || len(lineage) != 1 || lineage[0].Kind != LineageInputFork ||
+		lineage[0].Source.Revision == nil || *lineage[0].Source.Revision != *first.Ref.Revision {
+		t.Fatalf("Skill lineage = (%+v, %v)", lineage, err)
 	}
 }
 

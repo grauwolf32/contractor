@@ -518,7 +518,7 @@ func validateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		if !ok {
 			return fmt.Errorf("Stage %q Agent %q has no executionConfig", stageName, logicalName)
 		}
-		hasTools := len(binding.Template.Toolsets) > 0
+		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
 		if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
 			return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
 		}

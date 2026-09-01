@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
@@ -59,7 +60,71 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	if err := ValidateWorkflowGraph(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
+	if _, err := WorkflowSkillRefs(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	return workflow, nil
+}
+
+// WorkflowSkillRefs returns the sorted logical union retained by a Run
+// snapshot, including templates used only by later Stages.
+func WorkflowSkillRefs(workflow ResolvedWorkflow) ([]contracts.ArtifactRef, error) {
+	union := make(map[string]contracts.ArtifactRef)
+	for _, stage := range workflow.Stages {
+		for _, binding := range stage.Agents {
+			if err := binding.Template.Validate(); err != nil {
+				return nil, fmt.Errorf("invalid AgentTemplate %s@%s: %w", binding.Template.Ref.TemplateID, binding.Template.Ref.Version, err)
+			}
+			for _, skill := range binding.Template.Skills {
+				union[skill.Name] = skill
+			}
+		}
+	}
+	if len(union) > contracts.MaxWorkflowRunSkills {
+		return nil, fmt.Errorf("WorkflowRun may retain at most %d distinct skills", contracts.MaxWorkflowRunSkills)
+	}
+	names := make([]string, 0, len(union))
+	for name := range union {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]contracts.ArtifactRef, 0, len(names))
+	for _, name := range names {
+		result = append(result, union[name])
+	}
+	return result, nil
+}
+
+// WorkflowSkillSets returns one sorted name set per distinct retained
+// AgentTemplate. It is used only for per-template package byte limits.
+func WorkflowSkillSets(workflow ResolvedWorkflow) [][]string {
+	templates := make(map[string][]string)
+	for _, stage := range workflow.Stages {
+		for _, binding := range stage.Agents {
+			if len(binding.Template.Skills) == 0 {
+				continue
+			}
+			key := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version + ":" + binding.Template.Ref.Digest
+			if _, exists := templates[key]; exists {
+				continue
+			}
+			names := make([]string, len(binding.Template.Skills))
+			for index, skill := range binding.Template.Skills {
+				names[index] = skill.Name
+			}
+			templates[key] = names
+		}
+	}
+	keys := make([]string, 0, len(templates))
+	for key := range templates {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([][]string, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, append([]string(nil), templates[key]...))
+	}
+	return result
 }
 
 func resolveParameters(source *map[string]parameterSlotSource) (map[string]ParameterSlot, error) {

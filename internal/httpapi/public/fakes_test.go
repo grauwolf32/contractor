@@ -2,6 +2,8 @@ package public
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"sync"
@@ -407,8 +409,10 @@ func (f *fakeArtifactRepository) metadataLocked(
 		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
 	}
 	current := f.current[key]
+	digest := sha256.Sum256(read.Payload.Data)
 	return artifacts.Metadata{
 		Ref: read.Ref, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data)),
+		Digest:  "sha256:" + hex.EncodeToString(digest[:]),
 		Current: current.Ref.Revision != nil && *current.Ref.Revision == *read.Ref.Revision,
 		Frozen:  f.frozen[key], CreatedAt: f.created[key][*read.Ref.Revision],
 	}, nil
@@ -573,6 +577,24 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	return run, true, nil
 }
 
+func (f *fakeRunStore) SetRunSkillSelections(
+	_ context.Context,
+	runID string,
+	skills []contracts.RunSkillSnapshot,
+) error {
+	run, ok := f.runs[runID]
+	if !ok {
+		return runstore.ErrNotFound
+	}
+	if run.State != runstore.RunInitializing || len(run.SkillSnapshot) != 0 {
+		return runstore.ErrConflict
+	}
+	run.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), skills...)
+	run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+	f.runs[runID] = run
+	return nil
+}
+
 func (f *fakeRunStore) LookupRunIdempotency(
 	ctx context.Context, ownerID, idempotencyKey, requestDigest string,
 ) (runstore.WorkflowRun, bool, error) {
@@ -686,6 +708,24 @@ type fakeUnitOfWork struct {
 	runs      *fakeRunStore
 	artifacts *artifacts.Service
 	calls     int
+}
+
+type fakeRunSkillInitializer struct {
+	runs  *fakeRunStore
+	calls int
+	err   error
+}
+
+func (f *fakeRunSkillInitializer) InitializeRunSkills(
+	ctx context.Context,
+	runID string,
+) (runstore.WorkflowRun, error) {
+	f.calls++
+	run, err := f.runs.GetRun(ctx, runID)
+	if err != nil {
+		return runstore.WorkflowRun{}, err
+	}
+	return run, f.err
 }
 
 func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {

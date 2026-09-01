@@ -75,9 +75,12 @@ type Metadata struct {
 	Ref       ArtifactRef `json:"artifact"`
 	MediaType string      `json:"mediaType"`
 	Size      int64       `json:"size"`
-	Current   bool        `json:"current"`
-	Frozen    bool        `json:"frozen"`
-	CreatedAt time.Time   `json:"createdAt"`
+	// Digest is an internal projection of the immutable blob identity. It is
+	// deliberately absent from the public Metadata JSON contract.
+	Digest    string    `json:"-"`
+	Current   bool      `json:"current"`
+	Frozen    bool      `json:"frozen"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type BindingPageQuery struct {

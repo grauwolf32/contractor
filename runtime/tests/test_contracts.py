@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
     HeartbeatResponse,
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
+    ResolvedAgentTemplate,
     ResolvedLLMGatewayConfig,
     ResolvedRuntimeConfigProvenanceV2,
     RuntimeReportV2,
@@ -258,6 +259,62 @@ def test_worker_policy_rejects_planner_only_limit() -> None:
     raw["modelPolicy"]["maxWorkerCalls"] = 1
     with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
         AllocationSpec.model_validate_json(json.dumps(raw))
+
+
+def test_agent_template_skill_refs_are_strict_and_empty_wire_is_compatible() -> None:
+    allocation = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    raw = allocation["agentTemplate"]
+
+    omitted = ResolvedAgentTemplate.model_validate(raw)
+    explicit_empty = ResolvedAgentTemplate.model_validate({**raw, "skills": []})
+    assert "skills" not in omitted.model_dump(by_alias=True)
+    assert "skills" not in explicit_empty.model_dump(by_alias=True)
+
+    valid = ResolvedAgentTemplate.model_validate(
+        {
+            **raw,
+            "skills": [
+                {"namespace": "skills", "name": "analysis2"},
+                {"namespace": "skills", "name": "review"},
+            ],
+        }
+    )
+    assert [skill.name for skill in valid.skills] == ["analysis2", "review"]
+
+    for skills in (
+        [{"namespace": "other", "name": "review"}],
+        [{"namespace": "skills", "name": "Review"}],
+        [{"namespace": "skills", "name": "review", "revision": "rev-1"}],
+        [
+            {"namespace": "skills", "name": "review"},
+            {"namespace": "skills", "name": "review"},
+        ],
+        [
+            {"namespace": "skills", "name": "review"},
+            {"namespace": "skills", "name": "analysis2"},
+        ],
+    ):
+        with pytest.raises(ValidationError):
+            ResolvedAgentTemplate.model_validate({**raw, "skills": skills})
+
+
+def test_agent_template_skills_reserve_native_names_and_require_tool_budget() -> None:
+    allocation = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    raw = allocation["agentTemplate"]
+    skill = [{"namespace": "skills", "name": "review"}]
+
+    collision = json.loads(json.dumps(raw))
+    collision["skills"] = skill
+    collision["toolsets"][0]["tools"][0] = "load_skill"
+    with pytest.raises(ValidationError, match="reserved by Agent Skills"):
+        ResolvedAgentTemplate.model_validate(collision)
+
+    unbudgeted = json.loads(json.dumps(raw))
+    unbudgeted["skills"] = skill
+    unbudgeted["toolsets"] = []
+    del unbudgeted["modelPolicy"]["maxToolCalls"]
+    with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
+        ResolvedAgentTemplate.model_validate(unbudgeted)
 
 
 def test_all_golden_files_have_an_assigned_model() -> None:

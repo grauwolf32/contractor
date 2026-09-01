@@ -10,7 +10,7 @@ import (
 const workflowRunColumns = `
 run_id, owner_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
-runtime_labels, runtime_config_snapshot,
+runtime_labels, runtime_config_snapshot, skill_snapshot,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
@@ -25,6 +25,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var snapshot []byte
 	var parameters []byte
 	var runtimeConfig []byte
+	var skillSnapshot []byte
 	var state string
 	var cancellation []byte
 	var claimID *string
@@ -33,7 +34,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := row.Scan(
 		&result.RunID, &result.OwnerID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
-		&result.RuntimeLabels, &runtimeConfig,
+		&result.RuntimeLabels, &runtimeConfig, &skillSnapshot,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
@@ -61,6 +62,12 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	}
 	if err := result.RuntimeConfig.Validate(); err != nil {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig snapshot: %w", err)
+	}
+	if err := json.Unmarshal(skillSnapshot, &result.SkillSnapshot); err != nil {
+		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Skill snapshot: %w", err)
+	}
+	if err := validateRunSkillSnapshot(result.SkillSnapshot, false); err != nil {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Skill snapshot: %w", err)
 	}
 	if labels := result.RuntimeConfig.ExplicitLabels(); !equalRunLabels(labels, result.RuntimeLabels) {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig labels: projection mismatch")

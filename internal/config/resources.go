@@ -197,7 +197,7 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 			"tools": append([]string(nil), selection.Tools...),
 		})
 	}
-	return map[string]any{
+	result := map[string]any{
 		"description": template.Description,
 		"runtime":     template.Runtime.RuntimeID + "@" + template.Runtime.Version,
 		"instructions": map[string]any{
@@ -208,6 +208,10 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 		"sandboxProfile": template.SandboxProfile.SandboxProfileID + "@" +
 			template.SandboxProfile.Version,
 	}
+	if len(template.Skills) > 0 {
+		result["skills"] = append([]contracts.ArtifactRef(nil), template.Skills...)
+	}
+	return result
 }
 
 func executionConfigResourceBody(profile ResolvedExecutionConfigProfile) map[string]any {

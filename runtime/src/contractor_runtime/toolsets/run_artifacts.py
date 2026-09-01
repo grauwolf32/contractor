@@ -14,7 +14,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.artifact_visibility import (
-    is_reserved_memory_binding,
+    is_model_hidden_binding,
     model_visible_exact_refs,
     require_model_visible_binding,
 )
@@ -132,11 +132,13 @@ class ListArtifactsTool(_BaseTool):
         started_ns = time.perf_counter_ns()
         arguments = {"namespace": namespace}
         try:
+            if namespace == "skills":
+                require_model_visible_binding(namespace, "selected")
             refs = await self._client.list_artifacts(namespace)
             result = [
                 ref.model_dump(by_alias=True, exclude_none=True)
                 for ref in refs
-                if not is_reserved_memory_binding(ref.namespace, ref.name)
+                if not is_model_hidden_binding(ref.namespace, ref.name)
             ]
             self._success(arguments, {"count": len(result)}, started_ns)
             return result

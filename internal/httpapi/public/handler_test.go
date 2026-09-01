@@ -46,6 +46,7 @@ type handlerFixture struct {
 	runs               *fakeRunStore
 	unit               *fakeUnitOfWork
 	notifier           *recordingRunNotifier
+	runSkills          *fakeRunSkillInitializer
 	metrics            *fakeMetricsReader
 	plans              *fakePlannerPlanReader
 	credentials        *fakeManagedCredentials
@@ -92,6 +93,7 @@ func newHandlerFixtureWithAuth(
 	runs := newFakeRunStore()
 	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
 	notifier := &recordingRunNotifier{}
+	runSkills := &fakeRunSkillInitializer{runs: runs, err: errors.New("injected transient Skill initialization failure")}
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	managedCredentials := newFakeManagedCredentials()
@@ -126,6 +128,7 @@ func newHandlerFixtureWithAuth(
 		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID: func() (string, error) { return "request-fixed", nil },
 		RunNotifier:  notifier,
+		RunSkills:    runSkills,
 		Logger:       logger,
 		Now: func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
@@ -136,7 +139,7 @@ func newHandlerFixtureWithAuth(
 	}
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
-		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
+		runs: runs, unit: unit, notifier: notifier, runSkills: runSkills, metrics: metrics, plans: plans,
 		credentials:    managedCredentials,
 		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
 		runtimePrincipals: runtimePrincipals,

@@ -46,6 +46,22 @@ func (l *loader) resolveAgentTemplate(
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
+	skills, err := resolveSkills(spec.Skills)
+	if err != nil {
+		return contracts.ResolvedAgentTemplate{}, err
+	}
+	if err := policy.ValidateForWorker(len(toolsets) > 0 || len(skills) > 0); err != nil {
+		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
+	}
+	if len(skills) > 0 {
+		for _, toolset := range toolsets {
+			for _, tool := range toolset.Tools {
+				if contracts.IsNativeSkillToolName(tool) {
+					return contracts.ResolvedAgentTemplate{}, fmt.Errorf("model-visible tool %q is reserved by Agent Skills", tool)
+				}
+			}
+		}
+	}
 
 	sandbox, err := ParseSelector(spec.SandboxProfile)
 	if err != nil {
@@ -65,6 +81,7 @@ func (l *loader) resolveAgentTemplate(
 		Instructions: instructions,
 		ModelPolicy:  policy,
 		Toolsets:     toolsets,
+		Skills:       skills,
 		SandboxProfile: contracts.SandboxProfileRef{
 			SandboxProfileID: sandbox.ID,
 			Version:          sandbox.Version,
@@ -75,6 +92,30 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("compute AgentTemplate digest: %w", err)
 	}
 	result.Ref.Digest = digest
+	return result, nil
+}
+
+func resolveSkills(source *[]artifactRefSource) ([]contracts.ArtifactRef, error) {
+	if source == nil || len(*source) == 0 {
+		return nil, nil
+	}
+	if len(*source) > contracts.MaxAgentTemplateSkills {
+		return nil, fmt.Errorf("spec.skills may contain at most %d refs", contracts.MaxAgentTemplateSkills)
+	}
+	result := make([]contracts.ArtifactRef, 0, len(*source))
+	seen := make(map[string]struct{}, len(*source))
+	for index, item := range *source {
+		ref := contracts.ArtifactRef{Namespace: item.Namespace, Name: item.Name, Revision: item.Revision}
+		if err := ref.ValidateAgentSkillRef(); err != nil {
+			return nil, fmt.Errorf("spec.skills[%d]: %w", index, err)
+		}
+		if _, duplicate := seen[item.Name]; duplicate {
+			return nil, fmt.Errorf("spec.skills contains duplicate ref skills/%s", item.Name)
+		}
+		seen[item.Name] = struct{}{}
+		result = append(result, contracts.ArtifactRef{Namespace: item.Namespace, Name: item.Name})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
 }
 

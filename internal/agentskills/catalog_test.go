@@ -3,6 +3,8 @@ package agentskills
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -246,6 +248,9 @@ type missingReadBarrier struct {
 type memoryArtifactRepository struct {
 	mu                        sync.Mutex
 	bindings                  map[string]memoryArtifact
+	history                   map[string]map[string]memoryArtifact
+	forkSources               map[string]artifacts.ArtifactRef
+	forkCalls                 int
 	revisions                 int
 	attemptedWrites           int
 	successfulWrites          int
@@ -254,7 +259,10 @@ type memoryArtifactRepository struct {
 }
 
 func newMemoryArtifactRepository() *memoryArtifactRepository {
-	return &memoryArtifactRepository{bindings: make(map[string]memoryArtifact), failAfterSuccessfulWrites: -1}
+	return &memoryArtifactRepository{
+		bindings: make(map[string]memoryArtifact), history: make(map[string]map[string]memoryArtifact),
+		forkSources: make(map[string]artifacts.ArtifactRef), failAfterSuccessfulWrites: -1,
+	}
 }
 
 func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {
@@ -263,7 +271,11 @@ func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {
 
 func (r *memoryArtifactRepository) Read(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.ReadResult, error) {
 	r.mu.Lock()
-	stored, exists := r.bindings[artifactKey(scope, ref)]
+	key := artifactKey(scope, ref)
+	stored, exists := r.bindings[key]
+	if ref.Revision != nil {
+		stored, exists = r.history[key][*ref.Revision]
+	}
 	barrier := r.missingBarrier
 	r.mu.Unlock()
 	if !exists {
@@ -300,6 +312,10 @@ func (r *memoryArtifactRepository) Write(_ context.Context, scope artifacts.Scop
 		BindingCreatedAt: now, RevisionCreatedAt: now,
 	}
 	r.bindings[key] = memoryArtifact{result: read}
+	if r.history[key] == nil {
+		r.history[key] = make(map[string]memoryArtifact)
+	}
+	r.history[key][revision] = memoryArtifact{result: read}
 	r.successfulWrites++
 	return artifacts.WriteResult{Ref: read.Ref, MediaType: payload.MediaType, Size: int64(len(payload.Data)), BindingCreatedAt: now, RevisionCreatedAt: now}, nil
 }
@@ -313,9 +329,92 @@ func (r *memoryArtifactRepository) ForkInput(context.Context, artifacts.Scope, a
 func (r *memoryArtifactRepository) BindOutputExact(context.Context, artifacts.Scope, string, artifacts.ArtifactRef, *string) (artifacts.ForkResult, error) {
 	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
 }
-func (r *memoryArtifactRepository) PinExact(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
-	return artifacts.ErrQueryUnsupported
+func (r *memoryArtifactRepository) PinExact(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef, _ artifacts.PinKind, _ string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ref.Revision == nil {
+		return artifacts.ErrExactRevisionRequired
+	}
+	if _, ok := r.history[artifactKey(scope, ref)][*ref.Revision]; !ok {
+		return artifacts.ErrArtifactNotFound
+	}
+	return nil
 }
 func (r *memoryArtifactRepository) FreezeOutputs(context.Context, artifacts.Scope) error {
 	return artifacts.ErrQueryUnsupported
+}
+
+func (r *memoryArtifactRepository) Metadata(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.Metadata, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := artifactKey(scope, ref)
+	stored, ok := r.bindings[key]
+	if ref.Revision != nil {
+		stored, ok = r.history[key][*ref.Revision]
+	}
+	if !ok || stored.result.Ref.Revision == nil {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	digest := sha256.Sum256(stored.result.Payload.Data)
+	return artifacts.Metadata{
+		Ref: stored.result.Ref, MediaType: stored.result.Payload.MediaType,
+		Size: int64(len(stored.result.Payload.Data)), Digest: "sha256:" + hex.EncodeToString(digest[:]),
+		Current: ref.Revision == nil,
+	}, nil
+}
+
+func (*memoryArtifactRepository) ListMetadata(context.Context, artifacts.Scope, artifacts.BindingPageQuery) ([]artifacts.Metadata, error) {
+	return nil, artifacts.ErrQueryUnsupported
+}
+
+func (*memoryArtifactRepository) ListVersions(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.VersionPageQuery) ([]artifacts.Metadata, error) {
+	return nil, artifacts.ErrQueryUnsupported
+}
+
+func (*memoryArtifactRepository) ListLineage(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.LineagePageQuery) ([]artifacts.LineageEdge, error) {
+	return nil, artifacts.ErrQueryUnsupported
+}
+
+func (r *memoryArtifactRepository) ForkSkill(
+	_ context.Context,
+	sourceScope artifacts.Scope,
+	sourceRef artifacts.ArtifactRef,
+	targetScope artifacts.Scope,
+	name string,
+) (artifacts.ForkResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if sourceRef.Revision == nil {
+		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
+	}
+	source, ok := r.history[artifactKey(sourceScope, sourceRef)][*sourceRef.Revision]
+	if !ok {
+		return artifacts.ForkResult{}, artifacts.ErrArtifactNotFound
+	}
+	targetKey := artifactKey(targetScope, artifacts.ArtifactRef{Namespace: SkillNamespace, Name: name})
+	if existing, exists := r.bindings[targetKey]; exists {
+		previous := r.forkSources[targetKey]
+		if previous.Revision == nil || *previous.Revision != *sourceRef.Revision {
+			return artifacts.ForkResult{}, artifacts.ErrArtifactConflict
+		}
+		return artifacts.ForkResult{
+			SourceRef: source.result.Ref, TargetRef: existing.result.Ref,
+			MediaType: source.result.Payload.MediaType, Size: int64(len(source.result.Payload.Data)),
+		}, nil
+	}
+	r.forkCalls++
+	r.revisions++
+	revision := fmt.Sprintf("rev_%d", r.revisions)
+	exact := revision
+	target := memoryArtifact{result: artifacts.ReadResult{
+		Ref:     artifacts.ArtifactRef{Namespace: SkillNamespace, Name: name, Revision: &exact},
+		Payload: source.result.Payload,
+	}}
+	r.bindings[targetKey] = target
+	r.history[targetKey] = map[string]memoryArtifact{revision: target}
+	r.forkSources[targetKey] = source.result.Ref
+	return artifacts.ForkResult{
+		SourceRef: source.result.Ref, TargetRef: target.result.Ref,
+		MediaType: source.result.Payload.MediaType, Size: int64(len(source.result.Payload.Data)),
+	}, nil
 }

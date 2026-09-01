@@ -412,6 +412,7 @@ func RunCLI(
 			Credentials:        credentialProvider,
 			RuntimeCredentials: runtimeCredentialLifecycle,
 			PlannerTelemetry:   plannerTelemetryRegistry,
+			RunSkills:          &runSkillInitializer{pool: pool},
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
@@ -449,6 +450,7 @@ func RunCLI(
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken,
 		RunNotifier:  workflowScheduler, Logger: logger,
+		RunSkills: &runSkillInitializer{pool: pool},
 	})
 	if err != nil {
 		return fmt.Errorf("configure public API: %w", err)
@@ -565,7 +567,7 @@ func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
 	fn func(publicapi.RunWriter, *artifacts.Service) error,
 ) error {
-	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		return fn(
 			runstore.NewPostgresStore(tx),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),

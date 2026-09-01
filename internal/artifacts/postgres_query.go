@@ -21,6 +21,7 @@ func (r *PostgresRepository) Metadata(
 	var revision string
 	err := r.db.QueryRow(ctx, `
 SELECT revision.revision, version.media_type, blob.size_bytes,
+       'sha256:' || encode(blob.sha256, 'hex'),
        revision.revision = binding.current_revision, binding.frozen, revision.created_at
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
@@ -36,7 +37,7 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
        OR ($5::text IS NOT NULL AND revision.revision = $5))`,
 		scope.kind, scope.id, ref.Namespace, ref.Name, ref.Revision,
 	).Scan(
-		&revision, &result.MediaType, &result.Size, &result.Current,
+		&revision, &result.MediaType, &result.Size, &result.Digest, &result.Current,
 		&result.Frozen, &result.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

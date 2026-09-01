@@ -2,6 +2,12 @@ package contracts
 
 import "strings"
 
+const (
+	AgentSkillNamespace    = "skills"
+	MaxAgentTemplateSkills = 32
+	MaxWorkflowRunSkills   = 128
+)
+
 type ArtifactRef struct {
 	Namespace string  `json:"namespace"`
 	Name      string  `json:"name"`
@@ -29,6 +35,36 @@ func (r ArtifactRef) ValidateExact() error {
 		return invalidf("artifact revision is required")
 	}
 	return nil
+}
+
+// ValidateAgentSkillRef validates the logical, versionless ref accepted in an
+// AgentTemplate. Exact revisions belong to the Run snapshot instead.
+func (r ArtifactRef) ValidateAgentSkillRef() error {
+	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !validAgentSkillName(r.Name) {
+		return invalidf("AgentTemplate skill ref must be versionless skills/<portable-name>")
+	}
+	return nil
+}
+
+func validAgentSkillName(value string) bool {
+	if len(value) < 1 || len(value) > 64 || value[0] == '-' || value[len(value)-1] == '-' {
+		return false
+	}
+	previousHyphen := false
+	for _, character := range []byte(value) {
+		if character == '-' {
+			if previousHyphen {
+				return false
+			}
+			previousHyphen = true
+			continue
+		}
+		previousHyphen = false
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 type ArtifactReadResult struct {

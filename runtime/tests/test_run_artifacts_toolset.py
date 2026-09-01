@@ -150,6 +150,14 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
             {"namespace": "analysis", "name": "report"}
         ]
         calls_before = (client.read_calls, client.write_calls)
+        list_calls_before = client.list_calls
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["list_artifacts"]("skills")
+        assert client.list_calls == list_calls_before
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["read_artifact"]("skills", "likec4", "revision-skill")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_artifact"]("skills", "likec4", "application/octet-stream", "")
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["read_artifact"]("analysis", "memory.hidden", "revision-hidden")
         with pytest.raises(ValueError, match="purpose-specific"):
@@ -164,7 +172,32 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
         }
         assert ("analysis", "memory.hidden") not in observed
+        assert ("skills", "likec4") not in observed
         assert ("inputs", "memory.allowed_input") in observed
+
+    asyncio.run(scenario())
+
+
+def test_reserved_skills_namespace_is_hidden_before_generic_client_access() -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(
+            factory, state, ["list_artifacts", "read_artifact", "write_artifact"]
+        )
+
+        calls_before = (client.list_calls, client.read_calls, client.write_calls)
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["list_artifacts"]("skills")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["read_artifact"]("skills", "likec4", "revision-skill")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_artifact"]("skills", "likec4", "application/octet-stream", "")
+        assert (client.list_calls, client.read_calls, client.write_calls) == calls_before
+        assert all(
+            ref.namespace != "skills" for tool in tools.values() for ref in tool.known_exact_refs
+        )
 
     asyncio.run(scenario())
 
@@ -199,6 +232,7 @@ class FakeArtifactClient:
         self.write_expected_revision: str | None = None
         self.read_calls = 0
         self.write_calls = 0
+        self.list_calls = 0
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -207,9 +241,11 @@ class FakeArtifactClient:
             ArtifactRef(namespace="inputs", name="memory.allowed_input", revision="revision-input"),
             ArtifactRef(namespace="analysis", name="report", revision="revision-report"),
             ArtifactRef(namespace="analysis", name="memory.hidden", revision="revision-hidden"),
+            ArtifactRef(namespace="skills", name="likec4", revision="revision-skill"),
         )
 
     async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+        self.list_calls += 1
         if namespace == "inputs":
             return [
                 ArtifactRef(namespace="inputs", name="source"),

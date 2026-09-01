@@ -92,6 +92,30 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			"tools": tools,
 		})
 	}
+	spec := map[string]any{
+		"description": template.Description,
+		"runtime": map[string]any{
+			"runtimeId": template.Runtime.RuntimeID,
+			"version":   template.Runtime.Version,
+		},
+		"instructions": map[string]any{
+			"ref":    template.Instructions.Ref,
+			"digest": template.Instructions.Digest,
+		},
+		"modelPolicy": modelPolicy,
+		"toolsets":    toolsets,
+		"sandboxProfile": map[string]any{
+			"sandboxProfileId": template.SandboxProfile.SandboxProfileID,
+			"version":          template.SandboxProfile.Version,
+		},
+	}
+	if len(template.Skills) > 0 {
+		skills := make([]any, len(template.Skills))
+		for index, skill := range template.Skills {
+			skills[index] = map[string]any{"namespace": skill.Namespace, "name": skill.Name}
+		}
+		spec["skills"] = skills
+	}
 
 	manifest := map[string]any{
 		"apiVersion": contracts.APIVersion,
@@ -100,23 +124,7 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			"name":    selector.ID,
 			"version": selector.Version,
 		},
-		"spec": map[string]any{
-			"description": template.Description,
-			"runtime": map[string]any{
-				"runtimeId": template.Runtime.RuntimeID,
-				"version":   template.Runtime.Version,
-			},
-			"instructions": map[string]any{
-				"ref":    template.Instructions.Ref,
-				"digest": template.Instructions.Digest,
-			},
-			"modelPolicy": modelPolicy,
-			"toolsets":    toolsets,
-			"sandboxProfile": map[string]any{
-				"sandboxProfileId": template.SandboxProfile.SandboxProfileID,
-				"version":          template.SandboxProfile.Version,
-			},
-		},
+		"spec": spec,
 	}
 	return digestJCS(manifest)
 }

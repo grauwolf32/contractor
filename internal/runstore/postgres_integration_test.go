@@ -462,6 +462,66 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 }
 
+func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	run := createTestRun(t, ctx, store, "run-skill-pending")
+	revision := "owner-revision-1"
+	selection := []contracts.RunSkillSnapshot{{
+		Name: "review",
+		Source: &contracts.ArtifactRef{
+			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &revision,
+		},
+		SourceDigest: "sha256:" + strings.Repeat("a", 64), SourceSize: 1024,
+	}}
+	if err := store.SetRunSkillSelections(ctx, run.RunID, selection); err != nil {
+		t.Fatalf("record Skill selection: %v", err)
+	}
+	pending, err := store.GetRun(ctx, run.RunID)
+	if err != nil || pending.State != RunInitializing ||
+		pending.StateReason.Code != SkillInitializationPendingReason ||
+		len(pending.SkillSnapshot) != 1 {
+		t.Fatalf("pending Run = (%+v, %v)", pending, err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute)
+	if err != nil || claimed.RunID != run.RunID || claimed.State != RunInitializing {
+		t.Fatalf("claim pending Skill Run = (%+v, %v)", claimed, err)
+	}
+
+	runRevision := "run-revision-1"
+	initialized := append([]contracts.RunSkillSnapshot(nil), selection...)
+	initialized[0].Artifact = &contracts.ArtifactRef{
+		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &runRevision,
+	}
+	initialized[0].PackageDigest = initialized[0].SourceDigest
+	initialized[0].ExpandedBytes = 2048
+	if err := store.CompleteRunSkillInitialization(ctx, run.RunID, initialized); err != nil {
+		t.Fatalf("complete Skill snapshot: %v", err)
+	}
+	started, err := store.TransitionRun(
+		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	)
+	if err != nil || started.State != RunRunning || started.SkillSnapshot[0].Artifact == nil ||
+		*started.SkillSnapshot[0].Artifact.Revision != runRevision {
+		t.Fatalf("started Skill Run = (%+v, %v)", started, err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET skill_snapshot = '[]'::jsonb WHERE run_id = $1`, run.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("terminal Skill snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	mutated := append([]contracts.RunSkillSnapshot(nil), initialized...)
+	otherRevision := "owner-revision-2"
+	mutated[0].Source = &contracts.ArtifactRef{
+		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &otherRevision,
+	}
+	if err := store.CompleteRunSkillInitialization(ctx, run.RunID, mutated); !errors.Is(err, ErrConflict) {
+		t.Fatalf("source rewrite error = %v, want conflict", err)
+	}
+}
+
 func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
