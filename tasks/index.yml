@@ -240,14 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-001
-  next_task: V9-002
+  completed_through: V9-002
+  next_task: V9-003
   summary: >-
-    The shared Go/Python Memory note codec and existing Artifact metadata
-    extension are complete. Canonical fixtures cover exact field/UTF-8/payload
-    bounds and corruption, PostgreSQL projects stable binding plus exact
-    revision clocks, and private GET/PUT expose them without changing JSON or
-    ETag behavior. Next, implement the selected Worker memory-tools@1 Toolset.
+    The selected Worker memory-tools@1 Toolset is complete. Runtime capability
+    discovery and Go descriptors expose its exact six-operation surface,
+    allocation-local tools implement canonical Artifact CAS, quota, ordering,
+    bounded error and response-loss semantics, and generic run-artifacts tools
+    hide the reserved memory prefix. Next, mirror the selected operations into
+    Streamline and Router Planners.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
