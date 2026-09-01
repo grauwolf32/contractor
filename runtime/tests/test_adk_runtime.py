@@ -610,6 +610,9 @@ def test_adk_worker_uses_one_tool_free_turn_when_tool_phase_has_no_final_text(
         assert model.requests[0]["toolNames"] == ["read_artifact", "write_artifact"]
         assert model.requests[1]["toolNames"] == ["read_artifact", "write_artifact"]
         assert model.requests[2]["toolNames"] == []
+        assert all("result_slot" not in request["contentText"] for request in model.requests)
+        assert "exact result slot name" in model.requests[0]["contentText"]
+        assert "exact result slot name" in model.requests[2]["contentText"]
         assert state.metrics.counters["worker_result_recovery_attempts"] == 1
         assert state.metrics.counters["worker_result_recovery.succeeded"] == 1
         assert not any(error.code == "worker_result_missing" for error in state.metrics.errors)

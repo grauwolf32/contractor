@@ -557,11 +557,13 @@ class AdkWorkerRuntime:
             "Execute the following Contractor StageContentRequest. Durable data is represented "
             "only by ArtifactRef values.\n"
             + request_json
-            + "\nReturn raw JSON without Markdown fences. A successful final "
-            'response has shape {"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
-            '"summary":"...","artifacts":{"result_slot":{"namespace":"...","name":"...",'
-            '"revision":"..."}}}. A failed response uses outcome "failed", may use an empty '
-            'artifacts object, and must add {"error":{"code":"...","message":"...",'
+            + "\nReturn raw JSON without Markdown fences. A successful final response has "
+            'shape {"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
+            '"summary":"...","artifacts":{}}. Populate artifacts only when the task '
+            "instructions require them. Every artifacts key must be the exact result slot name "
+            "stated in those instructions, and every value must be an exact ArtifactRef observed "
+            'through a tool. A failed response uses outcome "failed", may use an empty artifacts '
+            'object, and must add {"error":{"code":"...","message":"...",'
             '"retryable":true}}. Return exactly one StageContentResult JSON object.'
         )
         candidate: str | None = None
@@ -721,11 +723,11 @@ class AdkWorkerRuntime:
             + json.dumps(exact_refs, ensure_ascii=False, separators=(",", ":"))
             + "\nReturn raw JSON without Markdown fences. For success use "
             '{"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
-            '"summary":"...","artifacts":{"result_slot":{"namespace":"...",'
-            '"name":"...","revision":"..."}}}. For failure use outcome "failed", an '
-            'empty artifacts object if appropriate, and add {"error":{"code":"...",'
-            '"message":"...","retryable":true}}. Use only supplied exact refs and return '
-            "exactly one object."
+            '"summary":"...","artifacts":{}}. Populate artifacts only when the task '
+            "instructions require them. Every artifacts key must be the exact result slot name "
+            'stated in those instructions. For failure use outcome "failed", an empty artifacts '
+            'object if appropriate, and add {"error":{"code":"...","message":"...",'
+            '"retryable":true}}. Use only supplied exact refs and return exactly one object.'
         )
         candidate: str | None = None
         async for event in runner.run_async(

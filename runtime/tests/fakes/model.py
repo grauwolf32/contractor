@@ -49,6 +49,12 @@ class ScriptedLlm(BaseLlm):
                     for declaration in tool.function_declarations or []
                 ),
                 "systemInstruction": llm_request.config.system_instruction,
+                "contentText": "\n".join(
+                    part.text
+                    for content in llm_request.contents
+                    for part in content.parts or []
+                    if part.text is not None
+                ),
             }
         )
         self._started.set()
