@@ -3,8 +3,8 @@ id: V10-008
 title: Migrate contractor-old analysis and security-review skills
 milestone: agent-skills-port-and-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 8f37553bdbea86ba8e80b4aff06bcd1cda97cbfb
 depends_on: [V10-007]
 languages: [markdown, go]
 
