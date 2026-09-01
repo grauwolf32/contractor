@@ -3,8 +3,8 @@ id: V10-010
 title: Harden Agent Skills races bounds isolation and redaction
 milestone: agent-skills-port-and-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: a685e7a77680ccc5dd8b4d13bf6687d3e03d0d8e
 depends_on: [V8-016, V9-007, V10-007, V10-008, V10-009]
 languages: [go, python]
 
