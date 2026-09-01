@@ -14,6 +14,7 @@ import zipfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 from typing import Any
 
 import regex as bounded_regex
@@ -113,6 +114,7 @@ class SourceAnalysisToolsetFactory:
     exported_tools = frozenset(
         {"open_source_archive", "list_source_files", "search_source", "read_source"}
     )
+    infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client

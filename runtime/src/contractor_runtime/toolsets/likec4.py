@@ -11,10 +11,12 @@ import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
@@ -53,6 +55,9 @@ class LikeC4ToolsetFactory:
             "validate_likec4",
         }
     )
+    infrastructure_channels = MappingProxyType(
+        {"validate_likec4": frozenset({"runtime-subprocess-launcher"})}
+    )
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client
@@ -75,7 +80,7 @@ class LikeC4ToolsetFactory:
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
     ) -> Mapping[str, Any]:
-        del run_id, adapter_handles
+        del run_id
         unknown = sorted(set(selected) - self.exported_tools)
         if unknown:
             raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
@@ -83,7 +88,10 @@ class LikeC4ToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("likec4@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
-        session = _LikeC4Session(client, namespace, workspace.path)
+        launcher = adapter_handles.tool_subprocess
+        if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
+            raise TypeError("likec4@1 received an invalid subprocess handle")
+        session = _LikeC4Session(client, namespace, workspace.path, launcher)
         secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_likec4": lambda: LoadLikeC4Tool(session, client, metrics, secrets),
@@ -97,10 +105,17 @@ class LikeC4ToolsetFactory:
 
 
 class _LikeC4Session:
-    def __init__(self, client: ArtifactClient, namespace: str, workspace: Path) -> None:
+    def __init__(
+        self,
+        client: ArtifactClient,
+        namespace: str,
+        workspace: Path,
+        launcher: ProxySubprocessLauncher | None,
+    ) -> None:
         self._client = client
         self._namespace = namespace
         self._workspace = workspace
+        self._launcher = launcher
         self._lock = asyncio.Lock()
         self._content: str | None = None
         self._target_name: str | None = None
@@ -273,6 +288,7 @@ class _LikeC4Session:
                 _run_likec4,
                 content,
                 self._workspace,
+                self._launcher,
             )
             return {
                 "artifact": artifact.model_dump(by_alias=True),
@@ -513,7 +529,7 @@ class ReplaceLikeC4Tool(_BaseLikeC4Tool):
 
 class ValidateLikeC4Tool(_BaseLikeC4Tool):
     name = "validate_likec4"
-    description = "Validate the current exact document with a fixed direct LikeC4 CLI invocation."
+    description = "Validate the current exact document with a fixed bounded LikeC4 CLI invocation."
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -530,7 +546,11 @@ class ValidateLikeC4Tool(_BaseLikeC4Tool):
         )
 
 
-def _run_likec4(content: str, workspace: Path) -> dict[str, Any]:
+def _run_likec4(
+    content: str,
+    workspace: Path,
+    launcher: ProxySubprocessLauncher | None = None,
+) -> dict[str, Any]:
     executable = shutil.which("likec4")
     if executable is None:
         return _validation_failure(False, "LikeC4 executable is unavailable")
@@ -555,15 +575,24 @@ def _run_likec4(content: str, workspace: Path) -> dict[str, Any]:
                 "NO_COLOR": "1",
                 "NO_UPDATE_NOTIFIER": "1",
             }
-            process = subprocess.run(
-                command,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                cwd=project,
-                env=environment,
-                timeout=VALIDATE_TIMEOUT_SECONDS,
-                check=False,
-            )
+            if launcher is None:
+                process = subprocess.run(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    cwd=project,
+                    env=environment,
+                    timeout=VALIDATE_TIMEOUT_SECONDS,
+                    check=False,
+                )
+            else:
+                process = launcher.run(
+                    command,
+                    cwd=project,
+                    env=environment,
+                    timeout=VALIDATE_TIMEOUT_SECONDS,
+                    max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
+                )
     except subprocess.TimeoutExpired:
         return _validation_failure(True, "LikeC4 validation timed out")
     except OSError:

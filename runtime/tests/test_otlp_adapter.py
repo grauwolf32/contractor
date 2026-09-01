@@ -333,6 +333,7 @@ def adapter_context() -> RuntimeAdapterBuildContext:
         run_labels=("debug",),
         agent_labels=("site-a",),
         runtime_adapter_refs=("otlp-http@1",),
+        private_bypass_hosts=("artifact.example",),
     )
 
 

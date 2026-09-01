@@ -4,8 +4,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v4"
 )
 
 const repositoryConfigRoot = "../../configs"
@@ -111,6 +114,9 @@ func TestOpenAPIToolsetDescriptor(t *testing.T) {
 	if !equalStrings(descriptor.Tools, want) {
 		t.Fatalf("openapi@1 tools = %v, want %v", descriptor.Tools, want)
 	}
+	if got := descriptor.InfrastructureChannels["validate_openapi"]; len(got) != 1 || got[0] != RuntimeSubprocessLauncher {
+		t.Fatalf("validate_openapi channels = %v, want RuntimeSubprocessLauncher", got)
+	}
 }
 
 func TestLikeC4ToolsetDescriptor(t *testing.T) {
@@ -126,6 +132,64 @@ func TestLikeC4ToolsetDescriptor(t *testing.T) {
 	}
 	if !equalStrings(descriptor.Tools, want) {
 		t.Fatalf("likec4@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if got := descriptor.InfrastructureChannels["validate_likec4"]; len(got) != 1 || got[0] != RuntimeSubprocessLauncher {
+		t.Fatalf("validate_likec4 channels = %v, want RuntimeSubprocessLauncher", got)
+	}
+}
+
+func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
+	t.Parallel()
+
+	for name, channels := range map[string]map[string][]ToolInfrastructureChannel{
+		"unknown tool": {"missing": {RuntimeHTTPClient}},
+		"empty":        {"read_artifact": {}},
+		"unknown channel": {
+			"read_artifact": {ToolInfrastructureChannel("ambient-network")},
+		},
+		"duplicate": {"read_artifact": {RuntimeHTTPClient, RuntimeHTTPClient}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			descriptors := MVPDescriptors()
+			descriptor := descriptors.Toolsets["run-artifacts@1"]
+			descriptor.InfrastructureChannels = channels
+			descriptors.Toolsets["run-artifacts@1"] = descriptor
+			if _, err := normalizeDescriptors(descriptors); err == nil {
+				t.Fatal("normalizeDescriptors accepted invalid infrastructure channels")
+			}
+		})
+	}
+}
+
+func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../../api/descriptor-parity/toolset-infrastructure-channels.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		SchemaVersion string                                            `yaml:"schemaVersion"`
+		Toolsets      map[string]map[string][]ToolInfrastructureChannel `yaml:"toolsets"`
+	}
+	if err := yaml.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.SchemaVersion != "1.0" {
+		t.Fatalf("descriptor parity schemaVersion = %q", fixture.SchemaVersion)
+	}
+	normalized, err := normalizeDescriptors(MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptors := normalized.Toolsets
+	if len(fixture.Toolsets) != len(descriptors) {
+		t.Fatalf("descriptor parity Toolsets = %d, want %d", len(fixture.Toolsets), len(descriptors))
+	}
+	for ref, descriptor := range descriptors {
+		if !reflect.DeepEqual(fixture.Toolsets[ref], descriptor.InfrastructureChannels) {
+			t.Fatalf("descriptor parity channels for %s = %v, want %v", ref, fixture.Toolsets[ref], descriptor.InfrastructureChannels)
+		}
 	}
 }
 

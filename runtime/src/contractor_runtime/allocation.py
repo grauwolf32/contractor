@@ -7,10 +7,11 @@ import hashlib
 import hmac
 import json
 import os
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 from contractor_runtime.adapters import (
     AdapterHandles,
@@ -118,6 +119,7 @@ class AllocationService:
         capabilities: CapabilitySnapshot | None = None,
         *,
         a2a_base_url: str,
+        private_bypass_urls: Sequence[str] = (),
         now: Callable[[], datetime] | None = None,
         force_exit: Callable[[int], Any] = os._exit,
     ) -> None:
@@ -128,6 +130,7 @@ class AllocationService:
         # private listener is ready and startup discovery has completed.
         self._capabilities = capabilities
         self._a2a_base_url = a2a_base_url.rstrip("/")
+        self._private_bypass_hosts = _url_hosts((*private_bypass_urls, a2a_base_url))
         self._now = now or (lambda: datetime.now(UTC))
         self._force_exit = force_exit
         self._lock = asyncio.Lock()
@@ -204,6 +207,7 @@ class AllocationService:
                         self._factories.runtime_adapters,
                         deadline=adapter_deadline,
                         now=self._now,
+                        private_bypass_hosts=self._private_bypass_hosts,
                     )
                 else:
                     adapter_host = AllocationAdapterHost.empty()
@@ -229,7 +233,7 @@ class AllocationService:
                         state=worker_state,
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
-                        adapter_handles=adapter_host.handles,
+                        adapter_handles=adapter_host.handles.for_worker(),
                     )
                 )
                 handle = WorkerHandle(
@@ -570,6 +574,11 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
+            channels = frozenset(
+                channel
+                for name in selection.tools
+                for channel in factory.infrastructure_channels.get(name, frozenset())
+            )
             created = await factory.create_selected(
                 selected=selection.tools,
                 allocation_id=spec.allocation_id,
@@ -578,7 +587,7 @@ class AllocationService:
                 runtime_settings=spec.runtime_settings,
                 workspace=workspace,
                 state=worker_state,
-                adapter_handles=adapter_handles,
+                adapter_handles=adapter_handles.for_tool_channels(channels),
             )
             if set(created) != set(selection.tools):
                 raise AllocationError(
@@ -905,6 +914,17 @@ def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
             if proxy.ca_bundle_pem is not None:
                 values.append(proxy.ca_bundle_pem)
     return tuple(value for value in values if value)
+
+
+def _url_hosts(urls: Sequence[str]) -> tuple[str, ...]:
+    values: set[str] = set()
+    for value in urls:
+        parsed = urlsplit(value)
+        if parsed.hostname is not None:
+            values.add(parsed.hostname)
+        if parsed.netloc:
+            values.add(parsed.netloc)
+    return tuple(sorted(values))
 
 
 def _nested_strings(value: Any) -> set[str]:

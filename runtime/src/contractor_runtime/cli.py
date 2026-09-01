@@ -65,6 +65,11 @@ async def serve(
         runtime_state,
         factories,
         a2a_base_url=settings.advertised_a2a_url,
+        private_bypass_urls=(
+            settings.control_plane_url,
+            settings.advertised_control_url,
+            settings.advertised_a2a_url,
+        ),
     )
     watchdog = LeaseWatchdog(
         lambda: allocation_service.expire_control_lease(settings.shutdown_grace_seconds)

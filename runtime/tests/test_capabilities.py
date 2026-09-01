@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
+import yaml
 
 from contractor_runtime.capabilities import (
     CapabilityDiscoveryError,
@@ -20,6 +22,25 @@ from contractor_runtime.settings import Settings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets import likec4, openapi
 from contractor_runtime.workspace import LocalWorkdirFactory
+
+
+def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
+    tmp_path: Path,
+) -> None:
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "api"
+        / "descriptor-parity"
+        / "toolset-infrastructure-channels.yaml"
+    )
+    fixture = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert fixture["schemaVersion"] == "1.0"
+    factories = built_in_factories(tmp_path).toolsets
+    actual = {
+        ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
+        for ref, factory in factories.items()
+    }
+    assert actual == fixture["toolsets"]
 
 
 def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
@@ -41,7 +62,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
 
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
-        assert snapshot.runtime_adapters == ("otlp-http@1",)
+        assert snapshot.runtime_adapters == ("http-proxy@1", "otlp-http@1")
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]
@@ -170,6 +191,7 @@ def test_snapshot_normalizes_and_rejects_replacement_for_one_instance() -> None:
 class HangingToolset:
     ref = "hanging@1"
     exported_tools = frozenset({"hang"})
+    infrastructure_channels = MappingProxyType({})
 
     async def probe(self) -> frozenset[str]:
         await asyncio.Event().wait()
@@ -182,6 +204,7 @@ class HangingToolset:
 class FailedToolset:
     ref = "failed@1"
     exported_tools = frozenset({"fail"})
+    infrastructure_channels = MappingProxyType({})
 
     def __init__(self, secret: str, local_path: str) -> None:
         self._secret = secret
@@ -197,6 +220,7 @@ class FailedToolset:
 class EmptyToolset:
     ref = "empty@1"
     exported_tools = frozenset({"optional"})
+    infrastructure_channels = MappingProxyType({})
 
     async def probe(self) -> frozenset[str]:
         return frozenset()

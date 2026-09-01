@@ -6,11 +6,13 @@ import asyncio
 import copy
 import json
 import math
+import os
 import shutil
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import PurePosixPath
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -18,6 +20,7 @@ from pydantic import ValidationError
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
@@ -94,6 +97,9 @@ class OpenAPIToolsetFactory:
             "validate_openapi",
         }
     )
+    infrastructure_channels = MappingProxyType(
+        {"validate_openapi": frozenset({"runtime-subprocess-launcher"})}
+    )
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client
@@ -116,7 +122,7 @@ class OpenAPIToolsetFactory:
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
     ) -> Mapping[str, Any]:
-        del run_id, adapter_handles
+        del run_id
         unknown = sorted(set(selected) - self.exported_tools)
         if unknown:
             raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
@@ -124,7 +130,10 @@ class OpenAPIToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("openapi@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
-        session = _OpenAPISession(client, namespace, workspace)
+        launcher = adapter_handles.tool_subprocess
+        if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
+            raise TypeError("openapi@1 received an invalid subprocess handle")
+        session = _OpenAPISession(client, namespace, workspace, launcher)
         secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_openapi": lambda: LoadOpenAPITool(session, client, metrics, secrets),
@@ -167,10 +176,12 @@ class _OpenAPISession:
         client: ArtifactClient,
         namespace: str,
         workspace: AllocationWorkspace,
+        launcher: ProxySubprocessLauncher | None,
     ) -> None:
         self._client = client
         self._namespace = namespace
         self._source_root = workspace.path / "source"
+        self._launcher = launcher
         self._lock = asyncio.Lock()
         self._document: dict[str, Any] | None = None
         self._target_name: str | None = None
@@ -449,7 +460,10 @@ class _OpenAPISession:
                 self._validate_current_provenance(document)
             except ValueError as error:
                 structural_errors.append(str(error))
-            vacuum = await asyncio.to_thread(_run_vacuum, rendered)
+            if self._launcher is None:
+                vacuum = await asyncio.to_thread(_run_vacuum, rendered)
+            else:
+                vacuum = await asyncio.to_thread(_run_vacuum, rendered, self._launcher)
             valid = (
                 not structural_errors
                 and vacuum["available"]
@@ -1381,7 +1395,10 @@ def _document_state(
     }
 
 
-def _run_vacuum(source_text: str) -> dict[str, Any]:
+def _run_vacuum(
+    source_text: str,
+    launcher: ProxySubprocessLauncher | None = None,
+) -> dict[str, Any]:
     executable = shutil.which("vacuum")
     if executable is None:
         return {
@@ -1391,13 +1408,23 @@ def _run_vacuum(source_text: str) -> dict[str, Any]:
             "truncated": False,
         }
     try:
-        process = subprocess.run(
-            [executable, "spectral-report", "-i", "-o"],
-            input=source_text.encode("utf-8"),
-            capture_output=True,
-            timeout=VACUUM_TIMEOUT_SECONDS,
-            check=False,
-        )
+        command = [executable, "spectral-report", "-i", "-o"]
+        if launcher is None:
+            process = subprocess.run(
+                command,
+                input=source_text.encode("utf-8"),
+                capture_output=True,
+                timeout=VACUUM_TIMEOUT_SECONDS,
+                check=False,
+            )
+        else:
+            process = launcher.run(
+                command,
+                input=source_text.encode("utf-8"),
+                env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
+                timeout=VACUUM_TIMEOUT_SECONDS,
+                max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
+            )
     except subprocess.TimeoutExpired:
         return {
             "available": True,

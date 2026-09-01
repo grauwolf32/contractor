@@ -6,13 +6,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from contractor_runtime.adapters import (
     AdapterHandles,
     RuntimeAdapterFactory,
 )
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
@@ -72,6 +73,7 @@ class WorkerRuntimeFactory(Protocol):
 class ToolsetFactory(Protocol):
     ref: str
     exported_tools: frozenset[str]
+    infrastructure_channels: Mapping[str, frozenset[InfrastructureChannel]]
 
     async def probe(self) -> frozenset[str]: ...
 
@@ -99,6 +101,10 @@ class SandboxFactory(Protocol):
     async def cleanup(self, workspace: AllocationWorkspace) -> None: ...
 
 
+InfrastructureChannel = Literal["runtime-http-client", "runtime-subprocess-launcher"]
+INFRASTRUCTURE_CHANNELS = frozenset({"runtime-http-client", "runtime-subprocess-launcher"})
+
+
 @dataclass(frozen=True, slots=True)
 class FactoryRegistry:
     worker_runtimes: Mapping[str, WorkerRuntimeFactory]
@@ -109,6 +115,8 @@ class FactoryRegistry:
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
         _validate_registry("Toolset", self.toolsets)
+        for ref, factory in self.toolsets.items():
+            _validate_toolset_channels(ref, factory)
         _validate_registry("SandboxProfile", self.sandbox_profiles)
         _validate_registry("RuntimeAdapter", self.runtime_adapters, allow_empty=True)
 
@@ -126,6 +134,7 @@ def built_in_factories(
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
     telemetry = OTLPHTTPAdapterFactory()
+    proxy = HTTPProxyAdapterFactory()
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
@@ -136,7 +145,7 @@ def built_in_factories(
             text_toolset.ref: text_toolset,
         },
         sandbox_profiles={sandbox.ref: sandbox},
-        runtime_adapters={telemetry.ref: telemetry},
+        runtime_adapters={proxy.ref: proxy, telemetry.ref: telemetry},
     )
 
 
@@ -187,3 +196,18 @@ def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bo
     for ref, factory in entries.items():
         if ref != factory.ref:
             raise ValueError(f"{kind} registry key {ref!r} does not match descriptor ref")
+
+
+def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:
+    channels = getattr(factory, "infrastructure_channels", None)
+    if not isinstance(channels, Mapping):
+        raise ValueError(f"Toolset {ref!r} has no infrastructure-channel descriptor")
+    if not set(channels) <= factory.exported_tools:
+        raise ValueError(f"Toolset {ref!r} describes a channel for an unknown tool")
+    for tool, selected in channels.items():
+        if (
+            not isinstance(selected, frozenset)
+            or not selected
+            or not selected <= INFRASTRUCTURE_CHANNELS
+        ):
+            raise ValueError(f"Toolset {ref!r} has invalid channels for {tool!r}")

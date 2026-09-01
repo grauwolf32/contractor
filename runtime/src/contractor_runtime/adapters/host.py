@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
@@ -50,6 +51,20 @@ class AdapterHandles:
             values[name] = current if current is not None else incoming
         return AdapterHandles(**values)
 
+    def for_tool_channels(self, channels: set[str] | frozenset[str]) -> AdapterHandles:
+        return AdapterHandles(
+            tool_http=(self.tool_http if "runtime-http-client" in channels else None),
+            tool_subprocess=(
+                self.tool_subprocess if "runtime-subprocess-launcher" in channels else None
+            ),
+        )
+
+    def for_worker(self) -> AdapterHandles:
+        return AdapterHandles(
+            model_http=self.model_http,
+            instrumentation=self.instrumentation,
+        )
+
     @property
     def enabled_channels(self) -> tuple[str, ...]:
         return tuple(
@@ -79,6 +94,7 @@ class RuntimeAdapterBuildContext:
     run_labels: tuple[str, ...]
     agent_labels: tuple[str, ...]
     runtime_adapter_refs: tuple[str, ...]
+    private_bypass_hosts: tuple[str, ...]
 
 
 class AdapterFactoryError(RuntimeError):
@@ -212,6 +228,7 @@ class AllocationAdapterHost:
         *,
         deadline: datetime,
         now: Callable[[], datetime],
+        private_bypass_hosts: Sequence[str] = (),
     ) -> AllocationAdapterHost:
         selected = _selected_settings(spec.runtime_settings)
         hosted: dict[RuntimeAdapterRef, _HostedAdapter] = {}
@@ -231,6 +248,10 @@ class AllocationAdapterHost:
                 item.label for item in spec.resolved_runtime_config_provenance.agent_labels
             ),
             runtime_adapter_refs=tuple(spec.resolved_runtime_config_provenance.runtime_adapters),
+            private_bypass_hosts=_private_bypass_hosts(
+                spec.runtime_settings,
+                private_bypass_hosts,
+            ),
         )
         retryable = False
         construction_unconfirmed = False
@@ -401,6 +422,19 @@ def _runtime_config_digests(spec: AllocationSpecV2) -> tuple[str, ...]:
     provenance = spec.resolved_runtime_config_provenance
     bindings = (provenance.default, *provenance.run_labels, *provenance.agent_labels)
     return tuple(binding.config.digest for binding in bindings)
+
+
+def _private_bypass_hosts(
+    settings: RuntimeSettingsV2,
+    additional: Sequence[str],
+) -> tuple[str, ...]:
+    parsed = urlsplit(settings.artifact_api_url)
+    values = {"127.0.0.1", "::1", "localhost", *additional}
+    if parsed.hostname is not None:
+        values.add(parsed.hostname)
+    if parsed.netloc:
+        values.add(parsed.netloc)
+    return tuple(sorted(values))
 
 
 def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) -> None:

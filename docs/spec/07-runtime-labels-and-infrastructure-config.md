@@ -694,6 +694,15 @@ Contractor hosts are in the bypass set and the child receives no Runtime client
 certificate, Artifact grant or Control Plane token unless its separate selected
 tool contract explicitly requires an allocation-scoped handle.
 
+The `v1alpha1` generic subprocess environment can carry unauthenticated or
+Basic-authenticated proxy URLs. It cannot faithfully encode Bearer proxy
+authentication for an arbitrary executable. If `tool-subprocess` is selected
+with `http-proxy-bearer@1`, the launcher therefore returns a bounded
+fail-closed tool error; it never retries directly and never translates the
+Bearer token into Basic credentials. Model and tool HTTP clients support both
+credential kinds. Supporting Bearer for arbitrary child processes requires a
+future versioned local relay contract.
+
 The private registration/heartbeat/control endpoint, Runtime Agent A2A server,
 Artifact API client and any Server-internal traffic always bypass the Worker
 proxy. Runtime never mutates its own control-channel trust roots. A temporary

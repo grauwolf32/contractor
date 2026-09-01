@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -164,7 +165,7 @@ def test_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
         assert toolset.handles.tool_http is tool_handle
         assert runtime.context is not None
         assert runtime.context.adapter_handles.model_http is model_handle
-        assert runtime.context.adapter_handles.tool_http is tool_handle
+        assert runtime.context.adapter_handles.tool_http is None
         assert "recognizable" not in repr(runtime.context.adapter_handles)
 
         await service.expire_control_lease(1)
@@ -176,6 +177,49 @@ def test_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
         assert service._context is not None
         assert service._context.adapter_host.closed
         assert service._context.adapter_host.handles.enabled_channels == ()
+
+    asyncio.run(scenario())
+
+
+def test_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
+    events: list[str] = []
+    tool_handle = object()
+    proxy = FakeAdapterFactory(
+        "http-proxy@1",
+        events,
+        handles=AdapterHandles(tool_http=tool_handle),
+    )
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType({})
+    runtime = CapturingRuntimeFactory()
+
+    async def scenario() -> None:
+        _state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"http-proxy@1": proxy},
+            toolset=toolset,
+            runtime=runtime,
+        )
+        spec = configured_spec(proxy_targets=["tool-http"])
+        await service.prepare(spec)
+
+        assert toolset.handles is not None
+        assert toolset.handles.enabled_channels == ()
+        assert runtime.context is not None
+        assert runtime.context.adapter_handles.enabled_channels == ()
+
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-no-tool-channel",
+                deadline=datetime.now(UTC) + timedelta(seconds=1),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
 
     asyncio.run(scenario())
 
@@ -442,6 +486,9 @@ class RecordingSandbox(LocalWorkdirFactory):
 class CapturingToolset:
     ref = "run-artifacts@1"
     exported_tools = frozenset({"read_artifact"})
+    infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"runtime-http-client"})}
+    )
 
     def __init__(self) -> None:
         self.handles: AdapterHandles | None = None

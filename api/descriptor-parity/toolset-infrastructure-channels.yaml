@@ -1,0 +1,9 @@
+schemaVersion: "1.0"
+toolsets:
+  likec4@1:
+    validate_likec4: [runtime-subprocess-launcher]
+  openapi@1:
+    validate_openapi: [runtime-subprocess-launcher]
+  run-artifacts@1: {}
+  source-analysis@1: {}
+  text-artifacts@1: {}

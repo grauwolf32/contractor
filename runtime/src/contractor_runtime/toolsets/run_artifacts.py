@@ -6,6 +6,7 @@ import base64
 import binascii
 import time
 from collections.abc import Callable, Mapping, Sequence
+from types import MappingProxyType
 from typing import Any, Protocol
 
 from contractor_runtime.adapters import AdapterHandles
@@ -36,6 +37,7 @@ ArtifactClientFactory = Callable[[str, RuntimeSettings], ArtifactClient]
 class RunArtifactsToolsetFactory:
     ref = "run-artifacts@1"
     exported_tools = frozenset({"list_artifacts", "read_artifact", "write_artifact"})
+    infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client

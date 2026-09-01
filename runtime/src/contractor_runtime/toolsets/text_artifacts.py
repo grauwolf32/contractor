@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping, Sequence
+from types import MappingProxyType
 from typing import Any
 
 from contractor_runtime.adapters import AdapterHandles
@@ -28,6 +29,7 @@ class TextArtifactsToolsetFactory:
 
     ref = "text-artifacts@1"
     exported_tools = frozenset({"read_text_artifact", "write_text_artifact"})
+    infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client

@@ -36,6 +36,10 @@ from contractor_runtime.contracts import (
     StageOutcome,
     TerminationError,
 )
+from contractor_runtime.model_client import (
+    clear_gateway_client_options,
+    gateway_client_options,
+)
 
 if TYPE_CHECKING:
     from google.adk.agents.callback_context import CallbackContext
@@ -209,20 +213,15 @@ class GatewayLiteLlm(LiteLlm):
         raise GatewayModelError(provider_error_type or "UnknownProviderError") from None
 
     def clear_credentials(self) -> None:
-        self._additional_args.clear()
+        clear_gateway_client_options(self._additional_args)
 
 
 def gateway_model(context: WorkerBuildContext) -> BaseLlm:
     policy = context.model_policy
-    settings = context.runtime_settings
-    options: dict[str, Any] = {
-        "api_base": settings.llm_gateway_url,
-        "timeout": float(settings.request_timeout_seconds),
-    }
-    token = settings.llm_gateway_token
-    if token is not None and (token_value := token.get_secret_value()):
-        options["api_key"] = token_value
-    return GatewayLiteLlm(model=f"openai/{policy.model}", **options)
+    return GatewayLiteLlm(
+        model=f"openai/{policy.model}",
+        **gateway_client_options(context),
+    )
 
 
 class AdkWorkerRuntimeFactory:

@@ -441,3 +441,49 @@ tests that make the choice observable.
   interoperability; redirects or ambient proxies could disclose configured
   headers to an unintended authority; recording arbitrary callback attributes
   would make the no-content policy depend on every model/tool implementation.
+
+### D021 — Proxying is an explicit typed channel, never ambient process state
+
+- Applies to: V8-012.
+- Decision: `http-proxy@1` owns separate allocation-local HTTP clients for the
+  selected model and tool channels plus an optional bounded subprocess
+  launcher. It configures `httpx.AsyncHTTPTransport` directly with zero
+  connection retries, disabled ambient trust/proxy state and no redirects.
+  `AdapterHandles.for_worker()` exposes only model HTTP and instrumentation;
+  each Toolset receives only the union of channels declared by its actually
+  selected tools. Configuration therefore cannot make a local/artifact-only
+  tool network-capable.
+- Descriptor parity: the Go configuration descriptors and Python factories
+  both declare `runtime-http-client` and/or `runtime-subprocess-launcher` per
+  exported tool. Invalid or unknown declarations reject factory/catalog
+  construction. Both implementations are checked against the same committed
+  non-wire YAML parity fixture. The existing LikeC4 and OpenAPI validators are
+  the first subprocess consumers; all other current tools declare no
+  infrastructure channel.
+- Private boundary: CLI startup supplies Control Plane and advertised Runtime
+  hosts to the allocation service, while each allocation adds its Artifact API
+  host and loopback names. Tool HTTP handles reject those destinations, and
+  child-only `NO_PROXY` contains them. Registration, heartbeat, Artifact mTLS
+  and A2A traffic keep their pre-existing clients and trust contexts and never
+  receive a proxy handle. No module global, `os.environ` value or system trust
+  store is mutated.
+- Trust and subprocess boundary: optional CA certificates augment a fresh
+  default SSL context for targeted clients. A subprocess gets a per-invocation
+  mode-0600 combined public CA file and a closed allowlist of environment
+  variables; the file is removed after the bounded process exits and all
+  retained material is cleared again on adapter close. Commands require an
+  absolute executable, bounded arguments/input/output and the smaller of the
+  tool and allocation timeouts.
+- Authentication decision: HTTP clients use the proxy library's dedicated
+  Basic auth or `Proxy-Authorization: Bearer` channel, so credentials are sent
+  only while connecting to the exact proxy authority. Standard
+  `HTTP_PROXY`/`HTTPS_PROXY` environment semantics can encode Basic credentials
+  but cannot faithfully express Bearer proxy authentication. A
+  bearer-authenticated `tool-subprocess` therefore fails closed in v1 instead
+  of silently going direct or downgrading the credential; model/tool HTTP
+  bearer proxying remains supported. A future subprocess relay would require a
+  separate reviewed adapter version.
+- Failure semantics: proxy refusal, disconnect, TLS failure, private-host
+  misuse and subprocess bounds become content-free `request_failed` adapter
+  metrics plus bounded model/tool errors. There is no direct retry path.
+  Transport/launcher close remains under V8-010's confirmed-erasure fence.

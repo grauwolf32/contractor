@@ -5,10 +5,20 @@ import (
 	"sort"
 )
 
+type ToolInfrastructureChannel string
+
+const (
+	RuntimeHTTPClient         ToolInfrastructureChannel = "runtime-http-client"
+	RuntimeSubprocessLauncher ToolInfrastructureChannel = "runtime-subprocess-launcher"
+)
+
 // ToolsetDescriptor is the Server-visible part of one runtime ToolsetFactory.
 // Tools are the final model-visible names exported by that exact version.
+// InfrastructureChannels contains only tools with a non-empty fixed channel
+// set; an absent tool is local/artifact-only.
 type ToolsetDescriptor struct {
-	Tools []string
+	Tools                  []string
+	InfrastructureChannels map[string][]ToolInfrastructureChannel
 }
 
 // Descriptors enumerates code-backed factories that configuration is allowed
@@ -38,6 +48,9 @@ func MVPDescriptors() Descriptors {
 					"append_likec4", "load_likec4", "read_likec4", "replace_likec4",
 					"validate_likec4", "write_likec4",
 				},
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"validate_likec4": {RuntimeSubprocessLauncher},
+				},
 			},
 			"openapi@1": {
 				Tools: []string{
@@ -47,6 +60,9 @@ func MVPDescriptors() Descriptors {
 					"remove_openapi_component", "remove_openapi_path", "set_openapi_info",
 					"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 					"validate_openapi",
+				},
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"validate_openapi": {RuntimeSubprocessLauncher},
 				},
 			},
 			"run-artifacts@1": {
@@ -107,7 +123,27 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 			seen[tool] = struct{}{}
 		}
 		sort.Strings(tools)
-		result.Toolsets[raw] = ToolsetDescriptor{Tools: tools}
+		channels := make(map[string][]ToolInfrastructureChannel, len(descriptor.InfrastructureChannels))
+		for tool, rawChannels := range descriptor.InfrastructureChannels {
+			if _, ok := seen[tool]; !ok {
+				return Descriptors{}, fmt.Errorf("Toolset descriptor %q describes channels for unknown tool %q", raw, tool)
+			}
+			if len(rawChannels) == 0 {
+				return Descriptors{}, fmt.Errorf("Toolset descriptor %q has empty channels for tool %q", raw, tool)
+			}
+			selected := append([]ToolInfrastructureChannel(nil), rawChannels...)
+			sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
+			for index, channel := range selected {
+				if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher {
+					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
+				}
+				if index > 0 && channel == selected[index-1] {
+					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has duplicate channel for tool %q", raw, tool)
+				}
+			}
+			channels[tool] = selected
+		}
+		result.Toolsets[raw] = ToolsetDescriptor{Tools: tools, InfrastructureChannels: channels}
 	}
 
 	return result, nil
