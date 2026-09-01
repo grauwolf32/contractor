@@ -295,7 +295,10 @@ def _unb64(value: str) -> bytes:
         for character in value
     ):
         raise ValueError
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    if _b64(decoded) != value:
+        raise ValueError
+    return decoded
 
 
 def _elapsed_ms(started: int) -> int:

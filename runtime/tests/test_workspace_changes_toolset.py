@@ -158,6 +158,9 @@ def test_factory_rejects_absent_and_direct_views_and_cursors_track_content(
             first = await tools["changed_paths"]("", 1)
             cursor = first["nextCursor"]
         assert cursor
+        tampered = cursor[:-1] + ("A" if cursor[-1] != "A" else "B")
+        with pytest.raises(FilesystemToolError, match="cursor_invalid"):
+            await tools["changed_paths"](tampered, 1)
         await direct.write_text("file.txt", "three\n")
         with pytest.raises(FilesystemToolError, match="cursor_invalid"):
             await tools["changed_paths"](cursor, 1)
