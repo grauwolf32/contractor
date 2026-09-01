@@ -3,8 +3,8 @@ id: V10-006
 title: Migrate and assign the contractor-old LikeC4 skill in new config versions
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: aab80015e958b52cc37644da06fa00c9d86408e9
 depends_on: [V10-003]
 languages: [markdown, yaml, go]
 
