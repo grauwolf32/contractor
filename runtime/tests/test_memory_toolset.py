@@ -552,6 +552,88 @@ def test_artifact_failures_map_to_the_closed_memory_error_contract() -> None:
     asyncio.run(scenario())
 
 
+def test_unexpected_tool_failure_is_normalized_before_metrics_and_model_dispatch() -> None:
+    class ArbitraryFailure(RuntimeError):
+        code = "internal_arbitrary"
+        retryable = False
+
+    class FailingClient(FakeArtifactClient):
+        async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+            del namespace
+            raise ArbitraryFailure("unexpected-memory-detail-canary")
+
+    async def scenario() -> None:
+        state = WorkerState()
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: FailingClient()),
+            state,
+            ["list_memories"],
+        )
+        with pytest.raises(MemoryToolError) as raised:
+            await tools["list_memories"]()
+        assert raised.value.code == "memory_unavailable"
+        assert raised.value.retryable
+        retained = repr((raised.value, state.metrics.tool_calls, state.metrics.errors))
+        assert "internal_arbitrary" not in retained
+        assert "unexpected-memory-detail-canary" not in retained
+
+    asyncio.run(scenario())
+
+
+def test_reconciliation_uses_current_read_authority_error() -> None:
+    class SequencedReadClient(FakeArtifactClient):
+        def __init__(self) -> None:
+            super().__init__(write_faults=["before", "before"])
+            self.reads = 0
+
+        async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+            self.reads += 1
+            if self.reads == 2:
+                raise ArtifactAPIError(409, "allocation_write_fenced", False)
+            return await super().read_artifact(ref)
+
+    async def scenario() -> None:
+        client = SequencedReadClient()
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: client),
+            WorkerState(),
+            ["write_memory"],
+        )
+        with pytest.raises(MemoryToolError) as raised:
+            await tools["write_memory"]("shared", "body")
+        assert raised.value.code == "memory_forbidden"
+        assert not raised.value.retryable
+        assert client.semantic_writes == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("namespace", ["inputs", "outputs", "skills"])
+def test_factory_rejects_purpose_reserved_memory_namespace(namespace: str) -> None:
+    async def scenario() -> None:
+        settings = RuntimeSettings(
+            llmGatewayUrl="https://llm.example/v1",
+            llmGatewayToken="unused",
+            artifactApiUrl="https://control.example/private/v1",
+            requestTimeoutSeconds=30,
+        )
+        workspace_path = Path("/tmp/contractor-memory-tool-test/reserved")
+        with pytest.raises(ValueError, match="non-purpose"):
+            await MemoryToolsetFactory(
+                lambda _allocation, _settings: FakeArtifactClient()
+            ).create_selected(
+                selected=["read_memory"],
+                allocation_id="allocation-1",
+                run_id="run-1",
+                namespace=namespace,
+                runtime_settings=settings,
+                workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
+                state=WorkerState(),
+            )
+
+    asyncio.run(scenario())
+
+
 def test_calls_are_serialized_and_metrics_retain_only_safe_dimensions() -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()

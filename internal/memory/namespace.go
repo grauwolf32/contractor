@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
@@ -449,7 +450,10 @@ func (n *Namespace) writeExact(
 		}, nil
 	}
 	if readErr != nil {
-		return writeMetadata{}, mapStoreError(retryErr)
+		// The reconciliation read is authoritative for whether we could inspect
+		// the current value. A retry conflict does not prove memory_changed when
+		// that read itself was forbidden or unavailable.
+		return writeMetadata{}, mapStoreError(readErr)
 	}
 	return writeMetadata{}, toolError(CodeChanged, true)
 }
@@ -597,7 +601,8 @@ func validBinding(binding Binding) bool {
 		strings.TrimSpace(binding.StageExecutionID) != "" &&
 		!strings.ContainsRune(binding.StageExecutionID, 0) &&
 		strings.TrimSpace(binding.Namespace) != "" && !strings.Contains(binding.Namespace, "/") &&
-		!strings.ContainsRune(binding.Namespace, 0)
+		!strings.ContainsRune(binding.Namespace, 0) &&
+		!artifactpolicy.IsPurposeReservedNamespace(binding.Namespace)
 }
 
 func stringPointer(value string) *string { return &value }

@@ -35,6 +35,7 @@ from contractor_runtime.memory import (
     normalize_note,
     preview_projection,
 )
+from contractor_runtime.toolsets.artifact_visibility import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -99,6 +100,8 @@ class MemoryToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
     ) -> Mapping[str, Any]:
         del run_id, workspace, adapter_handles
+        if namespace in PURPOSE_RESERVED_NAMESPACES:
+            raise ValueError("MemoryTools requires a non-purpose Agent Namespace")
         unknown = sorted(set(selected) - self.exported_tools)
         if unknown:
             raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
@@ -276,7 +279,6 @@ class _MemorySession:
 
         # Only transport uncertainty authorizes one exact replay. The same
         # immutable bytes and the same precondition are deliberately reused.
-        retry_error: Exception
         try:
             return await self._client.write_artifact(
                 target,
@@ -284,13 +286,16 @@ class _MemorySession:
                 media_type=MEDIA_TYPE,
                 expected_revision=expected_revision,
             )
-        except (ArtifactTransportError, ArtifactAPIError) as error:
-            retry_error = error
+        except (ArtifactTransportError, ArtifactAPIError):
+            pass
 
         try:
             current = await self._client.read_artifact(target)
-        except (ArtifactTransportError, ArtifactAPIError):
-            raise _mapped_client_error(retry_error) from None
+        except (ArtifactTransportError, ArtifactAPIError) as read_error:
+            # The reconciliation read is authoritative for whether the current
+            # value could be inspected. A retry conflict alone cannot prove
+            # memory_changed when that read was forbidden or unavailable.
+            raise _mapped_client_error(read_error) from None
         if current.media_type == MEDIA_TYPE and current.data == payload:
             return current
         raise MemoryToolError("memory_changed", retryable=True)
@@ -352,8 +357,9 @@ class ListMemoriesTool(_BaseMemoryTool):
             self._success({}, {"count": len(result)}, started)
             return result
         except Exception as error:
-            self._failure({}, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure({}, bounded, started)
+            raise bounded from None
 
 
 class ReadMemoryTool(_BaseMemoryTool):
@@ -368,8 +374,9 @@ class ReadMemoryTool(_BaseMemoryTool):
             self._success(arguments, _note_metric(result), started)
             return result
         except Exception as error:
-            self._failure(arguments, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure(arguments, bounded, started)
+            raise bounded from None
 
 
 class WriteMemoryTool(_BaseMemoryTool):
@@ -390,8 +397,9 @@ class WriteMemoryTool(_BaseMemoryTool):
             self._success(arguments, _note_metric(result), started)
             return result
         except Exception as error:
-            self._failure(arguments, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure(arguments, bounded, started)
+            raise bounded from None
 
 
 class AppendMemoryTool(_BaseMemoryTool):
@@ -409,8 +417,9 @@ class AppendMemoryTool(_BaseMemoryTool):
             self._success(arguments, _note_metric(result), started)
             return result
         except Exception as error:
-            self._failure(arguments, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure(arguments, bounded, started)
+            raise bounded from None
 
 
 class SearchMemoryTool(_BaseMemoryTool):
@@ -425,8 +434,9 @@ class SearchMemoryTool(_BaseMemoryTool):
             self._success(arguments, {"count": len(result)}, started)
             return result
         except Exception as error:
-            self._failure(arguments, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure(arguments, bounded, started)
+            raise bounded from None
 
 
 class ListMemoryTagsTool(_BaseMemoryTool):
@@ -440,8 +450,9 @@ class ListMemoryTagsTool(_BaseMemoryTool):
             self._success({}, {"count": len(result)}, started)
             return result
         except Exception as error:
-            self._failure({}, error, started)
-            raise
+            bounded = _normalize_tool_error(error)
+            self._failure({}, bounded, started)
+            raise bounded from None
 
 
 def _decode_value(namespace: str, binding_name: str, value: ArtifactValue) -> _LoadedNote:
@@ -713,6 +724,12 @@ def _mapped_client_error(error: Exception) -> MemoryToolError:
     }:
         return MemoryToolError("memory_forbidden")
     return MemoryToolError("memory_unavailable", retryable=True)
+
+
+def _normalize_tool_error(error: Exception) -> MemoryToolError:
+    if isinstance(error, MemoryToolError):
+        return MemoryToolError(error.code)
+    return MemoryToolError("memory_unavailable")
 
 
 def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:

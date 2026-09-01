@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestStageContextRejectsOnlyNonPurposeReservedMemoryBindings(t *testing.T) {
@@ -25,6 +27,22 @@ func TestStageContextRejectsOnlyNonPurposeReservedMemoryBindings(t *testing.T) {
 			})
 			if err != nil || resolved.Artifacts["ordinary"].Name != "memory.ordinary" {
 				t.Fatalf("purpose Namespace StageContext = (%+v, %v)", resolved, err)
+			}
+		})
+	}
+}
+
+func TestAgentBindingsRejectEveryPurposeReservedNamespace(t *testing.T) {
+	current := &loader{templates: map[string]contracts.ResolvedAgentTemplate{
+		"worker@1": {},
+	}}
+	for _, namespace := range []string{"inputs", "outputs", "skills"} {
+		t.Run(namespace, func(t *testing.T) {
+			_, err := current.resolveAgentBindings(map[string]agentBindingSource{
+				"worker": {Template: "worker@1", Namespace: &namespace},
+			})
+			if err == nil || !strings.Contains(err.Error(), "is reserved") {
+				t.Fatalf("purpose-reserved Agent Namespace error = %v", err)
 			}
 		})
 	}

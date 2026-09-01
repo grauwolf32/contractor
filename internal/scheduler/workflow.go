@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -67,7 +68,7 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		}
 		for logicalName, binding := range stage.Agents {
 			if strings.TrimSpace(logicalName) == "" || strings.TrimSpace(binding.Namespace) == "" ||
-				binding.Namespace == "inputs" || binding.Namespace == "outputs" ||
+				artifactpolicy.IsPurposeReservedNamespace(binding.Namespace) ||
 				strings.Contains(binding.Namespace, "/") {
 				return executableWorkflow{}, fmt.Errorf("%w: Stage %q Agent binding is invalid", ErrUnsupportedWorkflow, stageName)
 			}

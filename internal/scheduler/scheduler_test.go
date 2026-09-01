@@ -114,6 +114,33 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 	}
 }
 
+func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Namespace = "skills"
+	stage.Agents["builder"] = binding
+	workflow.Stages[workflow.EntryStage] = stage
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = decodeExecutableWorkflow(runstore.WorkflowRun{
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+	})
+	if !errors.Is(err, ErrUnsupportedWorkflow) || !strings.Contains(err.Error(), "Agent binding") {
+		t.Fatalf("purpose-reserved persisted Agent Namespace error = %v", err)
+	}
+}
+
 func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	harness := newSchedulerHarness(t)
 

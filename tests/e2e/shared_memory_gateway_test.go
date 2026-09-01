@@ -20,20 +20,20 @@ const (
 	memoryRouterObjective     = "Route isolated shared notes through two logical Workers"
 
 	streamlineNoteName        = "shared_note"
-	streamlineSeed            = "streamline_seed_canary_v9"
-	streamlineFirstAppend     = "streamline_first_append_v9"
-	streamlineRetryAppend     = "streamline_retry_append_v9"
-	streamlineConfirmAppend   = "streamline_confirm_append_v9"
-	streamlineDescription     = "streamline_description_canary_v9"
+	streamlineSeed            = `streamline seed "canary/v9" Ω%`
+	streamlineFirstAppend     = `streamline first append "v9/a" Ω%`
+	streamlineRetryAppend     = `streamline retry append "v9/b" Ω%`
+	streamlineConfirmAppend   = `streamline confirm append "v9/c" Ω%`
+	streamlineDescription     = `streamline description "canary/v9" Ω%`
 	streamlineTag             = "streamline_tag_v9"
 	routerNoteName            = "route_note"
-	routerBuilderSeed         = "router_builder_seed_canary_v9"
-	routerBuilderPlanner      = "router_builder_planner_append_v9"
-	routerBuilderWorker       = "router_builder_worker_append_v9"
-	routerBuilderDescription  = "router_builder_description_canary_v9"
+	routerBuilderSeed         = `router builder seed "canary/v9" Ж%`
+	routerBuilderPlanner      = `router builder planner append "v9/a" Ж%`
+	routerBuilderWorker       = `router builder worker append "v9/b" Ж%`
+	routerBuilderDescription  = `router builder description "canary/v9" Ж%`
 	routerBuilderTag          = "router_builder_tag_v9"
-	routerReviewerSeed        = "router_reviewer_seed_canary_v9"
-	routerReviewerDescription = "router_reviewer_description_canary_v9"
+	routerReviewerSeed        = `router reviewer seed "canary/v9" Д%`
+	routerReviewerDescription = `router reviewer description "canary/v9" Д%`
 	routerReviewerTag         = "router_reviewer_tag_v9"
 )
 

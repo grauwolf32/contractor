@@ -19,3 +19,16 @@ func TestReservedMemoryBindingExcludesPurposeNamespaces(t *testing.T) {
 		}
 	}
 }
+
+func TestPurposeReservedNamespaceIsClosed(t *testing.T) {
+	for _, namespace := range []string{"inputs", "outputs", "skills"} {
+		if !IsPurposeReservedNamespace(namespace) {
+			t.Errorf("namespace %q is not purpose-reserved", namespace)
+		}
+	}
+	for _, namespace := range []string{"", "analysis", "Skills", "skills-extra"} {
+		if IsPurposeReservedNamespace(namespace) {
+			t.Errorf("namespace %q is unexpectedly purpose-reserved", namespace)
+		}
+	}
+}

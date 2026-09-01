@@ -123,6 +123,30 @@ func TestNamespaceCASInterferenceReturnsChangedWithoutOverwrite(t *testing.T) {
 	}
 }
 
+func TestNamespaceReconciliationUsesCurrentReadAuthorityError(t *testing.T) {
+	store := newMemoryArtifactStore()
+	store.readFaults = []error{nil, ErrAccessForbidden}
+	store.faults = []string{"unknown_before", "unknown_before"}
+	namespace := mustNamespace(t, store)
+
+	_, err := namespace.WriteMemory(t.Context(), "shared", "body", "", nil)
+	assertToolError(t, err, CodeForbidden, false)
+	if store.semanticWrites != 0 {
+		t.Fatalf("ambiguous forbidden create committed %d semantic writes", store.semanticWrites)
+	}
+}
+
+func TestNamespaceRejectsPurposeReservedBinding(t *testing.T) {
+	for _, namespace := range []string{"inputs", "outputs", "skills"} {
+		_, err := NewNamespace(newMemoryArtifactStore(), Binding{
+			RunID: "run-1", StageExecutionID: "stage-1", Namespace: namespace,
+		})
+		if err == nil {
+			t.Fatalf("NewNamespace accepted purpose-reserved Namespace %q", namespace)
+		}
+	}
+}
+
 func TestNamespaceQuotaErrorsAndCancelledAuthorityAreBounded(t *testing.T) {
 	store := newMemoryArtifactStore()
 	for ordinal := 0; ordinal < MaximumNotes; ordinal++ {
@@ -365,6 +389,7 @@ type memoryArtifactStore struct {
 	active         int
 	maximumActive  int
 	operationDelay time.Duration
+	readFaults     []error
 }
 
 func newMemoryArtifactStore() *memoryArtifactStore {
@@ -395,6 +420,13 @@ func (s *memoryArtifactStore) Read(
 ) (artifacts.ReadResult, error) {
 	s.begin()
 	defer s.end()
+	if len(s.readFaults) > 0 {
+		fault := s.readFaults[0]
+		s.readFaults = s.readFaults[1:]
+		if fault != nil {
+			return artifacts.ReadResult{}, fault
+		}
+	}
 	if s.forbidden {
 		return artifacts.ReadResult{}, ErrAccessForbidden
 	}

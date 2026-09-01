@@ -52,7 +52,7 @@ from contractor_runtime.metrics import MetricsState
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace
 
-RESERVED_NAMESPACES = frozenset({"inputs", "outputs"})
+RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
 
 
 class AllocationError(Exception):

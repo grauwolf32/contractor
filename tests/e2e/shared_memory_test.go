@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,8 +21,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
+
+const memoryTelemetryLabel = "memory-release-audit"
 
 func TestSharedMemoryMVPProcesses(t *testing.T) {
 	if testing.Short() {
@@ -95,6 +102,20 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 	}, serverBinary, "serve")
 	publicClient := &http.Client{Timeout: 5 * time.Second}
 	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
+	collector := newFakeOTLPCollector("")
+	t.Cleanup(collector.close)
+	operations := &runtimeOperations{t: t, client: publicClient, baseURL: publicBaseURL}
+	telemetryConfig := operations.publishRuntimeConfig("memory-release-audit", "1", map[string]any{
+		"planner": map[string]any{"telemetry": map[string]any{
+			"adapter": "otlp-http@1", "endpoint": collector.URL(),
+			"captureContent": false, "flushTimeoutSeconds": 2,
+		}},
+		"worker": map[string]any{"telemetry": map[string]any{
+			"adapter": "otlp-http@1", "endpoint": collector.URL(),
+			"captureContent": false, "flushTimeoutSeconds": 2,
+		}},
+	})
+	operations.createRuntimeLabel(memoryTelemetryLabel, telemetryConfig)
 
 	python := filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python")
 	if info, statErr := os.Stat(python); statErr != nil || info.IsDir() {
@@ -139,6 +160,7 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 
 	firstRunID := createEmptyWorkflowRun(
 		t, publicClient, publicBaseURL, "shared-memory-streamline@1", "shared-memory-streamline-first",
+		memoryTelemetryLabel,
 	)
 	firstStatus := waitForSharedMemoryRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, firstRunID,
@@ -151,6 +173,7 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 
 	routerRunID := createEmptyWorkflowRun(
 		t, publicClient, publicBaseURL, "shared-memory-router@1", "shared-memory-router",
+		memoryTelemetryLabel,
 	)
 	routerStatus := waitForSharedMemoryRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, routerRunID,
@@ -159,6 +182,7 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 
 	secondRunID := createEmptyWorkflowRun(
 		t, publicClient, publicBaseURL, "shared-memory-streamline@1", "shared-memory-streamline-second",
+		memoryTelemetryLabel,
 	)
 	secondStatus := waitForSharedMemoryRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, secondRunID,
@@ -197,6 +221,14 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'shared' AND name = $
 	for index := range runtimes {
 		waitForRuntimeIdle(t, ctx, runtimes[index], controlClient, runtimeURLs[index], workRoots[index])
 	}
+	canaries := sharedMemoryCanaries()
+	assertMemoryHTTPFailureRedacted(t, publicClient, publicBaseURL, canaries)
+	assertNoMemoryOnlyDatabaseInventory(t, ctx, pool)
+	assertAllNonPayloadDatabaseColumnsRedacted(t, ctx, pool, canaries)
+	assertDecodedMemoryOTLPRedacted(t, collector.payloads(), canaries)
+	if failures := collector.failuresSnapshot(); len(failures) != 0 {
+		t.Fatalf("shared-memory OTLP collector failures: %v", failures)
+	}
 	for _, secret := range []string{publicToken, llmGatewayToken} {
 		if strings.Contains(server.logs.redacted(), secret) {
 			t.Fatal("Server logs contain a configured secret")
@@ -207,15 +239,23 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'shared' AND name = $
 			}
 		}
 	}
+	assertNoMemoryCanaryForms(t, "Server logs", []byte(server.logs.redacted()), canaries)
+	for _, process := range runtimes {
+		assertNoMemoryCanaryForms(t, process.name+" logs", []byte(process.logs.redacted()), canaries)
+	}
 }
 
 func createEmptyWorkflowRun(
-	t *testing.T, client *http.Client, baseURL, workflow, idempotencyKey string,
+	t *testing.T, client *http.Client, baseURL, workflow, idempotencyKey string, labels ...string,
 ) string {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{
+	requestBody := map[string]any{
 		"workflow": workflow, "parameters": map[string]string{}, "artifacts": map[string]artifactRef{},
-	})
+	}
+	if len(labels) != 0 {
+		requestBody["labels"] = labels
+	}
+	body, err := json.Marshal(requestBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +352,9 @@ func assertStreamlineMemoryRun(
 	status runStatus,
 ) []runstore.StageAllocation {
 	t.Helper()
-	assertPublicAttemptMetrics(t, status, [][2]int64{{9, 8}, {9, 8}, {9, 8}})
+	// The release scenario enables Planner OTLP, whose bounded supplementary
+	// telemetry.export record adds one safe tool-call metric to each attempt.
+	assertPublicAttemptMetrics(t, status, [][2]int64{{9, 9}, {9, 9}, {9, 9}})
 	if len(status.Outputs) != 0 {
 		t.Fatalf("shared-memory Run %s exposed outputs: %+v", runID, status.Outputs)
 	}
@@ -370,7 +412,7 @@ func assertRouterMemoryRun(
 	status runStatus,
 ) []runstore.StageAllocation {
 	t.Helper()
-	assertPublicAttemptMetrics(t, status, [][2]int64{{17, 15}})
+	assertPublicAttemptMetrics(t, status, [][2]int64{{17, 16}})
 	executions := requireExecutions(t, ctx, store, runID, 1)
 	assertSucceededExecution(t, executions[0], 1)
 	allocations := assertCompleteAllocations(t, ctx, store, executions[0], 2, "builder", "reviewer")
@@ -507,15 +549,195 @@ WHERE execution.run_id = $1`,
 		if err := pool.QueryRow(ctx, query, runID).Scan(&value); err != nil {
 			t.Fatalf("read retained Memory diagnostics: %v", err)
 		}
-		for _, canary := range canaries {
-			if strings.Contains(value, canary) {
-				t.Fatalf("Run %s diagnostics retained Memory canary %q", runID, canary)
-			}
-		}
+		assertNoMemoryCanaryForms(t, "Run "+runID+" diagnostics", []byte(value), canaries)
 		combined += value
 	}
 	if !strings.Contains(combined, "read_memory") || !strings.Contains(combined, noteName) {
 		t.Fatalf("Run %s retained diagnostics lost safe Memory operation/name dimensions", runID)
+	}
+}
+
+func sharedMemoryCanaries() []string {
+	return []string{
+		streamlineSeed, streamlineFirstAppend, streamlineRetryAppend,
+		streamlineConfirmAppend, streamlineDescription, streamlineTag,
+		routerBuilderSeed, routerBuilderPlanner, routerBuilderWorker,
+		routerBuilderDescription, routerBuilderTag,
+		routerReviewerSeed, routerReviewerDescription, routerReviewerTag,
+	}
+}
+
+func memoryCanaryForms(canary string) []string {
+	encoded, _ := json.Marshal(canary)
+	candidates := []string{
+		canary,
+		string(encoded),
+		strings.TrimSuffix(strings.TrimPrefix(string(encoded), `"`), `"`),
+		url.QueryEscape(canary),
+		url.PathEscape(canary),
+	}
+	result := make([]string, 0, len(candidates))
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if candidate != "" && !seen[candidate] {
+			seen[candidate] = true
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func assertNoMemoryCanaryForms(t *testing.T, surface string, data []byte, canaries []string) {
+	t.Helper()
+	for _, canary := range canaries {
+		for _, form := range memoryCanaryForms(canary) {
+			if bytes.Contains(data, []byte(form)) {
+				t.Fatalf("%s retained Memory canary form %q", surface, form)
+			}
+		}
+	}
+}
+
+func assertMemoryHTTPFailureRedacted(
+	t *testing.T,
+	client *http.Client,
+	baseURL string,
+	canaries []string,
+) {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"workflow":                "shared-memory-streamline@1",
+		"parameters":              map[string]string{},
+		"artifacts":               map[string]artifactRef{},
+		"unexpectedMemoryPayload": strings.Join(canaries, " | "),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(http.MethodPost, baseURL+"/v1/runs", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "shared-memory-redacted-failure")
+	response := do(t, client, request, http.StatusBadRequest)
+	defer response.Body.Close()
+	failure, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNoMemoryCanaryForms(t, "public HTTP failure", failure, canaries)
+}
+
+func assertNoMemoryOnlyDatabaseInventory(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+) {
+	t.Helper()
+	rows, err := pool.Query(ctx, `
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = current_schema()
+  AND (lower(table_name) LIKE '%memory%' OR lower(column_name) LIKE '%memory%')
+ORDER BY table_name, ordinal_position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var inventory []string
+	for rows.Next() {
+		var table, column string
+		if err := rows.Scan(&table, &column); err != nil {
+			t.Fatal(err)
+		}
+		inventory = append(inventory, table+"."+column)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory) != 0 {
+		t.Fatalf("Memory-specific database inventory exists: %v", inventory)
+	}
+}
+
+func assertAllNonPayloadDatabaseColumnsRedacted(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	canaries []string,
+) {
+	t.Helper()
+	rows, err := pool.Query(ctx, `
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = current_schema()
+ORDER BY table_name, ordinal_position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type columnRef struct{ table, column string }
+	var columns []columnRef
+	for rows.Next() {
+		var column columnRef
+		if err := rows.Scan(&column.table, &column.column); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		if column.table == "artifact_blobs" && column.column == "payload" {
+			continue
+		}
+		columns = append(columns, column)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		t.Fatal(err)
+	}
+	rows.Close()
+	for _, column := range columns {
+		query := fmt.Sprintf(
+			"SELECT COALESCE(string_agg(%s::text, E'\\n'), '') FROM %s",
+			pgx.Identifier{column.column}.Sanitize(), pgx.Identifier{column.table}.Sanitize(),
+		)
+		var retained string
+		if err := pool.QueryRow(ctx, query).Scan(&retained); err != nil {
+			t.Fatalf("scan retained column %s.%s: %v", column.table, column.column, err)
+		}
+		assertNoMemoryCanaryForms(
+			t, "PostgreSQL "+column.table+"."+column.column, []byte(retained), canaries,
+		)
+	}
+}
+
+func assertDecodedMemoryOTLPRedacted(
+	t *testing.T,
+	payloads [][]byte,
+	canaries []string,
+) {
+	t.Helper()
+	if len(payloads) == 0 {
+		t.Fatal("shared-memory OTLP collector received no payloads")
+	}
+	var decoded bytes.Buffer
+	for index, payload := range payloads {
+		var request collectortracev1.ExportTraceServiceRequest
+		if err := proto.Unmarshal(payload, &request); err != nil {
+			t.Fatalf("decode OTLP payload %d: %v", index, err)
+		}
+		encoded, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(&request)
+		if err != nil {
+			t.Fatalf("project decoded OTLP payload %d: %v", index, err)
+		}
+		decoded.Write(encoded)
+		decoded.WriteByte('\n')
+	}
+	assertNoMemoryCanaryForms(t, "decoded OTLP", decoded.Bytes(), canaries)
+	projection := decoded.String()
+	for _, scope := range []string{"contractor.planner.", "contractor.runtime."} {
+		if !strings.Contains(projection, scope) {
+			t.Fatalf("decoded OTLP has no safe %q scope", scope)
+		}
 	}
 }
 

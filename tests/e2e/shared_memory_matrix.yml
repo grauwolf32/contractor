@@ -1,0 +1,135 @@
+schema_version: "1.0"
+
+policy:
+  retained_surface: >-
+    Note payloads are intentional Artifact blob and LLM-conversation data, but
+    Memory adapters retain no automatic copy in reports, sessions, events,
+    errors, logs or decoded OTLP.
+  isolation: >-
+    Memory reuses ordinary RunScope Artifact authority. There is no Memory
+    endpoint, table, replay record, token or credential and no cross-Run view.
+  serialized_v1: >-
+    One Planner call, one active dispatch, one Runtime task and no concurrent
+    Stages in a Run are required before assigning a new-note ordinal.
+
+cases:
+  - id: canonical_artifact_representation
+    category: representation
+    invariants: [I01, I06]
+    expected: Go and Python share canonical bytes while Artifact identity and revision stay outside model projections.
+    test: {source: internal/memory/codec_test.go, symbol: TestSharedCodecFixtures}
+  - id: shared_logical_namespace
+    category: isolation
+    invariants: [I02]
+    expected: A Planner and its logical Worker resolve the same Run and Agent Namespace view.
+    test: {source: internal/planner/streamline/memory_tools_test.go, symbol: TestPlannerAndWorkerShareOneLogicalMemoryNamespace}
+  - id: router_exact_mirroring
+    category: selection
+    invariants: [I03]
+    expected: Router schemas expose only selected operations and exact eligible logical worker names.
+    test: {source: internal/planner/streamline/memory_tools_test.go, symbol: TestPlannerMemorySchemasMirrorExactSelections}
+  - id: worker_explicit_selection
+    category: selection
+    invariants: [I04]
+    expected: Runtime capability probing and tool construction use the exact selected six-operation contract.
+    test: {source: runtime/tests/test_memory_toolset.py, symbol: test_factory_probe_selection_and_model_schemas_are_exact}
+  - id: generic_artifact_visibility
+    category: visibility
+    invariants: [I05]
+    expected: Generic Artifact tools cannot list read write or retain an exact ref for a Memory binding.
+    test: {source: runtime/tests/test_run_artifacts_toolset.py, symbol: test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs}
+  - id: quota_ordinal_and_no_eviction
+    category: representation
+    invariants: [I07]
+    expected: Serialized creation assigns a complete ordinal set and rejects a 129th note without eviction.
+    test: {source: internal/memory/namespace_test.go, symbol: TestNamespaceQuotaErrorsAndCancelledAuthorityAreBounded}
+  - id: exact_response_loss_reconciliation
+    category: concurrency
+    invariants: [I08]
+    expected: Exact bytes and precondition are replayed and append occurs at most once.
+    test: {source: internal/memory/namespace_test.go, symbol: TestNamespaceResponseLossUsesExactReplayAndAppendOccursOnce}
+  - id: durable_terminal_barrier
+    category: lifecycle
+    invariants: [I09]
+    faults: [F05]
+    expected: Planner writes and finalizing or aborting transitions produce one complete winner in global lock order.
+    test: {source: internal/memory/postgres_integration_test.go, symbol: TestPostgresPlannerMemoryWriteLinearizesWithTerminalTransition}
+  - id: retained_process_and_run_isolation
+    category: process
+    invariants: [I10, I11]
+    faults: [F09]
+    expected: Two real Runtimes complete Streamline and Router Runs while all retained non-payload surfaces stay content-free and a later Run starts empty.
+    test: {source: tests/e2e/shared_memory_test.go, symbol: TestSharedMemoryMVPProcesses}
+  - id: worker_transport_ambiguity
+    category: concurrency
+    faults: [F01]
+    expected: Production private Artifact writes reconcile before-commit and after-commit response loss for every mutation.
+    test: {source: runtime/tests/test_memory_toolset.py, symbol: test_production_artifact_client_response_loss_matrix}
+  - id: planner_commit_ambiguity
+    category: concurrency
+    faults: [F02]
+    expected: PostgreSQL commit ambiguity replays one byte-identical mutation without a Memory replay store.
+    test: {source: internal/memory/postgres_integration_test.go, symbol: TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation}
+  - id: same_binding_interference
+    category: concurrency
+    faults: [F03]
+    expected: An independent current revision is observed as memory_changed and never overwritten.
+    test: {source: internal/memory/postgres_integration_test.go, symbol: TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites}
+  - id: worker_grant_fence_race
+    category: lifecycle
+    faults: [F04]
+    expected: A production grant fence wins before body mutation and both Runtime slots remain reusable.
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactProductionGrantFenceWinsWhileBodyArrives}
+  - id: scheduler_fences_all_allocations
+    category: lifecycle
+    faults: [F06]
+    expected: Scheduler fences every recorded allocation before a durable terminal transition.
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing}
+  - id: cancellation_cleanup
+    category: lifecycle
+    faults: [F07]
+    expected: Cancellation ignores a late candidate records a bounded incomplete report and releases the allocation.
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate}
+  - id: partial_terminal_release_recovery
+    category: lifecycle
+    faults: [F08]
+    expected: Cleanup retries only remaining live allocations and does not lose the release obligation.
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations}
+  - id: supplementary_telemetry_failure
+    category: telemetry
+    faults: [F10]
+    expected: Rejected OTLP delivery leaves semantic success and final reuse of both Runtime slots unchanged.
+    test: {source: tests/e2e/runtime_labels_test.go, symbol: TestLabelDrivenRuntimeConfigurationAcrossProcesses}
+  - id: purpose_namespace_rejection
+    category: visibility
+    faults: [F11]
+    expected: inputs outputs and skills cannot become Stage Agent Namespaces.
+    test: {source: internal/config/memory_visibility_test.go, symbol: TestAgentBindingsRejectEveryPurposeReservedNamespace}
+  - id: closed_worker_error_vocabulary
+    category: errors
+    faults: [F12]
+    expected: An arbitrary Python exception is reduced before metrics and model dispatch.
+    test: {source: runtime/tests/test_memory_toolset.py, symbol: test_unexpected_tool_failure_is_normalized_before_metrics_and_model_dispatch}
+  - id: reconciliation_read_authority
+    category: errors
+    faults: [F13]
+    expected: A fenced final read is memory_forbidden rather than an unobserved memory_changed result.
+    test: {source: internal/memory/namespace_test.go, symbol: TestNamespaceReconciliationUsesCurrentReadAuthorityError}
+  - id: artifact_plane_only_inventory
+    category: inventory
+    faults: [F14]
+    expected: Migrations OpenAPI and routers contain no Memory-only persistence route token or credential surface.
+    test: {source: tests/e2e/shared_memory_matrix_test.go, symbol: TestSharedMemoryUsesOnlyArtifactPlaneInventories}
+  - id: owner_authorization
+    category: isolation
+    faults: [F15]
+    expected: A foreign owner receives not-found before a RunScope Artifact repository read.
+    test: {source: internal/httpapi/public/query_handlers_test.go, symbol: TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership}
+
+gates:
+  - {id: matrix, command: make test-shared-memory-matrix}
+  - {id: contracts, command: make test-memory-contracts}
+  - {id: faults, command: make test-shared-memory-faults}
+  - {id: process, command: make test-shared-memory-e2e}
+  - {id: hardening, command: make test-shared-memory-hardening}
+  - {id: release, command: make release-verify}

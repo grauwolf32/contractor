@@ -185,7 +185,7 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 		if err := validateArtifactComponent("agents."+logicalName+".namespace", namespace); err != nil {
 			return nil, err
 		}
-		if namespace == "inputs" || namespace == "outputs" {
+		if artifactpolicy.IsPurposeReservedNamespace(namespace) {
 			return nil, fmt.Errorf("agents.%s.namespace %q is reserved", logicalName, namespace)
 		}
 		result[logicalName] = ResolvedAgentBinding{

@@ -740,6 +740,45 @@ curl --fail --silent --show-error \
   "http://127.0.0.1:8080/v1/runs/$RUN_ID/outputs/result"
 ```
 
+## Shared MemoryTools release boundary
+
+`memory-tools@1` stores each logical note as one ordinary canonical
+`memory.<name>` RunScope Artifact. There is no Memory HTTP API, SQL table,
+credential, replay record or cross-Run store. The only intended durable payload
+copy is `artifact_blobs.payload`; owner/operator Artifact inspection can read it
+under the existing Run authorization contract.
+
+The `v1` quota and ordinal allocator rely on serialized execution: one Planner
+function call, at most one active Worker dispatch and no concurrent Stages in a
+Run. Enabling concurrent different-name creates in one Memory Namespace first
+requires a generic ArtifactStore atomic batch/CAS primitive.
+
+The redaction guarantee applies to copies made automatically by Memory
+adapters: reports, Planner durable facts, events, HTTP failures, process logs and
+decoded OTLP retain safe operation/name/size/outcome dimensions but not note
+content, description or tags. A selected LLM Gateway necessarily receives note
+data returned to the model, and a model can explicitly author that data into a
+different semantic result. Preventing such an intentional copy would require
+information-flow tracking and is outside `v1`.
+
+The matrix and contract checks are database-independent:
+
+```shell
+make test-shared-memory-matrix
+make test-memory-contracts
+```
+
+The fault and process gates require an explicit PostgreSQL test URL. The
+hardening target composes the matrix, shared codec, race/fault tests and the
+two-Runtime process scenario; the aggregate release target also runs the
+Runtime-configuration and browser gates.
+
+```shell
+export CONTRACTOR_TEST_DATABASE_URL='postgres://postgres:contractor@127.0.0.1:5432/contractor?sslmode=disable'
+make test-shared-memory-hardening
+make release-verify
+```
+
 ## OpenAPI from a source archive
 
 `openapi-from-source@1` runs four serial Stages: dependency discovery, project

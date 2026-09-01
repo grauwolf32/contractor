@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-memory-contracts test-shared-memory-faults test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts test-memory-contracts test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -27,10 +27,18 @@ test-memory-contracts:
 	go test ./internal/memory/...
 	cd runtime && uv run pytest tests/test_memory.py
 
+test-shared-memory-matrix:
+	go test -count=1 ./tests/e2e -run '^(TestSharedMemoryHardeningMatrixIsComplete|TestSharedMemoryUsesOnlyArtifactPlaneInventories)$$'
+
 test-shared-memory-faults:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/memory/... ./internal/httpapi/privateartifacts/... ./internal/scheduler/...
-	cd runtime && uv run pytest -W error tests/test_memory_toolset.py -k 'response_loss or changed or serialized'
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifactpolicy/... ./internal/config/... ./internal/memory/... ./internal/httpapi/privateartifacts/... ./internal/scheduler/...
+	cd runtime && uv run pytest -W error tests/test_memory_toolset.py -k 'response_loss or changed or serialized or unexpected_tool_failure or reconciliation or purpose_reserved'
+
+test-shared-memory-hardening: test-shared-memory-matrix test-memory-contracts
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	$(MAKE) test-shared-memory-faults
+	$(MAKE) test-shared-memory-e2e
 
 test-runtime-wire-v2:
 	go test ./internal/contracts/... ./internal/controlplane/...
@@ -195,6 +203,6 @@ build:
 	go build ./cmd/...
 	cd runtime && uv run python -m compileall -q src
 
-verify: lint test build ui-verify test-runtime-configuration-matrix
+verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix
 
-release-verify: verify test-runtime-configuration-e2e test-shared-memory-e2e
+release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening

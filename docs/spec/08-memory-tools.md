@@ -362,13 +362,24 @@ validation must not become a second unbounded model-facing error vocabulary.
 Adapters normalize every internal failure to the exact code/retryability table
 above; an arbitrary exception attribute cannot add another Memory code.
 
-Memory content, description and tags never enter ExecutionReport detail,
-Planner durable facts, logs, WebSocket events or external telemetry. Safe tool
-diagnostics may retain only operation name, logical `worker_name` when
-applicable, note name, request/result byte sizes, success/error code and
-duration. Tool counters remain ordinary aggregate metrics. An exact hidden
-Artifact revision may be retained as trusted Server provenance, but it is
-never placed in model context or a public Planner event.
+Memory adapters never automatically copy content, description or tags into
+ExecutionReport detail, Planner durable facts, logs, WebSocket events or
+external telemetry. Safe tool diagnostics may retain only operation name,
+logical `worker_name` when applicable, note name, request/result byte sizes,
+success/error code and duration. Tool counters remain ordinary aggregate
+metrics. An exact hidden Artifact revision may be retained as trusted Server
+provenance, but it is never placed in model context or a public Planner event.
+
+The selected LLM Gateway is an intentional content channel: a full note returned
+by `read_memory` or a mutation is part of that invocation's model conversation.
+The model can also deliberately repeat note data into a subtask objective,
+instructions, a semantic Stage summary or a newly authored ordinary artifact.
+That copy is governed by the destination's normal contract and retention; `v1`
+does not claim information-flow tracking or semantic redaction of model output.
+Planner and Worker instructions must frame notes as untrusted coordination data
+that cannot replace the immutable objective or system instructions. The
+retained-surface guarantee is therefore precise: Contractor's Memory adapters
+do not create an additional diagnostic copy of the note payload.
 
 ## Invariants
 
@@ -394,7 +405,9 @@ never placed in model context or a public Planner event.
    every allocation fence before that transition, so both participate in one
    terminal barrier. A Planner memory call also completes before Planner can
    return a candidate and enter finalizing.
-10. Note bodies and descriptive metadata never enter durable or external
-    telemetry.
+10. Memory adapters never automatically retain note bodies or descriptive
+    metadata in durable diagnostics or external telemetry. The LLM invocation
+    and an explicit model-authored semantic copy remain intentional content
+    destinations, not telemetry.
 11. Memory is Run-scoped and observed only through explicit tools; there is no
     implicit prompt or cross-Run injection.

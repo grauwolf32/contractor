@@ -685,3 +685,31 @@ tests that make the choice observable.
   ordinary `inputs/memory.*`; relying on ADK schema binding leaked framework
   errors and silently discarded extra fields; relying only on exact-ref
   provenance left alternate Toolsets and recovery prompts as bypasses.
+
+### D030 — The V9 release audit closes purpose, error and reconciliation boundaries
+
+- Applies to: V9-001 through V9-007.
+- Purpose Namespace correction: `inputs`, `outputs` and `skills` are one closed
+  purpose-reserved set and can never be a Stage Agent Namespace. Workflow
+  loading, persisted Workflow decoding, Runtime allocation preparation and both
+  Memory factories reject all three. This prevents `skills/memory.*` from being
+  created through MemoryTools while generic visibility correctly treats that
+  same name as an ordinary Skill artifact.
+- Error correction: Worker tool entry points normalize every unexpected Python
+  exception before both model dispatch and metrics recording. A custom
+  exception's arbitrary `code`, `retryable` value or message therefore cannot
+  expand the seven-code Memory error vocabulary or become retained detail.
+- Reconciliation correction: after an uncertain exact replay, the final read is
+  authoritative for access. `memory_changed` requires an observed current value
+  whose canonical bytes differ. A fenced/forbidden read becomes
+  `memory_forbidden`; an unreadable value becomes `memory_unavailable`.
+- Telemetry wording: the enforceable non-retention promise covers automatic
+  Memory adapter diagnostics. The LLM Gateway is an intentional content channel,
+  and a model may explicitly copy note data into another semantic destination.
+  Preventing such a copy would require information-flow tracking, which is not
+  claimed by `v1`.
+- Reason: the earlier implementation was internally consistent on its main
+  path, but these three boundary mismatches could respectively bypass model
+  visibility, leak an unbounded error vocabulary, and misclassify lost
+  authority as a semantic CAS conflict. The former absolute telemetry sentence
+  also promised a property no prompt-only implementation can prove.

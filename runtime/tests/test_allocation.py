@@ -83,6 +83,26 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("namespace", ["inputs", "outputs", "skills"])
+def test_prepare_rejects_every_purpose_reserved_agent_namespace(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    namespace: str,
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        spec = make_spec()
+        spec.namespace = namespace
+
+        with pytest.raises(AllocationError) as raised:
+            await service.prepare(spec)
+        assert raised.value.code == "invalid_agent_namespace"
+        assert not raised.value.retryable
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
 def test_bad_digest_and_unsupported_ref_leave_no_residue(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
