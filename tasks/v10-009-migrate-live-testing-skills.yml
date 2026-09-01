@@ -23,9 +23,11 @@ context:
     exploit name legacy tools. None is a current v2 Runtime guarantee.
   target: >-
     Create configs/skills/auth, caido, code-exec and exploit using native Agent
-    Skills layout. Compatibility text must state the exact Toolsets/operations
-    a future AgentTemplate must select. Packages remain unassigned until those
-    capabilities and authorized-target workflow contracts exist.
+    Skills layout. Model-visible compatibility text names only the operations
+    required in the current Worker invocation and never exposes AgentTemplate.
+    The server-side migration matrix records which future Toolsets must provide
+    those operations. Packages remain unassigned until those capabilities and
+    authorized-target workflow contracts exist.
   memory_contract: >-
     memory-tools@1 exports exactly list_memories, read_memory, write_memory,
     append_memory, search_memory and list_memory_tags. Note names are at most
@@ -35,7 +37,7 @@ context:
 scope:
   in:
     - Convert roots to SKILL.md with valid name/metadata, preserve all fifteen exploit references and rewrite native resource-loading examples.
-    - Rewrite old auth/* note paths to the v1 memory-tools@1 operation vocabulary and valid logical note names, always conditional on explicit AgentTemplate MemoryTools selection.
+    - Rewrite old auth/* note paths to the v1 memory-tools@1 operation vocabulary and valid logical note names, always conditional on those MemoryTools operations being visible in the current Worker invocation.
     - Remove unconditional claims about Kali, mounted /project, host network, subprocess persistence or tool availability; express recipes conditionally on explicitly selected compatible Toolsets/SandboxProfile.
     - Inventory every mentioned model-visible tool and record the required future Toolset operation; do not create aliases, fake tools or broader Runtime capabilities merely to make prose true.
     - Retain explicit authorization, scope verification, non-destructive proof and cleanup constraints from the reviewed source and add no new target/payload material.
@@ -58,7 +60,7 @@ requirements:
   - id: R2
     text: Memory wording matches memory-tools@1 list/read/write/append/search/tag operations and never relies on contractor-old reserved skill/memory categories.
   - id: R3
-    text: Packages remain dormant ordinary artifacts until an explicit future AgentTemplate selects both the package and every required tool operation.
+    text: Packages remain dormant ordinary artifacts until server configuration selects both the package and every required tool operation; package content never exposes that server-side AgentTemplate abstraction.
   - id: R4
     text: Authorization and non-destructive testing constraints remain prominent in SKILL.md rather than hidden in an optional reference.
 
