@@ -1,10 +1,14 @@
 package streamline
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"iter"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -43,7 +48,10 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		refKey(exactRef("review", "report", reportRevision)): "application/json",
 	}}
 	factory := mustFactory(t, sessions, workers, inspector, model, Limits{})
-	instance, err := factory.Create(testInvocation("builder"))
+	invocation := testInvocation("builder")
+	telemetryAdapter, telemetryPayload := streamlineTestTelemetry(t, invocation)
+	invocation.Instrumentation = telemetryAdapter.Instrumentation()
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +83,26 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 	if sessions.completion == nil || sessions.completion.Result == nil {
 		t.Fatal("Planner completion was not recorded")
 	}
+	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
+		t.Fatalf("Streamline telemetry export = %+v", export)
+	}
+	payload := <-telemetryPayload
+	for _, expected := range []telemetry.PlannerSpanName{
+		telemetry.PlannerSpanSession, telemetry.PlannerSpanModel, telemetry.PlannerSpanWorker,
+		telemetry.PlannerSpanSubtask, telemetry.PlannerSpanFinish,
+	} {
+		if !bytes.Contains(payload, []byte(expected)) {
+			t.Fatalf("Streamline OTLP payload lacks %s: %q", expected, payload)
+		}
+	}
+	for _, forbidden := range []string{
+		invocation.Stage.Objective, invocation.Stage.Instructions.Text,
+		"Analyze the input", "Produce the final report", "report ready",
+	} {
+		if bytes.Contains(payload, []byte(forbidden)) {
+			t.Fatalf("Streamline OTLP payload exposed %q: %q", forbidden, payload)
+		}
+	}
 	if sessions.plan == nil || sessions.plan.Revision != 3 ||
 		sessions.plan.Subtasks[0].Status != planner.PlannerSubtaskSucceeded ||
 		len(sessions.transitions) != 3 || len(sessions.facts) != 4 ||
@@ -99,6 +127,36 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		report.Metrics.TotalTokens == nil || *report.Metrics.TotalTokens != 60 {
 		t.Fatalf("report = %+v", report)
 	}
+}
+
+func streamlineTestTelemetry(
+	t *testing.T, invocation planner.Invocation,
+) (telemetry.PlannerTelemetry, <-chan []byte) {
+	t.Helper()
+	payload := make(chan []byte, 1)
+	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+		payload <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(collector.Close)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
+		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
+		FlushTimeout: time.Second,
+		Resource: telemetry.PlannerResource{
+			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
+			PlannerRef: Ref,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(adapter.Close)
+	return adapter, payload
 }
 
 func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) {

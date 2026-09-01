@@ -1,10 +1,14 @@
 package router
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"iter"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -40,7 +45,10 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
 		"reviewer": successfulResult("review complete"),
 	}}
-	instance := mustPlanner(t, llm, workers, testInvocation())
+	invocation := testInvocation()
+	telemetryAdapter, telemetryPayload := routerTestTelemetry(t, invocation)
+	invocation.Instrumentation = telemetryAdapter.Instrumentation()
+	instance := mustPlanner(t, llm, workers, invocation)
 	result, err := instance.Run(t.Context())
 	if err != nil || result.Outcome != contracts.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
@@ -92,6 +100,56 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	if !found {
 		t.Fatalf("Router did not record the selected logical Worker: %+v", report.ToolCalls)
 	}
+	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
+		t.Fatalf("Router telemetry export = %+v", export)
+	}
+	payload := <-telemetryPayload
+	for _, expected := range []telemetry.PlannerSpanName{
+		telemetry.PlannerSpanSession, telemetry.PlannerSpanModel, telemetry.PlannerSpanWorker,
+		telemetry.PlannerSpanSubtask, telemetry.PlannerSpanFinish,
+	} {
+		if !bytes.Contains(payload, []byte(expected)) {
+			t.Fatalf("Router OTLP payload lacks %s: %q", expected, payload)
+		}
+	}
+	for _, forbidden := range []string{
+		invocation.Stage.Objective, invocation.Stage.Instructions.Text,
+		"Build the API document", "Use the exact source", "runtime-secret",
+	} {
+		if bytes.Contains(payload, []byte(forbidden)) {
+			t.Fatalf("Router OTLP payload exposed %q: %q", forbidden, payload)
+		}
+	}
+}
+
+func routerTestTelemetry(
+	t *testing.T, invocation planner.Invocation,
+) (telemetry.PlannerTelemetry, <-chan []byte) {
+	t.Helper()
+	payload := make(chan []byte, 1)
+	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+		payload <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(collector.Close)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
+		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
+		FlushTimeout: time.Second,
+		Resource: telemetry.PlannerResource{
+			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
+			PlannerRef: planner.RouterRef,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(adapter.Close)
+	return adapter, payload
 }
 
 func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
@@ -66,28 +67,45 @@ func (p *streamlinePlanner) Run(
 		p.reportMu.Unlock()
 	}()
 
+	instrumentation := planner.InvocationInstrumentation(p.invocation)
+	sessionSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanSession,
+		telemetry.PlannerSpanAttributes{Operation: "session.begin"},
+	)
 	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
 	if err != nil {
+		sessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
 		return contracts.StageContentResult{}, sessionFailure("start", err)
 	}
 	identity = started.Identity
 	if started.Completion != nil {
+		sessionSpan.End("recovered", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
 	if !started.Invoke {
+		sessionSpan.End("rejected", telemetry.PlannerSpanAttributes{
+			SessionID: identity.SessionID, ErrorCode: "planner_session_invalid",
+		})
 		return contracts.StageContentResult{}, planner.NewError(
 			"planner_session_invalid", "Planner session did not grant invocation ownership", false, nil,
 		)
 	}
+	sessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 	bindings := make([]string, 0, len(p.workers))
 	for _, worker := range p.workers {
 		bindings = append(bindings, worker.logicalName)
 	}
+	recordSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanSession,
+		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
+	)
 	if err := p.sessions.RecordRequest(
 		ctx, identity, planner.RequestFactsFor(bindings, p.request),
 	); err != nil {
+		recordSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
 		return contracts.StageContentResult{}, sessionFailure("record request", err)
 	}
+	recordSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
 	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {
@@ -108,12 +126,18 @@ func (p *streamlinePlanner) Run(
 	if err != nil {
 		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("create ADK session", err))
 	}
+	adkSessionSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanSession,
+		telemetry.PlannerSpanAttributes{Operation: "session.adk_create", SessionID: identity.SessionID},
+	)
 	if _, err := adkSessions.Create(ctx, &adksession.CreateRequest{
 		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID,
 		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
 	}); err != nil {
+		adkSessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
 		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("initialize ADK session", err))
 	}
+	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
 	root, err := p.newRootAgent(state, tools, allowed)
 	if err != nil {
@@ -217,6 +241,36 @@ func (p *streamlinePlanner) newRootAgent(
 	state *executionState, tools []tool.Tool, allowed map[string]struct{},
 ) (agent.Agent, error) {
 	temperature := float32(0)
+	instrumentation := planner.InvocationInstrumentation(p.invocation)
+	modelAlias := "configured-model"
+	if p.invocation.ModelAccess != nil {
+		modelAlias = p.invocation.ModelAccess.ModelPolicy.Model
+	}
+	var modelSpanMu sync.Mutex
+	var modelSpan telemetry.PlannerSpan
+	startModelSpan := func() {
+		modelSpanMu.Lock()
+		previous := modelSpan
+		modelSpan = instrumentation.StartSpan(
+			telemetry.PlannerSpanModel,
+			telemetry.PlannerSpanAttributes{
+				Operation: "model.generate", ModelAlias: modelAlias,
+			},
+		)
+		modelSpanMu.Unlock()
+		if previous != nil {
+			previous.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_model_overlap"})
+		}
+	}
+	endModelSpan := func(outcome, code string) {
+		modelSpanMu.Lock()
+		current := modelSpan
+		modelSpan = nil
+		modelSpanMu.Unlock()
+		if current != nil {
+			current.End(outcome, telemetry.PlannerSpanAttributes{ErrorCode: code})
+		}
+	}
 	return llmagent.New(llmagent.Config{
 		Name: p.profile.agentName, Model: p.model,
 		Description: p.profile.agentDescription,
@@ -230,20 +284,31 @@ func (p *streamlinePlanner) newRootAgent(
 				if err := state.beforeModel(); err != nil {
 					return nil, err
 				}
+				startModelSpan()
 				return nil, nil
 			},
 		},
 		AfterModelCallbacks: []llmagent.AfterModelCallback{
 			func(_ agent.CallbackContext, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
-				return state.afterModel(response, allowed)
+				result, err := state.afterModel(response, allowed)
+				if err != nil {
+					failure := planner.FailureFrom(err)
+					endModelSpan("failed", failure.Code)
+				} else {
+					endModelSpan("succeeded", "")
+				}
+				return result, err
 			},
 		},
 		OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{
 			func(ctx agent.CallbackContext, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
 				if ctx.Err() != nil {
+					endModelSpan("cancelled", "planner_cancelled")
 					return nil, providerErr
 				}
-				return nil, state.providerFailure()
+				failure := state.providerFailure()
+				endModelSpan("failed", planner.FailureFrom(failure).Code)
+				return nil, failure
 			},
 		},
 	})

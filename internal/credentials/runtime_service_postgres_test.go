@@ -230,6 +230,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	}
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: service, Now: func() time.Time { return now },
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

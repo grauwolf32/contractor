@@ -615,7 +615,8 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 	credentials := pinTestRuntimeCredentials{}
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: credentials,
-		Now: func() time.Time { return time.Date(2026, 9, 1, 4, 0, 0, 0, time.UTC) },
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		Now:                      func() time.Time { return time.Date(2026, 9, 1, 4, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)

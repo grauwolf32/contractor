@@ -126,10 +126,12 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatalf("typed durable plan = (%+v, %t, %v)", plan, ok, err)
 	}
 	runEvents, err := store.ListRunEvents(ctx, "run-streamline", 0, 1000)
-	if err != nil || len(runEvents) != len(events) {
+	if err != nil || len(runEvents) < len(events) {
 		t.Fatalf("Run events = (%d, %v), Planner events = %d", len(runEvents), err, len(events))
 	}
+	runEventsBySequence := make(map[int64]runstore.WorkflowRunEvent, len(runEvents))
 	for index, event := range runEvents {
+		runEventsBySequence[event.SequenceNumber] = event
 		payload := string(event.Data)
 		for _, forbidden := range []string{
 			gatewayToken, "sensitive objective", "sensitive planner guidance",
@@ -140,9 +142,14 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 				t.Fatalf("Run event %d leaked %q: %s", index, forbidden, payload)
 			}
 		}
-		if events[index].RunEventSequence == nil ||
-			*events[index].RunEventSequence != event.SequenceNumber {
-			t.Fatalf("Planner/Run event linkage %d: %+v / %+v", index, events[index], event)
+	}
+	for index, event := range events {
+		if event.RunEventSequence == nil {
+			t.Fatalf("Planner event %d has no Run event link: %+v", index, event)
+		}
+		linked, ok := runEventsBySequence[*event.RunEventSequence]
+		if !ok || linked.EventID != event.EventID {
+			t.Fatalf("Planner/Run event linkage %d: %+v / %+v", index, event, linked)
 		}
 	}
 	storedSession, err := store.GetPlannerSession(ctx, *execution.PlannerSessionID)

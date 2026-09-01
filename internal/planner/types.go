@@ -6,6 +6,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const (
@@ -30,7 +31,15 @@ type Invocation struct {
 	Context          StageContext
 	Workers          map[string]contracts.WorkerHandle
 	ModelAccess      *ModelAccess
+	Instrumentation  telemetry.PlannerInstrumentation
 	Deadline         time.Time
+}
+
+func InvocationInstrumentation(invocation Invocation) telemetry.PlannerInstrumentation {
+	if invocation.Instrumentation == nil {
+		return telemetry.NoopPlannerInstrumentation()
+	}
+	return invocation.Instrumentation
 }
 
 // ModelAccess is resolved from the immutable Run snapshot. Token is held only

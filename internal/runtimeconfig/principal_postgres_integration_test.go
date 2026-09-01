@@ -27,7 +27,8 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 
 	now := time.Date(2026, 9, 1, 1, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
-		Pool: pool,
+		Pool:                     pool,
+		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		GatewayResolver: GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
 			gatewayID, version, _ := strings.Cut(selector, "@")
 			return contracts.ResolvedLLMGatewayConfig{
@@ -172,6 +173,7 @@ func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: resolver,
 		RuntimeCredentials: allowRuntimeCredentialCatalog{}, Now: func() time.Time { return now },
+		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

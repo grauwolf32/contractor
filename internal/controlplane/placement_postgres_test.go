@@ -91,6 +91,7 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -189,6 +190,7 @@ func newPlacementFixture(
 	if len(runLabels) != 0 {
 		publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 			Pool: pool, RuntimeCredentials: catalog,
+			PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		})
 		if err != nil {
 			t.Fatal(err)

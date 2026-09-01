@@ -1,15 +1,19 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +24,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
@@ -229,6 +235,154 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	if _, err := harness.scheduler.workerExecutionSettings(t.Context(), stage); err == nil ||
 		strings.Contains(err.Error(), "worker-secret") {
 		t.Fatalf("unsafe credential resolution error = %v", err)
+	}
+}
+
+func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.T) {
+	const headerSecret = "planner-header-secret-canary"
+	for _, test := range []struct {
+		name       string
+		statusCode int
+		wantExport contracts.ToolCallOutcome
+	}{
+		{name: "accepted", statusCode: http.StatusOK, wantExport: contracts.ToolCallSucceeded},
+		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: contracts.ToolCallFailed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var collectorMu sync.Mutex
+			var collectorBodies [][]byte
+			var collectorHeader string
+			collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+				collectorMu.Lock()
+				collectorBodies = append(collectorBodies, append([]byte(nil), body...))
+				collectorHeader = request.Header.Get("x-planner-token")
+				collectorMu.Unlock()
+				response.WriteHeader(test.statusCode)
+			}))
+			defer collector.Close()
+
+			harness := newSchedulerHarness(t)
+			var safeLogs bytes.Buffer
+			harness.scheduler.options.Logger = slog.New(slog.NewTextHandler(&safeLogs, nil))
+			registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+			if err != nil {
+				t.Fatal(err)
+			}
+			recordingRegistry := &recordingPlannerTelemetryRegistry{inner: registry}
+			harness.scheduler.options.PlannerTelemetry = recordingRegistry
+			harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+				_ context.Context,
+				credentialID string,
+				allowed []contracts.RuntimeCredentialKind,
+				consumer func(contracts.RuntimeCredentialKind, []byte) error,
+			) error {
+				if credentialID != "planner-otel" ||
+					!reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders}) {
+					return errors.New("unexpected Runtime credential selection")
+				}
+				return consumer(
+					contracts.RuntimeCredentialOTLPHeaders,
+					[]byte(`{"headers":{"x-planner-token":"`+headerSecret+`"}}`),
+				)
+			})
+
+			debugRef := runtimeconfig.Ref{
+				Name: "debug", Version: "1", Digest: "sha256:" + strings.Repeat("d", 64),
+			}
+			agentRef := runtimeconfig.Ref{
+				Name: "agent-caido", Version: "1", Digest: "sha256:" + strings.Repeat("e", 64),
+			}
+			snapshot := runtimeconfig.BuiltInRunSnapshot()
+			snapshot.Labels = []runtimeconfig.PinnedLabel{{
+				Label: "debug", Explicit: true, BindingRevision: 7, Config: debugRef,
+			}}
+			snapshot.RuntimeCredentialIDs = []string{"planner-otel"}
+			harness.store.run.RuntimeConfig = snapshot
+			harness.store.run.RuntimeLabels = []string{"debug"}
+
+			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
+			resolved, err := fallbackResolvedWorkerConfig(selection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
+				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
+				Credential: "planner-otel", FlushTimeoutSeconds: 1,
+			}
+			resolved.PlannerRuntimeCredential = &contracts.RuntimeCredentialRefV2{
+				CredentialID: "planner-otel", Kind: contracts.RuntimeCredentialOTLPHeaders,
+			}
+			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
+				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
+			}
+			resolved.Provenance.RunLabels = []contracts.RuntimeLabelBindingProvenanceV2{{
+				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
+			}}
+			resolved.Provenance.AgentLabels = []contracts.RuntimeLabelBindingProvenanceV2{{
+				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
+			}}
+			harness.allocator.resolvedRuntimeConfig = &resolved
+
+			worked, runErr := harness.scheduler.RunOnce(t.Context())
+			if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+				harness.workers.releaseCalls != 1 {
+				t.Fatalf("telemetry Run = (%t, %v), state=%s release=%d", worked, runErr, harness.store.run.State, harness.workers.releaseCalls)
+			}
+			collectorMu.Lock()
+			bodies := append([][]byte(nil), collectorBodies...)
+			header := collectorHeader
+			collectorMu.Unlock()
+			if len(bodies) != 1 || header != headerSecret ||
+				bytes.Contains(bodies[0], []byte(headerSecret)) ||
+				bytes.Contains(bodies[0], []byte(agentRef.Name)) ||
+				!bytes.Contains(bodies[0], []byte(debugRef.Name+"@"+debugRef.Version)) {
+				t.Fatalf("Planner OTLP selection leaked or missed provenance: requests=%d header=%q body=%q", len(bodies), header, bodies)
+			}
+			if recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
+				len(recordingRegistry.resources[0].RunLabels) != 1 ||
+				recordingRegistry.resources[0].RunLabels[0] != "debug" ||
+				stringSliceContains(recordingRegistry.resources[0].RuntimeConfigRefs, "agent-caido@1") {
+				t.Fatalf("Planner registry inputs = creates:%d resources:%+v", recordingRegistry.creates, recordingRegistry.resources)
+			}
+			if len(harness.store.plannerReports) != 1 {
+				t.Fatalf("Planner reports = %+v", harness.store.plannerReports)
+			}
+			report := harness.store.plannerReports[0].Report
+			encodedReport, encodeErr := json.Marshal(report)
+			if encodeErr != nil || bytes.Contains(encodedReport, []byte(headerSecret)) ||
+				bytes.Contains(encodedReport, []byte(collector.URL)) ||
+				bytes.Contains(encodedReport, []byte(agentRef.Name)) ||
+				strings.Contains(safeLogs.String(), headerSecret) || strings.Contains(safeLogs.String(), collector.URL) {
+				t.Fatalf("Planner telemetry secret/provenance leak: report=%s logs=%s error=%v", encodedReport, safeLogs.String(), encodeErr)
+			}
+			metrics := report.Metrics.Tools["telemetry.export"]
+			if len(report.ToolCalls) != 1 || report.ToolCalls[0].Tool != "telemetry.export" ||
+				report.ToolCalls[0].Outcome != test.wantExport || metrics.Calls == nil || *metrics.Calls != 1 {
+				t.Fatalf("durable Planner telemetry result = %+v", report)
+			}
+		})
+	}
+}
+
+func TestSchedulerRunWithoutPlannerTelemetryCreatesNoExporter(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordingRegistry := &recordingPlannerTelemetryRegistry{inner: registry}
+	harness.scheduler.options.PlannerTelemetry = recordingRegistry
+	worked, runErr := harness.scheduler.RunOnce(t.Context())
+	if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded {
+		t.Fatalf("Run = (%t, %v), state=%s", worked, runErr, harness.store.run.State)
+	}
+	if recordingRegistry.creates != 0 {
+		t.Fatalf("no-telemetry Run created %d exporters", recordingRegistry.creates)
+	}
+	if len(harness.store.plannerReports) != 1 ||
+		harness.store.plannerReports[0].Report.Metrics.Tools["telemetry.export"].Calls != nil {
+		t.Fatalf("no-telemetry Planner report = %+v", harness.store.plannerReports)
 	}
 }
 
@@ -1247,14 +1401,15 @@ func (staticClock) After(time.Duration) <-chan time.Time {
 }
 
 type memorySchedulerStore struct {
-	run         runstore.WorkflowRun
-	stages      []runstore.StageExecution
-	allocations []runstore.StageAllocation
-	reports     []runstore.RecordStageExecutionReportParams
-	reportError error
-	claimID     string
-	claimCalls  int
-	events      *eventRecorder
+	run            runstore.WorkflowRun
+	stages         []runstore.StageExecution
+	allocations    []runstore.StageAllocation
+	reports        []runstore.RecordStageExecutionReportParams
+	plannerReports []runstore.RecordPlannerExecutionReportParams
+	reportError    error
+	claimID        string
+	claimCalls     int
+	events         *eventRecorder
 }
 
 func (s *memorySchedulerStore) ClaimRunnableRun(
@@ -1417,8 +1572,16 @@ func (s *memorySchedulerStore) RecordStageExecutionReport(
 }
 
 func (s *memorySchedulerStore) RecordPlannerExecutionReport(
-	_ context.Context, _ runstore.RecordPlannerExecutionReportParams,
+	_ context.Context, report runstore.RecordPlannerExecutionReportParams,
 ) error {
+	for _, existing := range s.plannerReports {
+		if existing.StageExecutionID == report.StageExecutionID &&
+			existing.SessionID == report.SessionID && existing.InvocationID == report.InvocationID &&
+			existing.Report.ReportID == report.Report.ReportID {
+			return nil
+		}
+	}
+	s.plannerReports = append(s.plannerReports, report)
 	return nil
 }
 
@@ -1676,16 +1839,17 @@ func (r *memoryArtifactResolver) Resolve(
 }
 
 type memoryAllocator struct {
-	workflow           workflowconfig.ResolvedWorkflow
-	clock              staticClock
-	events             *eventRecorder
-	grants             map[string]controlplane.AllocationGrant
-	cached             []controlplane.Reservation
-	fenced             map[string]bool
-	reserveCalls       int
-	allocationSequence int
-	reserveError       error
-	losses             []controlplane.AllocationLoss
+	workflow              workflowconfig.ResolvedWorkflow
+	clock                 staticClock
+	events                *eventRecorder
+	grants                map[string]controlplane.AllocationGrant
+	cached                []controlplane.Reservation
+	fenced                map[string]bool
+	reserveCalls          int
+	allocationSequence    int
+	reserveError          error
+	losses                []controlplane.AllocationLoss
+	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
 }
 
 func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -1723,6 +1887,10 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		if err == nil {
 			reservation.ResolvedRuntimeConfig = &resolved
 		}
+	}
+	if a.resolvedRuntimeConfig != nil {
+		resolved := a.resolvedRuntimeConfig.Clone()
+		reservation.ResolvedRuntimeConfig = &resolved
 	}
 	return reservation
 }
@@ -1961,6 +2129,52 @@ func (f credentialResolverFunc) ResolveLLMCredential(
 	gateway contracts.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	return f(ctx, credential, gateway)
+}
+
+type runtimeCredentialResolverFunc func(
+	context.Context,
+	string,
+	[]contracts.RuntimeCredentialKind,
+	func(contracts.RuntimeCredentialKind, []byte) error,
+) error
+
+func (f runtimeCredentialResolverFunc) UsePlaintext(
+	ctx context.Context,
+	credentialID string,
+	allowed []contracts.RuntimeCredentialKind,
+	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+) error {
+	return f(ctx, credentialID, allowed, consumer)
+}
+
+type recordingPlannerTelemetryRegistry struct {
+	inner     *telemetry.PlannerAdapterRegistry
+	creates   int
+	resources []telemetry.PlannerResource
+}
+
+func (r *recordingPlannerTelemetryRegistry) Create(
+	ref string,
+	settings telemetry.PlannerAdapterSettings,
+) (telemetry.PlannerTelemetry, error) {
+	r.creates++
+	r.resources = append(r.resources, settings.Resource)
+	return r.inner.Create(ref, settings)
+}
+
+func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) contracts.RuntimeConfigRefV2 {
+	return contracts.RuntimeConfigRefV2{
+		Name: value.Name, Version: value.Version, Digest: value.Digest,
+	}
+}
+
+func stringSliceContains(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func exactRef(namespace, name, revision string) contracts.ArtifactRef {

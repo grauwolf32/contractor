@@ -250,12 +250,17 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Runtime credential lifecycle: %w", err)
 	}
+	plannerTelemetryRegistry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		return fmt.Errorf("configure Planner telemetry adapters: %w", err)
+	}
 	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool,
 		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
 			return configurationManager.LLMGateway(selector)
 		}),
-		RuntimeCredentials: runtimeCredentialLifecycle,
+		RuntimeCredentials:       runtimeCredentialLifecycle,
+		PlannerTelemetryAdapters: plannerTelemetryRegistry,
 	})
 	if err != nil {
 		return fmt.Errorf("configure RuntimeConfig publisher: %w", err)
@@ -377,6 +382,7 @@ func RunCLI(
 			RuntimeSettings:    runtimeSettings,
 			Credentials:        credentialProvider,
 			RuntimeCredentials: runtimeCredentialLifecycle,
+			PlannerTelemetry:   plannerTelemetryRegistry,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),

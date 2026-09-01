@@ -507,3 +507,32 @@ tests that make the choice observable.
   labels would conflate desired infrastructure with installed code; requiring
   a separate virtualenv for each subset would hide an operator-level boundary
   behind packaging mechanics and make a one-VM deployment unnecessarily hard.
+
+### D023 — Planner OTLP is invocation-local and wholly supplementary
+
+- Applies to: V8-014.
+- Decision: Server owns one immutable PlannerTelemetryAdapter registry shared
+  by RuntimeConfig publication and Scheduler. `otlp-http@1` encodes a bounded
+  closed span vocabulary directly as OTLP/HTTP protobuf for one Planner
+  invocation; it does not install a global OpenTelemetry provider, inherit an
+  HTTP proxy, follow redirects, retry, or maintain a background/durable spool.
+  Passthrough, Streamline and Router receive only a narrow instrumentation
+  handle. Resource correlation is built from the pinned default/Run snapshot
+  plus Planner model/Gateway/credential refs; candidate Agent labels and
+  Worker proxy settings are structurally absent.
+- Lifecycle: Scheduler makes one flush after Planner returns, bounded by the
+  minimum of config timeout, remaining Stage deadline and finalization timeout,
+  then destroys secret-bearing adapter state. Creation, JIT credential,
+  encoding, queue, delivery and flush failures never become Planner failures.
+  If a durable Planner report identity exists, the safe result is appended as
+  a `telemetry.export` tool call/metric rather than a semantic report error.
+- Alternatives rejected: a process-global SDK provider would create shared
+  mutable routing and shutdown ownership; background batching could outlive the
+  pinned invocation or delay allocation release; treating a telemetry secret
+  outage as Stage preparation failure would let supplementary observability
+  choose retry/escalation semantics. The Worker exporter remains allocation-
+  local and independent.
+- Observable tests decode real protobuf for all three Planner types, prove the
+  closed no-content projection and exact Run-only provenance, cap the queue,
+  bound a hanging collector, and show rejected delivery leaves Run success and
+  slot release unchanged while producing only the safe durable export outcome.

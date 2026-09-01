@@ -16,21 +16,33 @@ type PublishResult struct {
 }
 
 type Publisher struct {
-	pool        *pgxpool.Pool
-	resolver    GatewayResolver
-	credentials RuntimeCredentialCatalog
-	now         func() time.Time
+	pool                     *pgxpool.Pool
+	resolver                 GatewayResolver
+	credentials              RuntimeCredentialCatalog
+	plannerTelemetryAdapters PlannerTelemetryAdapterCatalog
+	now                      func() time.Time
+}
+
+type PlannerTelemetryAdapterCatalog interface {
+	SupportsPlannerTelemetryAdapter(string) bool
+}
+
+type PlannerTelemetryAdapterCatalogFunc func(string) bool
+
+func (f PlannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref string) bool {
+	return f != nil && f(ref)
 }
 
 type PublisherOptions struct {
-	Pool               *pgxpool.Pool
-	GatewayResolver    GatewayResolver
-	RuntimeCredentials RuntimeCredentialCatalog
-	Now                func() time.Time
+	Pool                     *pgxpool.Pool
+	GatewayResolver          GatewayResolver
+	RuntimeCredentials       RuntimeCredentialCatalog
+	PlannerTelemetryAdapters PlannerTelemetryAdapterCatalog
+	Now                      func() time.Time
 }
 
 func NewPublisher(options PublisherOptions) (*Publisher, error) {
-	if options.Pool == nil || options.RuntimeCredentials == nil {
+	if options.Pool == nil || options.RuntimeCredentials == nil || options.PlannerTelemetryAdapters == nil {
 		return nil, errors.New("RuntimeConfig publisher dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -38,8 +50,9 @@ func NewPublisher(options PublisherOptions) (*Publisher, error) {
 	}
 	return &Publisher{
 		pool: options.Pool, resolver: options.GatewayResolver,
-		credentials: options.RuntimeCredentials,
-		now:         options.Now,
+		credentials:              options.RuntimeCredentials,
+		plannerTelemetryAdapters: options.PlannerTelemetryAdapters,
+		now:                      options.Now,
 	}, nil
 }
 
@@ -81,6 +94,11 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 		version, resolveErr := prepared.Resolve(ctx, p.resolver)
 		if resolveErr != nil {
 			return resolveErr
+		}
+		if validationErr := validatePlannerTelemetryAdapter(
+			version.Spec, p.plannerTelemetryAdapters,
+		); validationErr != nil {
+			return validationErr
 		}
 		if validationErr := validateSpecRuntimeCredentials(ctx, version.Spec, p.credentials); validationErr != nil {
 			return validationErr
@@ -135,6 +153,20 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 		return PublishResult{}, err
 	}
 	return result, nil
+}
+
+func validatePlannerTelemetryAdapter(
+	spec Spec,
+	catalog PlannerTelemetryAdapterCatalog,
+) error {
+	patch := spec.Planner.Telemetry
+	if !patch.Present || patch.Clear {
+		return nil
+	}
+	if catalog == nil || !catalog.SupportsPlannerTelemetryAdapter(patch.Value.Adapter) {
+		return invalid("spec.planner.telemetry.adapter is unavailable on the Server")
+	}
+	return nil
 }
 
 type publicationReader interface {

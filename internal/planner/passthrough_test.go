@@ -1,14 +1,19 @@
 package planner
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
@@ -35,6 +40,8 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	invocation := testInvocation()
+	telemetryAdapter, telemetryPayload := passthroughTestTelemetry(t, invocation)
+	invocation.Instrumentation = telemetryAdapter.Instrumentation()
 
 	first, err := registry.Create(PassthroughRef, invocation)
 	if err != nil {
@@ -78,6 +85,16 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
 		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
 	}
+	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
+		t.Fatalf("Passthrough telemetry export = %+v", export)
+	}
+	payload := <-telemetryPayload
+	if !bytes.Contains(payload, []byte(telemetry.PlannerSpanSession)) ||
+		!bytes.Contains(payload, []byte(telemetry.PlannerSpanWorker)) ||
+		bytes.Contains(payload, []byte(invocation.Stage.Objective)) ||
+		bytes.Contains(payload, []byte(invocation.Stage.Instructions.Text)) {
+		t.Fatalf("Passthrough OTLP payload is incomplete or unsafe: %q", payload)
+	}
 
 	recovered, err := registry.Create(PassthroughRef, invocation)
 	if err != nil {
@@ -90,6 +107,36 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if worker.calls != 1 || sessions.beginCalls != 2 || sessions.completeCalls != 1 {
 		t.Fatalf("recovery invoked work twice: worker=%d sessions=%+v", worker.calls, sessions)
 	}
+}
+
+func passthroughTestTelemetry(
+	t *testing.T, invocation Invocation,
+) (telemetry.PlannerTelemetry, <-chan []byte) {
+	t.Helper()
+	payload := make(chan []byte, 1)
+	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+		payload <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(collector.Close)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
+		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
+		FlushTimeout: time.Second,
+		Resource: telemetry.PlannerResource{
+			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
+			PlannerRef: PassthroughRef,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(adapter.Close)
+	return adapter, payload
 }
 
 func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {

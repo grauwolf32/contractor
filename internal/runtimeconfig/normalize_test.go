@@ -86,6 +86,31 @@ func TestExplicitNullIsPatchAndOmissionIsNot(t *testing.T) {
 	}
 }
 
+func TestPlannerTelemetryAdapterPublicationUsesServerCatalog(t *testing.T) {
+	t.Parallel()
+	spec := Spec{Planner: PlannerPatch{Telemetry: AtomicPatch[TelemetryConfig]{
+		Present: true,
+		Value: TelemetryConfig{
+			Adapter: "otlp-http@1", Endpoint: "https://otel.example/v1/traces",
+			FlushTimeoutSeconds: 3,
+		},
+	}}}
+	accepting := PlannerTelemetryAdapterCatalogFunc(func(ref string) bool {
+		return ref == "otlp-http@1"
+	})
+	if err := validatePlannerTelemetryAdapter(spec, accepting); err != nil {
+		t.Fatalf("registered Planner adapter rejected: %v", err)
+	}
+	rejecting := PlannerTelemetryAdapterCatalogFunc(func(string) bool { return false })
+	if err := validatePlannerTelemetryAdapter(spec, rejecting); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unregistered Planner adapter error = %v", err)
+	}
+	spec.Planner.Telemetry.Clear = true
+	if err := validatePlannerTelemetryAdapter(spec, rejecting); err != nil {
+		t.Fatalf("clear operation consulted current adapter registry: %v", err)
+	}
+}
+
 func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
 	t.Parallel()
 	base := func(spec string) []byte {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const (
@@ -86,24 +87,41 @@ func (p *passthroughPlanner) Run(
 		p.finishReport(reportStarted, identity, invoked, invokeDurationMS, invokeFailure, runErr)
 	}()
 
+	instrumentation := InvocationInstrumentation(p.invocation)
+	sessionSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanSession,
+		telemetry.PlannerSpanAttributes{Operation: "session.begin"},
+	)
 	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
 	if err != nil {
+		sessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
 		return contracts.StageContentResult{}, sessionError("start", err)
 	}
 	identity = started.Identity
 	if started.Completion != nil {
+		sessionSpan.End("recovered", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
 	if !started.Invoke {
+		sessionSpan.End("rejected", telemetry.PlannerSpanAttributes{
+			SessionID: identity.SessionID, ErrorCode: "planner_session_invalid",
+		})
 		return contracts.StageContentResult{}, NewError(
 			"planner_session_invalid", "Planner session did not grant invocation ownership", false, nil,
 		)
 	}
+	sessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
+	recordSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanSession,
+		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
+	)
 	if err := p.sessions.RecordRequest(ctx, started.Identity, facts); err != nil {
+		recordSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
 		return contracts.StageContentResult{}, sessionError("record request", err)
 	}
+	recordSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	deadline := p.invocation.Deadline
 	if !deadline.After(time.Now()) {
 		return contracts.StageContentResult{}, p.fail(
@@ -120,6 +138,10 @@ func (p *passthroughPlanner) Run(
 	defer cancel()
 	invoked = true
 	invokeStarted := time.Now()
+	workerSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanWorker,
+		telemetry.PlannerSpanAttributes{Operation: "a2a.invoke", WorkerName: p.binding},
+	)
 	result, err := p.invoker.Invoke(
 		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
 	)
@@ -127,6 +149,7 @@ func (p *passthroughPlanner) Run(
 	if err != nil {
 		failure := FailureFrom(err)
 		invokeFailure = &failure
+		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		return contracts.StageContentResult{}, p.fail(
 			ctx, started.Identity, NewErrorFromFailure(FailureFrom(err), err),
 		)
@@ -134,8 +157,11 @@ func (p *passthroughPlanner) Run(
 	if err := validateCandidate(
 		invokeContext, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
+		failure := FailureFrom(err)
+		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, err)
 	}
+	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	completion := Completion{Result: pointerToResult(cloneStageResult(result))}
 	if err := p.recordCompletion(ctx, started.Identity, completion); err != nil {
 		return contracts.StageContentResult{}, sessionError("record completion", err)

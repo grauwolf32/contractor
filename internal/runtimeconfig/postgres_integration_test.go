@@ -61,8 +61,9 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	now := time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: resolver,
-		RuntimeCredentials: allowRuntimeCredentialCatalog{},
-		Now:                func() time.Time { return now },
+		RuntimeCredentials:       allowRuntimeCredentialCatalog{},
+		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		Now:                      func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -115,8 +116,9 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	})
 	concurrentPublisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: concurrentResolver,
-		RuntimeCredentials: allowRuntimeCredentialCatalog{},
-		Now:                func() time.Time { return now.Add(30 * time.Second) },
+		RuntimeCredentials:       allowRuntimeCredentialCatalog{},
+		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		Now:                      func() time.Time { return now.Add(30 * time.Second) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -213,6 +215,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, RuntimeCredentials: allowRuntimeCredentialCatalog{}, Now: func() time.Time { return now },
+		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

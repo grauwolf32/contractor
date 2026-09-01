@@ -9,6 +9,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/tool"
 	"google.golang.org/adk/tool/functiontool"
@@ -152,6 +153,10 @@ func (p *streamlinePlanner) addSubtask(
 	args addSubtaskArgs,
 ) plannerPlanOutput {
 	started := time.Now()
+	span := planner.InvocationInstrumentation(p.invocation).StartSpan(
+		telemetry.PlannerSpanSubtask,
+		telemetry.PlannerSpanAttributes{Operation: "subtask.add", ToolName: addSubtaskToolName},
+	)
 	safeArguments := map[string]any{
 		"objectiveBytes": len(args.Objective), "instructionsBytes": len(args.Instructions),
 	}
@@ -159,23 +164,29 @@ func (p *streamlinePlanner) addSubtask(
 	plan, planErr := p.plan.AddSubtask(args.Objective, args.Instructions)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
+		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return plannerPlanOutput{Error: toolFailureFrom(failure)}
 	}
 	if failure := p.persistPlanTransition(
 		ctx, state, identity, before, plan, planner.PlannerEventPlanChanged,
 	); failure != nil {
+		span.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
 		return plannerPlanOutput{Error: toolFailureFrom(*failure)}
 	}
 	if before.CurrentSubtaskID != plan.CurrentSubtaskID {
 		if failure := p.persistCurrentChanged(ctx, state, identity, plan); failure != nil {
+			span.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 			state.recordTool(addSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
 			return plannerPlanOutput{Error: toolFailureFrom(*failure)}
 		}
 	}
 	encoded, _ := json.Marshal(plan)
 	state.recordTool(addSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
+	span.End("succeeded", telemetry.PlannerSpanAttributes{
+		SubtaskID: plan.CurrentSubtaskID, PlanRevision: plan.Revision,
+	})
 	return plannerPlanOutput{OK: true, Plan: &plan}
 }
 
@@ -184,8 +195,16 @@ func (p *streamlinePlanner) listSubtasks(
 ) plannerPlanOutput {
 	started := time.Now()
 	plan := p.plan.Snapshot()
+	span := planner.InvocationInstrumentation(p.invocation).StartSpan(
+		telemetry.PlannerSpanSubtask,
+		telemetry.PlannerSpanAttributes{
+			Operation: "subtask.list", ToolName: listSubtasksToolName,
+			SubtaskID: plan.CurrentSubtaskID, PlanRevision: plan.Revision,
+		},
+	)
 	encoded, _ := json.Marshal(plan)
 	state.recordTool(listSubtasksToolName, map[string]any{}, true, time.Since(started), len(encoded), nil)
+	span.End("succeeded", telemetry.PlannerSpanAttributes{})
 	return plannerPlanOutput{OK: true, Plan: &plan}
 }
 
@@ -250,11 +269,19 @@ func (p *streamlinePlanner) callWorker(
 	}
 	workerContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
+	workerSpan := planner.InvocationInstrumentation(p.invocation).StartSpan(
+		telemetry.PlannerSpanWorker,
+		telemetry.PlannerSpanAttributes{
+			Operation: "a2a.invoke", ToolName: executeCurrentSubtaskToolName,
+			WorkerName: binding.logicalName, SubtaskID: safeSubtaskID(subtaskID),
+		},
+	)
 	result, err := p.invoker.Invoke(
 		workerContext, binding.logicalName, planner.CloneWorkerHandle(binding.handle), request,
 	)
 	if err != nil {
 		failure := planner.FailureFrom(err)
+		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
 			failure = *persisted
 		}
@@ -263,12 +290,14 @@ func (p *streamlinePlanner) callWorker(
 	}
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
+		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
 			failure = *persisted
 		}
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
+	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	beforeCompletion := p.plan.Snapshot()
 	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome)
 	if planErr != nil {
@@ -396,6 +425,10 @@ func (p *streamlinePlanner) finish(
 	args finishArgs,
 ) completionToolOutput {
 	started := time.Now()
+	span := planner.InvocationInstrumentation(p.invocation).StartSpan(
+		telemetry.PlannerSpanFinish,
+		telemetry.PlannerSpanAttributes{Operation: "finish", ToolName: finishToolName},
+	)
 	safeOutcome := "invalid"
 	if args.Outcome == contracts.StageSucceeded || args.Outcome == contracts.StageFailed {
 		safeOutcome = string(args.Outcome)
@@ -411,6 +444,7 @@ func (p *streamlinePlanner) finish(
 			Code: "finish_rejected", Message: "finish candidate does not satisfy the Stage result contract",
 			Retryable: false,
 		}
+		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
@@ -418,6 +452,7 @@ func (p *streamlinePlanner) finish(
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: planErr.Message, Retryable: false,
 		}
+		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
@@ -428,6 +463,7 @@ func (p *streamlinePlanner) finish(
 		PlanRevision: planRevision, Outcome: string(args.Outcome),
 	}); err != nil {
 		failure := p.planPersistenceFailure(state, err)
+		span.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
@@ -435,12 +471,14 @@ func (p *streamlinePlanner) finish(
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: "Planner already has a terminal decision", Retryable: false,
 		}
+		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
 	ctx.Actions().SkipSummarization = true
 	ctx.Actions().Escalate = true
 	state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, true, time.Since(started), 0, nil)
+	span.End("succeeded", telemetry.PlannerSpanAttributes{PlanRevision: planRevision})
 	return completionToolOutput{Accepted: true}
 }
 
@@ -476,13 +514,21 @@ func (p *streamlinePlanner) persistPlanTransition(
 	after planner.PlannerPlan,
 	kind planner.PlannerEventKind,
 ) *planner.Failure {
+	span := planner.InvocationInstrumentation(p.invocation).StartSpan(
+		telemetry.PlannerSpanSubtask,
+		telemetry.PlannerSpanAttributes{
+			Operation: string(kind), SubtaskID: after.CurrentSubtaskID, PlanRevision: after.Revision,
+		},
+	)
 	err := p.sessions.RecordPlan(ctx, identity, planner.PlannerPlanTransition{
 		Kind: kind, ExpectedRevision: before.Revision, Plan: after.Projection(),
 	})
 	if err == nil {
+		span.End("succeeded", telemetry.PlannerSpanAttributes{})
 		return nil
 	}
 	failure := p.planPersistenceFailure(state, err)
+	span.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 	return &failure
 }
 

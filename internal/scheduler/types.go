@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 var (
@@ -184,6 +185,10 @@ type PlannerRegistry interface {
 	Create(string, planner.Invocation) (planner.Planner, error)
 }
 
+type PlannerTelemetryRegistry interface {
+	Create(string, telemetry.PlannerAdapterSettings) (telemetry.PlannerTelemetry, error)
+}
+
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
@@ -205,6 +210,7 @@ type Options struct {
 	RuntimeSettings        contracts.RuntimeSettings
 	Credentials            CredentialResolver
 	RuntimeCredentials     RuntimeCredentialResolver
+	PlannerTelemetry       PlannerTelemetryRegistry
 	TelemetrySecrets       []string
 	MetricsCleanupInterval time.Duration
 	MetricsCleanupBatch    int

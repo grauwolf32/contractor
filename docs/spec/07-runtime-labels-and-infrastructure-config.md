@@ -753,6 +753,26 @@ Worker proxy settings. Server owns a versioned PlannerTelemetryAdapter registry;
 publication rejects a `planner.telemetry.adapter` unknown to that registry.
 This Server capability is deployment code, not a Runtime Agent placement fact.
 
+One selected `otlp-http@1` adapter is invocation-local. It does not install a
+global OpenTelemetry provider, read ambient proxy variables, follow redirects
+or retry. Passthrough, Streamline and Router use a closed instrumentation
+vocabulary for invocation/session, model, Worker dispatch, subtask transition
+and finish spans. Planner session IDs are attached only after durable session
+creation; prompts, model responses, Stage objective/instructions, subtask
+content and tool arguments/results cannot enter that vocabulary. Every span of
+one invocation shares safe Run/Stage/Planner and exact pinned RuntimeConfig
+resource correlation; Agent-label provenance is absent.
+
+After Planner returns, Server makes at most one OTLP request. Its deadline is
+the minimum of the configured flush timeout, remaining Stage deadline and the
+finalization bound. Adapter creation, credential decryption, encoding,
+delivery, queue overflow and flush failure are supplementary: they are logged
+with a closed safe code and, when a Planner report identity exists, recorded as
+the `telemetry.export` tool outcome in the durable ExecutionReport. They never
+change the candidate, retry/escalation decision, StageTermination or allocation
+release. No selected Planner telemetry means no exporter/client/request is
+created.
+
 ## Operations and UI
 
 Operations adds the following authenticated, audited surfaces:

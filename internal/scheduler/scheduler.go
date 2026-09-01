@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const (
@@ -722,6 +723,17 @@ func (s *Scheduler) prepareAndPlan(
 			Code: "planner_execution_config_unavailable", Message: "Planner execution configuration is unavailable", Retryable: false,
 		})
 	}
+	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
+	plannerTelemetry := s.newPlannerTelemetry(
+		ctx, run, execution, reservations, plannerRef, modelAccess,
+	)
+	if plannerTelemetry != nil {
+		defer plannerTelemetry.Close()
+	}
+	instrumentation := telemetry.NoopPlannerInstrumentation()
+	if plannerTelemetry != nil {
+		instrumentation = plannerTelemetry.Instrumentation()
+	}
 	invocation := planner.Invocation{
 		StageExecutionID: execution.StageExecutionID,
 		RunID:            run.RunID,
@@ -729,16 +741,33 @@ func (s *Scheduler) prepareAndPlan(
 		Context:          plannerContext(execution.StageContext),
 		Workers:          handles,
 		ModelAccess:      modelAccess,
+		Instrumentation:  instrumentation,
 		Deadline:         stageDeadline,
 	}
-	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
+	invocationSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanInvocation,
+		telemetry.PlannerSpanAttributes{Operation: "planner.run"},
+	)
 	instance, err := s.planners.Create(plannerRef, invocation)
 	if err != nil {
+		invocationSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_initialization_failed"})
+		s.flushPlannerTelemetry(ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID)
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
 			Code: "planner_initialization_failed", Message: "Planner could not be initialized", Retryable: false,
 		})
 	}
 	candidate, err := instance.Run(ctx)
+	invocationOutcome := "succeeded"
+	invocationAttributes := telemetry.PlannerSpanAttributes{}
+	if err != nil {
+		failure := planner.FailureFrom(err)
+		invocationOutcome = "failed"
+		invocationAttributes.ErrorCode = failure.Code
+	}
+	invocationSpan.End(invocationOutcome, invocationAttributes)
+	exportResult := s.flushPlannerTelemetry(
+		ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID,
+	)
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return cause
 	}
@@ -747,7 +776,7 @@ func (s *Scheduler) prepareAndPlan(
 		return errors.Join(err, loadErr)
 	}
 	execution = currentExecution
-	s.persistPlannerReport(execution, instance)
+	s.persistPlannerReport(execution, instance, exportResult)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
 	}
@@ -979,6 +1008,199 @@ func (s *Scheduler) materializeRuntimeSettings(
 		return contracts.RuntimeSettingsV2{}, fmt.Errorf("materialized Runtime settings are invalid")
 	}
 	return result, nil
+}
+
+func (s *Scheduler) newPlannerTelemetry(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	execution runstore.StageExecution,
+	reservations []controlplane.Reservation,
+	plannerRef string,
+	modelAccess *planner.ModelAccess,
+) telemetry.PlannerTelemetry {
+	if s.options.PlannerTelemetry == nil || len(reservations) == 0 {
+		return nil
+	}
+	selected := reservations[0].ResolvedRuntimeConfig
+	for _, reservation := range reservations {
+		if reservation.ResolvedRuntimeConfig != nil &&
+			reservation.ResolvedRuntimeConfig.PlannerTelemetry != nil &&
+			!plannerTelemetryOriginAllowed(reservation.ResolvedRuntimeConfig.Origins.PlannerTelemetry) {
+			s.options.Logger.Warn(
+				"Planner telemetry rejected a non-Run origin",
+				"stage_execution_id", execution.StageExecutionID,
+			)
+			return nil
+		}
+	}
+	for _, reservation := range reservations[1:] {
+		if !samePlannerTelemetrySelection(selected, reservation.ResolvedRuntimeConfig) {
+			s.options.Logger.Warn(
+				"Planner telemetry selection differs across allocations",
+				"stage_execution_id", execution.StageExecutionID,
+			)
+			return nil
+		}
+	}
+	if selected == nil || selected.PlannerTelemetry == nil {
+		return nil
+	}
+	configuration := *selected.PlannerTelemetry
+	headers := make(map[string]contracts.SecretString)
+	if configuration.Credential != "" {
+		if selected.PlannerRuntimeCredential == nil ||
+			selected.PlannerRuntimeCredential.CredentialID != configuration.Credential ||
+			selected.PlannerRuntimeCredential.Kind != contracts.RuntimeCredentialOTLPHeaders {
+			s.options.Logger.Warn(
+				"Planner telemetry credential provenance is unavailable",
+				"stage_execution_id", execution.StageExecutionID,
+			)
+			return nil
+		}
+		err := s.useRuntimeCredential(
+			ctx, configuration.Credential,
+			[]contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},
+			func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+				var material struct {
+					Headers map[string]string `json:"headers"`
+				}
+				if kind != contracts.RuntimeCredentialOTLPHeaders || decodeRuntimeCredential(plaintext, &material) != nil {
+					return errors.New("invalid OTLP credential material")
+				}
+				for name, value := range material.Headers {
+					headers[name] = contracts.NewSecretString(value)
+				}
+				return nil
+			},
+		)
+		if err != nil {
+			for name := range headers {
+				delete(headers, name)
+			}
+			s.options.Logger.Warn(
+				"Planner telemetry credential is unavailable",
+				"stage_execution_id", execution.StageExecutionID,
+			)
+			return nil
+		}
+	}
+	resource := telemetry.PlannerResource{
+		RunID: run.RunID, StageExecutionID: execution.StageExecutionID, PlannerRef: plannerRef,
+		RuntimeCredentialID:  configuration.Credential,
+		RuntimeConfigRefs:    plannerRuntimeConfigRefs(run.RuntimeConfig),
+		RuntimeConfigDigests: plannerRuntimeConfigDigests(run.RuntimeConfig),
+		RunLabels:            run.RuntimeConfig.ExplicitLabels(),
+	}
+	if modelAccess != nil {
+		resource.ModelAlias = modelAccess.ModelPolicy.Model
+		resource.ModelPolicyRef = modelAccess.ModelPolicy.Ref.PolicyID + "@" + modelAccess.ModelPolicy.Ref.Version
+		resource.LLMGatewayRef = modelAccess.LLMGateway.Ref.GatewayID + "@" + modelAccess.LLMGateway.Ref.Version
+		if modelAccess.Credential != nil {
+			resource.LLMCredentialID = modelAccess.Credential.CredentialID
+		}
+	}
+	created, err := s.options.PlannerTelemetry.Create(configuration.Adapter, telemetry.PlannerAdapterSettings{
+		Endpoint: configuration.Endpoint, Headers: headers,
+		FlushTimeout: time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
+		Resource:     resource,
+	})
+	for name := range headers {
+		delete(headers, name)
+	}
+	if err != nil {
+		s.options.Logger.Warn(
+			"Planner telemetry adapter could not be created",
+			"stage_execution_id", execution.StageExecutionID,
+		)
+		return nil
+	}
+	return created
+}
+
+func plannerTelemetryOriginAllowed(origin *runtimeconfig.RuntimeFieldOrigin) bool {
+	return origin != nil && (origin.Layer == runtimeconfig.LayerDefault || origin.Layer == runtimeconfig.LayerRunLabels)
+}
+
+func samePlannerTelemetrySelection(
+	left, right *runtimeconfig.ResolvedRuntimeConfig,
+) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	if (left.PlannerTelemetry == nil) != (right.PlannerTelemetry == nil) ||
+		(left.PlannerRuntimeCredential == nil) != (right.PlannerRuntimeCredential == nil) {
+		return false
+	}
+	if left.PlannerTelemetry != nil && *left.PlannerTelemetry != *right.PlannerTelemetry {
+		return false
+	}
+	return left.PlannerRuntimeCredential == nil ||
+		*left.PlannerRuntimeCredential == *right.PlannerRuntimeCredential
+}
+
+func plannerRuntimeConfigRefs(snapshot runtimeconfig.RunSnapshot) []string {
+	result := make([]string, 0, len(snapshot.Labels)+1)
+	result = append(result, snapshot.Default.Config.Name+"@"+snapshot.Default.Config.Version)
+	for _, pinned := range snapshot.Labels {
+		result = append(result, pinned.Config.Name+"@"+pinned.Config.Version)
+	}
+	return result
+}
+
+func plannerRuntimeConfigDigests(snapshot runtimeconfig.RunSnapshot) []string {
+	result := make([]string, 0, len(snapshot.Labels)+1)
+	result = append(result, snapshot.Default.Config.Digest)
+	for _, pinned := range snapshot.Labels {
+		result = append(result, pinned.Config.Digest)
+	}
+	return result
+}
+
+func (s *Scheduler) flushPlannerTelemetry(
+	ctx context.Context,
+	instance telemetry.PlannerTelemetry,
+	stageDeadline time.Time,
+	stageExecutionID string,
+) *telemetry.PlannerExportResult {
+	if instance == nil {
+		return nil
+	}
+	bound := instance.FlushTimeout()
+	if s.options.FinalizationTimeout < bound {
+		bound = s.options.FinalizationTimeout
+	}
+	if remaining := stageDeadline.Sub(s.options.Clock.Now()); remaining < bound {
+		bound = remaining
+	}
+	result := telemetry.PlannerExportResult{Attempted: true, ErrorCode: "flush_timeout"}
+	if bound > 0 {
+		flushContext, cancel := context.WithTimeout(ctx, bound)
+		result = normalizePlannerExportResult(instance.Flush(flushContext))
+		cancel()
+	}
+	if result.Attempted && !result.Succeeded {
+		s.options.Logger.Warn(
+			"Planner telemetry export failed",
+			"stage_execution_id", stageExecutionID,
+			"error_code", result.ErrorCode,
+		)
+	}
+	return &result
+}
+
+func normalizePlannerExportResult(result telemetry.PlannerExportResult) telemetry.PlannerExportResult {
+	if !result.Attempted {
+		return telemetry.PlannerExportResult{}
+	}
+	if result.Succeeded {
+		return telemetry.PlannerExportResult{Attempted: true, Succeeded: true}
+	}
+	switch result.ErrorCode {
+	case "delivery_failed", "flush_timeout", "queue_overflow", "request_failed":
+		return result
+	default:
+		return telemetry.PlannerExportResult{Attempted: true, ErrorCode: "request_failed"}
+	}
 }
 
 func (s *Scheduler) useRuntimeCredential(
@@ -1792,7 +2014,7 @@ func (s *Scheduler) persistReports(
 	// A crash can resume directly in finalizing/aborting without recreating the
 	// Planner instance. Ensure its durable session still has a report record;
 	// an already persisted complete report wins over this placeholder.
-	s.persistPlannerReport(execution, nil)
+	s.persistPlannerReport(execution, nil, nil)
 	listContext, cancelList := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 	allocations, err := s.store.ListStageAllocations(listContext, execution.StageExecutionID)
 	cancelList()
@@ -1861,6 +2083,7 @@ func (s *Scheduler) persistReports(
 func (s *Scheduler) persistPlannerReport(
 	execution runstore.StageExecution,
 	instance planner.Planner,
+	exportResult *telemetry.PlannerExportResult,
 ) {
 	if execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil {
 		return
@@ -1877,6 +2100,7 @@ func (s *Scheduler) persistPlannerReport(
 			report = provided
 		}
 	}
+	applyPlannerTelemetryResult(&report, exportResult)
 	ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 	startedAt := execution.CreatedAt.UTC().Round(0)
 	if execution.PlannerStartedAt != nil {
@@ -1905,6 +2129,41 @@ func (s *Scheduler) persistPlannerReport(
 		return
 	}
 	s.rebuildStageMetrics(execution.StageExecutionID)
+}
+
+func applyPlannerTelemetryResult(
+	report *contracts.ExecutionReport,
+	result *telemetry.PlannerExportResult,
+) {
+	if report == nil || result == nil || !result.Attempted {
+		return
+	}
+	if report.Metrics.Tools == nil {
+		report.Metrics.Tools = make(map[string]contracts.ToolMetrics)
+	}
+	calls, succeeded, failed := int64(1), int64(0), int64(1)
+	outcome := contracts.ToolCallFailed
+	var executionError *contracts.ExecutionError
+	if result.Succeeded {
+		succeeded, failed = 1, 0
+		outcome = contracts.ToolCallSucceeded
+	} else {
+		retryable := false
+		executionError = &contracts.ExecutionError{
+			Code: result.ErrorCode, Message: "Planner telemetry export failed", Retryable: &retryable,
+		}
+	}
+	report.Metrics.Tools["telemetry.export"] = contracts.ToolMetrics{
+		Calls: &calls, Succeeded: &succeeded, Failed: &failed,
+	}
+	if len(report.ToolCalls) >= 1000 {
+		report.Truncated = true
+		return
+	}
+	report.ToolCalls = append(report.ToolCalls, contracts.ToolCallRecord{
+		CallID: "planner-telemetry-export", Tool: "telemetry.export",
+		Arguments: map[string]any{}, Outcome: outcome, Error: executionError,
+	})
 }
 
 func (s *Scheduler) rebuildStageMetrics(stageExecutionID string) {
