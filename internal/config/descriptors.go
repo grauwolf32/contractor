@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type ToolInfrastructureChannel string
@@ -10,6 +12,7 @@ type ToolInfrastructureChannel string
 const (
 	RuntimeHTTPClient         ToolInfrastructureChannel = "runtime-http-client"
 	RuntimeSubprocessLauncher ToolInfrastructureChannel = "runtime-subprocess-launcher"
+	CaidoGraphQLClient        ToolInfrastructureChannel = "caido-graphql-client"
 )
 
 // ToolsetDescriptor is the Server-visible part of one runtime ToolsetFactory.
@@ -43,6 +46,25 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"caido@1": {
+				Tools: []string{
+					"caido_automate_results", "caido_automate_run", "caido_history",
+					"caido_replay", "caido_request_detail", "caido_scope", "caido_sitemap",
+					"caido_workflow_findings", "caido_workflow_list", "caido_workflow_run",
+				},
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"caido_automate_results":  {CaidoGraphQLClient},
+					"caido_automate_run":      {CaidoGraphQLClient},
+					"caido_history":           {CaidoGraphQLClient},
+					"caido_replay":            {CaidoGraphQLClient},
+					"caido_request_detail":    {CaidoGraphQLClient},
+					"caido_scope":             {CaidoGraphQLClient},
+					"caido_sitemap":           {CaidoGraphQLClient},
+					"caido_workflow_findings": {CaidoGraphQLClient},
+					"caido_workflow_list":     {CaidoGraphQLClient},
+					"caido_workflow_run":      {CaidoGraphQLClient},
+				},
+			},
 			"edit-files@1": {
 				Tools: []string{
 					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
@@ -151,7 +173,8 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 			selected := append([]ToolInfrastructureChannel(nil), rawChannels...)
 			sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
 			for index, channel := range selected {
-				if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher {
+				if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher &&
+					channel != CaidoGraphQLClient {
 					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
 				}
 				if index > 0 && channel == selected[index-1] {
@@ -163,5 +186,40 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 		result.Toolsets[raw] = ToolsetDescriptor{Tools: tools, InfrastructureChannels: channels}
 	}
 
+	return result, nil
+}
+
+// RequiredRuntimeAdaptersForTemplate maps mandatory typed infrastructure
+// channels to the adapter capabilities that must be resolved for placement.
+// Direct HTTP and subprocess channels remain optional routes; Caido has no
+// ambient/direct fallback and therefore contributes a hard requirement.
+func RequiredRuntimeAdaptersForTemplate(
+	template contracts.ResolvedAgentTemplate,
+) ([]contracts.RuntimeAdapterRef, error) {
+	descriptors := MVPDescriptors()
+	selected := make(map[contracts.RuntimeAdapterRef]struct{})
+	for _, toolset := range template.Toolsets {
+		ref := toolset.Ref.ToolsetID + "@" + toolset.Ref.Version
+		descriptor, ok := descriptors.Toolsets[ref]
+		if !ok {
+			return nil, fmt.Errorf("unknown Toolset descriptor %q", ref)
+		}
+		for _, tool := range toolset.Tools {
+			channels, ok := descriptor.InfrastructureChannels[tool]
+			if !ok {
+				continue
+			}
+			for _, channel := range channels {
+				if channel == CaidoGraphQLClient {
+					selected[contracts.RuntimeAdapterCaidoGraphQL] = struct{}{}
+				}
+			}
+		}
+	}
+	result := make([]contracts.RuntimeAdapterRef, 0, len(selected))
+	for ref := range selected {
+		result = append(result, ref)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
 	return result, nil
 }

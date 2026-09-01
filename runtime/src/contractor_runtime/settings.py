@@ -268,7 +268,7 @@ def _initial_labels(
     return tuple(sorted(candidates))
 
 
-_KNOWN_RUNTIME_ADAPTERS = frozenset({"http-proxy@1", "otlp-http@1"})
+_KNOWN_RUNTIME_ADAPTERS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
 
 
 def _runtime_adapters(

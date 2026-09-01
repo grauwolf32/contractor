@@ -472,7 +472,7 @@ func (s CaidoSettingsV2) Validate() error {
 	}
 	if s.BearerToken != nil {
 		value := s.BearerToken.Reveal()
-		if len(value) < 1 || len(value) > 8192 {
+		if len(value) < 1 || len([]byte(value)) > 8192 {
 			return invalidf("Caido bearerToken is outside its size bound")
 		}
 	}

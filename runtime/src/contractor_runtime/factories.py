@@ -12,6 +12,7 @@ from contractor_runtime.adapters import (
     AdapterHandles,
     RuntimeAdapterFactory,
 )
+from contractor_runtime.adapters.caido_graphql import CaidoGraphQLAdapterFactory
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
@@ -26,6 +27,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.settings import WorkspaceSettings
+from contractor_runtime.toolsets.caido import CaidoToolsetFactory
 from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
@@ -128,8 +130,12 @@ class SandboxFactory(Protocol):
     async def cleanup(self, workspace: AllocationWorkspace) -> None: ...
 
 
-InfrastructureChannel = Literal["runtime-http-client", "runtime-subprocess-launcher"]
-INFRASTRUCTURE_CHANNELS = frozenset({"runtime-http-client", "runtime-subprocess-launcher"})
+InfrastructureChannel = Literal[
+    "caido-graphql-client", "runtime-http-client", "runtime-subprocess-launcher"
+]
+INFRASTRUCTURE_CHANNELS = frozenset(
+    {"caido-graphql-client", "runtime-http-client", "runtime-subprocess-launcher"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +167,7 @@ def built_in_factories(
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
+    caido_toolset = CaidoToolsetFactory()
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
@@ -172,7 +179,8 @@ def built_in_factories(
     sandbox = LocalWorkdirFactory(work_root)
     telemetry = OTLPHTTPAdapterFactory()
     proxy = HTTPProxyAdapterFactory()
-    runtime_adapters = {proxy.ref: proxy, telemetry.ref: telemetry}
+    caido = CaidoGraphQLAdapterFactory()
+    runtime_adapters = {caido.ref: caido, proxy.ref: proxy, telemetry.ref: telemetry}
     if enabled_runtime_adapters is not None:
         enabled = frozenset(enabled_runtime_adapters)
         unknown = enabled - runtime_adapters.keys()
@@ -185,6 +193,7 @@ def built_in_factories(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
             artifact_toolset.ref: artifact_toolset,
+            caido_toolset.ref: caido_toolset,
             edit_files_toolset.ref: edit_files_toolset,
             filesystem_toolset.ref: filesystem_toolset,
             likec4_toolset.ref: likec4_toolset,

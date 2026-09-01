@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -176,6 +177,36 @@ func TestMemoryToolsetDescriptor(t *testing.T) {
 	}
 	if len(descriptor.InfrastructureChannels) != 0 {
 		t.Fatalf("memory-tools@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
+	}
+}
+
+func TestCaidoToolsetDescriptorRequiresTypedClientForEveryTool(t *testing.T) {
+	t.Parallel()
+	descriptor, ok := MVPDescriptors().Toolsets["caido@1"]
+	if !ok {
+		t.Fatal("caido@1 descriptor is missing")
+	}
+	want := []string{
+		"caido_automate_results", "caido_automate_run", "caido_history", "caido_replay",
+		"caido_request_detail", "caido_scope", "caido_sitemap", "caido_workflow_findings",
+		"caido_workflow_list", "caido_workflow_run",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("caido@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	for _, tool := range want {
+		channels := descriptor.InfrastructureChannels[tool]
+		if len(channels) != 1 || channels[0] != CaidoGraphQLClient {
+			t.Fatalf("%s channels = %v, want CaidoGraphQLClient", tool, channels)
+		}
+	}
+	selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
+		Ref:   contracts.ToolsetRef{ToolsetID: "caido", Version: "1"},
+		Tools: []string{"caido_history", "caido_scope"},
+	}}}
+	adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
+	if err != nil || !reflect.DeepEqual(adapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterCaidoGraphQL}) {
+		t.Fatalf("Caido tool adapter requirements = (%v, %v)", adapters, err)
 	}
 }
 

@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
     AllocationSpecV2,
+    CaidoSettingsV2,
     HTTPProxySettingsV2,
     RuntimeAdapterMetricsV2,
     RuntimeAdapterRef,
@@ -39,11 +40,18 @@ class AdapterHandles:
     model_http: Any | None = field(default=None, repr=False)
     tool_http: Any | None = field(default=None, repr=False)
     tool_subprocess: Any | None = field(default=None, repr=False)
+    caido_graphql: Any | None = field(default=None, repr=False)
     instrumentation: RuntimeInstrumentation | None = field(default=None, repr=False)
 
     def merge(self, other: AdapterHandles) -> AdapterHandles:
         values: dict[str, Any | None] = {}
-        for name in ("model_http", "tool_http", "tool_subprocess", "instrumentation"):
+        for name in (
+            "model_http",
+            "tool_http",
+            "tool_subprocess",
+            "caido_graphql",
+            "instrumentation",
+        ):
             current = getattr(self, name)
             incoming = getattr(other, name)
             if current is not None and incoming is not None:
@@ -57,6 +65,7 @@ class AdapterHandles:
             tool_subprocess=(
                 self.tool_subprocess if "runtime-subprocess-launcher" in channels else None
             ),
+            caido_graphql=(self.caido_graphql if "caido-graphql-client" in channels else None),
         )
 
     def for_worker(self) -> AdapterHandles:
@@ -69,7 +78,13 @@ class AdapterHandles:
     def enabled_channels(self) -> tuple[str, ...]:
         return tuple(
             name
-            for name in ("model_http", "tool_http", "tool_subprocess", "instrumentation")
+            for name in (
+                "model_http",
+                "tool_http",
+                "tool_subprocess",
+                "caido_graphql",
+                "instrumentation",
+            )
             if getattr(self, name) is not None
         )
 
@@ -183,7 +198,7 @@ class AllocationAdapter(Protocol):
     async def close(self) -> None: ...
 
 
-AdapterSettings = TelemetrySettingsV2 | HTTPProxySettingsV2
+AdapterSettings = TelemetrySettingsV2 | HTTPProxySettingsV2 | CaidoSettingsV2
 
 
 class RuntimeAdapterFactory(Protocol):
@@ -409,6 +424,8 @@ def _selected_settings(settings: RuntimeSettingsV2) -> dict[str, AdapterSettings
         selected[settings.telemetry.adapter] = settings.telemetry
     if settings.http_proxy is not None:
         selected[settings.http_proxy.adapter] = settings.http_proxy
+    if settings.caido is not None:
+        selected[settings.caido.adapter] = settings.caido
     return selected
 
 
@@ -442,9 +459,29 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
         if (
             any(
                 value is not None
-                for value in (handles.model_http, handles.tool_http, handles.tool_subprocess)
+                for value in (
+                    handles.model_http,
+                    handles.tool_http,
+                    handles.tool_subprocess,
+                    handles.caido_graphql,
+                )
             )
             or handles.instrumentation is None
+        ):
+            raise AdapterFactoryError(retryable=False)
+        return
+    if isinstance(settings, CaidoSettingsV2):
+        if (
+            any(
+                value is not None
+                for value in (
+                    handles.model_http,
+                    handles.tool_http,
+                    handles.tool_subprocess,
+                    handles.instrumentation,
+                )
+            )
+            or handles.caido_graphql is None
         ):
             raise AdapterFactoryError(retryable=False)
         return
@@ -461,7 +498,11 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
         for name in ("model_http", "tool_http", "tool_subprocess")
         if getattr(handles, name) is not None
     }
-    if handles.instrumentation is not None or actual != expected:
+    if (
+        handles.instrumentation is not None
+        or handles.caido_graphql is not None
+        or actual != expected
+    ):
         raise AdapterFactoryError(retryable=False)
 
 

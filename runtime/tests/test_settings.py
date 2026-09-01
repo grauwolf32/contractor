@@ -59,6 +59,14 @@ def test_runtime_adapter_environment_is_sorted_and_unset_means_all(tmp_path: Pat
     assert defaulted.enabled_runtime_adapters is None
 
 
+def test_caido_runtime_adapter_can_be_selected_explicitly(tmp_path: Path) -> None:
+    settings = parse_settings(
+        [*base_arguments(tmp_path), "--runtime-adapter", "caido-graphql@1"],
+        {},
+    )
+    assert settings.enabled_runtime_adapters == ("caido-graphql@1",)
+
+
 @pytest.mark.parametrize(
     "value",
     ["", "unknown@1", "otlp-http@1,otlp-http@1", "otlp-http@1,"],

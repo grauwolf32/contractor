@@ -21,6 +21,7 @@ from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     AllocationSpecV2,
+    CaidoSettingsV2,
     FinalizeAllocationRequest,
     HTTPProxySettingsV2,
     ReleaseAllocationRequest,
@@ -38,6 +39,7 @@ from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactor
 
 TELEMETRY_SECRET = "recognizable-telemetry-header-secret"
 PROXY_SECRET = "recognizable-proxy-password-secret"
+CAIDO_SECRET = "recognizable-caido-bearer-secret"
 
 
 def test_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
@@ -224,6 +226,77 @@ def test_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_caido_handle_is_injected_only_into_selected_toolset_and_erased(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    caido_handle = object()
+    caido = FakeAdapterFactory(
+        "caido-graphql@1",
+        events,
+        handles=AdapterHandles(caido_graphql=caido_handle),
+    )
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"caido-graphql-client"})}
+    )
+    runtime = CapturingRuntimeFactory()
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"caido-graphql@1": caido},
+            toolset=toolset,
+            runtime=runtime,
+        )
+        spec = configured_spec(caido=True)
+        await service.prepare(spec)
+        assert toolset.handles is not None
+        assert toolset.handles.caido_graphql is caido_handle
+        assert runtime.context is not None
+        assert runtime.context.adapter_handles.caido_graphql is None
+        response = await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-caido",
+                deadline=datetime.now(UTC) + timedelta(seconds=1),
+            )
+        )
+        assert response.report.runtime.adapters["caido-graphql@1"].operations == 0
+        assert events[-1] == "close:caido-graphql@1"
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_caido_channel_without_private_configuration_fails_before_resources(
+    tmp_path: Path,
+) -> None:
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"caido-graphql-client"})}
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={},
+            toolset=toolset,
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec())
+        assert failure.value.code == "caido_not_configured"
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
 def test_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
     tmp_path: Path,
 ) -> None:
@@ -354,6 +427,7 @@ def configured_spec(
     *,
     telemetry: bool = False,
     proxy_targets: list[str] | None = None,
+    caido: bool = False,
 ) -> AllocationSpecV2:
     spec = allocation_spec(tools=["read_artifact"])
     telemetry_settings = (
@@ -377,18 +451,33 @@ def configured_spec(
         if proxy_targets
         else None
     )
+    caido_settings = (
+        CaidoSettingsV2(
+            adapter="caido-graphql@1",
+            endpoint="https://caido.example/prefix",
+            bearerToken=CAIDO_SECRET,
+            requestTimeoutSeconds=3,
+        )
+        if caido
+        else None
+    )
     refs = sorted(
         ref
         for ref, selected in (
             ("http-proxy@1", proxy_settings),
             ("otlp-http@1", telemetry_settings),
+            ("caido-graphql@1", caido_settings),
         )
         if selected is not None
     )
     return spec.model_copy(
         update={
             "runtime_settings": spec.runtime_settings.model_copy(
-                update={"telemetry": telemetry_settings, "http_proxy": proxy_settings}
+                update={
+                    "telemetry": telemetry_settings,
+                    "http_proxy": proxy_settings,
+                    "caido": caido_settings,
+                }
             ),
             "resolved_runtime_config_provenance": (
                 spec.resolved_runtime_config_provenance.model_copy(

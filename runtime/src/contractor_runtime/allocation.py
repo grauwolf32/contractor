@@ -579,6 +579,7 @@ class AllocationService:
                 retryable=False,
                 status_code=422,
             )
+        required_infrastructure_channels: set[str] = set()
         for selection in spec.agent_template.toolsets:
             toolset_ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
             if not capabilities.has_toolset(toolset_ref):
@@ -596,6 +597,12 @@ class AllocationService:
                     status_code=422,
                 )
             factory = self._factories.toolsets.get(toolset_ref)
+            if factory is not None:
+                required_infrastructure_channels.update(
+                    channel
+                    for tool in selection.tools
+                    for channel in factory.infrastructure_channels.get(tool, frozenset())
+                )
             if getattr(factory, "requires_workspace", False) and (
                 not isinstance(spec, AllocationSpecV2) or spec.workspace is None
             ):
@@ -619,6 +626,16 @@ class AllocationService:
                 )
 
         if isinstance(spec, AllocationSpecV2):
+            if (
+                "caido-graphql-client" in required_infrastructure_channels
+                and spec.runtime_settings.caido is None
+            ):
+                raise AllocationError(
+                    "caido_not_configured",
+                    "selected Caido tools require resolved Runtime configuration",
+                    retryable=False,
+                    status_code=422,
+                )
             if spec.workspace is not None:
                 provider = self._factories.workspace_provider
                 if (
@@ -1116,6 +1133,13 @@ def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
                 values.append(proxy.bearer_token.get_secret_value())
             if proxy.ca_bundle_pem is not None:
                 values.append(proxy.ca_bundle_pem)
+        if settings.caido is not None:
+            caido = settings.caido
+            values.append(caido.endpoint)
+            if caido.bearer_token is not None:
+                values.append(caido.bearer_token.get_secret_value())
+            if caido.ca_bundle_pem is not None:
+                values.append(caido.ca_bundle_pem)
     return tuple(value for value in values if value)
 
 

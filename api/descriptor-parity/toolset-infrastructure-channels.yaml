@@ -1,5 +1,16 @@
 schemaVersion: "1.0"
 toolsets:
+  caido@1:
+    caido_automate_results: [caido-graphql-client]
+    caido_automate_run: [caido-graphql-client]
+    caido_history: [caido-graphql-client]
+    caido_replay: [caido-graphql-client]
+    caido_request_detail: [caido-graphql-client]
+    caido_scope: [caido-graphql-client]
+    caido_sitemap: [caido-graphql-client]
+    caido_workflow_findings: [caido-graphql-client]
+    caido_workflow_list: [caido-graphql-client]
+    caido_workflow_run: [caido-graphql-client]
   edit-files@1: {}
   filesystem@1: {}
   likec4@1:

@@ -25,10 +25,6 @@ func TestRepositoryLiveSkillCompatibilityBoundary(t *testing.T) {
 		"http_request": true, "http_session_set": true,
 		"get_vulnerability": true, "submit_verdict": true,
 		"run_python": true, "execute_bash": true,
-		"caido_replay": true, "caido_automate_run": true,
-		"caido_history": true, "caido_request_detail": true,
-		"caido_workflow_list": true, "caido_workflow_run": true,
-		"caido_workflow_findings": true,
 	}
 	for ref, descriptor := range descriptors.Toolsets {
 		for _, tool := range descriptor.Tools {

@@ -92,6 +92,10 @@ func (a *PlacementAllocator) ReserveAllContext(
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
+		toolAdapters, err := workflowconfig.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
+		}
 		for _, candidate := range candidates {
 			if !isCompatible(candidate.Registration, binding.AgentTemplate, binding.Workspace) {
 				continue
@@ -107,6 +111,9 @@ func (a *PlacementAllocator) ReserveAllContext(
 				return nil, err
 			}
 			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
+				continue
+			}
+			if !containsRuntimeAdapters(resolved.RequiredRuntimeAdapters, toolAdapters) {
 				continue
 			}
 			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
