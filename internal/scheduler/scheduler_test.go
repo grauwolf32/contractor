@@ -159,6 +159,58 @@ func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	}
 }
 
+func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	originalOnRun := harness.planners.onRun
+	extraAllocationID := "allocation-recorded-recovery"
+	harness.planners.onRun = func() {
+		originalOnRun()
+		executionID := harness.store.stages[0].StageExecutionID
+		grant := controlplane.AllocationGrant{
+			AllocationID: extraAllocationID, RuntimeAgentID: strings.Repeat("2", 64),
+			RuntimeInstanceID: "runtime-recorded", RunID: harness.store.run.RunID,
+			StageExecutionID: executionID, LogicalAgentName: "builder", Namespace: "builder",
+			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
+		}
+		harness.allocator.grants[extraAllocationID] = grant
+		harness.allocator.cached = append(harness.allocator.cached, controlplane.Reservation{Grant: grant})
+		harness.store.allocations = append(harness.store.allocations, runstore.StageAllocation{
+			AllocationID: extraAllocationID, StageExecutionID: executionID,
+			LogicalAgentName: "builder", Namespace: "builder",
+			RuntimeAgentInstanceID: "runtime-recorded",
+		})
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if !harness.allocator.fenced[extraAllocationID] {
+		t.Fatal("durably recorded allocation missing from the live batch was not fenced")
+	}
+	finalizingIndex, finalizing := eventIndex(harness.events.values, "enter_finalizing")
+	secondFenceIndex := -1
+	fences := 0
+	for index, event := range harness.events.values {
+		if event == "fence" {
+			fences++
+			if fences == 2 {
+				secondFenceIndex = index
+			}
+		}
+	}
+	if !finalizing || fences < 2 || secondFenceIndex > finalizingIndex {
+		t.Fatalf("recorded fence order = %v", harness.events.values)
+	}
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("terminal release recovery = (%v, %v)", worked, err)
+	}
+	if _, err := harness.allocator.GetGrant(extraAllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+		t.Fatalf("recorded allocation remained live after bounded recovery: %v", err)
+	}
+}
+
 func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())

@@ -15,7 +15,17 @@ import (
 // PostgresStore binds every Planner Memory operation to one still-running Run
 // and StageExecution before accessing its ordinary RunScope ArtifactStore.
 type PostgresStore struct {
-	pool *pgxpool.Pool
+	pool          *pgxpool.Pool
+	writeBoundary *postgresWriteBoundary
+}
+
+// postgresWriteBoundary is an unexported deterministic integration-test seam.
+// Production stores leave it nil; it cannot widen the Store/API contract or
+// replace the PostgreSQL transaction and Artifact repositories under test.
+type postgresWriteBoundary struct {
+	beforeLock   func(context.Context)
+	beforeCommit func(context.Context)
+	commit       func(context.Context, pgx.Tx) error
 }
 
 func NewPostgresStore(pool *pgxpool.Pool) (*PostgresStore, error) {
@@ -32,7 +42,7 @@ func (s *PostgresStore) List(
 	if !validBinding(binding) {
 		return nil, ErrAccessForbidden
 	}
-	return withActiveStage(ctx, s.pool, false, binding, func(tx pgx.Tx) ([]artifacts.ArtifactRef, error) {
+	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) ([]artifacts.ArtifactRef, error) {
 		store, err := runArtifactStore(tx, binding.RunID)
 		if err != nil {
 			return nil, err
@@ -53,7 +63,7 @@ func (s *PostgresStore) Read(
 	if _, err := NameFromArtifact(ref.Name); err != nil {
 		return artifacts.ReadResult{}, ErrAccessForbidden
 	}
-	return withActiveStage(ctx, s.pool, false, binding, func(tx pgx.Tx) (artifacts.ReadResult, error) {
+	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) (artifacts.ReadResult, error) {
 		store, err := runArtifactStore(tx, binding.RunID)
 		if err != nil {
 			return artifacts.ReadResult{}, err
@@ -76,7 +86,7 @@ func (s *PostgresStore) Write(
 	if _, err := NameFromArtifact(target.Name); err != nil {
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
-	return withActiveStage(ctx, s.pool, true, binding, func(tx pgx.Tx) (artifacts.WriteResult, error) {
+	return withActiveStage(ctx, s.pool, true, binding, s.writeBoundary, func(tx pgx.Tx) (artifacts.WriteResult, error) {
 		store, err := runArtifactStore(tx, binding.RunID)
 		if err != nil {
 			return artifacts.WriteResult{}, err
@@ -95,6 +105,7 @@ func withActiveStage[T any](
 	pool *pgxpool.Pool,
 	mutation bool,
 	binding Binding,
+	boundary *postgresWriteBoundary,
 	operation func(pgx.Tx) (T, error),
 ) (result T, err error) {
 	if ctx == nil || ctx.Err() != nil {
@@ -116,6 +127,9 @@ func withActiveStage[T any](
 		}
 	}()
 
+	if mutation && boundary != nil && boundary.beforeLock != nil {
+		boundary.beforeLock(ctx)
+	}
 	if err := lockActiveStage(ctx, tx, binding); err != nil {
 		return result, err
 	}
@@ -126,7 +140,16 @@ func withActiveStage[T any](
 		}
 		return result, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if mutation && boundary != nil && boundary.beforeCommit != nil {
+		boundary.beforeCommit(ctx)
+	}
+	var commitErr error
+	if mutation && boundary != nil && boundary.commit != nil {
+		commitErr = boundary.commit(ctx, tx)
+	} else {
+		commitErr = tx.Commit(ctx)
+	}
+	if commitErr != nil {
 		if mutation {
 			// A connection/response failure at commit cannot prove whether the
 			// immutable Artifact mutation committed. The logical wrapper owns the
@@ -136,7 +159,7 @@ func withActiveStage[T any](
 		if ctx.Err() != nil {
 			return result, ErrAccessForbidden
 		}
-		return result, fmt.Errorf("commit Planner Memory transaction: %w", err)
+		return result, fmt.Errorf("commit Planner Memory transaction: %w", commitErr)
 	}
 	return result, nil
 }

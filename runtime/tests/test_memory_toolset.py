@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from google.adk.tools import FunctionTool
@@ -13,6 +16,8 @@ from google.adk.tools import FunctionTool
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
+    ArtifactClient,
+    ArtifactHTTPResponse,
     ArtifactTransportError,
     ArtifactValue,
     ArtifactWriteValue,
@@ -218,6 +223,50 @@ def test_response_loss_append_is_not_applied_twice() -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("fault", ["before", "after"])
+@pytest.mark.parametrize("mutation", ["create", "replace", "append"])
+def test_production_artifact_client_response_loss_matrix(mutation: str, fault: str) -> None:
+    async def scenario() -> None:
+        backend = FakeArtifactClient()
+        transport = FaultingArtifactTransport(backend)
+        client = ArtifactClient("allocation-1", transport)
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: client),
+            WorkerState(),
+            ["write_memory", "append_memory", "read_memory"],
+        )
+        if mutation != "create":
+            await tools["write_memory"]("shared", "base", "baseline", ["base"])
+        attempts_before = len(transport.put_attempts)
+        semantic_writes_before = backend.semantic_writes
+        transport.write_faults.append(fault)
+
+        if mutation == "create":
+            result = await tools["write_memory"]("shared", "created")
+            expected_content = "created"
+        elif mutation == "replace":
+            result = await tools["write_memory"]("shared", "replacement")
+            expected_content = "replacement"
+        else:
+            result = await tools["append_memory"]("shared", "appended")
+            expected_content = "base\nappended"
+
+        assert result["content"] == expected_content
+        attempts = transport.put_attempts[attempts_before:]
+        assert len(attempts) == 2
+        assert attempts[0] == attempts[1]
+        if mutation == "create":
+            assert attempts[0].headers["If-None-Match"] == "*"
+            assert "If-Match" not in attempts[0].headers
+        else:
+            assert attempts[0].headers["If-Match"].startswith('"revision-')
+            assert "If-None-Match" not in attempts[0].headers
+        assert backend.semantic_writes == semantic_writes_before + 1
+        assert (await tools["read_memory"]("shared"))["content"] == expected_content
+
+    asyncio.run(scenario())
+
+
 def test_stale_cas_and_newer_value_after_lost_response_return_memory_changed() -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
@@ -243,6 +292,40 @@ def test_stale_cas_and_newer_value_after_lost_response_return_memory_changed() -
             await tools["append_memory"]("shared", "lost append")
         assert newer.value.code == "memory_changed"
         assert client.decoded_content("builder", "memory.shared") == "newer external"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("fault", "expected_attempts"),
+    [("advance_before", 1), ("after_advance", 2)],
+)
+def test_production_artifact_client_changed_binding_is_never_overwritten(
+    fault: str, expected_attempts: int
+) -> None:
+    async def scenario() -> None:
+        backend = FakeArtifactClient()
+        transport = FaultingArtifactTransport(backend)
+        client = ArtifactClient("allocation-1", transport)
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda _allocation, _settings: client),
+            WorkerState(),
+            ["write_memory", "append_memory"],
+        )
+        await tools["write_memory"]("shared", "base")
+        backend.advance_payload = encoded_note("shared", "external winner", ordinal=0)
+        attempts_before = len(transport.put_attempts)
+        transport.write_faults.append(fault)
+        with pytest.raises(MemoryToolError) as changed:
+            await tools["append_memory"]("shared", "stale append")
+        assert changed.value.code == "memory_changed"
+        assert changed.value.retryable
+        attempts = transport.put_attempts[attempts_before:]
+        assert len(attempts) == expected_attempts
+        if expected_attempts == 2:
+            assert attempts[0] == attempts[1]
+        assert backend.decoded_content("builder", "memory.shared") == "external winner"
+        assert backend.semantic_writes == (2 if fault == "advance_before" else 3)
 
     asyncio.run(scenario())
 
@@ -556,6 +639,147 @@ class StoredArtifact:
     payload: bytes
     binding_created_at: datetime
     revision_created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRequestAttempt:
+    path: str
+    headers: dict[str, str]
+    body: bytes
+
+
+class FaultingArtifactTransport:
+    """HTTP-shaped fault boundary in front of the production ArtifactClient."""
+
+    def __init__(self, backend: FakeArtifactClient) -> None:
+        self.backend = backend
+        self.write_faults: list[str] = []
+        self.put_attempts: list[ArtifactRequestAttempt] = []
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: Mapping[str, str],
+        body: bytes,
+        max_response_bytes: int,
+    ) -> ArtifactHTTPResponse:
+        del max_response_bytes
+        parsed = urlsplit(path)
+        parts = [unquote(part) for part in parsed.path.strip("/").split("/")]
+        if len(parts) < 3 or parts[:1] != ["allocations"] or parts[2] != "artifacts":
+            raise AssertionError(f"unexpected Artifact path {path!r}")
+        if method == "GET" and len(parts) == 3:
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            namespace = query.get("namespace", [None])[0]
+            refs = await self.backend.list_artifacts(namespace)
+            return self._json_response(
+                200,
+                {
+                    "apiVersion": API_VERSION,
+                    "artifacts": [
+                        ref.model_dump(mode="json", by_alias=True, exclude_none=True)
+                        for ref in refs
+                    ],
+                },
+            )
+        if len(parts) != 5:
+            raise AssertionError(f"unexpected Artifact path {path!r}")
+        target = ArtifactRef(namespace=parts[3], name=parts[4])
+        if method == "GET":
+            revision = parse_qs(parsed.query).get("revision", [None])[0]
+            if revision is not None:
+                target = ArtifactRef(
+                    namespace=target.namespace, name=target.name, revision=revision
+                )
+            try:
+                value = await self.backend.read_artifact(target)
+            except ArtifactAPIError as error:
+                return self._error_response(error)
+            revision = value.artifact.require_exact().revision
+            assert revision is not None
+            return ArtifactHTTPResponse(
+                200,
+                {
+                    "content-type": value.media_type,
+                    "etag": json.dumps(revision),
+                    "x-contractor-binding-created-at": _wire_timestamp(value.binding_created_at),
+                    "x-contractor-revision-created-at": _wire_timestamp(value.revision_created_at),
+                },
+                value.data,
+            )
+        if method != "PUT":
+            raise AssertionError(f"unexpected Artifact method {method!r}")
+
+        attempt = ArtifactRequestAttempt(path, dict(headers), body)
+        self.put_attempts.append(attempt)
+        fault = self.write_faults.pop(0) if self.write_faults else ""
+        if fault == "before":
+            raise ArtifactTransportError("synthetic PUT response loss before commit")
+        if fault == "advance_before":
+            self.backend._advance(target.namespace, target.name)
+        expected_revision = None
+        if "If-Match" in headers:
+            expected_revision = json.loads(headers["If-Match"])
+        try:
+            written = await self.backend.write_artifact(
+                target,
+                data=body,
+                media_type=headers["Content-Type"],
+                expected_revision=expected_revision,
+            )
+        except ArtifactAPIError as error:
+            return self._error_response(error)
+        if fault == "after_advance":
+            self.backend._advance(target.namespace, target.name)
+        if fault == "after":
+            raise ArtifactTransportError("synthetic PUT response loss after commit")
+        if fault == "after_advance":
+            raise ArtifactTransportError(
+                "synthetic PUT response loss after commit and binding advance"
+            )
+        revision = written.artifact.require_exact().revision
+        assert revision is not None
+        return self._json_response(
+            201 if expected_revision is None else 200,
+            written.model_dump(mode="json", by_alias=True),
+            extra_headers={
+                "etag": json.dumps(revision),
+                "x-contractor-binding-created-at": _wire_timestamp(written.binding_created_at),
+                "x-contractor-revision-created-at": _wire_timestamp(written.revision_created_at),
+            },
+        )
+
+    @staticmethod
+    def _json_response(
+        status: int,
+        value: object,
+        *,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> ArtifactHTTPResponse:
+        headers = {"content-type": "application/json"}
+        headers.update(extra_headers or {})
+        return ArtifactHTTPResponse(
+            status,
+            headers,
+            json.dumps(value, separators=(",", ":")).encode(),
+        )
+
+    def _error_response(self, error: ArtifactAPIError) -> ArtifactHTTPResponse:
+        return self._json_response(
+            error.status_code,
+            {
+                "code": error.code,
+                "message": "bounded synthetic Artifact failure",
+                "retryable": error.retryable,
+                "requestId": "artifact-memory-fault",
+            },
+        )
+
+
+def _wire_timestamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 class FakeArtifactClient:

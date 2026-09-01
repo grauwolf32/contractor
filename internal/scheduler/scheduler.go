@@ -786,7 +786,7 @@ func (s *Scheduler) prepareAndPlan(
 			Code: "result_contract_violation", Message: "Planner candidate violates the Stage result contract", Retryable: false,
 		})
 	}
-	if err := s.fenceAll(reservations); err != nil {
+	if err := s.fenceRecordedAllocations(ctx, execution.StageExecutionID, reservations); err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
 			Code: "allocation_fence_failed", Message: "Stage allocations could not be write-fenced", Retryable: true,
 		})
@@ -1528,16 +1528,6 @@ func (s *Scheduler) validateCandidate(
 		}
 	}
 	return nil
-}
-
-func (s *Scheduler) fenceAll(reservations []controlplane.Reservation) error {
-	var failures []error
-	for _, reservation := range reservations {
-		if err := s.allocator.SetWriteFence(reservation.Grant.AllocationID); err != nil {
-			failures = append(failures, err)
-		}
-	}
-	return errors.Join(failures...)
 }
 
 func (s *Scheduler) beginAbort(

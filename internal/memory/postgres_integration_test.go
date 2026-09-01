@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -70,78 +70,373 @@ func TestPostgresPlannerMemoryRequiresRunningStage(t *testing.T) {
 	}
 }
 
+func TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedMemoryPool(t, ctx)
+	for _, mutation := range []string{"create", "replace", "append"} {
+		for _, loss := range []string{"before_commit", "after_commit"} {
+			t.Run(mutation+"/"+loss, func(t *testing.T) {
+				runID := "run-memory-ambiguity-" + mutation + "-" + loss
+				stageID := "stage-memory-ambiguity-" + mutation + "-" + loss
+				createRunningMemoryStage(t, ctx, pool, runID, stageID)
+				store, err := NewPostgresStore(pool)
+				if err != nil {
+					t.Fatal(err)
+				}
+				recording := &recordingMemoryStore{Store: store}
+				namespace, err := NewNamespace(recording, Binding{
+					RunID: runID, StageExecutionID: stageID, Namespace: "builder",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				baselineRevisions := 0
+				if mutation != "create" {
+					if _, err := namespace.WriteMemory(ctx, "shared", "base", "baseline", []string{"base"}); err != nil {
+						t.Fatal(err)
+					}
+					baselineRevisions = 1
+					recording.writes = nil
+				}
+
+				commitCalls := 0
+				store.writeBoundary = &postgresWriteBoundary{commit: func(commitContext context.Context, tx pgx.Tx) error {
+					commitCalls++
+					if commitCalls == 1 {
+						if loss == "after_commit" {
+							if err := tx.Commit(commitContext); err != nil {
+								return err
+							}
+						}
+						return errors.New("synthetic Planner Memory commit response loss")
+					}
+					return tx.Commit(commitContext)
+				}}
+
+				var note Note
+				switch mutation {
+				case "create":
+					note, err = namespace.WriteMemory(ctx, "shared", "created", "", nil)
+				case "replace":
+					note, err = namespace.WriteMemory(ctx, "shared", "replacement", "", nil)
+				case "append":
+					note, err = namespace.AppendMemory(ctx, "shared", "appended")
+				}
+				if err != nil {
+					t.Fatalf("%s with %s = %v", mutation, loss, err)
+				}
+				wantContent := map[string]string{
+					"create": "created", "replace": "replacement", "append": "base\nappended",
+				}[mutation]
+				if note.Content != wantContent {
+					t.Fatalf("%s content = %q, want %q", mutation, note.Content, wantContent)
+				}
+				if len(recording.writes) != 2 || !reflect.DeepEqual(recording.writes[0], recording.writes[1]) {
+					t.Fatalf("%s replay changed bytes or precondition: %+v", mutation, recording.writes)
+				}
+				if mutation == "create" && recording.writes[0].expectedRevision != nil ||
+					mutation != "create" && recording.writes[0].expectedRevision == nil {
+					t.Fatalf("%s replay precondition = %v", mutation, recording.writes[0].expectedRevision)
+				}
+				if got := countMemoryRevisions(t, ctx, pool, runID, "shared"); got != baselineRevisions+1 {
+					t.Fatalf("%s semantic revision count = %d, want %d", mutation, got, baselineRevisions+1)
+				}
+			})
+		}
+	}
+}
+
+func TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedMemoryPool(t, ctx)
+	for _, boundary := range []string{"before_write", "after_ambiguous_commit"} {
+		t.Run(boundary, func(t *testing.T) {
+			runID := "run-memory-interference-" + boundary
+			stageID := "stage-memory-interference-" + boundary
+			createRunningMemoryStage(t, ctx, pool, runID, stageID)
+			store, err := NewPostgresStore(pool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			recording := &recordingMemoryStore{Store: store}
+			namespace, err := NewNamespace(recording, Binding{
+				RunID: runID, StageExecutionID: stageID, Namespace: "builder",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := namespace.WriteMemory(ctx, "shared", "base", "", nil); err != nil {
+				t.Fatal(err)
+			}
+			recording.writes = nil
+			externalPayload := encodedTestNote(t, "shared", "external winner", 0)
+			runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if boundary == "before_write" {
+				recording.beforeWrite = func(
+					_ Binding, target artifacts.ArtifactRef, _ artifacts.Payload, expected *string,
+				) error {
+					_, err := runArtifacts.Write(ctx, target, artifacts.Payload{
+						MediaType: MediaType, Data: externalPayload,
+					}, expected)
+					return err
+				}
+			} else {
+				commitCalls := 0
+				store.writeBoundary = &postgresWriteBoundary{commit: func(commitContext context.Context, tx pgx.Tx) error {
+					commitCalls++
+					if commitCalls != 1 {
+						return tx.Commit(commitContext)
+					}
+					if err := tx.Commit(commitContext); err != nil {
+						return err
+					}
+					current, err := runArtifacts.Read(commitContext, artifacts.ArtifactRef{
+						Namespace: "builder", Name: "memory.shared",
+					})
+					if err != nil {
+						return err
+					}
+					_, err = runArtifacts.Write(commitContext, artifacts.ArtifactRef{
+						Namespace: "builder", Name: "memory.shared",
+					}, artifacts.Payload{MediaType: MediaType, Data: externalPayload}, current.Ref.Revision)
+					if err != nil {
+						return err
+					}
+					return errors.New("synthetic response loss after commit and external advance")
+				}}
+			}
+
+			_, err = namespace.AppendMemory(ctx, "shared", "stale append")
+			assertToolError(t, err, CodeChanged, true)
+			if got := readPlannerMemoryContent(t, ctx, runArtifacts, "shared"); got != "external winner" {
+				t.Fatalf("current content = %q, want external winner", got)
+			}
+			wantAttempts := 1
+			wantRevisions := 2
+			if boundary == "after_ambiguous_commit" {
+				wantAttempts = 2
+				wantRevisions = 3
+				if !reflect.DeepEqual(recording.writes[0], recording.writes[1]) {
+					t.Fatalf("ambiguous retry changed bytes or precondition: %+v", recording.writes)
+				}
+			}
+			if len(recording.writes) != wantAttempts {
+				t.Fatalf("write attempts = %d, want %d", len(recording.writes), wantAttempts)
+			}
+			if got := countMemoryRevisions(t, ctx, pool, runID, "shared"); got != wantRevisions {
+				t.Fatalf("revision count = %d, want %d", got, wantRevisions)
+			}
+		})
+	}
+}
+
 func TestPostgresPlannerMemoryWriteLinearizesWithTerminalTransition(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
-	store, err := NewPostgresStore(pool)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, target := range []StageExecutionStateForTest{stageFinalizingForTest, stageAbortingForTest} {
-		t.Run(string(target), func(t *testing.T) {
-			for index := 0; index < 8; index++ {
-				runID := fmt.Sprintf("run-memory-race-%s-%d", target, index)
-				stageID := fmt.Sprintf("stage-memory-race-%s-%d", target, index)
+		for _, winner := range []string{"write", "transition"} {
+			t.Run(string(target)+"/"+winner+"_wins", func(t *testing.T) {
+				runID := "run-memory-race-" + string(target) + "-" + winner
+				stageID := "stage-memory-race-" + string(target) + "-" + winner
 				createRunningMemoryStage(t, ctx, pool, runID, stageID)
+				store, err := NewPostgresStore(pool)
+				if err != nil {
+					t.Fatal(err)
+				}
 				namespace, err := NewNamespace(store, Binding{
 					RunID: runID, StageExecutionID: stageID, Namespace: "builder",
 				})
 				if err != nil {
 					t.Fatal(err)
 				}
-				start := make(chan struct{})
-				var wait sync.WaitGroup
-				wait.Add(2)
-				var writeErr error
-				var transitionErr error
+				paused := make(chan struct{})
+				release := make(chan struct{})
+				pause := func(boundaryContext context.Context) {
+					close(paused)
+					select {
+					case <-release:
+					case <-boundaryContext.Done():
+					}
+				}
+				store.writeBoundary = &postgresWriteBoundary{}
+				if winner == "write" {
+					store.writeBoundary.beforeCommit = pause
+				} else {
+					store.writeBoundary.beforeLock = pause
+				}
+				writeDone := make(chan error, 1)
 				go func() {
-					defer wait.Done()
-					<-start
-					_, writeErr = namespace.WriteMemory(ctx, "race_note", "complete payload", "", nil)
+					_, writeErr := namespace.WriteMemory(ctx, "race_note", "complete payload", "", nil)
+					writeDone <- writeErr
 				}()
-				go func() {
-					defer wait.Done()
-					<-start
+				waitMemorySignal(t, paused, "Planner write boundary")
+
+				var writeErr, transitionErr error
+				if winner == "write" {
+					transitionDone := make(chan error, 1)
+					transitionStarted := make(chan struct{})
+					go func() {
+						close(transitionStarted)
+						transitionDone <- transitionProductionMemoryStage(ctx, pool, runID, stageID, target)
+					}()
+					waitMemorySignal(t, transitionStarted, "terminal transition start")
+					select {
+					case early := <-transitionDone:
+						t.Fatalf("terminal transition overtook Planner write: %v", early)
+					case <-time.After(25 * time.Millisecond):
+					}
+					close(release)
+					writeErr = <-writeDone
+					transitionErr = <-transitionDone
+				} else {
 					transitionErr = transitionProductionMemoryStage(ctx, pool, runID, stageID, target)
-				}()
-				close(start)
-				wait.Wait()
+					close(release)
+					writeErr = <-writeDone
+				}
 				if transitionErr != nil {
-					t.Fatalf("race %d %s transition: %v", index, target, transitionErr)
+					t.Fatalf("%s transition: %v", target, transitionErr)
 				}
-				if writeErr != nil && memoryErrorCode(writeErr) != CodeForbidden {
-					t.Fatalf("race %d write error = %v", index, writeErr)
+				if winner == "write" && writeErr != nil {
+					t.Fatalf("write-winner mutation: %v", writeErr)
 				}
-				var state runstore.StageExecutionState
-				var transitionedAt time.Time
-				if err := pool.QueryRow(ctx, `
+				if winner == "transition" && memoryErrorCode(writeErr) != CodeForbidden {
+					t.Fatalf("transition-winner write error = %v, want %s", writeErr, CodeForbidden)
+				}
+				assertPlannerMemoryRaceState(t, ctx, pool, runID, stageID, target, winner)
+			})
+		}
+	}
+}
+
+type plannerMemoryWriteAttempt struct {
+	binding          Binding
+	target           artifacts.ArtifactRef
+	payload          artifacts.Payload
+	expectedRevision *string
+}
+
+type recordingMemoryStore struct {
+	Store
+	writes      []plannerMemoryWriteAttempt
+	beforeWrite func(Binding, artifacts.ArtifactRef, artifacts.Payload, *string) error
+}
+
+func (s *recordingMemoryStore) Write(
+	ctx context.Context,
+	binding Binding,
+	target artifacts.ArtifactRef,
+	payload artifacts.Payload,
+	expectedRevision *string,
+) (artifacts.WriteResult, error) {
+	attempt := plannerMemoryWriteAttempt{
+		binding: binding, target: target,
+		payload: artifacts.Payload{
+			MediaType: payload.MediaType, Data: append([]byte(nil), payload.Data...),
+		},
+		expectedRevision: cloneString(expectedRevision),
+	}
+	s.writes = append(s.writes, attempt)
+	if s.beforeWrite != nil {
+		hook := s.beforeWrite
+		s.beforeWrite = nil
+		if err := hook(binding, target, payload, expectedRevision); err != nil {
+			return artifacts.WriteResult{}, err
+		}
+	}
+	return s.Store.Write(ctx, binding, target, payload, expectedRevision)
+}
+
+func countMemoryRevisions(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runID string,
+	name string,
+) int {
+	t.Helper()
+	var count int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*)
+FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1
+  AND namespace = 'builder' AND name = $2`, runID, "memory."+name).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
+}
+
+func readPlannerMemoryContent(
+	t *testing.T,
+	ctx context.Context,
+	store artifacts.ScopedStore,
+	name string,
+) string {
+	t.Helper()
+	value, err := store.Read(ctx, artifacts.ArtifactRef{
+		Namespace: "builder", Name: "memory." + name,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := Decode("memory."+name, value.Payload.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return note.Content
+}
+
+func waitMemorySignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+	}
+}
+
+func assertPlannerMemoryRaceState(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runID string,
+	stageID string,
+	target StageExecutionStateForTest,
+	winner string,
+) {
+	t.Helper()
+	var state runstore.StageExecutionState
+	var transitionedAt time.Time
+	if err := pool.QueryRow(ctx, `
 SELECT state, updated_at FROM stage_executions WHERE stage_execution_id = $1`, stageID).
-					Scan(&state, &transitionedAt); err != nil || string(state) != string(target) {
-					t.Fatalf("race %d Stage = (%s, %s, %v), want %s", index, state, transitionedAt, err, target)
-				}
-				var revisionCount int
-				var revisionAt *time.Time
-				if err := pool.QueryRow(ctx, `
+		Scan(&state, &transitionedAt); err != nil || string(state) != string(target) {
+		t.Fatalf("Stage = (%s, %s, %v), want %s", state, transitionedAt, err, target)
+	}
+	var revisionCount int
+	var revisionAt *time.Time
+	if err := pool.QueryRow(ctx, `
 SELECT count(*), max(created_at)
 FROM artifact_binding_revisions
 WHERE scope_kind = 'run' AND scope_id = $1
   AND namespace = 'builder' AND name = 'memory.race_note'`, runID).
-					Scan(&revisionCount, &revisionAt); err != nil {
-					t.Fatal(err)
-				}
-				if writeErr == nil {
-					if revisionCount != 1 || revisionAt == nil || revisionAt.After(transitionedAt) {
-						t.Fatalf(
-							"race %d successful write did not precede transition: revisions=%d revisionAt=%v transitionAt=%s",
-							index, revisionCount, revisionAt, transitionedAt,
-						)
-					}
-				} else if revisionCount != 0 || revisionAt != nil {
-					t.Fatalf("race %d forbidden write created %d revisions at %v", index, revisionCount, revisionAt)
-				}
-			}
-		})
+		Scan(&revisionCount, &revisionAt); err != nil {
+		t.Fatal(err)
+	}
+	if winner == "write" {
+		if revisionCount != 1 || revisionAt == nil || revisionAt.After(transitionedAt) {
+			t.Fatalf(
+				"successful write did not precede transition: revisions=%d revisionAt=%v transitionAt=%s",
+				revisionCount, revisionAt, transitionedAt,
+			)
+		}
+	} else if revisionCount != 0 || revisionAt != nil {
+		t.Fatalf("forbidden write created %d revisions at %v", revisionCount, revisionAt)
 	}
 }
 

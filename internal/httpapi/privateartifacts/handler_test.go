@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -192,6 +194,86 @@ func TestPrivateArtifactWriteFenceWaitsForInFlightStoreCommit(t *testing.T) {
 	}
 }
 
+func TestPrivateArtifactProductionGrantFenceWinsWhileBodyArrives(t *testing.T) {
+	repository := newMemoryRepository()
+	handler, registry, allocationID, principalID, binding := newProductionGrantHandler(t, repository)
+	body := &gatedReader{
+		data: []byte("must not commit"), started: make(chan struct{}), release: make(chan struct{}),
+	}
+	request := trustedRequest(
+		http.MethodPut,
+		"/private/v1/allocations/"+allocationID+"/artifacts/builder/race_note",
+		body,
+	)
+	request.Header.Set("Content-Type", "text/plain")
+	request.Header.Set("If-None-Match", "*")
+	responseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		responseDone <- response
+	}()
+	waitArtifactSignal(t, body.started, "request body read")
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	close(body.release)
+	response := waitArtifactResponse(t, responseDone)
+	if response.Code != http.StatusConflict ||
+		!strings.Contains(response.Body.String(), "allocation_write_fenced") {
+		t.Fatalf("fence-winner response = %d %s", response.Code, response.Body.String())
+	}
+	if repository.writeCalls != 0 {
+		t.Fatalf("fence-winner request reached Artifact mutation %d times", repository.writeCalls)
+	}
+	assertProductionFaultSlotsReusable(t, registry, allocationID, principalID, binding)
+}
+
+func TestPrivateArtifactProductionGrantMutationWinsBeforeFence(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.writeStarted = make(chan struct{})
+	repository.continueWrite = make(chan struct{})
+	handler, registry, allocationID, principalID, binding := newProductionGrantHandler(t, repository)
+	responseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		responseDone <- putArtifactForAllocation(
+			t, handler, allocationID, "builder", "race_note", "*", []byte("complete payload"),
+		)
+	}()
+	waitArtifactSignal(t, repository.writeStarted, "Artifact Store write")
+	fenceDone := make(chan error, 1)
+	go func() { fenceDone <- registry.SetWriteFence(allocationID) }()
+	select {
+	case err := <-fenceDone:
+		t.Fatalf("write fence overtook production private Artifact mutation: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(repository.continueWrite)
+	response := waitArtifactResponse(t, responseDone)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("mutation-winner response = %d %s", response.Code, response.Body.String())
+	}
+	select {
+	case err := <-fenceDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for production write fence")
+	}
+	current, exists := repository.current("run-production-race", "builder", "race_note")
+	if !exists || string(current.data) != "complete payload" {
+		t.Fatalf("mutation-winner current = (%+v, %v)", current, exists)
+	}
+	later := putArtifactForAllocation(
+		t, handler, allocationID, "builder", "later", "*", []byte("forbidden"),
+	)
+	if later.Code != http.StatusConflict || !strings.Contains(later.Body.String(), "allocation_write_fenced") {
+		t.Fatalf("post-fence write = %d %s", later.Code, later.Body.String())
+	}
+	assertProductionFaultSlotsReusable(t, registry, allocationID, principalID, binding)
+}
+
 func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.seed("run-a", "analysis", "report", "revision-a", []byte("report"))
@@ -287,7 +369,7 @@ func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepo
 	return handler
 }
 
-func trustedRequest(method, target string, body *strings.Reader) *http.Request {
+func trustedRequest(method, target string, body io.Reader) *http.Request {
 	var request *http.Request
 	if body == nil {
 		request = httptest.NewRequest(method, target, nil)
@@ -312,9 +394,22 @@ func putArtifact(
 	body []byte,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	return putArtifactForAllocation(t, handler, "allocation-1", namespace, name, precondition, body)
+}
+
+func putArtifactForAllocation(
+	t *testing.T,
+	handler http.Handler,
+	allocationID string,
+	namespace string,
+	name string,
+	precondition string,
+	body []byte,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	request := trustedRequest(
 		http.MethodPut,
-		fmt.Sprintf("/private/v1/allocations/allocation-1/artifacts/%s/%s", namespace, name),
+		fmt.Sprintf("/private/v1/allocations/%s/artifacts/%s/%s", allocationID, namespace, name),
 		strings.NewReader(string(body)),
 	)
 	request.Header.Set("Content-Type", "text/plain")
@@ -322,6 +417,180 @@ func putArtifact(
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response
+}
+
+func newProductionGrantHandler(
+	t *testing.T,
+	repository *memoryRepository,
+) (http.Handler, *controlplane.InMemoryRegistry, string, string, controlplane.BindingRequirement) {
+	t.Helper()
+	sequence := 0
+	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{
+		NewID: func(prefix string) (string, error) {
+			sequence++
+			return fmt.Sprintf("%s%d", prefix, sequence), nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	principalIDs := make([]string, 2)
+	for index, identity := range []struct {
+		instanceID string
+		spki       string
+	}{
+		{instanceID: "runtime-1", spki: "artifact-test-key"},
+		{instanceID: "runtime-2", spki: "artifact-second-test-key"},
+	} {
+		principalID, err := mtls.RuntimeAgentID(&x509.Certificate{
+			RawSubjectPublicKeyInfo: []byte(identity.spki),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		principalIDs[index] = principalID
+		principal := controlplane.AuthenticatedPrincipal{
+			RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
+		}
+		registration := contracts.AgentRegistrationV2{
+			APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
+			InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
+			StartedAt:     time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+			ControlURL:    "https://" + identity.instanceID + ".example:9443",
+			A2AURL:        "https://" + identity.instanceID + ".example:9444",
+			InitialLabels: []string{}, SupportedRuntimes: []string{"adk@1"},
+			SupportedToolsets: []contracts.ToolsetCapability{{
+				Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
+			}},
+			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+			ObservedState: contracts.AgentIdle,
+		}
+		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+			t.Fatal(err)
+		}
+		for heartbeatIndex, echoed := range []uint64{0, 1} {
+			if _, err := registry.HeartbeatAuthenticated(principalID, contracts.AgentHeartbeat{
+				APIVersion: contracts.APIVersion, InstanceID: identity.instanceID,
+				HeartbeatSeq: uint64(heartbeatIndex + 1), EchoedAckSeq: echoed, ObservedState: contracts.AgentIdle,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	snapshot, err := workflowconfig.Load("../../config/testdata/valid", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := controlplane.BindingRequirement{
+		LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
+		ExecutionConfig: controlplane.AllocationExecutionConfig{
+			ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
+		},
+	}
+	reservations, err := registry.ReserveAll(controlplane.ReservationRequest{
+		RunID: "run-production-race", StageExecutionID: "stage-production-race",
+		Bindings: []controlplane.BindingRequirement{binding},
+	})
+	if err != nil || len(reservations) != 1 {
+		t.Fatalf("production reservation = (%+v, %v)", reservations, err)
+	}
+	handler, err := NewHandler(Dependencies{
+		Registry: registry, Artifacts: artifacts.NewService(repository),
+		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler, registry, reservations[0].Grant.AllocationID, principalIDs[0], binding
+}
+
+func assertProductionFaultSlotsReusable(
+	t *testing.T,
+	registry *controlplane.InMemoryRegistry,
+	allocationID string,
+	principalID string,
+	binding controlplane.BindingRequirement,
+) {
+	t.Helper()
+	if err := registry.Release(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.GetGrant(allocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+		t.Fatalf("released fault allocation lookup = %v", err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(principalID, contracts.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "runtime-1",
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: contracts.AgentIdle,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reviewer := binding
+	reviewer.LogicalAgentName = "reviewer"
+	reviewer.Namespace = "reviewer"
+	reservations, err := registry.ReserveAll(controlplane.ReservationRequest{
+		RunID: "run-after-memory-fault", StageExecutionID: "stage-after-memory-fault",
+		Bindings: []controlplane.BindingRequirement{binding, reviewer},
+	})
+	if err != nil || len(reservations) != 2 {
+		t.Fatalf("two-slot claim after Memory fault = (%+v, %v)", reservations, err)
+	}
+	for _, reservation := range reservations {
+		if err := registry.Release(reservation.Grant.AllocationID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := registry.GetGrant(reservation.Grant.AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+			t.Fatalf("post-fault allocation remained live: %v", err)
+		}
+	}
+}
+
+type gatedReader struct {
+	data    []byte
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *gatedReader) Read(target []byte) (int, error) {
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(target, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+func waitArtifactSignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+	}
+}
+
+func waitArtifactResponse(
+	t *testing.T,
+	response <-chan *httptest.ResponseRecorder,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	select {
+	case value := <-response:
+		return value
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for private Artifact response")
+		return nil
+	}
 }
 
 func testGrant(runID string) controlplane.AllocationGrant {
