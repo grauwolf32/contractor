@@ -3,8 +3,8 @@ id: V8-014
 title: Apply pinned Run telemetry configuration to Server Planners
 milestone: label-driven-runtime-configuration
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: cc4d292f847bf37e329cd0454d22329a0a2b7e15
 depends_on: [V8-006, V8-008, V8-013]
 languages: [go]
 

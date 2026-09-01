@@ -240,15 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-013
-  next_task: V8-014
+  completed_through: V8-014
+  next_task: V8-015
   summary: >-
-    A deterministic process gate now configures default, Run and Agent labels
-    only through Operations, places work across two uniquely certified agents,
-    exports safe OTLP, pins proxy settings across concurrent rebind and proves
-    non-semantic exporter failure plus complete slot reuse. Runtime startup may
-    also narrow the immutable built-in adapter factory set before real probes.
-    Next, apply the pinned Run telemetry layer to Server-side Planners.
+    Server Planners now resolve only pinned default and Run telemetry, export a
+    closed content-free OTLP span vocabulary through an invocation-local client,
+    and record bounded safe delivery outcomes without changing Stage semantics
+    or allocation release. Agent labels remain outside the Planner boundary.
+    Next, expose RuntimeConfig labels, configs and provenance in the UI.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
