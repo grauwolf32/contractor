@@ -3,8 +3,8 @@ id: V10-005
 title: Load exact Run skills through native ADK SkillToolset
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 16afcd55b0f7d197ce6998fb60e89380ac839f33
 depends_on: [V10-001, V10-004]
 languages: [python]
 
