@@ -48,6 +48,7 @@ class ScriptedLlm(BaseLlm):
                     for tool in llm_request.config.tools or []
                     for declaration in tool.function_declarations or []
                 ),
+                "systemInstruction": llm_request.config.system_instruction,
             }
         )
         self._started.set()

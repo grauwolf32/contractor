@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from contractor_runtime.adapters import (
     AdapterHandles,
@@ -17,7 +17,12 @@ from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
-from contractor_runtime.contracts import ResolvedAgentTemplate, ResolvedModelPolicy, RuntimeSettings
+from contractor_runtime.contracts import (
+    ResolvedAgentTemplate,
+    ResolvedModelPolicy,
+    ResolvedSkill,
+    RuntimeSettings,
+)
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
@@ -25,6 +30,9 @@ from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.source_analysis import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.text_artifacts import TextArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
+
+if TYPE_CHECKING:
+    from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
 
 
 class WorkerRuntime(Protocol):
@@ -61,10 +69,13 @@ class WorkerBuildContext:
         default=EMPTY_ADAPTER_HANDLES,
         repr=False,
     )
+    resolved_skills: tuple[ResolvedSkill, ...] = ()
+    agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
 
 
 class WorkerRuntimeFactory(Protocol):
     ref: str
+    supports_agent_skills: bool
 
     async def probe(self) -> bool: ...
 
@@ -128,7 +139,7 @@ def built_in_factories(
     model_factory: ModelFactory | None = None,
     enabled_runtime_adapters: Sequence[str] | None = None,
 ) -> FactoryRegistry:
-    runtime = AdkWorkerRuntimeFactory(model_factory)
+    runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
@@ -166,6 +177,7 @@ class StubADKWorkerRuntimeFactory:
     """Lifecycle-complete stand-in replaced by the real ADK adapter in MVP-012."""
 
     ref = "adk@1"
+    supports_agent_skills = False
 
     async def probe(self) -> bool:
         return True

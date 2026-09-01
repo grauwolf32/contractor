@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 import uuid
 from collections.abc import AsyncGenerator, Callable, Mapping
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
 
 from google.adk.agents import LlmAgent
@@ -28,6 +29,12 @@ from contractor_runtime.a2a_server import (
     build_worker_a2a_application,
 )
 from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
+from contractor_runtime.agent_skills.runtime import (
+    PreparedAgentSkills,
+    prepare_agent_skills,
+    probe_native_agent_skills,
+)
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -232,19 +239,47 @@ def gateway_model(context: WorkerBuildContext) -> BaseLlm:
 
 class AdkWorkerRuntimeFactory:
     ref = "adk@1"
+    supports_agent_skills = True
 
-    def __init__(self, model_factory: ModelFactory | None = None) -> None:
+    def __init__(
+        self,
+        model_factory: ModelFactory | None = None,
+        artifact_client_factory: Callable[[str, Any], ArtifactClient] | None = None,
+    ) -> None:
         self._model_factory = model_factory or gateway_model
+        self._artifact_client_factory = artifact_client_factory
 
     async def probe(self) -> bool:
-        # Importing and constructing this factory has already loaded the local
-        # ADK adapter. Gateway/model availability is allocation-scoped.
-        return True
+        # Gateway/model availability remains allocation-scoped, but advertising
+        # adk@1 also promises the exact native Agent Skills APIs used below.
+        return await probe_native_agent_skills()
 
     async def create(self, context: WorkerBuildContext) -> AdkWorkerRuntime:
-        runtime = AdkWorkerRuntime(context, self._model_factory(context))
-        await runtime.start()
-        return runtime
+        prepared = await prepare_agent_skills(
+            context.resolved_skills,
+            allocation_id=context.allocation_id,
+            runtime_settings=context.runtime_settings,
+            workspace=context.workspace,
+            artifact_client_factory=self._artifact_client_factory,
+        )
+        if prepared is not None:
+            context = replace(context, agent_skills=prepared)
+        runtime: AdkWorkerRuntime | None = None
+        try:
+            runtime = AdkWorkerRuntime(context, self._model_factory(context))
+            await runtime.start()
+            return runtime
+        except asyncio.CancelledError:
+            if prepared is not None:
+                await prepared.close()
+            raise
+        except Exception:
+            if runtime is not None:
+                with contextlib.suppress(Exception):
+                    await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+            elif prepared is not None:
+                await prepared.close()
+            raise
 
 
 class AdkWorkerRuntime:
@@ -268,6 +303,7 @@ class AdkWorkerRuntime:
         self._finalizer_agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
         self._model_spans: list[RuntimeSpan] = []
+        self._agent_skills: PreparedAgentSkills | None = context.agent_skills
 
         policy = context.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
@@ -281,6 +317,13 @@ class AdkWorkerRuntime:
             )
             for tool in context.tools.values()
         ]
+        if self._agent_skills is not None:
+            adk_tools.append(
+                self._agent_skills.build_adapter(
+                    budget=lambda: self._active_budget,
+                    metrics=self._metrics,
+                )
+            )
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.agent_template.description,
@@ -645,19 +688,33 @@ class AdkWorkerRuntime:
         self._runner = None
         finalizer_runner = self._finalizer_runner
         self._finalizer_runner = None
+        failures: list[Exception] = []
         try:
             if runner is not None:
-                await runner.close()
+                try:
+                    await runner.close()
+                except Exception as error:
+                    failures.append(error)
             if finalizer_runner is not None:
-                await finalizer_runner.close()
-            await self._session_service.delete_session(
-                app_name=self._app_name, user_id=self._user_id, session_id=self._session_id
-            )
-            await self._session_service.delete_session(
-                app_name=self._app_name,
-                user_id=self._user_id,
-                session_id=self._finalizer_session_id,
-            )
+                try:
+                    await finalizer_runner.close()
+                except Exception as error:
+                    failures.append(error)
+            for session_id in (self._session_id, self._finalizer_session_id):
+                try:
+                    await self._session_service.delete_session(
+                        app_name=self._app_name,
+                        user_id=self._user_id,
+                        session_id=session_id,
+                    )
+                except Exception as error:
+                    failures.append(error)
+            agent_skills = self._agent_skills
+            if agent_skills is not None:
+                try:
+                    await agent_skills.close()
+                except Exception as error:
+                    failures.append(error)
         finally:
             while self._model_spans:
                 _end_span(self._model_spans.pop(), outcome="cancelled")
@@ -668,6 +725,10 @@ class AdkWorkerRuntime:
             self._agent = None
             self._finalizer_agent = None
             self._instrumentation = None
+            self._agent_skills = None
+            self._context = None  # type: ignore[assignment]
+        if failures:
+            raise failures[0]
 
     async def _before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest

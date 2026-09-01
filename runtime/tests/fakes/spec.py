@@ -8,12 +8,14 @@ from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
     AllocationSpecV2,
+    ArtifactRef,
     LLMGatewayConfigRef,
     ModelPolicyRef,
     ResolvedAgentTemplate,
     ResolvedInstructions,
     ResolvedModelPolicy,
     ResolvedRuntimeConfigProvenanceV2,
+    ResolvedSkill,
     RuntimeConfigRefV2,
     RuntimeLabelBindingProvenanceV2,
     RuntimeSettingsV2,
@@ -34,7 +36,9 @@ def allocation_spec(
     allocation_id: str = "allocation-1",
     secret: str = "recognizable-a2a-test-token",
     tools: list[str] | None = None,
+    skills: list[ResolvedSkill] | None = None,
 ) -> AllocationSpecV2:
+    skills = skills or []
     instructions = "Use only the selected tools and return a strict result."
     policy = ResolvedModelPolicy(
         ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "0" * 64),
@@ -64,6 +68,7 @@ def allocation_spec(
                 tools=tools or ["read_artifact"],
             )
         ],
+        skills=[ArtifactRef(namespace="skills", name=skill.name) for skill in skills],
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
     )
     template.ref.digest = _agent_template_digest(template)
@@ -76,7 +81,7 @@ def allocation_spec(
         namespace="builder",
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,
-        resolvedSkills=[],
+        resolvedSkills=skills,
         modelPolicy=policy.model_copy(deep=True),
         runtimeSettings=RuntimeSettingsV2(
             llmGatewayUrl="https://llm.example/v1",

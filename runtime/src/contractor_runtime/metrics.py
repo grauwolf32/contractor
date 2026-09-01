@@ -127,6 +127,7 @@ class MetricsState:
         error: Exception | None = None,
         secrets: tuple[str, ...] = (),
         duration_ms: int | None = None,
+        result_size_bytes: int | None = None,
     ) -> None:
         identifier = _metric_identifier(name)
         self._increment("tool_calls")
@@ -161,7 +162,12 @@ class MetricsState:
                 )
             )
 
-        result_size = _json_size(result) if result is not None else None
+        if result_size_bytes is not None:
+            if type(result_size_bytes) is not int or result_size_bytes < 0:
+                raise ValueError("tool result metric size must not be negative")
+            result_size = result_size_bytes
+        else:
+            result_size = _json_size(result) if result is not None else None
         record = ToolCallRecord(
             callId=f"tool-{self._next_call_number:08d}",
             tool=_bounded_text(name, secrets),

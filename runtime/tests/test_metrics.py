@@ -19,6 +19,11 @@ class ToolFailure(RuntimeError):
     retryable = True
 
 
+class SkillDisclosureFailure(RuntimeError):
+    code = "SKILL_DISCLOSURE_LIMIT"
+    retryable = False
+
+
 def test_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() -> None:
     state = MetricsState()
     for index in range(MAX_METRIC_TOOL_CALLS + 5):
@@ -111,3 +116,34 @@ def test_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes() -> No
     }
     assert "dataBase64" not in encoded
     assert SECRET not in encoded
+
+
+def test_skill_metric_projects_only_validated_identity_outcome_and_result_size() -> None:
+    state = MetricsState()
+    state.record_tool_call(
+        "load_skill_resource",
+        arguments={"skill_name": "likec4", "file_path": "references/syntax.md"},
+        result_size_bytes=123_456,
+        duration_ms=7,
+    )
+    state.record_tool_call(
+        "load_skill_resource",
+        arguments={"arguments_valid": False},
+        error=SkillDisclosureFailure("content must not be retained"),
+        result_size_bytes=96,
+        duration_ms=1,
+    )
+
+    report = state.build_report(report_id="worker-skills", duration_ms=8)
+    encoded = report.model_dump_json(by_alias=True, exclude_none=True)
+    first, second = report.tool_calls
+    assert first.arguments == {
+        "skill_name": "likec4",
+        "file_path": "references/syntax.md",
+    }
+    assert first.result_size_bytes == 123_456
+    assert second.arguments == {"arguments_valid": False}
+    assert second.error is not None
+    assert second.error.code == "SKILL_DISCLOSURE_LIMIT"
+    assert second.result_size_bytes == 96
+    assert "content must not be retained" not in encoded

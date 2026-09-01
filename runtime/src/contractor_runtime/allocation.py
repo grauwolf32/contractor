@@ -18,6 +18,7 @@ from contractor_runtime.adapters import (
     AdapterPreparationError,
     AllocationAdapterHost,
 )
+from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -234,6 +235,7 @@ class AllocationService:
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
                         adapter_handles=adapter_host.handles.for_worker(),
+                        resolved_skills=tuple(spec.resolved_skills),
                     )
                 )
                 handle = WorkerHandle(
@@ -286,6 +288,21 @@ class AllocationService:
                     "allocation Runtime adapter preparation failed",
                     retryable=error.retryable,
                     status_code=503,
+                ) from None
+            except AgentSkillPreparationError as error:
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
+                raise AllocationError(
+                    error.code,
+                    f"allocation Agent Skill preparation failed ({error.code})",
+                    retryable=error.retryable,
+                    status_code=error.status_code,
                 ) from None
             except AllocationError:
                 await self._rollback_prepare(
@@ -476,6 +493,16 @@ class AllocationService:
             raise AllocationError(
                 "unsupported_worker_runtime",
                 "AgentTemplate selects an unavailable WorkerRuntime",
+                retryable=False,
+                status_code=422,
+            )
+        runtime_factory = self._factories.worker_runtimes.get(runtime_ref)
+        if spec.resolved_skills and not bool(
+            getattr(runtime_factory, "supports_agent_skills", False)
+        ):
+            raise AllocationError(
+                "skill_runtime_unsupported",
+                "selected WorkerRuntime does not support Agent Skills",
                 retryable=False,
                 status_code=422,
             )
