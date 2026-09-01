@@ -3,8 +3,8 @@ id: V8-008
 title: Expose RuntimeConfig, label and credential Operations APIs
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "f3c3d03d793120277d438dbd2a9da4f0f8d7add4"
 depends_on: [V8-001, V8-002, V8-005, V8-007]
 languages: [go, yaml, typescript]
 

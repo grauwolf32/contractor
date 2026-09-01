@@ -240,14 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-007
-  next_task: V8-008
+  completed_through: V8-008
+  next_task: V8-009
   summary: >-
-    Candidate placement now computes complete capability-compatible matchings,
-    revalidates principal/config revisions, commits exact secret-free allocation
-    provenance before exposure and delivers protocol-v2 settings with bounded
-    just-in-time secret lifetime. Next, expose RuntimeConfig, binding and Runtime
-    credential management through the public Operations API.
+    The public Operations API now publishes and reads immutable RuntimeConfigs,
+    performs durable idempotent CAS mutation of label bindings, and manages
+    write-only encrypted Runtime credentials through a closed OpenAPI contract
+    and safe generated UI client. Next, expose durable Runtime Agent principals
+    and authoritative label-set replacement.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
