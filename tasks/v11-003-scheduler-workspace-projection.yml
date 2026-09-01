@@ -3,8 +3,8 @@ id: V11-003
 title: Pin workspace artifacts and project them into allocations
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 4b6b0f8b7266644a459b80b84fb6557fb1e49a4c
 depends_on: [V11-002]
 languages: [go]
 
