@@ -3,8 +3,8 @@ id: V11-009
 title: Add workspace-changes@1 checkpoint tools
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 2d822c4186723cbc566f645a9475e1c4bcaaee1e
 depends_on: [V11-006]
 languages: [go, python]
 
