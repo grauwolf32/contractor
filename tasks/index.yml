@@ -240,14 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-009
-  next_task: V8-010
+  completed_through: V8-010
+  next_task: V8-011
   summary: >-
-    The public Operations API now joins durable certificate principals to
-    process-local observations, atomically replaces authoritative Agent label
-    sets, reports adapter mismatch separately from liveness/capacity, and
-    safely advances live placement snapshots without changing active pinned
-    allocations. Next, add the allocation-scoped Runtime adapter lifecycle host.
+    Runtime now owns typed allocation-scoped adapter handles before sandbox and
+    Worker construction, uses bounded flush/close on every terminal and lease
+    path, erases settings before idle reuse, and reports safe adapter metrics.
+    Control Plane filters those metrics against pinned provenance without
+    allowing optional telemetry damage to block terminalization or release.
+    Next, implement the concrete allocation-scoped OTLP HTTP adapter.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

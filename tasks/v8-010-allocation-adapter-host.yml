@@ -3,8 +3,8 @@ id: V8-010
 title: Add allocation-scoped Runtime adapter lifecycle host
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 650421c3f9dfe4a31cd5567acd2fe3d3583670fb
 depends_on: [V8-007]
 languages: [go, python]
 
