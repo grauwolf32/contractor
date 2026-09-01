@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
+from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class CapabilitySnapshot:
     toolsets: tuple[ToolsetCapabilitySnapshot, ...]
     sandbox_profiles: tuple[str, ...]
     runtime_adapters: tuple[str, ...] = ()
+    workspace: WorkspaceCapabilitySnapshot | None = None
 
     @classmethod
     def create(
@@ -43,6 +45,7 @@ class CapabilitySnapshot:
         toolsets: Mapping[str, Iterable[str]],
         sandbox_profiles: Iterable[str],
         runtime_adapters: Iterable[str] = (),
+        workspace: WorkspaceCapabilitySnapshot | None = None,
     ) -> CapabilitySnapshot:
         normalized_runtimes = tuple(sorted(set(runtimes)))
         normalized_sandboxes = tuple(sorted(set(sandbox_profiles)))
@@ -65,6 +68,7 @@ class CapabilitySnapshot:
             toolsets=tuple(normalized_toolsets),
             sandbox_profiles=normalized_sandboxes,
             runtime_adapters=normalized_adapters,
+            workspace=workspace,
         )
 
     def wire_toolsets(self) -> list[ToolsetCapability]:
@@ -92,6 +96,9 @@ class CapabilitySnapshot:
     def supports_runtime_adapters(self, refs: Iterable[str]) -> bool:
         return set(refs) <= set(self.runtime_adapters)
 
+    def supports_workspace_mode(self, mode: str) -> bool:
+        return self.workspace is not None and mode in self.workspace.modes
+
 
 async def discover_capabilities(
     factories: FactoryRegistry,
@@ -108,6 +115,7 @@ async def discover_capabilities(
     toolsets: dict[str, frozenset[str]] = {}
     sandboxes: list[str] = []
     runtime_adapters: list[str] = []
+    workspace: WorkspaceCapabilitySnapshot | None = None
     loop = asyncio.get_running_loop()
     deadline = loop.time() + total_timeout_seconds
 
@@ -125,7 +133,20 @@ async def discover_capabilities(
         if result is True:
             sandboxes.append(ref)
 
+    if factories.workspace_provider is not None:
+        result = await _probe_one(
+            "workspace",
+            "workspace-storage",
+            factories.workspace_provider.probe,
+            deadline,
+            per_factory_timeout_seconds,
+        )
+        if result is True:
+            workspace = factories.workspace_provider.capability
+
     for ref, factory in sorted(factories.toolsets.items()):
+        if getattr(factory, "requires_workspace", False) and workspace is None:
+            continue
         result = await _probe_one(
             "toolset", ref, factory.probe, deadline, per_factory_timeout_seconds
         )
@@ -150,6 +171,7 @@ async def discover_capabilities(
         toolsets=toolsets,
         sandbox_profiles=sandboxes,
         runtime_adapters=runtime_adapters,
+        workspace=workspace,
     )
 
 

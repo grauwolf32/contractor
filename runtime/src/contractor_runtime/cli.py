@@ -61,6 +61,7 @@ async def serve(
             ),
         ),
         enabled_runtime_adapters=settings.enabled_runtime_adapters,
+        workspace_settings=settings.workspace,
     )
     allocation_service = AllocationService(
         runtime_state,

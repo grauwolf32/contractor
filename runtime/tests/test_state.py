@@ -37,6 +37,7 @@ def test_idle_is_committed_only_after_registration_ack(
         assert registration.supported_sandbox_profiles == list(
             runtime_capabilities.sandbox_profiles
         )
+        assert registration.workspace_capabilities is None
         assert (await state.snapshot()).process_state is ProcessState.STARTING
 
         await state.mark_registered()

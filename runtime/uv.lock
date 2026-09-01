@@ -280,6 +280,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },
+    { name = "fsspec" },
     { name = "google-adk" },
     { name = "httpx" },
     { name = "jcs" },
@@ -302,6 +303,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = "==1.1.2" },
+    { name = "fsspec", specifier = ">=2026.7.0,<2027.0.0" },
     { name = "google-adk", specifier = "==2.8.0" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "jcs", specifier = ">=0.2,<1" },

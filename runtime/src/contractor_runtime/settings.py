@@ -11,6 +11,27 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from contractor_runtime.contracts import WorkspaceStorageV2
+
+LOCAL_WORKSPACE_DEFAULTS = (50_000, 2 << 30, 256 << 20, 16 << 20)
+MEMORY_WORKSPACE_DEFAULTS = (10_000, 256 << 20, 64 << 20, 4 << 20)
+WORKSPACE_LIMIT_CEILINGS = (1_000_000, 64 << 30, 16 << 30, 2 << 30)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceLimits:
+    max_files: int
+    max_expanded_bytes: int
+    max_managed_text_bytes: int
+    max_file_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSettings:
+    storage: WorkspaceStorageV2
+    limits: WorkspaceLimits
+    work_root: Path | None = field(default=None, repr=False)
+
 
 @dataclass(frozen=True, slots=True)
 class Settings:
@@ -22,6 +43,7 @@ class Settings:
     private_key_file: Path = field(repr=False)
     initial_labels: tuple[str, ...] = ()
     enabled_runtime_adapters: tuple[str, ...] | None = None
+    workspace: WorkspaceSettings | None = None
     host: str = "127.0.0.1"
     port: int = 9443
     heartbeat_interval_seconds: float = 10.0
@@ -52,6 +74,34 @@ def parse_settings(
     parser.add_argument("--private-key-file", default=values.get("CONTRACTOR_PRIVATE_KEY_FILE"))
     parser.add_argument("--initial-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
+    parser.add_argument(
+        "--workspace-storage",
+        choices=("local", "memory"),
+        default=values.get("CONTRACTOR_WORKSPACE_STORAGE"),
+    )
+    parser.add_argument(
+        "--workspace-work-root", default=values.get("CONTRACTOR_WORKSPACE_WORK_ROOT")
+    )
+    parser.add_argument(
+        "--workspace-max-files",
+        type=int,
+        default=values.get("CONTRACTOR_WORKSPACE_MAX_FILES"),
+    )
+    parser.add_argument(
+        "--workspace-max-expanded-bytes",
+        type=int,
+        default=values.get("CONTRACTOR_WORKSPACE_MAX_EXPANDED_BYTES"),
+    )
+    parser.add_argument(
+        "--workspace-max-managed-text-bytes",
+        type=int,
+        default=values.get("CONTRACTOR_WORKSPACE_MAX_MANAGED_TEXT_BYTES"),
+    )
+    parser.add_argument(
+        "--workspace-max-file-bytes",
+        type=int,
+        default=values.get("CONTRACTOR_WORKSPACE_MAX_FILE_BYTES"),
+    )
     parser.add_argument(
         "--listen",
         default=values.get("CONTRACTOR_RUNTIME_LISTEN", "127.0.0.1:9443"),
@@ -122,6 +172,7 @@ def parse_settings(
         parser.error("--work-root must not be a filesystem root")
     initial_labels = _initial_labels(parser, args.initial_label, values)
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
+    workspace = _workspace_settings(parser, args)
 
     return Settings(
         control_plane_url=control_plane_url,
@@ -132,6 +183,7 @@ def parse_settings(
         private_key_file=private_key_file,
         initial_labels=initial_labels,
         enabled_runtime_adapters=enabled_runtime_adapters,
+        workspace=workspace,
         host=host,
         port=port,
         heartbeat_interval_seconds=heartbeat,
@@ -241,3 +293,69 @@ def _runtime_adapters(
     if unknown:
         parser.error("--runtime-adapter must name a supported built-in adapter")
     return tuple(sorted(candidates))
+
+
+def _workspace_settings(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> WorkspaceSettings | None:
+    related = (
+        args.workspace_work_root,
+        args.workspace_max_files,
+        args.workspace_max_expanded_bytes,
+        args.workspace_max_managed_text_bytes,
+        args.workspace_max_file_bytes,
+    )
+    if args.workspace_storage is None:
+        if any(value is not None for value in related):
+            parser.error("--workspace-storage is required when workspace options are set")
+        return None
+
+    storage: WorkspaceStorageV2 = args.workspace_storage
+    work_root: Path | None = None
+    if storage == "local":
+        raw_root = args.workspace_work_root
+        if not isinstance(raw_root, str) or not raw_root:
+            parser.error("--workspace-work-root is required for local workspace storage")
+        candidate = Path(raw_root).expanduser()
+        if not candidate.is_absolute():
+            parser.error("--workspace-work-root must be absolute")
+        if candidate.is_symlink():
+            parser.error("--workspace-work-root must not be a symlink")
+        work_root = candidate.resolve(strict=False)
+        if work_root == Path(work_root.anchor):
+            parser.error("--workspace-work-root must not be a filesystem root")
+    elif args.workspace_work_root is not None:
+        parser.error("--workspace-work-root is valid only for local workspace storage")
+
+    defaults = LOCAL_WORKSPACE_DEFAULTS if storage == "local" else MEMORY_WORKSPACE_DEFAULTS
+    values = (
+        args.workspace_max_files,
+        args.workspace_max_expanded_bytes,
+        args.workspace_max_managed_text_bytes,
+        args.workspace_max_file_bytes,
+    )
+    selected = tuple(
+        default if value is None else value for default, value in zip(defaults, values, strict=True)
+    )
+    names = (
+        "--workspace-max-files",
+        "--workspace-max-expanded-bytes",
+        "--workspace-max-managed-text-bytes",
+        "--workspace-max-file-bytes",
+    )
+    for name, value, ceiling in zip(names, selected, WORKSPACE_LIMIT_CEILINGS, strict=True):
+        if not isinstance(value, int) or value <= 0 or value > ceiling:
+            parser.error(f"{name} must be positive and within the implementation ceiling")
+    max_files, max_expanded, max_managed, max_file = selected
+    if max_managed > max_expanded or max_file > max_expanded:
+        parser.error("workspace managed/file byte limits must not exceed expanded bytes")
+    return WorkspaceSettings(
+        storage=storage,
+        work_root=work_root,
+        limits=WorkspaceLimits(
+            max_files=max_files,
+            max_expanded_bytes=max_expanded,
+            max_managed_text_bytes=max_managed,
+            max_file_bytes=max_file,
+        ),
+    )

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from pathlib import Path
 from types import MappingProxyType
+from typing import Literal
 
 import pytest
 import yaml
@@ -18,7 +19,7 @@ from contractor_runtime.factories import (
     StubADKWorkerRuntimeFactory,
     built_in_factories,
 )
-from contractor_runtime.settings import Settings
+from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets import likec4, openapi
 from contractor_runtime.workspace import LocalWorkdirFactory
@@ -63,6 +64,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
         assert snapshot.runtime_adapters == ("http-proxy@1", "otlp-http@1")
+        assert snapshot.workspace is None
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]
@@ -79,6 +81,59 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         await state.mark_registered()
         with pytest.raises(RuntimeError, match="only while starting"):
             await state.install_capabilities(snapshot)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("storage", ["local", "memory"])
+def test_workspace_capability_is_probed_frozen_and_registered(
+    tmp_path: Path, storage: Literal["local", "memory"]
+) -> None:
+    async def scenario() -> None:
+        workspace_settings = WorkspaceSettings(
+            storage=storage,
+            work_root=tmp_path / "project-workspaces" if storage == "local" else None,
+            limits=WorkspaceLimits(
+                max_files=123,
+                max_expanded_bytes=4096,
+                max_managed_text_bytes=2048,
+                max_file_bytes=1024,
+            ),
+        )
+        factories = built_in_factories(tmp_path / "sandbox", workspace_settings=workspace_settings)
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.workspace is not None
+        assert snapshot.workspace.storage == storage
+        assert snapshot.workspace.modes == ("direct", "overlay")
+        assert snapshot.workspace.limits.max_files == 123
+
+        registration = await RuntimeState(
+            instance_id=f"workspace-{storage}", capabilities=snapshot
+        ).registration(make_settings(tmp_path))
+        assert registration.workspace_capabilities is not None
+        assert registration.workspace_capabilities.storage == storage
+        assert registration.workspace_capabilities.modes == ["direct", "overlay"]
+        assert registration.workspace_capabilities.limits.max_files == 123
+        assert str(tmp_path / "project-workspaces") not in registration.model_dump_json(
+            by_alias=True
+        )
+
+    asyncio.run(scenario())
+
+
+def test_workspace_required_toolset_probe_is_gated_by_provider() -> None:
+    toolset = WorkspaceRequiredToolset()
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={toolset.ref: toolset},
+    )
+
+    async def scenario() -> None:
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.workspace is None
+        assert snapshot.toolsets == ()
+        assert toolset.probes == 0
 
     asyncio.run(scenario())
 
@@ -244,6 +299,36 @@ class EmptyToolset:
 
     async def create_selected(self, **_: object) -> dict[str, object]:
         raise AssertionError("probe must not construct tools")
+
+
+class WorkspaceRequiredToolset:
+    ref = "filesystem@1"
+    exported_tools = frozenset({"read_file"})
+    infrastructure_channels = MappingProxyType({})
+    requires_workspace = True
+
+    def __init__(self) -> None:
+        self.probes = 0
+
+    async def probe(self) -> frozenset[str]:
+        self.probes += 1
+        return self.exported_tools
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class PassingSandbox:
+    ref = "local-workdir@1"
+
+    async def probe(self) -> bool:
+        return True
+
+    async def prepare(self) -> object:
+        raise AssertionError("probe must not prepare an allocation")
+
+    async def cleanup(self, workspace: object) -> None:
+        del workspace
 
 
 class FailedSandbox:

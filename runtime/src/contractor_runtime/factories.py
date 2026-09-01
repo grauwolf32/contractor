@@ -23,6 +23,8 @@ from contractor_runtime.contracts import (
     ResolvedSkill,
     RuntimeSettings,
 )
+from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
+from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
@@ -123,6 +125,7 @@ class FactoryRegistry:
     toolsets: Mapping[str, ToolsetFactory]
     sandbox_profiles: Mapping[str, SandboxFactory]
     runtime_adapters: Mapping[str, RuntimeAdapterFactory] = field(default_factory=dict)
+    workspace_provider: WorkspaceProvider | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
@@ -138,6 +141,7 @@ def built_in_factories(
     artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = None,
     model_factory: ModelFactory | None = None,
     enabled_runtime_adapters: Sequence[str] | None = None,
+    workspace_settings: WorkspaceSettings | None = None,
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
@@ -170,6 +174,7 @@ def built_in_factories(
         },
         sandbox_profiles={sandbox.ref: sandbox},
         runtime_adapters=runtime_adapters,
+        workspace_provider=build_workspace_provider(workspace_settings),
     )
 
 

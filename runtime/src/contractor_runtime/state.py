@@ -117,6 +117,9 @@ class RuntimeState:
                 supportedToolsets=capabilities.wire_toolsets(),
                 supportedSandboxProfiles=list(capabilities.sandbox_profiles),
                 supportedRuntimeAdapters=list(capabilities.runtime_adapters),
+                workspaceCapabilities=(
+                    capabilities.workspace.wire() if capabilities.workspace is not None else None
+                ),
                 observedState=observed_state,
                 allocationId=allocation_id,
             )

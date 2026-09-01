@@ -47,6 +47,7 @@ def test_registration_commits_idle_and_uses_server_timing(
         assert transport.requests[0][1]["softwareVersion"] == "0.1.0"
         assert transport.requests[0][1]["privateProtocolVersion"] == 2
         assert transport.requests[0][1]["initialLabels"] == []
+        assert "workspaceCapabilities" not in transport.requests[0][1]
         assert "runtimeAgentId" not in transport.requests[0][1]
 
     asyncio.run(scenario())
