@@ -23,13 +23,16 @@ from contractor_runtime.adapters.host import (
 from contractor_runtime.contracts import CaidoSettingsV2, RuntimeAdapterRef
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
-MAX_CAIDO_VARIABLE_BYTES = 2 * 1024 * 1024
+MAX_CAIDO_VARIABLE_BYTES = 4 * 1024 * 1024
 MAX_CAIDO_VARIABLE_DEPTH = 16
 MAX_CAIDO_VARIABLE_ITEMS = 10_000
 MAX_CAIDO_RESPONSE_DEPTH = 32
 MAX_CAIDO_RESPONSE_ITEMS = 100_000
 MAX_CAIDO_VARIABLE_KEY_BYTES = 128
 MAX_CAIDO_VARIABLE_STRING_BYTES = 1024 * 1024
+# Blob variables are base64 strings. A 1 MiB raw request therefore needs
+# roughly 4/3 MiB while still remaining below the aggregate variable limit.
+MAX_CAIDO_BLOB_VARIABLE_STRING_BYTES = 2 * 1024 * 1024
 _TRANSIENT_STATUS_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 type JSONScalar = str | int | float | bool | None
@@ -37,12 +40,21 @@ type JSONValue = JSONScalar | list[JSONValue] | dict[str, JSONValue]
 CaidoOperationID = Literal[
     "automate_entry_requests",
     "automate_session",
+    "create_automate_session",
+    "create_replay_session",
+    "create_scope",
     "findings_by_offset",
     "request_detail",
+    "replay_entry",
     "requests_by_offset",
+    "run_active_workflow",
+    "run_convert_workflow",
     "scopes",
     "sitemap_descendants",
     "sitemap_root",
+    "start_automate_task",
+    "start_replay_task",
+    "update_automate_session",
     "workflows",
 ]
 
@@ -74,6 +86,29 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
                 "id name createdAt } settings { strategy placeholders { start end } } } }"
             ),
         ),
+        "create_automate_session": _StaticOperation(
+            operation_name="CreateAutomateSession",
+            document=(
+                "mutation CreateAutomateSession($input: CreateAutomateSessionInput!) { "
+                "createAutomateSession(input: $input) { session { id name settings { strategy "
+                "} } } }"
+            ),
+        ),
+        "create_replay_session": _StaticOperation(
+            operation_name="CreateReplaySession",
+            document=(
+                "mutation CreateReplaySession($input: CreateReplaySessionInput!) { "
+                "createReplaySession(input: $input) { session { id name activeEntry { id } } } }"
+            ),
+        ),
+        "create_scope": _StaticOperation(
+            operation_name="CreateScope",
+            document=(
+                "mutation CreateScope($input: CreateScopeInput!) { createScope(input: $input) { "
+                "error { ... on InvalidGlobTermsUserError { code } ... on OtherUserError { code } "
+                "} scope { id name allowlist denylist } } }"
+            ),
+        ),
         "findings_by_offset": _StaticOperation(
             operation_name="FindingsByOffset",
             document=(
@@ -88,6 +123,29 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             document=(
                 "query RequestDetail($id: ID!) { request(id: $id) { id method host path port query "
                 "isTls raw createdAt source response { id statusCode length roundtripTime raw } } }"
+            ),
+        ),
+        "replay_entry": _StaticOperation(
+            operation_name="ReplayEntry",
+            document=(
+                "query ReplayEntry($id: ID!) { replayEntry(id: $id) { id raw error request { id "
+                "method host path query response { statusCode length roundtripTime raw } } } }"
+            ),
+        ),
+        "run_active_workflow": _StaticOperation(
+            operation_name="RunActiveWorkflow",
+            document=(
+                "mutation RunActiveWorkflow($id: ID!, $input: RunActiveWorkflowInput!) { "
+                "runActiveWorkflow(id: $id, input: $input) { task { id createdAt workflow { id "
+                "name } } error { __typename ... on OtherUserError { code } } } }"
+            ),
+        ),
+        "run_convert_workflow": _StaticOperation(
+            operation_name="RunConvertWorkflow",
+            document=(
+                "mutation RunConvertWorkflow($id: ID!, $input: Blob!) { runConvertWorkflow(id: "
+                "$id, input: $input) { output error { __typename ... on OtherUserError { code } "
+                "} } }"
             ),
         ),
         "requests_by_offset": _StaticOperation(
@@ -121,10 +179,45 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
                 "port } } } } }"
             ),
         ),
+        "start_automate_task": _StaticOperation(
+            operation_name="StartAutomateTask",
+            document=(
+                "mutation StartAutomateTask($automateSessionId: ID!) { startAutomateTask("
+                "automateSessionId: $automateSessionId) { automateTask { id paused entry { id name "
+                "} } } }"
+            ),
+        ),
+        "start_replay_task": _StaticOperation(
+            operation_name="StartReplayTask",
+            document=(
+                "mutation StartReplayTask($sessionId: ID!, $input: StartReplayTaskInput!) { "
+                "startReplayTask(sessionId: $sessionId, input: $input) { error { ... on "
+                "TaskInProgressUserError { code } ... on OtherUserError { code } } task { id "
+                "replayEntry { id } } } }"
+            ),
+        ),
+        "update_automate_session": _StaticOperation(
+            operation_name="UpdateAutomateSession",
+            document=(
+                "mutation UpdateAutomateSession($id: ID!, $input: UpdateAutomateSessionInput!) { "
+                "updateAutomateSession(id: $id, input: $input) { error { ... on "
+                "PermissionDeniedUserError { code } ... on OtherUserError { code } } session { id "
+                "name settings { placeholders { start end } strategy } } } }"
+            ),
+        ),
         "workflows": _StaticOperation(
             operation_name="Workflows",
             document="query Workflows { workflows { id name kind enabled global } }",
         ),
+    }
+)
+
+_BLOB_VARIABLE_PATHS: Mapping[str, frozenset[tuple[str, ...]]] = MappingProxyType(
+    {
+        "create_replay_session": frozenset({("input", "requestSource", "raw", "raw")}),
+        "run_convert_workflow": frozenset({("input",)}),
+        "start_replay_task": frozenset({("input", "raw")}),
+        "update_automate_session": frozenset({("input", "raw")}),
     }
 )
 
@@ -204,7 +297,7 @@ class CaidoGraphQLClient:
         if selected is None or client is None or metrics is None:
             raise CaidoClientError("caido_request_invalid", retryable=False)
         try:
-            selected_variables = _validate_variables(variables)
+            selected_variables = _validate_variables(variables, operation=operation)
             body = _encode_request(selected, selected_variables)
             request = client.build_request("POST", self._graphql_url, content=body)
             response = await client.send(request, stream=True)
@@ -330,7 +423,11 @@ class CaidoGraphQLAdapter:
         return f"CaidoGraphQLAdapter(ref={self.ref!r}, closed={self._closed!r})"
 
 
-def _validate_variables(variables: Mapping[str, JSONValue] | None) -> dict[str, JSONValue]:
+def _validate_variables(
+    variables: Mapping[str, JSONValue] | None,
+    *,
+    operation: str,
+) -> dict[str, JSONValue]:
     if variables is None:
         return {}
     if not isinstance(variables, Mapping):
@@ -338,7 +435,9 @@ def _validate_variables(variables: Mapping[str, JSONValue] | None) -> dict[str, 
     result = dict(variables)
     items = 0
 
-    def visit(value: object, depth: int) -> None:
+    blob_paths = _BLOB_VARIABLE_PATHS.get(operation, frozenset())
+
+    def visit(value: object, depth: int, path: tuple[str, ...]) -> None:
         nonlocal items
         if depth > MAX_CAIDO_VARIABLE_DEPTH:
             raise CaidoClientError("caido_request_invalid", retryable=False)
@@ -346,11 +445,14 @@ def _validate_variables(variables: Mapping[str, JSONValue] | None) -> dict[str, 
         if items > MAX_CAIDO_VARIABLE_ITEMS:
             raise CaidoClientError("caido_request_invalid", retryable=False)
         if value is None or isinstance(value, (str, bool, int, float)):
-            if (
-                isinstance(value, str)
-                and len(value.encode("utf-8")) > MAX_CAIDO_VARIABLE_STRING_BYTES
-            ):
-                raise CaidoClientError("caido_request_invalid", retryable=False)
+            if isinstance(value, str):
+                maximum = (
+                    MAX_CAIDO_BLOB_VARIABLE_STRING_BYTES
+                    if path in blob_paths
+                    else MAX_CAIDO_VARIABLE_STRING_BYTES
+                )
+                if len(value.encode("utf-8")) > maximum:
+                    raise CaidoClientError("caido_request_invalid", retryable=False)
             if isinstance(value, float) and not math.isfinite(value):
                 raise CaidoClientError("caido_request_invalid", retryable=False)
             return
@@ -362,15 +464,15 @@ def _validate_variables(variables: Mapping[str, JSONValue] | None) -> dict[str, 
                     or len(key.encode("utf-8")) > MAX_CAIDO_VARIABLE_KEY_BYTES
                 ):
                     raise CaidoClientError("caido_request_invalid", retryable=False)
-                visit(nested, depth + 1)
+                visit(nested, depth + 1, (*path, key))
             return
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-            for nested in value:
-                visit(nested, depth + 1)
+            for index, nested in enumerate(value):
+                visit(nested, depth + 1, (*path, str(index)))
             return
         raise CaidoClientError("caido_request_invalid", retryable=False)
 
-    visit(result, 0)
+    visit(result, 0, ())
     try:
         encoded = json.dumps(
             result,

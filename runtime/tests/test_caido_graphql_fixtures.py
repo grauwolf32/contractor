@@ -14,7 +14,7 @@ import contractor_runtime.toolsets.caido as caido
 from contractor_runtime.toolsets.caido import CaidoToolError
 
 
-def test_invalid_inputs_fail_before_transport_and_create_is_not_yet_available(
+def test_invalid_inputs_fail_before_transport(
     tmp_path: Path,
 ) -> None:
     requests = 0
@@ -28,7 +28,7 @@ def test_invalid_inputs_fail_before_transport_and_create_is_not_yet_available(
         artifacts = FakeArtifactClient()
         tools, _state, handle = await create_tools(tmp_path, handler, artifacts)
         calls = [
-            lambda: tools["caido_scope"](action="create", name="future"),
+            lambda: tools["caido_scope"](action="create", name=""),
             lambda: tools["caido_history"](filter="x\nsecret"),
             lambda: tools["caido_history"](limit=101),
             lambda: tools["caido_request_detail"](""),

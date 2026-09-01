@@ -9,7 +9,8 @@ import json
 import math
 import secrets
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from itertools import pairwise
 from types import MappingProxyType
 from typing import Any
 
@@ -38,6 +39,17 @@ MAX_WORKFLOWS = 100
 MAX_SITEMAP_ENTRIES = 100
 MAX_AUTOMATE_ENTRIES = 100
 MAX_PAYLOADS_PER_RESULT = 32
+MAX_RAW_REQUEST_BYTES = 1024 * 1024
+MAX_AUTOMATE_TARGETS = 32
+MAX_AUTOMATE_PAYLOADS = 1000
+MAX_AUTOMATE_PAYLOAD_BYTES = 1024 * 1024
+MAX_AUTOMATE_DELAY_MS = 60_000
+MAX_SCOPE_NAME_BYTES = 256
+MAX_POLL_SECONDS = 60.0
+POLL_INTERVAL_SECONDS = 0.5
+MAX_POLL_ATTEMPTS = 121
+CAIDO_OUTPUT_ARTIFACT_PREFIX = "caido.output."
+REQUEST_TAG_HEADER = b"X-Request-Id"
 
 CAIDO_TOOL_NAMES = frozenset(
     {
@@ -69,6 +81,7 @@ _AUTOMATE_SORT_FIELDS = frozenset(
 )
 _WORKFLOW_KINDS = frozenset({"convert", "active", "passive"})
 _SITEMAP_DEPTHS = frozenset({"DIRECT", "ALL"})
+_AUTOMATE_STRATEGIES = frozenset({"SEQUENTIAL", "PARALLEL", "MATRIX", "ALL"})
 _ERROR_RETRYABILITY = MappingProxyType(
     {
         "caido_not_configured": False,
@@ -97,11 +110,19 @@ class CaidoToolsetFactory:
         {tool: frozenset({"caido-graphql-client"}) for tool in sorted(exported_tools)}
     )
 
-    def __init__(self, artifact_client_factory: ArtifactClientFactory | None = None) -> None:
+    def __init__(
+        self,
+        artifact_client_factory: ArtifactClientFactory | None = None,
+        *,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._artifact_client_factory = artifact_client_factory or _unconfigured_client
+        self._sleep = sleep
+        self._monotonic = monotonic
 
     async def probe(self) -> frozenset[str]:
-        return CAIDO_READ_TOOL_NAMES
+        return CAIDO_TOOL_NAMES
 
     async def create_selected(
         self,
@@ -117,7 +138,7 @@ class CaidoToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
-        unavailable = sorted(set(selected) - CAIDO_READ_TOOL_NAMES)
+        unavailable = sorted(set(selected) - CAIDO_TOOL_NAMES)
         if unavailable:
             raise ValueError(f"unavailable selected Caido tools: {', '.join(unavailable)}")
         metrics = getattr(state, "metrics", None)
@@ -131,14 +152,19 @@ class CaidoToolsetFactory:
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
             metric_secrets=_runtime_secrets(runtime_settings),
+            sleep=self._sleep,
+            monotonic=self._monotonic,
         )
         builders: dict[str, Callable[[], _CaidoTool]] = {
             "caido_scope": lambda: CaidoScopeTool(session, metrics),
             "caido_history": lambda: CaidoHistoryTool(session, metrics),
             "caido_request_detail": lambda: CaidoRequestDetailTool(session, metrics),
+            "caido_replay": lambda: CaidoReplayTool(session, metrics),
+            "caido_automate_run": lambda: CaidoAutomateRunTool(session, metrics),
             "caido_automate_results": lambda: CaidoAutomateResultsTool(session, metrics),
             "caido_sitemap": lambda: CaidoSitemapTool(session, metrics),
             "caido_workflow_list": lambda: CaidoWorkflowListTool(session, metrics),
+            "caido_workflow_run": lambda: CaidoWorkflowRunTool(session, metrics),
             "caido_workflow_findings": lambda: CaidoWorkflowFindingsTool(session, metrics),
         }
         return {name: builders[name]() for name in selected}
@@ -152,6 +178,8 @@ class _CaidoSession:
         artifact_client: ArtifactClient,
         namespace: str,
         metric_secrets: tuple[str, ...],
+        sleep: Callable[[float], Awaitable[None]],
+        monotonic: Callable[[], float],
     ) -> None:
         self._handle: CaidoGraphQLClient | None = handle
         self._artifact_client: ArtifactClient | None = artifact_client
@@ -159,6 +187,9 @@ class _CaidoSession:
         self._metric_secrets = metric_secrets
         self._nonce = secrets.token_hex(8)
         self._next_artifact = 1
+        self._next_action = 1
+        self._sleep = sleep
+        self._monotonic = monotonic
         self._lock = asyncio.Lock()
         self._closed = False
 
@@ -176,26 +207,43 @@ class _CaidoSession:
             data = await self._execute("scopes")
             _exact_object(data, {"scopes"})
             raw_scopes = _list(data["scopes"], maximum=MAX_PAGE_SIZE)
-            scopes: list[dict[str, Any]] = []
-            for raw in raw_scopes:
-                scope = _exact_object(raw, {"id", "name", "allowlist", "denylist"})
-                allowlist = _string_list(
-                    scope["allowlist"], maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES
-                )
-                denylist = _string_list(
-                    scope["denylist"], maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES
-                )
-                if len(allowlist) + len(denylist) > MAX_SCOPE_TERMS:
-                    raise CaidoToolError("caido_response_invalid")
-                scopes.append(
-                    {
-                        "id": _identifier(scope["id"]),
-                        "name": _text(scope["name"]),
-                        "allowlist": allowlist,
-                        "denylist": denylist,
-                    }
-                )
+            scopes = [_scope(raw) for raw in raw_scopes]
             return _bounded_result({"scopes": scopes})
+
+    async def create_scope(
+        self, name: str, allowlist: Sequence[str], denylist: Sequence[str]
+    ) -> dict[str, Any]:
+        selected_name = _request_text(name, maximum=MAX_SCOPE_NAME_BYTES)
+        selected_allow = _request_string_list(
+            allowlist, maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES
+        )
+        selected_deny = _request_string_list(
+            denylist, maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES
+        )
+        if len(selected_allow) + len(selected_deny) > MAX_SCOPE_TERMS:
+            raise CaidoToolError("caido_request_invalid")
+        async with self._lock:
+            data = await self._execute_mutation(
+                "create_scope",
+                {
+                    "input": {
+                        "name": selected_name,
+                        "allowlist": selected_allow,
+                        "denylist": selected_deny,
+                    }
+                },
+            )
+            selected = _exact_object(data, {"createScope"})
+            result = _exact_object(selected["createScope"], {"error", "scope"})
+            domain_error = _domain_error(result["error"], typename=False)
+            if domain_error is not None:
+                return {"status": "rejected", "error_code": domain_error}
+            if result["scope"] is None:
+                raise CaidoToolError("caido_response_invalid")
+            scope = _scope(result["scope"])
+            if scope["name"] != selected_name:
+                raise CaidoToolError("caido_response_invalid")
+            return _bounded_result({"status": "created", "scope": scope})
 
     async def history(self, filter_text: str, limit: int, offset: int) -> dict[str, Any]:
         selected_filter = _filter(filter_text)
@@ -232,40 +280,7 @@ class _CaidoSession:
             raw_response = b""
             if isinstance(response, dict):
                 raw_response = _blob(response.pop("_raw"))
-            envelope = _exchange_envelope(raw_request, raw_response)
-            artifact: ArtifactRef | None = None
-            if envelope is not None:
-                client = self._artifact_client
-                if client is None:
-                    raise CaidoToolError("caido_request_failed")
-                encoded = json.dumps(
-                    envelope,
-                    ensure_ascii=False,
-                    allow_nan=False,
-                    separators=(",", ":"),
-                ).encode()
-                if len(encoded) > MAX_ARTIFACT_BYTES:
-                    raise CaidoToolError("caido_response_too_large")
-                artifact_number = self._next_artifact
-                self._next_artifact += 1
-                try:
-                    written = await client.write_artifact(
-                        ArtifactRef(
-                            namespace=self._namespace,
-                            name=(
-                                f"{CAIDO_EXCHANGE_ARTIFACT_PREFIX}{self._nonce}."
-                                f"{artifact_number:06d}"
-                            ),
-                        ),
-                        data=encoded,
-                        media_type=CAIDO_EXCHANGE_MEDIA_TYPE,
-                        expected_revision=None,
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    raise CaidoToolError("caido_request_failed") from None
-                artifact = written.artifact.require_exact()
+            artifact = await self._write_exchange(raw_request, raw_response)
             request["raw"] = _raw_preview(raw_request)
             if isinstance(response, dict):
                 response["raw"] = _raw_preview(raw_response)
@@ -273,6 +288,246 @@ class _CaidoSession:
                 None if artifact is None else artifact.model_dump(by_alias=True)
             )
             return _bounded_result(request)
+
+    async def replay(
+        self,
+        *,
+        request_id: str,
+        raw_request: str,
+        host: str,
+        port: int,
+        is_tls: bool,
+        wait: bool,
+        timeout_seconds: int | float,
+    ) -> dict[str, Any]:
+        selected_request_id = _optional_identifier(request_id)
+        if type(wait) is not bool or type(is_tls) is not bool:
+            raise CaidoToolError("caido_request_invalid")
+        timeout = _request_number(timeout_seconds, minimum=1.0, maximum=MAX_POLL_SECONDS)
+        if selected_request_id:
+            if raw_request or host:
+                raise CaidoToolError("caido_request_invalid")
+        else:
+            if not isinstance(raw_request, str) or not raw_request or not host:
+                raise CaidoToolError("caido_request_invalid")
+            if len(raw_request.encode()) > MAX_RAW_REQUEST_BYTES:
+                raise CaidoToolError("caido_request_invalid")
+            _connection_host(host)
+            _integer(port, minimum=1, maximum=65535, request=True)
+
+        async with self._lock:
+            if selected_request_id:
+                detail_data = await self._execute("request_detail", {"id": selected_request_id})
+                _exact_object(detail_data, {"request"})
+                if detail_data["request"] is None:
+                    return {"request_id": selected_request_id, "status": "not_found"}
+                detail = _request_detail(detail_data["request"])
+                if detail["id"] != selected_request_id:
+                    raise CaidoToolError("caido_response_invalid")
+                raw_bytes = _blob(detail["_raw"])
+                if not raw_bytes or len(raw_bytes) > MAX_RAW_REQUEST_BYTES:
+                    raise CaidoToolError("caido_request_invalid")
+                connection = {
+                    "host": _connection_host(detail["host"]),
+                    "port": _required_integer(detail["port"], minimum=1, maximum=65535),
+                    "isTLS": detail["is_tls"],
+                }
+                source: dict[str, Any] = {"id": selected_request_id}
+            else:
+                raw_bytes = raw_request.encode()
+                connection = {"host": host, "port": port, "isTLS": is_tls}
+                source = {
+                    "raw": {
+                        "connectionInfo": connection,
+                        "raw": "",
+                    }
+                }
+
+            request_tag = self._next_request_tag()
+            tagged = _inject_request_tag(raw_bytes, request_tag)
+            raw_blob = base64.b64encode(tagged).decode("ascii")
+            if "raw" in source:
+                source["raw"]["raw"] = raw_blob
+
+            created = await self._execute_mutation(
+                "create_replay_session", {"input": {"requestSource": source}}
+            )
+            session = _replay_session(created)
+            started = await self._execute_mutation(
+                "start_replay_task",
+                {
+                    "sessionId": session["id"],
+                    "input": {
+                        "raw": raw_blob,
+                        "connection": connection,
+                        "settings": {
+                            "placeholders": [],
+                            "updateContentLength": True,
+                            "connectionClose": False,
+                        },
+                    },
+                },
+            )
+            start = _replay_start(started)
+            if start["error_code"] is not None:
+                return {
+                    "session_id": session["id"],
+                    "request_tag": request_tag,
+                    "status": "rejected",
+                    "error_code": start["error_code"],
+                }
+            entry_id = start["entry_id"] or session["entry_id"]
+            base_result = {
+                "session_id": session["id"],
+                "entry_id": entry_id,
+                "task_id": start["task_id"],
+                "request_tag": request_tag,
+            }
+            if not wait or entry_id is None:
+                return _bounded_result({**base_result, "status": "started"})
+            deadline = self._monotonic() + timeout
+            attempts = min(MAX_POLL_ATTEMPTS, math.ceil(timeout / POLL_INTERVAL_SECONDS) + 1)
+            for _attempt in range(attempts):
+                try:
+                    polled = await self._execute("replay_entry", {"id": entry_id})
+                except CaidoToolError as error:
+                    raise CaidoToolError(error.code, retryable=False) from None
+                observation = _replay_observation(polled, entry_id)
+                if observation is not None:
+                    if observation["status"] == "failed":
+                        return _bounded_result({**base_result, "status": "failed"})
+                    raw_response = observation.pop("_raw_response")
+                    raw_replayed_request = observation.pop("_raw_request")
+                    try:
+                        artifact = await self._write_exchange(raw_replayed_request, raw_response)
+                    except CaidoToolError as error:
+                        raise CaidoToolError(error.code, retryable=False) from None
+                    observation["raw"] = _raw_preview(raw_replayed_request)
+                    observation["response_raw"] = _raw_preview(raw_response)
+                    observation["raw_artifact"] = (
+                        None if artifact is None else artifact.model_dump(by_alias=True)
+                    )
+                    return _bounded_result({**base_result, **observation})
+                remaining = deadline - self._monotonic()
+                if remaining <= 0:
+                    break
+                await self._sleep(min(POLL_INTERVAL_SECONDS, remaining))
+            return _bounded_result({**base_result, "status": "timeout"})
+
+    async def automate_run(
+        self,
+        *,
+        request_id: str,
+        targets: Sequence[str],
+        payloads: Sequence[str],
+        strategy: str,
+        workers: int,
+        delay_ms: int,
+    ) -> dict[str, Any]:
+        selected_request_id = _request_identifier(request_id)
+        selected_targets = _request_string_list(
+            targets,
+            maximum=MAX_AUTOMATE_TARGETS,
+            item_bytes=MAX_SHORT_TEXT_BYTES,
+            allow_controls=True,
+        )
+        selected_payloads = _request_string_list(
+            payloads,
+            maximum=MAX_AUTOMATE_PAYLOADS,
+            item_bytes=MAX_SHORT_TEXT_BYTES,
+            allow_empty=True,
+            allow_controls=True,
+        )
+        if not selected_targets or len(selected_targets) != len(set(selected_targets)):
+            raise CaidoToolError("caido_request_invalid")
+        if not selected_payloads:
+            raise CaidoToolError("caido_request_invalid")
+        if sum(len(item.encode()) for item in selected_payloads) > MAX_AUTOMATE_PAYLOAD_BYTES:
+            raise CaidoToolError("caido_request_invalid")
+        if not isinstance(strategy, str) or strategy not in _AUTOMATE_STRATEGIES:
+            raise CaidoToolError("caido_request_invalid")
+        selected_workers = _integer(workers, minimum=1, maximum=50, request=True)
+        selected_delay = _integer(delay_ms, minimum=0, maximum=MAX_AUTOMATE_DELAY_MS, request=True)
+
+        async with self._lock:
+            detail_data = await self._execute("request_detail", {"id": selected_request_id})
+            _exact_object(detail_data, {"request"})
+            if detail_data["request"] is None:
+                return {"request_id": selected_request_id, "status": "not_found"}
+            detail = _request_detail(detail_data["request"])
+            if detail["id"] != selected_request_id:
+                raise CaidoToolError("caido_response_invalid")
+            raw_bytes = _blob(detail["_raw"])
+            if not raw_bytes or len(raw_bytes) > MAX_RAW_REQUEST_BYTES:
+                raise CaidoToolError("caido_request_invalid")
+            connection = {
+                "host": _connection_host(detail["host"]),
+                "port": _required_integer(detail["port"], minimum=1, maximum=65535),
+                "isTLS": detail["is_tls"],
+            }
+            request_tag = self._next_request_tag()
+            tagged = _inject_request_tag(raw_bytes, request_tag)
+            placeholders = _placeholder_offsets(tagged, selected_targets)
+            raw_blob = base64.b64encode(tagged).decode("ascii")
+
+            created = await self._execute_mutation(
+                "create_automate_session",
+                {"input": {"requestSource": {"id": selected_request_id}}},
+            )
+            session = _automate_create(created)
+            settings = {
+                "closeConnection": False,
+                "updateContentLength": True,
+                "strategy": strategy,
+                "concurrency": {"workers": selected_workers, "delay": selected_delay},
+                "placeholders": placeholders,
+                "payloads": [
+                    {
+                        "options": {"simpleList": {"list": selected_payloads}},
+                        "preprocessors": [],
+                    }
+                ],
+                "redirect": {"strategy": "NEVER", "max": 0},
+                "retryOnFailure": {"maximumRetries": 0, "backoff": 0},
+            }
+            updated = await self._execute_mutation(
+                "update_automate_session",
+                {
+                    "id": session["id"],
+                    "input": {
+                        "raw": raw_blob,
+                        "connection": connection,
+                        "settings": settings,
+                    },
+                },
+            )
+            update = _automate_update(updated, session["id"], placeholders, strategy)
+            if update["error_code"] is not None:
+                return _bounded_result(
+                    {
+                        "session_id": session["id"],
+                        "request_tag": request_tag,
+                        "status": "rejected",
+                        "error_code": update["error_code"],
+                    }
+                )
+            started = await self._execute_mutation(
+                "start_automate_task", {"automateSessionId": session["id"]}
+            )
+            task = _automate_start(started)
+            return _bounded_result(
+                {
+                    "session_id": session["id"],
+                    "task_id": task["task_id"],
+                    "entry_id": task["entry_id"],
+                    "entry_name": task["entry_name"],
+                    "request_tag": request_tag,
+                    "target_count": len(selected_targets),
+                    "payload_count": len(selected_payloads),
+                    "strategy": strategy,
+                    "status": "started",
+                }
+            )
 
     async def automate_results(
         self,
@@ -370,6 +625,113 @@ class _CaidoSession:
                 workflows = [item for item in workflows if item["kind"] == selected_kind]
             return _bounded_result({"workflows": workflows})
 
+    async def workflow_run(
+        self, workflow_id: str, input_text: str, request_id: str
+    ) -> dict[str, Any]:
+        selected_workflow = _request_identifier(workflow_id)
+        selected_request = _optional_identifier(request_id)
+        if selected_request:
+            if input_text:
+                raise CaidoToolError("caido_request_invalid")
+        elif not isinstance(input_text, str) or not input_text:
+            raise CaidoToolError("caido_request_invalid")
+
+        async with self._lock:
+            if selected_request:
+                data = await self._execute_mutation(
+                    "run_active_workflow",
+                    {"id": selected_workflow, "input": {"requestId": selected_request}},
+                )
+                result = _active_workflow_result(data, selected_workflow)
+                if result["error_code"] is not None:
+                    return {
+                        "kind": "active",
+                        "workflow_id": selected_workflow,
+                        "request_id": selected_request,
+                        "status": "rejected",
+                        "error_code": result["error_code"],
+                    }
+                return _bounded_result(
+                    {
+                        "kind": "active",
+                        "workflow_id": selected_workflow,
+                        "request_id": selected_request,
+                        "task_id": result["task_id"],
+                        "status": "started",
+                    }
+                )
+
+            encoded_input = input_text.encode()
+            if len(encoded_input) > MAX_RAW_REQUEST_BYTES:
+                raise CaidoToolError("caido_request_invalid")
+            data = await self._execute_mutation(
+                "run_convert_workflow",
+                {"id": selected_workflow, "input": base64.b64encode(encoded_input).decode("ascii")},
+            )
+            result = _convert_workflow_result(data)
+            if result["error_code"] is not None:
+                return {
+                    "kind": "convert",
+                    "workflow_id": selected_workflow,
+                    "status": "rejected",
+                    "error_code": result["error_code"],
+                }
+            output = _blob(result["output"])
+            try:
+                text_output = output.decode()
+            except UnicodeDecodeError:
+                try:
+                    artifact = await self._write_artifact(
+                        CAIDO_OUTPUT_ARTIFACT_PREFIX,
+                        output,
+                        "application/octet-stream",
+                    )
+                except CaidoToolError as error:
+                    raise CaidoToolError(error.code, retryable=False) from None
+                selected = output[:MAX_BINARY_PREVIEW_BYTES]
+                return _bounded_result(
+                    {
+                        "kind": "convert",
+                        "workflow_id": selected_workflow,
+                        "output_kind": "binary",
+                        "output_b64": base64.b64encode(selected).decode("ascii"),
+                        "output_size": len(output),
+                        "output_truncated": len(selected) < len(output),
+                        "output_artifact": artifact.model_dump(by_alias=True),
+                    }
+                )
+            if len(text_output) <= MAX_PREVIEW_CHARACTERS:
+                return _bounded_result(
+                    {
+                        "kind": "convert",
+                        "workflow_id": selected_workflow,
+                        "output_kind": "text",
+                        "output": text_output,
+                        "output_size": len(output),
+                        "output_truncated": False,
+                        "output_artifact": None,
+                    }
+                )
+            try:
+                artifact = await self._write_artifact(
+                    CAIDO_OUTPUT_ARTIFACT_PREFIX,
+                    output,
+                    "text/plain",
+                )
+            except CaidoToolError as error:
+                raise CaidoToolError(error.code, retryable=False) from None
+            return _bounded_result(
+                {
+                    "kind": "convert",
+                    "workflow_id": selected_workflow,
+                    "output_kind": "text",
+                    "output": text_output[:MAX_PREVIEW_CHARACTERS],
+                    "output_size": len(output),
+                    "output_truncated": True,
+                    "output_artifact": artifact.model_dump(by_alias=True),
+                }
+            )
+
     async def workflow_findings(self, limit: int, offset: int) -> dict[str, Any]:
         selected_limit, selected_offset = _page(limit, offset)
         async with self._lock:
@@ -391,6 +753,53 @@ class _CaidoSession:
                 }
             )
 
+    async def _write_exchange(self, raw_request: bytes, raw_response: bytes) -> ArtifactRef | None:
+        envelope = _exchange_envelope(raw_request, raw_response)
+        if envelope is None:
+            return None
+        encoded = json.dumps(
+            envelope,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode()
+        if len(encoded) > MAX_ARTIFACT_BYTES:
+            raise CaidoToolError("caido_response_too_large")
+        return await self._write_artifact(
+            CAIDO_EXCHANGE_ARTIFACT_PREFIX,
+            encoded,
+            CAIDO_EXCHANGE_MEDIA_TYPE,
+        )
+
+    async def _write_artifact(self, prefix: str, data: bytes, media_type: str) -> ArtifactRef:
+        if len(data) > MAX_ARTIFACT_BYTES:
+            raise CaidoToolError("caido_response_too_large")
+        client = self._artifact_client
+        if client is None:
+            raise CaidoToolError("caido_request_failed")
+        artifact_number = self._next_artifact
+        self._next_artifact += 1
+        try:
+            written = await client.write_artifact(
+                ArtifactRef(
+                    namespace=self._namespace,
+                    name=f"{prefix}{self._nonce}.{artifact_number:06d}",
+                ),
+                data=data,
+                media_type=media_type,
+                expected_revision=None,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise CaidoToolError("caido_request_failed") from None
+        return written.artifact.require_exact()
+
+    def _next_request_tag(self) -> str:
+        action = self._next_action
+        self._next_action += 1
+        return f"r{self._nonce}-c{action:06d}"
+
     async def close(self) -> None:
         async with self._lock:
             if self._closed:
@@ -400,6 +809,8 @@ class _CaidoSession:
             self._namespace = ""
             self._nonce = ""
             self._metric_secrets = ()
+            self._sleep = _closed_sleep
+            self._monotonic = _closed_monotonic
             self._closed = True
 
     async def _execute(
@@ -416,6 +827,18 @@ class _CaidoSession:
             raise CaidoToolError(error.code, retryable=error.retryable) from None
         except Exception:
             raise CaidoToolError("caido_request_failed") from None
+
+    async def _execute_mutation(
+        self, operation: str, variables: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        try:
+            return await self._execute(operation, variables)
+        except asyncio.CancelledError:
+            raise
+        except CaidoToolError as error:
+            # A transport failure can happen after Caido committed the
+            # mutation. Retrying the model-visible action would be unsafe.
+            raise CaidoToolError(error.code, retryable=False) from None
 
 
 class _CaidoTool:
@@ -493,12 +916,26 @@ class CaidoScopeTool(_CaidoTool):
         }
 
         async def operation() -> dict[str, Any]:
-            if action != "list" or name or allowlist is not None or denylist is not None:
+            if action == "list":
+                if name or allowlist is not None or denylist is not None:
+                    raise CaidoToolError("caido_request_invalid")
+                return await self._session.scopes()
+            if action == "create":
+                return await self._session.create_scope(
+                    name,
+                    [] if allowlist is None else allowlist,
+                    [] if denylist is None else denylist,
+                )
+            else:
                 raise CaidoToolError("caido_request_invalid")
-            return await self._session.scopes()
 
         return await self._call(
-            arguments, lambda result: {"count": len(result["scopes"])}, operation
+            arguments,
+            lambda result: {
+                "status": result.get("status", "listed"),
+                "count": len(result.get("scopes", [])),
+            },
+            operation,
         )
 
 
@@ -532,6 +969,81 @@ class CaidoRequestDetailTool(_CaidoTool):
                 "hasArtifact": result.get("raw_artifact") is not None,
             },
             lambda: self._session.request_detail(request_id),
+        )
+
+
+class CaidoReplayTool(_CaidoTool):
+    name = "caido_replay"
+    description = "Send one existing or bounded raw request through Caido Replay without retries."
+
+    async def __call__(
+        self,
+        request_id: str = "",
+        raw_request: str = "",
+        host: str = "",
+        port: int = 80,
+        is_tls: bool = False,
+        wait: bool = True,
+        timeout_seconds: int | float = 15,
+    ) -> dict[str, Any]:
+        arguments = {
+            "source": "id" if isinstance(request_id, str) and request_id else "raw",
+            "rawBytes": len(raw_request.encode()) if isinstance(raw_request, str) else -1,
+            "port": port if type(port) is int else -1,
+            "isTLS": is_tls if type(is_tls) is bool else False,
+            "wait": wait if type(wait) is bool else False,
+        }
+        return await self._call(
+            arguments,
+            lambda result: {"status": result["status"]},
+            lambda: self._session.replay(
+                request_id=request_id,
+                raw_request=raw_request,
+                host=host,
+                port=port,
+                is_tls=is_tls,
+                wait=wait,
+                timeout_seconds=timeout_seconds,
+            ),
+        )
+
+
+class CaidoAutomateRunTool(_CaidoTool):
+    name = "caido_automate_run"
+    description = "Create, configure and start one bounded Caido Automate task without retries."
+
+    async def __call__(
+        self,
+        request_id: str,
+        targets: list[str],
+        payloads: list[str],
+        strategy: str = "ALL",
+        workers: int = 5,
+        delay_ms: int = 0,
+    ) -> dict[str, Any]:
+        arguments = {
+            "hasRequestId": bool(request_id) if isinstance(request_id, str) else False,
+            "targetCount": len(targets) if isinstance(targets, list) else 0,
+            "payloadCount": len(payloads) if isinstance(payloads, list) else 0,
+            "strategy": (
+                strategy
+                if isinstance(strategy, str) and strategy in _AUTOMATE_STRATEGIES
+                else "invalid"
+            ),
+            "workers": workers if type(workers) is int else -1,
+            "delayMs": delay_ms if type(delay_ms) is int else -1,
+        }
+        return await self._call(
+            arguments,
+            lambda result: {"status": result["status"]},
+            lambda: self._session.automate_run(
+                request_id=request_id,
+                targets=targets,
+                payloads=payloads,
+                strategy=strategy,
+                workers=workers,
+                delay_ms=delay_ms,
+            ),
         )
 
 
@@ -605,6 +1117,29 @@ class CaidoWorkflowListTool(_CaidoTool):
         )
 
 
+class CaidoWorkflowRunTool(_CaidoTool):
+    name = "caido_workflow_run"
+    description = "Run one bounded convert or active Caido workflow without mutation retries."
+
+    async def __call__(
+        self, workflow_id: str, input: str = "", request_id: str = ""
+    ) -> dict[str, Any]:
+        arguments = {
+            "mode": "active" if isinstance(request_id, str) and request_id else "convert",
+            "inputBytes": len(input.encode()) if isinstance(input, str) else -1,
+            "hasWorkflowId": bool(workflow_id) if isinstance(workflow_id, str) else False,
+        }
+        return await self._call(
+            arguments,
+            lambda result: {
+                "kind": result["kind"],
+                "status": result.get("status", "completed"),
+                "hasArtifact": result.get("output_artifact") is not None,
+            },
+            lambda: self._session.workflow_run(workflow_id, input, request_id),
+        )
+
+
 class CaidoWorkflowFindingsTool(_CaidoTool):
     name = "caido_workflow_findings"
     description = "Read one bounded newest-first page of findings reported in Caido."
@@ -619,6 +1154,238 @@ class CaidoWorkflowFindingsTool(_CaidoTool):
             lambda result: {"count": len(result["findings"])},
             lambda: self._session.workflow_findings(limit, offset),
         )
+
+
+def _scope(value: object) -> dict[str, Any]:
+    scope = _exact_object(value, {"id", "name", "allowlist", "denylist"})
+    allowlist = _string_list(scope["allowlist"], maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES)
+    denylist = _string_list(scope["denylist"], maximum=MAX_SCOPE_TERMS, item_bytes=MAX_TERM_BYTES)
+    if len(allowlist) + len(denylist) > MAX_SCOPE_TERMS:
+        raise CaidoToolError("caido_response_invalid")
+    return {
+        "id": _identifier(scope["id"]),
+        "name": _text(scope["name"]),
+        "allowlist": allowlist,
+        "denylist": denylist,
+    }
+
+
+def _domain_error(value: object, *, typename: bool) -> str | None:
+    if value is None:
+        return None
+    error = _object(value)
+    if typename:
+        expected = {"__typename", "code"} if "code" in error else {"__typename"}
+    else:
+        expected = {"code"}
+    _exact_object(error, expected)
+    if typename:
+        selected_typename = _safe_enum(error["__typename"])
+        if "code" not in error or error["code"] is None:
+            return selected_typename
+    return _safe_enum(error["code"])
+
+
+def _replay_session(data: object) -> dict[str, Any]:
+    selected = _exact_object(data, {"createReplaySession"})
+    payload = _exact_object(selected["createReplaySession"], {"session"})
+    if payload["session"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    session = _exact_object(payload["session"], {"id", "name", "activeEntry"})
+    _text(session["name"])
+    entry_id = None
+    if session["activeEntry"] is not None:
+        entry = _exact_object(session["activeEntry"], {"id"})
+        entry_id = _identifier(entry["id"])
+    return {"id": _identifier(session["id"]), "entry_id": entry_id}
+
+
+def _replay_start(data: object) -> dict[str, Any]:
+    selected = _exact_object(data, {"startReplayTask"})
+    payload = _exact_object(selected["startReplayTask"], {"error", "task"})
+    error_code = _domain_error(payload["error"], typename=False)
+    if error_code is not None:
+        return {"error_code": error_code, "task_id": None, "entry_id": None}
+    if payload["task"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    task = _exact_object(payload["task"], {"id", "replayEntry"})
+    entry_id = None
+    if task["replayEntry"] is not None:
+        entry = _exact_object(task["replayEntry"], {"id"})
+        entry_id = _identifier(entry["id"])
+    return {
+        "error_code": None,
+        "task_id": _identifier(task["id"]),
+        "entry_id": entry_id,
+    }
+
+
+def _replay_observation(data: object, expected_entry_id: str) -> dict[str, Any] | None:
+    selected = _exact_object(data, {"replayEntry"})
+    if selected["replayEntry"] is None:
+        return None
+    entry = _exact_object(selected["replayEntry"], {"id", "raw", "error", "request"})
+    if _identifier(entry["id"]) != expected_entry_id:
+        raise CaidoToolError("caido_response_invalid")
+    raw_request = _blob(entry["raw"])
+    if entry["error"] is not None:
+        _text(entry["error"])
+        return {"status": "failed"}
+    if entry["request"] is None:
+        return None
+    request = _exact_object(entry["request"], {"id", "method", "host", "path", "query", "response"})
+    if request["response"] is None:
+        return None
+    response = _exact_object(request["response"], {"statusCode", "length", "roundtripTime", "raw"})
+    return {
+        "status": "completed",
+        "request_id": _identifier(request["id"]),
+        "method": _text(request["method"]),
+        "host": _text(request["host"]),
+        "path": _text(request["path"]),
+        "query": _text(request["query"]),
+        "status_code": _nullable_integer(response["statusCode"], minimum=100, maximum=999),
+        "response_length": _nullable_integer(response["length"], minimum=0),
+        "roundtrip_ms": _nullable_number(response["roundtripTime"], minimum=0),
+        "_raw_request": raw_request,
+        "_raw_response": _blob(response["raw"]),
+    }
+
+
+def _automate_create(data: object) -> dict[str, Any]:
+    selected = _exact_object(data, {"createAutomateSession"})
+    payload = _exact_object(selected["createAutomateSession"], {"session"})
+    if payload["session"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    session = _exact_object(payload["session"], {"id", "name", "settings"})
+    _text(session["name"])
+    settings = _exact_object(session["settings"], {"strategy"})
+    if _text(settings["strategy"]) not in _AUTOMATE_STRATEGIES:
+        raise CaidoToolError("caido_response_invalid")
+    return {"id": _identifier(session["id"])}
+
+
+def _automate_update(
+    data: object,
+    expected_session_id: str,
+    placeholders: list[dict[str, int]],
+    strategy: str,
+) -> dict[str, Any]:
+    selected = _exact_object(data, {"updateAutomateSession"})
+    payload = _exact_object(selected["updateAutomateSession"], {"error", "session"})
+    error_code = _domain_error(payload["error"], typename=False)
+    if error_code is not None:
+        return {"error_code": error_code}
+    if payload["session"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    session = _exact_object(payload["session"], {"id", "name", "settings"})
+    if _identifier(session["id"]) != expected_session_id:
+        raise CaidoToolError("caido_response_invalid")
+    _text(session["name"])
+    settings = _exact_object(session["settings"], {"placeholders", "strategy"})
+    observed: list[dict[str, int]] = []
+    for raw in _list(settings["placeholders"], maximum=MAX_AUTOMATE_TARGETS):
+        item = _exact_object(raw, {"start", "end"})
+        observed.append(
+            {
+                "start": _integer(item["start"], minimum=0),
+                "end": _integer(item["end"], minimum=0),
+            }
+        )
+    if observed != placeholders or settings["strategy"] != strategy:
+        raise CaidoToolError("caido_response_invalid")
+    return {"error_code": None}
+
+
+def _automate_start(data: object) -> dict[str, Any]:
+    selected = _exact_object(data, {"startAutomateTask"})
+    payload = _exact_object(selected["startAutomateTask"], {"automateTask"})
+    if payload["automateTask"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    task = _exact_object(payload["automateTask"], {"id", "paused", "entry"})
+    _boolean(task["paused"])
+    if task["entry"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    entry = _exact_object(task["entry"], {"id", "name"})
+    return {
+        "task_id": _identifier(task["id"]),
+        "entry_id": _identifier(entry["id"]),
+        "entry_name": _text(entry["name"]),
+    }
+
+
+def _convert_workflow_result(data: object) -> dict[str, Any]:
+    selected = _exact_object(data, {"runConvertWorkflow"})
+    payload = _exact_object(selected["runConvertWorkflow"], {"output", "error"})
+    error_code = _domain_error(payload["error"], typename=True)
+    if payload["output"] is not None and not isinstance(payload["output"], str):
+        raise CaidoToolError("caido_response_invalid")
+    if error_code is None and payload["output"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    return {"output": payload["output"], "error_code": error_code}
+
+
+def _active_workflow_result(data: object, expected_workflow_id: str) -> dict[str, Any]:
+    selected = _exact_object(data, {"runActiveWorkflow"})
+    payload = _exact_object(selected["runActiveWorkflow"], {"task", "error"})
+    error_code = _domain_error(payload["error"], typename=True)
+    if error_code is not None:
+        return {"task_id": None, "error_code": error_code}
+    if payload["task"] is None:
+        raise CaidoToolError("caido_response_invalid")
+    task = _exact_object(payload["task"], {"id", "createdAt", "workflow"})
+    _text(task["createdAt"])
+    workflow = _exact_object(task["workflow"], {"id", "name"})
+    if _identifier(workflow["id"]) != expected_workflow_id:
+        raise CaidoToolError("caido_response_invalid")
+    _text(workflow["name"])
+    return {"task_id": _identifier(task["id"]), "error_code": None}
+
+
+def _inject_request_tag(raw: bytes, tag: str) -> bytes:
+    if not raw or len(raw) > MAX_RAW_REQUEST_BYTES:
+        raise CaidoToolError("caido_request_invalid")
+    if b"\r\n\r\n" in raw:
+        separator = b"\r\n"
+        head, body = raw.split(b"\r\n\r\n", 1)
+    elif b"\n\n" in raw:
+        separator = b"\n"
+        head, body = raw.split(b"\n\n", 1)
+    else:
+        raise CaidoToolError("caido_request_invalid")
+    lines = head.split(separator)
+    forbidden_line_byte = b"\n" if separator == b"\r\n" else b"\r"
+    if (
+        not lines[0]
+        or b"\x00" in head
+        or any(forbidden_line_byte in line for line in lines)
+        or any(not line or b":" not in line for line in lines[1:])
+    ):
+        raise CaidoToolError("caido_request_invalid")
+    selected: list[bytes] = [lines[0], REQUEST_TAG_HEADER + b": " + tag.encode("ascii")]
+    for line in lines[1:]:
+        name, _value = line.split(b":", 1)
+        if name.lower() == REQUEST_TAG_HEADER.lower():
+            continue
+        selected.append(line)
+    result = separator.join(selected) + separator + separator + body
+    if len(result) > MAX_RAW_REQUEST_BYTES:
+        raise CaidoToolError("caido_request_invalid")
+    return result
+
+
+def _placeholder_offsets(raw: bytes, targets: Sequence[str]) -> list[dict[str, int]]:
+    result: list[dict[str, int]] = []
+    for target in targets:
+        encoded = target.encode()
+        start = raw.find(encoded)
+        if start < 0:
+            raise CaidoToolError("caido_request_invalid")
+        result.append({"start": start, "end": start + len(encoded)})
+    ordered = sorted((item["start"], item["end"]) for item in result)
+    if any(current[0] < previous[1] for previous, current in pairwise(ordered)):
+        raise CaidoToolError("caido_request_invalid")
+    return result
 
 
 def _request_summary(value: object) -> dict[str, Any]:
@@ -921,6 +1688,75 @@ def _page(limit: object, offset: object) -> tuple[int, int]:
     return selected_limit, selected_offset
 
 
+def _request_text(value: object, *, maximum: int) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value.encode()) > maximum
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise CaidoToolError("caido_request_invalid")
+    return value
+
+
+def _request_string_list(
+    value: object,
+    *,
+    maximum: int,
+    item_bytes: int,
+    allow_empty: bool = False,
+    allow_controls: bool = False,
+) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise CaidoToolError("caido_request_invalid")
+    result = list(value)
+    if len(result) > maximum:
+        raise CaidoToolError("caido_request_invalid")
+    selected: list[str] = []
+    for item in result:
+        if (
+            not isinstance(item, str)
+            or (not allow_empty and not item)
+            or len(item.encode()) > item_bytes
+            or (not allow_controls and any(ord(character) < 32 for character in item))
+        ):
+            raise CaidoToolError("caido_request_invalid")
+        selected.append(item)
+    return selected
+
+
+def _request_number(value: object, *, minimum: float, maximum: float) -> float:
+    if type(value) not in {int, float}:
+        raise CaidoToolError("caido_request_invalid")
+    try:
+        selected = float(value)
+    except (OverflowError, ValueError):
+        raise CaidoToolError("caido_request_invalid") from None
+    if not math.isfinite(selected) or selected < minimum or selected > maximum:
+        raise CaidoToolError("caido_request_invalid")
+    return selected
+
+
+def _connection_host(value: object) -> str:
+    selected = _request_text(value, maximum=253)
+    if any(character.isspace() for character in selected) or "://" in selected:
+        raise CaidoToolError("caido_request_invalid")
+    return selected
+
+
+def _safe_enum(value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 128
+        or not all(
+            character.isascii() and (character.isalnum() or character == "_") for character in value
+        )
+    ):
+        raise CaidoToolError("caido_response_invalid")
+    return value
+
+
 def _filter(value: object) -> str:
     if not isinstance(value, str) or len(value.encode()) > MAX_SHORT_TEXT_BYTES:
         raise CaidoToolError("caido_request_invalid")
@@ -1011,6 +1847,12 @@ def _nullable_integer(value: object, *, minimum: int, maximum: int | None = None
     return None if value is None else _integer(value, minimum=minimum, maximum=maximum)
 
 
+def _required_integer(value: object, *, minimum: int, maximum: int | None = None) -> int:
+    if value is None:
+        raise CaidoToolError("caido_response_invalid")
+    return _integer(value, minimum=minimum, maximum=maximum)
+
+
 def _nullable_number(value: object, *, minimum: float) -> int | float | None:
     if value is None:
         return None
@@ -1047,6 +1889,14 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
 
 def _elapsed_ms(started_ns: int) -> int:
     return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
+
+
+async def _closed_sleep(_seconds: float) -> None:
+    raise CaidoToolError("caido_request_failed")
+
+
+def _closed_monotonic() -> float:
+    raise CaidoToolError("caido_request_failed")
 
 
 class _UnavailableArtifactTransport:

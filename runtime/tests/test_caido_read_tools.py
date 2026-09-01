@@ -20,7 +20,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.toolsets.caido import (
     CAIDO_EXCHANGE_MEDIA_TYPE,
-    CAIDO_READ_TOOL_NAMES,
+    CAIDO_TOOL_NAMES,
     CaidoToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -49,7 +49,7 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
     async def scenario() -> None:
         artifacts = FakeArtifactClient()
         tools, state, handle = await create_tools(tmp_path, handler, artifacts)
-        assert await CaidoToolsetFactory().probe() == CAIDO_READ_TOOL_NAMES
+        assert await CaidoToolsetFactory().probe() == CAIDO_TOOL_NAMES
 
         scopes = await tools["caido_scope"]()
         assert scopes == {
@@ -137,6 +137,9 @@ async def create_tools(
     tmp_path: Path,
     handler: Any,
     artifacts: FakeArtifactClient,
+    *,
+    selected: set[str] | frozenset[str] | None = None,
+    factory: CaidoToolsetFactory | None = None,
 ) -> tuple[dict[str, Any], WorkerState, CaidoGraphQLClient]:
     metrics = RuntimeAdapterMetricsState()
     handle = CaidoGraphQLClient(
@@ -160,9 +163,18 @@ async def create_tools(
         requestTimeoutSeconds=10,
     )
     state = WorkerState()
-    factory = CaidoToolsetFactory(lambda _allocation, _settings: artifacts)
+    factory = factory or CaidoToolsetFactory(lambda _allocation, _settings: artifacts)
+    selected_tools = selected or {
+        "caido_automate_results",
+        "caido_history",
+        "caido_request_detail",
+        "caido_scope",
+        "caido_sitemap",
+        "caido_workflow_findings",
+        "caido_workflow_list",
+    }
     result = await factory.create_selected(
-        selected=sorted(CAIDO_READ_TOOL_NAMES),
+        selected=sorted(selected_tools),
         allocation_id="allocation-caido-tools",
         run_id="run-caido-tools",
         namespace="analyst",

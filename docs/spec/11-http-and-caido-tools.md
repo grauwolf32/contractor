@@ -226,6 +226,40 @@ tool and Caido replay counters use distinct infixes so proxy history can
 correlate traffic without exposing Run/Stage IDs. Tags are safe observability
 identifiers, not authentication.
 
+`caido_scope(action="create")` requires a bounded non-empty name and accepts
+at most 256 non-empty allow/deny terms in total. `caido_replay` accepts exactly
+one source: an existing request ID, or UTF-8 raw request plus host/port/TLS.
+Before the first mutation it replaces any existing `X-Request-Id` header in
+the exact request bytes and consumes a fresh tag; the tag is not reused after
+cancellation or an ambiguous response loss. Replay polling may return only
+`completed`, `failed`, `timeout`, `started`, `rejected`, or `not_found` as
+supported by the chosen path. `timeout` describes only the bounded local
+observation window: it neither claims that Caido stopped nor starts a cleanup
+mutation.
+
+`caido_automate_run` reads one existing request, injects its own fresh tag,
+then computes every placeholder against the exact tagged UTF-8 bytes submitted
+to Caido. It rejects missing, duplicate, or overlapping targets. One simple
+payload list may contain at most 1000 values and 1 MiB total; empty and control
+character payload strings remain valid fuzz inputs. Strategy is exactly
+`SEQUENTIAL|PARALLEL|MATRIX|ALL`, workers are 1..50, delay is 0..60000 ms,
+redirects are disabled and Caido request retries are configured to zero.
+
+`caido_workflow_run` dispatches by mutually exclusive input: `request_id`
+starts an active workflow asynchronously, while non-empty UTF-8 `input` runs a
+convert workflow. A convert result is returned inline only when it is bounded
+UTF-8; a large text or any binary result is written to one exact reserved
+`caido.output.*` artifact with a bounded preview in the tool result.
+
+No Caido mutation is automatically retried. In particular, a transport error
+after send has an unknown remote outcome and is returned as a non-retryable
+bounded failure for that model-visible action;
+the Worker may inspect Caido state before deciding whether another explicit
+tool call is appropriate. Read-only polling queries also use no transport
+retry in the first implementation. Every returned object has an exact
+operation-specific shape, and identities returned for an ID-addressed query or
+mutation must match the requested/session identity before they are exposed.
+
 Known Caido domain failures become bounded tool results. Transport, JSON,
 GraphQL and schema errors return a stable code and retryability without echoing
 endpoint, bearer token, raw query, variables or arbitrary server text.
