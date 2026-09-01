@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V11-003
+title: Pin workspace artifacts and project them into allocations
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-002]
+languages: [go]
+
+goal: >-
+  Make Scheduler turn the Stage's logical workspace aliases into exact immutable
+  source/state refs and give every logical Worker an identical construction
+  manifest while preserving separate allocations.
+
+context:
+  pinning: >-
+    buildStageCreation already pins StageContext artifacts. Workspace projection
+    must reuse those exact stored pins, never re-read a current binding later.
+    Optional absent state remains absent; a required absent source prevents the
+    Stage from becoming runnable.
+
+scope:
+  in:
+    - Carry resolved workspace through StageCreation/StageExecution persistence and recovery validation.
+    - Add workspace to BindingRequirement, Reservation and RuntimeControlClient AllocationSpecV2 construction.
+    - Reuse exact StageContext refs by alias and clone the same values for every Router binding.
+    - Include requested workspace mode in complete candidate compatibility and Operations rejection detail without exposing refs/content.
+    - Verify reservation replay compares the immutable workspace projection.
+    - Add PostgreSQL/recovery tests for optional state, binding advance after pin, Router copies and response loss.
+  out:
+    - ZIP bytes, Runtime storage implementation or artifact export.
+
+requirements:
+  - {id: R1, text: No AllocationSpec source/state ref can differ from its persisted StageContext pin.}
+  - {id: R2, text: A later CAS advance of the logical binding cannot alter a running or retried StageExecution.}
+  - {id: R3, text: Placement waits when no live Agent supports the requested workspace mode and does not consume a slot.}
+
+acceptance_criteria:
+  - {id: A1, given: A pinned source whose current binding advances, when: Reservation is rebuilt, then: The original exact revision is sent.}
+  - {id: A2, given: Router with two logical Workers, when: Both allocations prepare, then: Their manifests have equal exact workspace refs and distinct allocation namespaces.}
+  - {id: A3, given: Only direct-capable Agents and an overlay Stage, when: Scheduler polls, then: It waits safely and Operations explains missing overlay capability.}
+
+tests:
+  - {name: scheduler, command: "go test ./internal/scheduler ./internal/controlplane", covers: [A1, A2, A3]}
+  - {name: postgres, command: "go test -tags=integration ./internal/scheduler ./internal/controlplane", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

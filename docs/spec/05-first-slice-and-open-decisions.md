@@ -390,33 +390,45 @@ changing Planner, Workflow graph or A2A Task semantics. It must demonstrate:
 
 ## Runtime filesystem increment
 
-The Runtime filesystem increment adds project-directory tools without adding a
-Server filesystem boundary. It must demonstrate:
+The workspace increment mounts exact Run artifacts into one allocation-private
+logical `run_workdir` without giving Server access to a filesystem. It must
+demonstrate:
 
-- an optional strict Runtime-local config binds named virtual mounts to
-  operator-owned roots using `local`, `memory`, `overlay-local` or
-  `overlay-memory`; no host path or backend state crosses registration,
-  AllocationSpec, Agent Card or metrics;
-- Runtime startup probes and freezes ordinary `filesystem@1`, `edit-files@1`
-  and `workspace-changes@1` positive tool subsets, while a process without
-  mounts continues to execute existing artifact-only templates;
-- local access is rooted/no-follow, memory baselines contain complete bounded
-  UTF-8 trees and every allocation receives private memory/overlay state;
-- read and Edit tools consume narrow WorkspaceReader/Writer interfaces and
-  behave consistently without inspecting the concrete fsspec backend;
-- overlay changes remain in memory until explicit materialization, with
-  deterministic diff/rollback and stale-lower conflict detection;
-- local host mutation requires trusted `hostWrite: true` plus explicit
-  AgentTemplate selection, and interrupted materialization is recovered from a
-  Runtime-local journal before that process can register again;
-- selected `contractor-old` confinement, Edit and overlay regression tests are
-  ported while implicit overlay wrapping, global MemoryFileSystem state and
-  specialized fork merge are not.
+- Workflow validates logical ZIP/state aliases, target directories,
+  `direct|overlay` mode and overlay result slots;
+- Scheduler pins exact RunScope refs and places the immutable workspace
+  projection in every corresponding AllocationSpec;
+- Runtime startup freezes only private `local|memory` storage limits and
+  advertises modes plus the exact filesystem/Edit/change tool subsets;
+- secure ZIP hydration and cumulative text overlay import are bounded,
+  deterministic and isolated for every logical Worker;
+- read and Edit tools consume narrow interfaces and behave consistently across
+  local/memory/direct/overlay implementations;
+- overlay diff/rollback use the current invocation checkpoint and graceful
+  terminal results auto-export cumulative state plus human diff through the
+  existing Artifact API before Scheduler fences writes;
+- release, abort and lease loss erase disposable state; there is no host
+  checkout mutation or model-visible materialization.
 
-[10](10-runtime-filesystems-and-edit-tools.md) owns the complete contract. The
-first Runtime-only profile assumes one filesystem-capable process or equivalent
-logical mounts across all eligible processes; source Artifact auto-mounting or
-project affinity would be a later Server/allocation increment.
+[10](10-runtime-filesystems-and-edit-tools.md) owns the complete contract.
+
+## HTTP and Caido tools increment
+
+The next Runtime tools increment ports bounded generic HTTP and Caido behavior:
+
+- `http-tools@1` uses direct transport or the existing label-selected
+  `tool-http` forward-proxy handle without exposing proxy configuration;
+- `caido@1` uses a distinct label-selected `caido-graphql@1` adapter with a
+  typed endpoint and optional `caido-bearer@1` credential;
+- AgentTemplate grants exact tools while labels only configure infrastructure;
+- response bodies/raw exchanges become bounded ordinary artifacts instead of
+  unbounded prompt content;
+- session secrets remain allocation-memory-only and teardown erases all
+  clients/credentials;
+- static GraphQL operations and deterministic fake-service/process tests cover
+  the migrated Caido surface.
+
+[11](11-http-and-caido-tools.md) owns the complete contract.
 
 ## Deliberately deferred
 
@@ -464,8 +476,8 @@ slice implementation needs it.
   deletion or automatic eviction.
 - Agent Skill script execution, remote registry search, Run/Stage/Planner skill
   selection, multi-owner shared skills or hot replacement inside an active Run.
-- Server-managed project paths, Run-selected mounts, filesystem affinity or
-  automatic overlay materialization.
+- Server-managed project paths, operator-checkout mutation or automatic
+  synchronization between allocation workspaces.
 
 ## Exit question
 
@@ -493,8 +505,12 @@ its prior exact package, native ADK progressive disclosure reads its reference
 through no new content API, and no accepted first-profile package can execute a
 script or expand the AgentTemplate's domain-tool authority.
 
-The Runtime filesystem increment is successful when one configured Runtime can
-read and safely edit the same project through local, memory and overlay-backed
-Workspace interfaces, cannot escape a named mount, exposes only its probed tool
-subset, and either completes or recovers an explicitly authorized host
-materialization without introducing any Server filesystem state.
+The Runtime filesystem increment is successful when exact Run ZIP artifacts
+hydrate equivalent isolated local/memory workspaces, direct/overlay tools
+cannot escape `run_workdir`, and a graceful overlay result exports cumulative
+state plus its checkpoint diff before terminal A2A without new Artifact APIs.
+
+The HTTP/Caido increment is successful when one label retargets a Caido-backed
+Run without changing AgentTemplate, only compatible Runtime Agents are chosen,
+generic target HTTP statuses remain observable through direct/proxied paths,
+and all response/session/credential bounds survive release and slot reuse.

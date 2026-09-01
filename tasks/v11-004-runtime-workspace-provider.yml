@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V11-004
+title: Add immutable Runtime workspace storage configuration
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-001]
+languages: [python]
+
+goal: >-
+  Configure one Runtime process with optional disposable local or isolated
+  memory workspace storage, freeze its positive capability before registration
+  and expose a lifecycle provider without sending physical paths over the wire.
+
+context:
+  startup: >-
+    CLI/env accepts storage local|memory, local workRoot and four limits. Defaults
+    are local 50k/2GiB/256MiB/16MiB and memory 10k/256MiB/64MiB/4MiB. Omission
+    disables workspace Toolsets but leaves existing Runtime behavior intact.
+
+scope:
+  in:
+    - Add strict immutable settings/CLI/env parsing and safe repr.
+    - Validate local workRoot as dedicated absolute non-root and initialize only marker-owned child cleanup.
+    - Add WorkspaceProvider protocol and optional provider to factory/capability discovery.
+    - Advertise workspaceCapabilities with storage, sorted direct/overlay modes and exact limits.
+    - Gate filesystem Toolset probes on provider availability; keep backend paths out of registration/logs/metrics.
+    - Add local stale-marker cleanup and memory provider isolation tests.
+  out:
+    - Artifact download, archive hydration, overlay semantics or ADK tools.
+
+requirements:
+  - {id: R1, text: Startup cleanup removes only immediate valid Contractor marker-owned allocation directories below exact workRoot.}
+  - {id: R2, text: Provider configuration and capability remain immutable for one instance_id.}
+  - {id: R3, text: No-config Runtime advertises no workspace capability or filesystem Toolsets.}
+
+acceptance_criteria:
+  - {id: A1, given: Valid local and memory startup settings, when: Discovery runs, then: Exact safe capability snapshots are frozen and deterministic.}
+  - {id: A2, given: Root/symlink/marker-free or escaping cleanup candidates, when: Startup runs, then: It fails or ignores safely without deleting them.}
+  - {id: A3, given: Omitted workspace config, when: Existing Runtime suites run, then: They behave unchanged.}
+
+tests:
+  - {name: provider, command: "cd runtime && uv run pytest tests/test_workspace_settings.py tests/test_workspace_provider.py tests/test_capabilities.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

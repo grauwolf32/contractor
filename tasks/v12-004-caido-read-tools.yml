@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V12-004
+title: Port bounded Caido discovery and read tools
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-002]
+languages: [go, python]
+
+goal: >-
+  Port Caido scope listing, history, request detail, sitemap, workflow listing,
+  findings and Automate result reads onto the static typed adapter with bounded
+  variables/results and artifact-backed raw exchanges.
+
+context:
+  tools: >-
+    Read subset is caido_scope(list), caido_history, caido_request_detail,
+    caido_automate_results, caido_sitemap, caido_workflow_list and
+    caido_workflow_findings. caido_scope create remains in V12-005 under the
+    same final tool name.
+
+scope:
+  in:
+    - Define static GraphQL operation registry and exact response validators.
+    - Implement bounded IDs, HTTPQL, pagination, sort/kind/depth enums and result shaping.
+    - Decode Caido Blob safely; offload complete raw request/response and large output to ordinary artifacts with previews/exact refs.
+    - Add one factory/session sharing the allocation handle and Artifact client.
+    - Add fake GraphQL fixtures for absent/null/partial/domain/error/oversized responses.
+  out:
+    - Scope creation, replay, Automate start, workflow run or arbitrary GraphQL.
+
+requirements:
+  - {id: R1, text: The model can select only precompiled operations and bounded variables.}
+  - {id: R2, text: Raw exchanges above preview size are represented by exact artifact refs, never silently truncated as complete.}
+  - {id: R3, text: Caido error text, endpoint and GraphQL payload are not copied into retained errors/metrics.}
+
+acceptance_criteria:
+  - {id: A1, given: Representative Caido read fixtures, when: Every read tool runs, then: Exact static operation/variables and bounded normalized result match the contract.}
+  - {id: A2, given: Invalid enum/filter/page/blob or malformed/oversized GraphQL response, when: Tool runs, then: It returns a stable safe failure and no partial artifact result.}
+  - {id: A3, given: Raw request/response larger than preview, when: Detail is read, then: Preview plus exact artifact refs allow bounded later inspection.}
+
+tests:
+  - {name: caido-read, command: "cd runtime && uv run pytest tests/test_caido_read_tools.py tests/test_caido_graphql_fixtures.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

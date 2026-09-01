@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V11-011
+title: Add source-workspace workflow fixtures and process E2E
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-007, V11-008, V11-010]
+languages: [go, python, yaml]
+
+goal: >-
+  Exercise exact source hydration, filesystem/Edit/change tools and overlay
+  result export through real Server and Runtime process boundaries with useful
+  OpenAPI/LikeC4 source-workflow variants.
+
+context:
+  workflows: >-
+    Add explicit variants rather than silently changing existing source-analysis
+    Workflows. A user ZIP maps below project or selected multi-source targets;
+    overlay state/diff are declared Stage results and frozen outputs only where
+    the Workflow chooses them.
+
+scope:
+  in:
+    - Add filesystem-capable AgentTemplates/instructions and workspace Workflow YAML variants for source analysis.
+    - Run strict config publication and snapshot tests for fixtures.
+    - Start real mTLS Server plus local-storage and memory-storage Runtime processes.
+    - Use deterministic scripted Worker/model behavior to read/edit/diff/export without external LLM quality dependency.
+    - Prove exact revision pinning, Router isolation, terminal ordering, release cleanup and two-slot reuse.
+    - Document startup flags, limits and migration from source-analysis@1.
+  out:
+    - UI workspace browser, automatic cross-Worker sync, live LM quality gate or host checkout writes.
+
+requirements:
+  - {id: R1, text: E2E creates and deletes only validated temporary Runtime roots and uploaded artifacts.}
+  - {id: R2, text: Captured private traffic proves refs/revisions cross only the intended private manifest and no physical path crosses.}
+  - {id: R3, text: Existing OpenAPI/LikeC4 Workflow IDs keep their prior behavior.}
+
+acceptance_criteria:
+  - {id: A1, given: One ZIP and optional prior state, when: Workspace variant runs on local and memory agents, then: Frozen outputs and cumulative state are equivalent.}
+  - {id: A2, given: Router workers and two source archives, when: One edits, then: Its sibling remains isolated and only a later explicit Stage consumes exported state.}
+  - {id: A3, given: Successful, failed and cancelled Runs, when: Slots are reused, then: No prior workspace file/state is observable.}
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A3]}
+  - {name: process-e2e, command: "cd runtime && uv run pytest tests/test_workspace_process_e2e.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

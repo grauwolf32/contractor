@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V11-002
+title: Parse and validate Stage workspace declarations
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-001]
+languages: [go]
+
+goal: >-
+  Let strict Workflow YAML declare one logical workspace from existing Stage
+  context aliases while rejecting ambiguous targets, incompatible Toolsets and
+  invalid overlay result mappings at publication time.
+
+context:
+  yaml_shape: >-
+    context.workspace contains mode direct|overlay, 1..32 sources with artifact
+    alias and relative target, optional state.artifact, and optional
+    export.state/export.diff result slot names. Archive structure is preserved;
+    there is no stripComponents or revision field.
+
+scope:
+  in:
+    - Extend source and resolved Workflow structs, strict YAML decoding, snapshot clone and deterministic serialization.
+    - Resolve source/state aliases against context.artifacts and reject absent aliases.
+    - Normalize NFC POSIX targets; reject root overlap, traversal, backslash, URI, drive/UNC, control and excessive components/bytes.
+    - Cross-validate Toolsets: filesystem/edit need workspace; changes/export need overlay.
+    - Reserve export slots and require exact state/diff media types and distinct declared Stage result names.
+    - Add valid direct/overlay/multi-source YAML and malformed publication fixtures.
+  out:
+    - Artifact revision resolution, private allocation projection or Runtime code.
+
+requirements:
+  - {id: R1, text: Published ResolvedWorkflow contains no mutable Artifact revision and is sufficient for later exact pinning.}
+  - {id: R2, text: Existing Workflows without workspace remain unchanged.}
+  - {id: R3, text: Router bindings share one logical workspace declaration without implying shared physical state.}
+
+acceptance_criteria:
+  - {id: A1, given: The accepted multi-source overlay YAML, when: Config publication runs, then: It produces one deterministic resolved workspace and result mapping.}
+  - {id: A2, given: Bad aliases, target overlap or Toolset/mode/media mismatch, when: Publication runs, then: It fails before snapshot insertion with a precise safe path.}
+  - {id: A3, given: Existing managed configs, when: Full config tests run, then: Their digests and resolved values are unchanged.}
+
+tests:
+  - {name: workflow-config, command: "go test ./internal/config", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

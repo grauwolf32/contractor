@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V12-002
+title: Implement allocation-scoped caido-graphql@1 adapter
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-001]
+languages: [go, python]
+
+goal: >-
+  Build a narrow allocation-owned Caido GraphQL client from resolved private
+  settings, advertise the adapter capability and erase all endpoint/token/TLS
+  state before Runtime slot reuse.
+
+context:
+  handle: >-
+    AdapterHandles gains caido_graphql and channel caido-graphql-client. The
+    client accepts implementation-enumerated operation IDs plus bounded
+    variables; it never accepts arbitrary GraphQL from model-facing code.
+
+scope:
+  in:
+    - Add typed adapter factory/probe/host selection and handle validation.
+    - Build trust_env=false httpx client with optional bearer and CA bundle, bounded timeout/connections and 16 MiB response limit.
+    - Return target 4xx/5xx/invalid JSON/GraphQL errors as classified secret-free failures.
+    - Record content-free adapter metrics and close/detach/erase on rollback/finalize/release faults.
+    - Add Go/Python infrastructure-channel descriptor validation and placement requirement mapping for caido@1.
+    - Test no-config/missing-capability rejection before Worker readiness.
+  out:
+    - Model-visible Caido tools or generic HTTP transport.
+
+requirements:
+  - {id: R1, text: No Toolset can obtain raw httpx client, bearer token, endpoint or TLS context from the handle.}
+  - {id: R2, text: Selecting caido@1 requires effective caido config and a Runtime advertising caido-graphql@1.}
+  - {id: R3, text: Cleanup failure fences that Runtime slot and cannot expose a still-live handle.}
+
+acceptance_criteria:
+  - {id: A1, given: Authenticated/guest fake endpoints, when: Static operation executes, then: Exact bounded GraphQL request succeeds and only configured auth is sent.}
+  - {id: A2, given: Missing config/adapter capability or malformed/oversized response, when: Placement/prepare/call runs, then: It fails with stable safe classification.}
+  - {id: A3, given: Release/abort/create rollback including close fault, when: Lifecycle completes, then: Handle is detached and secret canaries are unreachable from retained state.}
+
+tests:
+  - {name: adapter, command: "cd runtime && uv run pytest tests/test_caido_adapter.py tests/test_adapter_host.py tests/test_allocation.py", covers: [A1, A2, A3]}
+  - {name: placement, command: "go test ./internal/config ./internal/controlplane ./internal/scheduler", covers: [A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

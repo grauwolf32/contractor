@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V11-012
+title: Harden workspace confinement concurrency and legacy parity
+milestone: run-workspaces-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V11-011]
+languages: [go, python]
+
+goal: >-
+  Close the workspace increment against adversarial archives/paths,
+  concurrent/cancelled tool calls, quota edges, retained-content leaks and
+  regressions from useful contractor-old filesystem/Edit behavior.
+
+context:
+  legacy: >-
+    Use contractor-old fs path/glob/ls/Edit/overlay tests as behavior reference.
+    Do not restore implicit roots, __getattr__ delegation, symlink access,
+    global MemoryFileSystem state, patch chains, fork merge or materialize.
+
+scope:
+  in:
+    - Port retained read/Edit/newline/type-change fixtures across compatible backends.
+    - Add deterministic property tests for paths, globs, ZIP names and Unicode normalization.
+    - Add archive/link/special/duplicate/bomb and local replacement-race attack tests.
+    - Run concurrent read/edit/rollback/export/cancellation schedules and assert linearizable snapshots/no deadlock.
+    - Test exact file/count/expanded/managed/state/diff/Artifact limits and cleanup after every failure.
+    - Scan captured logs, metrics, reports and wire payloads for seeded contents, paths and secrets.
+    - Validate LikeC4 architecture and document unsupported binary/subprocess/shared-workspace cases.
+  out:
+    - New workspace features, binary patches, remote storage, shell tools or UI.
+
+requirements:
+  - {id: R1, text: No cancellation/error leaves a temp file, open handle, memory namespace, partial checkpoint or reusable dirty slot.}
+  - {id: R2, text: Security tests verify outside bytes before/after attacks rather than trusting an error code.}
+  - {id: R3, text: Retained metrics are content-free and bounded under success and every fault path.}
+
+acceptance_criteria:
+  - {id: A1, given: Retained legacy fixtures, when: Backend matrix runs, then: Documented read/Edit/overlay behavior matches with explicit negative tests for removed features.}
+  - {id: A2, given: Adversarial paths/archives/races/cancellation/exact limits, when: Suites repeat, then: No escape, leak, partial mutation, deadlock or cross-allocation state occurs.}
+  - {id: A3, given: Full repository verification, when: Release gate runs, then: Specs/tasks/LikeC4, Go, Python, UI and process tests pass.}
+
+tests:
+  - {name: hardening, command: "cd runtime && uv run pytest tests/test_projectfs_legacy_parity.py tests/test_projectfs_security.py tests/test_projectfs_concurrency.py", covers: [A1, A2]}
+  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec/architecture.c4", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

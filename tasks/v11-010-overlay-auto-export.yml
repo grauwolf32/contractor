@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V11-010
+title: Auto-export overlay state before terminal A2A response
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-003, V11-006, V11-009]
+languages: [python]
+
+goal: >-
+  Persist cumulative overlay state and current checkpoint diff into reserved
+  Stage result slots before any graceful terminal Worker result becomes
+  observable, then advance the checkpoint only after both writes succeed.
+
+context:
+  ordering: >-
+    Export applies to structurally valid graceful StageContentResult outcome
+    succeeded or failed. It does not run for INPUT_REQUIRED, malformed result,
+    cancellation, abort, lease loss or crash. Writes use existing Artifact API
+    under AllocationSpec.namespace and return exact refs injected by Runtime.
+
+scope:
+  in:
+    - Attach WorkspaceSession and ArtifactClient to Worker runtime lifecycle without exposing them to the prompt.
+    - Reserve export slots and reject model-provided collisions.
+    - Snapshot/encode state and diff, write both with CAS-safe collision handling, inject refs and revalidate result before A2A publication.
+    - Classify temporary transport, fence, quota and invalid-state failures into workspace_export_failed.
+    - Keep checkpoint unchanged after partial write; commit F only after both writes and final validation.
+    - Preserve workspace through finalize until idempotent release; abort/lease loss blocks operations and exports then deletes it.
+  out:
+    - New Artifact endpoint/store, WorkspaceExportReceipt or automatic inter-Worker synchronization.
+
+requirements:
+  - {id: R1, text: Scheduler cannot observe terminal A2A before both exact artifact refs exist.}
+  - {id: R2, text: A partial artifact is never injected/selected and retry can produce a complete later pair.}
+  - {id: R3, text: Semantic failed results preserve useful workspace changes just like succeeded results.}
+
+acceptance_criteria:
+  - {id: A1, given: Graceful succeeded and failed results with changes, when: Invoke completes, then: Both reserved slots contain exact refs and state reconstructs F.}
+  - {id: A2, given: Failure before/after either Artifact write or lost response, when: Invoke/retry runs, then: No false terminal success or checkpoint advance occurs.}
+  - {id: A3, given: INPUT_REQUIRED, abort, lease expiry and malformed output, when: Lifecycle runs, then: No new export is written and cleanup prevents reuse of live state.}
+
+tests:
+  - {name: auto-export, command: "cd runtime && uv run pytest tests/test_workspace_auto_export.py tests/test_adk_runtime.py tests/test_allocation.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

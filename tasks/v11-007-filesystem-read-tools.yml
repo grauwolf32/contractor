@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V11-007
+title: Add backend-independent filesystem@1 read tools
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-005]
+languages: [go, python]
+
+goal: >-
+  Expose exactly ls, glob, read_file and grep over the single relative
+  run_workdir root with deterministic pagination, scan ceilings and no backend
+  or host-path disclosure.
+
+context:
+  behavior: >-
+    Port useful contractor-old listing/glob/read/search behavior but remove
+    list_roots, implicit roots and unbounded fallbacks. Text tools reject binary
+    paths. AgentTemplate selects any exact non-empty subset.
+
+scope:
+  in:
+    - Add Go static descriptor and Python ToolsetFactory with exact four names.
+    - Implement sorted opaque cursor pagination for ls/glob/grep and bounded line reads.
+    - Support path-aware star/double-star glob and bounded literal/regex grep with safe time/scan limits.
+    - Preserve newline metadata and explicit truncation/next cursor.
+    - Record content-free tool metrics and sanitize backend exceptions.
+  out:
+    - Writes, diff/rollback, auto export or archive selection.
+
+requirements:
+  - {id: R1, text: Every returned path is normalized relative run_workdir data; no physical path or storage kind enters a tool result.}
+  - {id: R2, text: Pagination is stable for an immutable snapshot and truncation can never look complete.}
+  - {id: R3, text: Factory receives only WorkspaceReader and cannot mutate through fsspec escape hatches.}
+
+acceptance_criteria:
+  - {id: A1, given: Equivalent direct/overlay local/memory fixtures, when: All read tools run, then: Results are identical and sorted.}
+  - {id: A2, given: Traversal, binary, pathological regex/glob and exact scan bounds, when: Tools run, then: They fail or truncate safely without state change.}
+  - {id: A3, given: AgentTemplate selects one tool, when: Worker is built, then: Only that callable is model-visible and descriptor/runtime capability agree.}
+
+tests:
+  - {name: read-tools, command: "cd runtime && uv run pytest tests/test_filesystem_toolset.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

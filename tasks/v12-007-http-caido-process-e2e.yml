@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V12-007
+title: Prove HTTP and Caido behavior through real process boundaries
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-006]
+languages: [go, python]
+
+goal: >-
+  Run deterministic HTTP/Caido workflows through mTLS Server and heterogeneous
+  Runtime processes, proving label precedence, complete placement, tool calls,
+  artifact bodies, release and secret-free retained surfaces.
+
+context:
+  topology: >-
+    Start two single-slot Runtime Agents: one with caido-graphql@1 and one
+    without. Use local fake target/forward-proxy/Caido GraphQL services. No LM
+    Studio or real Caido dependency is allowed in the release gate.
+
+scope:
+  in:
+    - Add deterministic fake target/proxy/Caido services and real-process harness.
+    - Publish credential/config labels and run HTTP-only plus Caido AgentTemplates.
+    - Prove Caido allocation selects only compatible Runtime and Agent label overrides Run endpoint for the next allocation.
+    - Exercise target 4xx/5xx, body artifacts, Caido read/mutation, terminal report and release response loss.
+    - Decode captured private/public traffic, artifacts, metrics and logs for seeded secret/raw-content absence.
+    - Reuse both slots and prove clients/session credentials are gone.
+  out:
+    - External network, real security scan, UI or live-model quality assertions.
+
+requirements:
+  - {id: R1, text: Tests use only explicitly bound loopback ports and validated temporary resources.}
+  - {id: R2, text: E2E is deterministic and offline apart from local subprocess traffic.}
+  - {id: R3, text: Secret absence is proven by decoded retained surfaces rather than safe struct assumptions.}
+
+acceptance_criteria:
+  - {id: A1, given: Heterogeneous Runtime fleet, when: HTTP-only and Caido Runs start, then: Complete placement and exact selected tools/adapter handles are observed.}
+  - {id: A2, given: Label rebind during one live allocation, when: Current and next Runs execute, then: Current keeps pinned settings and next uses new endpoint.}
+  - {id: A3, given: Terminal/release response loss and slot reuse, when: Recovery completes, then: No duplicate mutation, live handle, session secret or blocked unrelated Run remains.}
+
+tests:
+  - {name: process-e2e, command: "cd runtime && uv run pytest tests/test_http_caido_process_e2e.py", covers: [A1, A2, A3]}
+  - {name: go-e2e, command: "go test ./internal/scheduler ./internal/controlplane ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

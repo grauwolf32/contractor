@@ -73,18 +73,26 @@ fixed_decisions:
       profile accepts SKILL.md, references and assets but rejects scripts.
   runtime_filesystems:
     ownership: >-
-      Named host roots, local/memory/overlay mode, upper state and host-write
-      authority are immutable Python Runtime Agent startup configuration; no
-      path, backend state or change set crosses the Server wire.
+      Workflow composes logical RunScope ZIP/state artifacts and selects
+      direct|overlay semantics. Scheduler pins exact refs in AllocationSpec;
+      Python Runtime startup alone selects disposable local|memory storage.
     implementation: >-
-      fsspec-backed WorkspaceReader/Writer/ChangeSet adapters with virtual
-      rooted paths; Edit tools depend on narrow interfaces rather than concrete
-      Local, Memory or Overlay classes.
+      fsspec-backed WorkspaceReader/Writer/Changes adapters over one relative
+      run_workdir; each logical Worker has an independent physical session and
+      Edit tools depend on narrow interfaces rather than concrete backends.
     safety: >-
-      Direct or materialized host mutation requires hostWrite=true plus an
-      explicitly selected tool. Memory/overlay state is allocation-private,
-      and interrupted local materialization fences Runtime startup until its
-      local journal is recovered.
+      Direct changes affect only a disposable copy. Overlay state is cumulative
+      text persisted through ordinary artifacts before terminal A2A; release,
+      abort and lease loss erase private storage. No host materialize exists.
+  http_caido:
+    generic_http: >-
+      http-tools@1 uses allocation-owned direct transport or the optional
+      label-resolved tool-http forward proxy; complete bodies are bounded Run
+      artifacts and session secrets remain allocation-memory-only.
+    caido: >-
+      caido@1 requires the separate caido-graphql@1 label-driven adapter with
+      optional caido-bearer@1 credential. AgentTemplate grants exact tools;
+      labels configure infrastructure only.
   deployment:
     topology: >-
       One VM, one Server process, PostgreSQL, and one or more single-slot
@@ -191,22 +199,31 @@ milestones:
       All nine contractor-old packages are migrated with explicit compatibility
       boundaries, and adversarial races/isolation/redaction prove that no script
       or Skill-specific transport/persistence authority was introduced.
-  - id: runtime-filesystems-mvp
-    exit_task: V11-009
+  - id: run-workspaces-mvp
+    exit_task: V11-011
     outcome: >-
-      One Runtime-local configuration exposes confined named project roots
-      through local, isolated-memory and overlay Workspace sessions; explicitly
-      selected read/Edit/change tools work with bounded backend-independent
-      behavior and no Server filesystem state.
-  - id: runtime-filesystems-materialization-and-hardening
+      Exact Run ZIP/state artifacts hydrate isolated local/memory workspaces;
+      selected read/Edit/change tools work in direct/overlay mode and graceful
+      overlay results export cumulative state/diff before terminal A2A.
+  - id: run-workspaces-hardening
     exit_task: V11-012
     outcome: >-
-      Explicit overlay materialization detects stale lowers, recovers partial
-      host writes before registration, and the selectively ported legacy plus
-      adversarial matrix proves path confinement, allocation isolation,
-      cancellation, cleanup and content-free metrics.
+      Legacy parity plus adversarial archives, paths, races, cancellation,
+      exact limits and retained-surface scans prove confinement, isolation,
+      cleanup and content-free metrics.
+  - id: http-caido-tools-mvp
+    exit_task: V12-007
+    outcome: >-
+      Bounded generic HTTP and static Caido tools execute through direct/proxied
+      and typed label-configured clients with complete placement, artifact body
+      handling, release and heterogeneous real-process coverage.
+  - id: http-caido-tools-hardening
+    exit_task: V12-008
+    outcome: >-
+      Injection, proxy-bypass, response-bomb, GraphQL, concurrency, cancellation
+      and secret-retention gates close the migrated HTTP/Caido surface.
 
-v8_v11_spec_review:
+v8_v12_spec_review:
   reviewed_on: "2026-09-01"
   verdict: ready_to_implement
   blocking_findings: []
@@ -221,35 +238,34 @@ v8_v11_spec_review:
       before a Run-then-Stage durable transition that serializes with Planner
       Artifact transactions.
     - >-
-      Kept project filesystems entirely Runtime-local, separated the new
-      contractor_runtime.projectfs package from existing allocation scratch,
-      and prohibited filesystem fields in Server wire/API/database state.
+      Replaced the stale host-root design with Workflow-owned logical workspace
+      aliases, exact Scheduler pins in AllocationSpec and Runtime-owned
+      disposable local/memory storage.
     - >-
-      Reconciled project import with the existing 30-second global Runtime
-      startup deadline and made hostWrite probing non-mutating.
+      Defined secure ZIP hydration, cumulative text overlay state, checkpoint
+      diff/rollback and export-before-terminal ordering over existing Artifact
+      APIs without host materialization.
     - >-
-      Added hard-link rejection, honest direct-local crash limitations and
-      exact host materialization/journal/recovery resource bounds.
+      Separated HTTP forward-proxy routing from a typed label-configured Caido
+      GraphQL adapter and kept AgentTemplate as the only tool authority.
     - >-
       Clarified that Contractor credentials have no disabled/revoked state:
       access removal deletes the Gateway key and durable row through the
       existing fenced lifecycle.
   verification:
-    - All indexed task YAML parsed and the 112-task dependency graph is acyclic.
+    - All indexed task YAML parses and the dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 283 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 329 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-007
-  next_task: V10-001
+  completed_through: V10-010
+  next_task: V11-001
   summary: >-
-    V9 Shared Memory is release-gated end to end. Exact Worker PUT and Planner
-    PostgreSQL reconciliation, terminal fencing, Run/owner isolation, complete
-    non-payload retained-surface scans, decoded OTLP redaction, Artifact-only
-    schema inventory and bounded two-slot reuse all pass in release-verify.
-    V11 implementation remains intentionally paused for user synchronization.
+    V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
+    Skills are complete. Workspace and HTTP/Caido specifications/tasks were
+    rewritten after user synchronization; V11-001 is the next implementation.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -576,50 +592,46 @@ runtime_filesystem_port:
   rejected_behavior: >-
     Implicit overlay wrapping, concrete Overlay isinstance checks in Edit
     tools, stock global MemoryFileSystem isolation, raw lower delegation,
-    readable symlinks, unbounded fallback scans, Server-persisted overlay state
-    and the specialized longest-byte fork merge.
+    readable symlinks, unbounded fallback scans, model-visible materialize,
+    binary patching and the specialized longest-byte fork merge.
 
 runtime_filesystems_planning_review:
   reviewed_on: "2026-09-01"
   verdict: ready_to_implement_independently
   checks:
     - >-
-      The design is Runtime-only. No task adds an AllocationSpec field, public
-      or private endpoint, SQL table, Artifact kind, label setting or UI. Go
-      work is limited to immutable Toolset/tool-name descriptors already
-      required for AgentTemplate authoring validation.
+      Workflow owns logical source/state aliases and mode; Scheduler reuses
+      durable StageContext pins and sends exact refs in AllocationSpec. No new
+      Artifact endpoint/store, workspace SQL plane or public filesystem API is
+      introduced.
     - >-
-      Allocation scratch remains local-workdir@1, while project WorkspaceFS is
-      a separate Runtime service sourced from an optional strict local config.
-      This avoids turning SandboxProfile into a path transport or changing an
-      existing exact profile's semantics.
+      Allocation scratch remains local-workdir@1 while projectfs is a separate
+      optional WorkspaceSession. Runtime startup chooses only local|memory
+      storage/limits and never sees operator project roots.
     - >-
       The implementation package is contractor_runtime.projectfs because
       contractor_runtime.workspace already owns allocation scratch; no task
       creates a conflicting Python module/package or renames existing imports.
     - >-
-      V11-001 through V11-004 establish config, confinement, isolated memory
-      and overlay behavior before any model-visible mutation is registered.
-      V11-005 through V11-007 then bind independent Reader, Writer and
-      ChangeSet Toolsets, and V11-008 owns lifecycle/capability integration.
+      V11-001 through V11-006 establish wire/YAML/pinning/provider/hydration and
+      cumulative overlay contracts before all three model-visible Toolsets.
+      V11-010 alone owns export-before-terminal and checkpoint advancement.
     - >-
-      V11-009 is the earliest process gate and proves a Runtime with no config
-      remains backward compatible. It also proves local/memory/overlay read and
-      Edit parity, diff/rollback and release isolation with no model or network
-      dependency.
+      V11-011 is the deterministic process gate for local/memory, exact refs,
+      Router isolation and release. V11-012 closes legacy/adversarial parity,
+      races, cancellation, exact limits and retained-surface scans.
     - >-
-      Host materialization is not hidden inside the MVP. V11-010 owns
-      fingerprint preflight plus the journal state machine, V11-011 owns
-      restart recovery and real-process failure injection, and V11-012 closes
-      legacy/adversarial parity, cancellation, metrics and leak checks.
+      Direct edits mutate only the disposable allocation copy. Overlay export
+      writes cumulative state and checkpoint diff through existing allocation
+      Artifact grants before terminal A2A. There is no materialize or host
+      recovery journal.
     - >-
-      Materialization bounds are executable before the first host write:
-      10000 affected paths, 16 MiB per backup, 64 MiB staged bytes, 128 MiB
-      backup, 8 MiB metadata and bounded resumable startup recovery.
+      ZIP entry/count/expanded bytes, managed text/file bytes, state/diff and
+      Artifact payload limits are executable before mutation/export and are
+      repeated in self-contained task acceptance tests.
     - >-
-      Direct local write is deliberately available in the MVP only under
-      hostWrite=true and has no rollback promise. Overlay-local is the safer
-      choice; no automatic finalize/abort materialization exists.
+      Local storage retains binary files while memory skips them; both expose
+      only strict UTF-8-no-NUL managed text through tools and overlay state.
     - >-
       Stock fsspec MemoryFileSystem global class state and instance cache are
       explicitly excluded as isolation mechanisms. Tests create simultaneous
@@ -630,23 +642,51 @@ runtime_filesystems_planning_review:
       with implementation_commit null.
   accepted_risks:
     - >-
-      Control Plane receives no project identity. Initially, only one eligible
-      filesystem Runtime may be connected or all eligible processes must have
-      equivalent logical mounts/content; artifact auto-mounting or affinity is
-      a later Server/allocation design.
+      Tool confinement is an application boundary, not an OS sandbox against
+      arbitrary in-process plugins. No shell or Python execution tool is added.
     - >-
-      Tool confinement is not an OS sandbox against arbitrary in-process code.
-      The increment exposes no shell/Python executor, follows no links and
-      requires a future stronger SandboxProfile for hostile native plugins.
+      Artifact payloads remain capped at 16 MiB, so very large cumulative state
+      or diff export fails deterministically until chunking/S3 streaming exists.
     - >-
-      A host filesystem cannot provide portable atomic multi-file commit.
-      Materialization therefore uses stale-base preflight, per-file atomic
-      replacement and a recoverable rollback journal rather than claiming a
-      false global transaction.
+      Router siblings intentionally diverge after hydration. Synchronization
+      requires an explicit later Stage consuming an exported state revision.
     - >-
-      Memory import is strict UTF-8 text-only and bounded to 64 MiB/10,000
-      files per mount. Binary-aware project tooling and larger/remote trees are
-      separate increments.
+      Binary files are available only in disposable local storage and excluded
+      from text tools/state/digests. Binary patches are a future media type.
+
+http_caido_planning_review:
+  reviewed_on: "2026-09-01"
+  verdict: ready_to_implement_after_v11
+  checks:
+    - >-
+      http-tools@1 and caido@1 are separate Toolsets. Caido control uses the
+      new typed caido-graphql@1 adapter; it is never confused with the existing
+      HTTP forward proxy.
+    - >-
+      Runtime labels configure endpoint/routing/credentials while AgentTemplate
+      grants exact tools. Placement and Runtime prepare both require the Caido
+      adapter when caido@1 is selected.
+    - >-
+      Generic HTTP keeps target 4xx/5xx as data, makes a configured proxy route
+      mandatory, stores full bodies as bounded artifacts and keeps auth/session
+      secrets only in allocation memory.
+    - >-
+      Caido exposes only compiled GraphQL operations with bounded variables and
+      artifact-backed raw exchanges. Mutation calls are not retried after
+      ambiguous sends.
+    - >-
+      V12 tasks cover contracts/store, adapter, generic HTTP, read/mutation
+      Caido tools, Skill/config wiring, heterogeneous process E2E and security
+      hardening in dependency order.
+  accepted_risks:
+    - >-
+      Generic HTTP intentionally reaches model-selected network targets; the
+      first increment denies Contractor private origins but does not claim a
+      complete DNS/network namespace sandbox.
+    - >-
+      Caido GraphQL compatibility is pinned to the migrated static operations;
+      a future Caido schema change may remove the adapter/tool capability until
+      code and fixtures are updated.
 
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
@@ -828,15 +868,23 @@ tasks:
   - {id: V10-008, file: v10-008-migrate-analysis-security-skills.yml}
   - {id: V10-009, file: v10-009-migrate-live-testing-skills.yml}
   - {id: V10-010, file: v10-010-agent-skills-hardening.yml}
-  - {id: V11-001, file: v11-001-runtime-workspace-config.yml}
-  - {id: V11-002, file: v11-002-confined-workspace-core.yml}
-  - {id: V11-003, file: v11-003-isolated-memory-workspace.yml}
-  - {id: V11-004, file: v11-004-overlay-workspace-core.yml}
-  - {id: V11-005, file: v11-005-filesystem-read-toolset.yml}
-  - {id: V11-006, file: v11-006-backend-independent-edit-toolset.yml}
-  - {id: V11-007, file: v11-007-workspace-change-toolset.yml}
-  - {id: V11-008, file: v11-008-workspace-runtime-lifecycle.yml}
-  - {id: V11-009, file: v11-009-runtime-filesystems-mvp-e2e.yml}
-  - {id: V11-010, file: v11-010-overlay-materialization-journal.yml}
-  - {id: V11-011, file: v11-011-materialization-recovery-e2e.yml}
-  - {id: V11-012, file: v11-012-runtime-filesystems-hardening.yml}
+  - {id: V11-001, file: v11-001-workspace-wire-contracts.yml}
+  - {id: V11-002, file: v11-002-workflow-workspace-schema.yml}
+  - {id: V11-003, file: v11-003-scheduler-workspace-projection.yml}
+  - {id: V11-004, file: v11-004-runtime-workspace-provider.yml}
+  - {id: V11-005, file: v11-005-workspace-hydration.yml}
+  - {id: V11-006, file: v11-006-cumulative-overlay-core.yml}
+  - {id: V11-007, file: v11-007-filesystem-read-tools.yml}
+  - {id: V11-008, file: v11-008-edit-files-tools.yml}
+  - {id: V11-009, file: v11-009-workspace-change-tools.yml}
+  - {id: V11-010, file: v11-010-overlay-auto-export.yml}
+  - {id: V11-011, file: v11-011-workspace-workflows-e2e.yml}
+  - {id: V11-012, file: v11-012-workspace-hardening.yml}
+  - {id: V12-001, file: v12-001-caido-runtime-config.yml}
+  - {id: V12-002, file: v12-002-caido-runtime-adapter.yml}
+  - {id: V12-003, file: v12-003-http-toolset.yml}
+  - {id: V12-004, file: v12-004-caido-read-tools.yml}
+  - {id: V12-005, file: v12-005-caido-action-tools.yml}
+  - {id: V12-006, file: v12-006-caido-skill-and-configs.yml}
+  - {id: V12-007, file: v12-007-http-caido-process-e2e.yml}
+  - {id: V12-008, file: v12-008-http-caido-hardening.yml}

@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V11-009
+title: Add workspace-changes@1 checkpoint tools
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-006]
+languages: [go, python]
+
+goal: >-
+  Expose changed_paths, diff and rollback_changes only for overlay workspaces,
+  using the current invocation checkpoint without exposing cumulative state or
+  Artifact revisions to the model.
+
+context:
+  checkpoint: >-
+    At prepare S plus optional imported state I establishes B. Tools describe or
+    restore B-to-current. Cumulative S-to-current encoding is Runtime-internal
+    and used later by auto export.
+
+scope:
+  in:
+    - Add exact Go/Python descriptors for three tools.
+    - Implement sorted paginated change classification and bounded diff by path/subtree.
+    - Implement atomic whole/subtree rollback to B with deterministic path semantics.
+    - Cross-check factory construction rejects direct workspace and absent workspace.
+    - Add sequential-invocation checkpoint tests using explicit internal commit.
+  out:
+    - Artifact writes, checkpoint commit policy, materialize or state arguments/results.
+
+requirements:
+  - {id: R1, text: Model-visible results contain no cumulative state JSON, base digest or Artifact revision.}
+  - {id: R2, text: Rollback never restores original S when imported state or a later committed checkpoint defines B.}
+  - {id: R3, text: Truncated diff is explicitly incomplete and not an authoritative patch format.}
+
+acceptance_criteria:
+  - {id: A1, given: Created/modified/deleted/type-changed paths, when: changed_paths and diff run, then: Classification and unified diff are deterministic.}
+  - {id: A2, given: Imported/cumulative state and a later checkpoint, when: Path/full rollback runs, then: It restores the current B exactly.}
+  - {id: A3, given: Direct or absent workspace, when: AgentTemplate selects workspace-changes@1, then: Publication/prepare rejects it before Worker readiness.}
+
+tests:
+  - {name: changes, command: "cd runtime && uv run pytest tests/test_workspace_changes_toolset.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

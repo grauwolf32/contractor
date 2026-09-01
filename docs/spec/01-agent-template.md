@@ -416,13 +416,19 @@ solely by [08](08-memory-tools.md).
 
 The optional project-filesystem Toolsets are `filesystem@1`, `edit-files@1`
 and `workspace-changes@1`. They follow the same explicit operation allowlist;
-none is injected by a SandboxProfile or instruction. Their paths, backend
-mode, host-write authority and allocation-local overlay state belong only to
-the Runtime Agent under
-[10](10-runtime-filesystems-and-edit-tools.md). AgentTemplate can select the
-model-visible operations but cannot name a host path, choose `local` versus
-`memory`/`overlay`, or enable host writes. A Runtime advertises only the subset
-its immutable local workspace configuration can honor.
+none is injected by a SandboxProfile or instruction. Workflow Stage owns the
+logical Run-artifact sources and `direct`/`overlay` semantics; Runtime startup
+owns private `local`/`memory` storage under
+[10](10-runtime-filesystems-and-edit-tools.md). AgentTemplate selects only the
+model-visible operations. It cannot name an artifact, host path or backend,
+change workspace mode, or request persistence outside declared Stage result
+slots.
+
+`http-tools@1` and `caido@1` use the same exact allowlist rule. A Runtime label
+may configure HTTP routing or a Caido endpoint/credential, but labels do not
+add either Toolset. `caido@1` requires the private `caido-graphql@1` adapter
+resolved for the allocation. The complete transport and bounded operation
+contract is owned by [11](11-http-and-caido-tools.md).
 
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
@@ -443,12 +449,13 @@ contract in that process environment.
 
 Each exported-tool descriptor also declares a fixed subset of infrastructure
 channels it consumes: `runtime-http-client` and/or
-`runtime-subprocess-launcher`. This is registered code metadata under the exact
-Toolset version, not an AgentTemplate option. A selected tool declaring a
-channel must use the allocation-owned handle supplied by Runtime; a tool
-declaring neither remains local/artifact-only. The HTTP-proxy targeting
-contract and its private-traffic bypass are owned by
-[07](07-runtime-labels-and-infrastructure-config.md).
+`runtime-subprocess-launcher` and/or `caido-graphql-client`. This is registered
+code metadata under the exact Toolset version, not an AgentTemplate option. A
+selected tool declaring a channel uses only the allocation-owned handle
+supplied by Runtime; a tool declaring none remains local/artifact-only. Generic
+HTTP may use its optional proxy channel or a bounded direct client; Caido's
+channel is mandatory. HTTP-proxy targeting is owned by [07], and the HTTP/Caido
+tool boundary by [11](11-http-and-caido-tools.md).
 
 A Toolset capability contains the exact ref and the subset of its exported
 tools whose prerequisites passed. This deliberately has the same granularity

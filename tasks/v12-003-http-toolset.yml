@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V12-003
+title: Port bounded allocation-scoped http-tools@1
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-002]
+languages: [go, python]
+
+goal: >-
+  Provide bounded HTTP request/body/history/session tools using either a
+  mandatory resolved tool-http proxy route or direct Runtime transport while
+  storing complete bodies as ordinary exact Run artifacts.
+
+context:
+  tools: >-
+    http_request, http_read_body, http_history, http_session_set,
+    http_session_get and http_session_clear. Session secrets are memory-only;
+    response-body artifacts are collision-resistant under the allocation's
+    logical namespace.
+
+scope:
+  in:
+    - Add exact Go/Python Toolset descriptors and optional runtime-http-client channel.
+    - Implement strict URL/method/header/query/body/redirect/timeout validation and private-origin denial.
+    - Refine ProxyHTTPClient so target 4xx/5xx remain responses while routing failure remains fail-closed with no direct fallback.
+    - Add idempotent-only retries, bounded streaming/preview and text/binary body artifact codec/read slices.
+    - Keep cookies/default headers/basic/bearer auth in allocation memory with redacted session views and serialized IDs/history.
+    - Erase session/clients on every teardown path and record content-free metrics.
+  out:
+    - Caido GraphQL operations, server egress policy UI or streaming/chunked artifacts above 16 MiB.
+
+requirements:
+  - {id: R1, text: Full bodies and session secret values never enter model context, metrics, logs or Worker final report.}
+  - {id: R2, text: A configured proxy route is mandatory and never falls back to direct traffic.}
+  - {id: R3, text: http_read_body can access only exact bodies created by that allocation session.}
+
+acceptance_criteria:
+  - {id: A1, given: Direct and proxied fake targets returning text/binary/4xx/5xx/redirects, when: Requests run, then: Equivalent bounded records/body artifacts are produced.}
+  - {id: A2, given: Proxy failure, private origin, injection, oversized body or non-idempotent transient failure, when: Request runs, then: It fails safely without unintended retry/fallback/partial selection.}
+  - {id: A3, given: Auth/cookies and sequential A2A calls then release, when: Session is inspected and slot reused, then: Only redacted metadata was visible and new allocation starts empty.}
+
+tests:
+  - {name: http-tools, command: "cd runtime && uv run pytest tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_proxy_adapter.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

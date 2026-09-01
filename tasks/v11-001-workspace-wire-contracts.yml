@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V11-001
+title: Add strict workspace wire contracts and canonical fixtures
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V10-010]
+languages: [go, python]
+
+goal: >-
+  Define the closed cross-language DTOs for WorkspaceContext,
+  AllocationWorkspaceSpec and immutable Runtime workspace capabilities before
+  either Scheduler or Runtime behavior depends on them.
+
+context:
+  ownership: >-
+    Workflow source/state references are logical aliases without revisions.
+    AllocationSpecV2 carries exact RunScope ArtifactRefs for sources and
+    optional state, plus logical result-slot names for export. Runtime startup
+    alone owns storage local|memory and physical limits.
+  media_types: >-
+    Sources are application/zip. Cumulative state is
+    application/vnd.contractor.workspace-overlay+json and human diff is
+    text/x-diff.
+
+scope:
+  in:
+    - Add typed Go and Pydantic models for workspace mode, source, optional state, export and Runtime capability limits.
+    - Add optional workspace to AllocationSpecV2 and optional workspaceCapabilities to AgentRegistrationV2.
+    - Require sorted modes, exact ArtifactRefs on the private manifest and bounded normalized target/slot strings.
+    - Extend strict duplicate/unknown-field/canonical round-trip fixtures in both languages.
+    - Keep StageContentRequest unchanged.
+  out:
+    - Workflow YAML parsing, Scheduler resolution, placement, Runtime hydration, tools or storage implementation.
+
+requirements:
+  - {id: R1, text: Go and Python accept/reject the same closed JSON shapes and retain no secret or host path.}
+  - {id: R2, text: Allocation workspace source/state refs require revisions while export destinations reject revisions by construction.}
+  - {id: R3, text: An omitted workspace/capability preserves all existing v2 payloads and fingerprints.}
+
+acceptance_criteria:
+  - {id: A1, given: Canonical direct and overlay fixtures, when: Both codecs round-trip them, then: Normalized JSON and registration fingerprints are identical.}
+  - {id: A2, given: Logical refs, missing revisions, overlapping target syntax, unknown fields or invalid limits, when: Strict decode runs, then: It fails with bounded protocol classes.}
+  - {id: A3, given: Existing private v2 fixtures, when: Contract suites run, then: They remain byte-compatible.}
+
+tests:
+  - {name: go-contracts, command: "go test ./internal/contracts", covers: [A1, A2, A3]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_contracts.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

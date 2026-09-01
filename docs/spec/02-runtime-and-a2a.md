@@ -159,10 +159,9 @@ Every enabled factory owns its local probe semantics:
   particular skill package;
 - a Toolset probe returns the exact subset of `exported_tools` that can honor
   their complete contracts, including required local executables, libraries
-  and compatible versions; for the optional filesystem Toolsets this probe is
-  backed only by Runtime-local rooted/memory/overlay mount configuration from
-  [10](10-runtime-filesystems-and-edit-tools.md), while registration contains
-  tool names and no mount path or backend state;
+  and compatible versions; filesystem Toolsets additionally require the
+  immutable workspace storage provider from
+  [10](10-runtime-filesystems-and-edit-tools.md);
 - a SandboxProfile probe proves that the profile can prepare and clean an
   isolated probe resource under its operator-owned root. A cleanup failure is
   a failed probe;
@@ -180,13 +179,11 @@ programs are invoked directly without a shell, with closed stdin, bounded
 output and the same effective executable search/configuration that the real
 tool will use.
 
-Runtime-local projectfs provider initialization under [10] is shared
-preparation inside that same complete thirty-second phase, not one independent
-tree import per Toolset factory. Filesystem factory probes reuse the frozen
-provider and therefore remain within the five-second per-factory bound. A
-host-write probe validates local primitives/authority without creating a file
-inside the operator's project root; ordinary probe mutations remain confined
-to Runtime-owned work roots.
+Runtime workspace-provider initialization under [10] is shared preparation
+inside that same complete thirty-second phase. It validates private local or
+memory storage and cleanup primitives but does not download Run artifacts or
+hydrate a tree before an allocation. Filesystem factory probes reuse the
+frozen provider and therefore remain within the five-second per-factory bound.
 
 A positive Toolset capability means more than “the function can be called”. If
 an operation requires an external validator to fulfill its declared behavior,
@@ -377,11 +374,10 @@ For one allocation the Runtime Agent:
 2. constructs the selected allocation-scoped infrastructure adapters and
    validates their typed handle set before creating any sandbox, Toolset or
    Worker resource;
-3. asks the selected SandboxProfile to prepare the allocation-local workspace;
-4. when filesystem tools were selected, creates a fresh allocation-local
-   WorkspaceSession from the already-probed Runtime startup configuration;
-   this requires no AllocationSpec field and reveals no physical mount to
-   Control Plane;
+3. asks the selected SandboxProfile to prepare the allocation-local scratch;
+4. if `AllocationSpec.workspace` is present, creates a private WorkspaceSession,
+   downloads its exact RunScope ZIP/state refs through the existing Artifact
+   API, hydrates the selected local/memory storage and establishes a checkpoint;
 5. binds the private Artifact client and fetches/validates the exact RunScope
    Agent Skill packages selected under [09](09-agent-skills.md);
 6. prepares allocation-local State and selected tools, then creates one
@@ -391,15 +387,17 @@ For one allocation the Runtime Agent:
 7. configures its own A2A Server and Agent Card for that allocation;
 8. binds model access to the allocation context;
 9. reports ready and handles the Worker's A2A Tasks itself;
-10. on finalization or abort, rejects new Tasks, requests cancellation of any
-   active Task, bounded-flushes/destroys allocation adapters, serializes the
-   accumulated execution report and destroys the Worker runtime instance;
+10. before each graceful terminal A2A result, performs any declared overlay
+   auto export; on finalization or abort, rejects new Tasks, requests
+   cancellation of active work, bounded-flushes/destroys allocation adapters,
+   serializes the report and destroys the Worker runtime instance;
 11. after the terminal Stage outcome is committed, an idempotent private
    release removes allocation State, tools, the WorkspaceSession and every
-   non-host memory/overlay change, loaded Skill objects, extracted
+   disposable local/memory/overlay file, loaded Skill objects, extracted
    allocation-local skill files, RuntimeSettings, access tokens and the profile
    workspace, but retains the allocation identity and cached report in
-   `fenced` state; configured project roots are never cleanup targets;
+   `fenced` state; only exact marker-owned Runtime work directories are cleanup
+   targets;
 12. after Control Plane has removed its authority, a subsequent heartbeat
    `release` action confirms that edge; only then does Runtime Agent clear the
    retained identity/report, become `idle` and free the slot.
@@ -726,6 +724,9 @@ and never sends normal durable artifact bytes through A2A. See
 [03](03-artifact-plane.md). Agent Skill package bytes follow the same rule:
 AllocationSpec carries exact refs/digests and Runtime reads them through the
 private Artifact API under [09](09-agent-skills.md).
+Workspace source/state bytes follow the same rule under
+[10](10-runtime-filesystems-and-edit-tools.md); their exact refs are private
+construction data while ordinary Stage task content remains A2A.
 
 ## Single-VM baseline
 

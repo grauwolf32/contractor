@@ -1,4 +1,4 @@
-# V8–V11 implementation decision log
+# V8–V12 implementation decision log
 
 This is a non-normative engineering log for the implementation sequence that
 starts after the 2026-09-01 specification review. The working agreements in
@@ -13,137 +13,110 @@ reason is appended here.
 
 ## Decisions accepted during the pre-implementation review
 
-### D001 — Project filesystems are Runtime-only
+### D001 — Workflow owns workspace composition; Runtime owns storage
 
 - Applies to: V11.
-- Decision: host roots, backend mode, imported baseline, overlay upper,
-  materialization journal and `hostWrite` authority exist only in the Python
-  Runtime process.
-- Server impact: only the existing static Toolset/tool-name descriptor registry
-  learns `filesystem@1`, `edit-files@1` and `workspace-changes@1`, so
-  AgentTemplate validation can remain exact. No path, mount, mode, digest,
-  change set, API, SQL state, RuntimeSettings field or AllocationSpec field is
-  added.
-- Reason: physical project access is an environment capability of a Runtime,
-  not Workflow data or Control Plane state.
+- Decision: a Stage declares logical source/state artifact aliases,
+  `direct|overlay` semantics and optional overlay result slots. Scheduler pins
+  exact RunScope refs into AllocationSpec. Runtime startup selects private
+  `local|memory` storage and immutable resource limits.
+- Reason: source artifacts and their revisions are Run execution authority,
+  while disk versus RAM is a physical Runtime capability. Treating either as
+  the other produced hidden project affinity and non-reproducible executions.
 
-### D002 — New Python package is `contractor_runtime.projectfs`
+### D002 — Workspace is a separate allocation service
 
-- Applies to: V11-002 through V11-012.
-- Decision: keep `contractor_runtime.workspace` unchanged for the existing
-  `local-workdir@1` allocation scratch implementation. Put project filesystem
-  protocols/backends in `contractor_runtime.projectfs`.
-- Reason: a module and package with the same import name would collide, and the
-  two concepts have different authority/lifecycle. `WorkspaceSession` remains
-  the domain term; `projectfs` is the implementation namespace.
+- Applies to: V11-004 through V11-012.
+- Decision: preserve `contractor_runtime.workspace.AllocationWorkspace` as
+  general `local-workdir@1` scratch. Implement project workspace behavior in
+  `contractor_runtime.projectfs` and attach an optional `WorkspaceSession` to
+  the Worker/Toolset build context.
+- Reason: skills and existing domain tools already rely on allocation scratch;
+  overloading it with semantic source state would mix cleanup and authority.
 
 ### D003 — ADK script support is absent, not merely inert
 
 - Applies to: V10-003 and V10-005.
-- Decision: retain Google ADK's native Skill models and list/load/resource tool
-  implementations, but expose exactly `list_skills`, `load_skill` and
-  `load_skill_resource`. Filter `run_skill_script`, disable registry/search and
-  replace ADK 2.8.0's stock script-bearing system instruction with bounded
-  script-free progressive-disclosure guidance.
-- Reason: accepted packages contain no scripts and the model should not be
-  instructed to call a function that can never succeed. Merely omitting an
-  executor is insufficient because the pinned ADK instruction still advertises
-  scripts.
-- Compatibility guard: the `adk@1` startup probe verifies both declarations and
-  generated instructions so an upstream ADK change fails closed.
+- Decision: retain Google ADK native Skill list/load/resource behavior, expose
+  no `run_skill_script`, disable registry/search and use script-free guidance.
+- Reason: the accepted Skill package profile contains nothing executable, so
+  advertising an impossible tool only creates model errors.
 
-### D004 — Project import shares the existing startup deadline
+### D004 — Source ZIP is the only v1 workspace import format
 
-- Applies to: V11-003 and V11-008.
-- Decision: all configured memory-backed roots share the existing 30-second
-  complete Runtime capability-discovery deadline. Per-mount file/count/byte/
-  depth limits remain independent. Filesystem Toolset probes reuse the prepared
-  provider and do not rescan source trees under their five-second individual
-  budgets.
-- Reason: “30 seconds per mount” conflicted with the already normative global
-  Runtime startup bound and allowed eight mounts to delay registration for
-  minutes.
+- Applies to: V11-005.
+- Decision: each source is an exact `application/zip` Run artifact mapped below
+  one non-overlapping relative target. Preserve archive structure and reject
+  traversal, duplicates, links, special entries and bound violations. Local
+  keeps ordinary binary files; memory skips them.
+- Reason: a single deterministic archive format makes pinning, validation and
+  multi-source composition testable without guessing source layout.
 
-### D005 — Startup host-write probing never mutates the project
+### D005 — Overlay state is cumulative text, not a revision chain
 
-- Applies to: V11-008.
-- Decision: startup validates required descriptor-relative/no-follow platform
-  primitives and opens the root with requested authority, but does not create a
-  hidden probe file inside an operator project. Generic probe mutations remain
-  below Runtime work roots. Real host permission failures remain bounded tool
-  or preparation failures because permissions may change after any probe.
-- Reason: capability discovery must not alter user data, and a successful
-  create/delete test could not prove future availability anyway.
+- Applies to: V11-006 and V11-010.
+- Decision: one versioned JSON state artifact expresses canonical text-only
+  operations from exact sources `S` to final tree `F` and carries base/result
+  digests. It contains no previous artifact revision. Imported state plus `S`
+  is sufficient on its own.
+- Reason: ArtifactStore already owns revisions; leaking them into the model or
+  state format would couple workspace semantics to storage history.
 
 ### D006 — Planner and Worker Memory share one ordered terminal barrier
 
 - Applies to: V9-003 and V9-006.
-- Decision: the Server-side Planner MemoryTools view is bound to the active
-  StageExecution. Its CAS write locks and checks WorkflowRun then
-  StageExecution in the same Artifact transaction. Worker writes remain under
-  the separate allocation-grant gate. Scheduler first fences every grant and
-  waits for any grant-held write, then enters finalizing/aborting in the same
-  Run-then-Stage database lock order used by Planner Memory.
-- Reason: a Run-scoped direct ArtifactStore view without a Stage fence could
-  commit a late note after cancellation even though Worker writes were already
-  revoked. Pretending the in-memory grant gate and durable Stage lock are one
-  physical fence would also hide the ordering needed to avoid late commits and
-  database deadlocks.
+- Decision: Planner memory mutations lock Run then Stage; Scheduler fences
+  Worker grants before the same durable terminal order.
+- Reason: this prevents late memory commits and database deadlocks.
 
-### D007 — No hidden project affinity in V11
+### D007 — Router Workers receive independent physical workspaces
 
-- Applies to: V11-008 through V11-012.
-- Decision: placement continues to use only ordinary exact Toolset/tool
-  capability subsets. Until a separate source-artifact/affinity design exists,
-  one filesystem-enabled AgentTemplate may target either one eligible Runtime
-  or a set of Runtimes with equivalent logical mounts, content, modes and write
-  authority.
-- Reason: sending a project identifier while claiming a Runtime-only contract
-  would create an accidental fifth placement dimension and incomplete Server
-  ownership.
+- Applies to: V11-003 and V11-011.
+- Decision: every logical Worker gets the same exact initial refs but a separate
+  local/memory copy. There is no live synchronization within a StageExecution.
+  A later Stage may consume an explicitly persisted state revision.
+- Reason: sharing one mutable tree would make routing order and parallelism
+  change execution meaning.
 
-### D008 — Direct local writes and overlay materialization stay distinct
+### D008 — Direct mode is disposable; overlay is artifact-persisted
 
-- Applies to: V11-002, V11-006 and V11-010.
-- Decision: `local + hostWrite=true` performs explicit immediate edits and
-  promises atomic whole-file replacement plus bounded in-process operation
-  rollback, but no allocation-level diff/rollback and no crash-safe multi-file
-  transaction. `overlay-local + hostWrite=true` is the path for reviewable
-  changes and crash-recoverable explicit materialization.
-- Reason: claiming portable atomic host-tree mutation for direct local mode
-  would be false. Operators choose overlay-local when those properties matter.
+- Applies to: V11-006 through V11-010.
+- Decision: direct edits immediately mutate the private allocation copy and are
+  never auto-exported. Overlay edits remain in an upper; graceful terminal
+  results export cumulative state plus checkpoint diff through the existing
+  Artifact API. No tool mutates an operator checkout and no `materialize`
+  operation exists.
+- Reason: the useful persistence boundary is a versioned Run artifact, not a
+  crash-recovery journal around external host files.
 
-### D009 — Reject hard-linked project files in the strict profile
+### D009 — Checkpoint advances only after complete graceful export
 
-- Applies to: V11-002 and V11-012.
-- Decision: rooted local access rejects multiply linked regular files as well
-  as symlinks and special files.
-- Reason: an in-root hard link can alias an inode that is also named outside the
-  configured tree, violating the intended path authority for both reads and
-  writes.
+- Applies to: V11-010.
+- Decision: imported state establishes checkpoint `B`. `diff`/rollback use
+  `B`; exported state is `S -> F` and diff is `B -> F`. Both writes finish and
+  exact refs are injected before terminal A2A response; then `F` becomes the
+  next checkpoint. Failed/partial export does not advance it.
+- Reason: this orders artifact mutation before Scheduler's write fence and
+  supports sequential A2A tasks without losing cumulative reconstruction.
 
 ### D010 — Implementation and commit order
 
-- Applies to: all unfinished V8–V11 tasks.
-- Decision: implement in dependency-valid ID order, V8 before V9 before V10
-  before V11. One task gets one primary completion commit unless an inseparable
-  schema/wire change must remain buildable. After the commit, update that task's
-  `status` and full `implementation_commit` in a small metadata commit; the
-  recorded hash remains the implementation commit, not the metadata commit.
-- Reason: this preserves bisectability and lets a future worker verify task
-  evidence without reconstructing the entire session.
+- Applies to: all unfinished V11–V12 tasks.
+- Decision: implement in dependency-valid ID order. Each task gets one primary
+  completion commit; a later metadata commit records its full hash without
+  replacing that implementation hash.
+- Reason: preserve bisectability and self-contained task evidence.
 
-### D011 — Materialization has explicit pre-write and recovery bounds
+### D011 — HTTP forward proxy and Caido control API are distinct
 
-- Applies to: V11-010 and V11-011.
-- Decision: one host materialization is capped at 10,000 affected paths,
-  16 MiB per backed-up file, 64 MiB staged replacements, 128 MiB backup,
-  8 MiB journal metadata and 60 seconds. Startup recovery scans at most eight
-  entries/256 MiB under the shared 30-second startup deadline and persists
-  rollback progress before yielding.
-- Reason: “bounded journal” was not an executable contract. Large deleted host
-  files can make backup much larger than the 64 MiB overlay upper, so both
-  per-file and aggregate backup limits are necessary before the first write.
+- Applies to: V12.
+- Decision: generic `http-tools@1` optionally consumes the existing `tool-http`
+  forward-proxy handle. `caido@1` requires a new `caido-graphql@1` typed
+  Runtime adapter configured by atomic labels with optional
+  `caido-bearer@1` credential. Static operations only; large/raw bodies become
+  artifacts and session secrets remain allocation-memory-only.
+- Reason: a proxy URL cannot safely represent authenticated GraphQL control,
+  and infrastructure selection must remain outside model input.
 
 ## Decisions discovered during implementation
 

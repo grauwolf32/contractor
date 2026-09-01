@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V11-006
+title: Implement cumulative text overlay and state codec
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-005]
+languages: [python]
+
+goal: >-
+  Provide backend-independent copy-on-write text semantics, invocation
+  checkpoints and a deterministic cumulative WorkspaceOverlay artifact that can
+  reconstruct final state from exact sources alone.
+
+context:
+  state_model: >-
+    apiVersion contractor.workspace/v1, kind WorkspaceOverlay, base and result
+    SHA-256 digests, canonical create_directory/write_file/delete_path ops.
+    Writes contain strict UTF-8 text; binary data and artifact revisions are not
+    represented.
+
+scope:
+  in:
+    - Implement allocation-owned overlay upper, explicit dirs and minimal tombstones over any hydrated backend.
+    - Serialize mutations and make them exception/cancellation atomic with preflight quotas.
+    - Encode/decode strict canonical state, validate base/result digests and apply optional exact input state.
+    - Establish source baseline S and invocation checkpoint B; expose immutable snapshot, changed-path, diff and rollback primitives.
+    - Generate deterministic bounded unified text diff B-to-F and cumulative operations S-to-F.
+    - Advance checkpoint only through an explicit post-export commit method.
+  out:
+    - ADK tools, Artifact writes or A2A interception.
+
+requirements:
+  - {id: R1, text: Applying exported state to S reconstructs F without any earlier state revision.}
+  - {id: R2, text: Overlay mutations never change hydrated lower storage and binary paths reject text operations.}
+  - {id: R3, text: Rollback restores B while cumulative export continues to describe S-to-current.}
+
+acceptance_criteria:
+  - {id: A1, given: Create/modify/delete/type-change matrices on local and memory lowers, when: Overlay runs, then: Effective snapshots/state/diff match and lowers remain unchanged.}
+  - {id: A2, given: State with wrong base/result digest, unknown op or noncanonical path, when: Import runs, then: It fails before any visible mutation.}
+  - {id: A3, given: Imported state I and two sequential checkpoints, when: Each invocation exports, then: Latest state alone plus S reconstructs latest F and each diff covers only its B-to-F delta.}
+
+tests:
+  - {name: overlay, command: "cd runtime && uv run pytest tests/test_projectfs_overlay.py tests/test_workspace_state.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

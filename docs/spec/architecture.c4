@@ -127,7 +127,12 @@ model {
     #optional
   }
 
-  runtimeWorkspaceRoots = system 'Runtime-local project roots — operator configured / never sent to Server' {
+  runtimeWorkspaceStorage = system 'Runtime workspace storage — disposable local root or isolated memory' {
+    #external
+    #optional
+  }
+
+  caidoService = system 'Caido — optional forward proxy and GraphQL control API' {
     #external
     #optional
   }
@@ -314,7 +319,7 @@ model {
       #contractor
     }
 
-    adapterHost = component 'Allocation Adapter Host — OTLP + HTTP proxy clients' {
+    adapterHost = component 'Allocation Adapter Host — OTLP / HTTP proxy / Caido clients' {
       #contractor
     }
 
@@ -322,12 +327,17 @@ model {
       #contractor
     }
 
-    workspaceProvider = component 'WorkspaceFS Provider — rooted local / isolated memory / allocation overlay' {
+    workspaceProvider = component 'Workspace Provider — exact Run ZIP hydration / local or memory / overlay' {
       #contractor
       #optional
     }
 
     filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
+      #contractor
+      #optional
+    }
+
+    httpCaidoTools = component 'Selected http-tools@1 / caido@1 tools' {
       #contractor
       #optional
     }
@@ -364,8 +374,8 @@ model {
     slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
     slotManager -> workerState 'Create / destroy allocation-local Session and State'
     slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
-    capabilityProbe -> workspaceProvider 'Probe immutable Runtime-local mounts and positive filesystem tool subset'
-    slotManager -> workspaceProvider 'Create / discard one allocation WorkspaceSession; never auto-materialize'
+    capabilityProbe -> workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
+    slotManager -> workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
     a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
     workerRuntime -> workerState 'Read / update in-memory allocation State'
     workerRuntime -> executionCollector 'Accumulate bounded metrics across allocation'
@@ -374,6 +384,7 @@ model {
     workerRuntime -> runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
     workerRuntime -> memoryTools 'Construct selected shared-note operations for fixed Namespace'
     workerRuntime -> filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
+    workerRuntime -> httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
     workerRuntime -> skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
     runArtifactTools -> artifactClient 'Read/write/list with explicit CAS preconditions'
@@ -382,8 +393,12 @@ model {
     workerRuntime -> modelClient 'Model calls when required'
     adapterHost -> modelClient 'Inject allocation-scoped proxy / telemetry transports'
     adapterHost -> namespaceTools 'Inject proxy-aware clients only into selected tools'
-    filesystemTools -> workspaceProvider 'Virtual rooted paths only; no raw host path or backend selection'
-    workspaceProvider -> runtimeWorkspaceRoots 'Read or explicitly authorized direct/materialized writes; no Server hop'
+    adapterHost -> httpCaidoTools 'Inject optional forward-proxy and mandatory typed Caido handles'
+    filesystemTools -> workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
+    workspaceProvider -> artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
+    workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
+    httpCaidoTools -> artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
+    httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
   }
 
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
@@ -568,7 +583,8 @@ views {
     include runtimeAgent.workspaceProvider
     include runtimeAgent.filesystemTools
     include runtimeAgent.executionCollector
-    include runtimeWorkspaceRoots
+    include runtimeWorkspaceStorage
+    include caidoService
 
     exclude * -> * where tag is #contextOnly
 

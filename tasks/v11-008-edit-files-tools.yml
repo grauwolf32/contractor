@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V11-008
+title: Add backend-independent edit-files@1 tools
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-005]
+languages: [go, python]
+
+goal: >-
+  Port strict whole-file and line-oriented Edit operations onto narrow
+  WorkspaceWriter so direct and overlay storage share one deterministic
+  model-visible contract.
+
+context:
+  tool_names: >-
+    write_file, append_file, mkdir, rm, cp, mv, insert_line, edit and
+    replace_range. There is no shell, patch parser, fuzzy match or materialize.
+
+scope:
+  in:
+    - Add exact Go descriptor and Python factory for all nine names.
+    - Implement atomic whole-file mutation, recursive preflight and path/type/quota checks.
+    - Preserve existing CRLF/LF style for append and line edits.
+    - Require exactly one edit match unless replace_all=true and bound replacements.
+    - Reject binary files, move into descendant, root removal and invalid line ranges without partial mutation.
+    - Port selected contractor-old Edit fixtures against direct/overlay and local/memory backends.
+  out:
+    - Diff/rollback tools, state export, binary editing, formatting or host checkout writes.
+
+requirements:
+  - {id: R1, text: One failed/cancelled edit preserves the byte-exact prior effective snapshot.}
+  - {id: R2, text: Edit algorithms depend only on WorkspaceReader/Writer and never inspect concrete fsspec classes.}
+  - {id: R3, text: Direct mutation affects only the disposable allocation copy; overlay mutation affects only its upper.}
+
+acceptance_criteria:
+  - {id: A1, given: Equivalent backends and newline fixtures, when: The complete edit matrix runs, then: Effective results match byte-for-byte.}
+  - {id: A2, given: Multiple/no matches, bad ranges, quota/type/path conflicts and injected cancellation, when: An edit runs, then: It returns a stable error and leaves prior state intact.}
+  - {id: A3, given: Exact AgentTemplate subsets, when: Runtime constructs tools, then: Only selected names exist and static/runtime descriptors match.}
+
+tests:
+  - {name: edit-tools, command: "cd runtime && uv run pytest tests/test_edit_files_toolset.py tests/test_projectfs_edit_parity.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

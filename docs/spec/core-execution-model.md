@@ -16,6 +16,7 @@ The current working agreement is split across the documents indexed in
 - [Shared MemoryTools](08-memory-tools.md).
 - [Agent Skills](09-agent-skills.md).
 - [Runtime filesystems and Edit tools](10-runtime-filesystems-and-edit-tools.md).
+- [HTTP and Caido tools](11-http-and-caido-tools.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

@@ -42,7 +42,8 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [07](07-runtime-labels-and-infrastructure-config.md) | Run/Agent labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
 | [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
 | [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
-| [10](10-runtime-filesystems-and-edit-tools.md) | Runtime-local rooted/memory/overlay filesystems and backend-independent Edit tools |
+| [10](10-runtime-filesystems-and-edit-tools.md) | Run-artifact workspaces, Runtime local/memory storage, overlay export and filesystem/Edit tools |
+| [11](11-http-and-caido-tools.md) | Allocation-scoped HTTP exploration and label-configured Caido GraphQL tools |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -91,7 +92,8 @@ The boundaries are deliberately narrow:
 | Agent Skill | Owner UserScope guidance artifact selected by AgentTemplate and pinned/forked per Run |
 | SkillCatalog | Internal validator/resolver over ordinary Skill artifacts; no separate API or storage |
 | MemoryTools | Thin Planner/Worker wrapper over reserved RunScope note artifacts; hidden CAS and logical note projection |
-| WorkspaceFS | Runtime-local, allocation-scoped project view over operator-configured rooted/memory/overlay mounts |
+| WorkspaceFS | Allocation-scoped Run artifact workspace with Runtime-local local/memory storage and optional overlay export |
+| HTTP/Caido tools | Explicit Worker tools over allocation-owned direct/proxied HTTP and typed label-configured Caido clients |
 | UserScope | Authenticated user's durable artifact library |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 

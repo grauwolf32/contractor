@@ -393,12 +393,15 @@ telemetry when selected on a Run.
 
 Project filesystem configuration remains entirely Runtime-local under
 [10](10-runtime-filesystems-and-edit-tools.md). A label cannot supply a host
-path, add a mount, change `local`/`memory`/`overlay` mode, enable host write or
-materialize changes. Runtime advertises only ordinary filesystem Toolset/tool
-subsets after probing its immutable startup configuration; no filesystem
-setting is inferred from a label. The existing `local-workdir@1`
-SandboxProfile continues to own allocation scratch rather than the mounted
-project view.
+path, source artifact, workspace mode or storage override. Runtime advertises
+its immutable local/memory workspace capability; Workflow selects direct or
+overlay semantics and Scheduler pins exact Run artifacts. The existing
+`local-workdir@1` SandboxProfile continues to own general allocation scratch.
+
+Caido is different: its GraphQL endpoint and credential are infrastructure and
+therefore belong to one atomic `spec.worker.caido` RuntimeConfig field under
+[11](11-http-and-caido-tools.md). A label can retarget that client, but cannot
+make `caido@1` model-visible when AgentTemplate omitted it.
 
 ## Run labels and pinning
 

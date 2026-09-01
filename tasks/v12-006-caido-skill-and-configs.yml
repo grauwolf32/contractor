@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V12-006
+title: Connect migrated Caido Skill and explicit AgentTemplates
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-003, V12-005]
+languages: [yaml, markdown, go]
+
+goal: >-
+  Publish reviewable HTTP and Caido AgentTemplates/instructions plus an example
+  Workflow/RuntimeConfig so the already migrated configs/skills/caido package
+  is assigned only where all referenced tools are explicitly selected.
+
+context:
+  boundary: >-
+    Skill guidance adds no tools. AgentTemplate lists the exact HTTP/Caido tool
+    subset and the caido Skill ArtifactRef. Operators publish/bind the
+    RuntimeConfig and credential separately; Workflow may recommend a Run label
+    in documentation but cannot embed infrastructure endpoints or tokens.
+
+scope:
+  in:
+    - Audit and update Caido SKILL.md tool names/limits to the new exact contracts.
+    - Add HTTP explorer and Caido analyst AgentTemplates with minimal explicit tool subsets.
+    - Add instructions and an opt-in security-analysis Workflow using string parameters/artifacts only.
+    - Add non-secret example RuntimeConfig and credential setup documentation.
+    - Extend config/Skill bootstrap tests for required tool dependency and no run_skill_script.
+  out:
+    - Secret example values, automatic label assignment, live Caido dependency or UI editor changes.
+
+requirements:
+  - {id: R1, text: Every tool named by the Skill exists in its assigned AgentTemplate allowlist.}
+  - {id: R2, text: No endpoint/token/proxy setting appears in Workflow, AgentTemplate, instructions or Skill content.}
+  - {id: R3, text: Existing Skill bootstrap remains create-only and owner updates continue through ordinary artifacts.}
+
+acceptance_criteria:
+  - {id: A1, given: Fresh config/Skill initialization, when: Server publishes configs, then: New templates/workflow resolve and exact Skill artifact is pinned per Run.}
+  - {id: A2, given: Missing selected Caido tool or malformed Skill reference, when: Validation runs, then: It fails before Run creation.}
+  - {id: A3, given: Repository config/Skill scan, when: Secret/infrastructure patterns are searched, then: Only documented placeholders exist.}
+
+tests:
+  - {name: configs, command: "go test ./internal/config ./internal/skillcatalog", covers: [A1, A2, A3]}
+  - {name: skill-runtime, command: "cd runtime && uv run pytest tests/test_agent_skills_runtime.py", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

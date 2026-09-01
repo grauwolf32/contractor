@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V11-005
+title: Securely hydrate exact ZIP sources into isolated workspaces
+milestone: run-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-003, V11-004]
+languages: [python]
+
+goal: >-
+  Download every exact AllocationSpec workspace source through the existing
+  Artifact API and create one bounded private local or fsspec-memory tree before
+  Worker readiness.
+
+context:
+  archive_rules: >-
+    Only application/zip is accepted. Preserve structure below non-overlapping
+    targets. Reject traversal, backslash, NUL/control, duplicate normalized
+    paths, links/special files, type conflicts, bombs and configured bounds.
+    Local keeps binaries; memory skips non-UTF8/NUL files.
+
+scope:
+  in:
+    - Implement normalized relative path and glob primitives shared by all later tools.
+    - Add narrow WorkspaceReader/WorkspaceWriter DTO/protocols with deterministic sorted snapshots.
+    - Add streaming bounded ZIP validator/extractor using exact ArtifactClient reads.
+    - Implement disposable rooted-local and allocation-isolated fsspec memory backends.
+    - Track managed UTF-8-no-NUL projection, binary classification and canonical workspace digest.
+    - Integrate partial-prepare cleanup and stable retryable/nonretryable allocation errors.
+  out:
+    - Overlay state import/export, model-visible tools or subprocess execution.
+
+requirements:
+  - {id: R1, text: No archive entry can escape or overwrite another normalized source target.}
+  - {id: R2, text: A failed hydration leaves no ready Worker and no reusable partial local/memory state.}
+  - {id: R3, text: Equal exact inputs produce equal managed-text digests across local and memory despite memory skipping binaries.}
+
+acceptance_criteria:
+  - {id: A1, given: Safe multi-source archives with text, binary and empty directories, when: Both storage providers hydrate, then: Text views/digest match and only local retains binary bytes.}
+  - {id: A2, given: Traversal/link/duplicate/bomb/race/exact-limit archives, when: Hydration runs, then: It fails closed with no outside or partial state.}
+  - {id: A3, given: Two sequential or simultaneous allocations, when: One mutates its private tree, then: The other and a later allocation retain the exact initial input.}
+
+tests:
+  - {name: hydration, command: "cd runtime && uv run pytest tests/test_projectfs_paths.py tests/test_projectfs_zip.py tests/test_projectfs_storage.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

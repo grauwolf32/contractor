@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V12-005
+title: Port bounded Caido mutation and execution tools
+milestone: http-caido-tools-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V12-004]
+languages: [go, python]
+
+goal: >-
+  Complete caido@1 with explicit scope create, replay, Automate start and
+  workflow execution tools, preserving useful old orchestration while bounding
+  side effects, polling and prompt data.
+
+context:
+  authority: >-
+    Each exact mutation tool must be selected by AgentTemplate. A label only
+    supplies the client. Calls use static GraphQL mutations and opaque
+    allocation-derived request tags; Scheduler/Planner do not infer or grant
+    mutation authority.
+
+scope:
+  in:
+    - Implement caido_scope create with bounded allow/deny terms.
+    - Implement replay from stored ID or bounded raw request, safe header tag injection and deadline-capped polling.
+    - Implement Automate session/config/start with byte-correct placeholder offsets and bounded targets/payloads/workers/delay.
+    - Implement convert/active workflow run with strict kind/input and bounded output artifacts.
+    - Validate all mutation responses before returning IDs/status and classify response-loss/timeouts safely.
+    - Add cancellation and repeated-call tests without claiming global idempotency from Caido.
+  out:
+    - Automatic retries of mutations, arbitrary GraphQL, PAT exchange or finding import into Contractor entities.
+
+requirements:
+  - {id: R1, text: Mutation transport is never automatically retried after an ambiguous send.}
+  - {id: R2, text: Placeholder indices are UTF-8 byte offsets in the exact raw request sent to Caido.}
+  - {id: R3, text: Poll loops are bounded by both per-tool ceiling and active allocation/invocation cancellation.}
+
+acceptance_criteria:
+  - {id: A1, given: Valid fake Caido mutations, when: Each tool runs, then: Exact ordered operations/variables and safe status/IDs are returned.}
+  - {id: A2, given: Multibyte raw request, max payload matrix and tag injection, when: Automate/replay runs, then: Offsets/tag/raw bytes match the submitted Blob.}
+  - {id: A3, given: Cancellation, timeout, response loss or domain error, when: Mutation runs, then: It stops boundedly and never falsely claims completion or retries ambiguously.}
+
+tests:
+  - {name: caido-actions, command: "cd runtime && uv run pytest tests/test_caido_action_tools.py", covers: [A1, A2, A3]}
+  - {name: descriptors, command: "go test ./internal/config", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

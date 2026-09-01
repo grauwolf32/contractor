@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V12-008
+title: Harden HTTP and Caido limits redaction and teardown
+milestone: http-caido-tools-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V12-007]
+languages: [go, python]
+
+goal: >-
+  Close the HTTP/Caido increment against URL/header injection, redirect and
+  proxy bypass, response bombs, GraphQL schema abuse, concurrent sessions,
+  cancellation and retained-secret regressions.
+
+context:
+  reference: >-
+    Port useful contractor-old HTTP lifecycle and Caido integration assertions,
+    but reject its unbounded raw returns, secret-bearing session artifacts,
+    verify=false default, arbitrary infrastructure settings and broad exception
+    echoing.
+
+scope:
+  in:
+    - Add exact-bound/property tests for URLs, headers, redirects, retries, bodies, filters, payloads, GraphQL depth/items and polling.
+    - Test DNS/redirect/private-origin and mandatory-proxy failure behavior without claiming a full network sandbox.
+    - Run concurrent session/request/body reads and cancellation at send/read/artifact-write/close boundaries.
+    - Fault every adapter/tool prepare/finalize/release path and prove slot fencing/cleanup.
+    - Scan decoded DB rows, artifacts, events, reports, logs, repr and UI/public payloads for credentials/raw canaries.
+    - Document explicit egress and Caido version-compatibility limits.
+  out:
+    - New tools, network namespace, token refresh, arbitrary GraphQL or UI.
+
+requirements:
+  - {id: R1, text: No failure path falls back from configured proxy or reuses a detached Caido/HTTP client.}
+  - {id: R2, text: Cancellation cannot reuse request IDs, corrupt body mappings or retain session auth in a reusable slot.}
+  - {id: R3, text: Every response/input loop has an executable count/byte/time bound.}
+
+acceptance_criteria:
+  - {id: A1, given: Adversarial URL/header/redirect/proxy and GraphQL fixtures, when: Repeated suites run, then: No bypass, injection, unbounded allocation or arbitrary operation occurs.}
+  - {id: A2, given: Concurrent/cancelled/faulted lifecycle schedules, when: Runtime recovers, then: IDs/artifacts/state remain consistent and slots either cleanly reuse or stay safely fenced.}
+  - {id: A3, given: Full release verification and canary scan, when: Gate completes, then: All tests/spec/architecture pass and no forbidden content is retained.}
+
+tests:
+  - {name: hardening, command: "cd runtime && uv run pytest tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py", covers: [A1, A2, A3]}
+  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec/architecture.c4", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
