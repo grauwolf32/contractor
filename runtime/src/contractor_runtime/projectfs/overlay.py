@@ -120,12 +120,19 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             if self._tree.kind(normalized) is None:
                 raise WorkspaceStorageError("workspace_not_found")
             descendants = _descendants(self._tree, normalized)
+            selected = descendants | {normalized}
+            if any(candidate in self._tree.binary_paths for candidate in selected):
+                raise WorkspaceStorageError("binary_file_unsupported")
             if descendants and not recursive:
                 raise WorkspaceStorageError("workspace_type_conflict")
             candidate = self._tree.clone()
             _remove_subtree(candidate, normalized)
             _validate_tree(candidate, self._limits)
             self._tree = candidate
+
+    def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
+        _validate_tree(candidate, self._limits)
+        self._tree = candidate
 
     async def import_state(self, payload: bytes) -> None:
         async with self._lock:

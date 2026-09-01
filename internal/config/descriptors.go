@@ -43,6 +43,11 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"edit-files@1": {
+				Tools: []string{
+					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
+				},
+			},
 			"filesystem@1": {
 				Tools: []string{"glob", "grep", "ls", "read_file"},
 			},

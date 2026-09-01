@@ -126,6 +126,24 @@ func TestFilesystemToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestEditFilesToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["edit-files@1"]
+	if !ok {
+		t.Fatal("edit-files@1 descriptor is missing")
+	}
+	want := []string{
+		"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("edit-files@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf("edit-files@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
+	}
+}
+
 func TestMemoryToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 

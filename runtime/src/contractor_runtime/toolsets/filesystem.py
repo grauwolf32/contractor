@@ -62,6 +62,7 @@ class FilesystemToolsetFactory:
     exported_tools = frozenset({"ls", "glob", "read_file", "grep"})
     infrastructure_channels = MappingProxyType({})
     requires_workspace = True
+    workspace_access = "read"
 
     async def probe(self) -> frozenset[str]:
         return self.exported_tools

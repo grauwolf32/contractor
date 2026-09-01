@@ -705,9 +705,7 @@ class AllocationService:
                 workspace=workspace,
                 state=worker_state,
                 adapter_handles=adapter_handles.for_tool_channels(channels),
-                project_workspace=(
-                    project_workspace.reader_view() if project_workspace is not None else None
-                ),
+                project_workspace=self._workspace_tool_view(factory, project_workspace),
             )
             if set(created) != set(selection.tools):
                 raise AllocationError(
@@ -733,6 +731,24 @@ class AllocationService:
                 )
             result.update(created)
         return result
+
+    @staticmethod
+    def _workspace_tool_view(factory: Any, workspace: DirectWorkspaceSession | None) -> Any | None:
+        if workspace is None:
+            return None
+        access = getattr(factory, "workspace_access", None)
+        if access == "read":
+            return workspace.reader_view()
+        if access == "write":
+            return workspace.writer_view()
+        if access is not None:
+            raise AllocationError(
+                "invalid_toolset_factory",
+                "Toolset declares an invalid project workspace access mode",
+                retryable=False,
+                status_code=422,
+            )
+        return None
 
     async def _terminate(
         self,

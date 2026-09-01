@@ -28,6 +28,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
     WorkspaceTextFile,
     WorkspaceWriter,
+    WorkspaceWriterView,
 )
 
 __all__ = [
@@ -50,6 +51,7 @@ __all__ = [
     "WorkspaceStorageError",
     "WorkspaceTextFile",
     "WorkspaceWriter",
+    "WorkspaceWriterView",
     "build_workspace_provider",
     "canonical_overlay_operations",
     "decode_workspace_state",
