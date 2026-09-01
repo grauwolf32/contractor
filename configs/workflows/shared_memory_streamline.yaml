@@ -1,0 +1,65 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: shared-memory-streamline
+  version: "1"
+
+spec:
+  parameters: {}
+  inputs: {}
+  outputs: {}
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+    workers:
+      llmGateway: local-litellm@1
+
+  entryStage: coordinate
+  stages:
+    coordinate:
+      objective: Coordinate a shared note through one retry and a later Stage
+      instructions:
+        ref: instructions/shared-memory-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: shared_memory_worker@1
+          namespace: shared
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          next: confirm
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          fail: {}
+
+    confirm:
+      objective: Confirm the same Run shared note in a later Stage
+      instructions:
+        ref: instructions/shared-memory-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: shared_memory_worker@1
+          namespace: shared
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

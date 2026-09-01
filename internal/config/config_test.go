@@ -18,7 +18,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 7, AgentTemplates: 6, ModelPolicies: 6, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 13,
+		Workflows: 9, AgentTemplates: 8, ModelPolicies: 6, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 16,
 	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
@@ -224,7 +224,7 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))
 			writeFile(t, filepath.Join(root, "workflows", name), example)
 			snapshot := mustLoad(t, root, MVPDescriptors())
-			if snapshot.Counts().Workflows != 8 {
+			if snapshot.Counts().Workflows != 10 {
 				t.Fatalf("example Workflow count = %d", snapshot.Counts().Workflows)
 			}
 		})

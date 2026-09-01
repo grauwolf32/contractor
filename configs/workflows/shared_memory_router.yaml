@@ -1,0 +1,44 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: shared-memory-router
+  version: "1"
+
+spec:
+  parameters: {}
+  inputs: {}
+  outputs: {}
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+    workers:
+      llmGateway: local-litellm@1
+
+  entryStage: route
+  stages:
+    route:
+      objective: Route isolated shared notes through two logical Workers
+      instructions:
+        ref: instructions/shared-memory-planner.md
+      planner: router@1
+      agents:
+        builder:
+          template: shared_memory_worker@1
+          namespace: builder_notes
+        reviewer:
+          template: shared_memory_reviewer@1
+          namespace: reviewer_notes
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

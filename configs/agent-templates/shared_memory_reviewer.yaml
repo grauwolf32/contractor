@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: shared_memory_reviewer
+  version: "1"
+
+spec:
+  description: Reviews one isolated Run-scoped note without mutation-by-append
+  runtime: adk@1
+  instructions:
+    ref: instructions/shared-memory-reviewer.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - read_memory
+        - write_memory
+  sandboxProfile: local-workdir@1
