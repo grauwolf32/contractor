@@ -240,14 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-008
-  next_task: V8-009
+  completed_through: V8-009
+  next_task: V8-010
   summary: >-
-    The public Operations API now publishes and reads immutable RuntimeConfigs,
-    performs durable idempotent CAS mutation of label bindings, and manages
-    write-only encrypted Runtime credentials through a closed OpenAPI contract
-    and safe generated UI client. Next, expose durable Runtime Agent principals
-    and authoritative label-set replacement.
+    The public Operations API now joins durable certificate principals to
+    process-local observations, atomically replaces authoritative Agent label
+    sets, reports adapter mismatch separately from liveness/capacity, and
+    safely advances live placement snapshots without changing active pinned
+    allocations. Next, add the allocation-scoped Runtime adapter lifecycle host.
 
 current_planning_review:
   reviewed_on: "2026-08-31"

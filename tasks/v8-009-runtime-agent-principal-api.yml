@@ -3,8 +3,8 @@ id: V8-009
 title: Expose durable Runtime Agent principals and label assignment
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: a3c05dbd1edf248a29f7bb89daefeaa7a01f1245
 depends_on: [V8-004, V8-007, V8-008]
 languages: [go, yaml, typescript]
 
