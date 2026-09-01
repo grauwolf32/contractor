@@ -3,8 +3,8 @@ id: V8-012
 title: Route selected allocation traffic through http-proxy@1
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 7a2eab8a94da6107bd73c1a25aa4ded6b1e4e467
 depends_on: [V8-007, V8-010]
 languages: [go, python, yaml]
 

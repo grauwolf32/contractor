@@ -240,14 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-011
-  next_task: V8-012
+  completed_through: V8-012
+  next_task: V8-013
   summary: >-
-    Runtime now exports allocation-owned, content-free OTLP/HTTP protobuf spans
-    for Worker model, tool, A2A and error activity through a bounded in-memory
-    queue. Exporter failures and timeouts remain metrics-only, while close still
-    enforces secret erasure before slot reuse. Next, implement the concrete
-    target-scoped HTTP proxy adapter.
+    Runtime now routes only explicitly selected model, tool HTTP and subprocess
+    channels through allocation-owned fail-closed proxy handles. Private
+    traffic and process globals remain untouched; auth, augmented CA material
+    and clients are bounded and erased before slot reuse. Next, prove the full
+    label-driven configuration path across real Server and Runtime processes.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
