@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V9-005
+title: Harden Memory semantics and model-visible boundaries
+milestone: shared-memory-tools
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V9-004]
+languages: [go, python]
+
+goal: >-
+  Close the deterministic codec, ordering, ADK argument and Artifact visibility
+  gaps found in the V9 implementation review before adding transport and
+  lifecycle fault injection.
+
+context:
+  semantic_boundary: >-
+    One logical note remains one canonical memory.<name> artifact. The model
+    sees only logical notes and the closed memory_* error table. Internal
+    ArtifactRef/revision state is neither a tool argument/result nor a valid
+    shortcut for returning a note as a Stage result.
+  visibility_boundary: >-
+    The memory. prefix is reserved only for bindings in non-reserved RunScope
+    Namespaces. Every model-visible artifact-backed Toolset must enforce the
+    same predicate before low-level Artifact access and while projecting known
+    exact refs. The domain-neutral ArtifactClient and owner/operator APIs do
+    not change.
+
+scope:
+  in:
+    - Validate namespace-wide ordinal sets as exactly 0..count-1 for list/search/tag/create paths; preserve independently valid targeted reads and existing-note mutations without forcing 128 HTTP reads on every call.
+    - Implement total order updated_at DESC, ordinal DESC, name ASC in Go and Python, and normalize every model-visible timestamp to RFC 3339 UTC-Z.
+    - Validate append fragments only for non-empty UTF-8 before combining them; decide the 32-KiB limit from the real final note for short and maximum-length names.
+    - Reject an exact Artifact GET whose response ETag differs from the requested revision.
+    - Validate raw Worker ADK Memory arguments before generic FunctionTool binding so missing, extra and wrong-typed fields become memory_invalid without a side effect or framework error text.
+    - Normalize Go and Python Memory errors to the exact code/retryability table even when an internal exception exposes arbitrary code or retryable attributes.
+    - Apply one shared non-reserved memory-binding predicate to run-artifacts, text-artifacts, source-analysis, OpenAPI and LikeC4 source/target access plus every known-exact-ref projection.
+    - Reject a reserved Memory binding in Workflow StageContext resolution and as a Runtime Worker, Planner or Scheduler StageResult candidate; promotion requires a distinct ordinary artifact.
+    - Preserve allowed note-name/count/size diagnostics in Worker and Planner reports while dropping content, description, tag values and hidden revisions.
+  out:
+    - Network response-loss injection, PostgreSQL terminal races, full retained-surface scans, new endpoints/tables, cross-Run memory, delete/eviction or concurrent different-name creates.
+
+deliverables:
+  - {path: internal/memory, description: Ordinal integrity total order UTC and closed error helpers.}
+  - {path: internal/config, description: Reserved Memory StageContext declaration rejection without blocking purpose-reserved Namespace artifacts.}
+  - {path: internal/planner, description: Reserved Memory StageResult rejection and Planner boundary regressions.}
+  - {path: internal/scheduler, description: Defense-in-depth candidate rejection at the workflow transition owner.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Memory-aware raw-argument invocation without widening advertised schemas.}
+  - {path: runtime/src/contractor_runtime/toolsets, description: Shared memory-binding visibility policy across every Artifact-backed model Toolset.}
+  - {path: runtime/tests, description: Cross-Toolset bypass malformed-argument ordering boundary and telemetry regressions.}
+
+requirements:
+  - id: R1
+    text: Validation never adds a model-visible storage field, new Memory error code or low-level Artifact authorization mode.
+  - id: R2
+    text: Purpose-reserved inputs/outputs/skills Namespace artifacts retain their own policy; the memory prefix predicate does not misclassify them as notes.
+  - id: R3
+    text: Generic and domain Toolsets reject a reserved Memory binding before Artifact client state, workspace state or a target binding changes.
+  - id: R4
+    text: Worker raw-argument validation counts as one ordinary tool call and records only the same safe dimensions as a semantic Memory failure.
+
+acceptance_criteria:
+  - id: A1
+    given: Equal timestamps, duplicate/gapped ordinals, boundary-sized appends and non-UTC storage metadata.
+    when: Go and Python Memory operations project the Namespace.
+    then: Valid results have one identical total order and UTC-Z timestamps, while impossible global views fail memory_unavailable and the real final payload alone controls memory_too_large.
+  - id: A2
+    given: Missing, extra and wrong-typed Worker or Planner arguments plus arbitrary internal error attributes.
+    when: ADK dispatches the Memory call.
+    then: No Artifact side effect occurs and the model receives only the exact stable code and retryability prescribed by the Memory table.
+  - id: A3
+    given: Every Artifact-backed model Toolset, a Workflow StageContext and each Worker/Planner/Scheduler result boundary.
+    when: It addresses a reserved memory binding by current/exact ref, source name, target name, alias, encoded value or accumulated client provenance.
+    then: The binding is neither reached nor returned, while trusted MemoryTools and purpose-reserved Namespace behavior remain usable.
+  - id: A4
+    given: Unique content, description and tag canaries plus allowed names and sizes.
+    when: Focused Worker and Planner reports are serialized.
+    then: Canaries and revisions are absent and the safe diagnostic dimensions remain exact and useful.
+
+tests:
+  - {name: go-contract, command: "go test ./internal/memory/... ./internal/planner/... ./internal/scheduler/...", covers: [A1, A2, A3, A4]}
+  - {name: python-contract, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_memory.py tests/test_memory_toolset.py tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py tests/test_source_analysis_toolset.py tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_adk_runtime.py", covers: [A1, A2, A3, A4]}
+  - {name: parity, command: "make test-memory-contracts", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

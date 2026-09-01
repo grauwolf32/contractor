@@ -107,13 +107,14 @@ operations. A domain tool may still use the allocation-bound private Artifact
 client internally as part of its registered implementation.
 
 The `memory.` artifact-name prefix in non-reserved RunScope Namespaces is
-reserved at the model-visible Toolset layer. `run-artifacts@1` rejects those
-refs and filters them from its lists, even when the same AgentTemplate selects
-both Toolsets. The lower-level private Artifact API stays domain-neutral, so
-the trusted MemoryTools implementation uses it without another endpoint or
-grant kind. [08](08-memory-tools.md) owns the mapping, bounds, hidden CAS and
-response-loss reconciliation. Authenticated Run-owner/operator inspection may
-still observe the underlying Artifact metadata and revisions.
+reserved at the model-visible Toolset layer. `run-artifacts@1` and every other
+artifact-backed model Toolset reject those refs and filter them from lists and
+exact-ref projections, even when the same AgentTemplate selects MemoryTools.
+The lower-level private Artifact API stays domain-neutral, so the trusted
+MemoryTools implementation uses it without another endpoint or grant kind.
+[08](08-memory-tools.md) owns the mapping, bounds, hidden CAS and response-loss
+reconciliation. Authenticated Run-owner/operator inspection may still observe
+the underlying Artifact metadata and revisions.
 
 The reserved `skills` Namespace follows the same model/tool separation at
 Namespace granularity. The trusted Runtime loader may read exact package refs
@@ -559,8 +560,9 @@ version.
 17. Every present StageContext artifact is pinned to an exact retained revision
     before allocation; missing optional bindings are recorded as absent, while
     a missing required binding prevents Planner creation.
-18. RunScope names beginning `memory.` are purpose-specific MemoryTools
-    bindings: `run-artifacts@1` cannot list, read or mutate them, while the
+18. RunScope names beginning `memory.` in non-reserved Namespaces are
+    purpose-specific MemoryTools bindings: no artifact-backed model Toolset,
+    StageContext declaration or StageResult can expose them, while the
     lower-level private client, their bytes and immutable revisions remain
     ordinary ArtifactStore behavior.
 19. RunScope `skills` bindings are Scheduler-created exact forks from the Run

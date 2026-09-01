@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V9-007
+title: Gate Memory redaction isolation and release readiness
+milestone: shared-memory-tools
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V9-006]
+languages: [go, python, yaml]
+
+goal: >-
+  Turn the functional and fault-tested Memory increment into a finite release
+  gate that proves retained-data safety, Run isolation, schema minimality and
+  Runtime slot reuse.
+
+context:
+  leak_boundary: >-
+    Content, description and tags are intentional model conversation data and
+    canonical Artifact blob bytes, but never diagnostic state. Scans therefore
+    include PostgreSQL reports/sessions/events and every non-payload Artifact
+    column, HTTP errors, bounded process logs and OTLP; artifact_blobs.payload
+    is the explicit intended exception.
+  release_boundary: >-
+    The gate composes the V9 process MVP, semantic contract and fault matrix.
+    It remains deterministic and uses a local scripted OpenAI-compatible fake,
+    not LM Studio, Langfuse, Caido, cloud services or internet access.
+
+scope:
+  in:
+    - Inject unique content, description and tag canaries and scan exact, JSON-escaped and URL-encoded forms across durable diagnostics, Planner facts/events, Worker reports, HTTP failures, Server/Runtime logs and decoded OTLP payloads.
+    - Inspect every Artifact metadata/non-payload column while excluding only the canonical note bytes intentionally stored in artifact_blobs.payload.
+    - Prove a second WorkflowRun starts empty, a foreign owner cannot inspect the Run, and authenticated owner/operator Artifact inspection remains ordinary authorized behavior.
+    - Assert migration/schema, route, OpenAPI and credential inventories contain no Memory-only table, replay record, endpoint, token or credential.
+    - Maintain an executable YAML coverage matrix that maps each V9 invariant and fault boundary to an owning test and fails when a named test disappears.
+    - Run a subsequent clean Workflow through both Runtime slots after terminal fault and cancellation paths and require complete release/slot reuse.
+    - Add the complete Memory gate to release-verify while keeping database-independent make verify free of PostgreSQL requirements.
+  out:
+    - UI note browsing/editing, production external model quality, performance benchmarks, cross-Run retrieval, delete/eviction or vector search.
+
+deliverables:
+  - {path: tests/e2e/shared_memory_matrix.yml, description: Executable complete V9 boundary-to-test inventory.}
+  - {path: tests/e2e, description: Retained-surface isolation and post-fault slot-reuse process assertions.}
+  - {path: docs/development.md, description: Serialized v1 support boundary intended Artifact payload exception and release commands.}
+  - {path: Makefile, description: Shared-memory hardening and release-verify composition.}
+
+requirements:
+  - id: R1
+    text: Redaction scans use unique canaries and fail on exact, JSON-escaped and URL-encoded retention outside the single documented Artifact blob payload exception.
+  - id: R2
+    text: The matrix references real production-boundary tests and its validator fails on an absent, renamed or duplicate owner.
+  - id: R3
+    text: Missing telemetry or a collector failure cannot change Stage outcome or prevent allocation cleanup.
+  - id: R4
+    text: make verify remains database-independent; release-verify requires and exercises PostgreSQL explicitly.
+
+acceptance_criteria:
+  - id: A1
+    given: Unique note canaries and completed Streamline and Router Runs.
+    when: All retained diagnostic and external telemetry surfaces are scanned.
+    then: Content, description and tags are absent while note name, sizes, operation, logical Worker, outcome and duration remain useful.
+  - id: A2
+    given: Underlying storage and API inventories.
+    when: The gate inspects schema, routes, credentials and authorized owner views.
+    then: Only ordinary Artifact storage/authority exists and no Memory-specific service or secret was introduced.
+  - id: A3
+    given: A new Run, another owner and the original authenticated owner.
+    when: Each attempts to observe prior notes.
+    then: Run isolation and owner authorization hold while legitimate owner diagnostics can inspect the intended Artifact data.
+  - id: A4
+    given: Completed fault, abort and cancellation cases.
+    when: A clean reuse Run is submitted and release-verify completes.
+    then: Both Runtime slots accept work, reports are complete and no allocation or adapter state remains stuck.
+
+tests:
+  - {name: matrix, command: "go test -count=1 ./tests/e2e -run '^TestSharedMemoryHardeningMatrixIsComplete$'", covers: [A1, A2, A3, A4]}
+  - {name: hardening, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-hardening", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make release-verify", covers: [A1, A2, A3, A4]}

@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V9-006
+title: Prove Memory response-loss CAS and terminal fencing
+milestone: shared-memory-tools
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V8-016, V9-005]
+languages: [go, python]
+
+goal: >-
+  Exercise every ambiguous mutation and terminal race at the production
+  Artifact/grant/PostgreSQL boundaries and prove one complete old-or-new note
+  with no late commit.
+
+context:
+  concurrency_boundary: >-
+    v1 guarantees one active Planner tool call, one active Worker dispatch, no
+    concurrent Tasks in an allocation and no concurrent StageExecutions in a
+    Run. Same-binding external CAS interference is supported. Concurrent
+    different-name creates remain outside the contract until ArtifactStore has
+    a generic atomic multi-binding primitive.
+  terminal_barrier: >-
+    Worker writes hold the allocation grant gate. Planner writes lock Run then
+    Stage inside their Artifact transaction. Scheduler fences all grants before
+    taking the same Run-then-Stage terminal transition order.
+
+scope:
+  in:
+    - Inject response loss before and after private Artifact PUT commit for create, replacement and append; replay only identical bytes with the identical precondition.
+    - Inject Planner Store commit ambiguity before/after commit and assert the same canonical reconciliation without a Memory replay table.
+    - Advance one same-name binding between read and write and after an ambiguous commit; return memory_changed without overwrite or semantic merge.
+    - Race a real private-API Worker mutation against SetWriteFence and a PostgreSQL Planner mutation against both production finalizing and aborting entry in both winner orders.
+    - Assert the Scheduler always fences recorded allocations before its durable transition and all competing transactions use the global Run-then-Stage database lock order.
+    - Use finite deterministic hooks local to tests; do not add public fault endpoints or replace production Artifact, grant, Scheduler or PostgreSQL code.
+  out:
+    - Retained-surface leak scans, load benchmarks, parallel different-name creation, distributed Control Plane failover or Memory-specific persistence.
+
+deliverables:
+  - {path: internal/memory, description: PostgreSQL commit ambiguity and terminal-transition integration tests.}
+  - {path: internal/httpapi/privateartifacts, description: Allocation grant/fence race exercised through the real private Artifact handler.}
+  - {path: internal/scheduler, description: Ordered terminal barrier and abort lock-order regression coverage.}
+  - {path: runtime/tests, description: Exact Worker transport response-loss and CAS fault matrix.}
+  - {path: Makefile, description: Database-backed shared-memory fault target.}
+
+requirements:
+  - id: R1
+    text: Every injected fault has a finite deadline and leaves one valid canonical current binding or no binding when the mutation lost before commit.
+  - id: R2
+    text: A retry never changes expected_revision and append never recomputes from a newly read body.
+  - id: R3
+    text: Tests use production Artifact grant/fence and PostgreSQL transition code, not a Memory-specific transaction fake.
+  - id: R4
+    text: One failed or ambiguous Memory mutation cannot block unrelated Run scheduling or allocation release.
+
+acceptance_criteria:
+  - id: A1
+    given: Lost responses at every create, replacement and append commit boundary.
+    when: Worker or Planner reconciliation runs.
+    then: Each logical mutation occurs at most once, exact intended bytes mean success and a newer differing value means memory_changed.
+  - id: A2
+    given: A stale same-binding writer.
+    when: Its CAS loses before or after another complete revision.
+    then: It never overwrites or merges the winner and exposes no hidden revision.
+  - id: A3
+    given: Worker and Planner writes paused at their linearization boundaries.
+    when: Scheduler enters finalizing or aborting in either winner order.
+    then: A complete write precedes the durable transition or fails memory_forbidden, with no revision committed afterward and no deadlock.
+  - id: A4
+    given: A completed fault case.
+    when: Scheduler polls again and both Runtime slots are inspected.
+    then: Cleanup remains bounded, unrelated Runs can claim work and no allocation stays live because of the injected failure.
+
+tests:
+  - {name: fault-matrix, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-faults", covers: [A1, A2, A3, A4]}
+  - {name: go-race, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -race ./internal/memory/... ./internal/httpapi/privateartifacts/... ./internal/scheduler/...", covers: [A1, A2, A3, A4]}
+  - {name: python-response-loss, command: "cd runtime && uv run pytest tests/test_memory_toolset.py -k 'response_loss or changed or serialized'", covers: [A1, A2]}
+  - {name: aggregate, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-faults", covers: [A1, A2, A3, A4]}

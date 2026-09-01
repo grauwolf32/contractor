@@ -31,8 +31,8 @@ scope:
     - Add a bounded test Workflow that reuses one Agent Namespace in a later Stage to prove intentional same-Run continuation.
     - Script valid ADK Planner/Worker tool calls through the existing fake Gateway and real A2A/private Artifact transports.
     - Assert Run retry or configured escalation retains the same namespace notes while a second Run starts empty.
-    - Inspect underlying Run artifacts to prove one note per memory.<name>, immutable revisions and Server timestamp metadata while every model-visible result omits refs/revisions.
-    - Add the deterministic process scenario to the standard non-live-model verification target.
+    - Inspect underlying Run artifacts to prove one note per memory.<name>, immutable revisions and Server timestamp metadata while every Memory tool argument/result omits its internal ArtifactRef and revision.
+    - Add the deterministic process scenario to release-verify; keep the database-independent make verify target free of an implicit PostgreSQL requirement.
   out:
     - Browser note editor, user-scoped memory, real external model quality, parallel Stage execution, delete/eviction, links or semantic search.
 
@@ -67,9 +67,9 @@ acceptance_criteria:
   - id: A4
     given: Both workflows finish and allocations release.
     when: PostgreSQL artifacts, reports, Planner events and fake-Gateway transcripts are inspected.
-    then: Note artifacts/revisions are correct, model outputs contain no refs/revisions and retained telemetry contains no content/description/tags.
+    then: Note artifacts/revisions are correct, Memory tool transcripts contain no internal note refs/revisions, and retained telemetry contains no content/description/tags; ordinary Stage input/result ArtifactRefs remain allowed by their existing contract.
 
 tests:
   - {name: process-e2e, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-shared-memory-e2e", covers: [A1, A2, A3, A4]}
   - {name: config, command: "go test ./internal/config/... ./internal/workflow/...", covers: [A2, A3]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make release-verify", covers: [A1, A2, A3, A4]}

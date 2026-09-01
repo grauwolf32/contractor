@@ -84,6 +84,7 @@ acceptance_criteria:
 
 tests:
   - {name: go-memory-codec, command: "go test ./internal/memory/... ./internal/artifacts/... ./internal/httpapi/privateartifacts/...", covers: [A1, A2, A3, A4]}
+  - {name: postgres-metadata, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -count=1 ./internal/artifacts/... ./internal/httpapi/privateartifacts/...", covers: [A1, A4]}
   - {name: python-memory-codec, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_memory.py", covers: [A1, A2, A3, A4]}
   - {name: parity, command: "make test-memory-contracts", covers: [A2, A3]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A2, A3, A4]}
